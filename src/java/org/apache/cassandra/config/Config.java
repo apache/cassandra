@@ -1173,11 +1173,10 @@ public class Config
             String value;
             try
             {
-                // don't use exceptions for normal control flow!
                 Object obj = field.get(config);
                 value = obj != null ? obj.toString() : "null";
             }
-            catch (NullPointerException | IllegalAccessException npe)
+            catch (IllegalAccessException npe)
             {
                 value = "null";
             }

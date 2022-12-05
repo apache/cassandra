@@ -70,6 +70,7 @@ public class ReferenceOperation
         ColumnMetadata receiver = operation.column;
         ReferenceValue value = new ReferenceValue.Constant(operation.term());
 
+        // TODO: Receiver might need to be modified here, just as we do in Raw#prepare()
         Term key = extractKeyOrIndex(operation);
         FieldIdentifier field = extractField(operation);
         return new ReferenceOperation(receiver, kind, key, field, value);

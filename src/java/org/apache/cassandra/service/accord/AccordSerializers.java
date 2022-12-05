@@ -25,7 +25,6 @@ import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.cql3.Maps;
 import org.apache.cassandra.cql3.Sets;
 import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -84,16 +83,16 @@ public class AccordSerializers
         }
     }
 
-    public static Term.Terminal deserializeCqlCollectionAsTerm(ByteBuffer buffer, AbstractType<?> type)
+    public static Term.Terminal deserializeCqlCollectionAsTerm(ByteBuffer buffer, AbstractType<?> type, ProtocolVersion version)
     {
         CollectionType<?> collectionType = (CollectionType<?>) type;
 
         if (collectionType.kind == SET)
-            return Sets.Value.fromSerialized(buffer, (SetType<?>) type, ProtocolVersion.CURRENT);
+            return Sets.Value.fromSerialized(buffer, (SetType<?>) type, version);
         else if (collectionType.kind == LIST)
-            return Lists.Value.fromSerialized(buffer, (ListType<?>) type, ProtocolVersion.CURRENT);
+            return Lists.Value.fromSerialized(buffer, (ListType<?>) type, version);
         else if (collectionType.kind == MAP)
-            return Maps.Value.fromSerialized(buffer, (MapType<?, ?>) type, ProtocolVersion.CURRENT);
+            return Maps.Value.fromSerialized(buffer, (MapType<?, ?>) type, version);
 
         throw new UnsupportedOperationException("Unsupported collection type: " + type);
     }
@@ -116,27 +115,6 @@ public class AccordSerializers
         public long serializedSize(PartitionUpdate upd, int version)
         {
             return PartitionUpdate.serializer.serializedSize(upd, version);
-        }
-    };
-
-    public static final IVersionedSerializer<SinglePartitionReadCommand> singlePartitionReadCommandSerializer = new IVersionedSerializer<SinglePartitionReadCommand>()
-    {
-        @Override
-        public void serialize(SinglePartitionReadCommand command, DataOutputPlus out, int version) throws IOException
-        {
-            SinglePartitionReadCommand.serializer.serialize(command, out, version);
-        }
-
-        @Override
-        public SinglePartitionReadCommand deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return (SinglePartitionReadCommand) SinglePartitionReadCommand.serializer.deserialize(in, version);
-        }
-
-        @Override
-        public long serializedSize(SinglePartitionReadCommand command, int version)
-        {
-            return SinglePartitionReadCommand.serializer.serializedSize(command, version);
         }
     };
 

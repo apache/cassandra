@@ -306,16 +306,18 @@ public abstract class TxnCondition
                                                                Kind.GREATER_THAN, Kind.GREATER_THAN_OR_EQUAL,
                                                                Kind.LESS_THAN, Kind.LESS_THAN_OR_EQUAL);
 
-        public final TxnReference reference;
-        public final ByteBuffer value;
+        private final TxnReference reference;
+        private final ByteBuffer value;
+        private final ProtocolVersion version;
 
-        public Value(TxnReference reference, Kind kind, ByteBuffer value)
+        public Value(TxnReference reference, Kind kind, ByteBuffer value, ProtocolVersion version)
         {
             super(kind);
-            Preconditions.checkArgument(KINDS.contains(kind));
-            Preconditions.checkArgument(reference.selectsColumn());
+            Preconditions.checkArgument(KINDS.contains(kind), "Kind " + kind + " cannot be used with a value condition");
+            Preconditions.checkArgument(reference.selectsColumn(), "Reference " + reference + " does not select a column");
             this.reference = reference;
             this.value = value;
+            this.version = version;
         }
 
         @Override
@@ -364,7 +366,7 @@ public abstract class TxnCondition
                     }
                     else
                     {
-                        Term.Terminal term = deserializeCqlCollectionAsTerm(value, type);
+                        Term.Terminal term = deserializeCqlCollectionAsTerm(value, type, version);
                         return ColumnCondition.MultiCellCollectionBound.appliesTo(column, kind.operator, Collections.singletonList(term), row);
                     }
                 }
@@ -377,7 +379,7 @@ public abstract class TxnCondition
                         return ColumnCondition.Bound.compareWithOperator(kind.operator, reference.getFieldSelectionType(), value, cell.buffer());
                     }
 
-                    return new ColumnCondition.MultiCellUdtBound(column, kind.operator, Collections.singletonList(value), ProtocolVersion.CURRENT).appliesTo(row);
+                    return new ColumnCondition.MultiCellUdtBound(column, kind.operator, Collections.singletonList(value), version).appliesTo(row);
                 }
 
                 throw new UnsupportedOperationException("Unsupported complex type: " + type);
@@ -409,6 +411,7 @@ public abstract class TxnCondition
             {
                 TxnReference.serializer.serialize(condition.reference, out, version);
                 ByteBufferUtil.writeWithVIntLength(condition.value, out);
+                out.writeUTF(condition.version.name());
             }
 
             @Override
@@ -416,7 +419,8 @@ public abstract class TxnCondition
             {
                 TxnReference reference = TxnReference.serializer.deserialize(in, version);
                 ByteBuffer value = ByteBufferUtil.readWithVIntLength(in);
-                return new Value(reference, kind, value);
+                ProtocolVersion protocolVersion = ProtocolVersion.valueOf(in.readUTF());
+                return new Value(reference, kind, value, protocolVersion);
             }
 
             @Override
@@ -425,6 +429,7 @@ public abstract class TxnCondition
                 long size = 0;
                 size += TxnReference.serializer.serializedSize(condition.reference, version);
                 size += ByteBufferUtil.serializedSizeWithVIntLength(condition.value);
+                size += TypeSizes.sizeof(condition.version.name());
                 return size;
             }
         };

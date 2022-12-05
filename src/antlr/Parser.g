@@ -83,7 +83,7 @@ options {
     public RowDataReference.Raw newRowDataReference(Selectable.RawIdentifier tuple, Selectable.Raw selectable)
     {
         if (!isParsingTxn)
-            throw new IllegalStateException();
+            throw new SyntaxException("Cannot create a row data reference unless parsing a transaction");
 
         if (references == null)
             references = new ArrayList<>();
@@ -544,7 +544,7 @@ normalInsertStatement [QualifiedName qn] returns [UpdateStatement.ParsedInsert e
     @init {
         Attributes.Raw attrs = new Attributes.Raw();
         List<ColumnIdentifier> columnNames  = new ArrayList<>();
-        List<Object> values = new ArrayList<>();
+        List<Term.Raw> values = new ArrayList<>();
         boolean ifNotExists = false;
     }
     : '(' c1=cident { columnNames.add(c1); }  ( ',' cn=cident { columnNames.add(cn); } )* ')'
@@ -557,7 +557,7 @@ normalInsertStatement [QualifiedName qn] returns [UpdateStatement.ParsedInsert e
       }
     ;
 
-insertValue[List<Object> values]
+insertValue[List<Term.Raw> values]
     : t=term { values.add(t); }
     | {isParsingTxn}? dr=rowDataReference { values.add(new ReferenceValue.Substitution.Raw(dr)); }
     ;
@@ -809,7 +809,6 @@ txnColumnCondition[List<ConditionStatement.Raw> conditions]
             | K_NULL { conditions.add(new ConditionStatement.Raw(lhs, ConditionStatement.Kind.IS_NULL, null)); }
         )
         | (txnConditionKind term)=> op=txnConditionKind t=term { conditions.add(new ConditionStatement.Raw(lhs, op, t)); }
-        | op=txnConditionKind rhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, op, rhs)); }
       )
     ;
 

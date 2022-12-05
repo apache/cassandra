@@ -47,13 +47,11 @@ import accord.local.Node.Id;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.Status.Known;
-import accord.primitives.AbstractKeys;
 import accord.primitives.Ballot;
 import accord.primitives.Ranges;
 import accord.primitives.Keys;
 import accord.primitives.PartialTxn;
 import accord.primitives.Range;
-import accord.primitives.Routables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -165,12 +163,15 @@ public class AccordTestUtils
 
     public static Txn createTxn(String query)
     {
-        TransactionStatement.Parsed parsed = (TransactionStatement.Parsed) QueryProcessor.parseStatement(query);
+        return createTxn(query, QueryOptions.DEFAULT);
+    }
+
+    public static Txn createTxn(String cql, QueryOptions options)
+    {
+        TransactionStatement.Parsed parsed = (TransactionStatement.Parsed) QueryProcessor.parseStatement(cql);
         Assert.assertNotNull(parsed);
         TransactionStatement statement = (TransactionStatement) parsed.prepare(ClientState.forInternalCalls());
-        
-        // TODO: If forInternalCalls() correct here?
-        return statement.createTxn(ClientState.forInternalCalls(), QueryOptions.DEFAULT);
+        return statement.createTxn(ClientState.forInternalCalls(), options);
     }
 
     public static Txn createTxn(int readKey, int... writeKeys)

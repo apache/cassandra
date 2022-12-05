@@ -32,7 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.messages.Commit;
-import accord.primitives.Keys;
+import accord.primitives.Unseekables;
 import accord.topology.Topologies;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -41,7 +41,7 @@ import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.txn.TxnBuilder;
+import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 @SuppressWarnings("Convert2MethodRef")
@@ -121,7 +121,7 @@ public class AccordIntegrationTest extends AccordTestBase
 	at accord.messages.PreAccept.process(PreAccept.java:90)
 	at accord.messages.TxnRequest.process(TxnRequest.java:145)
 	at org.apache.cassandra.service.accord.AccordVerbHandler.doVerb(AccordVerbHandler.java:46)
-	at org.apache.cassandra.net.InboundSink.lambda$new$0(InboundSink.java:78)    
+	at org.apache.cassandra.net.InboundSink.lambda$new$0(InboundSink.java:78)
      */
     @Ignore
     @Test
@@ -130,12 +130,12 @@ public class AccordIntegrationTest extends AccordTestBase
         // can't reuse test() due to it using "int" for pk; this test needs "blob"
         String keyspace = "multipleShards";
         
-        sharedCluster.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
-        sharedCluster.schemaChange("CREATE TABLE " + keyspace + ".tbl (k blob, c int, v int, primary key (k, c))");
-        sharedCluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
-        sharedCluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
+        SHARED_CLUSTER.schemaChange("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + keyspace + ".tbl (k blob, c int, v int, primary key (k, c))");
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
-        List<String> tokens = sharedCluster.stream()
+        List<String> tokens = SHARED_CLUSTER.stream()
                                            .flatMap(i -> StreamSupport.stream(Splitter.on(",").split(i.config().getString("initial_token")).spliterator(), false))
                                            .collect(Collectors.toList());
 
@@ -165,16 +165,16 @@ public class AccordIntegrationTest extends AccordTestBase
         query.append("COMMIT TRANSACTION");
 
         // row0.v shouldn't have existed when the txn's SELECT was executed
-        assertRowEqualsWithPreemptedRetry(sharedCluster, null, query.toString());
+        assertRowEqualsWithPreemptedRetry(SHARED_CLUSTER, null, query.toString());
 
-        sharedCluster.get(1).runOnInstance(() -> {
-            TxnBuilder txn = new TxnBuilder();
-
+        SHARED_CLUSTER.get(1).runOnInstance(() -> {
+            StringBuilder sb = new StringBuilder("BEGIN TRANSACTION\n");
             for (int i = 0; i < keyStrings.size(); i++)
-                txn.withRead("row" + i, "SELECT * FROM " + keyspace + ".tbl WHERE k=" + keyStrings.get(i) + " and c=0");
+                sb.append(String.format("LET row%d = (SELECT * FROM ks.tbl WHERE k=%s AND c=0);\n", i, keyStrings.get(i)));
+            sb.append("COMMIT TRANSACTION");
 
-            Keys keySet = txn.build().keys();
-            Topologies topology = AccordService.instance().node.topology().withUnsyncedEpochs(keySet, 1);
+            Unseekables<?, ?> routables = AccordTestUtils.createTxn(sb.toString()).keys().toUnseekables();
+            Topologies topology = AccordService.instance().node.topology().withUnsyncedEpochs(routables, 1);
             // we don't detect out-of-bounds read/write yet, so use this to validate we reach different shards
             Assertions.assertThat(topology.totalShards()).isEqualTo(2);
         });
@@ -184,7 +184,7 @@ public class AccordIntegrationTest extends AccordTestBase
                        "COMMIT TRANSACTION";
 
         for (int i = 0; i < keys.size(); i++)
-            assertRowEqualsWithPreemptedRetry(sharedCluster, new Object[] { keys.get(i), 0, i}, check, keys.get(i), 0);
+            assertRowEqualsWithPreemptedRetry(SHARED_CLUSTER, new Object[] { keys.get(i), 0, i}, check, keys.get(i), 0);
     }
 
     @Test
@@ -258,21 +258,21 @@ public class AccordIntegrationTest extends AccordTestBase
     @Test
     public void demoTest() throws Throwable
     {
-        sharedCluster.schemaChange("CREATE KEYSPACE demo_ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2};");
-        sharedCluster.schemaChange("CREATE TABLE demo_ks.org_docs ( org_name text, doc_id int, contents_version int static, title text, permissions int, PRIMARY KEY (org_name, doc_id) );");
-        sharedCluster.schemaChange("CREATE TABLE demo_ks.org_users ( org_name text, user text, members_version int static, permissions int, PRIMARY KEY (org_name, user) );");
-        sharedCluster.schemaChange("CREATE TABLE demo_ks.user_docs ( user text, doc_id int, title text, org_name text, permissions int, PRIMARY KEY (user, doc_id) );");
+        SHARED_CLUSTER.schemaChange("CREATE KEYSPACE demo_ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2};");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_docs ( org_name text, doc_id int, contents_version int static, title text, permissions int, PRIMARY KEY (org_name, doc_id) );");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_users ( org_name text, user text, members_version int static, permissions int, PRIMARY KEY (org_name, user) );");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.user_docs ( user text, doc_id int, title text, org_name text, permissions int, PRIMARY KEY (user, doc_id) );");
 
-        sharedCluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
-        sharedCluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
-        sharedCluster.coordinator(1).execute("INSERT INTO demo_ks.org_users (org_name, user, members_version, permissions) VALUES ('demo', 'blake', 5, 777);\n", ConsistencyLevel.ALL);
-        sharedCluster.coordinator(1).execute("INSERT INTO demo_ks.org_users (org_name, user, members_version, permissions) VALUES ('demo', 'scott', 5, 777);\n", ConsistencyLevel.ALL);
-        sharedCluster.coordinator(1).execute("INSERT INTO demo_ks.org_docs (org_name, doc_id, contents_version, title, permissions) VALUES ('demo', 100, 5, 'README', 644);\n", ConsistencyLevel.ALL);
-        sharedCluster.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('blake', 1, 'recipes', NULL, 777);\n", ConsistencyLevel.ALL);
-        sharedCluster.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('blake', 100, 'README', 'demo', 644);\n", ConsistencyLevel.ALL);
-        sharedCluster.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('scott', 2, 'to do list', NULL, 777);\n", ConsistencyLevel.ALL);
-        sharedCluster.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('scott', 100, 'README', 'demo', 644);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.org_users (org_name, user, members_version, permissions) VALUES ('demo', 'blake', 5, 777);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.org_users (org_name, user, members_version, permissions) VALUES ('demo', 'scott', 5, 777);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.org_docs (org_name, doc_id, contents_version, title, permissions) VALUES ('demo', 100, 5, 'README', 644);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('blake', 1, 'recipes', NULL, 777);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('blake', 100, 'README', 'demo', 644);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('scott', 2, 'to do list', NULL, 777);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('scott', 100, 'README', 'demo', 644);\n", ConsistencyLevel.ALL);
 
         String addDoc = "BEGIN TRANSACTION\n" +
                         "  LET demo_user = (SELECT * FROM demo_ks.org_users WHERE org_name='demo' LIMIT 1);\n" +
@@ -284,7 +284,7 @@ public class AccordIntegrationTest extends AccordTestBase
                         "    UPDATE demo_ks.user_docs SET title='slides.key', permissions=777 WHERE user='scott' AND doc_id=101;\n" +
                         "  END IF\n" +
                         "COMMIT TRANSACTION";
-        assertRowEqualsWithPreemptedRetry(sharedCluster, new Object[] { 5 }, addDoc);
+        assertRowEqualsWithPreemptedRetry(SHARED_CLUSTER, new Object[] { 5 }, addDoc);
 
         String addUser = "BEGIN TRANSACTION\n" +
                          "  LET demo_doc = (SELECT * FROM demo_ks.org_docs WHERE org_name='demo' LIMIT 1);\n" +
@@ -296,7 +296,7 @@ public class AccordIntegrationTest extends AccordTestBase
                          "    UPDATE demo_ks.user_docs SET title='slides.key', permissions=777 WHERE user='benedict' AND doc_id=101;\n" +
                          "  END IF\n" +
                          "COMMIT TRANSACTION";
-        assertRowEqualsWithPreemptedRetry(sharedCluster, new Object[] { 6 }, addUser);
+        assertRowEqualsWithPreemptedRetry(SHARED_CLUSTER, new Object[] { 6 }, addUser);
     }
 
 //    @Test

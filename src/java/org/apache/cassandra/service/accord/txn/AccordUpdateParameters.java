@@ -75,7 +75,7 @@ public class AccordUpdateParameters
         for (Map.Entry<TxnDataName, FilteredPartition> e : data.entrySet())
         {
             TxnDataName name = e.getKey();
-            if (name.isFor(metadata) && name.atIndex(index))
+            if (name.isAutoRead() && name.atIndex(index))
                 return ImmutableMap.of(name.getDecoratedKey(metadata), e.getValue());
         }
         return Collections.emptyMap();

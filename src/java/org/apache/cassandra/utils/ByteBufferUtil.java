@@ -565,7 +565,12 @@ public class ByteBufferUtil
             // convert subtypes to BB
             Map<ByteBuffer, ByteBuffer> bbs = new LinkedHashMap<>();
             for (Map.Entry<?, ?> e : map.entrySet())
-                bbs.put(objectToBytes(e.getKey()), objectToBytes(e.getValue()));
+            {
+                Object key = e.getKey();
+                ByteBuffer previousValue = bbs.put(objectToBytes(key), objectToBytes(e.getValue()));
+                if (previousValue != null)
+                    throw new IllegalStateException("Key " + key + " already maps to value " + previousValue);
+            }
             // decompose/serializer doesn't use the isMultiCell, so safe to do this
             return MapType.getInstance(BytesType.instance, BytesType.instance, false).decompose(bbs);
         }
@@ -574,7 +579,9 @@ public class ByteBufferUtil
             Set<?> set = (Set<?>) obj;
             // convert subtypes to BB
             Set<ByteBuffer> bbs = new LinkedHashSet<>();
-            set.forEach(o -> bbs.add(objectToBytes(o)));
+            for (Object o : set)
+                if (!bbs.add(objectToBytes(o)))
+                    throw new IllegalStateException("Object " + o + " maps to a buffer that already exists in the set");
             // decompose/serializer doesn't use the isMultiCell, so safe to do this
             return SetType.getInstance(BytesType.instance, false).decompose(bbs);
         }

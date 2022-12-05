@@ -59,11 +59,6 @@ public class TxnReference
         this.path = path;
     }
 
-    public TxnReference(TxnDataName tuple, ColumnMetadata column)
-    {
-        this(tuple, column, null);
-    }
-
     @Override
     public boolean equals(Object o)
     {
@@ -82,13 +77,11 @@ public class TxnReference
     @Override
     public String toString()
     {
-        StringBuilder sb = new StringBuilder("REF:").append(tuple);
+        StringBuilder sb = new StringBuilder().append(tuple);
         if (column != null)
             sb.append(':').append(column.ksName).append('.').append(column.cfName).append('.').append(column.name.toString());
-
         if (path != null)
             sb.append(path);
-
         return sb.toString();
     }
 

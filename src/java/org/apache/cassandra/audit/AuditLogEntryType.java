@@ -60,9 +60,7 @@ public enum AuditLogEntryType
     CREATE_ROLE(AuditLogEntryCategory.DCL),
     USE_KEYSPACE(AuditLogEntryCategory.OTHER),
     DESCRIBE(AuditLogEntryCategory.OTHER),
-    
-    // TODO: Is DML the most appropriate classification, given a transaction can read, write, or both?
-    TRANSACTION(AuditLogEntryCategory.DML),
+    TRANSACTION(AuditLogEntryCategory.TRANSACTION),
 
     /*
      * Common Audit Log Entry Types

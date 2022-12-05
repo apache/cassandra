@@ -26,12 +26,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.LongSupplier;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.statements.TransactionStatement;
-import org.apache.cassandra.service.accord.txn.TxnDataName;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Assert;
 import org.slf4j.Logger;
@@ -41,6 +35,7 @@ import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
 import accord.primitives.Txn;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -56,6 +51,9 @@ import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataName;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
@@ -112,7 +110,7 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
         return () -> {
             String cql = "BEGIN TRANSACTION\n" + SELECT + ";\n" + "COMMIT TRANSACTION";
             List<ByteBuffer> values = ImmutableList.of(bytes(primaryKey));
-            Txn txn = toTxn(cql, values);
+            Txn txn = AccordTestUtils.createTxn(cql, QueryOptions.forInternalCalls(values));
             // TODO (now): support complex columns
             return execute(txn, "pk", "count", "seq");
         };
@@ -127,16 +125,9 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
                          "    UPDATE " + KEYSPACE + ".tbl SET count += 1 WHERE pk = ?;\n" +
                          "COMMIT TRANSACTION";
             List<ByteBuffer> values = ImmutableList.of(bytes(primaryKey), bytes(primaryKey), bytes(primaryKey));
-            Txn txn = toTxn(cql, values);
+            Txn txn = AccordTestUtils.createTxn(cql, QueryOptions.forInternalCalls(values));
             return execute(txn, "pk", "count", "seq");
         };
-    }
-
-    private static Txn toTxn(String cql, List<ByteBuffer> values)
-    {
-        TransactionStatement.Parsed parsed = (TransactionStatement.Parsed) QueryProcessor.parseStatement(cql);
-        TransactionStatement statement = (TransactionStatement) parsed.prepare(ClientState.forInternalCalls());
-        return statement.createTxn(ClientState.forInternalCalls(), QueryOptions.forInternalCalls(values));
     }
 
     private static Object[][] execute(Txn txn, String ... columns)

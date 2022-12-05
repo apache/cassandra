@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord.txn;
 
+import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -42,12 +43,7 @@ public class TxnUpdateTest
     @Test
     public void predicateSerializer()
     {
-        TxnBuilder txnBuilder = new TxnBuilder();
-        txnBuilder.withRead("row1", "SELECT * FROM ks.tbl WHERE k=0 AND c=0");
-        txnBuilder.withWrite("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
-        txnBuilder.withIsNullCondition(TxnDataName.user("row1"), null);
-        Txn txn = txnBuilder.build();
-
+        Txn txn = AccordTestUtils.createTxn(0, 0);
         TxnUpdate update = (TxnUpdate) txn.update();
         assertSerializerIOEquality(update, TxnUpdate.serializer);
     }

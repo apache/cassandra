@@ -50,9 +50,12 @@ public final class Generators
 
     private static final Constraint DNS_DOMAIN_PARTS_CONSTRAINT = Constraint.between(1, 127);
 
+    private static final char CHAR_UNDERSCORE = 95;
+
     private static final char[] LETTER_DOMAIN = createLetterDomain();
     private static final Constraint LETTER_CONSTRAINT = Constraint.between(0, LETTER_DOMAIN.length - 1).withNoShrinkPoint();
     private static final char[] LETTER_OR_DIGIT_DOMAIN = createLetterOrDigitDomain();
+    private static final char[] LETTER_OR_DIGIT_DOMAIN_WITH_UNDERSCORE = createLetterOrDigitDomainWithUnderscore();
     private static final Constraint LETTER_OR_DIGIT_CONSTRAINT = Constraint.between(0, LETTER_OR_DIGIT_DOMAIN.length - 1).withNoShrinkPoint();
     private static final char[] REGEX_WORD_DOMAIN = createRegexWordDomain();
     private static final Constraint REGEX_WORD_CONSTRAINT = Constraint.between(0, REGEX_WORD_DOMAIN.length - 1).withNoShrinkPoint();
@@ -69,13 +72,10 @@ public final class Generators
         // see CASSANDRA-17919
         return !("P".equals(value) || "PT".equals(value));
     }
-    private static final char CHAR_UNDERSCORE = 95;
+
     public static Gen<String> symbolGen(Gen<Integer> size)
     {
-        char[] domain = new char[LETTER_OR_DIGIT_DOMAIN.length + 1];
-        System.arraycopy(LETTER_OR_DIGIT_DOMAIN, 0, domain, 0, LETTER_OR_DIGIT_DOMAIN.length);
-        domain[domain.length - 1] = CHAR_UNDERSCORE;
-        return string(size, domain, (index, c) -> !(index == 0 && !Character.isLetter(c)));
+        return string(size, LETTER_OR_DIGIT_DOMAIN_WITH_UNDERSCORE, (index, c) -> !(index == 0 && !Character.isLetter(c)));
     }
 
     public static final Gen<UUID> UUID_RANDOM_GEN = rnd -> {
@@ -321,6 +321,14 @@ public final class Generators
         // a-z
         for (int c = 97; c < 123; c++)
             domain[offset++] = (char) c;
+        return domain;
+    }
+
+    private static char[] createLetterOrDigitDomainWithUnderscore()
+    {
+        char[] domain = new char[LETTER_OR_DIGIT_DOMAIN.length + 1];
+        System.arraycopy(LETTER_OR_DIGIT_DOMAIN, 0, domain, 0, LETTER_OR_DIGIT_DOMAIN.length);
+        domain[domain.length - 1] = CHAR_UNDERSCORE;
         return domain;
     }
 

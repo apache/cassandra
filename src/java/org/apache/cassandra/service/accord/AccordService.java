@@ -115,7 +115,7 @@ public class AccordService implements Shutdownable
         try
         {
             Future<Result> future = node.coordinate(txn);
-            Result result = future.get(DatabaseDescriptor.getTransactionTimeout(TimeUnit.SECONDS), TimeUnit.SECONDS);
+            Result result = future.get(DatabaseDescriptor.getTransactionTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
             return (TxnData) result;
         }
         catch (ExecutionException e)
@@ -123,7 +123,7 @@ public class AccordService implements Shutdownable
             Throwable cause = e.getCause();
             if (cause instanceof Timeout)
                 throw throwTimeout(txn);
-            throw new RuntimeException(e);
+            throw new RuntimeException(cause);
         }
         catch (InterruptedException e)
         {

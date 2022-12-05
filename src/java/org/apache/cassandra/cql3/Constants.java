@@ -490,6 +490,8 @@ public abstract class Constants
             {
                 @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
                 ByteBuffer increment = t.bindAndGet(params.options);
+                if (increment == null)
+                    throw new InvalidRequestException("Invalid null value for number increment");
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
                 if (current == null)
                     return;

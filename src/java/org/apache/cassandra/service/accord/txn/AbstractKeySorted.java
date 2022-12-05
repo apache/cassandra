@@ -44,10 +44,10 @@ public abstract class AbstractKeySorted<T> implements Iterable<T>
     protected final Keys itemKeys;
     protected final T[] items;
 
-    // items are expected to be sorted
     public AbstractKeySorted(T[] items)
     {
         this.items = items;
+        validateOrder();
         this.itemKeys = extractItemKeys();
     }
 

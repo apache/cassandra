@@ -48,6 +48,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.accord.AccordSerializers;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.db.marshal.CollectionType.Kind.MAP;
@@ -208,11 +209,11 @@ public class TxnReferenceOperation
 
     public void apply(TxnData data, DecoratedKey key, UpdateParameters up)
     {
-        Operation operation = toOperation(data);
+        Operation operation = toOperation(data, up);
         operation.execute(key, up);
     }
 
-    private Operation toOperation(TxnData data)
+    private Operation toOperation(TxnData data, UpdateParameters up)
     {
         AbstractType<?> receivingType = type;
         if (kind == Kind.SetterByKey || kind == Kind.SetterByIndex)
@@ -227,22 +228,22 @@ public class TxnReferenceOperation
             receivingType = userType.fieldType(fieldPath);
         }
 
-        Term valueTerm = toTerm(data, receivingType);
-        Term keyorIndexTerm = this.key == null ? null : toTerm(this.key, receivingType);
+        Term valueTerm = toTerm(data, receivingType, up.options.getProtocolVersion());
+        Term keyorIndexTerm = this.key == null ? null : toTerm(this.key, receivingType, up.options.getProtocolVersion());
         
         return kind.toOperation(receiver, keyorIndexTerm, fieldIdentifier, valueTerm);
     }
 
-    private Term toTerm(TxnData data, AbstractType<?> receivingType)
+    private Term toTerm(TxnData data, AbstractType<?> receivingType, ProtocolVersion version)
     {
         ByteBuffer bytes = value.compute(data, receivingType);
-        return toTerm(bytes, receivingType);
+        return toTerm(bytes, receivingType, version);
     }
 
-    private Term toTerm(ByteBuffer bytes, AbstractType<?> receivingType)
+    private Term toTerm(ByteBuffer bytes, AbstractType<?> receivingType, ProtocolVersion version)
     {
         if (receivingType.isCollection())
-            return AccordSerializers.deserializeCqlCollectionAsTerm(bytes, receivingType);
+            return AccordSerializers.deserializeCqlCollectionAsTerm(bytes, receivingType, version);
         else if (receivingType.isUDT())
             return UserTypes.Value.fromSerialized(bytes, (UserType) receivingType);
         else if (receivingType.isTuple())

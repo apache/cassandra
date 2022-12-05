@@ -45,7 +45,6 @@ import org.apache.commons.lang3.builder.ToStringStyle;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsNoDuplicates;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 /**
  * An <code>UPDATE</code> statement parsed from a CQL query statement.
@@ -54,6 +53,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 public class UpdateStatement extends ModificationStatement
 {
     public static final String UPDATING_PRIMARY_KEY_MESSAGE = "PRIMARY KEY part %s found in SET part";
+    public static final String CANNOT_SET_KEY_WITH_REFERENCE_MESSAGE = "Value reference %s cannot be used to insert PRIMARY KEY column %s";
 
     private static final Constants.Value EMPTY = new Constants.Value(ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
@@ -121,7 +121,7 @@ public class UpdateStatement extends ModificationStatement
     public static class ParsedInsert extends ModificationStatement.Parsed
     {
         private final List<ColumnIdentifier> columnNames;
-        private final List<Object> columnValues;
+        private final List<Term.Raw> columnValues;
 
         /**
          * A parsed <code>INSERT</code> statement.
@@ -135,7 +135,7 @@ public class UpdateStatement extends ModificationStatement
         public ParsedInsert(QualifiedName name,
                             Attributes.Raw attrs,
                             List<ColumnIdentifier> columnNames,
-                            List<Object> columnValues,
+                            List<Term.Raw> columnValues,
                             boolean ifNotExists)
         {
             super(name, StatementType.INSERT, attrs, null, ifNotExists, false);
@@ -169,12 +169,12 @@ public class UpdateStatement extends ModificationStatement
                 if (def.isClusteringColumn())
                     hasClusteringColumnsSet = true;
 
-                Object value = columnValues.get(i);
+                Term.Raw value = columnValues.get(i);
 
                 if (def.isPrimaryKeyColumn())
                 {
-                    checkTrue(value instanceof Term.Raw, "value references can't be used with primary key columns");
-                    whereClause.add(new SingleColumnRelation(columnNames.get(i), Operator.EQ, (Term.Raw) value));
+                    checkFalse(value instanceof ReferenceValue.Raw, String.format(CANNOT_SET_KEY_WITH_REFERENCE_MESSAGE, value, def));
+                    whereClause.add(new SingleColumnRelation(columnNames.get(i), Operator.EQ, value));
                 }
                 else if (value instanceof ReferenceValue.Raw)
                 {
@@ -183,15 +183,11 @@ public class UpdateStatement extends ModificationStatement
                     ReferenceOperation operation = new ReferenceOperation(def, TxnReferenceOperation.Kind.setterFor(def), null, null, referenceValue);
                     operations.add(def, operation);
                 }
-                else if (value instanceof Term.Raw)
-                {
-                    Operation operation = new Operation.SetValue((Term.Raw) value).prepare(metadata, def, !conditions.isEmpty());
-                    operation.collectMarkerSpecification(bindVariables);
-                    operations.add(operation);
-                }
                 else
                 {
-                    throw new IllegalStateException();
+                    Operation operation = new Operation.SetValue(value).prepare(metadata, def, !conditions.isEmpty());
+                    operation.collectMarkerSpecification(bindVariables);
+                    operations.add(operation);
                 }
             }
 

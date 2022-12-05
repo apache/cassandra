@@ -108,6 +108,8 @@ public class TransactionStatement implements CQLStatement
 
     private final VariableSpecifications bindVariables;
 
+    private final Map<TxnDataName, NamedSelect> autoReads = new HashMap<>();
+
     public TransactionStatement(List<NamedSelect> assignments,
                                 NamedSelect returningSelect,
                                 List<RowDataReference> returningReferences,
@@ -162,7 +164,7 @@ public class TransactionStatement implements CQLStatement
         ReadQuery readQuery = select.getQuery(options, 0);
 
         // We reject reads from both LET and SELECT that do not specify a single row.
-        @SuppressWarnings("unchecked") 
+        @SuppressWarnings("unchecked")
         SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
 
         return new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries));
@@ -207,8 +209,6 @@ public class TransactionStatement implements CQLStatement
         // TODO: OR support
         return new TxnCondition.BooleanGroup(TxnCondition.Kind.AND, result);
     }
-
-    private final Map<TxnDataName, NamedSelect> autoReads = new HashMap<>();
 
     List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Consumer<Key> keyConsumer)
     {
@@ -353,6 +353,8 @@ public class TransactionStatement implements CQLStatement
         public void setKeyspace(ClientState state)
         {
             assignments.forEach(select -> select.setKeyspace(state));
+            if (select != null)
+                select.setKeyspace(state);
             updates.forEach(update -> update.setKeyspace(state));
         }
 
@@ -370,8 +372,8 @@ public class TransactionStatement implements CQLStatement
 
             for (SelectStatement.RawStatement select : assignments)
             {
+                checkNotNull(select.parameters.refName, "Assignments must be named");
                 TxnDataName name = TxnDataName.user(select.parameters.refName);
-                checkNotNull(name, "Assignments must be named");
                 checkTrue(selectNames.add(name), DUPLICATE_TUPLE_NAME_MESSAGE, name.name());
 
                 SelectStatement prepared = select.prepare(bindVariables);

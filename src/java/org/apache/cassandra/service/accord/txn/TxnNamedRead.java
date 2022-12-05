@@ -26,6 +26,7 @@ import accord.api.Data;
 import accord.local.SafeCommandStore;
 import accord.primitives.Timestamp;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -42,23 +43,16 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.service.accord.AccordSerializers.singlePartitionReadCommandSerializer;
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
 
-public class TxnNamedRead extends AbstractSerialized<SinglePartitionReadCommand>
+public class TxnNamedRead extends AbstractSerialized<ReadCommand>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnNamedRead(null, null, null));
+
     private final TxnDataName name;
     private final PartitionKey key;
-
-    private TxnNamedRead(TxnDataName name, PartitionKey key, ByteBuffer bytes)
-    {
-        super(bytes);
-        this.name = name;
-        this.key = key;
-    }
 
     public TxnNamedRead(TxnDataName name, SinglePartitionReadCommand value)
     {
@@ -67,15 +61,22 @@ public class TxnNamedRead extends AbstractSerialized<SinglePartitionReadCommand>
         this.key = new PartitionKey(value.metadata().id, value.partitionKey());
     }
 
+    private TxnNamedRead(TxnDataName name, PartitionKey key, ByteBuffer bytes)
+    {
+        super(bytes);
+        this.name = name;
+        this.key = key;
+    }
+
     public long estimatedSizeOnHeap()
     {
         return EMPTY_SIZE + name.estimatedSizeOnHeap() + key.estimatedSizeOnHeap() + ByteBufferUtil.estimatedSizeOnHeap(bytes());
     }
 
     @Override
-    protected IVersionedSerializer<SinglePartitionReadCommand> serializer()
+    protected IVersionedSerializer<ReadCommand> serializer()
     {
-        return singlePartitionReadCommandSerializer;
+        return SinglePartitionReadCommand.serializer;
     }
 
     @Override
@@ -112,7 +113,7 @@ public class TxnNamedRead extends AbstractSerialized<SinglePartitionReadCommand>
 
     public Future<Data> read(boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
     {
-        SinglePartitionReadCommand command = get();
+        SinglePartitionReadCommand command = (SinglePartitionReadCommand) get();
         AccordCommandsForKey cfk = (AccordCommandsForKey) safeStore.commandsForKey(key);
         int nowInSeconds = cfk.nowInSecondsFor(executeAt, isForWriteTxn);
 

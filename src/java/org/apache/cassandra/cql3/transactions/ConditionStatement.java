@@ -135,7 +135,10 @@ public class ConditionStatement
             case GTE:
             case LT:
             case LTE:
-                return new TxnCondition.Value(reference.toTxnReference(options), kind.toTxnKind(), value.bindAndGet(options));
+                return new TxnCondition.Value(reference.toTxnReference(options),
+                                              kind.toTxnKind(),
+                                              value.bindAndGet(options),
+                                              options.getProtocolVersion());
             default:
                 throw new IllegalStateException();
         }

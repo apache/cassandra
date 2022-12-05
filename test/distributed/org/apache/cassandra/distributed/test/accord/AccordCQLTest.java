@@ -64,7 +64,7 @@ public class AccordCQLTest extends AccordTestBase
     public static void setupClass() throws IOException
     {
         AccordTestBase.setupClass();
-        sharedCluster.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
+        SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }
 
     @Test
@@ -1858,13 +1858,13 @@ public class AccordCQLTest extends AccordTestBase
     public void testScalarUpdateSubstitution()
     {
         String KEYSPACE = "ks" + System.currentTimeMillis();
-        sharedCluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
-        sharedCluster.schemaChange("CREATE TABLE " + currentTable + "1 (k int, c int, v int, primary key (k, c))");
-        sharedCluster.schemaChange("CREATE TABLE " + currentTable + "2 (k int, c int, v int, primary key (k, c))");
-        sharedCluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
-        sharedCluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
-        sharedCluster.coordinator(1).execute("INSERT INTO " + currentTable + "1 (k, c, v) VALUES (1, 2, 3);", ConsistencyLevel.ALL);
-        sharedCluster.coordinator(1).execute("INSERT INTO " + currentTable + "2 (k, c, v) VALUES (2, 2, 4);", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 2}");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + currentTable + "1 (k int, c int, v int, primary key (k, c))");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + currentTable + "2 (k int, c int, v int, primary key (k, c))");
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + currentTable + "1 (k, c, v) VALUES (1, 2, 3);", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO " + currentTable + "2 (k, c, v) VALUES (2, 2, 4);", ConsistencyLevel.ALL);
 
         String query = "BEGIN TRANSACTION\n" +
                        "  LET row1 = (SELECT * FROM " + currentTable + "1 WHERE k=1 AND c=2);\n" +
@@ -1874,28 +1874,28 @@ public class AccordCQLTest extends AccordTestBase
                        "    UPDATE " + currentTable + "1 SET v = row2.v WHERE k=1 AND c=2;\n" +
                        "  END IF\n" +
                        "COMMIT TRANSACTION";
-        Object[][] result = sharedCluster.coordinator(1).execute(query, ConsistencyLevel.ANY);
+        Object[][] result = SHARED_CLUSTER.coordinator(1).execute(query, ConsistencyLevel.ANY);
         assertEquals(3, result[0][0]);
 
         String check = "BEGIN TRANSACTION\n" +
                        "  SELECT * FROM " + currentTable + "1 WHERE k=1 AND c=2;\n" +
                        "COMMIT TRANSACTION";
-        assertRowEqualsWithPreemptedRetry(sharedCluster, new Object[]{1, 2, 4}, check);
+        assertRowEqualsWithPreemptedRetry(SHARED_CLUSTER, new Object[]{1, 2, 4}, check);
     }
 
     @Test
-    public void testScalarSubSimple() throws Exception
+    public void testRegularScalarInsertSubstitution() throws Exception
     {
-        testScalarSubHelper("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY (k, c))");
+        testScalarInsertSubstitution("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY (k, c))");
     }
 
     @Test
-    public void testStaticScalarSubSimple() throws Exception
+    public void testStaticScalarInsertSubstitution() throws Exception
     {
-        testScalarSubHelper("CREATE TABLE " + currentTable + " (k int, c int, v int static, PRIMARY KEY (k, c))");
+        testScalarInsertSubstitution("CREATE TABLE " + currentTable + " (k int, c int, v int static, PRIMARY KEY (k, c))");
     }
 
-    private void testScalarSubHelper(String tableDDL) throws Exception
+    private void testScalarInsertSubstitution(String tableDDL) throws Exception
     {
         test(tableDDL,
              cluster ->

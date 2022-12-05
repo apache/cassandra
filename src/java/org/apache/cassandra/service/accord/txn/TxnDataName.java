@@ -32,10 +32,15 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
+
+import static com.google.common.primitives.Ints.checkedCast;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class TxnDataName implements Comparable<TxnDataName>
 {
     private static final TxnDataName RETURNING = new TxnDataName(Kind.RETURNING);
+    private static final long EMPTY_SIZE = ObjectSizes.measure(RETURNING);
 
     public enum Kind
     {
@@ -110,12 +115,9 @@ public class TxnDataName implements Comparable<TxnDataName>
         return Collections.unmodifiableList(Arrays.asList(parts));
     }
 
-    public boolean isFor(TableMetadata metadata)
+    public boolean isAutoRead()
     {
-        if (kind != Kind.AUTO_READ)
-            return false;
-        return metadata.keyspace.equals(parts[0])
-               && metadata.name.equals(parts[1]);
+        return kind == Kind.AUTO_READ;
     }
 
     public DecoratedKey getDecoratedKey(TableMetadata metadata)
@@ -139,7 +141,7 @@ public class TxnDataName implements Comparable<TxnDataName>
 
     public long estimatedSizeOnHeap()
     {
-        long size = 0;
+        long size = EMPTY_SIZE;
         for (String part : parts)
             size += part.length();
         return size;
@@ -197,7 +199,7 @@ public class TxnDataName implements Comparable<TxnDataName>
         public void serialize(TxnDataName t, DataOutputPlus out, int version) throws IOException
         {
             out.writeByte(t.kind.value);
-            out.writeInt(t.parts.length);
+            out.writeUnsignedVInt(t.parts.length);
             for (String part : t.parts)
                 out.writeUTF(part);
         }
@@ -206,7 +208,7 @@ public class TxnDataName implements Comparable<TxnDataName>
         public TxnDataName deserialize(DataInputPlus in, int version) throws IOException
         {
             Kind kind = Kind.from(in.readByte());
-            int length = in.readInt();
+            int length = checkedCast(in.readUnsignedVInt());
             String[] parts = new String[length];
             for (int i = 0; i < length; i++)
                 parts[i] = in.readUTF();
@@ -216,7 +218,7 @@ public class TxnDataName implements Comparable<TxnDataName>
         @Override
         public long serializedSize(TxnDataName t, int version)
         {
-            int size = Byte.BYTES + Integer.BYTES;
+            int size = Byte.BYTES + sizeofUnsignedVInt(t.parts.length);
             for (String part : t.parts)
                 size += TypeSizes.sizeof(part);
             return size;

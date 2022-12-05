@@ -126,8 +126,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                                                        Collections.emptyList(),
                                                                        false,
                                                                        false,
-                                                                       false,
-                                                                       null);
+                                                                       false);
 
     public SelectStatement(TableMetadata table,
                            VariableSpecifications bindVariables,
@@ -1485,6 +1484,15 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         public final boolean allowFiltering;
         public final boolean isJson;
         public final String refName;
+
+        public Parameters(Map<ColumnIdentifier, Boolean> orderings,
+                          List<Selectable.Raw> groups,
+                          boolean isDistinct,
+                          boolean allowFiltering,
+                          boolean isJson)
+        {
+            this(orderings, groups, isDistinct, allowFiltering, isJson, null);
+        }
 
         public Parameters(Map<ColumnIdentifier, Boolean> orderings,
                           List<Selectable.Raw> groups,

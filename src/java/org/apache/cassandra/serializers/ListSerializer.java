@@ -230,20 +230,21 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     {
         try
         {
-            int n = readCollectionSize(collection, ByteBufferAccessor.instance, ProtocolVersion.V3);
-            int offset = sizeOfCollectionSize(n, ProtocolVersion.V3);
+            ProtocolVersion version = ProtocolVersion.V3;
+            int n = readCollectionSize(collection, ByteBufferAccessor.instance, version);
+            // Start the offset after the (size of) the collection size we just read
+            int offset = sizeOfCollectionSize(n, version);
             int idx = ByteBufferUtil.toInt(index);
 
             Preconditions.checkElementIndex(idx, n);
 
             for (int i = 0; i <= idx; i++)
             {
-                ByteBuffer value = readValue(collection, ByteBufferAccessor.instance, offset, ProtocolVersion.V3);
-                offset += sizeOfValue(value, ByteBufferAccessor.instance, ProtocolVersion.V3);
                 if (i == idx)
-                    return value;
+                    return readValue(collection, ByteBufferAccessor.instance, offset, version);
+                offset += skipValue(collection, ByteBufferAccessor.instance, offset, version);
             }
-            return null;
+            throw new AssertionError("Asked to read index " + idx + " but never read the index");
         }
         catch (BufferUnderflowException | IndexOutOfBoundsException e)
         {

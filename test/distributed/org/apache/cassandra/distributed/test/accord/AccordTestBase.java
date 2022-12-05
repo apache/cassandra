@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.base.Throwables;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -44,6 +43,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FailingConsumer;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -53,21 +53,21 @@ public abstract class AccordTestBase extends TestBaseImpl
 {
     protected static final AtomicInteger COUNTER = new AtomicInteger(0);
 
-    protected static Cluster sharedCluster;
+    protected static Cluster SHARED_CLUSTER;
     
     protected String currentTable;
 
     @BeforeClass
     public static void setupClass() throws IOException
     {
-        sharedCluster = createCluster();
+        SHARED_CLUSTER = createCluster();
     }
 
     @AfterClass
     public static void teardown()
     {
-        if (sharedCluster != null)
-            sharedCluster.close();
+        if (SHARED_CLUSTER != null)
+            SHARED_CLUSTER.close();
     }
     
     @Before
@@ -84,16 +84,20 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected void test(String tableDDL, FailingConsumer<Cluster> fn) throws Exception
     {
-        sharedCluster.schemaChange(tableDDL);
-        sharedCluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
+        SHARED_CLUSTER.schemaChange(tableDDL);
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
 
         // Evict commands from the cache immediately to expose problems loading from disk.
-        sharedCluster.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
 
-        fn.accept(sharedCluster);
-
-        // Reset any messaging filters.
-        sharedCluster.filters().reset();
+        try
+        {
+            fn.accept(SHARED_CLUSTER);
+        }
+        finally
+        {
+            SHARED_CLUSTER.filters().reset();
+        }
     }
 
     protected void test(FailingConsumer<Cluster> fn) throws Exception
@@ -108,7 +112,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         return init(Cluster.build(2)
                            .withoutVNodes()
                            .withConfig(c -> c.with(Feature.NETWORK).set("write_request_timeout", "10s").set("transaction_timeout", "15s"))
-                           .withInstanceInitializer(ByteBuddyHelper::install)
+                           .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install)
                            .start());
     }
 
@@ -128,20 +132,20 @@ public abstract class AccordTestBase extends TestBaseImpl
         }
         catch (Throwable t)
         {
-            if (Throwables.getRootCause(t).toString().contains(Preempted.class.getName()))
+            if (AssertionUtils.rootCauseIs(Preempted.class).matches(t))
                 return executeWithRetry(cluster, check, boundValues);
 
             throw t;
         }
     }
 
-    public static class ByteBuddyHelper
+    public static class EnforceUpdateDoesNotPerformRead
     {
         public static void install(ClassLoader classLoader, Integer num)
         {
             new ByteBuddy().rebase(ModificationStatement.class)
                            .method(named("readRequiredLists"))
-                           .intercept(MethodDelegation.to(ByteBuddyHelper.class))
+                           .intercept(MethodDelegation.to(EnforceUpdateDoesNotPerformRead.class))
                            .make()
                            .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
         }
@@ -152,8 +156,7 @@ public abstract class AccordTestBase extends TestBaseImpl
             Map<?, ?> map = fn.call();
             if (map != null)
             {
-                // if the call tree has a TransactionStatement, then fail as this violates
-                // the query
+                // if the call tree has a TransactionStatement, then fail as this violates the query
                 for (StackTraceElement e : Thread.currentThread().getStackTrace())
                     if (TransactionStatement.class.getCanonicalName().equals(e.getClassName()))
                         throw new IllegalStateException("Attempted to load required partition!");
