@@ -28,7 +28,7 @@ import org.apache.cassandra.utils.Throwables;
  * DataInput that also stores the raw inputs into an output buffer
  * This is useful for storing serialized buffers as they are deserialized.
  *
- * Note: it is important to for callers to check {@link #isLimitReached()}
+ * Note: If a non-zero limit is included it is important to for callers to check {@link #isLimitReached()}
  * before using the tee buffer as it could be cropped.
  */
 public class TeeDataInputPlus implements DataInputPlus
@@ -50,12 +50,12 @@ public class TeeDataInputPlus implements DataInputPlus
         this.source = source;
         this.teeBuffer = teeBuffer;
         this.limit = limit;
-        this.limitReached = limit <= 0;
+        this.limitReached = false;
     }
 
     private void maybeWrite(int length, Throwables.DiscreteAction<IOException> writeAction) throws IOException
     {
-        if (!limitReached && (teeBuffer.position() + length) < limit)
+        if (limit <= 0 || (!limitReached && (teeBuffer.position() + length) < limit))
             writeAction.perform();
         else
             limitReached = true;
