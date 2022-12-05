@@ -116,8 +116,9 @@ public interface FunctionParameter
     }
 
     /**
-     * @return a function parameter definition that accepts values of type {@link SetType} or {@link ListType},
-     * provided that its elements are numeric.
+     * @return a function parameter definition that accepts numeric values or values of type {@link SetType} or
+     * {@link ListType}, provided that its elements are numeric. Numeric values are considered as the single element of
+     * a numeric collection.
      */
     static FunctionParameter numericSetOrList()
     {
