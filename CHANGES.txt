@@ -2,6 +2,7 @@
 Merged from 4.0:
 Merged from 3.11:
 Merged from 3.0:
+ * Suppress CVE-2022-41854 and similar (CASSANDRA-18083)
 
 
 4.1-rc1
