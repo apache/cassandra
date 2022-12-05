@@ -57,16 +57,18 @@ public class AuthTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build().withNodes(1).start())
         {
             IInvokableInstance instance = cluster.get(1);
-            await().pollDelay(1, SECONDS).pollInterval(1, SECONDS)
+            await().pollDelay(1, SECONDS)
+                   .pollInterval(1, SECONDS)
+                   .atMost(10, SECONDS)
                    .until(() -> instance.callOnInstance(() -> StorageService.instance.authSetupCalled()));
         }
     }
 
     /**
-     * Sows that in some circumstances CassandraRoleManager will create the cassandra role twice
+     * Shows that in some circumstances CassandraRoleManager will create the cassandra role twice
      */
     @Test
-    public void authSetupIsCalledTwice() throws IOException
+    public void testWhatIfAuthSetupIsCalledTwice() throws IOException
     {
         try (Cluster cluster = builder().withNodes(1)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
@@ -75,13 +77,15 @@ public class AuthTest extends TestBaseImpl
                                         .start())
         {
             IInvokableInstance instance = cluster.get(1);
-            await().pollDelay(1, SECONDS).pollInterval(1, SECONDS).atMost(12, SECONDS)
-                .until(() -> instance.callOnInstance(() -> CassandraRoleManager.hasExistingRoles()));
+            await().pollDelay(1, SECONDS)
+                   .pollInterval(1, SECONDS)
+                   .atMost(12, SECONDS)
+                   .until(() -> instance.callOnInstance(() -> CassandraRoleManager.hasExistingRoles()));
 
             //get the time from the the first role setup
-            Long time1 = (Long)cluster.coordinator(1)
-                                      .execute("SELECT WRITETIME (salted_hash) from system_auth.roles where role = 'cassandra'",
-                                               ConsistencyLevel.ONE)[0][0];
+            Long time1 = (Long) cluster.coordinator(1)
+                                       .execute("SELECT WRITETIME (salted_hash) from system_auth.roles where role = 'cassandra'",
+                                                ConsistencyLevel.ONE)[0][0];
 
             IInstanceConfig config = cluster.newInstanceConfig();
             // set boostrap to false to simulate a seed node
@@ -91,18 +95,18 @@ public class AuthTest extends TestBaseImpl
                          () -> withProperty("cassandra.join_ring", false, () -> newInstance.startup(cluster)));
             newInstance.nodetoolResult("join").asserts().success();
 
-            await().pollDelay(1, SECONDS).pollInterval(1, SECONDS)
-                     .until(() -> newInstance.callOnInstance(() -> CassandraRoleManager.hasExistingRoles()));
+            await().pollDelay(1, SECONDS)
+                   .pollInterval(1, SECONDS)
+                   .atMost(10, SECONDS)
+                   .until(() -> newInstance.callOnInstance(() -> CassandraRoleManager.hasExistingRoles()));
 
-            // get write titme frome second role setup
-            Long time2 = (Long)cluster.coordinator(1)
-                                      .execute("SELECT WRITETIME (salted_hash) from system_auth.roles where role = 'cassandra'",
-                                               ConsistencyLevel.ONE)[0][0];
-            // we don't do this here but if the user changed the Cassandra user password it will be (read) reapired if the second node has a later
-            // write timsestamp - check that this is not the case
-            assertTrue(time1 >= time2);
+            // get write time from the second role setup
+            Long time2 = (Long) cluster.coordinator(1)
+                                       .execute("SELECT WRITETIME (salted_hash) from system_auth.roles where role = 'cassandra'",
+                                                ConsistencyLevel.ONE)[0][0];
+            // we don't do this here but if the user changed the Cassandra user password it will be (read) repaired if the second node has a later
+            // write timestamp - check that this is not the case
+            assertTrue(time1 == time2);
         }
     }
-
-
 }
