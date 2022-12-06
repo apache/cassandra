@@ -57,6 +57,7 @@
       <property name="classes" value=""/>
     </module>
 
+    <module name="AvoidStarImport"/>
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
   </module>
