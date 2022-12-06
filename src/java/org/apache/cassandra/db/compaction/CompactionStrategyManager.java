@@ -617,6 +617,18 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
+    public boolean isLeveledCompaction()
+    {
+        readLock.lock();
+        try
+        {
+            return repaired.first() instanceof LeveledCompactionStrategy;
+        } finally
+        {
+            readLock.unlock();
+        }
+    }
+
     public int[] getSSTableCountPerTWCSBucket()
     {
         readLock.lock();
