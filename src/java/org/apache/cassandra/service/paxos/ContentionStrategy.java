@@ -372,7 +372,7 @@ public class ContentionStrategy
         }
     }
 
-    private long computeWaitUntilForContention(int attempts, TableMetadata table, DecoratedKey partitionKey, ConsistencyLevel consistency, Type type)
+    long computeWaitUntilForContention(int attempts, TableMetadata table, DecoratedKey partitionKey, ConsistencyLevel consistency, Type type)
     {
         if (attempts >= traceAfterAttempts && !Tracing.isTracing())
         {
@@ -411,7 +411,7 @@ public class ContentionStrategy
         return nanoTime() + MICROSECONDS.toNanos(wait);
     }
 
-    private boolean doWaitForContention(long deadline, int attempts, TableMetadata table, DecoratedKey partitionKey, ConsistencyLevel consistency, Type type)
+    boolean doWaitForContention(long deadline, int attempts, TableMetadata table, DecoratedKey partitionKey, ConsistencyLevel consistency, Type type)
     {
         long until = computeWaitUntilForContention(attempts, table, partitionKey, consistency, type);
         if (until >= deadline)
