@@ -338,7 +338,7 @@ public class ByteBufferUtil
 
     public static void writeWithVIntLength(ByteBuffer bytes, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt(bytes.remaining());
+        out.writeUnsignedVInt32(bytes.remaining());
         out.write(bytes);
     }
 
@@ -364,7 +364,7 @@ public class ByteBufferUtil
 
     public static ByteBuffer readWithVIntLength(DataInputPlus in) throws IOException
     {
-        int length = (int)in.readUnsignedVInt();
+        int length = in.readUnsignedVInt32();
         if (length < 0)
             throw new IOException("Corrupt (negative) value length encountered");
 
@@ -385,7 +385,7 @@ public class ByteBufferUtil
 
     public static void skipWithVIntLength(DataInputPlus in) throws IOException
     {
-        int length = (int)in.readUnsignedVInt();
+        int length = in.readUnsignedVInt32();
         if (length < 0)
             throw new IOException("Corrupt (negative) value length encountered");
 

@@ -29,13 +29,7 @@ import org.apache.cassandra.db.filter.RowIndexEntryReadSizeTooLargeException;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.FileHandle;
-import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.io.util.TrackedDataInputPlus;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.MetricNameFactory;
 import org.apache.cassandra.net.ParamType;
@@ -318,7 +312,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         {
             long position = in.readUnsignedVInt();
 
-            int size = (int)in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
             if (size == 0)
             {
                 return new RowIndexEntry<>(position);
@@ -327,7 +321,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             {
                 long headerLength = in.readUnsignedVInt();
                 DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
-                int columnsIndexCount = (int) in.readUnsignedVInt();
+                int columnsIndexCount = in.readUnsignedVInt32();
 
                 checkSize(columnsIndexCount, size);
 
@@ -399,7 +393,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         {
             long position = in.readUnsignedVInt();
 
-            int size = (int) in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
             if (size > 0)
                 in.skipBytesFully(size);
 
@@ -424,7 +418,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
         private static void skipPromotedIndex(DataInputPlus in) throws IOException
         {
-            int size = (int)in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
             if (size <= 0)
                 return;
 
@@ -449,7 +443,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
     {
         out.writeUnsignedVInt(position);
 
-        out.writeUnsignedVInt(0);
+        out.writeUnsignedVInt32(0);
     }
 
     public void serializeForCache(DataOutputPlus out) throws IOException
@@ -527,7 +521,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
             this.headerLength = in.readUnsignedVInt();
             this.deletionTime = DeletionTime.serializer.deserialize(in);
-            int columnsIndexCount = (int) in.readUnsignedVInt();
+            int columnsIndexCount = in.readUnsignedVInt32();
 
             TrackedDataInputPlus trackedIn = new TrackedDataInputPlus(in);
 
@@ -600,11 +594,11 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
             out.writeUnsignedVInt(position);
 
-            out.writeUnsignedVInt(serializedSize(deletionTime, headerLength, columnsIndex.length) + indexedPartSize);
+            out.writeUnsignedVInt32(serializedSize(deletionTime, headerLength, columnsIndex.length) + indexedPartSize);
 
             out.writeUnsignedVInt(headerLength);
             DeletionTime.serializer.serialize(deletionTime, out);
-            out.writeUnsignedVInt(columnsIndex.length);
+            out.writeUnsignedVInt32(columnsIndex.length);
             for (IndexInfo info : columnsIndex)
                 idxInfoSerializer.serialize(info, out);
             for (int offset : offsets)
@@ -619,7 +613,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
             out.writeUnsignedVInt(headerLength);
             DeletionTime.serializer.serialize(deletionTime, out);
-            out.writeUnsignedVInt(columnsIndexCount());
+            out.writeUnsignedVInt32(columnsIndexCount());
 
             for (IndexInfo indexInfo : columnsIndex)
                 idxInfoSerializer.serialize(indexInfo, out);
@@ -695,9 +689,9 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
             this.headerLength = in.readUnsignedVInt();
             this.deletionTime = DeletionTime.serializer.deserialize(in);
-            this.columnsIndexCount = (int) in.readUnsignedVInt();
+            this.columnsIndexCount = in.readUnsignedVInt32();
 
-            this.indexedPartSize = (int) in.readUnsignedVInt();
+            this.indexedPartSize = in.readUnsignedVInt32();
 
             this.idxInfoSerializer = idxInfoSerializer;
 
@@ -741,11 +735,11 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         {
             out.writeUnsignedVInt(position);
 
-            out.writeUnsignedVInt(fieldsSerializedSize + indexInfo.limit());
+            out.writeUnsignedVInt32(fieldsSerializedSize + indexInfo.limit());
 
             out.writeUnsignedVInt(headerLength);
             DeletionTime.serializer.serialize(deletionTime, out);
-            out.writeUnsignedVInt(columnsIndexCount);
+            out.writeUnsignedVInt32(columnsIndexCount);
 
             out.write(indexInfo);
         }
@@ -760,9 +754,9 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
             out.writeUnsignedVInt(headerLength);
             DeletionTime.serializer.serialize(deletionTime, out);
-            out.writeUnsignedVInt(columnsIndexCount);
+            out.writeUnsignedVInt32(columnsIndexCount);
 
-            out.writeUnsignedVInt(indexedPartSize);
+            out.writeUnsignedVInt32(indexedPartSize);
         }
 
         static void skipForCache(DataInputPlus in) throws IOException

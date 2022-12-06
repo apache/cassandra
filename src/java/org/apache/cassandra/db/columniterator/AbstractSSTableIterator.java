@@ -22,17 +22,20 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.DataPosition;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.utils.vint.VIntCoding.VIntOutOfRangeException;
+
 
 public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
 {
@@ -341,7 +344,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
             {
                 return hasNextInternal();
             }
-            catch (IOException | IndexOutOfBoundsException e)
+            catch (IOException | IndexOutOfBoundsException | VIntOutOfRangeException e)
             {
                 try
                 {

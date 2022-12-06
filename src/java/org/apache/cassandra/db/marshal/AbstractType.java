@@ -540,7 +540,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
             return accessor.read(in, length);
         else
         {
-            int l = (int)in.readUnsignedVInt();
+            int l = in.readUnsignedVInt32();
             if (l < 0)
                 throw new IOException("Corrupt (negative) value length encountered");
 

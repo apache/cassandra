@@ -236,11 +236,11 @@ public abstract class AggregationSpecification
                 case AGGREGATE_EVERYTHING:
                     break;
                 case AGGREGATE_BY_PK_PREFIX:
-                    out.writeUnsignedVInt(((AggregateByPkPrefix) aggregationSpec).clusteringPrefixSize);
+                    out.writeUnsignedVInt32(((AggregateByPkPrefix) aggregationSpec).clusteringPrefixSize);
                     break;
                 case AGGREGATE_BY_PK_PREFIX_WITH_SELECTOR:
                     AggregateByPkPrefixWithSelector spec = (AggregateByPkPrefixWithSelector) aggregationSpec;
-                    out.writeUnsignedVInt(spec.clusteringPrefixSize);
+                    out.writeUnsignedVInt32(spec.clusteringPrefixSize);
                     Selector.serializer.serialize(spec.selector, out, version);
                     // Ideally we should serialize the columns but that will break backward compatibility.
                     // So for the moment we can rebuild the list from the prefix size as we know that there will be
@@ -259,9 +259,9 @@ public abstract class AggregationSpecification
                 case AGGREGATE_EVERYTHING:
                     return AggregationSpecification.AGGREGATE_EVERYTHING;
                 case AGGREGATE_BY_PK_PREFIX:
-                    return new AggregateByPkPrefix(metadata.comparator, (int) in.readUnsignedVInt());
+                    return new AggregateByPkPrefix(metadata.comparator, in.readUnsignedVInt32());
                 case AGGREGATE_BY_PK_PREFIX_WITH_SELECTOR:
-                    int clusteringPrefixSize = (int) in.readUnsignedVInt();
+                    int clusteringPrefixSize = in.readUnsignedVInt32();
                     Selector selector = Selector.serializer.deserialize(in, version, metadata);
                     ColumnMetadata functionArgument = metadata.clusteringColumns().get(clusteringPrefixSize - 1);
                     return new AggregateByPkPrefixWithSelector(metadata.comparator,

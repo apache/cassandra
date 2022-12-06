@@ -296,7 +296,7 @@ public abstract class Slices implements Iterable<Slice>
         public void serialize(Slices slices, DataOutputPlus out, int version) throws IOException
         {
             int size = slices.size();
-            out.writeUnsignedVInt(size);
+            out.writeUnsignedVInt32(size);
 
             if (size == 0)
                 return;
@@ -328,7 +328,7 @@ public abstract class Slices implements Iterable<Slice>
 
         public Slices deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
-            int size = (int)in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
 
             if (size == 0)
                 return NONE;

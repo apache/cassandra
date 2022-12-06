@@ -22,12 +22,11 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
-
-import javax.annotation.Nullable;
-
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.db.*;
+import javax.annotation.Nullable;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -171,14 +170,14 @@ public final class Hint
         public void serialize(Hint hint, DataOutputPlus out, int version) throws IOException
         {
             out.writeLong(hint.creationTime);
-            out.writeUnsignedVInt(hint.gcgs);
+            out.writeUnsignedVInt32(hint.gcgs);
             Mutation.serializer.serialize(hint.mutation, out, version);
         }
 
         public Hint deserialize(DataInputPlus in, int version) throws IOException
         {
             long creationTime = in.readLong();
-            int gcgs = (int) in.readUnsignedVInt();
+            int gcgs = in.readUnsignedVInt32();
             return new Hint(Mutation.serializer.deserialize(in, version), creationTime, gcgs);
         }
 
@@ -199,7 +198,7 @@ public final class Hint
         Hint deserializeIfLive(DataInputPlus in, long now, long size, int version) throws IOException
         {
             long creationTime = in.readLong();
-            int gcgs = (int) in.readUnsignedVInt();
+            int gcgs = in.readUnsignedVInt32();
             int bytesRead = sizeof(creationTime) + sizeofUnsignedVInt(gcgs);
 
             if (isLive(creationTime, now, gcgs))
@@ -227,7 +226,7 @@ public final class Hint
             try (DataInputBuffer input = new DataInputBuffer(header))
             {
                 long creationTime = input.readLong();
-                int gcgs = (int) input.readUnsignedVInt();
+                int gcgs = input.readUnsignedVInt32();
 
                 if (!isLive(creationTime, now, gcgs))
                 {
