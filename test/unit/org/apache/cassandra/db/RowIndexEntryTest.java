@@ -17,39 +17,17 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-
 import com.google.common.primitives.Ints;
-import org.junit.Assert;
-import org.junit.Test;
-
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.columniterator.AbstractSSTableIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
-import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
-import org.apache.cassandra.db.rows.BTreeRow;
-import org.apache.cassandra.db.rows.BufferCell;
-import org.apache.cassandra.db.rows.ColumnData;
-import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.db.rows.RangeTombstoneMarker;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.SerializationHelper;
-import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.db.rows.UnfilteredSerializer;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.IndexInfo;
@@ -63,6 +41,12 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
+import org.junit.Assert;
+import org.junit.Test;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.*;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -580,13 +564,13 @@ public class RowIndexEntryTest extends CQLTester
             public void serialize(Pre_C_11206_RowIndexEntry rie, DataOutputPlus out) throws IOException
             {
                 out.writeUnsignedVInt(rie.position);
-                out.writeUnsignedVInt(rie.promotedSize(idxSerializer));
+                out.writeUnsignedVInt32(rie.promotedSize(idxSerializer));
 
                 if (rie.isIndexed())
                 {
                     out.writeUnsignedVInt(rie.headerLength());
                     DeletionTime.serializer.serialize(rie.deletionTime(), out);
-                    out.writeUnsignedVInt(rie.columnsIndex().size());
+                    out.writeUnsignedVInt32(rie.columnsIndex().size());
 
                     // Calculate and write the offsets to the IndexInfo objects.
 
@@ -628,12 +612,12 @@ public class RowIndexEntryTest extends CQLTester
             {
                 long position = in.readUnsignedVInt();
 
-                int size = (int)in.readUnsignedVInt();
+                int size = in.readUnsignedVInt32();
                 if (size > 0)
                 {
                     long headerLength = in.readUnsignedVInt();
                     DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
-                    int entries = (int)in.readUnsignedVInt();
+                    int entries = in.readUnsignedVInt32();
                     List<IndexInfo> columnsIndex = new ArrayList<>(entries);
                     for (int i = 0; i < entries; i++)
                         columnsIndex.add(idxSerializer.deserialize(in));
@@ -664,7 +648,7 @@ public class RowIndexEntryTest extends CQLTester
 
             private static void skipPromotedIndex(DataInputPlus in, Version version) throws IOException
             {
-                int size = (int)in.readUnsignedVInt();
+                int size = in.readUnsignedVInt32();
                 if (size <= 0)
                     return;
 

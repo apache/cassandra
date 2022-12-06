@@ -1,4 +1,5 @@
 4.2
+ * Use checked casts when reading vints as ints (CASSANDRA-18099)
  * Add Mutation Serialization Caching (CASSANDRA-17998)
  * Only reload compaction strategies if disk boundaries change (CASSANDRA-17874)
  * CEP-10: Simulator Java11 Support (CASSANDRA-17178)

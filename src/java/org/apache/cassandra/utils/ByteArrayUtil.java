@@ -234,7 +234,7 @@ public class ByteArrayUtil
 
     public static void writeWithVIntLength(byte[] bytes, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt(bytes.length);
+        out.writeUnsignedVInt32(bytes.length);
         out.write(bytes);
     }
 
@@ -259,7 +259,7 @@ public class ByteArrayUtil
 
     public static byte[] readWithVIntLength(DataInputPlus in) throws IOException
     {
-        int length = (int)in.readUnsignedVInt();
+        int length = in.readUnsignedVInt32();
         if (length < 0)
             throw new IOException("Corrupt (negative) value length encountered");
 

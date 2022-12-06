@@ -140,7 +140,7 @@ public class UnfilteredRowIteratorSerializer
             UnfilteredSerializer.serializer.serialize(staticRow, helper, out, version);
 
         if (rowEstimate >= 0)
-            out.writeUnsignedVInt(rowEstimate);
+            out.writeUnsignedVInt32(rowEstimate);
 
         while (iterator.hasNext())
             UnfilteredSerializer.serializer.serialize(iterator.next(), helper, out, version);
@@ -211,7 +211,7 @@ public class UnfilteredRowIteratorSerializer
         if (hasStatic)
             staticRow = UnfilteredSerializer.serializer.deserializeStaticRow(in, header, new DeserializationHelper(metadata, version, flag));
 
-        int rowEstimate = hasRowEstimate ? (int)in.readUnsignedVInt() : -1;
+        int rowEstimate = hasRowEstimate ? in.readUnsignedVInt32() : -1;
         return new Header(header, key, isReversed, false, partitionDeletion, staticRow, rowEstimate);
     }
 

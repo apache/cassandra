@@ -45,7 +45,7 @@ public class DTestSerializer implements IVersionedAsymmetricSerializer<Serializa
         }
 
         UUIDSerializer.serializer.serialize(message.hostId, out, version);
-        out.writeUnsignedVInt(0);
+        out.writeUnsignedVInt32(0);
         message.unknownTableID.serialize(out);
     }
 

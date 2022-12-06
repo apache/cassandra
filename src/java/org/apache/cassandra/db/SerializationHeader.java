@@ -27,7 +27,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -169,12 +169,12 @@ public class SerializationHeader
 
     public void writeLocalDeletionTime(int localDeletionTime, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt(localDeletionTime - stats.minLocalDeletionTime);
+        out.writeUnsignedVInt32(localDeletionTime - stats.minLocalDeletionTime);
     }
 
     public void writeTTL(int ttl, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt(ttl - stats.minTTL);
+        out.writeUnsignedVInt32(ttl - stats.minTTL);
     }
 
     public void writeDeletionTime(DeletionTime dt, DataOutputPlus out) throws IOException
@@ -190,12 +190,12 @@ public class SerializationHeader
 
     public int readLocalDeletionTime(DataInputPlus in) throws IOException
     {
-        return (int)in.readUnsignedVInt() + stats.minLocalDeletionTime;
+        return in.readUnsignedVInt32() + stats.minLocalDeletionTime;
     }
 
     public int readTTL(DataInputPlus in) throws IOException
     {
-        return (int)in.readUnsignedVInt() + stats.minTTL;
+        return in.readUnsignedVInt32() + stats.minTTL;
     }
 
     public DeletionTime readDeletionTime(DataInputPlus in) throws IOException
@@ -463,7 +463,7 @@ public class SerializationHeader
             EncodingStats.serializer.serialize(header.stats, out);
 
             writeType(header.keyType, out);
-            out.writeUnsignedVInt(header.clusteringTypes.size());
+            out.writeUnsignedVInt32(header.clusteringTypes.size());
             for (AbstractType<?> type : header.clusteringTypes)
                 writeType(type, out);
 
@@ -477,7 +477,7 @@ public class SerializationHeader
             EncodingStats stats = EncodingStats.serializer.deserialize(in);
 
             AbstractType<?> keyType = readType(in);
-            int size = (int)in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
             List<AbstractType<?>> clusteringTypes = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
                 clusteringTypes.add(readType(in));
@@ -508,7 +508,7 @@ public class SerializationHeader
 
         private void writeColumnsWithTypes(Map<ByteBuffer, AbstractType<?>> columns, DataOutputPlus out) throws IOException
         {
-            out.writeUnsignedVInt(columns.size());
+            out.writeUnsignedVInt32(columns.size());
             for (Map.Entry<ByteBuffer, AbstractType<?>> entry : columns.entrySet())
             {
                 ByteBufferUtil.writeWithVIntLength(entry.getKey(), out);
@@ -529,7 +529,7 @@ public class SerializationHeader
 
         private void readColumnsWithType(DataInputPlus in, Map<ByteBuffer, AbstractType<?>> typeMap) throws IOException
         {
-            int length = (int)in.readUnsignedVInt();
+            int length = in.readUnsignedVInt32();
             for (int i = 0; i < length; i++)
             {
                 ByteBuffer name = ByteBufferUtil.readWithVIntLength(in);

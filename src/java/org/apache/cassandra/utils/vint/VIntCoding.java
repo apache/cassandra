@@ -73,6 +73,21 @@ public class VIntCoding
 
     public static final int MAX_SIZE = 10;
 
+    /**
+     * Throw when attempting to decode a vint and the output type
+     * doesn't have enough space to fit the value that was decoded
+     */
+    public static class VIntOutOfRangeException extends RuntimeException
+    {
+        public final long value;
+
+        private VIntOutOfRangeException(long value)
+        {
+            super(value + " is out of range for a 32-bit integer");
+            this.value = value;
+        }
+    }
+
     public static long readUnsignedVInt(DataInput input) throws IOException
     {
         int firstByte = input.readByte();
@@ -101,14 +116,24 @@ public class VIntCoding
     }
 
     /**
+     * Read up to a 32-bit integer back, using the unsigned (no zigzag) encoding.
+     *
      * Note this method is the same as {@link #readUnsignedVInt(DataInput)},
      * except that we do *not* block if there are not enough bytes in the buffer
      * to reconstruct the value.
      *
-     * WARNING: this method is only safe for vints we know to be representable by a positive long value.
-     *
-     * @return -1 if there are not enough bytes in the input to read the value; else, the vint unsigned value.
+     * @throws VIntOutOfRangeException If the vint doesn't fit into a 32-bit integer
      */
+    public static int getUnsignedVInt32(ByteBuffer input, int readerIndex)
+    {
+        return checkedCast(getUnsignedVInt(input, readerIndex));
+    }
+
+    public static int getVInt32(ByteBuffer input, int readerIndex)
+    {
+        return checkedCast(decodeZigZag64(getUnsignedVInt(input, readerIndex)));
+    }
+
     public static long getUnsignedVInt(ByteBuffer input, int readerIndex)
     {
         return getUnsignedVInt(input, readerIndex, input.limit());
@@ -165,6 +190,32 @@ public class VIntCoding
         return decodeZigZag64(readUnsignedVInt(input));
     }
 
+    /**
+     * Read up to a signed 32-bit integer back.
+     *
+     * Assumes the vint was written using {@link #writeVInt32(int, DataOutputPlus)} or similar
+     * that zigzag encodes the integer.
+     *
+     * @throws VIntOutOfRangeException If the vint doesn't fit into a 32-bit integer
+     */
+    public static int readVInt32(DataInput input) throws IOException
+    {
+        return checkedCast(decodeZigZag64(readUnsignedVInt(input)));
+    }
+
+    /**
+     * Read up to a 32-bit integer.
+     *
+     * This method assumes the original integer was written using {@link #writeUnsignedVInt32(int, DataOutputPlus)}
+     * or similar that doesn't zigzag encodes the vint.
+     *
+     * @throws VIntOutOfRangeException If the vint doesn't fit into a 32-bit integer
+     */
+    public static int readUnsignedVInt32(DataInput input) throws IOException
+    {
+        return checkedCast(readUnsignedVInt(input));
+    }
+
     // & this with the first byte to give the value part for a given extraBytesToRead encoded in the byte
     public static int firstByteValueMask(int extraBytesToRead)
     {
@@ -184,6 +235,12 @@ public class VIntCoding
         // this is aided by the fact that we only work with negative numbers, so when upcast to an int all
         // of the new upper bits are also set, so by inverting we set all of them to zero
         return Integer.numberOfLeadingZeros(~firstByte) - 24;
+    }
+
+    @Deprecated
+    public static void writeUnsignedVInt(int value, DataOutputPlus output) throws IOException
+    {
+        throw new UnsupportedOperationException("Use writeUnsignedVInt32/readUnsignedVInt32");
     }
 
     @Inline
@@ -211,6 +268,17 @@ public class VIntCoding
         {
             throw new AssertionError();
         }
+    }
+
+    public static void writeUnsignedVInt32(int value, DataOutputPlus output) throws IOException
+    {
+        writeUnsignedVInt((long)value, output);
+    }
+
+    @Deprecated
+    public static void writeUnsignedVInt(int value, ByteBuffer output) throws IOException
+    {
+        throw new UnsupportedOperationException("Use writeUnsignedVInt32/getUnsignedVInt32");
     }
 
     @Inline
@@ -251,15 +319,45 @@ public class VIntCoding
     }
 
     @Inline
+    public static void writeUnsignedVInt32(int value, ByteBuffer output)
+    {
+        writeUnsignedVInt((long)value, output);
+    }
+
+    @Deprecated
+    public static void writeVInt(int value, DataOutputPlus output) throws IOException
+    {
+        throw new UnsupportedOperationException("Use writeVInt32/readVInt32");
+    }
+
+    @Inline
     public static void writeVInt(long value, DataOutputPlus output) throws IOException
     {
         writeUnsignedVInt(encodeZigZag64(value), output);
     }
 
     @Inline
-    public static void writeVInt(long value, ByteBuffer output) throws IOException
+    public static void writeVInt32(int value, DataOutputPlus output) throws IOException
+    {
+        writeVInt((long)value, output);
+    }
+
+    @Deprecated
+    public static void writeVInt(int value, ByteBuffer output)
+    {
+        throw new UnsupportedOperationException("Use writeVInt32/getVInt32");
+    }
+
+    @Inline
+    public static void writeVInt(long value, ByteBuffer output)
     {
         writeUnsignedVInt(encodeZigZag64(value), output);
+    }
+
+    @Inline
+    public static void writeVInt32(int value, ByteBuffer output)
+    {
+        writeVInt((long)value, output);
     }
 
     /**
@@ -325,5 +423,13 @@ public class VIntCoding
         int magnitude = Long.numberOfLeadingZeros(value | 1); // | with 1 to ensure magntiude <= 63, so (63 - 1) / 7 <= 8
         // the formula below is hand-picked to match the original 9 - ((magnitude - 1) / 7)
         return (639 - magnitude * 9) >> 6;
+    }
+
+    public static int checkedCast(long value)
+    {
+        int result = (int)value;
+        if ((long)result != value)
+            throw new VIntOutOfRangeException(value);
+        return result;
     }
 }

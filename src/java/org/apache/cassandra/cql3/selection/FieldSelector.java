@@ -42,7 +42,7 @@ final class FieldSelector extends Selector
         protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             UserType type = (UserType) readType(metadata, in);
-            int field = (int) in.readUnsignedVInt();
+            int field = in.readUnsignedVInt32();
             Selector selected = Selector.serializer.deserialize(in, version, metadata);
 
             return new FieldSelector(type, field, selected);
@@ -191,7 +191,7 @@ final class FieldSelector extends Selector
     protected void serialize(DataOutputPlus out, int version) throws IOException
     {
         writeType(out, type);
-        out.writeUnsignedVInt(field);
+        out.writeUnsignedVInt32(field);
         serializer.serialize(selected, out, version);
     }
 }

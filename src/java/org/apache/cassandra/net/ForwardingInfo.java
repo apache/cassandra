@@ -17,20 +17,19 @@
  */
 package org.apache.cassandra.net;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.function.BiConsumer;
-
 import com.google.common.base.Preconditions;
 import com.google.common.primitives.Ints;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
@@ -85,7 +84,7 @@ public final class ForwardingInfo implements Serializable
 
             int count = ids.length;
             if (version >= VERSION_40)
-                out.writeUnsignedVInt(count);
+                out.writeUnsignedVInt32(count);
             else
                 out.writeInt(count);
 
@@ -118,7 +117,7 @@ public final class ForwardingInfo implements Serializable
 
         public ForwardingInfo deserialize(DataInputPlus in, int version) throws IOException
         {
-            int count = version >= VERSION_40 ? Ints.checkedCast(in.readUnsignedVInt()) : in.readInt();
+            int count = version >= VERSION_40 ? in.readUnsignedVInt32() : in.readInt();
 
             long[] ids = new long[count];
             List<InetAddressAndPort> targets = new ArrayList<>(count);
@@ -126,7 +125,7 @@ public final class ForwardingInfo implements Serializable
             for (int i = 0; i < count; i++)
             {
                 targets.add(inetAddressAndPortSerializer.deserialize(in, version));
-                ids[i] = version >= VERSION_40 ? Ints.checkedCast(in.readUnsignedVInt()) : in.readInt();
+                ids[i] = version >= VERSION_40 ? in.readUnsignedVInt32() : in.readInt();
             }
 
             return new ForwardingInfo(targets, ids);

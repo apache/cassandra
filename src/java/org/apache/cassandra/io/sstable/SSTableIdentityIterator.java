@@ -17,15 +17,18 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.*;
-
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import java.io.IOError;
+import java.io.IOException;
+
+import static org.apache.cassandra.utils.vint.VIntCoding.VIntOutOfRangeException;
 
 public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterator>, UnfilteredRowIterator
 {
@@ -125,7 +128,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             return iterator.hasNext();
         }
-        catch (IndexOutOfBoundsException e)
+        catch (IndexOutOfBoundsException | VIntOutOfRangeException e)
         {
             sstable.markSuspect();
             throw new CorruptSSTableException(e, filename);

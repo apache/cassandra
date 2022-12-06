@@ -18,22 +18,19 @@
 
 package org.apache.cassandra.db.streaming;
 
+import java.io.IOException;
+import java.util.*;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-
-import java.io.IOException;
-import java.util.*;
-
-/**
- * SSTable components and their sizes to be tranfered via entire-sstable-streaming
- */
 import org.apache.cassandra.io.util.File;
 
 public final class ComponentManifest implements Iterable<Component>
@@ -118,7 +115,7 @@ public final class ComponentManifest implements Iterable<Component>
     {
         public void serialize(ComponentManifest manifest, DataOutputPlus out, int version) throws IOException
         {
-            out.writeUnsignedVInt(manifest.components.size());
+            out.writeUnsignedVInt32(manifest.components.size());
             for (Map.Entry<Component, Long> entry : manifest.components.entrySet())
             {
                 out.writeUTF(entry.getKey().name);
@@ -128,7 +125,7 @@ public final class ComponentManifest implements Iterable<Component>
 
         public ComponentManifest deserialize(DataInputPlus in, int version) throws IOException
         {
-            int size = (int) in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
 
             LinkedHashMap<Component, Long> components = new LinkedHashMap<>(size);
 

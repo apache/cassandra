@@ -55,7 +55,7 @@ final class UserTypeSelector extends Selector
         protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             UserType type = (UserType) readType(metadata, in);
-            int size = (int) in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
             Map<FieldIdentifier, Selector> fields = new HashMap<>(size);
             for (int i = 0; i < size; i++)
             {
@@ -272,7 +272,7 @@ final class UserTypeSelector extends Selector
     protected void serialize(DataOutputPlus out, int version) throws IOException
     {
         writeType(out, type);
-        out.writeUnsignedVInt(fields.size());
+        out.writeUnsignedVInt32(fields.size());
 
         for (Map.Entry<FieldIdentifier, Selector> field : fields.entrySet())
         {

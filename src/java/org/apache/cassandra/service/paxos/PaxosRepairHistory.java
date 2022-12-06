@@ -315,7 +315,7 @@ public class PaxosRepairHistory
     {
         public void serialize(PaxosRepairHistory history, DataOutputPlus out, int version) throws IOException
         {
-            out.writeUnsignedVInt(history.size());
+            out.writeUnsignedVInt32(history.size());
             for (int i = 0; i < history.size() ; ++i)
             {
                 Token.serializer.serialize(history.tokenInclusiveUpperBound[i], out, version);
@@ -326,7 +326,7 @@ public class PaxosRepairHistory
 
         public PaxosRepairHistory deserialize(DataInputPlus in, int version) throws IOException
         {
-            int size = (int) in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
             Token[] tokenInclusiveUpperBounds = new Token[size];
             Ballot[] ballotLowBounds = new Ballot[size + 1];
             for (int i = 0; i < size; i++)

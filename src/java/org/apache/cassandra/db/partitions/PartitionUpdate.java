@@ -36,7 +36,10 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.index.IndexRegistry;
-import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -702,7 +705,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             if (position >= in.limit())
                 throw new EOFException();
             // DecoratedKey key = metadata.decorateKey(ByteBufferUtil.readWithVIntLength(in));
-            int keyLength = (int) VIntCoding.getUnsignedVInt(in, position);
+            int keyLength = VIntCoding.getUnsignedVInt32(in, position);
             position += keyLength + VIntCoding.computeUnsignedVIntSize(keyLength);
             if (position >= in.limit())
                 throw new EOFException();

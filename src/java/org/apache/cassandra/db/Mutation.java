@@ -48,9 +48,7 @@ import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.net.MessagingService.VERSION_30;
-import static org.apache.cassandra.net.MessagingService.VERSION_3014;
-import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.*;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class Mutation implements IMutation, Supplier<Mutation>
@@ -475,7 +473,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
             /* serialize the modifications in the mutation */
             int size = modifications.size();
-            out.writeUnsignedVInt(size);
+            out.writeUnsignedVInt32(size);
 
             assert size > 0;
             for (PartitionUpdate partitionUpdate : modifications.values())
@@ -492,7 +490,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             {
                 teeIn = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
 
-                int size = (int) teeIn.readUnsignedVInt();
+                int size = teeIn.readUnsignedVInt32();
                 assert size > 0;
 
                 PartitionUpdate update = PartitionUpdate.serializer.deserialize(teeIn, version, flag);

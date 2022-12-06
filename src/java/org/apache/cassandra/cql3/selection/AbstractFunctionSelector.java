@@ -57,7 +57,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         {
             FunctionName name = new FunctionName(in.readUTF(), in.readUTF());
 
-            int numberOfArguments = (int) in.readUnsignedVInt();
+            int numberOfArguments = in.readUnsignedVInt32();
             List<AbstractType<?>> argTypes = new ArrayList<>(numberOfArguments);
             for (int i = 0; i < numberOfArguments; i++)
             {
@@ -76,7 +76,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
             boolean isPartial = in.readBoolean();
             if (isPartial)
             {
-                int bitset = (int) in.readUnsignedVInt();
+                int bitset = in.readUnsignedVInt32();
                 List<ByteBuffer> partialParameters = new ArrayList<>(numberOfArguments);
                 for (int i = 0; i < numberOfArguments; i++)
                 {
@@ -89,7 +89,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
                 function = ((ScalarFunction) function).partialApplication(ProtocolVersion.CURRENT, partialParameters);
             }
 
-            int numberOfRemainingArguments = (int) in.readUnsignedVInt();
+            int numberOfRemainingArguments = in.readUnsignedVInt32();
             List<Selector> argSelectors = new ArrayList<>(numberOfRemainingArguments);
             for (int i = 0; i < numberOfRemainingArguments; i++)
             {
@@ -344,7 +344,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
 
         List<AbstractType<?>> argTypes = function.argTypes();
         int numberOfArguments = argTypes.size();
-        out.writeUnsignedVInt(numberOfArguments);
+        out.writeUnsignedVInt32(numberOfArguments);
 
         for (int i = 0; i < numberOfArguments; i++)
             writeType(out, argTypes.get(i));
@@ -356,7 +356,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
             List<ByteBuffer> partialParameters = ((PartialScalarFunction) fun).getPartialParameters();
 
             // We use a bitset to track the position of the unresolved arguments
-            out.writeUnsignedVInt(computeBitSet(partialParameters));
+            out.writeUnsignedVInt32(computeBitSet(partialParameters));
 
             for (int i = 0, m = partialParameters.size(); i < m; i++)
             {
@@ -367,7 +367,7 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         }
 
         int numberOfRemainingArguments = argSelectors.size();
-        out.writeUnsignedVInt(numberOfRemainingArguments);
+        out.writeUnsignedVInt32(numberOfRemainingArguments);
         for (int i = 0; i < numberOfRemainingArguments; i++)
             serializer.serialize(argSelectors.get(i), out, version);
     }

@@ -162,7 +162,7 @@ public interface ValueAccessor<V>
 
     default void writeWithVIntLength(V value, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt(size(value));
+        out.writeUnsignedVInt32(size(value));
         write(value, out);
     }
 

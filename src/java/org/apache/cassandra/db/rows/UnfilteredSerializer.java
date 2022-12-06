@@ -20,14 +20,14 @@ package org.apache.cassandra.db.rows;
 import java.io.IOException;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
-import org.apache.cassandra.db.marshal.ByteArrayAccessor;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
 import org.apache.cassandra.db.rows.Row.Deletion;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.WrappedException;
 
@@ -270,7 +270,7 @@ public class UnfilteredSerializer
         if (hasComplexDeletion)
             header.writeDeletionTime(data.complexDeletion(), out);
 
-        out.writeUnsignedVInt(data.cellsCount());
+        out.writeUnsignedVInt32(data.cellsCount());
         for (Cell<?> cell : data)
             Cell.serializer.serialize(cell, column, out, rowLiveness, header);
     }
@@ -662,7 +662,7 @@ public class UnfilteredSerializer
                     builder.addComplexDeletion(column, complexDeletion);
             }
 
-            int count = (int) in.readUnsignedVInt();
+            int count = in.readUnsignedVInt32();
             while (--count >= 0)
             {
                 Cell<byte[]> cell = Cell.serializer.deserialize(in, rowLiveness, column, header, helper, ByteArrayAccessor.instance);
@@ -680,7 +680,7 @@ public class UnfilteredSerializer
 
     public void skipRowBody(DataInputPlus in) throws IOException
     {
-        int rowSize = (int)in.readUnsignedVInt();
+        int rowSize = in.readUnsignedVInt32();
         in.skipBytesFully(rowSize);
     }
 
@@ -695,7 +695,7 @@ public class UnfilteredSerializer
 
     public void skipMarkerBody(DataInputPlus in) throws IOException
     {
-        int markerSize = (int)in.readUnsignedVInt();
+        int markerSize = in.readUnsignedVInt32();
         in.skipBytesFully(markerSize);
     }
 
@@ -705,7 +705,7 @@ public class UnfilteredSerializer
         if (hasComplexDeletion)
             header.skipDeletionTime(in);
 
-        int count = (int) in.readUnsignedVInt();
+        int count = in.readUnsignedVInt32();
         while (--count >= 0)
             Cell.serializer.skip(in, column, header);
     }
