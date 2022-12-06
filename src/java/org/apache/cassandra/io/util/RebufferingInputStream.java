@@ -17,11 +17,7 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.Closeable;
-import java.io.DataInputStream;
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -231,11 +227,19 @@ public abstract class RebufferingInputStream extends InputStream implements Data
             return readPrimitiveSlowly(8);
     }
 
+    @Override
     public long readVInt() throws IOException
     {
         return VIntCoding.decodeZigZag64(readUnsignedVInt());
     }
 
+    @Override
+    public int readVInt32() throws IOException
+    {
+        return VIntCoding.checkedCast(VIntCoding.decodeZigZag64(readUnsignedVInt()));
+    }
+
+    @Override
     public long readUnsignedVInt() throws IOException
     {
         //If 9 bytes aren't available use the slow path in VIntCoding
@@ -265,6 +269,12 @@ public abstract class RebufferingInputStream extends InputStream implements Data
         // shift the first byte up to its correct position
         retval |= (long) firstByte << extraBits;
         return retval;
+    }
+
+    @Override
+    public int readUnsignedVInt32() throws IOException
+    {
+        return VIntCoding.checkedCast(readUnsignedVInt());
     }
 
     @Override

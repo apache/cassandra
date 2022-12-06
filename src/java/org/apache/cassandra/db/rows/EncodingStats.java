@@ -266,8 +266,8 @@ public class EncodingStats implements IMeasurableMemory
         public void serialize(EncodingStats stats, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt(stats.minTimestamp - TIMESTAMP_EPOCH);
-            out.writeUnsignedVInt(stats.minLocalDeletionTime - DELETION_TIME_EPOCH);
-            out.writeUnsignedVInt(stats.minTTL - TTL_EPOCH);
+            out.writeUnsignedVInt32(stats.minLocalDeletionTime - DELETION_TIME_EPOCH);
+            out.writeUnsignedVInt32(stats.minTTL - TTL_EPOCH);
         }
 
         public int serializedSize(EncodingStats stats)
@@ -280,8 +280,8 @@ public class EncodingStats implements IMeasurableMemory
         public EncodingStats deserialize(DataInputPlus in) throws IOException
         {
             long minTimestamp = in.readUnsignedVInt() + TIMESTAMP_EPOCH;
-            int minLocalDeletionTime = (int)in.readUnsignedVInt() + DELETION_TIME_EPOCH;
-            int minTTL = (int)in.readUnsignedVInt() + TTL_EPOCH;
+            int minLocalDeletionTime = in.readUnsignedVInt32() + DELETION_TIME_EPOCH;
+            int minTTL = in.readUnsignedVInt32() + TTL_EPOCH;
             return new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
         }
     }

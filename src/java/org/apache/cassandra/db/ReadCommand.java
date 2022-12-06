@@ -1037,7 +1037,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     | acceptsTransientFlag(command.acceptsTransient())
             );
             if (command.isDigestQuery())
-                out.writeUnsignedVInt(command.digestVersion());
+                out.writeUnsignedVInt32(command.digestVersion());
             command.metadata().id.serialize(out);
             out.writeInt(command.nowInSec());
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
@@ -1064,7 +1064,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                               + "upgrading to 4.0");
 
             boolean hasIndex = hasIndex(flags);
-            int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
+            int digestVersion = isDigest ? in.readUnsignedVInt32() : 0;
             TableMetadata metadata = schema.getExistingTableMetadata(TableId.deserialize(in));
             int nowInSec = in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);

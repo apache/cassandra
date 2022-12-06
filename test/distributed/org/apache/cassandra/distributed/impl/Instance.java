@@ -442,7 +442,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         batch.id.serialize(out);
         out.writeLong(batch.creationTime);
 
-        out.writeUnsignedVInt(batch.getEncodedMutations().size());
+        out.writeUnsignedVInt32(batch.getEncodedMutations().size());
 
         for (ByteBuffer mutation : batch.getEncodedMutations())
         {
