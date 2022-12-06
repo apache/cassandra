@@ -197,7 +197,6 @@ public class CompactionTaskTest
     {
         //major compact without range/pk specified 
         CompactionTasks compactionTasks = cfs.getCompactionStrategyManager().getMaximalTasks(Integer.MAX_VALUE, false, OperationType.MAJOR_COMPACTION);
-        boolean anyMatch = compactionTasks.stream().anyMatch(task -> !(task.compactionType.equals(OperationType.MAJOR_COMPACTION)));
-        Assert.assertFalse(anyMatch);
+        Assert.assertTrue(compactionTasks.stream().allMatch(task -> task.compactionType.equals(OperationType.MAJOR_COMPACTION)));
     }
 }
