@@ -810,6 +810,7 @@ txnColumnCondition[List<ConditionStatement.Raw> conditions]
         )
         | (txnConditionKind term)=> op=txnConditionKind t=term { conditions.add(new ConditionStatement.Raw(lhs, op, t)); }
       )
+    | lhs=term op=txnConditionKind rhs=rowDataReference { conditions.add(new ConditionStatement.Raw(lhs, op, rhs)); }
     ;
 
 createAggregateStatement returns [CreateAggregateStatement.Raw stmt]

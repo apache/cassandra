@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import com.google.common.base.Preconditions;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
@@ -217,7 +215,9 @@ public class TxnReference
         }
 
         // Account for frozen collection and reversed clustering key references:
-        Preconditions.checkArgument((type.isFrozenCollection() ? receiver.freeze().unwrap() : receiver.unwrap()) == type.unwrap());
+        AbstractType<?> receiveType = type.isFrozenCollection() ? receiver.freeze().unwrap() : receiver.unwrap();
+        if (!(receiveType == type.unwrap()))
+            throw new IllegalArgumentException("Receiving type " + receiveType + " does not match " + type.unwrap());
 
         if (column().isPartitionKey())
             return getPartitionKey(data);

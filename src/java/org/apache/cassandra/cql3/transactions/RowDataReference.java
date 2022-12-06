@@ -36,6 +36,7 @@ import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.selection.Selectable;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.service.accord.txn.TxnDataName;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -102,7 +103,9 @@ public class RowDataReference extends Term.NonTerminal
 
         if (isElementSelection())
         {
-            if (forMetadata.type instanceof SetType)
+            if (forMetadata.type instanceof ListType)
+                forMetadata = forMetadata.withNewType(((ListType<?>) forMetadata.type).valueComparator());
+            else if (forMetadata.type instanceof SetType)
                 forMetadata = forMetadata.withNewType(((SetType<?>) forMetadata.type).nameComparator());
             else if (forMetadata.type instanceof MapType)
                 forMetadata = forMetadata.withNewType(((MapType<?, ?>) forMetadata.type).valueComparator());
@@ -185,8 +188,8 @@ public class RowDataReference extends Term.NonTerminal
 
         public Raw(Selectable.RawIdentifier tuple, Selectable.Raw selected, Object fieldOrElement)
         {
-            Preconditions.checkArgument(tuple != null);
-            Preconditions.checkArgument(selected == null || selected instanceof Selectable.RawIdentifier);
+            Preconditions.checkArgument(tuple != null, "tuple is null");
+            Preconditions.checkArgument(selected == null || selected instanceof Selectable.RawIdentifier, "selected is not a Selectable.RawIdentifier: " + selected);
             this.tuple = tuple;
             this.selected = (Selectable.RawIdentifier) selected;
             this.fieldOrElement = fieldOrElement;
@@ -231,9 +234,6 @@ public class RowDataReference extends Term.NonTerminal
             tupleName = TxnDataName.user(tuple.toString());
             ReferenceSource source = sources.get(tupleName);
             checkNotNull(source, CANNOT_FIND_TUPLE_MESSAGE, tupleName.name());
-
-            if (!source.isPointSelect())
-                throw new UnsupportedOperationException("Multi-row reference sources are not allowed!");
             
             if (selected == null)
             {
@@ -375,7 +375,6 @@ public class RowDataReference extends Term.NonTerminal
 
     public interface ReferenceSource
     {
-        boolean isPointSelect();
         ColumnMetadata getColumn(String name);
     }
 }

@@ -63,20 +63,20 @@ public class TxnReferenceOperation
         Map<Class<? extends Operation>, Kind> temp = new HashMap<>();
         temp.put(Sets.Adder.class, Kind.SetAdder);
         temp.put(Constants.Adder.class, Kind.ConstantAdder);
-        temp.put(Lists.Appender.class, Kind.Appender);
+        temp.put(Lists.Appender.class, Kind.ListAppender);
         temp.put(Sets.Discarder.class, Kind.SetDiscarder);
         temp.put(Lists.Discarder.class, Kind.ListDiscarder);
-        temp.put(Lists.Prepender.class, Kind.Prepender);
-        temp.put(Maps.Putter.class, Kind.Putter);
+        temp.put(Lists.Prepender.class, Kind.ListPrepender);
+        temp.put(Maps.Putter.class, Kind.MapPutter);
         temp.put(Lists.Setter.class, Kind.ListSetter);
         temp.put(Sets.Setter.class, Kind.SetSetter);
         temp.put(Maps.Setter.class, Kind.MapSetter);
         temp.put(UserTypes.Setter.class, Kind.UserTypeSetter);
         temp.put(Constants.Setter.class, Kind.ConstantSetter);
-        temp.put(Constants.Substracter.class, Kind.Subtracter);
-        temp.put(Maps.SetterByKey.class, Kind.SetterByKey);
-        temp.put(Lists.SetterByIndex.class, Kind.SetterByIndex);
-        temp.put(UserTypes.SetterByField.class, Kind.SetterByField);
+        temp.put(Constants.Substracter.class, Kind.ConstantSubtracter);
+        temp.put(Maps.SetterByKey.class, Kind.MapSetterByKey);
+        temp.put(Lists.SetterByIndex.class, Kind.ListSetterByIndex);
+        temp.put(UserTypes.SetterByField.class, Kind.UserTypeSetterByField);
         return temp;
     }
 
@@ -89,20 +89,20 @@ public class TxnReferenceOperation
     {
         SetAdder((byte) 1, (column, keyOrIndex, field, value) -> new Sets.Adder(column, value)),
         ConstantAdder((byte) 2, (column, keyOrIndex, field, value) -> new Constants.Adder(column, value)),
-        Appender((byte) 3, (column, keyOrIndex, field, value) -> new Lists.Appender(column, value)),
+        ListAppender((byte) 3, (column, keyOrIndex, field, value) -> new Lists.Appender(column, value)),
         SetDiscarder((byte) 4, (column, keyOrIndex, field, value) -> new Sets.Discarder(column, value)),
         ListDiscarder((byte) 5, (column, keyOrIndex, field, value) -> new Lists.Discarder(column, value)),
-        Prepender((byte) 6, (column, keyOrIndex, field, value) -> new Lists.Prepender(column, value)),
-        Putter((byte) 7, (column, keyOrIndex, field, value) -> new Maps.Putter(column, value)),
+        ListPrepender((byte) 6, (column, keyOrIndex, field, value) -> new Lists.Prepender(column, value)),
+        MapPutter((byte) 7, (column, keyOrIndex, field, value) -> new Maps.Putter(column, value)),
         ListSetter((byte) 8, (column, keyOrIndex, field, value) -> new Lists.Setter(column, value)),
         SetSetter((byte) 9, (column, keyOrIndex, field, value) -> new Sets.Setter(column, value)),
         MapSetter((byte) 10, (column, keyOrIndex, field, value) -> new Maps.Setter(column, value)),
         UserTypeSetter((byte) 11, (column, keyOrIndex, field, value) -> new UserTypes.Setter(column, value)),
         ConstantSetter((byte) 12, (column, keyOrIndex, field, value) -> new Constants.Setter(column, value)),
-        Subtracter((byte) 13, (column, keyOrIndex, field, value) -> new Constants.Substracter(column, value)),
-        SetterByKey((byte) 14, (column, keyOrIndex, field, value) -> new Maps.SetterByKey(column, keyOrIndex, value)),
-        SetterByIndex((byte) 15, (column, keyOrIndex, field, value) -> new Lists.SetterByIndex(column, keyOrIndex, value)),
-        SetterByField((byte) 16, (column, keyOrIndex, field, value) -> new UserTypes.SetterByField(column, field, value));
+        ConstantSubtracter((byte) 13, (column, keyOrIndex, field, value) -> new Constants.Substracter(column, value)),
+        MapSetterByKey((byte) 14, (column, keyOrIndex, field, value) -> new Maps.SetterByKey(column, keyOrIndex, value)),
+        ListSetterByIndex((byte) 15, (column, keyOrIndex, field, value) -> new Lists.SetterByIndex(column, keyOrIndex, value)),
+        UserTypeSetterByField((byte) 16, (column, keyOrIndex, field, value) -> new UserTypes.SetterByField(column, field, value));
 
         private final byte id;
         private final ToOperation toOperation;
@@ -216,12 +216,12 @@ public class TxnReferenceOperation
     private Operation toOperation(TxnData data, UpdateParameters up)
     {
         AbstractType<?> receivingType = type;
-        if (kind == Kind.SetterByKey || kind == Kind.SetterByIndex)
+        if (kind == Kind.MapSetterByKey || kind == Kind.ListSetterByIndex)
             receivingType = ((CollectionType<?>) type).valueComparator();
 
         FieldIdentifier fieldIdentifier = this.field == null ? null : new FieldIdentifier(this.field);
         
-        if (kind == Kind.SetterByField)
+        if (kind == Kind.UserTypeSetterByField)
         {
             UserType userType = (UserType) type;
             CellPath fieldPath = userType.cellPathForField(fieldIdentifier);

@@ -34,91 +34,123 @@ public class ConditionStatement
 {
     public enum Kind
     {
-        IS_NOT_NULL(TxnCondition.Kind.IS_NOT_NULL),
-        IS_NULL(TxnCondition.Kind.IS_NULL),
-        EQ(TxnCondition.Kind.EQUAL),
-        NEQ(TxnCondition.Kind.NOT_EQUAL),
-        GT(TxnCondition.Kind.GREATER_THAN),
-        GTE(TxnCondition.Kind.GREATER_THAN_OR_EQUAL),
-        LT(TxnCondition.Kind.LESS_THAN),
-        LTE(TxnCondition.Kind.LESS_THAN_OR_EQUAL);
+        IS_NOT_NULL(TxnCondition.Kind.IS_NOT_NULL, null),
+        IS_NULL(TxnCondition.Kind.IS_NULL, null),
+        EQ(TxnCondition.Kind.EQUAL, TxnCondition.Kind.EQUAL),
+        NEQ(TxnCondition.Kind.NOT_EQUAL, TxnCondition.Kind.NOT_EQUAL),
+        GT(TxnCondition.Kind.GREATER_THAN, TxnCondition.Kind.LESS_THAN),
+        GTE(TxnCondition.Kind.GREATER_THAN_OR_EQUAL, TxnCondition.Kind.LESS_THAN_OR_EQUAL),
+        LT(TxnCondition.Kind.LESS_THAN, TxnCondition.Kind.GREATER_THAN),
+        LTE(TxnCondition.Kind.LESS_THAN_OR_EQUAL, TxnCondition.Kind.GREATER_THAN_OR_EQUAL);
         
         // TODO: Support for IN, CONTAINS, CONTAINS KEY
 
         private final TxnCondition.Kind kind;
+        private final TxnCondition.Kind reversedKind;
         
-        Kind(TxnCondition.Kind kind)
+        Kind(TxnCondition.Kind kind, TxnCondition.Kind reversedKind)
         {
             this.kind = kind;
+            this.reversedKind = reversedKind;
         }
 
-        TxnCondition.Kind toTxnKind()
+        TxnCondition.Kind toTxnKind(boolean reversed)
         {
-            return kind;
+            return reversed ? reversedKind : kind;
         }
     }
 
     private final RowDataReference reference;
     private final Kind kind;
     private final Term value;
+    private final boolean reversed;
 
-    public ConditionStatement(RowDataReference reference, Kind kind, Term value)
+    public ConditionStatement(RowDataReference reference, Kind kind, Term value, boolean reversed)
     {
         this.reference = reference;
         this.kind = kind;
         this.value = value;
+        this.reversed = reversed;
     }
 
     public static class Raw
     {
-        private final RowDataReference.Raw reference;
+        private final Term.Raw lhs;
         private final Kind kind;
-        private final Term.Raw value;
+        private final Term.Raw rhs;
 
-        public Raw(RowDataReference.Raw reference, Kind kind, Term.Raw value)
+        public Raw(Term.Raw lhs, Kind kind, Term.Raw rhs)
         {
-            Preconditions.checkArgument(reference != null);
-            Preconditions.checkArgument((value == null) == (kind == Kind.IS_NOT_NULL || kind == Kind.IS_NULL));
-            this.reference = reference;
+            Preconditions.checkArgument(lhs != null);
+            Preconditions.checkArgument((rhs == null) == (kind == Kind.IS_NOT_NULL || kind == Kind.IS_NULL));
+            this.lhs = lhs;
             this.kind = kind;
-            this.value = value;
+            this.rhs = rhs;
         }
 
         public ConditionStatement prepare(String keyspace, VariableSpecifications bindVariables)
         {
-            RowDataReference preparedReference = reference.prepareAsReceiver();
-            preparedReference.collectMarkerSpecification(bindVariables);
-            Term preparedValue = null;
-
-            if (value != null)
+            if (rhs == null)
             {
-                ColumnSpecification receiver = preparedReference.column();
+                // In the IS NULL/IS NOT NULL case, the reference will always be on the LHS
+                RowDataReference reference = ((RowDataReference.Raw) lhs).prepareAsReceiver();
+                reference.collectMarkerSpecification(bindVariables);
+                return new ConditionStatement(reference, kind, null, false);
+            }
                 
-                if (preparedReference.isElementSelection())
-                {
-                    switch (((CollectionType<?>) receiver.type).kind)
-                    {
-                        case LIST:
-                            receiver = Lists.valueSpecOf(receiver);
-                            break;
-                        case MAP:
-                            receiver = Maps.valueSpecOf(receiver);
-                            break;
-                        case SET:
-                            throw new InvalidRequestException(String.format("Invalid operation %s = %s for set column %s",
-                                                                            preparedReference.getFullyQualifiedName(), value, receiver.name));
-                    }
-                }
-                else if (preparedReference.isFieldSelection())
-                {
-                    receiver = preparedReference.getFieldSelectionSpec();
-                }
-
-                preparedValue = value.prepare(keyspace, receiver);
-                preparedValue.collectMarkerSpecification(bindVariables);
+            RowDataReference reference;
+            Term value;
+            boolean reversed = false;
+            
+            if (lhs instanceof RowDataReference.Raw)
+            {
+                reference = ((RowDataReference.Raw) lhs).prepareAsReceiver();
+                ColumnSpecification receiver = extractEffectiveReceiver(reference);
+                value = rhs.prepare(keyspace, receiver);
+            }
+            else if (rhs instanceof RowDataReference.Raw)
+            {
+                reference = ((RowDataReference.Raw) rhs).prepareAsReceiver();
+                ColumnSpecification receiver = extractEffectiveReceiver(reference);
+                value = lhs.prepare(keyspace, receiver);
+                // TxnCondition expects the reference to be on the RHS, so reverse the operator.
+                reversed = true;
+            }
+            else
+            {
+                throw new IllegalStateException("Either the left-hand or right-hand side must be a reference!");
             }
 
-            return new ConditionStatement(preparedReference, kind, preparedValue);
+            reference.collectMarkerSpecification(bindVariables);
+            value.collectMarkerSpecification(bindVariables);
+            return new ConditionStatement(reference, kind, value, reversed);
+        }
+
+        private ColumnSpecification extractEffectiveReceiver(RowDataReference reference)
+        {
+            ColumnSpecification receiver = reference.column();
+
+            if (reference.isElementSelection())
+            {
+                CollectionType.Kind collectionKind = ((CollectionType<?>) receiver.type).kind;
+                switch (collectionKind)
+                {
+                    case LIST:
+                        receiver = Lists.valueSpecOf(receiver);
+                        break;
+                    case MAP:
+                        receiver = Maps.valueSpecOf(receiver);
+                        break;
+                    default:
+                        throw new InvalidRequestException(String.format("Element selection not supported for column %s of type %s" ,
+                                                                        receiver.name, collectionKind));
+                }
+            }
+            else if (reference.isFieldSelection())
+            {
+                receiver = reference.getFieldSelectionSpec();
+            }
+            return receiver;
         }
     }
 
@@ -128,7 +160,7 @@ public class ConditionStatement
         {
             case IS_NOT_NULL:
             case IS_NULL:
-                return new TxnCondition.Exists(reference.toTxnReference(options), kind.toTxnKind());
+                return new TxnCondition.Exists(reference.toTxnReference(options), kind.toTxnKind(reversed));
             case EQ:
             case NEQ:
             case GT:
@@ -136,7 +168,7 @@ public class ConditionStatement
             case LT:
             case LTE:
                 return new TxnCondition.Value(reference.toTxnReference(options),
-                                              kind.toTxnKind(),
+                                              kind.toTxnKind(reversed),
                                               value.bindAndGet(options),
                                               options.getProtocolVersion());
             default:

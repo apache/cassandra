@@ -105,7 +105,7 @@ public abstract class TxnCondition
                 case NONE:
                     return None.serializer;
                 default:
-                    throw new IllegalArgumentException();
+                    throw new IllegalArgumentException("No serializer exists for kind " + this);
             }
         }
     }
@@ -185,7 +185,7 @@ public abstract class TxnCondition
         public Exists(TxnReference reference, Kind kind)
         {
             super(kind);
-            Preconditions.checkArgument(KINDS.contains(kind));
+            Preconditions.checkArgument(KINDS.contains(kind), "Kind " + kind + " cannot be used with an existence condition");
             this.reference = reference;
         }
 
@@ -444,7 +444,7 @@ public abstract class TxnCondition
         public BooleanGroup(Kind kind, List<TxnCondition> conditions)
         {
             super(kind);
-            Preconditions.checkArgument(KINDS.contains(kind));
+            Preconditions.checkArgument(KINDS.contains(kind), "Kind " + kind + " cannot be used at the root of a boolean condition");
             this.conditions = conditions;
         }
 

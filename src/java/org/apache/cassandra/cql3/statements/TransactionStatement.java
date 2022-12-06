@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -30,6 +31,8 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -54,7 +57,6 @@ import org.apache.cassandra.cql3.transactions.SelectReferenceSource;
 import org.apache.cassandra.db.ReadQuery;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
-import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -148,14 +150,12 @@ public class TransactionStatement implements CQLStatement
     @Override
     public void validate(ClientState state)
     {
+        for (NamedSelect statement : assignments)
+            statement.select.validate(state);
+        if (returningSelect != null)
+            returningSelect.select.validate(state);
         for (ModificationStatement statement : updates)
             statement.validate(state);
-    }
-
-    @VisibleForTesting
-    public List<RowDataReference> getReturningReferences()
-    {
-        return returningReferences;
     }
 
     TxnNamedRead createNamedRead(NamedSelect namedSelect, QueryOptions options)
@@ -166,6 +166,9 @@ public class TransactionStatement implements CQLStatement
         // We reject reads from both LET and SELECT that do not specify a single row.
         @SuppressWarnings("unchecked")
         SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
+
+        if (selectQuery.queries.size() != 1)
+            throw new IllegalArgumentException("Within a transaction, SELECT statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
 
         return new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries));
     }
@@ -267,9 +270,37 @@ public class TransactionStatement implements CQLStatement
         }
     }
 
+    private static void checkAtMostOneRowSpecified(ClientState clientState, @Nullable QueryOptions options, SelectStatement select, String failureMessage)
+    {
+        if (select.getRestrictions().hasAllPKColumnsRestrictedByEqualities())
+            return;
+        if (options == null)
+        {
+            // This method is called during parse, which doesn't know bind values... if parse is able to validate the limit
+            // then keep going; else defer to later when the bind is known
+            if (select.isLimitMarker())
+                return;
+            // limit is known, so keep going
+            options = QueryOptions.DEFAULT;
+        }
+        int limit = select.getLimit(options);
+        QueryOptions finalOptions = options; // javac thinks this is mutable so requires a copy
+        checkTrue(limit == 1, failureMessage, LazyToString.lazy(() -> select.asCQL(finalOptions, clientState)));
+    }
+
+    private static void confirmSelectPointSelect(ClientState clientState, QueryOptions options, String msg, Collection<NamedSelect> selects)
+    {
+        for (NamedSelect select : selects)
+            checkAtMostOneRowSpecified(clientState, options, select.select, msg);
+    }
+
     @Override
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
     {
+        confirmSelectPointSelect(state.getClientState(), options, INCOMPLETE_PRIMARY_KEY_LET_MESSAGE, assignments);
+        if (returningSelect != null)
+            confirmSelectPointSelect(state.getClientState(), options, INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, Collections.singletonList(returningSelect));
+
         TxnData data = AccordService.instance().coordinate(createTxn(state.getClientState(), options));
         
         if (returningSelect != null)
@@ -377,9 +408,8 @@ public class TransactionStatement implements CQLStatement
                 checkTrue(selectNames.add(name), DUPLICATE_TUPLE_NAME_MESSAGE, name.name());
 
                 SelectStatement prepared = select.prepare(bindVariables);
-                checkAtMostOneRowSpecified(prepared, INCOMPLETE_PRIMARY_KEY_LET_MESSAGE, LazyToString.lazy(() -> prepared.asCQL(QueryOptions.DEFAULT, state)));
-
                 NamedSelect namedSelect = new NamedSelect(name, prepared);
+                checkAtMostOneRowSpecified(state, null, namedSelect.select, INCOMPLETE_PRIMARY_KEY_LET_MESSAGE);
                 preparedAssignments.add(namedSelect);
                 refSources.put(name, new SelectReferenceSource(prepared));
             }
@@ -391,10 +421,8 @@ public class TransactionStatement implements CQLStatement
             NamedSelect returningSelect = null;
             if (select != null)
             {
-                SelectStatement prepared = select.prepare(bindVariables);
-                // TODO: Accord saves the result of this read, so limit to a single row until that is no longer true.
-                checkAtMostOneRowSpecified(prepared, INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, LazyToString.lazy(() -> prepared.asCQL(QueryOptions.DEFAULT, state)));
-                returningSelect = new NamedSelect(TxnDataName.returning(), prepared);
+                returningSelect = new NamedSelect(TxnDataName.returning(), select.prepare(bindVariables));
+                checkAtMostOneRowSpecified(state, null, returningSelect.select, INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE);
             }
 
             List<RowDataReference> returningReferences = null;
@@ -423,20 +451,10 @@ public class TransactionStatement implements CQLStatement
 
             List<ConditionStatement> preparedConditions = new ArrayList<>(conditions.size());
             for (ConditionStatement.Raw condition : conditions)
-                // TODO: Is this synthetic ks name dangerous?
+                // TODO: If we eventually support IF ks.function(ref) THEN, the keyspace will have to be provided here
                 preparedConditions.add(condition.prepare("[txn]", bindVariables));
 
             return new TransactionStatement(preparedAssignments, returningSelect, returningReferences, preparedUpdates, preparedConditions, bindVariables);
-        }
-
-        private void checkAtMostOneRowSpecified(SelectStatement prepared, String failureMessage, Object messageArg)
-        {
-            int limit = prepared.getLimit(QueryOptions.DEFAULT);
-
-            if (limit == DataLimits.NO_LIMIT)
-                checkTrue(prepared.getRestrictions().hasAllPKColumnsRestrictedByEqualities(), failureMessage, messageArg);
-            else
-                checkTrue(limit == 1, failureMessage, messageArg);
         }
     }
 }

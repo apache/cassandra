@@ -176,6 +176,18 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                 requiresReadBuilder.add(operation.column);
             }
         }
+        for (ReferenceOperation ref : operations.allSubstitutions())
+        {
+            ColumnMetadata column = ref.getTopLevelReceiver();
+            updatedColumnsBuilder.add(column);
+            // If the operation requires a read-before-write and we're doing a conditional read, we want to read
+            // the affected column as part of the read-for-conditions paxos phase (see #7499).
+            if (ref.requiresRead())
+            {
+                conditionColumnsBuilder.add(column);
+                requiresReadBuilder.add(column);
+            }
+        }
 
         RegularAndStaticColumns modifiedColumns = updatedColumnsBuilder.build();
 

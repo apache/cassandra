@@ -230,7 +230,7 @@ public class AccordIntegrationTest extends AccordTestBase
                                  "    INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 0);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
-                 assertRowEqualsWithPreemptedRetry(cluster, null, query1);
+                 assertEmptyWithPreemptedRetry(cluster, query1);
 
                  String check = "BEGIN TRANSACTION\n" +
                                 "  SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?;\n" +

@@ -22,7 +22,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.selection.Selection;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -43,13 +42,6 @@ public class SelectReferenceSource implements RowDataReference.ReferenceSource
         this.metadata = statement.table;
         Selection selection = statement.getSelection();
         selectedColumns = new HashSet<>(selection.getColumns());
-    }
-
-    @Override
-    public boolean isPointSelect()
-    {
-        return statement.getRestrictions().hasAllPKColumnsRestrictedByEqualities()
-               || statement.getLimit(QueryOptions.DEFAULT) == 1;
     }
 
     @Override

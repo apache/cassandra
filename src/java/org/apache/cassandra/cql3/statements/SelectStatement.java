@@ -818,6 +818,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         return getLimit(limit, options);
     }
 
+    public boolean isLimitMarker()
+    {
+        return limit instanceof Constants.Marker;
+    }
+
     /**
      * Returns the per partition limit specified by the user.
      * May be used by custom QueryHandler implementations

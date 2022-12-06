@@ -143,7 +143,7 @@ public class TxnDataName implements Comparable<TxnDataName>
     {
         long size = EMPTY_SIZE;
         for (String part : parts)
-            size += part.length();
+            size += ObjectSizes.sizeOf(part);
         return size;
     }
 

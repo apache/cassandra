@@ -28,7 +28,8 @@ import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.This;
-import org.assertj.core.api.Assertions;
+import org.apache.cassandra.distributed.api.QueryResults;
+import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -119,8 +120,18 @@ public abstract class AccordTestBase extends TestBaseImpl
     // TODO: Retry on preemption may become unnecessary after the Unified Log is integrated.
     protected static SimpleQueryResult assertRowEqualsWithPreemptedRetry(Cluster cluster, Object[] row, String check, Object... boundValues)
     {
+        return assertRowWithPreemptedRetry(cluster, QueryResults.builder().row(row).build(), check, boundValues);
+    }
+
+    protected static SimpleQueryResult assertEmptyWithPreemptedRetry(Cluster cluster, String check, Object... boundValues)
+    {
+        return assertRowWithPreemptedRetry(cluster, QueryResults.builder().build(), check, boundValues);
+    }
+
+    private static SimpleQueryResult assertRowWithPreemptedRetry(Cluster cluster, SimpleQueryResult expected, String check, Object... boundValues)
+    {
         SimpleQueryResult result = executeWithRetry(cluster, check, boundValues);
-        Assertions.assertThat(result.toObjectArrays()).isEqualTo(row == null ? new Object[0] : new Object[] { row });
+        QueryResultUtil.assertThat(result).isEqualTo(expected);
         return result;
     }
 
