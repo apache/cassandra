@@ -43,8 +43,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.junit.Assert.fail;
-
 public class DataOutputTest
 {
     @BeforeClass
