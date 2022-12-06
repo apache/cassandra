@@ -28,7 +28,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.*;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.VERSION;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.addToInMemoryTrie;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.assertSameContent;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.generateKeys;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.makeInMemoryTrie;
 
 public class MergeTrieTest
 {

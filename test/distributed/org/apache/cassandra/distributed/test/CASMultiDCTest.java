@@ -35,7 +35,10 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.service.paxos.PaxosCommit;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.distributed.api.ConsistencyLevel.*;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.LOCAL_QUORUM;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.LOCAL_SERIAL;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 
 public class CASMultiDCTest
 {

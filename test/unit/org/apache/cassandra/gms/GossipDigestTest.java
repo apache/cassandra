@@ -18,17 +18,17 @@
  */
 package org.apache.cassandra.gms;
 
-import static org.junit.Assert.*;
-
 import java.io.IOException;
+
+import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
-import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
 
 public class GossipDigestTest
 {

@@ -23,7 +23,8 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 
-import static org.apache.cassandra.distributed.shared.AssertUtils.*;
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 public class UpgradeTest extends UpgradeTestBase
 {

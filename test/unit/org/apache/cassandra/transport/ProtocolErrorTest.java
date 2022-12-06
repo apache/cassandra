@@ -17,19 +17,20 @@
  */
 package org.apache.cassandra.transport;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.transport.messages.ErrorMessage;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.transport.messages.ErrorMessage;
 
-import static org.apache.cassandra.transport.Message.Direction.*;
+import static org.apache.cassandra.transport.Message.Direction.REQUEST;
+import static org.apache.cassandra.transport.Message.Direction.RESPONSE;
 
 public class ProtocolErrorTest {
 

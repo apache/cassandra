@@ -29,16 +29,38 @@ import java.util.function.LongBinaryOperator;
 import com.google.common.collect.ImmutableList;
 import org.junit.Assert;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
-import static org.apache.cassandra.service.paxos.ContentionStrategy.*;
-import static org.apache.cassandra.service.paxos.ContentionStrategy.WaitRandomizerFactory.*;
-import static org.apache.cassandra.service.paxos.ContentionStrategyTest.WaitRandomizerType.*;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.Bound;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.LatencyModifier;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.LatencyModifierFactory;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.LatencySelector;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.LatencySelectorFactory;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.LatencySupplier;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.ParsedStrategy;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.WaitRandomizer;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.WaitRandomizerFactory;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.WaitRandomizerFactory.AbstractExponential;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.WaitRandomizerFactory.Exponential;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.WaitRandomizerFactory.QuantizedExponential;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.WaitRandomizerFactory.Uniform;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.defaultMaxWait;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.defaultMinDelta;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.defaultMinWait;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.defaultWaitRandomizer;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.maxQueryTimeoutMicros;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.modifiers;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.parseBound;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.parseStrategy;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.parseWaitRandomizer;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.selectors;
+import static org.apache.cassandra.service.paxos.ContentionStrategyTest.WaitRandomizerType.EXP;
+import static org.apache.cassandra.service.paxos.ContentionStrategyTest.WaitRandomizerType.QEXP;
+import static org.apache.cassandra.service.paxos.ContentionStrategyTest.WaitRandomizerType.UNIFORM;
 
 public class ContentionStrategyTest
 {

@@ -21,7 +21,7 @@ package org.apache.cassandra.stress.settings;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class OptionReplicationTest
 {

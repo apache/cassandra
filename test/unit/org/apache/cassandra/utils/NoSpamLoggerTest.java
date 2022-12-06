@@ -26,15 +26,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import org.apache.cassandra.utils.NoSpamLogger.Level;
-import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.helpers.SubstituteLogger;
 
-import static org.junit.Assert.*;
+import org.apache.cassandra.utils.NoSpamLogger.Level;
+import org.apache.cassandra.utils.NoSpamLogger.NoSpamLogStatement;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class NoSpamLoggerTest
 {
