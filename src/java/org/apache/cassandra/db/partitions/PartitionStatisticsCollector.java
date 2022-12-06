@@ -17,7 +17,8 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.rows.Cell;
 
 public interface PartitionStatisticsCollector

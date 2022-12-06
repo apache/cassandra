@@ -36,11 +36,12 @@ import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
+import static org.apache.cassandra.net.Crc.InvalidCrc;
+import static org.apache.cassandra.net.Crc.computeCrc32;
+import static org.apache.cassandra.net.Message.validateLegacyProtocolMagic;
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
-import static org.apache.cassandra.net.Message.validateLegacyProtocolMagic;
-import static org.apache.cassandra.net.Crc.*;
-import static org.apache.cassandra.net.OutboundConnectionSettings.*;
+import static org.apache.cassandra.net.OutboundConnectionSettings.Framing;
 
 /**
  * Messages for the handshake phase of the internode protocol.

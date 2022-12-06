@@ -18,22 +18,23 @@
 
 package org.apache.cassandra.db.streaming;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-
-import java.io.IOException;
-import java.util.*;
-
-/**
- * SSTable components and their sizes to be tranfered via entire-sstable-streaming
- */
 import org.apache.cassandra.io.util.File;
 
 public final class ComponentManifest implements Iterable<Component>

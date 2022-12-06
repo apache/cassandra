@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.rows;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.DeletionTime;
 
 /**
  * An iterator over the rows of a given partition that also includes deletion informations.

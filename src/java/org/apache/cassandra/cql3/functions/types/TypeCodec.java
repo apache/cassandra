@@ -28,20 +28,33 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.text.ParseException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import com.google.common.io.ByteStreams;
 import com.google.common.reflect.TypeToken;
 
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.cql3.functions.types.exceptions.InvalidTypeException;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.apache.cassandra.cql3.functions.types.DataType.*;
+import static org.apache.cassandra.cql3.functions.types.DataType.CollectionType;
+import static org.apache.cassandra.cql3.functions.types.DataType.Name;
+import static org.apache.cassandra.cql3.functions.types.DataType.smallint;
+import static org.apache.cassandra.cql3.functions.types.DataType.timeuuid;
+import static org.apache.cassandra.cql3.functions.types.DataType.tinyint;
 
 /**
  * A Codec that can serialize and deserialize to and from a given {@link #getCqlType() CQL type} and

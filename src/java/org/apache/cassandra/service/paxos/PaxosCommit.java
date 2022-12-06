@@ -48,7 +48,7 @@ import static org.apache.cassandra.net.Verb.PAXOS2_COMMIT_REMOTE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS_COMMIT_REQ;
 import static org.apache.cassandra.service.StorageProxy.shouldHint;
 import static org.apache.cassandra.service.StorageProxy.submitHint;
-import static org.apache.cassandra.service.paxos.Commit.*;
+import static org.apache.cassandra.service.paxos.Commit.Agreed;
 import static org.apache.cassandra.utils.concurrent.ConditionAsConsumer.newConditionAsConsumer;
 
 // Does not support EACH_QUORUM, as no such thing as EACH_SERIAL

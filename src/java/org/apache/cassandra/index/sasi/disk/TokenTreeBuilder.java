@@ -18,12 +18,12 @@
 package org.apache.cassandra.index.sasi.disk;
 
 import java.io.IOException;
-import java.util.*;
-
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.Pair;
+import java.util.Iterator;
+import java.util.SortedMap;
 
 import com.carrotsearch.hppc.LongSet;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.Pair;
 
 public interface TokenTreeBuilder extends Iterable<Pair<Long, LongSet>>
 {

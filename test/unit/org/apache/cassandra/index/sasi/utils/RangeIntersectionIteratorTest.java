@@ -18,20 +18,21 @@
 package org.apache.cassandra.index.sasi.utils;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-
-import org.apache.cassandra.index.sasi.disk.Token;
-import org.apache.cassandra.index.sasi.utils.RangeIntersectionIterator.Strategy;
-import org.apache.cassandra.index.sasi.utils.RangeIntersectionIterator.LookupIntersectionIterator;
-import org.apache.cassandra.index.sasi.utils.RangeIntersectionIterator.BounceIntersectionIterator;
-import org.apache.cassandra.io.util.FileUtils;
-
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
 
 import org.junit.Assert;
 import org.junit.Test;
+
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.LongSet;
+import org.apache.cassandra.index.sasi.disk.Token;
+import org.apache.cassandra.index.sasi.utils.RangeIntersectionIterator.BounceIntersectionIterator;
+import org.apache.cassandra.index.sasi.utils.RangeIntersectionIterator.LookupIntersectionIterator;
+import org.apache.cassandra.index.sasi.utils.RangeIntersectionIterator.Strategy;
+import org.apache.cassandra.io.util.FileUtils;
 
 import static org.apache.cassandra.index.sasi.utils.LongIterator.convert;
 

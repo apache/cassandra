@@ -21,7 +21,6 @@ package org.apache.cassandra.service.paxos.uncommitted;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
@@ -56,7 +55,7 @@ import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import static org.apache.cassandra.db.partitions.PartitionUpdate.PartitionUpdateSerializer.*;
+import static org.apache.cassandra.db.partitions.PartitionUpdate.PartitionUpdateSerializer.isEmpty;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
 import static org.apache.cassandra.service.paxos.Commit.latest;
 

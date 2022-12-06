@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.service.paxos.uncommitted;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -41,7 +44,12 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.utils.CloseableIterator;
 
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.*;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.FULL_RANGE;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.createBallots;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.dk;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.kl;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.r;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.tk;
 
 public class PaxosUncommittedTrackerTest
 {

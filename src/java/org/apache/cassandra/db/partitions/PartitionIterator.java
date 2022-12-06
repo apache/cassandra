@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.RowIterator;
 
 /**
  * An iterator over a number of (filtered) partition.

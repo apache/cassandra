@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.cql3.functions.types;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.google.common.reflect.TypeParameter;
 import com.google.common.reflect.TypeToken;

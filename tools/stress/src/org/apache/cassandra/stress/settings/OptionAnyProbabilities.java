@@ -21,7 +21,11 @@ package org.apache.cassandra.stress.settings;
  */
 
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 
 public final class OptionAnyProbabilities extends OptionMulti

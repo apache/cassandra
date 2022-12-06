@@ -22,16 +22,29 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import org.apache.cassandra.concurrent.ImmediateExecutor;
-import org.tartarus.snowball.SnowballStemmer;
-import org.tartarus.snowball.ext.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.tartarus.snowball.SnowballStemmer;
+import org.tartarus.snowball.ext.danishStemmer;
+import org.tartarus.snowball.ext.dutchStemmer;
+import org.tartarus.snowball.ext.englishStemmer;
+import org.tartarus.snowball.ext.finnishStemmer;
+import org.tartarus.snowball.ext.frenchStemmer;
+import org.tartarus.snowball.ext.germanStemmer;
+import org.tartarus.snowball.ext.hungarianStemmer;
+import org.tartarus.snowball.ext.italianStemmer;
+import org.tartarus.snowball.ext.norwegianStemmer;
+import org.tartarus.snowball.ext.portugueseStemmer;
+import org.tartarus.snowball.ext.romanianStemmer;
+import org.tartarus.snowball.ext.russianStemmer;
+import org.tartarus.snowball.ext.spanishStemmer;
+import org.tartarus.snowball.ext.swedishStemmer;
+import org.tartarus.snowball.ext.turkishStemmer;
 
 /**
  * Returns a SnowballStemmer instance appropriate for

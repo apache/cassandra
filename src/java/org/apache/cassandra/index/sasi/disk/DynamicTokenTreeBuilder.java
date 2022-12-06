@@ -18,14 +18,16 @@
 package org.apache.cassandra.index.sasi.disk;
 
 import java.nio.ByteBuffer;
-import java.util.*;
-
-import org.apache.cassandra.utils.AbstractIterator;
-import org.apache.cassandra.utils.Pair;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.hppc.cursors.LongCursor;
+import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.Pair;
 
 public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
 {

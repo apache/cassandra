@@ -20,15 +20,24 @@ package org.apache.cassandra.tools.nodetool.stats;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
+import javax.management.InstanceNotFoundException;
 
 import com.google.common.collect.ArrayListMultimap;
 
-import javax.management.InstanceNotFoundException;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.metrics.*;
-import org.apache.cassandra.tools.*;
+import org.apache.cassandra.db.ColumnFamilyStoreMBean;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.tools.NodeProbe;
 
 public class TableStatsHolder implements StatsHolder
 {

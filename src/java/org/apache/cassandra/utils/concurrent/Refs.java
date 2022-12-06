@@ -20,8 +20,13 @@
  */
 package org.apache.cassandra.utils.concurrent;
 
-import java.util.*;
-
+import java.util.AbstractCollection;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Function;

@@ -21,10 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.function.Function;
 
 import com.google.common.collect.Iterables;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.TableMetadata;
-
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -32,10 +28,16 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.PaxosState.Snapshot;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -45,8 +47,12 @@ import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.repaired;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.atUnixMicros;
-import static org.apache.cassandra.service.paxos.Commit.*;
-import static org.junit.Assert.*;
+import static org.apache.cassandra.service.paxos.Commit.Accepted;
+import static org.apache.cassandra.service.paxos.Commit.AcceptedWithTTL;
+import static org.apache.cassandra.service.paxos.Commit.Committed;
+import static org.apache.cassandra.service.paxos.Commit.CommittedWithTTL;
+import static org.apache.cassandra.service.paxos.Commit.Proposal;
+import static org.junit.Assert.assertEquals;
 
 public class PaxosStateTest
 {

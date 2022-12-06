@@ -17,14 +17,15 @@
  */
 package org.apache.cassandra.schema;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
-import static java.lang.String.format;
-
 import static com.google.common.collect.Iterables.filter;
+import static java.lang.String.format;
 
 /**
  * For backwards compatibility, in the first instance an IndexMetadata must have

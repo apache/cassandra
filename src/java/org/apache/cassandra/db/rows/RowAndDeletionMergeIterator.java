@@ -20,9 +20,13 @@ package org.apache.cassandra.db.rows;
 import java.util.Comparator;
 import java.util.Iterator;
 
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clusterable;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.schema.TableMetadata;
 
 /**
  * An iterator that merges a source of rows with the range tombstone and partition level deletion of a give partition.

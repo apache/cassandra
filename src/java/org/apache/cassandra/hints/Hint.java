@@ -20,14 +20,13 @@ package org.apache.cassandra.hints;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.base.Throwables;
-
 import javax.annotation.Nullable;
 
+import com.google.common.base.Throwables;
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;

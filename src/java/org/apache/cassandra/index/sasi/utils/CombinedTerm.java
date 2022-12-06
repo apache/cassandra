@@ -18,11 +18,15 @@
 package org.apache.cassandra.index.sasi.utils;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
-import org.apache.cassandra.index.sasi.disk.*;
-import org.apache.cassandra.index.sasi.disk.OnDiskIndex.DataTerm;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.index.sasi.disk.OnDiskIndex;
+import org.apache.cassandra.index.sasi.disk.OnDiskIndex.DataTerm;
+import org.apache.cassandra.index.sasi.disk.StaticTokenTreeBuilder;
+import org.apache.cassandra.index.sasi.disk.Token;
+import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
 
 public class CombinedTerm implements CombinedValue<DataTerm>
 {

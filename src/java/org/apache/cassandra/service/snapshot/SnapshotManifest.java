@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.service.snapshot;
 
-import java.io.*;
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
