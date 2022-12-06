@@ -21,7 +21,7 @@
 package org.apache.cassandra.utils;
 
 import java.io.FileDescriptor;
-import java.io.FileOutputStream;
+import java.io.FileOutputStream; //checkstyle: permit this import
 import java.io.IOException;
 import java.io.SyncFailedException;
 import java.lang.reflect.Field;
