@@ -2,6 +2,7 @@
  * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
 
 Merged from 3.0:
+ * Fix incorrect resource name in LIST PERMISSION output (CASSANDRA-17848)
  * Suppress CVE-2022-41854 and similar (CASSANDRA-18083)
  * Fix running Ant rat targets without git (CASSANDRA-17974)
 

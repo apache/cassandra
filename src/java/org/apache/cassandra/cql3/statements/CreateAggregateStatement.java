@@ -80,6 +80,9 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
 
     public Prepared prepare(ClientState clientState)
     {
+        if (!FunctionName.isNameValid(functionName.name))
+            throw new InvalidRequestException(String.format("Aggregate name '%s' is invalid", functionName.name));
+
         argTypes = new ArrayList<>(argRawTypes.size());
         for (CQL3Type.Raw rawType : argRawTypes)
             argTypes.add(prepareType("arguments", rawType));

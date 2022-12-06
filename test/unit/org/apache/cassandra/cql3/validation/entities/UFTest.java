@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.validation.entities;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -25,7 +26,8 @@ import com.google.common.reflect.TypeToken;
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.datastax.driver.core.*;
+import com.datastax.driver.core.TypeTokens;
+import com.datastax.driver.core.UDTValue;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQLTester;
@@ -43,6 +45,8 @@ import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class UFTest extends CQLTester
 {
@@ -1129,5 +1133,22 @@ public class UFTest extends CQLTester
                 "  AS $$\n" +
                 "    return a;\n" +
                 "  $$");
+    }
+
+    @Test
+    public void testRejectInvalidFunctionNamesOnCreation()
+    {
+        for (String funcName : Arrays.asList("my/fancy/func", "my_other[fancy]func"))
+        {
+            assertThatThrownBy(() -> {
+                createFunctionOverload(String.format("%s.\"%s\"", KEYSPACE_PER_TEST, funcName), "int",
+                                       "CREATE OR REPLACE FUNCTION %s(val int) " +
+                                       "RETURNS NULL ON NULL INPUT " +
+                                       "RETURNS int " +
+                                       "LANGUAGE JAVA\n" +
+                                       "AS 'return val;'");
+            }).hasRootCauseInstanceOf(InvalidRequestException.class)
+              .hasRootCauseMessage("Function name '%s' is invalid", funcName);
+        }
     }
 }

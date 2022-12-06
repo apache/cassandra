@@ -78,6 +78,9 @@ public final class CreateFunctionStatement extends SchemaAlteringStatement
 
     public Prepared prepare(ClientState clientState) throws InvalidRequestException
     {
+        if (!FunctionName.isNameValid(functionName.name))
+            throw new InvalidRequestException(String.format("Function name '%s' is invalid", functionName.name));
+
         if (new HashSet<>(argNames).size() != argNames.size())
             throw new InvalidRequestException(String.format("duplicate argument names for given function %s with argument names %s",
                                                             functionName, argNames));
