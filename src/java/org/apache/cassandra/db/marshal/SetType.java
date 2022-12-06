@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Sets;
@@ -225,5 +226,11 @@ public class SetType<T> extends CollectionType<Set<T>>
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         return setOrListToJsonString(buffer, elements, protocolVersion);
+    }
+
+    @Override
+    public void forEach(ByteBuffer input, ProtocolVersion version, Consumer<ByteBuffer> action)
+    {
+        serializer.forEach(input, version, action);
     }
 }

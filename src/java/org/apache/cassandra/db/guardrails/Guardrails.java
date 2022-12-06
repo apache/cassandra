@@ -33,6 +33,7 @@ import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.utils.MBeanWrapper;
@@ -198,6 +199,20 @@ public final class Guardrails implements GuardrailsMBean
                    null,
                    state -> CONFIG_PROVIDER.getOrCreate(state).getCompactTablesEnabled(),
                    "Creation of new COMPACT STORAGE tables");
+
+    /**
+     * Guardrail to warn or fail a CREATE or ALTER TABLE statement when default_time_to_live is set to 0 and
+     * the table is using TimeWindowCompactionStrategy compaction or a subclass of it.
+     */
+    public static final EnableFlag zeroTTLOnTWCSEnabled =
+    new EnableFlag("zero_ttl_on_twcs",
+                   "It is suspicious to use default_time_to_live set to 0 with such compaction strategy. " +
+                   "Please keep in mind that data will not start to automatically expire after they are older " +
+                   "than a respective compaction window unit of a certain size. Please set TTL for your INSERT or UPDATE " +
+                   "statements if you expect data to be expired as table settings will not do it. ",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getZeroTTLOnTWCSWarned(),
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getZeroTTLOnTWCSEnabled(),
+                   "0 default_time_to_live on a table with " + TimeWindowCompactionStrategy.class.getSimpleName() + " compaction strategy");
 
     /**
      * Guardrail on the number of elements returned within page.
@@ -1011,6 +1026,30 @@ public final class Guardrails implements GuardrailsMBean
     public void setMinimumReplicationFactorThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setMinimumReplicationFactorThreshold(warn, fail);
+    }
+
+    @Override
+    public boolean getZeroTTLOnTWCSEnabled()
+    {
+        return DEFAULT_CONFIG.getZeroTTLOnTWCSEnabled();
+    }
+
+    @Override
+    public void setZeroTTLOnTWCSEnabled(boolean value)
+    {
+        DEFAULT_CONFIG.setZeroTTLOnTWCSEnabled(value);
+    }
+
+    @Override
+    public boolean getZeroTTLOnTWCSWarned()
+    {
+        return DEFAULT_CONFIG.getZeroTTLOnTWCSWarned();
+    }
+
+    @Override
+    public void setZeroTTLOnTWCSWarned(boolean value)
+    {
+        DEFAULT_CONFIG.setZeroTTLOnTWCSWarned(value);
     }
 
     private static String toCSV(Set<String> values)
