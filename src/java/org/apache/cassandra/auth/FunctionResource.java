@@ -171,15 +171,23 @@ public class FunctionResource implements IResource
 
     /**
      * Parses a resource name into a FunctionResource instance.
+     * A valid resource name for function should be in the follow format:
+     * functions/KEYSPACE/FUNCTION_NAME[FUNCTION_ARGS]
+     * Note that
+     * 1. FUNCTION_NAME could contain any character due to the use of quoted text in CQL.
+     * 2. FUNCTION_ARGS could be empty. If it is not empty, it is expressed in this format:
+     *    FUNCTION_ARG1^FUNCTION_ARG2... where ^ is the delimiter for arguments
      *
      * @param name Name of the function resource.
      * @return FunctionResource instance matching the name.
      */
     public static FunctionResource fromName(String name)
     {
-        String[] parts = StringUtils.split(name, '/');
+        // Split the name into at most 3 parts.
+        // The last part is the function name + args list, the name might contains '/'
+        String[] parts = StringUtils.split(name, "/", 3);
 
-        if (!parts[0].equals(ROOT_NAME) || parts.length > 3)
+        if (!parts[0].equals(ROOT_NAME))
             throw new IllegalArgumentException(String.format("%s is not a valid function resource name", name));
 
         if (parts.length == 1)
@@ -190,8 +198,17 @@ public class FunctionResource implements IResource
 
         if (!name.matches("^.+\\[.*\\]$"))
             throw new IllegalArgumentException(String.format("%s is not a valid function resource name. It must end with \"[]\"", name));
-        String[] nameAndArgs = StringUtils.split(parts[2], "[|]");
-        return function(parts[1], nameAndArgs[0], nameAndArgs.length > 1 ? argsListFromString(nameAndArgs[1]) : Collections.emptyList());
+
+        String function = parts[2];
+        // The name must end with '[...]' block
+        int lastStartingBracketIndex = function.lastIndexOf('[');
+        String functionName = StringUtils.substring(function, 0, lastStartingBracketIndex);
+        String functionArgs = StringUtils.substring(function,
+                                                    // excludes the wrapping brackets [ ]
+                                                    lastStartingBracketIndex + 1,
+                                                    function.length() - 1);
+
+        return function(parts[1], functionName, functionArgs.isEmpty() ? Collections.emptyList() : argsListFromString(functionArgs));
     }
 
     /**
