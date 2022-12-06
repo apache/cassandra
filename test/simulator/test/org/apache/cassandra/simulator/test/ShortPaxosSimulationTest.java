@@ -40,3 +40,4 @@ public class ShortPaxosSimulationTest
         PaxosSimulationRunner.main(new String[] { "reconcile", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30", "--with-self" });
     }
 }
+
