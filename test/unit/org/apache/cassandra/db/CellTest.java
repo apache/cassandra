@@ -76,7 +76,8 @@ public class CellTest
                                   ColumnIdentifier.getInterned(name, false),
                                   type,
                                   ColumnMetadata.NO_POSITION,
-                                  ColumnMetadata.Kind.REGULAR);
+                                  ColumnMetadata.Kind.REGULAR,
+                                  null);
     }
 
     @Test

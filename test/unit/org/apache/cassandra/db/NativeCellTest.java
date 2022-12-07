@@ -118,7 +118,8 @@ public class NativeCellTest
                                   ColumnIdentifier.getInterned(uuid.toString(), false),
                                     isComplex ? new SetType<>(BytesType.instance, true) : BytesType.instance,
                                   -1,
-                                  ColumnMetadata.Kind.REGULAR);
+                                  ColumnMetadata.Kind.REGULAR,
+                                  null);
     }
 
     private static Cell<?> rndcell(ColumnMetadata col)
