@@ -21,11 +21,14 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.function.Predicate;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.Collections2;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.cql3.selection.Selectable;
 import org.apache.cassandra.cql3.selection.Selector;
 import org.apache.cassandra.cql3.selection.SimpleSelector;
@@ -33,6 +36,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.github.jamm.Unmetered;
 
 @Unmetered
@@ -95,6 +99,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
      */
     private final long comparisonOrder;
 
+    /**
+     * Masking function used to dynamically mask the contents of this column.
+     */
+    @Nullable
+    private final ColumnMask mask;
+
     private static long comparisonOrder(Kind kind, boolean isComplex, long position, ColumnIdentifier name)
     {
         assert position >= 0 && position < 1 << 12;
@@ -106,52 +116,58 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public static ColumnMetadata partitionKeyColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(table, name, type, position, Kind.PARTITION_KEY);
+        return new ColumnMetadata(table, name, type, position, Kind.PARTITION_KEY, null);
     }
 
     public static ColumnMetadata partitionKeyColumn(String keyspace, String table, String name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.PARTITION_KEY);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.PARTITION_KEY, null);
     }
 
     public static ColumnMetadata clusteringColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(table, name, type, position, Kind.CLUSTERING);
+        return new ColumnMetadata(table, name, type, position, Kind.CLUSTERING, null);
     }
 
     public static ColumnMetadata clusteringColumn(String keyspace, String table, String name, AbstractType<?> type, int position)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.CLUSTERING);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, position, Kind.CLUSTERING, null);
     }
 
     public static ColumnMetadata regularColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type)
     {
-        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.REGULAR);
+        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.REGULAR, null);
     }
 
     public static ColumnMetadata regularColumn(String keyspace, String table, String name, AbstractType<?> type)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.REGULAR);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.REGULAR, null);
     }
 
     public static ColumnMetadata staticColumn(TableMetadata table, ByteBuffer name, AbstractType<?> type)
     {
-        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.STATIC);
+        return new ColumnMetadata(table, name, type, NO_POSITION, Kind.STATIC, null);
     }
 
     public static ColumnMetadata staticColumn(String keyspace, String table, String name, AbstractType<?> type)
     {
-        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.STATIC);
+        return new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, NO_POSITION, Kind.STATIC, null);
     }
 
-    public ColumnMetadata(TableMetadata table, ByteBuffer name, AbstractType<?> type, int position, Kind kind)
+    public ColumnMetadata(TableMetadata table,
+                          ByteBuffer name,
+                          AbstractType<?> type,
+                          int position,
+                          Kind kind,
+                          @Nullable ColumnMask mask)
     {
         this(table.keyspace,
              table.name,
              ColumnIdentifier.getInterned(name, UTF8Type.instance),
              type,
              position,
-             kind);
+             kind,
+             mask);
     }
 
     @VisibleForTesting
@@ -160,7 +176,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
                           ColumnIdentifier name,
                           AbstractType<?> type,
                           int position,
-                          Kind kind)
+                          Kind kind,
+                          @Nullable ColumnMask mask)
     {
         super(ksName, cfName, name, type);
         assert name != null && type != null && kind != null;
@@ -172,6 +189,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         this.cellComparator = cellPathComparator == null ? ColumnData.comparator : (a, b) -> cellPathComparator.compare(a.path(), b.path());
         this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell<?>)a).path(), (CellPath) b);
         this.comparisonOrder = comparisonOrder(kind, isComplex(), Math.max(0, position), name);
+        this.mask = mask;
     }
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)
@@ -203,17 +221,22 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
     public ColumnMetadata copy()
     {
-        return new ColumnMetadata(ksName, cfName, name, type, position, kind);
+        return new ColumnMetadata(ksName, cfName, name, type, position, kind, mask);
     }
 
     public ColumnMetadata withNewName(ColumnIdentifier newName)
     {
-        return new ColumnMetadata(ksName, cfName, newName, type, position, kind);
+        return new ColumnMetadata(ksName, cfName, newName, type, position, kind, mask);
     }
 
     public ColumnMetadata withNewType(AbstractType<?> newType)
     {
-        return new ColumnMetadata(ksName, cfName, name, newType, position, kind);
+        return new ColumnMetadata(ksName, cfName, name, newType, position, kind, mask);
+    }
+
+    public ColumnMetadata withNewMask(@Nullable ColumnMask newMask)
+    {
+        return new ColumnMetadata(ksName, cfName, name, type, position, kind, newMask);
     }
 
     public boolean isPartitionKey()
@@ -229,6 +252,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public boolean isStatic()
     {
         return kind == Kind.STATIC;
+    }
+
+    public boolean isMasked()
+    {
+        return mask != null;
     }
 
     public boolean isRegular()
@@ -247,6 +275,17 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public int position()
     {
         return position;
+    }
+
+    @Nullable
+    public ColumnMask getMask()
+    {
+        return mask;
+    }
+
+    public ByteBuffer maybeMask(ProtocolVersion version, ByteBuffer value)
+    {
+        return mask == null ? value : mask.mask(version, value);
     }
 
     @Override
@@ -269,7 +308,8 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             && kind == other.kind
             && position == other.position
             && ksName.equals(other.ksName)
-            && cfName.equals(other.cfName);
+            && cfName.equals(other.cfName)
+            && Objects.equals(mask, other.mask);
     }
 
     Optional<Difference> compare(ColumnMetadata other)
@@ -299,6 +339,7 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
             result = 31 * result + (type == null ? 0 : type.hashCode());
             result = 31 * result + (kind == null ? 0 : kind.hashCode());
             result = 31 * result + position;
+            result = 31 * result + (mask == null ? 0 : mask.hashCode());
             hash = result;
         }
         return result;
@@ -433,6 +474,9 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
 
         if (isStatic())
             builder.append(" static");
+
+        if (isMasked())
+            mask.appendCqlTo(builder);
     }
 
     public static String toCQLString(Iterable<ColumnMetadata> defs)

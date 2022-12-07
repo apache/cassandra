@@ -1153,10 +1153,14 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             if (hasGroupBy)
                 Guardrails.groupByEnabled.ensureEnabled(state);
 
+            boolean isJson = parameters.isJson;
+            boolean returnStaticContentOnPartitionWithNoRows = restrictions.returnStaticContentOnPartitionWithNoRows();
+
             if (selectables.isEmpty()) // wildcard query
             {
-                return hasGroupBy ? Selection.wildcardWithGroupBy(table, boundNames, parameters.isJson, restrictions.returnStaticContentOnPartitionWithNoRows())
-                                  : Selection.wildcard(table, parameters.isJson, restrictions.returnStaticContentOnPartitionWithNoRows());
+                return hasGroupBy || table.columns().stream().anyMatch(ColumnMetadata::isMasked)
+                       ? Selection.wildcardWithGroupByOrMaskedColumns(table, boundNames, isJson, returnStaticContentOnPartitionWithNoRows)
+                       : Selection.wildcard(table, isJson, returnStaticContentOnPartitionWithNoRows);
             }
 
             return Selection.fromSelectors(table,
@@ -1165,8 +1169,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                            resultSetOrderingColumns,
                                            restrictions.nonPKRestrictedColumns(false),
                                            hasGroupBy,
-                                           parameters.isJson,
-                                           restrictions.returnStaticContentOnPartitionWithNoRows());
+                                           isJson,
+                                           returnStaticContentOnPartitionWithNoRows);
         }
 
         /**

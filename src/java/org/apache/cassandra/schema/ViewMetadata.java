@@ -20,10 +20,13 @@ package org.apache.cassandra.schema;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 
+import javax.annotation.Nullable;
+
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.marshal.UserType;
 
 public final class ViewMetadata implements SchemaElement
@@ -156,6 +159,15 @@ public final class ViewMetadata implements SchemaElement
                                 includeAllColumns,
                                 whereClause,
                                 metadata.unbuild().addColumn(column).build());
+    }
+
+    public ViewMetadata withNewColumnMask(ColumnIdentifier name, @Nullable ColumnMask mask)
+    {
+        return new ViewMetadata(baseTableId,
+                                baseTableName,
+                                includeAllColumns,
+                                whereClause,
+                                metadata.unbuild().alterColumnMask(name, mask).build());
     }
 
     public void appendCqlTo(CqlBuilder builder,

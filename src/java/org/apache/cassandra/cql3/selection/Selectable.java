@@ -322,7 +322,7 @@ public interface Selectable extends AssignmentTestable
             @Override
             public WritetimeOrTTL prepare(TableMetadata table)
             {
-                return new WritetimeOrTTL(column.prepare(table), selected.prepare(table), kind);
+                return new WritetimeOrTTL((ColumnMetadata) column.prepare(table), selected.prepare(table), kind);
             }
         }
     }
@@ -1240,10 +1240,15 @@ public interface Selectable extends AssignmentTestable
             this.quoted = quoted;
         }
 
-        @Override
-        public ColumnMetadata prepare(TableMetadata cfm)
+        public ColumnMetadata columnMetadata(TableMetadata cfm)
         {
             return cfm.getExistingColumn(ColumnIdentifier.getInterned(text, quoted));
+        }
+
+        @Override
+        public Selectable prepare(TableMetadata cfm)
+        {
+            return columnMetadata(cfm);
         }
 
         public FieldIdentifier toFieldIdentifier()
