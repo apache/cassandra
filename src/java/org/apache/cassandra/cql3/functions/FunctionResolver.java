@@ -32,6 +32,7 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.UserFunctions;
 
 import static java.util.stream.Collectors.joining;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -68,7 +69,31 @@ public final class FunctionResolver
                                AbstractType<?> receiverType)
     throws InvalidRequestException
     {
-        Collection<Function> candidates = collectCandidates(keyspace, name, receiverKeyspace, receiverTable, providedArgs, receiverType);
+        return get(keyspace, name, providedArgs, receiverKeyspace, receiverTable, receiverType, UserFunctions.none());
+    }
+
+    /**
+     * @param keyspace the current keyspace
+     * @param name the name of the function
+     * @param providedArgs the arguments provided for the function call
+     * @param receiverKeyspace the receiver's keyspace
+     * @param receiverTable the receiver's table
+     * @param receiverType if the receiver type is known (during inserts, for example), this should be the type of
+     *                     the receiver
+     * @param functions a set of user functions that is not yet available in the schema, used during startup when those
+     *                  functions might not be yet available
+     */
+    @Nullable
+    public static Function get(String keyspace,
+                               FunctionName name,
+                               List<? extends AssignmentTestable> providedArgs,
+                               String receiverKeyspace,
+                               String receiverTable,
+                               AbstractType<?> receiverType,
+                               UserFunctions functions)
+    throws InvalidRequestException
+    {
+        Collection<Function> candidates = collectCandidates(keyspace, name, receiverKeyspace, receiverTable, providedArgs, receiverType, functions);
 
         if (candidates.isEmpty())
             return null;
@@ -89,13 +114,15 @@ public final class FunctionResolver
                                                           String receiverKeyspace,
                                                           String receiverTable,
                                                           List<? extends AssignmentTestable> providedArgs,
-                                                          AbstractType<?> receiverType)
+                                                          AbstractType<?> receiverType,
+                                                          UserFunctions functions)
     {
         Collection<Function> candidates = new ArrayList<>();
 
         if (name.hasKeyspace())
         {
             // function name is fully qualified (keyspace + name)
+            candidates.addAll(functions.get(name));
             candidates.addAll(Schema.instance.getUserFunctions(name));
             candidates.addAll(NativeFunctions.instance.getFunctions(name));
             candidates.addAll(NativeFunctions.instance.getFactories(name).stream()
@@ -107,7 +134,9 @@ public final class FunctionResolver
         {
             // function name is not fully qualified
             // add 'current keyspace' candidates
-            candidates.addAll(Schema.instance.getUserFunctions(new FunctionName(keyspace, name.name)));
+            FunctionName userName = new FunctionName(keyspace, name.name);
+            candidates.addAll(functions.get(userName));
+            candidates.addAll(Schema.instance.getUserFunctions(userName));
             // add 'SYSTEM' (native) candidates
             FunctionName nativeName = name.asNativeFunction();
             candidates.addAll(NativeFunctions.instance.getFunctions(nativeName));
