@@ -118,7 +118,15 @@ public abstract class GuardrailTester extends CQLTester
         DatabaseDescriptor.setDiagnosticEventsEnabled(true);
 
         systemClientState = ClientState.forInternalCalls();
+
         userClientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 123));
+        AuthenticatedUser user = new AuthenticatedUser(USERNAME)
+        {
+            @Override
+            public boolean canLogin() { return true; }
+        };
+        userClientState.login(user);
+
         superClientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 321));
         superClientState.login(new AuthenticatedUser(CassandraRoleManager.DEFAULT_SUPERUSER_NAME));
     }

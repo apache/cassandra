@@ -61,7 +61,8 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
                            SetType.getInstance(UTF8Type.instance, true),
                            ColumnMetadata.NO_POSITION,
-                           ColumnMetadata.Kind.STATIC);
+                           ColumnMetadata.Kind.STATIC,
+                           null);
 
     public static final ColumnMetadata FIRST_COMPLEX_REGULAR =
         new ColumnMetadata("",
@@ -69,7 +70,8 @@ public class Columns extends AbstractCollection<ColumnMetadata> implements Colle
                            ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
                            SetType.getInstance(UTF8Type.instance, true),
                            ColumnMetadata.NO_POSITION,
-                           ColumnMetadata.Kind.REGULAR);
+                           ColumnMetadata.Kind.REGULAR,
+                           null);
 
     private final Object[] columns;
     private final int complexIdx; // Index of the first complex column

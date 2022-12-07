@@ -305,7 +305,9 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <userType> ::= utname=<cfOrKsName> ;
 
-<storageType> ::= <simpleStorageType> | <collectionType> | <frozenCollectionType> | <userType> ;
+<storageType> ::= ( <simpleStorageType> | <collectionType> | <frozenCollectionType> | <userType> ) ( <column_mask> )? ;
+
+<column_mask> ::= "MASKED" "WITH" ( "DEFAULT" | <functionName> <selectionFunctionArguments> );
 
 # Note: autocomplete for frozen collection types does not handle nesting past depth 1 properly,
 # but that's a lot of work to fix for little benefit.
@@ -1418,6 +1420,7 @@ syntax_rules += r'''
                       | "WITH" <cfamProperty> ( "AND" <cfamProperty> )*
                       | "RENAME" ("IF" "EXISTS")? existcol=<cident> "TO" newcol=<cident>
                          ( "AND" existcol=<cident> "TO" newcol=<cident> )*
+                      | "ALTER" ("IF" "EXISTS")? existcol=<cident> ( <column_mask> | "DROP" "MASKED" )
                       ;
 
 <alterUserTypeStatement> ::= "ALTER" "TYPE" ("IF" "EXISTS")? ut=<userTypeName>
@@ -1530,6 +1533,8 @@ syntax_rules += r'''
                | "MODIFY"
                | "DESCRIBE"
                | "EXECUTE"
+               | "UNMASK"
+               | "SELECT_MASKED"
                ;
 
 <permissionExpr> ::= ( [newpermission]=<permission> "PERMISSION"? ( "," [newpermission]=<permission> "PERMISSION"? )* )

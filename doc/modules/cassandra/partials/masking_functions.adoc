@@ -1,0 +1,61 @@
+[cols=",",options="header",]
+|===
+|Function | Description
+
+| `mask_null(value)` | Replaces the first argument by a `null` column. The returned value is always an absent column, as it didn't exist, and not a not-null column representing a `null` value.
+
+Examples:
+
+`mask_null('Alice')` -> `null`
+
+`mask_null(123)` -> `null`
+
+| `mask_default(value)` | Replaces its argument by an arbitrary, fixed default value of the same type. This will be `\***\***` for text values, zero for numeric values, `false` for booleans, etc.
+
+Examples:
+
+`mask_default('Alice')` -> `'\****'`
+
+`mask_default(123)` -> `0`
+
+| `mask_replace(value, replacement])` | Replaces the first argument by the replacement value on the second argument. The replacement value needs to have the same type as the replaced value.
+
+Examples:
+
+`mask_replace('Alice', 'REDACTED')` -> `'REDACTED'`
+
+`mask_replace(123, -1)` -> `-1`
+
+| `mask_inner(value, begin, end, [padding])` | Returns a copy of the first `text`, `varchar` or `ascii` argument, replacing each character except the first and last ones by a padding character. The 2nd and 3rd arguments are the size of the exposed prefix and suffix. The optional 4th argument is the padding character, `\*` by default.
+
+Examples:
+
+`mask_inner('Alice', 1, 2)` -> `'A**ce'`
+
+`mask_inner('Alice', 1, null)` -> `'A****'`
+
+`mask_inner('Alice', null, 2)` -> `'***ce'`
+
+`mask_inner('Alice', 2, 1, '\#')` -> `'Al##e'`
+
+| `mask_outer(value, begin, end, [padding])` | Returns a copy of the first `text`, `varchar` or `ascii` argument, replacing the first and last character by a padding character. The 2nd and 3rd arguments are the size of the exposed prefix and suffix. The optional 4th argument is the padding character, `\*` by default.
+
+Examples:
+
+`mask_outer('Alice', 1, 2)` -> `'*li**'`
+
+`mask_outer('Alice', 1, null)` -> `'*lice'`
+
+`mask_outer('Alice', null, 2)` -> `'Ali**'`
+
+`mask_outer('Alice', 2, 1, '\#')` -> `'##ic#'`
+
+| `mask_hash(value, [algorithm])` | Returns a `blob` containing the hash of the first argument. The optional 2nd argument is the hashing algorithm to be used, according the available Java security provider. The default hashing algorithm is `SHA-256`.
+
+Examples:
+
+`mask_hash('Alice')`
+
+`mask_hash('Alice', 'SHA-512')`
+
+|===

@@ -172,7 +172,7 @@ public abstract class GroupMaker
         {
             super(comparator, clusteringPrefixSize, state);
             this.selector = selector;
-            this.input = new Selector.InputRow(ProtocolVersion.CURRENT, columns);
+            this.input = new Selector.InputRow(ProtocolVersion.CURRENT, columns, false);
             this.lastOutput = lastClustering == null ? null :
                                                        executeSelector(lastClustering.bufferAt(clusteringPrefixSize - 1));
         }
@@ -184,7 +184,7 @@ public abstract class GroupMaker
         {
             super(comparator, clusteringPrefixSize);
             this.selector = selector;
-            this.input = new Selector.InputRow(ProtocolVersion.CURRENT, columns);
+            this.input = new Selector.InputRow(ProtocolVersion.CURRENT, columns, false);
         }
 
         @Override

@@ -561,7 +561,13 @@ public class AtomicBTreePartitionUpdateBench
     private static ColumnMetadata[] columns(AbstractType<?> type, ColumnMetadata.Kind kind, int count, String prefix)
     {
         return IntStream.range(0, count)
-                        .mapToObj(i -> new ColumnMetadata("", "", new ColumnIdentifier(prefix + i, true), type, kind != ColumnMetadata.Kind.REGULAR ? i : ColumnMetadata.NO_POSITION, kind))
+                        .mapToObj(i -> new ColumnMetadata("",
+                                                          "",
+                                                          new ColumnIdentifier(prefix + i, true),
+                                                          type,
+                                                          kind != ColumnMetadata.Kind.REGULAR ? i : ColumnMetadata.NO_POSITION,
+                                                          kind,
+                                                          null))
                         .toArray(ColumnMetadata[]::new);
     }
 

@@ -221,7 +221,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                         try (ReadExecutionController executionController = pager.executionController();
                              PartitionIterator iter = pager.fetchPageInternal(pageSize, executionController))
                         {
-                            currentPage = select.process(iter, nowInSec).rows.iterator();
+                            currentPage = select.process(iter, nowInSec, true).rows.iterator();
                         }
                     }
                     return new Row(metadata, currentPage.next());
@@ -286,7 +286,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
                         try (PartitionIterator iter = pager.fetchPage(pageSize, cl, clientState, nanoTime()))
                         {
-                            currentPage = select.process(iter, nowInSec).rows.iterator();
+                            currentPage = select.process(iter, nowInSec, true).rows.iterator();
                         }
                     }
                     return new Row(metadata, currentPage.next());

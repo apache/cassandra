@@ -5,6 +5,10 @@ The following describes the changes in each version of CQL.
 == 3.4.7
 
 * Remove deprecated functions `dateOf` and `unixTimestampOf`, replaced by `toTimestamp` and `toUnixTimestamp` (`18328`)
+* Added support for attaching masking functions to table columns (`18068`)
+* Add UNMASK permission (`18069`)
+* Add SELECT_MASKED permission (`18070`)
+* Add support for using UDFs as masking functions (`18071`)
 
 == 3.4.6
 

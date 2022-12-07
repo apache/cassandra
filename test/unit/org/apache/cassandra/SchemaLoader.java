@@ -299,7 +299,8 @@ public class SchemaLoader
                                   ColumnIdentifier.getInterned(IntegerType.instance.fromString("42"), IntegerType.instance),
                                   UTF8Type.instance,
                                   ColumnMetadata.NO_POSITION,
-                                  ColumnMetadata.Kind.REGULAR);
+                                  ColumnMetadata.Kind.REGULAR,
+                                  null);
     }
 
     public static ColumnMetadata utf8Column(String ksName, String cfName)
@@ -309,7 +310,8 @@ public class SchemaLoader
                                   ColumnIdentifier.getInterned("fortytwo", true),
                                   UTF8Type.instance,
                                   ColumnMetadata.NO_POSITION,
-                                  ColumnMetadata.Kind.REGULAR);
+                                  ColumnMetadata.Kind.REGULAR,
+                                  null);
     }
 
     public static TableMetadata perRowIndexedCFMD(String ksName, String cfName)

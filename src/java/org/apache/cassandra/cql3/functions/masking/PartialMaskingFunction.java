@@ -37,7 +37,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * A {@link MaskingFunction} applied to a {@link org.apache.cassandra.db.marshal.StringType} value that,
@@ -88,37 +87,53 @@ public class PartialMaskingFunction extends MaskingFunction
     }
 
     @Override
-    public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+    public Masker masker(ByteBuffer... parameters)
     {
-        // Parse the beginning and end positions. No validation is needed since the masker accepts negatives,
-        // but we should consider that the arguments migh be null.
-        int begin = parameters.get(1) == null ? 0 : Int32Type.instance.compose(parameters.get(1));
-        int end = parameters.get(2) == null ? 0 : Int32Type.instance.compose(parameters.get(2));
+        return new Masker(parameters);
+    }
 
-        // Parse the padding character. The type of the argument is a string of any length because we don't have a
-        // character type in CQL, so we should verify that the passed string argument is single-character.
-        char padding = DEFAULT_PADDING_CHAR;
-        if (hasPaddingArgument && parameters.get(3) != null)
+    private class Masker implements MaskingFunction.Masker
+    {
+        private final int begin, end;
+        private final char padding;
+
+        private Masker(ByteBuffer... parameters)
         {
-            String parameter = UTF8Type.instance.compose(parameters.get(3));
-            if (parameter.length() != 1)
+            // Parse the beginning and end positions. No validation is needed since the masker accepts negatives,
+            // but we should consider that the arguments migh be null.
+            begin = parameters[0] == null ? 0 : Int32Type.instance.compose(parameters[0]);
+            end = parameters[1] == null ? 0 : Int32Type.instance.compose(parameters[1]);
+
+            // Parse the padding character. The type of the argument is a string of any length because we don't have a
+            // character type in CQL, so we should verify that the passed string argument is single-character.
+            if (hasPaddingArgument && parameters[2] != null)
             {
-                throw new InvalidRequestException(String.format("The padding argument for function %s should " +
-                                                                "be single-character, but '%s' has %d characters.",
-                                                                name(), parameter, parameter.length()));
+                String parameter = UTF8Type.instance.compose(parameters[2]);
+                if (parameter.length() != 1)
+                {
+                    throw new InvalidRequestException(String.format("The padding argument for function %s should " +
+                                                                    "be single-character, but '%s' has %d characters.",
+                                                                    name(), parameter, parameter.length()));
+                }
+                padding = parameter.charAt(0);
             }
-            padding = parameter.charAt(0);
+            else
+            {
+                padding = DEFAULT_PADDING_CHAR;
+            }
         }
 
-        // Null column values aren't masked
-        ByteBuffer value = parameters.get(0);
-        if (value == null)
-            return null;
+        @Override
+        public ByteBuffer mask(ByteBuffer value)
+        {
+            // Null column values aren't masked
+            if (value == null)
+                return null;
 
-        // We mask the string representation of the column value, even if the type of the column is not a string.
-        String stringValue = inputType.compose(value);
-        String maskedValue = type.mask(stringValue, begin, end, padding);
-        return inputType.decompose(maskedValue);
+            String stringValue = inputType.compose(value);
+            String maskedValue = type.mask(stringValue, begin, end, padding);
+            return inputType.decompose(maskedValue);
+        }
     }
 
     public enum Type

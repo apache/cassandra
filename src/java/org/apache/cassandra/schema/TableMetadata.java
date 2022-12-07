@@ -47,6 +47,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.SchemaElement;
+import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.Columns;
@@ -440,6 +442,35 @@ public class TableMetadata implements SchemaElement
     public boolean hasStaticColumns()
     {
         return !staticColumns().isEmpty();
+    }
+
+    /**
+     * @return {@code true} if the table has any masked column, {@code false} otherwise.
+     */
+    public boolean hasMaskedColumns()
+    {
+        for (ColumnMetadata column : columns.values())
+        {
+            if (column.isMasked())
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param function a user function
+     * @return {@code true} if the table has any masked column depending on the specified user function,
+     * {@code false} otherwise.
+     */
+    public boolean dependsOn(Function function)
+    {
+        for (ColumnMetadata column : columns.values())
+        {
+            ColumnMask mask = column.getMask();
+            if (mask != null && mask.function.name().equals(function.name()))
+                return true;
+        }
+        return false;
     }
 
     public void validate()
@@ -931,44 +962,84 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
-        public Builder addPartitionKeyColumn(String name, AbstractType type)
+        public Builder addPartitionKeyColumn(String name, AbstractType<?> type)
         {
-            return addPartitionKeyColumn(ColumnIdentifier.getInterned(name, false), type);
+            return addPartitionKeyColumn(name, type, null);
         }
 
-        public Builder addPartitionKeyColumn(ColumnIdentifier name, AbstractType type)
+        public Builder addPartitionKeyColumn(String name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, partitionKeyColumns.size(), ColumnMetadata.Kind.PARTITION_KEY));
+            return addPartitionKeyColumn(ColumnIdentifier.getInterned(name, false), type, mask);
         }
 
-        public Builder addClusteringColumn(String name, AbstractType type)
+        public Builder addPartitionKeyColumn(ColumnIdentifier name, AbstractType<?> type)
         {
-            return addClusteringColumn(ColumnIdentifier.getInterned(name, false), type);
+            return addPartitionKeyColumn(name, type, null);
         }
 
-        public Builder addClusteringColumn(ColumnIdentifier name, AbstractType type)
+        public Builder addPartitionKeyColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, clusteringColumns.size(), ColumnMetadata.Kind.CLUSTERING));
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, partitionKeyColumns.size(), ColumnMetadata.Kind.PARTITION_KEY, mask));
         }
 
-        public Builder addRegularColumn(String name, AbstractType type)
+        public Builder addClusteringColumn(String name, AbstractType<?> type)
         {
-            return addRegularColumn(ColumnIdentifier.getInterned(name, false), type);
+            return addClusteringColumn(name, type, null);
         }
 
-        public Builder addRegularColumn(ColumnIdentifier name, AbstractType type)
+        public Builder addClusteringColumn(String name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR));
+            return addClusteringColumn(ColumnIdentifier.getInterned(name, false), type, mask);
         }
 
-        public Builder addStaticColumn(String name, AbstractType type)
+        public Builder addClusteringColumn(ColumnIdentifier name, AbstractType<?> type)
         {
-            return addStaticColumn(ColumnIdentifier.getInterned(name, false), type);
+            return addClusteringColumn(name, type, null);
         }
 
-        public Builder addStaticColumn(ColumnIdentifier name, AbstractType type)
+        public Builder addClusteringColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
         {
-            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.STATIC));
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, clusteringColumns.size(), ColumnMetadata.Kind.CLUSTERING, mask));
+        }
+
+        public Builder addRegularColumn(String name, AbstractType<?> type)
+        {
+            return addRegularColumn(name, type, null);
+        }
+
+        public Builder addRegularColumn(String name, AbstractType<?> type, @Nullable ColumnMask mask)
+        {
+            return addRegularColumn(ColumnIdentifier.getInterned(name, false), type, mask);
+        }
+
+        public Builder addRegularColumn(ColumnIdentifier name, AbstractType<?> type)
+        {
+            return addRegularColumn(name, type, null);
+        }
+
+        public Builder addRegularColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
+        {
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.REGULAR, mask));
+        }
+
+        public Builder addStaticColumn(String name, AbstractType<?> type)
+        {
+            return addStaticColumn(name, type, null);
+        }
+
+        public Builder addStaticColumn(String name, AbstractType<?> type, @Nullable ColumnMask mask)
+        {
+            return addStaticColumn(ColumnIdentifier.getInterned(name, false), type, mask);
+        }
+
+        public Builder addStaticColumn(ColumnIdentifier name, AbstractType<?> type)
+        {
+            return addStaticColumn(name, type, null);
+        }
+
+        public Builder addStaticColumn(ColumnIdentifier name, AbstractType<?> type, @Nullable ColumnMask mask)
+        {
+            return addColumn(new ColumnMetadata(keyspace, this.name, name, type, ColumnMetadata.NO_POSITION, ColumnMetadata.Kind.STATIC, mask));
         }
 
         public Builder addColumn(ColumnMetadata column)
@@ -1093,6 +1164,19 @@ public class TableMetadata implements SchemaElement
             return this;
         }
 
+        public Builder alterColumnMask(ColumnIdentifier name, @Nullable ColumnMask mask)
+        {
+            ColumnMetadata column = columns.get(name.bytes);
+            if (column == null)
+                throw new IllegalArgumentException();
+
+            ColumnMetadata newColumn = column.withNewMask(mask);
+
+            updateColumn(column, newColumn);
+
+            return this;
+        }
+
         Builder alterColumnType(ColumnIdentifier name, AbstractType<?> type)
         {
             ColumnMetadata column = columns.get(name.bytes);
@@ -1101,6 +1185,13 @@ public class TableMetadata implements SchemaElement
 
             ColumnMetadata newColumn = column.withNewType(type);
 
+            updateColumn(column, newColumn);
+
+            return this;
+        }
+
+        private void updateColumn(ColumnMetadata column, ColumnMetadata newColumn)
+        {
             switch (column.kind)
             {
                 case PARTITION_KEY:
@@ -1117,8 +1208,6 @@ public class TableMetadata implements SchemaElement
             }
 
             columns.put(column.name.bytes, newColumn);
-
-            return this;
         }
     }
     
@@ -1543,7 +1632,7 @@ public class TableMetadata implements SchemaElement
                 for (ColumnMetadata c : regularAndStaticColumns)
                 {
                     if (c.isStatic())
-                        columns.add(new ColumnMetadata(c.ksName, c.cfName, c.name, c.type, -1, ColumnMetadata.Kind.REGULAR));
+                        columns.add(new ColumnMetadata(c.ksName, c.cfName, c.name, c.type, -1, ColumnMetadata.Kind.REGULAR, c.getMask()));
                 }
                 otherColumns = columns.iterator();
             }

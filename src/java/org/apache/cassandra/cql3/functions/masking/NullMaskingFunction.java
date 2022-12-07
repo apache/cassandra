@@ -26,7 +26,6 @@ import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionParameter;
 import org.apache.cassandra.cql3.functions.NativeFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * A {@link MaskingFunction} that always returns a {@code null} column. The returned value is always an absent column,
@@ -38,6 +37,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 public class NullMaskingFunction extends MaskingFunction
 {
     public static final String NAME = "null";
+    private static final Masker MASKER = new Masker();
 
     private NullMaskingFunction(FunctionName name, AbstractType<?> inputType)
     {
@@ -45,9 +45,18 @@ public class NullMaskingFunction extends MaskingFunction
     }
 
     @Override
-    public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+    public Masker masker(ByteBuffer... parameters)
     {
-        return null;
+        return MASKER;
+    }
+
+    private static class Masker implements MaskingFunction.Masker
+    {
+        @Override
+        public ByteBuffer mask(ByteBuffer value)
+        {
+            return null;
+        }
     }
 
     /** @return a {@link FunctionFactory} to build new {@link NullMaskingFunction}s. */

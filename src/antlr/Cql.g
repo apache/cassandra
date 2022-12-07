@@ -39,6 +39,7 @@ import Parser,Lexer;
     import org.apache.cassandra.auth.*;
     import org.apache.cassandra.cql3.conditions.*;
     import org.apache.cassandra.cql3.functions.*;
+    import org.apache.cassandra.cql3.functions.masking.*;
     import org.apache.cassandra.cql3.restrictions.CustomIndexExpression;
     import org.apache.cassandra.cql3.selection.*;
     import org.apache.cassandra.cql3.statements.*;

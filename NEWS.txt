@@ -132,6 +132,14 @@ New features
     - Added local read/write ratio to tablestats.
     - Added system_views.max_sstable_size and system_views.max_sstable_duration tables.
     - Added virtual table system_views.snapshots to see all snapshots from CQL shell.
+    - Added support for attaching CQL dynamic data masking functions to table columns on the schema. These masking
+      functions can be attached to or dettached from columns with CREATE/ALTER TABLE statements. The functions obscure
+      the masked data during queries, but they don't change the stored data.
+    - Added new UNMASK permission. It allows to see the clear data of columns with an attached mask. Superusers have it
+      by default, whereas regular users don't have it by default.
+    - Added new SELECT_MASKED permission. It allows to run SELECT queries selecting the clear values of masked columns.
+      Superusers have it by default, whereas regular users don't have it by default.
+    - Added support for using UDFs as masking functions attached to table columns on the schema.
 
 Upgrading
 ---------

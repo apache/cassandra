@@ -196,10 +196,10 @@ public class DuplicateRowCheckerTest extends CQLTester
         return BTreeRow.noCellLiveRow(Clustering.make(clusteringByteBuffers), LivenessInfo.create(0, 0));
     }
 
-    public static UnfilteredRowIterator rows(TableMetadata metadata,
-                                             DecoratedKey key,
-                                             boolean isReversedOrder,
-                                             Unfiltered... unfiltereds)
+    public static UnfilteredRowIterator partition(TableMetadata metadata,
+                                                  DecoratedKey key,
+                                                  boolean isReversedOrder,
+                                                  Unfiltered... unfiltereds)
     {
         Iterator<Unfiltered> iterator = Iterators.forArray(unfiltereds);
         return new AbstractUnfilteredRowIterator(metadata,
@@ -227,7 +227,7 @@ public class DuplicateRowCheckerTest extends CQLTester
     public static UnfilteredPartitionIterator iter(TableMetadata metadata, boolean isReversedOrder, Unfiltered... unfiltereds)
     {
         DecoratedKey key = metadata.partitioner.decorateKey(bytes("key"));
-        UnfilteredRowIterator rowIter = rows(metadata, key, isReversedOrder, unfiltereds);
+        UnfilteredRowIterator rowIter = partition(metadata, key, isReversedOrder, unfiltereds);
         return new SingletonUnfilteredPartitionIterator(rowIter);
     }
 }

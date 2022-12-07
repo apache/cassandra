@@ -26,7 +26,6 @@ import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionParameter;
 import org.apache.cassandra.cql3.functions.NativeFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * A {@link MaskingFunction} that replaces the specified column value by a certain replacement value.
@@ -45,9 +44,25 @@ public class ReplaceMaskingFunction extends MaskingFunction
     }
 
     @Override
-    public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+    public Masker masker(ByteBuffer... parameters)
     {
-        return parameters.get(1);
+        return new Masker(parameters[0]);
+    }
+
+    private static class Masker implements MaskingFunction.Masker
+    {
+        private final ByteBuffer replacement;
+
+        private Masker(ByteBuffer replacement)
+        {
+            this.replacement = replacement;
+        }
+
+        @Override
+        public ByteBuffer mask(ByteBuffer value)
+        {
+            return replacement;
+        }
     }
 
     /** @return a {@link FunctionFactory} to build new {@link ReplaceMaskingFunction}s. */

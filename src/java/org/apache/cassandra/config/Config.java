@@ -618,6 +618,8 @@ public class Config
      */
     public boolean allow_extra_insecure_udfs = false;
 
+    public boolean dynamic_data_masking_enabled = false;
+
     /**
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.
      * (Only valid, if user_defined_functions_threads_enabled==true)

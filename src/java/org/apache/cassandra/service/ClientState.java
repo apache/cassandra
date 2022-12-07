@@ -414,6 +414,27 @@ public class ClientState
         ensurePermission(table.keyspace, perm, table.resource);
     }
 
+    public boolean hasTablePermission(TableMetadata table, Permission perm)
+    {
+        if (isInternal)
+            return true;
+
+        validateLogin();
+
+        if (!DatabaseDescriptor.getAuthorizer().requireAuthorization())
+            return true;
+
+        List<? extends IResource> resources = Resources.chain(table.resource);
+        if (DatabaseDescriptor.getAuthFromRoot())
+            resources = Lists.reverse(resources);
+
+        for (IResource r : resources)
+            if (authorize(r).contains(perm))
+                return true;
+
+        return false;
+    }
+
     private void ensurePermission(String keyspace, Permission perm, DataResource resource)
     {
         validateKeyspace(keyspace);

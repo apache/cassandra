@@ -24,6 +24,7 @@ public class SchemaKeyspaceTables
     public static final String KEYSPACES = "keyspaces";
     public static final String TABLES = "tables";
     public static final String COLUMNS = "columns";
+    public static final String COLUMN_MASKS = "column_masks";
     public static final String DROPPED_COLUMNS = "dropped_columns";
     public static final String TRIGGERS = "triggers";
     public static final String VIEWS = "views";
@@ -45,7 +46,8 @@ public class SchemaKeyspaceTables
      *
      * See CASSANDRA-12213 for more details.
      */
-    public static final ImmutableList<String> ALL = ImmutableList.of(COLUMNS,
+    public static final ImmutableList<String> ALL = ImmutableList.of(COLUMN_MASKS,
+                                                                     COLUMNS,
                                                                      DROPPED_COLUMNS,
                                                                      TRIGGERS,
                                                                      TYPES,
