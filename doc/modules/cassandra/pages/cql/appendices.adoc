@@ -82,6 +82,7 @@ or not.
 |`LIST` |no
 |`LOGIN` |no
 |`MAP` |no
+|`MASKED` |no
 |`MODIFY` |yes
 |`NAN` |yes
 |`NOLOGIN` |no

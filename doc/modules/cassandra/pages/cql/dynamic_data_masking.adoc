@@ -1,0 +1,69 @@
+= Dynamic Data Masking
+
+Dynamic data masking (DDM) allows to obscure sensitive information while still allowing access to the masked columns.
+DDM doesn't change the stored data. Instead, it just presents the data on their obscured form during `SELECT` queries.
+This aims to provide some degree of protection against accidental data exposure. However, it's important to know that
+anyone with direct access to the sstable files will be able to read the clear data.
+
+== Masking functions
+
+DDM is based on a set of CQL native functions that obscure sensitive information. The available functions are:
+
+include::partial$masking_functions.adoc[]
+
+Those functions can be discretionarily used on `SELECT` queries to get an obscured view of the data. For example:
+
+[source,cql]
+----
+include::example$CQL/select_with_mask_functions.cql[]
+----
+
+== Attaching masking functions to table columns
+
+The masking functions can be permanently attached to the columns of a table.
+In that case, `SELECT` queries will always return the column values in their masked form.
+The masking will be transparent for the users running `SELECT` queries,
+so their only way to know that a column is masked will be consulting the table definition.
+
+The masks of the columns of a table can be defined on `CREATE TABLE` queries:
+
+[source,cql]
+----
+include::example$CQL/ddm_create_table.cql[]
+----
+
+Note that in the example above we are referencing the `mask_inner` function with two arguments.
+However, that CQL function actually has three arguments when explicitely used on `SELECT` queries.
+The first argument is always ommitted when attaching the function to a schema column.
+The value of that first argument is always interpreted as the value of the masked column, in this case a `text` column.
+For the same reason the call to `mask_default` attached to the column doesn't have any argument,
+even when that function requires one argument when explicitely used on `SELECT` queries.
+
+Data can be inserted into the masked table as usual. For example:
+
+[source,cql]
+----
+include::example$CQL/ddm_insert_data.cql[]
+----
+
+The attached column masks will make `SELECT` queries automatically return masked data,
+without the need of including the masking function on the query:
+
+[source,cql]
+----
+include::example$CQL/ddm_select_with_masked_columns.cql[]
+----
+
+The masking function attached to a column can be changed with an `ALTER TABLE` query:
+
+[source,cql]
+----
+include::example$CQL/ddm_alter_mask.cql[]
+----
+
+In a similar way, a masking function can be dettached from a column with an `ALTER TABLE` query:
+
+[source,cql]
+----
+include::example$CQL/ddm_drop_mask.cql[]
+----
