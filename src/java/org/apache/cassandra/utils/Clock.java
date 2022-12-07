@@ -136,7 +136,7 @@ public interface Clock
     @Intercept
     public static void waitUntil(long deadlineNanos) throws InterruptedException
     {
-        long waitNanos = Clock.Global.nanoTime() - deadlineNanos;
+        long waitNanos = deadlineNanos - Clock.Global.nanoTime();
         if (waitNanos > 0)
             TimeUnit.NANOSECONDS.sleep(waitNanos);
     }
