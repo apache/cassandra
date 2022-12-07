@@ -252,8 +252,10 @@ bc(syntax)..
                           '(' <column-definition> ( ',' <column-definition> )* ')'
                           ( WITH <option> ( AND <option>)* )?
 
-<column-definition> ::= <identifier> <type> ( STATIC )? ( PRIMARY KEY )?
+<column-definition> ::= <identifier> <type> ( STATIC )? ( <column_mask> )? ( PRIMARY KEY )?
                       | PRIMARY KEY '(' <partition-key> ( ',' <identifier> )* ')'
+
+<column-mask> ::= MASKED WITH ( DEFAULT | <function> '(' ( <term> (',' <term>)* )?  ')' )
 
 <partition-key> ::= <identifier>
                   | '(' <identifier> (',' <identifier> )* ')'
@@ -410,11 +412,15 @@ __Syntax:__
 bc(syntax).. 
 <alter-table-stmt> ::= ALTER (TABLE | COLUMNFAMILY) (IF NOT EXISTS)? <tablename> <instruction>
 
-<instruction> ::= ADD (IF NOT EXISTS)? ( <identifier> <type> ( , <identifier> <type> )* )
+<instruction> ::= ADD (IF NOT EXISTS)? ( <identifier> <type> ( <column-mask> )?
+                                       ( , <identifier> <type> ( <column-mask> )? )* )
                 | DROP  (IF EXISTS)? ( <identifier> ( , <identifier> )* )
+                | ALTER <identifier> ( <column-mask> | DROP MASKED )
                 | RENAME (IF EXISTS)? <identifier> to <identifier> (AND <identifier> to <identifier>)*
                 | DROP COMPACT STORAGE
                 | WITH  <option> ( AND <option> )*
+
+<column-mask> ::= MASKED WITH ( DEFAULT | <function> '(' ( <term> (',' <term>)* )?  ')' )
 p. 
 __Sample:__
 
@@ -434,6 +440,7 @@ If the table does not exist, the statement will return an error, unless @IF EXIS
 The @<tablename>@ is the table name optionally preceded by the keyspace name.  The @<instruction>@ defines the alteration to perform:
 * @ADD@: Adds a new column to the table. The @<identifier>@ for the new column must not conflict with an existing column. Moreover, columns cannot be added to tables defined with the @COMPACT STORAGE@ option. If the new column already exists, the statement will return an error, unless @IF NOT EXISTS@ is used in which case the operation is a no-op.
 * @DROP@: Removes a column from the table. Dropped columns will immediately become unavailable in the queries and will not be included in compacted sstables in the future. If a column is readded, queries won't return values written before the column was last dropped. It is assumed that timestamps represent actual time, so if this is not your case, you should NOT readd previously dropped columns. Columns can't be dropped from tables defined with the @COMPACT STORAGE@ option. If the dropped column does not already exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+* @ALTER@: Alters an existing column. It can be used to set its data mask, or to set it as unmasked. The data mask is any function meant to obscure the real values of the column.
 * @RENAME@ a primary key column of a table. Non primary key columns cannot be renamed. Furthermore, renaming a column to another name which already exists isn't allowed. It's important to keep in mind that renamed columns shouldn't have dependent secondary indexes. If the renamed column does not already exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 * @DROP COMPACT STORAGE@: Removes Thrift compatibility mode from the table.
 * @WITH@: Allows to update the options of the table. The "supported @<option>@":#createTableOptions (and syntax) are the same as for the @CREATE TABLE@ statement except that @COMPACT STORAGE@ is not supported. Note that setting any @compaction@ sub-options has the effect of erasing all previous @compaction@ options, so you  need to re-specify all the sub-options if you want to keep them. The same note applies to the set of @compression@ sub-options.
@@ -1518,6 +1525,8 @@ The full set of available permissions is:
 * @AUTHORIZE@
 * @DESCRIBE@
 * @EXECUTE@
+* @UNMASK@
+* @SELECT_MASKED@
 
 Not all permissions are applicable to every type of resource. For instance, @EXECUTE@ is only relevant in the context of functions or mbeans; granting @EXECUTE@ on a resource representing a table is nonsensical. Attempting to @GRANT@ a permission on resource to which it cannot be applied results in an error response. The following illustrates which permissions can be granted on which types of resource, and which statements are enabled by that permission.
 
@@ -1577,6 +1586,12 @@ Not all permissions are applicable to every type of resource. For instance, @EXE
 | @EXECUTE@    | @ALL MBEANS@                 |Execute operations on any mbean|
 | @EXECUTE@    | @MBEANS@                     |Execute operations on any mbean matching a wildcard pattern|
 | @EXECUTE@    | @MBEAN@                      |Execute operations on named mbean|
+| @UNMASK@     | @ALL KEYSPACES@              |See the clear contents of masked columns on any table|
+| @UNMASK@     | @KEYSPACE@                   |See the clear contents of masked columns on any table in keyspace|
+| @UNMASK@     | @TABLE@                      |See the clear contents of masked columns on the specified table|
+| @SELECT_MASKED@ | @ALL KEYSPACES@           |Select restricting masked columns on any table|
+| @SELECT_MASKED@ | @KEYSPACE@                |Select restricting masked columns on any table in keyspace|
+| @SELECT_MASKED@ | @TABLE@                   |Select restricting masked columns on the specified table|
 
 
 h3(#grantPermissionsStmt). GRANT PERMISSION
@@ -1586,7 +1601,7 @@ __Syntax:__
 bc(syntax).. 
 <grant-permission-stmt> ::= GRANT ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> TO <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE | UNMASK | SELECT_MASKED
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
@@ -1643,7 +1658,7 @@ __Syntax:__
 bc(syntax).. 
 <revoke-permission-stmt> ::= REVOKE ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> FROM <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE | UNMASK | SELECT_MASKED
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
@@ -2484,6 +2499,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @LIST@         | no  |
 | @LOGIN@        | no  |
 | @MAP@          | no  |
+| @MASKED@       | no  |
 | @MATERIALIZED@ | yes |
 | @MBEAN@        | yes |
 | @MBEANS@       | yes |
@@ -2513,6 +2529,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @ROLES@        | no  |
 | @SCHEMA@       | yes |
 | @SELECT@       | yes |
+| @SELECT_MASKED@| no  |
 | @SET@          | yes |
 | @SFUNC@        | no  |
 | @SMALLINT@     | no  |
@@ -2534,6 +2551,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @TUPLE@        | no  |
 | @TYPE@         | no  |
 | @UNLOGGED@     | yes |
+| @UNMASK@       | no  |
 | @UNSET@        | yes |
 | @UPDATE@       | yes |
 | @USE@          | yes |
@@ -2548,7 +2566,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @WHERE@        | yes |
 | @WITH@         | yes |
 | @WRITETIME@    | no  |
-| @MAXWRITETIME@    | no  |
+| @MAXWRITETIME@ | no  |
 
 h2(#appendixB). Appendix B: CQL Reserved Types
 

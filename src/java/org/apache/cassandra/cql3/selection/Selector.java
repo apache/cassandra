@@ -306,6 +306,7 @@ public abstract class Selector
     {
         private final ProtocolVersion protocolVersion;
         private final List<ColumnMetadata> columns;
+        private final boolean unmask;
         private final boolean collectWritetimes;
         private final boolean collectTTLs;
 
@@ -314,18 +315,20 @@ public abstract class Selector
         private RowTimestamps ttls;
         private int index;
 
-        public InputRow(ProtocolVersion protocolVersion, List<ColumnMetadata> columns)
+        public InputRow(ProtocolVersion protocolVersion, List<ColumnMetadata> columns, boolean unmask)
         {
-            this(protocolVersion, columns, false, false);
+            this(protocolVersion, columns, unmask, false, false);
         }
 
         public InputRow(ProtocolVersion protocolVersion,
                         List<ColumnMetadata> columns,
+                        boolean unmask,
                         boolean collectWritetimes,
                         boolean collectTTLs)
         {
             this.protocolVersion = protocolVersion;
             this.columns = columns;
+            this.unmask = unmask;
             this.collectWritetimes = collectWritetimes;
             this.collectTTLs = collectTTLs;
 
@@ -345,6 +348,11 @@ public abstract class Selector
         public ProtocolVersion getProtocolVersion()
         {
             return protocolVersion;
+        }
+
+        public boolean unmask()
+        {
+            return unmask;
         }
 
         public void add(ByteBuffer v)

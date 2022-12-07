@@ -192,7 +192,7 @@ public abstract class MaskingFunctionTester extends CQLTester
      * Tests the native masking function for the specified column type and values on all possible types of column.
      * That is, when the column is part of the primary key, or a regular column, or a static column.
      *
-     * @param type  the type of the tested column
+     * @param type the type of the tested column
      * @param values the values of the tested column
      */
     private void testMaskingOnAllColumns(CQL3Type type, Object... values) throws Throwable
@@ -222,7 +222,7 @@ public abstract class MaskingFunctionTester extends CQLTester
      * Tests the native masking function for the specified column type and values when the column isn't part of the
      * primary key. That is, when the column is either a regular column or a static column.
      *
-     * @param type  the type of the tested column
+     * @param type the type of the tested column
      * @param values the values of the tested column
      */
     private void testMaskingOnNotKeyColumns(CQL3Type type, Object... values) throws Throwable
@@ -265,8 +265,8 @@ public abstract class MaskingFunctionTester extends CQLTester
      * Tests the native masking function for the specified column type and value.
      * This assumes that the table is already created.
      *
-     * @param name  the name of the tested column
-     * @param type  the type of the tested column
+     * @param name the name of the tested column
+     * @param type the type of the tested column
      * @param value the value of the tested column
      */
     protected abstract void testMaskingOnColumn(String name, CQL3Type type, Object value) throws Throwable;

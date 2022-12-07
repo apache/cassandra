@@ -39,6 +39,7 @@
 *** xref:cql/functions.adoc[Functions]
 *** xref:cql/json.adoc[JSON]
 *** xref:cql/security.adoc[Security]
+*** xref:cql/dynamic_data_masking.adoc[Dynamic data masking]
 *** xref:cql/triggers.adoc[Triggers]
 *** xref:cql/appendices.adoc[Appendices]
 *** xref:cql/changes.adoc[Changes]

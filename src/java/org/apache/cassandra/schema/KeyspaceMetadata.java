@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -30,6 +31,7 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.SchemaElement;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.marshal.UserType;
@@ -171,6 +173,15 @@ public final class KeyspaceMetadata implements SchemaElement
     public boolean hasIndex(String indexName)
     {
         return any(tables, t -> t.indexes.has(indexName));
+    }
+
+    /**
+     * @param function a user function
+     * @return a stream of tables within this keyspace that have column masks using the specified user function
+     */
+    public Stream<TableMetadata> tablesUsingFunction(Function function)
+    {
+        return tables.stream().filter(table -> table.dependsOn(function));
     }
 
     public String findAvailableIndexName(String baseName)

@@ -1660,6 +1660,14 @@ report_unconfirmed_repaired_data_mismatches: false
 # warming of auth caches prior to node completing startup. See CASSANDRA-16958
 # auth_cache_warming_enabled: false
 
+# If enabled, dynamic data masking allows to attach CQL masking functions to the columns of a table.
+# Users without the UNMASK permission will see an obscured version of the values of the columns with an attached mask.
+# If dynamic data masking is disabled it won't be allowed to create new column masks, although it will still be possible
+# to drop any previously existing masks. Also, any existing mask will be ignored at query time, so all users will see
+# the clear values of the masked columns.
+# Defaults to false to disable dynamic data masking.
+# dynamic_data_masking_enabled: false
+
 #########################
 # EXPERIMENTAL FEATURES #
 #########################
