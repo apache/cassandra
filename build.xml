@@ -203,7 +203,7 @@
         <string>--add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</string>
     </resources>
     <pathconvert property="_jvm_args_concat" refid="_jvm11_arg_items" pathsep=" "/>
-    <condition property="jvmargs" value="${_jvm_args_concat}" else="">
+    <condition property="java11-jvmargs" value="${_jvm_args_concat}" else="">
         <not>
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
@@ -235,7 +235,9 @@
     </resources>
     <pathconvert property="_jvm11_test_arg_items_concat" refid="_jvm11_test_arg_items" pathsep=" "/>
     <condition property="_std-test-jvmargs" value="${_jvm11_test_arg_items_concat}" else="${_jvm8_test_arg_items_concat}">
-      <isset property="java.version.11" />
+        <not>
+            <equals arg1="${ant.java.version}" arg2="1.8"/>
+        </not>
     </condition>
 
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
@@ -467,7 +469,7 @@
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
         <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
-        <jvmarg line="${jvmargs}"/>
+        <jvmarg line="${java11-jvmargs}"/>
       </java>
     </target>
 
@@ -1107,7 +1109,7 @@
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
-        <jvmarg line="${jvmargs}"/>
+        <jvmarg line="${java11-jvmargs}"/>
         <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
         <jvmarg line="${_std-test-jvmargs}" />
@@ -1763,7 +1765,7 @@
     <replace file=".idea/misc.xml" token="1.8" value="11"/>
     <replaceregexp file=".idea/workspace.xml"
                    match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)&quot;"
-                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${jvmargs}&quot;"
+                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java11-jvmargs}&quot;"
                    byline="true"/>
 
       <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
