@@ -535,6 +535,10 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
         - start_j8_cqlsh_tests
         - j8_build
+    - j8_cqlsh_dtests_py311_vnode:
+        requires:
+        - start_j8_cqlsh_tests
+        - j8_build
     - j8_cqlsh-dtests-py2-no-vnodes:
         requires:
         - start_j8_cqlsh_tests
@@ -544,6 +548,10 @@ j8_separate_jobs: &j8_separate_jobs
         - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh_dtests_py38:
+        requires:
+          - start_j8_cqlsh_tests
+          - j8_build
+    - j8_cqlsh_dtests_py311:
         requires:
           - start_j8_cqlsh_tests
           - j8_build
@@ -562,6 +570,10 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
           - start_j8_cqlsh_tests_offheap
           - j8_build
+    - j8_cqlsh_dtests_py311_offheap:
+        requires:
+          - start_j8_cqlsh_tests_offheap
+          - j8_build
     # Java 11 cqlsh dtests
     - start_j11_cqlsh_tests:
         type: approval
@@ -577,6 +589,10 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
           - start_j11_cqlsh_tests
           - j8_build
+    - j11_cqlsh_dtests_py311_vnode:
+        requires:
+          - start_j11_cqlsh_tests
+          - j8_build
     - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
           - start_j11_cqlsh_tests
@@ -586,6 +602,10 @@ j8_separate_jobs: &j8_separate_jobs
           - start_j11_cqlsh_tests
           - j8_build
     - j11_cqlsh_dtests_py38:
+        requires:
+          - start_j11_cqlsh_tests
+          - j8_build
+    - j11_cqlsh_dtests_py311:
         requires:
           - start_j11_cqlsh_tests
           - j8_build
@@ -601,6 +621,10 @@ j8_separate_jobs: &j8_separate_jobs
           - start_j11_cqlsh_tests_offheap
           - j8_build
     - j11_cqlsh_dtests_py38_offheap:
+        requires:
+          - start_j11_cqlsh_tests_offheap
+          - j8_build
+    - j11_cqlsh_dtests_py311_offheap:
         requires:
           - start_j11_cqlsh_tests_offheap
           - j8_build
@@ -835,6 +859,9 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
     - j8_cqlsh_dtests_py38_vnode:
         requires:
           - j8_build
+    - j8_cqlsh_dtests_py311_vnode:
+        requires:
+          - j8_build
     - j8_cqlsh-dtests-py2-no-vnodes:
         requires:
           - j8_build
@@ -842,6 +869,9 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
         requires:
           - j8_build
     - j8_cqlsh_dtests_py38:
+        requires:
+          - j8_build
+    - j8_cqlsh_dtests_py311:
         requires:
           - j8_build
     # Java 8 cqlsh dtests offheap
@@ -859,6 +889,10 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
         requires:
           - start_j8_cqlsh_dtests_offheap
           - j8_build
+    - j8_cqlsh_dtests_py311_offheap:
+        requires:
+          - start_j8_cqlsh_dtests_offheap
+          - j8_build
     # Java 11 cqlsh dtests
     - j11_cqlsh-dtests-py2-with-vnodes:
         requires:
@@ -869,6 +903,9 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
     - j11_cqlsh_dtests_py38_vnode:
         requires:
           - j8_build
+    - j11_cqlsh_dtests_py311_vnode:
+        requires:
+          - j8_build
     - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
           - j8_build
@@ -876,6 +913,9 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
         requires:
           - j8_build
     - j11_cqlsh_dtests_py38:
+        requires:
+          - j8_build
+    - j11_cqlsh_dtests_py311:
         requires:
           - j8_build
     # Java 11 cqlsh dtests off-heap
@@ -890,6 +930,10 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
           - start_j11_cqlsh-dtests-offheap
           - j8_build
     - j11_cqlsh_dtests_py38_offheap:
+        requires:
+          - start_j11_cqlsh-dtests-offheap
+          - j8_build
+    - j11_cqlsh_dtests_py311_offheap:
         requires:
           - start_j11_cqlsh-dtests-offheap
           - j8_build
@@ -983,6 +1027,10 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j11_cqlsh_tests
           - j11_build
+    - j11_cqlsh_dtests_py311_vnode:
+        requires:
+          - start_j11_cqlsh_tests
+          - j11_build
     - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
           - start_j11_cqlsh_tests
@@ -992,6 +1040,10 @@ j11_separate_jobs: &j11_separate_jobs
           - start_j11_cqlsh_tests
           - j11_build
     - j11_cqlsh_dtests_py38:
+        requires:
+          - start_j11_cqlsh_tests
+          - j11_build
+    - j11_cqlsh_dtests_py311:
         requires:
           - start_j11_cqlsh_tests
           - j11_build
@@ -1006,6 +1058,10 @@ j11_separate_jobs: &j11_separate_jobs
           - start_j11_cqlsh-dtests-offheap
           - j11_build
     - j11_cqlsh_dtests_py38_offheap:
+        requires:
+          - start_j11_cqlsh-dtests-offheap
+          - j11_build
+    - j11_cqlsh_dtests_py311_offheap:
         requires:
           - start_j11_cqlsh-dtests-offheap
           - j11_build
@@ -1151,6 +1207,9 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j11_cqlsh_dtests_py38_vnode:
         requires:
           - j11_build
+    - j11_cqlsh_dtests_py311_vnode:
+        requires:
+          - j11_build
     - j11_cqlsh-dtests-py2-no-vnodes:
         requires:
           - j11_build
@@ -1158,6 +1217,9 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
         requires:
           - j11_build
     - j11_cqlsh_dtests_py38:
+        requires:
+          - j11_build
+    - j11_cqlsh_dtests_py311:
         requires:
           - j11_build
     - start_j11_cqlsh-dtests-offheap:
@@ -1171,6 +1233,10 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
           - start_j11_cqlsh-dtests-offheap
           - j11_build
     - j11_cqlsh_dtests_py38_offheap:
+        requires:
+          - start_j11_cqlsh-dtests-offheap
+          - j11_build
+    - j11_cqlsh_dtests_py311_offheap:
         requires:
           - start_j11_cqlsh-dtests-offheap
           - j11_build
@@ -1667,6 +1733,24 @@ jobs:
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
+  j8_cqlsh_dtests_py311_vnode:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.11'
+      - create_dtest_containers:
+          file_tag: j8_with_vnodes
+          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.11'
+      - run_dtests:
+          file_tag: j8_with_vnodes
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
+          python_version: '3.11'
+
   j8_cqlsh_dtests_py38_offheap:
     <<: *j8_par_executor
     steps:
@@ -1684,6 +1768,24 @@ jobs:
           pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
+
+  j8_cqlsh_dtests_py311_offheap:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.11'
+      - create_dtest_containers:
+          file_tag: j8_dtests_offheap
+          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.11'
+      - run_dtests:
+          file_tag: j8_dtests_offheap
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
+          python_version: '3.11'
 
   j8_cqlsh-dtests-py2-no-vnodes:
     <<: *j8_par_executor
@@ -1732,6 +1834,24 @@ jobs:
           pytest_extra_args: '--skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
+
+  j8_cqlsh_dtests_py311:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.11'
+      - create_dtest_containers:
+          file_tag: j8_without_vnodes
+          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.11'
+      - run_dtests:
+          file_tag: j8_without_vnodes
+          pytest_extra_args: '--skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
+          python_version: '3.11'
 
   j11_cqlsh-dtests-py2-with-vnodes:
     <<: *j11_par_executor
@@ -1811,6 +1931,24 @@ jobs:
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
 
+  j11_cqlsh_dtests_py311_vnode:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.11'
+      - create_dtest_containers:
+          file_tag: j11_with_vnodes
+          run_dtests_extra_args: "--use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.11'
+      - run_dtests:
+          file_tag: j11_with_vnodes
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
+          python_version: '3.11'
+
   j11_cqlsh_dtests_py38_offheap:
     <<: *j11_par_executor
     steps:
@@ -1828,6 +1966,24 @@ jobs:
           pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
+
+  j11_cqlsh_dtests_py311_offheap:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.11'
+      - create_dtest_containers:
+          file_tag: j11_dtests_offheap
+          run_dtests_extra_args: "--use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.11'
+      - run_dtests:
+          file_tag: j11_dtests_offheap
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
+          python_version: '3.11'
 
   j11_cqlsh-dtests-py2-no-vnodes:
     <<: *j11_par_executor
@@ -1876,6 +2032,24 @@ jobs:
           pytest_extra_args: '--skip-resource-intensive-tests'
           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.8'
           python_version: '3.8'
+
+  j11_cqlsh_dtests_py311:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv:
+          python_version: '3.11'
+      - create_dtest_containers:
+          file_tag: j11_without_vnodes
+          run_dtests_extra_args: "--skip-resource-intensive-tests --pytest-options '-k cql'"
+          python_version: '3.11'
+      - run_dtests:
+          file_tag: j11_without_vnodes
+          pytest_extra_args: '--skip-resource-intensive-tests'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.11'
+          python_version: '3.11'
 
   j8_unit_tests_repeat:
     <<: *j8_repeated_utest_executor
@@ -2379,7 +2553,7 @@ commands:
       python_version:
         type: enum
         default: "3.6"
-        enum: ["3.6", "3.7", "3.8"]
+        enum: ["3.6", "3.7", "3.8", "3.11"]
     steps:
     - run:
         name: Configure virtualenv and python Dependencies
@@ -2410,7 +2584,7 @@ commands:
       python_version:
         type: enum
         default: "3.6"
-        enum: ["3.6", "3.7", "3.8"]
+        enum: ["3.6", "3.7", "3.8", "3.11"]
     steps:
     - run:
         name: Determine Tests to Run (<<parameters.file_tag>>)
@@ -2452,7 +2626,7 @@ commands:
       python_version:
         type: enum
         default: "3.6"
-        enum: ["3.6", "3.7", "3.8"]
+        enum: ["3.6", "3.7", "3.8", "3.11"]
     steps:
       - run:
           name: Run dtests (<<parameters.file_tag>>)
