@@ -1,5 +1,5 @@
---- config-2_1.yml	2022-11-15 12:30:50.000000000 -0500
-+++ config-2_1.yml.HIGHRES	2022-11-15 12:35:46.000000000 -0500
+--- config-2_1.yml	2022-12-08 11:47:59.977505612 -0600
++++ config-2_1.yml.HIGHRES	2022-12-08 11:56:04.308987398 -0600
 @@ -157,14 +157,14 @@
  j8_par_executor: &j8_par_executor
    executor:
@@ -117,8 +117,8 @@
  
  j8_separate_jobs: &j8_separate_jobs
    jobs:
-@@ -2070,7 +2076,7 @@
-           python_version: '3.8'
+@@ -2244,7 +2250,7 @@
+           python_version: '3.11'
  
    j8_dtests_large_vnode:
 -    <<: *j8_par_executor
@@ -126,7 +126,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -2084,7 +2090,7 @@
+@@ -2258,7 +2264,7 @@
            pytest_extra_args: '--use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests'
  
    j8_dtests_large:
@@ -135,7 +135,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -2098,7 +2104,7 @@
+@@ -2272,7 +2278,7 @@
            pytest_extra_args: '--only-resource-intensive-tests --force-resource-intensive-tests'
  
    j11_dtests_large_vnode:
@@ -144,7 +144,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -2112,7 +2118,7 @@
+@@ -2286,7 +2292,7 @@
            pytest_extra_args: '--use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests'
  
    j11_dtests_large:
