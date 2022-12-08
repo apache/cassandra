@@ -180,6 +180,13 @@ public final class Operations implements Iterable<Operation>
 
     public List<ReferenceOperation> allSubstitutions()
     {
+        if (staticSubstitutions.isEmpty())
+            return regularSubstitutions;
+        
+        if (regularSubstitutions.isEmpty())
+            return staticSubstitutions;
+
+        // Only create a new list if we actually have something to combine
         List<ReferenceOperation> list = new ArrayList<>(staticSubstitutions.size() + regularSubstitutions.size());
         list.addAll(staticSubstitutions);
         list.addAll(regularSubstitutions);

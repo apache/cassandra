@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -274,32 +273,30 @@ public class TransactionStatement implements CQLStatement
     {
         if (select.getRestrictions().hasAllPKColumnsRestrictedByEqualities())
             return;
+
         if (options == null)
         {
-            // This method is called during parse, which doesn't know bind values... if parse is able to validate the limit
-            // then keep going; else defer to later when the bind is known
+            // If the limit a non-terminal marker (because we're preparing), defer validation until execution.
             if (select.isLimitMarker())
                 return;
-            // limit is known, so keep going
+
+            // The limit is already defined, so proceed with validation...
             options = QueryOptions.DEFAULT;
         }
+
         int limit = select.getLimit(options);
         QueryOptions finalOptions = options; // javac thinks this is mutable so requires a copy
         checkTrue(limit == 1, failureMessage, LazyToString.lazy(() -> select.asCQL(finalOptions, clientState)));
     }
 
-    private static void confirmSelectPointSelect(ClientState clientState, QueryOptions options, String msg, Collection<NamedSelect> selects)
-    {
-        for (NamedSelect select : selects)
-            checkAtMostOneRowSpecified(clientState, options, select.select, msg);
-    }
-
     @Override
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
     {
-        confirmSelectPointSelect(state.getClientState(), options, INCOMPLETE_PRIMARY_KEY_LET_MESSAGE, assignments);
+        for (NamedSelect assignment : assignments)
+            checkAtMostOneRowSpecified(state.getClientState(), options, assignment.select, INCOMPLETE_PRIMARY_KEY_LET_MESSAGE);
+
         if (returningSelect != null)
-            confirmSelectPointSelect(state.getClientState(), options, INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, Collections.singletonList(returningSelect));
+            checkAtMostOneRowSpecified(state.getClientState(), options, returningSelect.select, INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE);
 
         TxnData data = AccordService.instance().coordinate(createTxn(state.getClientState(), options));
         

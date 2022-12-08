@@ -18,20 +18,20 @@
 
 package org.apache.cassandra.cql3.statements;
 
-import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.transport.messages.ResultMessage;
 import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.apache.cassandra.cql3.statements.TransactionStatement.DUPLICATE_TUPLE_NAME_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.EMPTY_TRANSACTION_MESSAGE;
@@ -69,7 +69,7 @@ public class TransactionStatementTest
     public void shouldRejectReferenceSelectOutsideTxn()
     {
         String query = "SELECT row1.v, row2.v;";
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(SyntaxException.class)
                   .hasMessageContaining("expecting K_FROM");
     }
@@ -78,7 +78,7 @@ public class TransactionStatementTest
     public void shouldRejectReferenceUpdateOutsideTxn()
     {
         String query = "UPDATE ks.tbl1 SET v = row2.v WHERE k=1 AND c=2;";
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(SyntaxException.class)
                   .hasMessageContaining("failed predicate");
     }
@@ -91,7 +91,7 @@ public class TransactionStatementTest
                        "    UPDATE ks.tbl1 SET v=1 WHERE k=1 AND c=2;\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(SyntaxException.class)
                   .hasMessageContaining("failed predicate");
     }
@@ -104,7 +104,7 @@ public class TransactionStatementTest
                        "  END IF\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(SyntaxException.class)
                   .hasMessageContaining("failed predicate");
     }
@@ -116,7 +116,7 @@ public class TransactionStatementTest
                        "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=2);\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessage(EMPTY_TRANSACTION_MESSAGE);
     }
@@ -129,7 +129,7 @@ public class TransactionStatementTest
                        "  SELECT row1;\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessage(SELECT_REFS_NEED_COLUMN_MESSAGE);
     }
@@ -143,7 +143,7 @@ public class TransactionStatementTest
                        "  SELECT row1.v;\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(DUPLICATE_TUPLE_NAME_MESSAGE, "row1"));
     }
@@ -157,7 +157,7 @@ public class TransactionStatementTest
                        "  SELECT row1.v;\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_LET_MESSAGE, letSelect));
     }
@@ -171,7 +171,7 @@ public class TransactionStatementTest
                        "  SELECT row1.v;\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> exec(query, 2))
+        Assertions.assertThatThrownBy(() -> execute(query, 2))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_LET_MESSAGE, letSelect.replace("?", "2")));
     }
@@ -185,7 +185,7 @@ public class TransactionStatementTest
                        "  SELECT row1.v;\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_LET_MESSAGE, letSelect));
     }
@@ -196,7 +196,7 @@ public class TransactionStatementTest
         String select = "SELECT * FROM ks.tbl1 WHERE k = 1 LIMIT 2";
         String query = "BEGIN TRANSACTION\n" + select + ";\nCOMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, select));
     }
@@ -207,7 +207,7 @@ public class TransactionStatementTest
         String select = "SELECT * FROM ks.tbl1 WHERE k = 1";
         String query = "BEGIN TRANSACTION\n" + select + ";\nCOMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, select));
     }
@@ -219,7 +219,7 @@ public class TransactionStatementTest
                        "  INSERT INTO ks.tbl1 (k, c, v) VALUES (0, 0, 1) IF NOT EXISTS;\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(NO_CONDITIONS_IN_UPDATES_MESSAGE);
     }
@@ -231,7 +231,7 @@ public class TransactionStatementTest
                        "  INSERT INTO ks.tbl1 (k, c, v) VALUES (0, 0, 1) USING TIMESTAMP 1;\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(NO_TIMESTAMPS_IN_UPDATES_MESSAGE);
     }
@@ -248,7 +248,7 @@ public class TransactionStatementTest
                 "  END IF\n" +
                 "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(SyntaxException.class)
                   .hasMessageContaining("no viable alternative");
     }
@@ -263,7 +263,7 @@ public class TransactionStatementTest
                        "  END IF\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(UPDATING_PRIMARY_KEY_MESSAGE, "c"));
     }
@@ -275,7 +275,7 @@ public class TransactionStatementTest
                        "  UPDATE ks.tbl1 SET q += 1 WHERE k=1 AND c=2;\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(UNDEFINED_COLUMN_NAME_MESSAGE, "q", "ks.tbl1"));
     }
@@ -299,7 +299,7 @@ public class TransactionStatementTest
                        "  UPDATE ks.tbl1 SET v = row1.v WHERE k=1 AND c=2;\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(CANNOT_FIND_TUPLE_MESSAGE, "row1"));
     }
@@ -312,7 +312,7 @@ public class TransactionStatementTest
                        "  UPDATE ks.tbl1 SET v = row1.q WHERE k=1 AND c=2;\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(COLUMN_NOT_IN_TUPLE_MESSAGE, "q", "row1"));
     }
@@ -325,21 +325,21 @@ public class TransactionStatementTest
                        "  INSERT INTO ks.tbl1 (k, c, v) VALUES (row0.k, 1, 1);\n" +
                        "COMMIT TRANSACTION";
 
-        Assertions.assertThatThrownBy(() -> cql(query))
+        Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
                   .hasMessageContaining(String.format(CANNOT_SET_KEY_WITH_REFERENCE_MESSAGE, "row0.k", "k"));
     }
 
 
-    private static CQLStatement cql(String query)
+    private static CQLStatement prepare(String query)
     {
         TransactionStatement.Parsed parsed = (TransactionStatement.Parsed) QueryProcessor.parseStatement(query);
         return parsed.prepare(ClientState.forInternalCalls());
     }
 
-    private static ResultMessage exec(String query, Object... binds)
+    private static ResultMessage execute(String query, Object... binds)
     {
-        CQLStatement stmt = cql(query);
+        CQLStatement stmt = prepare(query);
         return stmt.execute(QueryState.forInternalCalls(), QueryProcessor.makeInternalOptions(stmt, binds), 0);
     }
 }

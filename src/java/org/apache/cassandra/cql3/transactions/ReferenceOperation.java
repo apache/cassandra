@@ -44,16 +44,16 @@ import static org.apache.cassandra.schema.TableMetadata.UNDEFINED_COLUMN_NAME_ME
 
 public class ReferenceOperation
 {
-    private final ColumnMetadata topLevelReceiver;
+    private final ColumnMetadata parentReceiver;
     private final ColumnMetadata receiver;
     private final TxnReferenceOperation.Kind kind;
     private final FieldIdentifier field;
     private final Term key;
     private final ReferenceValue value;
 
-    public ReferenceOperation(ColumnMetadata topLevelReceiver, ColumnMetadata receiver, TxnReferenceOperation.Kind kind, Term key, FieldIdentifier field, ReferenceValue value)
+    public ReferenceOperation(ColumnMetadata parentReceiver, ColumnMetadata receiver, TxnReferenceOperation.Kind kind, Term key, FieldIdentifier field, ReferenceValue value)
     {
-        this.topLevelReceiver = topLevelReceiver;
+        this.parentReceiver = parentReceiver;
         this.receiver = receiver;
         this.kind = kind;
         this.key = key;
@@ -83,9 +83,9 @@ public class ReferenceOperation
         return new ReferenceOperation(receiver, kind, key, field, value);
     }
 
-    public ColumnMetadata getTopLevelReceiver()
+    public ColumnMetadata getParentReceiver()
     {
-        return topLevelReceiver == null ? receiver : topLevelReceiver;
+        return parentReceiver == null ? receiver : parentReceiver;
     }
 
     public ColumnMetadata getReceiver()

@@ -176,17 +176,14 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                 requiresReadBuilder.add(operation.column);
             }
         }
-        for (ReferenceOperation ref : operations.allSubstitutions())
+        for (ReferenceOperation operation : operations.allSubstitutions())
         {
-            ColumnMetadata column = ref.getTopLevelReceiver();
-            updatedColumnsBuilder.add(column);
-            // If the operation requires a read-before-write and we're doing a conditional read, we want to read
-            // the affected column as part of the read-for-conditions paxos phase (see #7499).
-            if (ref.requiresRead())
-            {
-                conditionColumnsBuilder.add(column);
-                requiresReadBuilder.add(column);
-            }
+            ColumnMetadata receiver = operation.getParentReceiver();
+            updatedColumnsBuilder.add(receiver);
+            // If the operation requires a read-before-write, make sure its receiver is selected by the auto-read the
+            // transaction creates during update creation. (see createSelectForTxn())
+            if (operation.requiresRead())
+                requiresReadBuilder.add(receiver);
         }
 
         RegularAndStaticColumns modifiedColumns = updatedColumnsBuilder.build();
