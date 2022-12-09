@@ -21,13 +21,9 @@ package org.apache.cassandra.cql3.transactions;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.Lists;
-import org.apache.cassandra.cql3.Maps;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.VariableSpecifications;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 
 public class ConditionStatement
@@ -105,13 +101,13 @@ public class ConditionStatement
             if (lhs instanceof RowDataReference.Raw)
             {
                 reference = ((RowDataReference.Raw) lhs).prepareAsReceiver();
-                ColumnSpecification receiver = extractEffectiveReceiver(reference);
+                ColumnSpecification receiver = reference.getValueReceiver();
                 value = rhs.prepare(keyspace, receiver);
             }
             else if (rhs instanceof RowDataReference.Raw)
             {
                 reference = ((RowDataReference.Raw) rhs).prepareAsReceiver();
-                ColumnSpecification receiver = extractEffectiveReceiver(reference);
+                ColumnSpecification receiver = reference.getValueReceiver();
                 value = lhs.prepare(keyspace, receiver);
                 // TxnCondition expects the reference to be on the RHS, so reverse the operator.
                 reversed = true;
@@ -124,33 +120,6 @@ public class ConditionStatement
             reference.collectMarkerSpecification(bindVariables);
             value.collectMarkerSpecification(bindVariables);
             return new ConditionStatement(reference, kind, value, reversed);
-        }
-
-        private ColumnSpecification extractEffectiveReceiver(RowDataReference reference)
-        {
-            ColumnSpecification receiver = reference.column();
-
-            if (reference.isElementSelection())
-            {
-                CollectionType.Kind collectionKind = ((CollectionType<?>) receiver.type).kind;
-                switch (collectionKind)
-                {
-                    case LIST:
-                        receiver = Lists.valueSpecOf(receiver);
-                        break;
-                    case MAP:
-                        receiver = Maps.valueSpecOf(receiver);
-                        break;
-                    default:
-                        throw new InvalidRequestException(String.format("Element selection not supported for column %s of type %s" ,
-                                                                        receiver.name, collectionKind));
-                }
-            }
-            else if (reference.isFieldSelection())
-            {
-                receiver = reference.getFieldSelectionSpec();
-            }
-            return receiver;
         }
     }
 
@@ -167,6 +136,7 @@ public class ConditionStatement
             case GTE:
             case LT:
             case LTE:
+                // TODO: Support for references on LHS and RHS
                 return new TxnCondition.Value(reference.toTxnReference(options),
                                               kind.toTxnKind(reversed),
                                               value.bindAndGet(options),

@@ -178,7 +178,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
         for (ReferenceOperation operation : operations.allSubstitutions())
         {
-            ColumnMetadata receiver = operation.getParentReceiver();
+            ColumnMetadata receiver = operation.getReceiver();
             updatedColumnsBuilder.add(receiver);
             // If the operation requires a read-before-write, make sure its receiver is selected by the auto-read the
             // transaction creates during update creation. (see createSelectForTxn())

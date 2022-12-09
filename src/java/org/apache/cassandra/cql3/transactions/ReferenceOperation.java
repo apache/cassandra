@@ -44,26 +44,19 @@ import static org.apache.cassandra.schema.TableMetadata.UNDEFINED_COLUMN_NAME_ME
 
 public class ReferenceOperation
 {
-    private final ColumnMetadata parentReceiver;
     private final ColumnMetadata receiver;
     private final TxnReferenceOperation.Kind kind;
     private final FieldIdentifier field;
     private final Term key;
     private final ReferenceValue value;
 
-    public ReferenceOperation(ColumnMetadata parentReceiver, ColumnMetadata receiver, TxnReferenceOperation.Kind kind, Term key, FieldIdentifier field, ReferenceValue value)
+    public ReferenceOperation(ColumnMetadata receiver, TxnReferenceOperation.Kind kind, Term key, FieldIdentifier field, ReferenceValue value)
     {
-        this.parentReceiver = parentReceiver;
         this.receiver = receiver;
         this.kind = kind;
         this.key = key;
         this.field = field;
         this.value = value;
-    }
-
-    public ReferenceOperation(ColumnMetadata receiver, TxnReferenceOperation.Kind kind, Term key, FieldIdentifier field, ReferenceValue value)
-    {
-        this(null, receiver, kind, key, field, value);
     }
 
     /**
@@ -75,17 +68,12 @@ public class ReferenceOperation
     {
         TxnReferenceOperation.Kind kind = TxnReferenceOperation.Kind.from(operation);
         ColumnMetadata receiver = operation.column;
+        
+        // We already have a prepared reference value, so there is no need to inspect the value type.
         ReferenceValue value = new ReferenceValue.Constant(operation.term());
-
-        // TODO: Receiver might need to be modified here, just as we do in Raw#prepare()
         Term key = extractKeyOrIndex(operation);
         FieldIdentifier field = extractField(operation);
         return new ReferenceOperation(receiver, kind, key, field, value);
-    }
-
-    public ColumnMetadata getParentReceiver()
-    {
-        return parentReceiver == null ? receiver : parentReceiver;
     }
 
     public ColumnMetadata getReceiver()
@@ -123,27 +111,25 @@ public class ReferenceOperation
 
         public ReferenceOperation prepare(TableMetadata metadata, VariableSpecifications bindVariables)
         {
-            ColumnMetadata topLevelReceiver = metadata.getColumn(column);
-            ColumnMetadata receiver = topLevelReceiver;
-            checkTrue(receiver != null, UNDEFINED_COLUMN_NAME_MESSAGE, column.toCQLString(), metadata);
-            AbstractType<?> type = receiver.type;
-
+            ColumnMetadata receiver = metadata.getColumn(column);
             Operation operation = rawUpdate.prepare(metadata, receiver, true);
             TxnReferenceOperation.Kind kind = TxnReferenceOperation.Kind.from(operation);
-
             Term key = extractKeyOrIndex(operation);
+            
+            checkTrue(receiver != null, UNDEFINED_COLUMN_NAME_MESSAGE, column.toCQLString(), metadata);
+            AbstractType<?> type = receiver.type;
+            ColumnMetadata valueReceiver = receiver;
 
             if (type.isCollection())
             {
                 CollectionType<?> collectionType = (CollectionType<?>) type;
 
                 // The value for a map subtraction is actually a set (see Operation.Substraction)
-                if (kind == TxnReferenceOperation.Kind.SetDiscarder)
-                    if (collectionType.kind == MAP)
-                        receiver = receiver.withNewType(SetType.getInstance(((MapType<?, ?>) type).getKeysType(), true));
+                if (kind == TxnReferenceOperation.Kind.SetDiscarder && collectionType.kind == MAP)
+                    valueReceiver = valueReceiver.withNewType(SetType.getInstance(((MapType<?, ?>) type).getKeysType(), true));
 
                 if (kind == TxnReferenceOperation.Kind.ListSetterByIndex || kind == TxnReferenceOperation.Kind.MapSetterByKey)
-                    receiver = receiver.withNewType(collectionType.valueComparator());
+                    valueReceiver = valueReceiver.withNewType(collectionType.valueComparator());
             }
 
             FieldIdentifier field = extractField(operation);
@@ -155,11 +141,11 @@ public class ReferenceOperation
                     @SuppressWarnings("ConstantConditions") UserType userType = (UserType) type;
                     CellPath fieldPath = userType.cellPathForField(field);
                     int i = ByteBufferUtil.getUnsignedShort(fieldPath.get(0), 0);
-                    receiver = receiver.withNewType(userType.fieldType(i));
+                    valueReceiver = valueReceiver.withNewType(userType.fieldType(i));
                 }
             }
 
-            return new ReferenceOperation(topLevelReceiver, receiver, kind, key, field, value.prepare(receiver, bindVariables));
+            return new ReferenceOperation(receiver, kind, key, field, value.prepare(valueReceiver, bindVariables));
         }
     }
 

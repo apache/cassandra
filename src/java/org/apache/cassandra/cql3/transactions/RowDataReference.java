@@ -117,6 +117,30 @@ public class RowDataReference extends Term.NonTerminal
         return forMetadata;
     }
 
+    public ColumnSpecification getValueReceiver()
+    {
+        if (isElementSelection())
+        {
+            CollectionType.Kind collectionKind = ((CollectionType<?>) column.type).kind;
+            switch (collectionKind)
+            {
+                case LIST:
+                    return Lists.valueSpecOf(column);
+                case MAP:
+                    return Maps.valueSpecOf(column);
+                default:
+                    throw new InvalidRequestException(String.format("Element selection not supported for column %s of type %s" ,
+                                                                    column.name, collectionKind));
+            }
+        }
+        else if (isFieldSelection())
+        {
+            return getFieldSelectionSpec();
+        }
+
+        return column;
+    }
+
     public boolean isElementSelection()
     {
         return elementPath != null && column.type.isCollection();

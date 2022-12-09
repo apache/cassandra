@@ -151,29 +151,43 @@ public class TxnReferenceOperation
         }
     }
 
-    private final ColumnMetadata receiver;
-    private final AbstractType<?> type;
     private final Kind kind;
+    private final ColumnMetadata receiver;
     private final ByteBuffer key;
     private final ByteBuffer field;
     private final TxnReferenceValue value;
+    private final AbstractType<?> valueType;
 
     public TxnReferenceOperation(Kind kind, ColumnMetadata receiver, ByteBuffer key, ByteBuffer field, TxnReferenceValue value)
     {
         this.kind = kind;
         this.receiver = receiver;
-
-        // We don't expect operators on clustering keys, but unwrap just in case.
-        AbstractType<?> type = receiver.type.unwrap();
-
-        // The value for a map subtraction is actually a set (see Operation.Substraction)
-        if (kind == TxnReferenceOperation.Kind.SetDiscarder && type.isCollection())
-            if ((((CollectionType<?>) type).kind == MAP))
-                type = SetType.getInstance(((MapType<?, ?>) type).getKeysType(), true);
-
-        this.type = type;
         this.key = key;
         this.field = field;
+
+        // We don't expect operators on clustering keys, but unwrap just in case.
+        AbstractType<?> receiverType = receiver.type.unwrap();
+
+        if (kind == TxnReferenceOperation.Kind.SetDiscarder && receiverType.isCollection() && (((CollectionType<?>) receiverType).kind == MAP))
+        {
+            // The value for a map subtraction is actually a set (see Operation.Substraction)
+            this.valueType = SetType.getInstance(((MapType<?, ?>) receiverType).getKeysType(), true);
+        }
+        else if (kind == Kind.MapSetterByKey || kind == Kind.ListSetterByIndex)
+        {
+            this.valueType = ((CollectionType<?>) receiverType).valueComparator();
+        }
+        else if (kind == Kind.UserTypeSetterByField)
+        {
+            UserType userType = (UserType) receiverType;
+            CellPath fieldPath = userType.cellPathForField(new FieldIdentifier(field));
+            this.valueType = userType.fieldType(fieldPath);
+        }
+        else
+        {
+            this.valueType = receiverType;
+        }
+
         this.value = value;
     }
 
@@ -215,22 +229,9 @@ public class TxnReferenceOperation
 
     private Operation toOperation(TxnData data, UpdateParameters up)
     {
-        AbstractType<?> receivingType = type;
-        if (kind == Kind.MapSetterByKey || kind == Kind.ListSetterByIndex)
-            receivingType = ((CollectionType<?>) type).valueComparator();
-
-        FieldIdentifier fieldIdentifier = this.field == null ? null : new FieldIdentifier(this.field);
-        
-        if (kind == Kind.UserTypeSetterByField)
-        {
-            UserType userType = (UserType) type;
-            CellPath fieldPath = userType.cellPathForField(fieldIdentifier);
-            receivingType = userType.fieldType(fieldPath);
-        }
-
-        Term valueTerm = toTerm(data, receivingType, up.options.getProtocolVersion());
-        Term keyorIndexTerm = this.key == null ? null : toTerm(this.key, receivingType, up.options.getProtocolVersion());
-        
+        FieldIdentifier fieldIdentifier = field == null ? null : new FieldIdentifier(field);
+        Term valueTerm = toTerm(data, valueType, up.options.getProtocolVersion());
+        Term keyorIndexTerm = key == null ? null : toTerm(key, valueType, up.options.getProtocolVersion());
         return kind.toOperation(receiver, keyorIndexTerm, fieldIdentifier, valueTerm);
     }
 
