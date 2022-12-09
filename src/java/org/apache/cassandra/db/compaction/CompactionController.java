@@ -207,7 +207,10 @@ public class CompactionController implements AutoCloseable
         }
 
         for (Memtable memtable : cfStore.getTracker().getView().getAllMemtables())
-            minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
+        {
+            if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
+                minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
+        }
 
         // At this point, minTimestamp denotes the lowest timestamp of any relevant
         // SSTable or Memtable that contains a constructive value. candidates contains all the
@@ -281,11 +284,14 @@ public class CompactionController implements AutoCloseable
 
         for (Memtable memtable : memtables)
         {
-            Partition partition = memtable.getPartition(key);
-            if (partition != null)
+            if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
             {
-                minTimestampSeen = Math.min(minTimestampSeen, partition.stats().minTimestamp);
-                hasTimestamp = true;
+                Partition partition = memtable.getPartition(key);
+                if (partition != null)
+                {
+                    minTimestampSeen = Math.min(minTimestampSeen, partition.stats().minTimestamp);
+                    hasTimestamp = true;
+                }
             }
         }
 
