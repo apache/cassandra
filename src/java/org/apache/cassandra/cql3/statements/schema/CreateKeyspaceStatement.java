@@ -37,12 +37,15 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.metrics.ConfigurationMetrics;
 import org.apache.cassandra.schema.CDCParams;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
@@ -78,6 +81,13 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         }
 
         KeyspaceMetadata keyspace = KeyspaceMetadata.create(keyspaceName, attrs.asNewKeyspaceParams());
+
+        if (!SchemaConstants.isSystemKeyspace(keyspaceName) && !keyspace.params.replication.klass.equals(NetworkTopologyStrategy.class))
+        {
+            // A user keyspace with non-standard configuration being created
+            logger.warn("User keyspace being created with non-network topology name: {}, topology: {}", keyspaceName, keyspace.params);
+            ConfigurationMetrics.nonNetworkTopologyKSDetected.inc();
+        }
 
         if (keyspace.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");

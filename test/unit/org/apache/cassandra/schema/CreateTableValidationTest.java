@@ -34,6 +34,7 @@ import org.apache.cassandra.transport.messages.QueryMessage;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import org.apache.cassandra.metrics.ConfigurationMetrics;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -162,5 +163,11 @@ public class CreateTableValidationTest extends CQLTester
 
         assertThatExceptionOfType(InvalidRequestException.class)
         .isThrownBy(() -> createTableMayThrow(statement)) .withMessageContaining(errorMsg);
+    }
+
+    @Test
+    public void testNonNetworkTopologyDetected()
+    {
+        assertTrue(ConfigurationMetrics.nonNetworkTopologyKSDetected.getCount() > 0);
     }
 }
