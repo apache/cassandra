@@ -276,7 +276,7 @@ public class TransactionStatement implements CQLStatement
 
         if (options == null)
         {
-            // If the limit a non-terminal marker (because we're preparing), defer validation until execution.
+            // If the limit is a non-terminal marker (because we're preparing), defer validation until execution.
             if (select.isLimitMarker())
                 return;
 
