@@ -66,6 +66,7 @@ public class Memtable implements Comparable<Memtable>
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
     public static final MemtablePool MEMORY_POOL = createMemtableAllocatorPool();
+    public static final long NO_MIN_TIMESTAMP = -1;
 
     private static MemtablePool createMemtableAllocatorPool()
     {
@@ -159,6 +160,16 @@ public class Memtable implements Comparable<Memtable>
         this.cfs = null;
         this.allocator = null;
         this.columnsCollector = new ColumnsCollector(metadata.partitionColumns());
+    }
+
+    @VisibleForTesting
+    public Memtable(CFMetaData metadata, long minTimestamp)
+    {
+        this.initialComparator = metadata.comparator;
+        this.cfs = null;
+        this.allocator = null;
+        this.columnsCollector = new ColumnsCollector(metadata.partitionColumns());
+        this.minTimestamp = minTimestamp;
     }
 
     public MemtableAllocator getAllocator()
@@ -387,9 +398,16 @@ public class Memtable implements Comparable<Memtable>
         return partitions.get(key);
     }
 
+    /**
+     * Returns the minTS if one available, otherwise NO_MIN_TIMESTAMP.
+     *
+     * EncodingStats uses a synthetic epoch TS at 2015. We don't want to leak that (CASSANDRA-18118) so we return NO_MIN_TIMESTAMP instead.
+     *
+     * @return The minTS or NO_MIN_TIMESTAMP if none available
+     */
     public long getMinTimestamp()
     {
-        return minTimestamp;
+        return minTimestamp != EncodingStats.NO_STATS.minTimestamp ? minTimestamp : NO_MIN_TIMESTAMP;
     }
 
     /**
