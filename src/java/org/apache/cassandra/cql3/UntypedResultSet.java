@@ -351,7 +351,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
         public String getString(String column)
         {
-            return UTF8Type.instance.compose(data.get(column));
+            return UTF8Type.instance.compose(data.get(column));  
         }
 
         public boolean getBoolean(String column)

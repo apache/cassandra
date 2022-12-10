@@ -29,6 +29,7 @@ import static com.google.common.collect.Iterables.toArray;
 
 public class CompactionHistoryPrinter
 {
+    
     public static StatsPrinter from(String format)
     {
         switch (format)
@@ -65,7 +66,7 @@ public class CompactionHistoryPrinter
             for (Object chr : compactionHistories)
             {
                 Map value = chr instanceof Map<?, ?> ? (Map)chr : Collections.emptyMap();
-                String[] obj = new String[7];
+                String[] obj = new String[8];
                 obj[0] = (String)value.get("id");
                 obj[1] = (String)value.get("keyspace_name");
                 obj[2] = (String)value.get("columnfamily_name");
@@ -73,6 +74,7 @@ public class CompactionHistoryPrinter
                 obj[4] = value.get("bytes_in").toString();
                 obj[5] = value.get("bytes_out").toString();
                 obj[6] = (String)value.get("rows_merged");
+                obj[7] = (String)value.get("compaction_type");
                 table.add(obj);
             }
             table.printTo(out);
