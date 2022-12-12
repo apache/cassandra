@@ -536,7 +536,7 @@ public abstract class Constants
                 @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
                 ByteBuffer increment = t.bindAndGet(params.options);
                 if (increment == null)
-                    throw new InvalidRequestException("Invalid null value for number increment");
+                    return;
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
                 if (current == null)
                     return;
@@ -546,6 +546,8 @@ public abstract class Constants
             else if (column.type instanceof StringType)
             {
                 ByteBuffer append = t.bindAndGet(params.options);
+                if (append == null)
+                    return;
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
                 if (current == null)
                     return;
@@ -590,7 +592,7 @@ public abstract class Constants
                 NumberType<?> type = (NumberType<?>) column.type;
                 ByteBuffer bytes = t.bindAndGet(params.options);
                 if (bytes == null)
-                    throw new InvalidRequestException("Invalid null value for number decrement");
+                    return;
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
                 if (current == null)
                     return;
