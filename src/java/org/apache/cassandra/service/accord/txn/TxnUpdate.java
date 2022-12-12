@@ -18,15 +18,6 @@
 
 package org.apache.cassandra.service.accord.txn;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.function.Function;
-
 import accord.api.Data;
 import accord.api.Key;
 import accord.api.Update;
@@ -47,13 +38,15 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.function.Function;
+
+import static java.lang.Math.toIntExact;
 import static org.apache.cassandra.service.accord.AccordSerializers.serialize;
-import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
-import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
-import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
-import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
-import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
-import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
+import static org.apache.cassandra.utils.ArraySerializers.*;
+import static org.apache.cassandra.utils.ByteBufferUtil.*;
 
 public class TxnUpdate implements Update
 {

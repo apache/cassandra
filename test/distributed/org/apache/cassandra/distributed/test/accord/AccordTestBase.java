@@ -25,26 +25,19 @@ import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.This;
-import org.apache.cassandra.distributed.api.QueryResults;
-import org.apache.cassandra.distributed.util.QueryResultUtil;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.slf4j.Logger;
-
-import accord.coordinate.Preempted;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FailingConsumer;
-import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -117,7 +110,7 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected int getAccordCoordinateCount()
     {
-        return sharedCluster.get(1).callOnInstance(() -> BBAccordCoordinateCountHelper.count.get());
+        return SHARED_CLUSTER.get(1).callOnInstance(() -> BBAccordCoordinateCountHelper.count.get());
     }
 
     private static Cluster createCluster() throws IOException

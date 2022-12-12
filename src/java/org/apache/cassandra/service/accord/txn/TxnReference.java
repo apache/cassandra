@@ -18,28 +18,20 @@
 
 package org.apache.cassandra.service.accord.txn;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Objects;
-
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.SetType;
-import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.FilteredPartition;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.CellPath;
-import org.apache.cassandra.db.rows.ColumnData;
-import org.apache.cassandra.db.rows.ComplexColumnData;
-import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Objects;
 
 import static org.apache.cassandra.db.marshal.CollectionType.Kind.SET;
 import static org.apache.cassandra.service.accord.AccordSerializers.columnMetadataSerializer;
@@ -55,6 +47,11 @@ public class TxnReference
         this.tuple = tuple;
         this.column = column;
         this.path = path;
+    }
+
+    public TxnReference(TxnDataName tuple, ColumnMetadata column)
+    {
+        this(tuple, column, null);
     }
 
     @Override

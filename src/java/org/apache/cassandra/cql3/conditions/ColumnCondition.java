@@ -17,46 +17,12 @@
  */
 package org.apache.cassandra.cql3.conditions;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Supplier;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
 import com.google.common.base.Suppliers;
 import com.google.common.collect.Iterators;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
-
-import org.apache.cassandra.cql3.AbstractMarker;
-import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.FieldIdentifier;
-import org.apache.cassandra.cql3.Lists;
-import org.apache.cassandra.cql3.Maps;
-import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Sets;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.Terminal;
-import org.apache.cassandra.cql3.Terms;
-import org.apache.cassandra.cql3.UserTypes;
-import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.CounterColumnType;
-import org.apache.cassandra.db.marshal.ListType;
-import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.SetType;
-import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -68,6 +34,15 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.*;
+import java.util.function.Supplier;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.primitives.Ints.checkedCast;
@@ -78,12 +53,8 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.service.accord.AccordSerializers.columnMetadataSerializer;
 import static org.apache.cassandra.service.accord.AccordSerializers.deserializeCqlCollectionAsTerm;
-import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
-import static org.apache.cassandra.utils.ByteBufferUtil.vintNullableSerializer;
-import static org.apache.cassandra.utils.ByteBufferUtil.vintSerializer;
-import static org.apache.cassandra.utils.CollectionSerializers.deserializeList;
-import static org.apache.cassandra.utils.CollectionSerializers.serializeList;
-import static org.apache.cassandra.utils.CollectionSerializers.serializedListSize;
+import static org.apache.cassandra.utils.ByteBufferUtil.*;
+import static org.apache.cassandra.utils.CollectionSerializers.*;
 
 /**
  * A CQL3 condition on the value of a column or collection element.  For example, "UPDATE .. IF a = 0".
@@ -830,7 +801,7 @@ public abstract class ColumnCondition
                 }
                 else
                 {
-                    terminals = values.stream().map(b -> deserializeCqlCollectionAsTerm(b, column.type)).collect(toList());
+                    terminals = values.stream().map(b -> deserializeCqlCollectionAsTerm(b, column.type, ProtocolVersion.CURRENT)).collect(toList());
                 }
                 return new MultiCellCollectionBound(column, operator, terminals);
             }
@@ -1054,7 +1025,7 @@ public abstract class ColumnCondition
             public MultiCellUdtBound deserialize(DataInputPlus in, int version, ColumnMetadata column, Operator operator) throws IOException
             {
                 List<ByteBuffer> values = deserializeList(in, version, vintNullableSerializer);
-                int protocolVersion = in.readUnsignedVIntChecked();
+                int protocolVersion = checkedCast(in.readUnsignedVInt());
                 // Does decode actually do what we want?
                 return new MultiCellUdtBound(column, operator, values, ProtocolVersion.decode(protocolVersion, true));
             }
