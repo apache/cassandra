@@ -39,6 +39,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -46,6 +47,7 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
+import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
 public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
 {
@@ -143,6 +145,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         return new MultiReadFuture(futures);
     }
 
+    @Simulate(with = MONITORS)
     private static class MultiReadFuture extends AsyncPromise<Data> implements BiConsumer<Data, Throwable>
     {
         private Data result = null;
