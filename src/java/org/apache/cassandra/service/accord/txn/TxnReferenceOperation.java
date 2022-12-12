@@ -238,6 +238,8 @@ public class TxnReferenceOperation
     private Term toTerm(TxnData data, AbstractType<?> receivingType, ProtocolVersion version)
     {
         ByteBuffer bytes = value.compute(data, receivingType);
+        if (bytes == null)
+            return Constants.NULL_VALUE;
         return toTerm(bytes, receivingType, version);
     }
 
