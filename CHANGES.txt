@@ -1,4 +1,5 @@
 4.0.18
+ * Handle sstable metadata stats file getting a new mtime after compaction has finished (CASSANDRA-18119)
  * Honor MAX_PARALLEL_TRANSFERS correctly (CASSANDRA-20532)
  * Updating a column with a new TTL but same expiration time is non-deterministic and causes repair mismatches. (CASSANDRA-20561)
  * Grant permission on keyspaces system_views and system_virtual_schema not possible (CASSANDRA-20171)
