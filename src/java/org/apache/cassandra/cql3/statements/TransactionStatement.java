@@ -37,6 +37,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.Key;
 import accord.primitives.Keys;
 import accord.primitives.Txn;
@@ -81,6 +84,8 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class TransactionStatement implements CQLStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(TransactionStatement.class);
+
     public static final String DUPLICATE_TUPLE_NAME_MESSAGE = "The name '%s' has already been used by a LET assignment.";
     public static final String INCOMPLETE_PRIMARY_KEY_LET_MESSAGE = "SELECT in LET assignment without LIMIT 1 must specify all primary key elements; CQL %s";
     public static final String INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE = "Normal SELECT without LIMIT 1 must specify all primary key elements; CQL %s";
@@ -292,52 +297,60 @@ public class TransactionStatement implements CQLStatement
     @Override
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
     {
-        for (NamedSelect assignment : assignments)
-            checkAtMostOneRowSpecified(state.getClientState(), options, assignment.select, INCOMPLETE_PRIMARY_KEY_LET_MESSAGE);
-
-        if (returningSelect != null)
-            checkAtMostOneRowSpecified(state.getClientState(), options, returningSelect.select, INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE);
-
-        TxnData data = AccordService.instance().coordinate(createTxn(state.getClientState(), options), options);
-        
-        if (returningSelect != null)
+        try
         {
-            FilteredPartition partition = data.get(TxnDataName.returning());
-            Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
-            ResultSetBuilder result = new ResultSetBuilder(returningSelect.select.getResultMetadata(), selectors, null);
-            returningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
-            return new ResultMessage.Rows(result.build());
-        }
-        
-        if (returningReferences != null)
-        {
-            List<ColumnSpecification> names = new ArrayList<>(returningReferences.size());
-            List<ColumnMetadata> columns = new ArrayList<>(returningReferences.size());
+            for (NamedSelect assignment : assignments)
+                checkAtMostOneRowSpecified(state.getClientState(), options, assignment.select, INCOMPLETE_PRIMARY_KEY_LET_MESSAGE);
 
-            for (RowDataReference reference : returningReferences)
+            if (returningSelect != null)
+                checkAtMostOneRowSpecified(state.getClientState(), options, returningSelect.select, INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE);
+
+            TxnData data = AccordService.instance().coordinate(createTxn(state.getClientState(), options), options);
+
+            if (returningSelect != null)
             {
-                ColumnMetadata forMetadata = reference.toResultMetadata();
-                names.add(forMetadata);
-                columns.add(reference.column());
+                FilteredPartition partition = data.get(TxnDataName.returning());
+                Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
+                ResultSetBuilder result = new ResultSetBuilder(returningSelect.select.getResultMetadata(), selectors, null);
+                returningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
+                return new ResultMessage.Rows(result.build());
             }
 
-            ResultSetBuilder result = new ResultSetBuilder(new ResultSet.ResultMetadata(names), Selection.noopSelector(), null);
-            result.newRow(options.getProtocolVersion(), null, null, columns);
-
-            for (int i = 0; i < returningReferences.size(); i++)
+            if (returningReferences != null)
             {
-                RowDataReference reference = returningReferences.get(i);
-                TxnReference txnReference = reference.toTxnReference(options);
-                ByteBuffer buffer = txnReference.toByteBuffer(data, names.get(i).type);
-                result.add(buffer);
+                List<ColumnSpecification> names = new ArrayList<>(returningReferences.size());
+                List<ColumnMetadata> columns = new ArrayList<>(returningReferences.size());
+
+                for (RowDataReference reference : returningReferences)
+                {
+                    ColumnMetadata forMetadata = reference.toResultMetadata();
+                    names.add(forMetadata);
+                    columns.add(reference.column());
+                }
+
+                ResultSetBuilder result = new ResultSetBuilder(new ResultSet.ResultMetadata(names), Selection.noopSelector(), null);
+                result.newRow(options.getProtocolVersion(), null, null, columns);
+
+                for (int i = 0; i < returningReferences.size(); i++)
+                {
+                    RowDataReference reference = returningReferences.get(i);
+                    TxnReference txnReference = reference.toTxnReference(options);
+                    ByteBuffer buffer = txnReference.toByteBuffer(data, names.get(i).type);
+                    result.add(buffer);
+                }
+
+                return new ResultMessage.Rows(result.build());
             }
 
-            return new ResultMessage.Rows(result.build());
+            // In the case of a write-only transaction, just return and empty result.
+            // TODO: This could be modified to return an indication of whether a condition (if present) succeeds.
+            return new ResultMessage.Void();
         }
-
-        // In the case of a write-only transaction, just return and empty result.
-        // TODO: This could be modified to return an indication of whether a condition (if present) succeeds.
-        return new ResultMessage.Void();
+        catch (Throwable t)
+        {
+           logger.error("Unexpected error with transaction", t);
+           throw t;
+        }
     }
 
     @Override
