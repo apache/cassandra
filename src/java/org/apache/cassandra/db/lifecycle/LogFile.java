@@ -165,6 +165,10 @@ final class LogFile implements AutoCloseable
         this.id = id;
     }
 
+    /**
+     * Check a variety of the internals of the LogRecord as well as the state of the LogRecord vs. the files found on disk
+     * to ensure they remain correct and nothing was changed external to the process.
+     */
     boolean verify()
     {
         records.clear();
@@ -231,6 +235,9 @@ final class LogFile implements AutoCloseable
         return record;
     }
 
+    /**
+     * Sets the {@link LogRecord.Status#error} if something wrong is found with the record.
+     */
     static void verifyRecord(LogRecord record, List<File> existingFiles)
     {
         if (record.checksum != record.computeChecksum())
@@ -242,6 +249,7 @@ final class LogFile implements AutoCloseable
             return;
         }
 
+        // If it's not a removal we don't check it since we're not going to take action on it
         if (record.type != Type.REMOVE)
             return;
 
@@ -255,6 +263,16 @@ final class LogFile implements AutoCloseable
         // we can have transaction files with mismatching updateTime resolutions due to switching between jdk8 and jdk11, truncate both to be consistent:
         if (truncateMillis(record.updateTime) != truncateMillis(record.status.onDiskRecord.updateTime) && record.status.onDiskRecord.updateTime > 0)
         {
+            // handle the case where we have existing broken transaction file on disk, where the update time is
+            // based on the stats file. This is just for the first upgrade, patched versions never base the update
+            // time on the stats file.
+            LogRecord statsIncluded = LogRecord.make(record.type, existingFiles, existingFiles.size(), record.absolutePath(), true);
+            if (truncateMillis(statsIncluded.updateTime) == truncateMillis(record.updateTime))
+            {
+                logger.warn("Found a legacy log record {} with updateTime based on the stats file, ignoring to allow startup to continue", record);
+                return;
+            }
+
             record.setError(String.format("Unexpected files detected for sstable [%s]: " +
                                           "last update time [%tc] (%d) should have been [%tc] (%d)",
                                           record.fileName(),
@@ -262,7 +280,6 @@ final class LogFile implements AutoCloseable
                                           record.status.onDiskRecord.updateTime,
                                           record.updateTime,
                                           record.updateTime));
-
         }
     }
 

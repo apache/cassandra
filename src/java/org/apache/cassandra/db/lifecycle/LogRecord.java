@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
-
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiPredicate;
@@ -29,13 +28,20 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
 
+import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.io.sstable.Descriptor.TMP_EXT;
 
 /**
  * A decoded line in a transaction log file replica.
@@ -44,6 +50,10 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 final class LogRecord
 {
+    private static final Logger logger = LoggerFactory.getLogger(LogRecord.class);
+    @VisibleForTesting
+    static boolean INCLUDE_STATS_FOR_TESTS = false;
+
     public enum Type
     {
         UNKNOWN, // a record that cannot be parsed
@@ -67,7 +77,10 @@ final class LogRecord
             return this == record.type;
         }
 
-        public boolean isFinal() { return this == Type.COMMIT || this == Type.ABORT; }
+        public boolean isFinal()
+        {
+            return this == Type.COMMIT || this == Type.ABORT;
+        }
     }
 
     /**
@@ -183,17 +196,66 @@ final class LogRecord
 
     public LogRecord withExistingFiles(List<File> existingFiles)
     {
+        if (!absolutePath.isPresent())
+            throw new IllegalStateException(String.format("Cannot create record from existing files for type %s - file is not present", type));
+
         return make(type, existingFiles, 0, absolutePath.get());
     }
 
+    /**
+     * We create a LogRecord based on the files on disk; there's some subtlety around how we handle stats files as the
+     * timestamp can be mutated by the async completion of compaction if things race with node shutdown. To work around this,
+     * we don't take the stats file timestamp into account when calculating nor using the timestamps for all the components
+     * as we build the LogRecord.
+     */
     public static LogRecord make(Type type, List<File> files, int minFiles, String absolutePath)
     {
+        return make(type, files, minFiles, absolutePath, INCLUDE_STATS_FOR_TESTS);
+    }
+
+    /**
+     * In most cases we skip including the stats file timestamp entirely as it can be mutated during anticompaction
+     * and thus "invalidate" the LogRecord. There is an edge case where we have a LogRecord that was written w/the wrong
+     * timestamp (i.e. included a mutated stats file) and we need the node to come up, so we need to expose the selective
+     * ability to either include the stats file timestamp or not.
+     *
+     * See {@link LogFile#verifyRecord}
+     */
+    static LogRecord make(Type type, List<File> files, int minFiles, String absolutePath, boolean includeStatsFile)
+    {
+        List<File> toVerify;
+        File statsFile = null;
+        if (!includeStatsFile && !files.isEmpty())
+        {
+            toVerify = new ArrayList<>(files.size() - 1);
+            for (File f : files)
+            {
+                if (!f.name().endsWith(TMP_EXT))
+                {
+                    Component component = Descriptor.fromFilenameWithComponent(f).right;
+                    if (component == Component.STATS)
+                        statsFile = f;
+                    else
+                        toVerify.add(f);
+                }
+            }
+        }
+        else
+        {
+            toVerify = files;
+        }
         // CASSANDRA-11889: File.lastModified() returns a positive value only if the file exists, therefore
         // we filter by positive values to only consider the files that still exists right now, in case things
         // changed on disk since getExistingFiles() was called
-        List<Long> positiveModifiedTimes = files.stream().map(File::lastModified).filter(lm -> lm > 0).collect(Collectors.toList());
+        List<Long> positiveModifiedTimes = toVerify.stream().map(File::lastModified).filter(lm -> lm > 0).collect(Collectors.toList());
         long lastModified = positiveModifiedTimes.stream().reduce(0L, Long::max);
-        return new LogRecord(type, absolutePath, lastModified, Math.max(minFiles, positiveModifiedTimes.size()));
+
+        // We need to preserve the file count for the number of existing files found on disk even though we ignored the
+        // stats file during our timestamp calculation. If the stats file still exists, we add in the count of it as
+        // a separate validation assumption that it's one of the files considered valid in this LogRecord.
+        boolean addStatTS = statsFile != null && statsFile.exists();
+        int positiveTSCount = addStatTS ? positiveModifiedTimes.size() + 1 : positiveModifiedTimes.size();
+        return new LogRecord(type, absolutePath, lastModified, Math.max(minFiles, positiveTSCount));
     }
 
     private LogRecord(Type type, long updateTime)
