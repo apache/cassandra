@@ -22,6 +22,7 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.io.File;
 import java.io.FilenameFilter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -29,6 +30,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -43,6 +47,8 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 final class LogRecord
 {
+    private static final Logger logger = LoggerFactory.getLogger(LogRecord.class);
+
     public enum Type
     {
         UNKNOWN, // a record that cannot be parsed
@@ -152,7 +158,7 @@ final class LogRecord
     public static LogRecord make(Type type, SSTable table)
     {
         String absoluteTablePath = absolutePath(table.descriptor.baseFilename());
-        return make(type, getExistingFiles(absoluteTablePath), table.getAllFilePaths().size(), absoluteTablePath);
+        return make(type, getExistingFiles(absoluteTablePath), table.getAllFilePaths().size(), absoluteTablePath, false);
     }
 
     public static Map<SSTable, LogRecord> make(Type type, Iterable<SSTableReader> tables)
@@ -170,7 +176,7 @@ final class LogRecord
             List<File> filesOnDisk = entry.getValue();
             String baseFileName = entry.getKey();
             SSTable sstable = absolutePaths.get(baseFileName);
-            records.put(sstable, make(type, filesOnDisk, sstable.getAllFilePaths().size(), baseFileName));
+            records.put(sstable, make(type, filesOnDisk, sstable.getAllFilePaths().size(), baseFileName, false));
         }
         return records;
     }
@@ -180,19 +186,53 @@ final class LogRecord
         return FileUtils.getCanonicalPath(baseFilename + Component.separator);
     }
 
-    public LogRecord withExistingFiles(List<File> existingFiles)
+    public LogRecord withExistingFiles(List<File> existingFiles, boolean skipStatsTS)
     {
-        return make(type, existingFiles, 0, absolutePath.get());
+        assert absolutePath.isPresent();
+        return make(type, existingFiles, 0, absolutePath.get(), skipStatsTS);
     }
 
-    public static LogRecord make(Type type, List<File> files, int minFiles, String absolutePath)
+    /**
+     * We create a LogRecord based on the files on disk; there's some subtlety around how we handle stats files based
+     * on the skipStatsTS param. If we want to skip it, we still need to let the operator know if we see a timestamp
+     * mismatch on the file (as that's indicative of a non-life-threatening bug somewhere in compaction likely), and
+     * we also still need to consider the STATS file in our total file count even if we ignore its timestamp on validation.
+     */
+    public static LogRecord make(Type type, List<File> files, int minFiles, String absolutePath, boolean skipStatsTS)
     {
+        List<File> toVerify;
+        File statsFile = null;
+        if (skipStatsTS && !files.isEmpty())
+        {
+            toVerify = new ArrayList<>(files.size() - 1);
+            for (File f : files)
+            {
+                if (Component.parseFromFullFileName(f.getName()) == Component.STATS)
+                    statsFile = f;
+                else
+                    toVerify.add(f);
+            }
+        }
+        else
+        {
+            toVerify = files;
+        }
         // CASSANDRA-11889: File.lastModified() returns a positive value only if the file exists, therefore
         // we filter by positive values to only consider the files that still exists right now, in case things
         // changed on disk since getExistingFiles() was called
-        List<Long> positiveModifiedTimes = files.stream().map(File::lastModified).filter(lm -> lm > 0).collect(Collectors.toList());
+        List<Long> positiveModifiedTimes = toVerify.stream().map(File::lastModified).filter(lm -> lm > 0).collect(Collectors.toList());
         long lastModified = positiveModifiedTimes.stream().reduce(0L, Long::max);
-        return new LogRecord(type, absolutePath, lastModified, Math.max(minFiles, positiveModifiedTimes.size()));
+        if (statsFile != null && statsFile.lastModified() != lastModified)
+            logger.warn("Found a {} file with a timestamp that doesn't match the LogRecord; this is likely due to a race " +
+                        " in compaction changing mtime on the file. ignoring mismatch so startup can continue. File: '{}'",
+                        Component.STATS.name(), statsFile.getName());
+
+        // We need to preserve the file count for the number of existing files found on disk even if we ignored the
+        // stats file during our timestamp calculation. If the stats file still exists, we add in the count of it as
+        // a separate validation assumption that it's one of the files considered valid in this LogRecord.
+        boolean addStatTS = skipStatsTS && statsFile != null && Files.exists(statsFile.toPath());
+        int positiveTSCount = addStatTS ? positiveModifiedTimes.size() + 1 : positiveModifiedTimes.size();
+        return new LogRecord(type, absolutePath, lastModified, Math.max(minFiles, positiveTSCount));
     }
 
     private LogRecord(Type type, long updateTime)
