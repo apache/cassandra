@@ -739,7 +739,7 @@
         </manifest>
         <mkdir dir="${fqltool.build.classes}/META-INF" />
         <mkdir dir="${build.dir}/tools/lib/" />
-        <jar destfile="${build.dir}/tools/lib/fqltool.jar" manifest="${stress.manifest}">
+        <jar destfile="${build.dir}/tools/lib/fqltool.jar" manifest="${fqltool.manifest}">
             <fileset dir="${fqltool.build.classes}"/>
         </jar>
     </target>
