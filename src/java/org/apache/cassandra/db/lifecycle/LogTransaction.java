@@ -545,6 +545,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             try(LogFile txn = LogFile.make(entry.getKey(), entry.getValue()))
             {
                 logger.info("Verifying logfile transaction {}", txn);
+                // We don't check / include the stats file timestamp on LogRecord creation / verification as that might
+                // be modified by a race in compaction notification and then needlessly fail subsequent node starts.
                 if (txn.verify())
                 {
                     Throwable failure = txn.removeUnfinishedLeftovers(null);
