@@ -1,4 +1,5 @@
 4.2
+ * CEP-10: Simulator Java11 Support (CASSANDRA-17178)
  * Set the major compaction type correctly for compactionstats (CASSANDRA-18055)
  * Print exception message without stacktrace when nodetool commands fail on probe.getOwnershipWithPort() (CASSANDRA-18079)
  * Add option to print level in nodetool getsstables output (CASSANDRA-18023)

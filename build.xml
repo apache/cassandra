@@ -153,16 +153,26 @@
         <equals arg1="${ant.java.version}" arg2="1.8"/>
     </condition>
     <condition property="java.version.11">
+      <!-- This includes every JDK other than 8; so JDK 9 is flagged as JDK 11, and JDK 17 is as well... at the moment this is desired behavior
+      and may be relooked at once JDK 8 support is dropped -->
         <not><isset property="java.version.8"/></not>
     </condition>
-    <fail><condition><not><or>
+    <fail message="Unsupported JDK version used: ${ant.java.version}"><condition><not><or>
         <isset property="java.version.8"/>
         <isset property="java.version.11"/>
     </or></not></condition></fail>
 
+    <condition property="arch_x86">
+      <equals arg1="${os.arch}" arg2="x86" />
+    </condition>
+    <!-- On non-X86 JDK 8 (such as M1 Mac) the smallest allowed Xss is 384k; so need a larger value
+    when on these platforms. -->
+    <condition property="jvm_xss" value="-Xss256k" else="-Xss384k">
+      <isset property="arch_x86" />
+    </condition>
+
     <resources id="_jvm11_arg_items">
         <string>-Djdk.attach.allowAttachSelf=true</string>
-
         <string>-XX:+UseConcMarkSweepGC</string>
         <string>-XX:+CMSParallelRemarkEnabled</string>
         <string>-XX:SurvivorRatio=8</string>
@@ -172,6 +182,7 @@
         <string>-XX:CMSWaitDuration=10000</string>
         <string>-XX:+CMSParallelInitialMarkEnabled</string>
         <string>-XX:+CMSEdenChunksRecordAlways</string>
+
 
         <string>--add-exports java.base/jdk.internal.misc=ALL-UNNAMED</string>
         <string>--add-exports java.base/jdk.internal.ref=ALL-UNNAMED</string>
@@ -1079,7 +1090,7 @@
         <jvmarg value="-ea"/>
         <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
         <jvmarg value="-Dcassandra.debugrefcount=true"/>
-        <jvmarg value="-Xss256k"/>
+        <jvmarg value="${jvm_xss}"/>
         <!-- When we do classloader manipulation SoftReferences can cause memory leaks
              that can OOM our test runs. The next two settings informs our GC
              algorithm to limit the metaspace size and clean up SoftReferences
@@ -1410,7 +1421,7 @@
         <jvmarg value="-Djava.awt.headless=true"/>
         <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
-        <jvmarg value="-Xss256k"/>
+        <jvmarg value="${jvm_xss}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
@@ -1456,7 +1467,7 @@
         <jvmarg value="-Djava.awt.headless=true"/>
         <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
-        <jvmarg value="-Xss256k"/>
+        <jvmarg value="${jvm_xss}"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
@@ -1647,6 +1658,7 @@
     </testmacro>
   </target>
 
+  <property name="simulator.asm.print" value="none"/> <!-- Supports: NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM; see org.apache.cassandra.simulator.asm.MethodLogger.Level -->
   <target name="test-simulator-dtest" depends="maybe-build-test" description="Execute simulator dtests">
     <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java">
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-simulator.xml"/>
@@ -1655,6 +1667,7 @@
       <jvmarg value="-Dcassandra.skip_sync=true" />
       <jvmarg value="-Dcassandra.debugrefcount=false"/>
       <jvmarg value="-Dcassandra.test.simulator.determinismcheck=strict"/>
+      <jvmarg value="-Dcassandra.test.simulator.print_asm=${simulator.asm.print}" />
       <!-- Support Simulator Tests -->
       <jvmarg line="-javaagent:${test.lib}/jars/simulator-asm.jar"/>
       <jvmarg line="-Xbootclasspath/a:${test.lib}/jars/simulator-bootstrap.jar"/>
