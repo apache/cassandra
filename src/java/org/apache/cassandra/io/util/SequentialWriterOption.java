@@ -48,17 +48,21 @@ public class SequentialWriterOption
     private final int trickleFsyncByteInterval;
     private final boolean finishOnClose;
 
+    private final boolean  hasMaxCompressedLength;
+
     private SequentialWriterOption(int bufferSize,
                                    BufferType bufferType,
                                    boolean trickleFsync,
                                    int trickleFsyncByteInterval,
-                                   boolean finishOnClose)
+                                   boolean finishOnClose,
+                                   boolean hasMaxCompressedLength)
     {
         this.bufferSize = bufferSize;
         this.bufferType = bufferType;
         this.trickleFsync = trickleFsync;
         this.trickleFsyncByteInterval = trickleFsyncByteInterval;
         this.finishOnClose = finishOnClose;
+        this.hasMaxCompressedLength =  hasMaxCompressedLength;
     }
 
     public static Builder newBuilder()
@@ -91,6 +95,8 @@ public class SequentialWriterOption
         return finishOnClose;
     }
 
+    public boolean hasMaxCompressedLength() { return hasMaxCompressedLength; }
+
     /**
      * Allocate buffer using set buffer type and buffer size.
      *
@@ -112,6 +118,7 @@ public class SequentialWriterOption
         /* default tricle fsync byte interval: 10MiB */
         private int trickleFsyncByteInterval = 10 * 1024 * 1024;
         private boolean finishOnClose = false;
+        private boolean hasMaxCompressedLength = true;
 
         /* construct throguh SequentialWriteOption.newBuilder */
         private Builder() {}
@@ -119,7 +126,7 @@ public class SequentialWriterOption
         public SequentialWriterOption build()
         {
             return new SequentialWriterOption(bufferSize, bufferType, trickleFsync,
-                                   trickleFsyncByteInterval, finishOnClose);
+                                   trickleFsyncByteInterval, finishOnClose, hasMaxCompressedLength);
         }
 
         public Builder bufferSize(int bufferSize)
@@ -149,6 +156,11 @@ public class SequentialWriterOption
         public Builder finishOnClose(boolean finishOnClose)
         {
             this.finishOnClose = finishOnClose;
+            return this;
+        }
+
+        public Builder hasMaxCompressedLength(boolean hasMaxCompressedLength) {
+            this.hasMaxCompressedLength = hasMaxCompressedLength;
             return this;
         }
     }

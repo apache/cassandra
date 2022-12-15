@@ -22,6 +22,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.EOFException;
 
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.*;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -328,18 +329,21 @@ public class CompressionMetadata
         private SafeMemory offsets = new SafeMemory(maxCount * 8L);
         private int count = 0;
 
+        private boolean hasMaxCompressedLength;
+
         // provided by user when setDescriptor
         private long dataLength, chunkCount;
 
-        private Writer(CompressionParams parameters, String path)
+        private Writer(CompressionParams parameters, String path, boolean hasMaxCompressedLength)
         {
             this.parameters = parameters;
             filePath = path;
+            this.hasMaxCompressedLength = hasMaxCompressedLength;
         }
 
-        public static Writer open(CompressionParams parameters, String path)
+        public static Writer open(CompressionParams parameters, String path, boolean hasMaxCompressedLength)
         {
-            return new Writer(parameters, path);
+            return new Writer(parameters, path, hasMaxCompressedLength);
         }
 
         public void addOffset(long offset)
@@ -367,7 +371,10 @@ public class CompressionMetadata
 
                 // store the length of the chunk
                 out.writeInt(parameters.chunkLength());
-                out.writeInt(parameters.maxCompressedLength());
+                if (hasMaxCompressedLength)
+                {
+                    out.writeInt(parameters.maxCompressedLength());
+                }
                 // store position and reserve a place for uncompressed data length and chunks count
                 out.writeLong(dataLength);
                 out.writeInt(chunks);
