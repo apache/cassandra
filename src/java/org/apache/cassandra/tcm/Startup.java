@@ -212,18 +212,21 @@ package org.apache.cassandra.tcm;
              if (seeds.isEmpty())
                  throw new IllegalArgumentException("Can not initialize CMS without any seeds");
 
-             boolean hasFirstEpoch = SystemKeyspaceStorage.hasFirstEpoch();
-             boolean isOnlySeed = DatabaseDescriptor.getSeeds().size() == 1 && DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPort());
-             boolean hasBootedBefore = SystemKeyspace.getLocalHostId() != null;
-             logger.info("hasFirstEpoch = {}, hasBootedBefore = {}", hasFirstEpoch, hasBootedBefore);
-             if (!hasFirstEpoch && hasBootedBefore)
-                 return UPGRADE;
-             else if (hasFirstEpoch)
-                 return NORMAL;
-             else if (isOnlySeed)
-                 return FIRST_CMS;
-             else
-                 return VOTE;
-         }
-     }
- }
+            boolean hasFirstEpoch = SystemKeyspaceStorage.hasFirstEpoch();
+            // For CCM and local dev clusters
+            boolean isOnlySeed = DatabaseDescriptor.getSeeds().size() == 1
+                                 && DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPort())
+                                 && DatabaseDescriptor.getSeeds().iterator().next().getAddress().isLoopbackAddress();
+            boolean hasBootedBefore = SystemKeyspace.getLocalHostId() != null;
+            logger.info("hasFirstEpoch = {}, hasBootedBefore = {}", hasFirstEpoch, hasBootedBefore);
+            if (!hasFirstEpoch && hasBootedBefore)
+                return UPGRADE;
+            else if (hasFirstEpoch)
+                return NORMAL;
+            else if (isOnlySeed)
+                return FIRST_CMS;
+            else
+                return VOTE;
+        }
+    }
+}

@@ -75,7 +75,7 @@ public class Discovery
         DiscoveredNodes last = null;
         int lastCount = discovered.size();
         int unchangedFor = 0;
-        while (Clock.Global.nanoTime() <= deadline && unchangedFor < rounds)
+        while (Clock.Global.nanoTime() <= deadline || unchangedFor < rounds)
         {
             last = discoverOnce(null);
             if (last.kind == DiscoveredNodes.Kind.CMS_ONLY)
