@@ -80,6 +80,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
             String filename = writer.getFilename();
             String sectionName = filename + '-' + fileSeqNum;
             int sectionIdx = 0;
+            long lastBytesRead = 0;
             for (SSTableReader.PartitionPositionBounds section : sections)
             {
                 assert cis.chunkBytesRead() <= totalSize;
@@ -90,7 +91,6 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
                 cis.position(section.lowerPosition);
                 in.reset(0);
 
-                long lastBytesRead = 0;
                 while (in.getBytesRead() < sectionLength)
                 {
                     writePartition(deserializer, writer);

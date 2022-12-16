@@ -19,6 +19,15 @@
 package org.apache.cassandra.distributed.test.metrics;
 
 import java.net.InetSocketAddress;
+import java.util.LinkedHashSet;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -27,8 +36,10 @@ import org.junit.Test;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StreamingMetrics;
 
@@ -92,7 +103,7 @@ public class StreamingMetricsTest extends TestBaseImpl
             Object[][] results = cluster.get(3).executeInternal(withKeyspace("SELECT k, c1, c2 FROM %s.cf;"));
             assertThat(results.length).isEqualTo(0);
 
-            checkThatNoStreamingOccuredBetweenTheThreeNodes(cluster);
+            checkThatNoStreamingOccured(cluster, 3);
 
             // Trigger streaming from node 3
             if (useRepair)
@@ -145,8 +156,254 @@ public class StreamingMetricsTest extends TestBaseImpl
         testMetricsWithStreamingToTwoNodes(true);
     }
 
-    private int getNumberOfSSTables(Cluster cluster, int node) {
+    @Test
+    public void testMetricsUpdateIncrementallyWithRepairAndStreamingBetweenNodes() throws Exception
+    {
+        boolean streamEntireSstables = false;
+        boolean compressionEnabled = false;
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withDataDirCount(1)
+                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                       .set("stream_entire_sstables", streamEntireSstables)
+                                                                       .set("hinted_handoff_enabled", false))
+                                           .start(), 2))
+        {
+            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("repair", "--full"), compressionEnabled);
+        }
+    }
+
+    @Test
+    public void testMetricsUpdateIncrementallyWithRebuildAndStreamingBetweenNodes() throws Exception
+    {
+        boolean streamEntireSstables = false;
+        boolean compressionEnabled = false;
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withDataDirCount(1)
+                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                       .set("stream_entire_sstables", streamEntireSstables)
+                                                                       .set("hinted_handoff_enabled", false))
+                                           .start(), 2))
+        {
+            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("rebuild"), compressionEnabled);
+        }
+    }
+
+    @Test
+    public void testMetricsUpdateIncrementallyWithRebuildAndStreamEntireSstableAndStreamingBetweenNodes() throws Exception
+    {
+        boolean streamEntireSstables = true;
+        boolean compressionEnabled = false;
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withDataDirCount(1)
+                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                       .set("stream_entire_sstables", streamEntireSstables)
+                                                                       .set("hinted_handoff_enabled", false))
+                                           .start(), 2))
+        {
+            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("rebuild"), compressionEnabled);
+        }
+    }
+
+    @Test
+    public void testMetricsUpdateIncrementallyWithRepairAndStreamEntireSstableAndStreamingBetweenNodes() throws Exception
+    {
+        boolean streamEntireSstables = true;
+        boolean compressionEnabled = false;
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withDataDirCount(1)
+                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                       .set("stream_entire_sstables", streamEntireSstables)
+                                                                       .set("hinted_handoff_enabled", false))
+                                           .start(), 2))
+        {
+            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("repair"), compressionEnabled);
+        }
+    }
+
+    @Test
+    public void testMetricsUpdateIncrementallyWithRepairCompressionEnabled() throws Exception
+    {
+        boolean streamEntireSstables = false;
+        boolean compressionEnabled = true;
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withDataDirCount(1)
+                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                       .set("stream_entire_sstables", streamEntireSstables)
+                                                                       .set("hinted_handoff_enabled", false))
+                                           .start(), 2))
+        {
+            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("repair"), compressionEnabled);
+        }
+    }
+
+    @Test
+    public void testMetricsUpdateIncrementallyWithRebuildCompressionEnabled() throws Exception
+    {
+        boolean streamEntireSstables = false;
+        boolean compressionEnabled = true;
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withDataDirCount(1)
+                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
+                                                                       .set("stream_entire_sstables", streamEntireSstables)
+                                                                       .set("hinted_handoff_enabled", false))
+                                           .start(), 2))
+        {
+            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("rebuild"), compressionEnabled);
+        }
+    }
+
+    /**
+     * Test to verify that streaming metrics are updated incrementally
+     * - Create 2 node cluster with RF=2
+     * - Create 1 sstable with 10MB on node1, while node2 is empty due to message drop
+     * - Run repair OR rebuild on node2 to transfer sstable from node1
+     * - Collect metrics during streaming and check that at least 3 different values are reported [0, partial1, .., final_size]
+     * - Check final transferred size is correct (~10MB bytes)
+     *      * @param cluster The cassandra cluster on which the streaming operation will run.
+     *      * @param streamingOperation The nodetool command to launch a streaming operation (repair or rebuild)
+     *      * @param compressionEnabled Dictates if we should use compression when creating the testing table.
+     *      * @throws Exception
+     */
+    public void runStreamingOperationAndCheckIncrementalMetrics(Cluster cluster, Callable<Integer> streamingOperation, boolean compressionEnabled) throws Exception
+    {
+        assertThat(cluster.size())
+            .describedAs("The minimum cluster size to check streaming metrics is 2 nodes.")
+            .isEqualTo(2);
+        String createTableStatement = String.format("CREATE TABLE %s.cf (k text PRIMARY KEY, c1 text) " +
+                                      "WITH compaction = {'class': 'SizeTieredCompactionStrategy', 'enabled': 'false'} ", KEYSPACE);
+        if (!compressionEnabled)
+        {
+            createTableStatement += "AND compression = {'enabled':'false'}";
+        }
+        createTableStatement += ';';
+        // Create table with compression disabled so we can easily compute the expected final sstable size
+        cluster.schemaChange(createTableStatement);
+
+        // each row has 1KB payload
+        Random random = new Random(0);
+        StringBuilder random1kbString = new StringBuilder();
+        for (int i = 0; i < 1024; i++)
+            random1kbString.append((char)random.nextInt(127));
+
+        // Drop all messages from node1 to node2 so node2 will be empty
+        IMessageFilters.Filter drop1to2 = cluster.filters().verbs(MUTATION_REQ.id).from(1).to(2).drop();
+        final int totalRows = 10000; // total size: 10K x 1KB ~= 10MB
+        for (int i = 0; i < totalRows; ++i)
+        {
+            // write rows with timestamp 1 to have deterministic transfer size
+            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.cf (k, c1) VALUES (?, ?) USING TIMESTAMP 1;"),
+                                           ConsistencyLevel.ONE,
+                                           Integer.toString(i),
+                                           random1kbString.toString());
+        }
+
+        // Flush and compact all nodes to generate a single sstable
+        cluster.forEach(node -> {
+            node.flush(KEYSPACE);
+            node.forceCompact(KEYSPACE, "cf");
+        });
+        // Check that node 1 only has 1 sstable after flush + compaction
+        assertThat(getNumberOfSSTables(cluster, 1)).isEqualTo(1);
+        // Node 2 should have 0 sstables since messages from node1 were dropped
+        assertThat(getNumberOfSSTables(cluster, 2)).isEqualTo(0);
+
+        // Disable dropping of messages from node1 to node2
+        drop1to2.off();
+
+        ExecutorService nodetoolExecutor = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+        checkThatNoStreamingOccured(cluster, 2);
+
+        Future<Integer> streamingOperationExecution = nodetoolExecutor.submit(streamingOperation);
+        boolean entireSstable = (boolean) cluster.get(1).config().get("stream_entire_sstables");
+        checkMetricsUpdatedIncrementally(cluster, streamingOperationExecution, 2, 1, entireSstable);
+        streamingOperationExecution.get();
+        nodetoolExecutor.shutdown();
+    }
+
+    private void checkMetricsUpdatedIncrementally(Cluster cluster, Future<Integer> streamingOperationExecution, int dst, int src, boolean entireSstable)
+    {
+        InetAddressAndPort srcAddress = getNodeAddress(cluster, src);
+        InetAddressAndPort dstAddress = getNodeAddress(cluster, dst);
+
+        Set<Long> srcOutgoingTotal = new LinkedHashSet<>();
+        Set<Long> srcOutgoingPeer = new LinkedHashSet<>();
+        Set<Long> dstIncomingTotal = new LinkedHashSet<>();
+        Set<Long> dstIncomingPeer = new LinkedHashSet<>();
+
+        long expectedTransferSize = 0L;
+        // Collect outgoing and incoming streaming metrics while streaming is running
+        while (!streamingOperationExecution.isDone())
+        {
+            // Get the expected transfer size. If we are streaming an entire SSTable, all components except TOC.txt are expected to be transferred.
+            // if we are not streaming an entire SSTable, then only the Data.db file ends up being transferred.
+            expectedTransferSize = entireSstable ? getSstableSizeForEntireFileStreaming(cluster, 1) : getSingleSSTableSize(cluster, src);
+            dstIncomingTotal.add(getIncomingBytesTotal(cluster.get(dst)));
+            dstIncomingPeer.add(getIncomingBytesFromPeer(cluster.get(dst), srcAddress));
+            srcOutgoingTotal.add(getOutgoingBytesTotal(cluster.get(src)));
+            srcOutgoingPeer.add(getOutgoingBytesToPeer(cluster.get(src), dstAddress));
+        }
+
+        // Check that at least 3 different values were reported for outgoing and incoming bytes [0, partial1, ..., total_size]
+        assertThat(dstIncomingTotal).hasSizeGreaterThanOrEqualTo(3);
+        assertThat(dstIncomingPeer).hasSizeGreaterThanOrEqualTo(3);
+        assertThat(srcOutgoingTotal).hasSizeGreaterThanOrEqualTo(3);
+        assertThat(srcOutgoingPeer).hasSizeGreaterThanOrEqualTo(3);
+
+        // Check that final streamed size is correct
+        assertThat(getIncomingBytesTotal(cluster.get(dst))).isEqualTo(expectedTransferSize);
+        assertThat(getIncomingBytesFromPeer(cluster.get(dst), srcAddress)).isEqualTo(expectedTransferSize);
+        assertThat(getOutgoingBytesToPeer(cluster.get(src), dstAddress)).isEqualTo(expectedTransferSize);
+        assertThat(getOutgoingBytesTotal(cluster.get(src))).isEqualTo(expectedTransferSize);
+    }
+
+    private static Long getIncomingBytesFromPeer(IInvokableInstance instance, InetAddressAndPort peerAddress)
+    {
+        return instance.callOnInstance(() -> StreamingMetrics.get(peerAddress).incomingBytes.getCount());
+    }
+
+    private static Long getOutgoingBytesToPeer(IInvokableInstance instance, InetAddressAndPort peerAddress)
+    {
+        return instance.callOnInstance(() -> StreamingMetrics.get(peerAddress).outgoingBytes.getCount());
+    }
+
+    private static Long getIncomingBytesTotal(IInvokableInstance instance)
+    {
+        return instance.callOnInstance(() -> StreamingMetrics.totalIncomingBytes.getCount());
+    }
+
+    private static Long getOutgoingBytesTotal(IInvokableInstance instance)
+    {
+        return instance.callOnInstance(() -> StreamingMetrics.totalOutgoingBytes.getCount());
+    }
+
+    private int getNumberOfSSTables(Cluster cluster, int node)
+    {
         return cluster.get(node).callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, "cf").getLiveSSTables().size());
+    }
+
+    private long getSingleSSTableSize(Cluster cluster, int node)
+    {
+        assert cluster.get(node).callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, "cf").getLiveSSTables().size()) == 1;
+        return cluster.get(node).callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, "cf").getLiveSSTables().iterator().next().onDiskLength());
+    }
+
+    private long getSstableSizeForEntireFileStreaming(Cluster cluster, int node)
+    {
+        return cluster.get(node)
+                      .callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, "cf")
+                                                             .getLiveSSTables()
+                                                             .stream()
+                                                             .map(sstableReader -> sstableReader.getComponents()
+                                                                                                .stream()
+                                                                                                .map(c -> new File(sstableReader.descriptor.filenameFor(c)))
+                                                                                                .map(f -> f.name().endsWith("TOC.txt") ? 0L : f.length()) // When streaming an entire SSTable, the TOC.txt file is not transferred.
+                                                                                                .mapToLong(Long::longValue)
+                                                                                                .sum()
+                                                             )
+                                                             .mapToLong(Long::longValue)
+                                                             .sum()
+
+                      );
     }
 
     public void testMetricsWithStreamingToTwoNodes(boolean useRepair) throws Exception
@@ -205,7 +462,7 @@ public class StreamingMetricsTest extends TestBaseImpl
 
             drop1to2.off();
 
-            checkThatNoStreamingOccuredBetweenTheThreeNodes(cluster);
+            checkThatNoStreamingOccured(cluster, 3);
 
             // Trigger streaming from node 3 and node 2
 
@@ -294,22 +551,17 @@ public class StreamingMetricsTest extends TestBaseImpl
         }
     }
 
-    private void checkThatNoStreamingOccuredBetweenTheThreeNodes(Cluster cluster)
+    private void checkThatNoStreamingOccured(Cluster cluster, int nodeCount)
     {
-        checkThatNoStreamingOccured(cluster, 1, 2);
-        checkThatNoStreamingOccured(cluster, 1, 3);
-        checkTotalDataSent(cluster, 1, 0, 0, 0);
-        checkTotalDataReceived(cluster, 1, 0);
-
-        checkThatNoStreamingOccured(cluster, 2, 1);
-        checkThatNoStreamingOccured(cluster, 2, 3);
-        checkTotalDataSent(cluster, 2, 0, 0, 0);
-        checkTotalDataReceived(cluster, 2, 0);
-
-        checkThatNoStreamingOccured(cluster, 3, 1);
-        checkThatNoStreamingOccured(cluster, 3, 2);
-        checkTotalDataSent(cluster, 3, 0, 0, 0);
-        checkTotalDataReceived(cluster, 3, 0);
+        for (int src = 1; src <= nodeCount; src++)
+        {
+            for (int dst = src + 1; dst <= nodeCount; dst++)
+            {
+                checkThatNoStreamingOccured(cluster, src, dst);
+            }
+            checkTotalDataSent(cluster, src, 0, 0, 0);
+            checkTotalDataReceived(cluster, src, 0);
+        }
     }
 
     private void checkThatNoStreamingOccured(Cluster cluster, int node, int peer)

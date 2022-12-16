@@ -145,7 +145,6 @@ public class ZeroCopyStreamingBenchmark
                                      .withFirstKey(sstable.first)
                                      .withTableId(sstable.metadata().id)
                                      .build();
-
             blockStreamReader = new CassandraEntireSSTableStreamReader(new StreamMessageHeader(sstable.metadata().id,
                                                                                                peer, session.planId(), false,
                                                                                                0, 0, 0,
@@ -168,7 +167,6 @@ public class ZeroCopyStreamingBenchmark
             CapturingNettyChannel partialStreamChannel = new CapturingNettyChannel(STREAM_SIZE);
             partialStreamWriter.write(new AsyncStreamingOutputPlus(partialStreamChannel));
             serializedPartialStream = partialStreamChannel.getSerializedStream();
-
             partialStreamReader = new CassandraStreamReader(new StreamMessageHeader(sstable.metadata().id,
                                                                                     peer, session.planId(), false,
                                                                                     0, 0, 0,
