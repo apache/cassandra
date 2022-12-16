@@ -17,11 +17,11 @@
 from cassandra.policies import SimpleConvictionPolicy
 from cassandra.pool import Host
 from cqlshlib.sslhandling import ssl_settings
-from nose.tools import assert_raises
 
 import unittest
 import os
 import ssl
+import pytest
 
 class SslSettingsTest(unittest.TestCase):
 
@@ -53,7 +53,7 @@ class SslSettingsTest(unittest.TestCase):
 
     def test_invalid_ssl_versions_from_env(self):
         msg = "invalid_ssl is not a valid SSL protocol, please use one of TLSv1, TLSv1_1, or TLSv1_2"
-        with assert_raises(SystemExit) as error:
+        with pytest.raises(SystemExit) as error:
             self._test_ssl_version_from_env('invalid_ssl')
             assert msg == error.exception.message
 
@@ -69,7 +69,7 @@ class SslSettingsTest(unittest.TestCase):
 
     def test_invalid_ssl_version_config(self):
         msg = "invalid_ssl is not a valid SSL protocol, please use one of TLSv1, TLSv1_1, or TLSv1_2"
-        with assert_raises(SystemExit) as error:
+        with pytest.raises(SystemExit) as error:
             ssl_settings(self.host, os.path.join('test', 'config', 'sslhandling_invalid.config'))
             assert msg in error.exception.message
             

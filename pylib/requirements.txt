@@ -11,8 +11,7 @@ docopt
 enum34
 flaky
 mock
-nose
-nose-test-select
+pytest
 parse
 pycodestyle
 psutil

@@ -20,7 +20,7 @@ import io
 import os.path
 import random
 import string
-from nose.tools import nottest
+import pytest
 
 from .basecase import TEST_HOST, TEST_PORT, cql, cqlsh, cqlshlog, policy, quote_name, test_dir
 from .run_cqlsh import run_cqlsh, call_cqlsh
@@ -152,7 +152,7 @@ def cql_rule_set():
 class DEFAULTVAL: pass
 
 
-@nottest
+@pytest.mark.skip(reason="not a test")
 def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
     # use a positive default sentinel so that keyspace=None can be used
     # to override the default behavior
@@ -161,7 +161,7 @@ def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
     return run_cqlsh(keyspace=keyspace, **kwargs)
 
 
-@nottest
+@pytest.mark.skip(reason="not a test")
 def testcall_cqlsh(keyspace=None, **kwargs):
     if keyspace is None:
         keyspace = get_keyspace()
