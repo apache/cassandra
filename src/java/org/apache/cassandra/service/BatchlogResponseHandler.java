@@ -42,7 +42,7 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
         this.cleanup = cleanup;
     }
 
-    protected int ackCount()
+    public int ackCount()
     {
         return wrapped.ackCount();
     }
@@ -69,22 +69,22 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
         wrapped.get();
     }
 
-    protected int blockFor()
+    public int blockFor()
     {
         return wrapped.blockFor();
     }
 
-    protected int candidateReplicaCount()
+    public int candidateReplicaCount()
     {
         return wrapped.candidateReplicaCount();
     }
 
-    protected boolean waitingFor(InetAddressAndPort from)
+    public boolean waitingFor(InetAddressAndPort from)
     {
         return wrapped.waitingFor(from);
     }
 
-    protected void signal()
+    public void signal()
     {
         wrapped.signal();
     }

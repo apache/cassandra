@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.TableId;
 
@@ -62,6 +63,12 @@ public final class VirtualMutation implements IMutation
     public String getKeyspaceName()
     {
         return keyspaceName;
+    }
+
+    @Override
+    public Keyspace getKeyspace()
+    {
+        return Keyspace.open(keyspaceName);
     }
 
     @Override

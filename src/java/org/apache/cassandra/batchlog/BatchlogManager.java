@@ -540,7 +540,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
 
             @Override
-            protected int blockFor()
+            public int blockFor()
             {
                 return this.replicaPlan.contacts().size();
             }

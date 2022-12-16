@@ -179,6 +179,7 @@ public class ReadRepairTest
     private static void assertMutationEqual(Mutation expected, Mutation actual)
     {
         Assert.assertEquals(expected.getKeyspaceName(), actual.getKeyspaceName());
+        Assert.assertEquals(expected.getKeyspace(), actual.getKeyspace());
         Assert.assertEquals(expected.key(), actual.key());
         Assert.assertEquals(expected.key(), actual.key());
         PartitionUpdate expectedUpdate = Iterables.getOnlyElement(expected.getPartitionUpdates());

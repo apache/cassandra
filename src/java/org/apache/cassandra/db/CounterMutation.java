@@ -114,6 +114,11 @@ public class CounterMutation implements IMutation
         return mutation.getKeyspaceName();
     }
 
+    public Keyspace getKeyspace()
+    {
+        return mutation.getKeyspace();
+    }
+
     public Collection<TableId> getTableIds()
     {
         return mutation.getTableIds();

@@ -132,6 +132,11 @@ public class Mutation implements IMutation
         return keyspaceName;
     }
 
+    public Keyspace getKeyspace()
+    {
+        return Keyspace.open(keyspaceName);
+    }
+
     public Collection<TableId> getTableIds()
     {
         return modifications.keySet();

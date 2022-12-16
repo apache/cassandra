@@ -26,6 +26,8 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Predicates;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.ReplicaPlans;
 import org.junit.Before;
@@ -50,6 +52,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.net.NoPayload.noPayload;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -257,6 +261,57 @@ public class WriteResponseHandlerTest
         assertEquals(startingCount, ks.metric.writeFailedIdealCL.getCount());
     }
 
+    @Test
+    public void testIsCompleted() throws Throwable
+    {
+        long queryStartedNanos = System.nanoTime();
+        AbstractWriteResponseHandler<?> awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM, queryStartedNanos);
+        assertThat(awr.replicaPlan().blockFor()).isEqualTo(2);
+        assertThat(awr.writeType()).isEqualTo(WriteType.SIMPLE);
+        assertThat(awr.queryStartNanoTime()).isEqualTo(queryStartedNanos);
+
+        assertThat(awr.isCompleted()).isFalse();
+        assertThat(awr.isCompletedExceptionally()).isFalse();
+
+        // LOCAL_QUORUM requires 2 reponses
+        awr.onResponse(createDummyMessage(0));
+        assertThat(awr.isCompleted()).isFalse();
+        assertThat(awr.isCompletedExceptionally()).isFalse();
+
+        awr.onResponse(createDummyMessage(1));
+        assertThat(awr.isCompleted()).isTrue();
+        assertThat(awr.isCompletedExceptionally()).isFalse();
+
+        awr.get();
+    }
+
+    @Test
+    public void testIsCompletedExceptionally() throws Throwable
+    {
+        long queryStartedNanos = System.nanoTime();
+        AbstractWriteResponseHandler<?> awr = createWriteResponseHandler(ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.EACH_QUORUM, queryStartedNanos);
+        assertThat(awr.replicaPlan().blockFor()).isEqualTo(2);
+        assertThat(awr.writeType()).isEqualTo(WriteType.SIMPLE);
+        assertThat(awr.queryStartNanoTime()).isEqualTo(queryStartedNanos);
+
+        assertThat(awr.isCompleted()).isFalse();
+        assertThat(awr.isCompletedExceptionally()).isFalse();
+
+        // LOCAL_QUORUM requires 2 failure to fail handler
+        awr.onFailure(targets.get(0).endpoint(), RequestFailureReason.UNKNOWN);
+        assertThat(awr.isCompleted()).isFalse();
+        assertThat(awr.isCompletedExceptionally()).isFalse();
+        assertThat(awr.failures).isEqualTo(1);
+        assertThat(awr.failureReasonByEndpoint).hasSize(1);
+
+        awr.onFailure(targets.get(1).endpoint(), RequestFailureReason.UNKNOWN);
+        assertThat(awr.isCompleted()).isTrue();
+        assertThat(awr.isCompletedExceptionally()).isTrue();
+        assertThat(awr.failures).isEqualTo(2);
+        assertThat(awr.failureReasonByEndpoint).hasSize(2);
+
+        assertThatThrownBy(awr::get).isInstanceOf(WriteFailureException.class);
+    }
 
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal)
     {

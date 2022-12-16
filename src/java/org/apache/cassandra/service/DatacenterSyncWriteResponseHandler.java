@@ -98,7 +98,7 @@ public class DatacenterSyncWriteResponseHandler<T> extends AbstractWriteResponse
         }
     }
 
-    protected int ackCount()
+    public int ackCount()
     {
         return acks.get();
     }
