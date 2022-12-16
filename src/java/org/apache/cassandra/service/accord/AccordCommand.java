@@ -497,6 +497,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     public void setPartialTxn(PartialTxn txn)
     {
         this.partialTxn.set(txn);
+        //TODO remove.  This was added to fix tests after Partial Replication was added, this was added for tests
+        this.kind.set(txn.kind());
     }
 
     @Override
