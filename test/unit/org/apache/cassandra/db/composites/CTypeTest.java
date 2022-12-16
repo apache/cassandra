@@ -17,11 +17,17 @@
  */
 package org.apache.cassandra.db.composites;
 
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import java.nio.ByteBuffer;
+
 import org.junit.Test;
 
-import java.nio.ByteBuffer;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class CTypeTest
 {

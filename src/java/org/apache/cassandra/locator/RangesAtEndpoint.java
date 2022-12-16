@@ -18,12 +18,6 @@
 
 package org.apache.cassandra.locator;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -34,8 +28,15 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collector;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+
 import static com.google.common.collect.Iterables.all;
-import static org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict.*;
+import static org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict.NONE;
 
 /**
  * A ReplicaCollection for Ranges occurring at an endpoint. All Replica will be for the same endpoint,

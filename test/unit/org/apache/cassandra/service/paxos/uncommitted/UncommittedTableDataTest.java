@@ -47,7 +47,12 @@ import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData.Flush
 import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData.Merge;
 import org.apache.cassandra.utils.CloseableIterator;
 
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.*;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.ALL_RANGES;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.createBallots;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.dk;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.kl;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.r;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.tk;
 
 public class UncommittedTableDataTest
 {

@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.*;
+import java.util.Arrays;
 import java.util.function.LongPredicate;
 
 import com.google.common.base.Throwables;
@@ -25,9 +25,9 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;

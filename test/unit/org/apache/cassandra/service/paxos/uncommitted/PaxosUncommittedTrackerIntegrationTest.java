@@ -20,7 +20,10 @@ package org.apache.cassandra.service.paxos.uncommitted;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -36,7 +39,7 @@ import org.apache.cassandra.utils.CloseableIterator;
 
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.nextBallot;
-import static org.apache.cassandra.service.paxos.Commit.*;
+import static org.apache.cassandra.service.paxos.Commit.Proposal;
 import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.ALL_RANGES;
 import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.PAXOS_CFS;
 

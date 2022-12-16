@@ -17,7 +17,12 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
 
 import org.junit.Test;
 

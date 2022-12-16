@@ -17,15 +17,20 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
-
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.cassandra.tools.nodetool.stats.*;
+import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
+import org.apache.cassandra.tools.nodetool.stats.StatsPrinter;
+import org.apache.cassandra.tools.nodetool.stats.StatsTableComparator;
+import org.apache.cassandra.tools.nodetool.stats.TableStatsHolder;
+import org.apache.cassandra.tools.nodetool.stats.TableStatsPrinter;
 
 @Command(name = "tablestats", description = "Print statistics on tables")
 public class TableStats extends NodeToolCmd

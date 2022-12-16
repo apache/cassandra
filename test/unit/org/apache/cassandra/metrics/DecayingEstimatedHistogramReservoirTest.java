@@ -47,7 +47,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.quicktheories.QuickTheory.qt;
-import static org.quicktheories.generators.SourceDSL.*;
+import static org.quicktheories.generators.SourceDSL.booleans;
+import static org.quicktheories.generators.SourceDSL.integers;
+import static org.quicktheories.generators.SourceDSL.longs;
 
 @RunWith(Enclosed.class)
 public class DecayingEstimatedHistogramReservoirTest

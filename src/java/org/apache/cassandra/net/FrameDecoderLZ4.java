@@ -26,7 +26,9 @@ import io.netty.channel.ChannelPipeline;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4SafeDecompressor;
 
-import static org.apache.cassandra.net.Crc.*;
+import static org.apache.cassandra.net.Crc.crc24;
+import static org.apache.cassandra.net.Crc.crc32;
+import static org.apache.cassandra.net.Crc.updateCrc32;
 
 /**
  * Framing format that compresses payloads with LZ4, and protects integrity of data in movement with CRCs

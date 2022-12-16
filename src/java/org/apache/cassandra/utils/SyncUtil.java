@@ -20,19 +20,22 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.*;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream; //checkstyle: permit this import
+import java.io.IOException;
+import java.io.SyncFailedException;
 import java.lang.reflect.Field;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.config.Config;
-
 import com.google.common.base.Preconditions;
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.io.util.File;
 
 /*
  * A wrapper around various mechanisms for syncing files that makes it possible it intercept

@@ -20,11 +20,20 @@ package org.apache.cassandra.cql3.functions.types;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 
-import com.google.common.cache.*;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
+import com.google.common.cache.Weigher;
 import com.google.common.reflect.TypeToken;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import org.slf4j.Logger;
@@ -33,7 +42,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cql3.functions.types.exceptions.CodecNotFoundException;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static org.apache.cassandra.cql3.functions.types.DataType.Name.*;
+import static org.apache.cassandra.cql3.functions.types.DataType.Name.LIST;
+import static org.apache.cassandra.cql3.functions.types.DataType.Name.MAP;
+import static org.apache.cassandra.cql3.functions.types.DataType.Name.SET;
 
 /**
  * A registry for {@link TypeCodec}s. When the driver needs to serialize or deserialize a Java type

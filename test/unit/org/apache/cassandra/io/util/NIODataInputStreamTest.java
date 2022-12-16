@@ -33,15 +33,17 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.Random;
 
-import org.junit.Test;
-
 import com.google.common.base.Charsets;
 import com.google.common.primitives.UnsignedBytes;
 import com.google.common.primitives.UnsignedInteger;
 import com.google.common.primitives.UnsignedLong;
+import org.junit.Test;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class NIODataInputStreamTest
 {

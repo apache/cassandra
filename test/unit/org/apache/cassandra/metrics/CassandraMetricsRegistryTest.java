@@ -20,21 +20,22 @@
  */
 package org.apache.cassandra.metrics;
 
-import static org.junit.Assert.*;
-
 import java.lang.management.ManagementFactory;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
-import com.codahale.metrics.Timer;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
-
 import org.junit.Test;
 
+import com.codahale.metrics.Timer;
 import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
 import org.apache.cassandra.utils.EstimatedHistogram;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 
 public class CassandraMetricsRegistryTest

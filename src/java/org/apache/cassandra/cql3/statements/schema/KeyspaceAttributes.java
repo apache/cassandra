@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 

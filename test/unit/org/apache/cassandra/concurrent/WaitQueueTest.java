@@ -21,16 +21,17 @@ package org.apache.cassandra.concurrent;
  */
 
 
-import org.apache.cassandra.Util;
-import org.apache.cassandra.utils.concurrent.WaitQueue;
-import org.junit.*;
-
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.Test;
+
+import org.apache.cassandra.Util;
+import org.apache.cassandra.utils.concurrent.WaitQueue;
+
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertFalse;
 
 public class WaitQueueTest
 {

@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
@@ -27,12 +30,12 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.service.ClientState;
 
 import static org.junit.Assert.assertTrue;

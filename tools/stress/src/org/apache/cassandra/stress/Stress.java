@@ -17,12 +17,14 @@
  */
 package org.apache.cassandra.stress;
 
-import java.io.*;
+import java.io.FileNotFoundException;
+import java.io.PrintStream;
+
+import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.MultiResultLogger;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 
 public final class Stress
 {

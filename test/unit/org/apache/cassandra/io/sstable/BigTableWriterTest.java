@@ -18,19 +18,20 @@
 */
 package org.apache.cassandra.io.sstable;
 
-import org.apache.cassandra.io.util.File;
 import java.io.IOException;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 
-import org.junit.Assert;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 

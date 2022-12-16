@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.metrics;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
-
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.db.ColumnFamilyStore;

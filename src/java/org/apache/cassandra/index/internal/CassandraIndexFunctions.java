@@ -20,15 +20,20 @@ package org.apache.cassandra.index.internal;
 
 import java.util.List;
 
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.index.internal.composites.*;
+import org.apache.cassandra.index.internal.composites.ClusteringColumnIndex;
+import org.apache.cassandra.index.internal.composites.CollectionEntryIndex;
+import org.apache.cassandra.index.internal.composites.CollectionKeyIndex;
+import org.apache.cassandra.index.internal.composites.CollectionValueIndex;
+import org.apache.cassandra.index.internal.composites.PartitionKeyIndex;
+import org.apache.cassandra.index.internal.composites.RegularColumnIndex;
 import org.apache.cassandra.index.internal.keys.KeysIndex;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 
 public interface CassandraIndexFunctions
 {

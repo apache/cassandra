@@ -55,8 +55,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 
+import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
+import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.apache.cassandra.distributed.shared.AssertUtils.*;
 
 // TODO: this test should be removed after running in-jvm dtests is set up via the shared API repository
 public class CasWriteTest extends TestBaseImpl

@@ -23,7 +23,8 @@ import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.quicktheories.QuickTheory.qt;
 
 public class DataRateSpecTest

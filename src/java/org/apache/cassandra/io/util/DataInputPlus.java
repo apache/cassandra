@@ -17,7 +17,11 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.*;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
 
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.vint.VIntCoding;

@@ -19,7 +19,9 @@ package org.apache.cassandra.batchlog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 
 import com.google.common.annotations.VisibleForTesting;
 

@@ -28,7 +28,11 @@ import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
 
-import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.*;
+import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.Builder;
+import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.Counter;
+import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.builder;
+import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.empty;
+import static org.apache.cassandra.service.reads.thresholds.WarningsSnapshot.merge;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.quicktheories.QuickTheory.qt;
 

@@ -17,14 +17,19 @@
  */
 package org.apache.cassandra.dht.tokenallocator;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Random;
+import java.util.Set;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-
 import org.junit.Assert;
 import org.junit.Ignore;
 

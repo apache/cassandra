@@ -17,19 +17,20 @@
  */
 package org.apache.cassandra.index.sasi.utils;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
-
-import org.junit.Assert;
-import org.junit.Test;
 
 public class MappedBufferTest
 {

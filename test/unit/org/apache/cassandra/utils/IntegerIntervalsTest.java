@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.utils;
 
-import static org.junit.Assert.*;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -29,10 +27,13 @@ import java.util.concurrent.Future;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
-
 import org.junit.Test;
 
 import org.apache.cassandra.utils.IntegerInterval.Set;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class IntegerIntervalsTest
 {

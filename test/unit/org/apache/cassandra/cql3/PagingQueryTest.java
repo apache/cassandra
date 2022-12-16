@@ -23,8 +23,10 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Test;
 
-import com.datastax.driver.core.*;
 import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.SimpleStatement;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;

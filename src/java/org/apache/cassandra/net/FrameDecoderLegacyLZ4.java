@@ -36,7 +36,18 @@ import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.lang.Integer.reverseBytes;
 import static java.lang.String.format;
-import static org.apache.cassandra.net.LegacyLZ4Constants.*;
+import static org.apache.cassandra.net.LegacyLZ4Constants.BLOCK_TYPE_COMPRESSED;
+import static org.apache.cassandra.net.LegacyLZ4Constants.BLOCK_TYPE_NON_COMPRESSED;
+import static org.apache.cassandra.net.LegacyLZ4Constants.CHECKSUM_OFFSET;
+import static org.apache.cassandra.net.LegacyLZ4Constants.COMPRESSED_LENGTH_OFFSET;
+import static org.apache.cassandra.net.LegacyLZ4Constants.HEADER_LENGTH;
+import static org.apache.cassandra.net.LegacyLZ4Constants.MAGIC_NUMBER;
+import static org.apache.cassandra.net.LegacyLZ4Constants.MAGIC_NUMBER_OFFSET;
+import static org.apache.cassandra.net.LegacyLZ4Constants.MAX_BLOCK_LENGTH;
+import static org.apache.cassandra.net.LegacyLZ4Constants.TOKEN_OFFSET;
+import static org.apache.cassandra.net.LegacyLZ4Constants.UNCOMPRESSED_LENGTH_OFFSET;
+import static org.apache.cassandra.net.LegacyLZ4Constants.XXHASH_MASK;
+import static org.apache.cassandra.net.LegacyLZ4Constants.XXHASH_SEED;
 import static org.apache.cassandra.utils.ByteBufferUtil.copyBytes;
 
 /**

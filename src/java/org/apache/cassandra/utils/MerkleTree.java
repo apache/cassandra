@@ -20,14 +20,17 @@ package org.apache.cassandra.utils;
 import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.PeekingIterator;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Shorts;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +50,9 @@ import org.apache.cassandra.utils.memory.MemoryUtil;
 import static java.lang.String.format;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.utils.ByteBufferUtil.compare;
-import static org.apache.cassandra.utils.MerkleTree.Difference.*;
+import static org.apache.cassandra.utils.MerkleTree.Difference.CONSISTENT;
+import static org.apache.cassandra.utils.MerkleTree.Difference.FULLY_INCONSISTENT;
+import static org.apache.cassandra.utils.MerkleTree.Difference.PARTIALLY_INCONSISTENT;
 
 /**
  * A MerkleTree implemented as a binary tree.

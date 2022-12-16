@@ -26,17 +26,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
-
-import org.apache.cassandra.utils.WithResources;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.MBeanWrapper;
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
+import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.WithResources;
+import org.apache.cassandra.utils.concurrent.Condition;
+import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.*;
+import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.NONE_AVAILABLE;
+import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.RETURNED_WORK_PERMIT;
+import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.TOOK_PERMIT;
 import static org.apache.cassandra.concurrent.SEPWorker.Work;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 

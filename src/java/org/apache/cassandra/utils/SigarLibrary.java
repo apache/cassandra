@@ -17,11 +17,14 @@
  */
 package org.apache.cassandra.utils;
 
-import org.hyperic.sigar.*;
-import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.hyperic.sigar.FileSystemMap;
+import org.hyperic.sigar.Sigar;
+import org.hyperic.sigar.SigarException;
+import org.hyperic.sigar.Swap;
 
 public class SigarLibrary
 {

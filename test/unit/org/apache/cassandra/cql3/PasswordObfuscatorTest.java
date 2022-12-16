@@ -23,8 +23,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.auth.RoleOptions;
 
-import static org.apache.cassandra.cql3.PasswordObfuscator.*;
 import static java.lang.String.format;
+import static org.apache.cassandra.cql3.PasswordObfuscator.OBFUSCATION_TOKEN;
+import static org.apache.cassandra.cql3.PasswordObfuscator.obfuscate;
 import static org.junit.Assert.assertEquals;
 
 public class PasswordObfuscatorTest

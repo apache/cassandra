@@ -20,23 +20,26 @@ package org.apache.cassandra.service.paxos.uncommitted;
 
 import java.io.IOException;
 
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.paxos.Ballot;
-import org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.REJECT;

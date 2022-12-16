@@ -17,7 +17,8 @@
  */
 package org.apache.cassandra.io.compress;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -27,14 +28,16 @@ import java.util.Collections;
 import java.util.Random;
 
 import com.google.common.io.Files;
-import org.apache.cassandra.io.util.File;
-import static org.junit.Assert.*;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 public class CompressorTest
 {

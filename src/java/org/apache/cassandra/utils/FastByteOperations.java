@@ -24,7 +24,9 @@ import java.nio.ByteOrder;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-import com.google.common.primitives.*;
+import com.google.common.primitives.Longs;
+import com.google.common.primitives.UnsignedBytes;
+import com.google.common.primitives.UnsignedLongs;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
 import sun.misc.Unsafe;

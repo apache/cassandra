@@ -17,10 +17,11 @@
  */
 package org.apache.cassandra.db.rows;
 
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
-
-import org.apache.cassandra.db.*;
 
 /**
  * Abstract class to create UnfilteredRowIterator that lazily initialize themselves.

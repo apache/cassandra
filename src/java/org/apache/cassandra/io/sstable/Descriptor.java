@@ -17,7 +17,8 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;

@@ -18,6 +18,14 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
 import com.google.common.base.Predicates;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
@@ -25,26 +33,35 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import org.junit.Assert;
+import org.junit.Test;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.AbstractMap;
-import java.util.Comparator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
-import static com.google.common.collect.Iterables.*;
+import static com.google.common.collect.Iterables.elementsEqual;
+import static com.google.common.collect.Iterables.filter;
+import static com.google.common.collect.Iterables.limit;
 import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.Replica.transientReplica;
-import static org.apache.cassandra.locator.ReplicaUtils.*;
+import static org.apache.cassandra.locator.ReplicaUtils.ALL_EP;
+import static org.apache.cassandra.locator.ReplicaUtils.ALL_R;
+import static org.apache.cassandra.locator.ReplicaUtils.BROADCAST_EP;
+import static org.apache.cassandra.locator.ReplicaUtils.BROADCAST_RANGE;
+import static org.apache.cassandra.locator.ReplicaUtils.EP1;
+import static org.apache.cassandra.locator.ReplicaUtils.EP2;
+import static org.apache.cassandra.locator.ReplicaUtils.EP3;
+import static org.apache.cassandra.locator.ReplicaUtils.EP4;
+import static org.apache.cassandra.locator.ReplicaUtils.EP5;
+import static org.apache.cassandra.locator.ReplicaUtils.NULL_EP;
+import static org.apache.cassandra.locator.ReplicaUtils.NULL_RANGE;
+import static org.apache.cassandra.locator.ReplicaUtils.R1;
+import static org.apache.cassandra.locator.ReplicaUtils.R2;
+import static org.apache.cassandra.locator.ReplicaUtils.R3;
+import static org.apache.cassandra.locator.ReplicaUtils.R4;
+import static org.apache.cassandra.locator.ReplicaUtils.R5;
+import static org.apache.cassandra.locator.ReplicaUtils.tk;
 
 public class ReplicaCollectionTest
 {

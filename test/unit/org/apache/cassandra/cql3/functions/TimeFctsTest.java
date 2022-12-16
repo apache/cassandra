@@ -18,7 +18,10 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
-import java.time.*;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collections;
 import java.util.Date;
@@ -34,7 +37,9 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static org.apache.cassandra.cql3.functions.TimeFcts.*;
+import static org.apache.cassandra.cql3.functions.TimeFcts.toDate;
+import static org.apache.cassandra.cql3.functions.TimeFcts.toTimestamp;
+import static org.apache.cassandra.cql3.functions.TimeFcts.toUnixTimestamp;
 import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;

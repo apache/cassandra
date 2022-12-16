@@ -24,9 +24,13 @@ import java.util.zip.CRC32;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.io.util.ChannelProxy;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.RebufferingInputStream;
 import org.apache.cassandra.utils.NativeLibrary;
+import org.apache.cassandra.utils.Throwables;
 
 /**
  * A {@link RandomAccessReader} wrapper that calculates the CRC in place.

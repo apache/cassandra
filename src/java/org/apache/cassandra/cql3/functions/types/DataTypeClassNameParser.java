@@ -17,16 +17,18 @@
  */
 package org.apache.cassandra.cql3.functions.types;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.cql3.functions.types.exceptions.DriverInternalError;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /*
  * Parse data types from schema tables, for Cassandra 3.0 and above.

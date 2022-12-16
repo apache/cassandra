@@ -21,7 +21,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.management.Notification;
 import javax.management.NotificationBroadcasterSupport;
 
-import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.streaming.ProgressInfo;
+import org.apache.cassandra.streaming.StreamEvent;
+import org.apache.cassandra.streaming.StreamEventHandler;
+import org.apache.cassandra.streaming.StreamManagerMBean;
+import org.apache.cassandra.streaming.StreamState;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 

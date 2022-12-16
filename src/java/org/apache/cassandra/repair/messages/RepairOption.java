@@ -17,7 +17,13 @@
  */
 package org.apache.cassandra.repair.messages;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringTokenizer;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
@@ -28,8 +34,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairParallelism;
+import org.apache.cassandra.streaming.PreviewKind;
 
 /**
  * Repair options.

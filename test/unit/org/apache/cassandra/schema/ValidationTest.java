@@ -18,11 +18,15 @@
  */
 package org.apache.cassandra.schema;
 
-import java.util.*;
-
-import org.apache.cassandra.db.marshal.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import org.junit.Test;
+
+import org.apache.cassandra.db.marshal.AbstractType;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

@@ -26,7 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -37,12 +36,18 @@ import com.google.common.primitives.Ints;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.metrics.PaxosMetrics;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.metrics.PaxosMetrics;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosBallotTracker;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosStateTracker;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTracker;
@@ -50,15 +55,23 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Nemesis;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.gc_grace;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
-import static org.apache.cassandra.service.paxos.Commit.*;
-import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.*;
+import static org.apache.cassandra.service.paxos.Commit.Accepted;
 import static org.apache.cassandra.service.paxos.Commit.Accepted.latestAccepted;
+import static org.apache.cassandra.service.paxos.Commit.AcceptedWithTTL;
+import static org.apache.cassandra.service.paxos.Commit.Agreed;
+import static org.apache.cassandra.service.paxos.Commit.Committed;
 import static org.apache.cassandra.service.paxos.Commit.Committed.latestCommitted;
+import static org.apache.cassandra.service.paxos.Commit.CommittedWithTTL;
+import static org.apache.cassandra.service.paxos.Commit.Proposal;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
+import static org.apache.cassandra.service.paxos.Commit.latest;
+import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PERMIT_READ;
+import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PROMISE;
+import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.REJECT;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * We save to memory the result of each operation before persisting to disk, however each operation that performs

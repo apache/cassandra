@@ -28,7 +28,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -55,12 +54,13 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.util.function.Function.identity;
 import static org.apache.cassandra.simulator.Action.Modifier.INFO;
 import static org.apache.cassandra.simulator.Action.Modifier.WAKEUP;
+import static org.apache.cassandra.simulator.ActionListener.recursive;
 import static org.apache.cassandra.simulator.ActionListener.runAfter;
 import static org.apache.cassandra.simulator.ActionListener.runAfterAndTransitivelyAfter;
-import static org.apache.cassandra.simulator.ActionListener.recursive;
-import static org.apache.cassandra.simulator.Debug.EventType.*;
+import static org.apache.cassandra.simulator.Debug.EventType.CLUSTER;
+import static org.apache.cassandra.simulator.Debug.EventType.PARTITION;
 import static org.apache.cassandra.simulator.Debug.Info.LOG;
-import static org.apache.cassandra.simulator.Debug.Level.*;
+import static org.apache.cassandra.simulator.Debug.Level.PLANNED;
 import static org.apache.cassandra.simulator.paxos.Ballots.paxosDebugInfo;
 
 // TODO (feature): move logging to a depth parameter

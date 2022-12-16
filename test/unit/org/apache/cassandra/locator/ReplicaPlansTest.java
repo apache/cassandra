@@ -18,22 +18,32 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.Map;
+import java.util.Set;
+
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.junit.Test;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.junit.Test;
-
-import java.util.Map;
-import java.util.Set;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;
-import static org.apache.cassandra.locator.ReplicaUtils.*;
+import static org.apache.cassandra.locator.ReplicaUtils.EP1;
+import static org.apache.cassandra.locator.ReplicaUtils.EP2;
+import static org.apache.cassandra.locator.ReplicaUtils.EP3;
+import static org.apache.cassandra.locator.ReplicaUtils.EP4;
+import static org.apache.cassandra.locator.ReplicaUtils.EP5;
+import static org.apache.cassandra.locator.ReplicaUtils.EP6;
+import static org.apache.cassandra.locator.ReplicaUtils.R1;
+import static org.apache.cassandra.locator.ReplicaUtils.assertEquals;
+import static org.apache.cassandra.locator.ReplicaUtils.tk;
+import static org.apache.cassandra.locator.ReplicaUtils.trans;
 
 public class ReplicaPlansTest
 {

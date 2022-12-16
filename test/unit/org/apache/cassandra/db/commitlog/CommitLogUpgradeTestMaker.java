@@ -33,23 +33,30 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.junit.Assert;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.db.commitlog.CommitLogUpgradeTest.*;
+import static org.apache.cassandra.db.commitlog.CommitLogUpgradeTest.CELLS_PROPERTY;
+import static org.apache.cassandra.db.commitlog.CommitLogUpgradeTest.CFID_PROPERTY;
+import static org.apache.cassandra.db.commitlog.CommitLogUpgradeTest.HASH_PROPERTY;
+import static org.apache.cassandra.db.commitlog.CommitLogUpgradeTest.KEYSPACE;
+import static org.apache.cassandra.db.commitlog.CommitLogUpgradeTest.PROPERTIES_FILE;
+import static org.apache.cassandra.db.commitlog.CommitLogUpgradeTest.TABLE;
+import static org.apache.cassandra.db.commitlog.CommitLogUpgradeTest.hash;
+import static org.apache.cassandra.db.commitlog.CommitLogUpgradeTest.metadata;
 
 public class CommitLogUpgradeTestMaker
 {

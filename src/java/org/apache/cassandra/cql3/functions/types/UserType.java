@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.cql3.functions.types;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
