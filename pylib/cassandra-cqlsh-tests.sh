@@ -129,7 +129,7 @@ ccm start --wait-for-binary-proto
 cd ${CASSANDRA_DIR}/pylib/cqlshlib/
 
 set +e # disable immediate exit from this point
-nosetests
+pytest
 RETURN="$?"
 
 ccm remove
