@@ -24,6 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 
 import org.apache.cassandra.locator.EndpointsForToken;
@@ -60,8 +62,8 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     protected final WriteType writeType;
     private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> failuresUpdater
     = AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
-    private volatile int failures = 0;
-    private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
+    protected volatile int failures = 0;
+    protected final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
     private final long queryStartNanoTime;
 
     /**
@@ -95,17 +97,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
 
     public void get() throws WriteTimeoutException, WriteFailureException
     {
-        long timeoutNanos = currentTimeoutNanos();
-
-        boolean success;
-        try
-        {
-            success = condition.await(timeoutNanos, NANOSECONDS);
-        }
-        catch (InterruptedException ex)
-        {
-            throw new AssertionError(ex);
-        }
+        boolean success = await();
 
         if (!success)
         {
@@ -125,12 +117,41 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         }
     }
 
+    public boolean await()
+    {
+        long timeoutNanos = currentTimeoutNanos();
+
+        try
+        {
+            return condition.await(timeoutNanos, NANOSECONDS);
+        }
+        catch (InterruptedException ex)
+        {
+            throw new AssertionError(ex);
+        }
+    }
+
     public long currentTimeoutNanos()
     {
         long requestTimeout = writeType == WriteType.COUNTER
                               ? DatabaseDescriptor.getCounterWriteRpcTimeout(NANOSECONDS)
                               : DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS);
         return requestTimeout - (System.nanoTime() - queryStartNanoTime);
+    }
+
+    public ReplicaPlan.ForTokenWrite replicaPlan()
+    {
+        return replicaPlan;
+    }
+
+    public WriteType writeType()
+    {
+        return writeType;
+    }
+
+    public long queryStartNanoTime()
+    {
+        return queryStartNanoTime;
     }
 
     /**
@@ -194,7 +215,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     /**
      * @return the minimum number of endpoints that must respond.
      */
-    protected int blockFor()
+    public int blockFor()
     {
         // During bootstrap, we have to include the pending endpoints or we may fail the consistency level
         // guarantees (see #833)
@@ -206,7 +227,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
      *       this needs to be aware of which nodes are live/down
      * @return the total number of endpoints the request can send to.
      */
-    protected int candidateReplicaCount()
+    public int candidateReplicaCount()
     {
         if (replicaPlan.consistencyLevel().isDatacenterLocal())
             return countInOurDc(replicaPlan.liveAndDown()).allReplicas();
@@ -222,7 +243,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     /**
      * @return true if the message counts towards the blockFor() threshold
      */
-    protected boolean waitingFor(InetAddressAndPort from)
+    public boolean waitingFor(InetAddressAndPort from)
     {
         return true;
     }
@@ -230,14 +251,14 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     /**
      * @return number of responses received
      */
-    protected abstract int ackCount();
+    public abstract int ackCount();
 
     /**
      * null message means "response from local write"
      */
     public abstract void onResponse(Message<T> msg);
 
-    protected void signal()
+    public void signal()
     {
         //The ideal CL should only count as a strike if the requested CL was achieved.
         //If the requested CL is not achieved it's fine for the ideal CL to also not be achieved.
@@ -249,6 +270,23 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         condition.signalAll();
         if (callback != null)
             callback.run();
+    }
+
+    /**
+     * @return true if condition is signaled either for success or failure
+     */
+    @VisibleForTesting
+    public boolean isCompleted()
+    {
+        return condition.isSignaled();
+    }
+
+    /**
+     * @return true if condition is signaled for failure
+     */
+    public boolean isCompletedExceptionally()
+    {
+        return isCompleted() && blockFor() + failures > candidateReplicaCount();
     }
 
     @Override

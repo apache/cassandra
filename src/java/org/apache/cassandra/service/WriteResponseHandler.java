@@ -61,7 +61,7 @@ public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
         logResponseToIdealCLDelegate(m);
     }
 
-    protected int ackCount()
+    public int ackCount()
     {
         return blockFor() - responses;
     }

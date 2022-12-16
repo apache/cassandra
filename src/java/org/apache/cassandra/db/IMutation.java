@@ -30,6 +30,7 @@ public interface IMutation
 
     public void apply();
     public String getKeyspaceName();
+    public Keyspace getKeyspace();
     public Collection<TableId> getTableIds();
     public DecoratedKey key();
     public long getTimeout(TimeUnit unit);

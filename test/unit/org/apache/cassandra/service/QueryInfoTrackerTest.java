@@ -303,7 +303,7 @@ public class QueryInfoTrackerTest extends CQLTester
     @Test
     @BMRule(name = "Simulate write batch failure",
     targetClass = "StorageProxy",
-    targetMethod = "syncWriteBatchedMutations",
+    targetMethod = "asyncWriteBatchedMutations",
     targetLocation = "AT ENTRY",
     action = "throw new org.apache.cassandra.exceptions.UnavailableException(\"msg\", org.apache.cassandra.db.ConsistencyLevel.SERIAL, 3, 1)")
     public void testReadBatchFailureCount()
