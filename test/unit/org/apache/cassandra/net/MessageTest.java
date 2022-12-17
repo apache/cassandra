@@ -19,6 +19,8 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -50,6 +52,7 @@ import static org.apache.cassandra.net.ParamType.TRACE_SESSION;
 import static org.apache.cassandra.net.ParamType.TRACE_TYPE;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+
 import static org.junit.Assert.*;
 
 public class MessageTest
@@ -210,6 +213,38 @@ public class MessageTest
     {
         Message<NoPayload> msg = Message.builder(Verb._TEST_1, noPayload).withTracingParams().build();
         assertNull(msg.header.traceSession());
+    }
+
+    @Test
+    public void testCustomParams() throws CharacterCodingException, IOException
+    {
+        long id = 1;
+        InetAddressAndPort from = FBUtilities.getLocalAddressAndPort();
+
+        Message<NoPayload> msg =
+            Message.builder(Verb._TEST_1, noPayload)
+                   .withId(1)
+                   .from(from)
+                   .withCustomParam("custom1", "custom1value".getBytes(StandardCharsets.UTF_8))
+                   .withCustomParam("custom2", "custom2value".getBytes(StandardCharsets.UTF_8))
+                   .build();
+
+        assertEquals(id, msg.id());
+        assertEquals(from, msg.from());
+        assertEquals(2, msg.header.customParams().size());
+        assertEquals("custom1value", new String(msg.header.customParams().get("custom1"), StandardCharsets.UTF_8));
+        assertEquals("custom2value", new String(msg.header.customParams().get("custom2"), StandardCharsets.UTF_8));
+
+        DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get();
+        Message.serializer.serialize(msg, out, VERSION_40);
+        DataInputBuffer in = new DataInputBuffer(out.buffer(), true);
+        msg = Message.serializer.deserialize(in, from, VERSION_40);
+
+        assertEquals(id, msg.id());
+        assertEquals(from, msg.from());
+        assertEquals(2, msg.header.customParams().size());
+        assertEquals("custom1value", new String(msg.header.customParams().get("custom1"), StandardCharsets.UTF_8));
+        assertEquals("custom2value", new String(msg.header.customParams().get("custom2"), StandardCharsets.UTF_8));
     }
 
     private void testAddTraceHeaderWithType(TraceType traceType)
