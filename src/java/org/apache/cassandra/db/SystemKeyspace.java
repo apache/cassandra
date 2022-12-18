@@ -309,7 +309,7 @@ public final class SystemKeyspace
                 + "columnfamily_name text,"
                 + "compacted_at timestamp,"
                 + "keyspace_name text,"
-                + "rows_merged map<int, bigint>," 
+                + "rows_merged map<int, bigint>,"
                 + "compaction_type text,"
                 + "PRIMARY KEY ((id)))")
                 .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(7))
@@ -593,7 +593,7 @@ public final class SystemKeyspace
                                                long compactedAt,
                                                long bytesIn,
                                                long bytesOut,
-                                               Map<Integer, Long> rowsMerged, 
+                                               Map<Integer, Long> rowsMerged,
                                                String compactionType)
     {
         // don't write anything when the history table itself is compacted, since that would in turn cause new compactions

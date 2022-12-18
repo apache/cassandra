@@ -33,7 +33,7 @@ import java.util.Arrays;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.junit.Assert.assertTrue;
 
-public class CompactionHistoryTest extends CQLTester 
+public class CompactionHistoryTest extends CQLTester
 {
     @BeforeClass
     public static void setup() throws Exception
@@ -61,7 +61,7 @@ public class CompactionHistoryTest extends CQLTester
         String cql = "select keyspace_name,columnfamily_name,compaction_type  from system." + SystemKeyspace.COMPACTION_HISTORY +
                      " where keyspace_name = '" + keyspace() + "' AND columnfamily_name = '" + currentTable() + "' ALLOW FILTERING";
         
-        Object[] row = row(keyspace(), currentTable(), OperationType.MAJOR_COMPACTION.type);        
+        Object[] row = row(keyspace(), currentTable(), OperationType.MAJOR_COMPACTION.type);    
         assertRows(execute(cql), row);
     }
     
@@ -120,7 +120,7 @@ public class CompactionHistoryTest extends CQLTester
     }
     
     
-    private void compactionHistoryResultVerify( String keyspace, String table, String operationType, String[] cmds) 
+    private void compactionHistoryResultVerify( String keyspace, String table, String operationType, String[] cmds)
     {
         ToolRunner.ToolResult toolCompact = invokeNodetool(cmds);
         toolCompact.assertOnCleanExit();

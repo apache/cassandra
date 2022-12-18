@@ -29,7 +29,6 @@ import static com.google.common.collect.Iterables.toArray;
 
 public class CompactionHistoryPrinter
 {
-    
     public static StatsPrinter from(String format)
     {
         switch (format)
