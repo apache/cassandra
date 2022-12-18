@@ -86,10 +86,10 @@
                  <!-- Documentation files -->
                  <exclude name="**/doc/modules/**/*"/>
                  <exclude name="**/src/java/**/*.md"/>
-                 <!-- NOTICE files -->
+                 <!-- NOTICE, LICENSE, README files -->
                  <exclude name="**/NOTICE.md"/>
-                 <!-- LICENSE files -->
                  <exclude name="**/LICENSE.md"/>
+                 <exclude name="**/README.md"/>
             </fileset>
         </rat:report>
         <exec executable="grep" outputproperty="rat.failed.files" failifexecutionfails="false">
@@ -105,15 +105,4 @@
             </condition>
         </fail>
     </target>
-
-    <target name="_assert_rat_output">
-        <fail message="The rat report at build/rat.txt was not generated. Please ensure that the rat-check task is able to run successfully. For dev builds only, touch build/rat.txt to skip this check">
-            <condition>
-                <not>
-                    <available file="${build.dir}/rat.txt" />
-                </not>
-            </condition>
-        </fail>
-    </target>
-
 </project>

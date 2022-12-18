@@ -1,0 +1,60 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+FROM almalinux:8
+MAINTAINER Apache Cassandra <dev@cassandra.apache.org>
+
+# CONTEXT is expected to be cassandra/.build
+
+ENV BUILD_HOME=/home/build
+ENV RPM_BUILD_DIR=$BUILD_HOME/rpmbuild
+ENV DIST_DIR=/dist
+ENV CASSANDRA_DIR=$BUILD_HOME/cassandra
+ARG UID_ARG=1000
+ARG GID_ARG=1000
+
+LABEL org.cassandra.buildenv=almalinux
+
+VOLUME ${DIST_DIR}
+VOLUME ${CASSANDRA_DIR}
+
+RUN echo "Building with arguments:" \
+    && echo " - DIST_DIR=${DIST_DIR}" \
+    && echo " - BUILD_HOME=${BUILD_HOME}" \
+    && echo " - RPM_BUILD_DIR=${RPM_BUILD_DIR}" \
+    && echo " - CASSANDRA_DIR=${CASSANDRA_DIR}" \
+    && echo " - UID_ARG=${UID_ARG}" \
+    && echo " - GID_ARG=${GID_ARG}"
+
+# install deps
+RUN yum -y install \
+   ant \
+   git \
+   java-11-openjdk-devel \
+   java-17-openjdk-devel \
+   make \
+   rpm-build \
+   sudo \
+   python3-pip \
+   procps \
+   rsync
+
+RUN until curl -f -S -s --retry 9 --retry-connrefused --retry-delay 1 http://mirror.centos.org/centos/7/os/x86_64/Packages/ant-junit-1.9.4-2.el7.noarch.rpm -o ant-junit-1.9.4-2.el7.noarch.rpm ; do echo "curl failed… trying again in 10s… " ; sleep 10 ; done
+
+RUN rpm -i --nodeps ant-junit-1.9.4-2.el7.noarch.rpm
+
+# python3 is needed for the gen-doc target
+RUN pip3 install --upgrade pip
