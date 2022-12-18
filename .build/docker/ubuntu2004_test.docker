@@ -1,0 +1,163 @@
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+FROM ubuntu:20.04
+MAINTAINER Apache Cassandra <dev@cassandra.apache.org>
+
+# CONTEXT is expected to be cassandra/.build
+
+ENV BUILD_HOME=/home/cassandra
+ENV CASSANDRA_DIR=$BUILD_HOME/cassandra
+ENV DIST_DIR=$CASSANDRA_DIR/build
+ENV LANG=en_US.UTF-8
+ENV LC_CTYPE=en_US.UTF-8
+ENV PYTHONIOENCODING=utf-8
+ENV PYTHONUNBUFFERED=true
+
+LABEL org.cassandra.buildenv=ubuntu_2004
+
+VOLUME ${CASSANDRA_DIR}
+VOLUME ${DIST_DIR}
+
+RUN echo "Building with arguments:" \
+    && echo " - DIST_DIR=${DIST_DIR}" \
+    && echo " - BUILD_HOME=${BUILD_HOME}" \
+    && echo " - CASSANDRA_DIR=${CASSANDRA_DIR}" \
+    && echo " - UID_ARG=${UID_ARG}" \
+    && echo " - GID_ARG=${GID_ARG}"
+
+# configure apt to retry downloads
+RUN echo 'APT::Acquire::Retries "99";' > /etc/apt/apt.conf.d/80-retries
+RUN echo 'Acquire::http::Timeout "60";' > /etc/apt/apt.conf.d/80proxy.conf
+RUN echo 'Acquire::ftp::Timeout "60";' >> /etc/apt/apt.conf.d/80proxy.conf
+
+# install our python dependencies and some other stuff we need
+# libev4 libev-dev are for the python driver / libssl-dev is for python3.6
+
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends software-properties-common apt-utils
+
+RUN export DEBIAN_FRONTEND=noninteractive && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y curl git-core python3-pip \
+        python3.6 python3.6-venv python3.6-dev \
+        python3.7 python3.7-venv python3.7-dev \
+        python3.8 python3.8-venv python3.8-dev \
+        python3.11 python3.11-venv python3.11-dev \
+        virtualenv net-tools libev4 libev-dev wget gcc libssl-dev libxml2 libxslt1-dev \
+        vim lsof sudo libjemalloc2 dumb-init locales \
+        openjdk-8-jdk openjdk-11-jdk openjdk-17-jdk ant ant-optional
+
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.6 2
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.7 3
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 4
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 5
+RUN python3.6 -m pip install --upgrade pip
+RUN python3.7 -m pip install --upgrade pip
+RUN python3.8 -m pip install --upgrade pip
+
+# generate locales for the standard en_US.UTF8 value we use for testing
+RUN locale-gen en_US.UTF-8
+
+# as we only need the requirements.txt file from the dtest repo, let's just get it from GitHub as a raw asset
+# so we can avoid needing to clone the entire repo just to get this file
+RUN curl https://raw.githubusercontent.com/apache/cassandra-dtest/trunk/requirements.txt --output /opt/requirements.txt
+RUN chmod 0644 /opt/requirements.txt
+
+# now setup python via virtualenv with all of the python dependencies we need according to requirements.txt
+RUN pip3 install virtualenv virtualenv-clone
+RUN pip3 install --upgrade wheel
+
+# make Java 8 the default executable (we use to run all tests against Java 8)
+RUN update-java-alternatives --set java-1.8.0-openjdk-$(dpkg --print-architecture)
+
+# enable legacy TLSv1 and TLSv1.1 (CASSANDRA-16848)
+RUN find /etc -type f -name java.security -exec sed -i 's/TLSv1, TLSv1.1//' {} \;
+RUN find /etc -type f -name java.security -exec sed -i 's/3DES_EDE_CBC$/3DES_EDE_CBC, TLSv1, TLSv1.1/' {} \;
+
+# create and change to cassandra-tmp user, use an rare uid to avoid collision later on
+RUN adduser --disabled-login --uid 901743 --lastuid 901743 --gecos cassandra cassandra-tmp
+RUN gpasswd -a cassandra-tmp sudo
+RUN echo "cassandra-tmp ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/build
+RUN chmod 0440 /etc/sudoers.d/build
+
+# switch to the cassandra user
+USER cassandra-tmp
+ENV HOME ${BUILD_HOME}
+WORKDIR ${BUILD_HOME}
+
+ENV ANT_HOME=/usr/share/ant
+
+# run pip commands and setup virtualenv (note we do this after we switch to cassandra user so we
+# setup the virtualenv for the cassandra user and not the root user by accident) for Python 3.6/3.7/3.8
+# Don't build cython extensions when installing cassandra-driver. During test execution the driver
+# dependency is refreshed via pip install --upgrade, so that driver changes can be pulled in without
+# requiring the image to be rebuilt. Rebuilding compiled extensions is costly and is disabled by
+# default in test jobs using the CASS_DRIVER_X env vars below. However, if the extensions are
+# included in the base image, the compiled objects are not updated by pip at run time, which can
+# cause errors if the tests rely on new driver functionality or bug fixes.
+
+RUN virtualenv --python=python3.6 ${BUILD_HOME}/env3.6
+RUN chmod +x ${BUILD_HOME}/env3.6/bin/activate
+
+RUN /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
+    && source ${BUILD_HOME}/env3.6/bin/activate \
+    && pip3 install --upgrade pip \
+    && pip3 install -r /opt/requirements.txt \
+    && pip3 freeze --user"
+
+RUN virtualenv --python=python3.7 ${BUILD_HOME}/env3.7
+RUN chmod +x ${BUILD_HOME}/env3.7/bin/activate
+
+RUN /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
+    && source ${BUILD_HOME}/env3.7/bin/activate \
+    && pip3 install --upgrade pip \
+    && pip3 install -r /opt/requirements.txt \
+    && pip3 freeze --user"
+
+RUN virtualenv --python=python3.8 ${BUILD_HOME}/env3.8
+RUN chmod +x ${BUILD_HOME}/env3.8/bin/activate
+
+RUN /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
+    && source ${BUILD_HOME}/env3.8/bin/activate \
+    && pip3 install --upgrade pip \
+    && pip3 install -r /opt/requirements.txt \
+    && pip3 freeze --user"
+
+RUN virtualenv --python=python3.11 ${BUILD_HOME}/env3.11
+RUN chmod +x ${BUILD_HOME}/env3.11/bin/activate
+
+RUN /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
+    && source ${BUILD_HOME}/env3.11/bin/activate \
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 \
+    && pip3 install -r /opt/requirements.txt \
+    && pip3 freeze --user"
+
+# Initialize the CCM git repo as well as this also can fail to clone
+RUN /bin/bash -c "source ${BUILD_HOME}/env3.6/bin/activate && \
+    ccm create -n 1 -v git:trunk test && ccm remove test && \
+    ccm create -n 1 -v git:cassandra-4.1 test && ccm remove test && \
+    ccm create -n 1 -v git:cassandra-4.0 test && ccm remove test"
+
+# the .git subdirectories to pip installed cassandra-driver breaks virtualenv-clone, so just remove them
+RUN rm -rf ${BUILD_HOME}/env*/src/cassandra-driver/.git
+# fix permissions, runtime user has different uid/gid
+RUN chmod -R og+wx ${BUILD_HOME}/.ccm ${BUILD_HOME}/env* ${BUILD_HOME}/.cache
+
+# mark "/tmp" as a volume so it will get mounted as an ext4 mount and not
+# the stupid aufs/CoW stuff that the actual docker container mounts will have.
+# we've been seeing 3+ minute hangs when calling sync on an aufs backed mount
+# so it greatly makes tests flaky as things can hang basically anywhere
+VOLUME ["/tmp"]

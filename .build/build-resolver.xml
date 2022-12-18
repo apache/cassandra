@@ -46,8 +46,10 @@
         <echo>Downloading Resolver ANT Tasks...</echo>
         <mkdir dir="${local.repository}/org/apache/maven/resolver/maven-resolver-ant-tasks/${resolver-ant-tasks.version}" />
 
-        <get src="${resolver-ant-tasks.url}/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar"
-             dest="${resolver-ant-tasks.local}" usetimestamp="true" quiet="true"/>
+        <retry retrycount="3" retrydelay="10" >
+            <get src="${resolver-ant-tasks.url}/${resolver-ant-tasks.version}/maven-resolver-ant-tasks-${resolver-ant-tasks.version}-uber.jar"
+                 dest="${resolver-ant-tasks.local}" usetimestamp="true" quiet="true"/>
+        </retry>
     </target>
 
     <target name="resolver-init" depends="init,_resolver_download" unless="resolver-ant-tasks.initialized" description="Initialize Resolver ANT Tasks">
@@ -175,15 +177,19 @@
         <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
         <resolvepom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps" />
 
-        <resolve>
-            <dependencies pomRef="all-pom"/>
-            <files dir="${build.dir.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,provided,!system"/>
-        </resolve>
-        <resolve>
-            <dependencies pomRef="pom-deps"/>
-            <!-- Needed to include compile here, so ant _build-test would not fail on missing jimfs dependency -->
-            <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,test,!provide,!system"/>
-        </resolve>
+        <retry retrycount="3" retrydelay="10" >
+            <resolve>
+                <dependencies pomRef="all-pom"/>
+                <files dir="${build.dir.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,provided,!system"/>
+            </resolve>
+        </retry>
+        <retry retrycount="3" retrydelay="10" >
+            <resolve>
+                <dependencies pomRef="pom-deps"/>
+                <!-- Needed to include compile here, so ant _build-test would not fail on missing jimfs dependency -->
+                <files dir="${test.lib}/jars" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,test,!provide,!system"/>
+            </resolve>
+        </retry>
 
 
         <!-- jacoco agent jar comes wrapped in a jar -->
@@ -198,44 +204,19 @@
     <target name="resolver-dist-lib" depends="resolver-retrieve-build">
         <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
 
-        <resolve failOnMissingAttachments="true">
-            <dependencies pomRef="all-pom"/>
-            <files dir="${build.lib}" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,!provide,!system"/>
-        </resolve>
+        <retry retrycount="3" retrydelay="10" >
+            <resolve failOnMissingAttachments="true">
+                <dependencies pomRef="all-pom"/>
+                <files dir="${build.lib}" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,!provide,!system"/>
+            </resolve>
+        </retry>
         <mkdir dir="${local.repository}/org/apache/cassandra/deps/sigar-bin"/>
         <mkdir dir="${build.lib}/sigar-bin"/>
 
-        <!-- files.pythonhosted.org/packages -->
-        <get src="${artifact.python.pypi}/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get src="${artifact.python.pypi}/73/fb/00a976f728d0d1fecfe898238ce23f502a721c0ac0ecfedb80e0d88c64e9/six-1.12.0-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get src="${artifact.python.pypi}/37/b2/ef1124540ee2c0b417be8d0f74667957e6aa084a3f26621aa67e2e77f3fb/pure_sasl-0.6.2-py2-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/pure_sasl-0.6.2-py2-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get src="${artifact.python.pypi}/59/7c/e39aca596badaf1b78e8f547c807b04dae603a433d3e7a7e04d67f2ef3e5/wcwidth-0.2.5-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/wcwidth-0.2.5-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <retry retrycount="3" retrydelay="10" >
+            <antcall target="_resolver-dist-lib_get_files"/>
+        </retry>
 
-        <!-- apache/cassandra/lib -->
-        <get src="${lib.download.base.url}/lib/geomet-0.1.0.zip" dest="${local.repository}/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get dest="${local.repository}/org/apache/cassandra/deps/sigar-bin/" quiet="true" usetimestamp="true" skipexisting="true">
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-freebsd-6.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-solaris.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ia64-hpux-11.sl"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ia64-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-pa-hpux-11.sl"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc-aix-5.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64-aix-5.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64le-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-s390x-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-sparc-solaris.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-sparc64-solaris.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-universal-macosx.dylib"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-universal64-macosx.dylib"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-freebsd-5.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-freebsd-6.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-solaris.so"/>
-        </get>
-        
         <copy todir="${build.lib}" quiet="true">
             <file file="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip"/>
@@ -266,4 +247,38 @@
             <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-solaris.so"/>
         </copy>
     </target>
+
+    <target name="_resolver-dist-lib_get_files">
+        <!-- files.pythonhosted.org/packages -->
+        <get src="${artifact.python.pypi}/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/73/fb/00a976f728d0d1fecfe898238ce23f502a721c0ac0ecfedb80e0d88c64e9/six-1.12.0-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/37/b2/ef1124540ee2c0b417be8d0f74667957e6aa084a3f26621aa67e2e77f3fb/pure_sasl-0.6.2-py2-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/pure_sasl-0.6.2-py2-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/59/7c/e39aca596badaf1b78e8f547c807b04dae603a433d3e7a7e04d67f2ef3e5/wcwidth-0.2.5-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/wcwidth-0.2.5-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+
+        <!-- apache/cassandra/lib -->
+        <get src="${lib.download.base.url}/lib/geomet-0.1.0.zip" dest="${local.repository}/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get dest="${local.repository}/org/apache/cassandra/deps/sigar-bin/" quiet="true" usetimestamp="true" skipexisting="true">
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-freebsd-6.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-solaris.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ia64-hpux-11.sl"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ia64-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-pa-hpux-11.sl"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc-aix-5.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64-aix-5.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64le-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-s390x-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-sparc-solaris.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-sparc64-solaris.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-universal-macosx.dylib"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-universal64-macosx.dylib"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-freebsd-5.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-freebsd-6.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-linux.so"/>
+            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-solaris.so"/>
+        </get>
+    </target>
+
 </project>

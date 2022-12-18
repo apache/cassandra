@@ -215,6 +215,7 @@ jobs:
           export cython="yes"
           time mv ~/cassandra /tmp
           cd /tmp/cassandra/
+          ant jar -Dno-checkstyle=true -Drat.skip=true -Dant.gen-doc.skip=true -Djavadoc.skip=true
           ./pylib/cassandra-cqlsh-tests.sh $(pwd)
         no_output_timeout: 15m
     - store_test_results:
@@ -3008,6 +3009,7 @@ jobs:
           export cython="yes"
           time mv ~/cassandra /tmp
           cd /tmp/cassandra/
+          ant jar -Dno-checkstyle=true -Drat.skip=true -Dant.gen-doc.skip=true -Djavadoc.skip=true
           ./pylib/cassandra-cqlsh-tests.sh $(pwd)
         no_output_timeout: 15m
     - store_test_results:
@@ -8483,6 +8485,7 @@ jobs:
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
           cd /tmp/cassandra/
+          ant jar -Dno-checkstyle=true -Drat.skip=true -Dant.gen-doc.skip=true -Djavadoc.skip=true
           ./pylib/cassandra-cqlsh-tests.sh $(pwd)
         no_output_timeout: 15m
     - store_test_results:
@@ -9857,6 +9860,7 @@ jobs:
           export PATH=$JAVA_HOME/bin:$PATH
           time mv ~/cassandra /tmp
           cd /tmp/cassandra/
+          ant jar -Dno-checkstyle=true -Drat.skip=true -Dant.gen-doc.skip=true -Djavadoc.skip=true
           ./pylib/cassandra-cqlsh-tests.sh $(pwd)
         no_output_timeout: 15m
     - store_test_results:
