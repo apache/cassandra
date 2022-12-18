@@ -71,6 +71,7 @@ import static com.google.common.base.Predicates.and;
 import static com.google.common.base.Predicates.not;
 import static com.google.common.collect.Iterables.all;
 import static com.google.common.collect.Iterables.any;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.locator.Replica.fullReplica;
 
 /**
@@ -199,6 +200,33 @@ public class RangeStreamer
         public String message(Replica replica)
         {
             return "Filtered " + replica + " out because it does not belong to " + sourceDc + " datacenter";
+        }
+    }
+
+    /**
+    * Source filter which excludes nodes from local DC.
+    */
+    public static class ExcludeLocalDatacenterFilter implements SourceFilter
+    {
+        private final IEndpointSnitch snitch;
+        private final String localDc;
+
+        public ExcludeLocalDatacenterFilter(IEndpointSnitch snitch)
+        {
+            this.snitch = snitch;
+            this.localDc = snitch.getLocalDatacenter();
+        }
+
+        @Override
+        public boolean apply(Replica replica)
+        {
+            return !snitch.getDatacenter(replica).equals(localDc);
+        }
+
+        @Override
+        public String message(Replica replica)
+        {
+            return "Filtered " + replica + " out because it belongs to the local datacenter";
         }
     }
 
@@ -667,32 +695,62 @@ public class RangeStreamer
             logger.debug("Keyspace {} Sources {}", keyspace, sources);
             sources.asMap().forEach((source, fetchReplicas) -> {
 
-                // filter out already streamed ranges
-                SystemKeyspace.AvailableRanges available = stateStore.getAvailableRanges(keyspace, metadata.partitioner);
+                List<FetchReplica> remaining;
 
-                Predicate<FetchReplica> isAvailable = fetch -> {
-                    boolean isInFull = available.full.contains(fetch.local.range());
-                    boolean isInTrans = available.trans.contains(fetch.local.range());
-
-                    if (!isInFull && !isInTrans)
-                        //Range is unavailable
-                        return false;
-
-                    if (fetch.local.isFull())
-                        //For full, pick only replicas with matching transientness
-                        return isInFull == fetch.remote.isFull();
-
-                    // Any transient or full will do
-                    return true;
-                };
-
-                List<FetchReplica> remaining = fetchReplicas.stream().filter(not(isAvailable)).collect(Collectors.toList());
-
-                if (remaining.size() < available.full.size() + available.trans.size())
+                // If the operator's specified they want to reset bootstrap progress, we don't check previous attempted
+                // bootstraps and just restart with all.
+                if (RESET_BOOTSTRAP_PROGRESS.getBoolean())
                 {
-                    List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
-                    logger.info("Some ranges of {} are already available. Skipping streaming those ranges. Skipping {}. Fully available {} Transiently available {}",
-                                fetchReplicas, skipped, available.full, available.trans);
+                    // TODO: Also remove the files on disk. See discussion in CASSANDRA-17679
+                    SystemKeyspace.resetAvailableStreamedRangesForKeyspace(keyspace);
+                    remaining = new ArrayList<>(fetchReplicas);
+                }
+                else
+                {
+                    // Filter out already streamed ranges
+                    SystemKeyspace.AvailableRanges available = stateStore.getAvailableRanges(keyspace, metadata.partitioner);
+
+                    Predicate<FetchReplica> isAvailable = fetch -> {
+                        boolean isInFull = available.full.contains(fetch.local.range());
+                        boolean isInTrans = available.trans.contains(fetch.local.range());
+
+                        if (!isInFull && !isInTrans)
+                            // Range is unavailable
+                            return false;
+
+                        if (fetch.local.isFull())
+                            // For full, pick only replicas with matching transientness
+                            return isInFull == fetch.remote.isFull();
+
+                        // Any transient or full will do
+                        return true;
+                    };
+
+                    remaining = fetchReplicas.stream().filter(not(isAvailable)).collect(Collectors.toList());
+
+                    if (remaining.size() < available.full.size() + available.trans.size())
+                    {
+                        // If the operator hasn't specified what to do when we discover a previous partially successful bootstrap,
+                        // we error out and tell them to manually reconcile it. See CASSANDRA-17679.
+                        if (!RESET_BOOTSTRAP_PROGRESS.isPresent())
+                        {
+                            List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
+                            String msg = String.format("Discovered existing bootstrap data and %s " +
+                                                       "is not configured; aborting bootstrap. Please clean up local files manually " +
+                                                       "and try again or set cassandra.reset_bootstrap_progress=true to ignore. " +
+                                                       "Found: %s. Fully available: %s. Transiently available: %s",
+                                                       RESET_BOOTSTRAP_PROGRESS.getKey(), skipped, available.full, available.trans);
+                            logger.error(msg);
+                            throw new IllegalStateException(msg);
+                        }
+
+                        if (!RESET_BOOTSTRAP_PROGRESS.getBoolean())
+                        {
+                            List<FetchReplica> skipped = fetchReplicas.stream().filter(isAvailable).collect(Collectors.toList());
+                            logger.info("Some ranges of {} are already available. Skipping streaming those ranges. Skipping {}. Fully available {} Transiently available {}",
+                                        fetchReplicas, skipped, available.full, available.trans);
+                        }
+                    }
                 }
 
                 if (logger.isTraceEnabled())

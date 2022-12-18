@@ -28,6 +28,7 @@ import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.cql3.statements.StatementType;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -50,10 +51,15 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  */
 public final class StatementRestrictions
 {
-    public static final String REQUIRES_ALLOW_FILTERING_MESSAGE =
-            "Cannot execute this query as it might involve data filtering and " +
-            "thus may have unpredictable performance. If you want to execute " +
-            "this query despite the performance unpredictability, use ALLOW FILTERING";
+    private static final String ALLOW_FILTERING_MESSAGE =
+            "Cannot execute this query as it might involve data filtering and thus may have unpredictable performance. ";
+
+    public static final String REQUIRES_ALLOW_FILTERING_MESSAGE = ALLOW_FILTERING_MESSAGE +
+            "If you want to execute this query despite the performance unpredictability, use ALLOW FILTERING";
+
+    public static final String CANNOT_USE_ALLOW_FILTERING_MESSAGE = ALLOW_FILTERING_MESSAGE +
+            "Executing this query despite the performance unpredictability with ALLOW FILTERING has been disabled " +
+            "by the allow_filtering_enabled property in cassandra.yaml";
 
     /**
      * The type of statement
@@ -125,7 +131,8 @@ public final class StatementRestrictions
         this.notNullColumns = new HashSet<>();
     }
 
-    public StatementRestrictions(StatementType type,
+    public StatementRestrictions(ClientState state,
+                                 StatementType type,
                                  TableMetadata table,
                                  WhereClause whereClause,
                                  VariableSpecifications boundNames,
@@ -133,14 +140,15 @@ public final class StatementRestrictions
                                  boolean allowFiltering,
                                  boolean forView)
     {
-        this(type, table, whereClause, boundNames, selectsOnlyStaticColumns, type.allowUseOfSecondaryIndices(), allowFiltering, forView);
+        this(state, type, table, whereClause, boundNames, selectsOnlyStaticColumns, type.allowUseOfSecondaryIndices(), allowFiltering, forView);
     }
 
     /*
      * We want to override allowUseOfSecondaryIndices flag from the StatementType for MV statements
      * to avoid initing the Keyspace and SecondaryIndexManager.
      */
-    public StatementRestrictions(StatementType type,
+    public StatementRestrictions(ClientState state,
+                                 StatementType type,
                                  TableMetadata table,
                                  WhereClause whereClause,
                                  VariableSpecifications boundNames,
@@ -214,7 +222,7 @@ public final class StatementRestrictions
         }
 
         // At this point, the select statement if fully constructed, but we still have a few things to validate
-        processPartitionKeyRestrictions(hasQueriableIndex, allowFiltering, forView);
+        processPartitionKeyRestrictions(state, hasQueriableIndex, allowFiltering, forView);
 
         // Some but not all of the partition key columns have been specified;
         // hence we need turn these restrictions into a row filter.
@@ -267,7 +275,7 @@ public final class StatementRestrictions
             if (hasQueriableIndex)
                 usesSecondaryIndexing = true;
             else if (!allowFiltering)
-                throw invalidRequest(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+                throw invalidRequest(allowFilteringMessage(state));
 
             filterRestrictions.add(nonPrimaryKeyRestrictions);
         }
@@ -408,7 +416,7 @@ public final class StatementRestrictions
         return this.usesSecondaryIndexing;
     }
 
-    private void processPartitionKeyRestrictions(boolean hasQueriableIndex, boolean allowFiltering, boolean forView)
+    private void processPartitionKeyRestrictions(ClientState state, boolean hasQueriableIndex, boolean allowFiltering, boolean forView)
     {
         if (!type.allowPartitionKeyRanges())
         {
@@ -445,7 +453,7 @@ public final class StatementRestrictions
             if (partitionKeyRestrictions.needFiltering(table))
             {
                 if (!allowFiltering && !forView && !hasQueriableIndex)
-                    throw new InvalidRequestException(REQUIRES_ALLOW_FILTERING_MESSAGE);
+                    throw new InvalidRequestException(allowFilteringMessage(state));
 
                 isKeyRange = true;
                 usesSecondaryIndexing = hasQueriableIndex;
@@ -873,5 +881,12 @@ public final class StatementRestrictions
     public String toString()
     {
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
+    }
+
+    private static String allowFilteringMessage(ClientState state)
+    {
+        return Guardrails.allowFilteringEnabled.isEnabled(state)
+               ? REQUIRES_ALLOW_FILTERING_MESSAGE
+               : CANNOT_USE_ALLOW_FILTERING_MESSAGE;
     }
 }

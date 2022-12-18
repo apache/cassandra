@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -127,11 +128,19 @@ public abstract class Lists
      * @param mapper the mapper used to retrieve the element types from the items
      * @return the exact ListType from the items if it can be known or <code>null</code>
      */
-    public static <T> AbstractType<?> getExactListTypeIfKnown(List<T> items,
-                                                              java.util.function.Function<T, AbstractType<?>> mapper)
+    public static <T> ListType<?> getExactListTypeIfKnown(List<T> items,
+                                                          java.util.function.Function<T, AbstractType<?>> mapper)
     {
         Optional<AbstractType<?>> type = items.stream().map(mapper).filter(Objects::nonNull).findFirst();
         return type.isPresent() ? ListType.getInstance(type.get(), false) : null;
+    }
+
+    public static <T> ListType<?> getPreferredCompatibleType(List<T> items,
+                                                             java.util.function.Function<T, AbstractType<?>> mapper)
+    {
+        Set<AbstractType<?>> types = items.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
+        AbstractType<?> type = AssignmentTestable.getCompatibleTypeIfKnown(types);
+        return type == null ? null : ListType.getInstance(type, false);
     }
 
     public static class Literal extends Term.Raw
@@ -190,6 +199,12 @@ public abstract class Lists
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
             return getExactListTypeIfKnown(elements, p -> p.getExactTypeIfKnown(keyspace));
+        }
+
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            return Lists.getPreferredCompatibleType(elements, p -> p.getCompatibleTypeIfKnown(keyspace));
         }
 
         public String getText()

@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -63,10 +64,12 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
@@ -166,6 +169,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -320,6 +324,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     private volatile boolean compactionSpaceCheck = true;
 
+    // Tombtone partitions that ignore the gc_grace_seconds during compaction
+    private final Set<DecoratedKey> partitionKeySetIgnoreGcGrace = ConcurrentHashMap.newKeySet();
+
     @VisibleForTesting
     final DiskBoundaryManager diskBoundaryManager = new DiskBoundaryManager();
     private volatile ShardBoundaries cachedShardBoundaries = null;
@@ -378,7 +385,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             for (ColumnFamilyStore cfs : concatWithIndexes())
                 cfs.crcCheckChance = new DefaultValue(metadata().params.crcCheckChance);
 
-        compactionStrategyManager.maybeReload(metadata());
+        compactionStrategyManager.maybeReloadParamsFromSchema(metadata().params.compaction);
 
         indexManager.reload();
 
@@ -411,7 +418,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             CompactionParams compactionParams = CompactionParams.fromMap(options);
             compactionParams.validate();
-            compactionStrategyManager.setNewLocalCompactionStrategy(compactionParams);
+            compactionStrategyManager.overrideLocalParams(compactionParams);
         }
         catch (Throwable t)
         {
@@ -1936,18 +1943,33 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public List<String> getSSTablesForKey(String key, boolean hexFormat)
     {
+        return withSSTablesForKey(key, hexFormat, SSTableReader::getFilename);
+    }
+
+    public Map<Integer, Collection<String>> getSSTablesForKeyWithLevel(String key, boolean hexFormat)
+    {
+        List<Pair<Integer, String>> ssts = withSSTablesForKey(key, hexFormat, sstr -> Pair.create(sstr.getSSTableLevel(), sstr.getFilename()));
+        Multimap<Integer, String> result = HashMultimap.create();
+        for (Pair<Integer, String> sst : ssts)
+            result.put(sst.left, sst.right);
+
+        return result.asMap();
+    }
+
+    public <T> List<T> withSSTablesForKey(String key, boolean hexFormat, Function<SSTableReader, T> mapper)
+    {
         ByteBuffer keyBuffer = hexFormat ? ByteBufferUtil.hexToBytes(key) : metadata().partitionKeyType.fromString(key);
         DecoratedKey dk = decorateKey(keyBuffer);
         try (OpOrder.Group op = readOrdering.start())
         {
-            List<String> files = new ArrayList<>();
+            List<T> mapped = new ArrayList<>();
             for (SSTableReader sstr : select(View.select(SSTableSet.LIVE, dk)).sstables)
             {
                 // check if the key actually exists in this sstable, without updating cache and stats
                 if (sstr.getPosition(dk, SSTableReader.Operator.EQ, false) != null)
-                    files.add(sstr.getFilename());
+                    mapped.add(mapper.apply(sstr));
             }
-            return files;
+            return mapped;
         }
     }
 
@@ -2414,6 +2436,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public void forceCompactionForKey(DecoratedKey key)
     {
         CompactionManager.instance.forceCompactionForKey(this, key);
+    }
+
+    public void forceCompactionKeysIgnoringGcGrace(String... partitionKeysIgnoreGcGrace)
+    {
+        List<DecoratedKey> decoratedKeys = new ArrayList<>();
+        try
+        {
+            partitionKeySetIgnoreGcGrace.clear();
+
+            for (String key : partitionKeysIgnoreGcGrace) {
+                DecoratedKey dk = decorateKey(metadata().partitionKeyType.fromString(key));
+                partitionKeySetIgnoreGcGrace.add(dk);
+                decoratedKeys.add(dk);
+            }
+
+            CompactionManager.instance.forceCompactionForKeys(this, decoratedKeys);
+        } finally
+        {
+            partitionKeySetIgnoreGcGrace.clear();
+        }
+    }
+
+    public boolean shouldIgnoreGcGraceForKey(DecoratedKey dk)
+    {
+        return partitionKeySetIgnoreGcGrace.contains(dk);
     }
 
     public static Iterable<ColumnFamilyStore> all()
@@ -3033,6 +3080,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
     @Override
+    public boolean isLeveledCompaction()
+    {
+        return compactionStrategyManager.isLeveledCompaction();
+    }
+
+    @Override
     public int[] getSSTableCountPerTWCSBucket()
     {
         return compactionStrategyManager.getSSTableCountPerTWCSBucket();
@@ -3103,6 +3156,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public boolean isAutoSnapshotEnabled()
     {
         return metadata().params.allowAutoSnapshot && DatabaseDescriptor.isAutoSnapshot();
+    }
+
+    public boolean isTableIncrementalBackupsEnabled()
+    {
+        return DatabaseDescriptor.isIncrementalBackupsEnabled() && metadata().params.incrementalBackups;
     }
 
     /**

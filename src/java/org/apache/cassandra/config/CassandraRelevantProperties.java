@@ -155,6 +155,11 @@ public enum CassandraRelevantProperties
     BOOTSTRAP_SCHEMA_DELAY_MS("cassandra.schema_delay_ms"),
 
     /**
+     * Whether we reset any found data from previously run bootstraps.
+     */
+    RESET_BOOTSTRAP_PROGRESS("cassandra.reset_bootstrap_progress"),
+
+    /**
      * When draining, how long to wait for mutating executors to shutdown.
      */
     DRAIN_EXECUTOR_TIMEOUT_MS("cassandra.drain_executor_timeout_ms", String.valueOf(TimeUnit.MINUTES.toMillis(5))),
@@ -307,8 +312,28 @@ public enum CassandraRelevantProperties
     LOOSE_DEF_OF_EMPTY_ENABLED(Config.PROPERTY_PREFIX + "gossiper.loose_empty_enabled"),
 
     // Maximum number of rows in system_views.logs table
-    LOGS_VIRTUAL_TABLE_MAX_ROWS("cassandra.virtual.logs.max.rows", Integer.toString(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS));
+    LOGS_VIRTUAL_TABLE_MAX_ROWS("cassandra.virtual.logs.max.rows", Integer.toString(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS)),
 
+    /** Used when running in Client mode and the system and schema keyspaces need to be initialized outside of their normal initialization path **/
+    FORCE_LOAD_LOCAL_KEYSPACES("cassandra.schema.force_load_local_keyspaces"),
+
+    // commit log relevant properties
+    /**
+     * Entities to replay mutations for upon commit log replay, property is meant to contain
+     * comma-separated entities which are either names of keyspaces or keyspaces and tables or their mix.
+     * Examples:
+     * just keyspaces
+     * -Dcassandra.replayList=ks1,ks2,ks3
+     * specific tables
+     * -Dcassandra.replayList=ks1.tb1,ks2.tb2
+     * mix of tables and keyspaces
+     * -Dcassandra.replayList=ks1.tb1,ks2
+     *
+     * If only keyspaces are specified, mutations for all tables in such keyspace will be replayed
+     * */
+    COMMIT_LOG_REPLAY_LIST("cassandra.replayList", null)
+
+    ;
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
@@ -413,6 +438,14 @@ public enum CassandraRelevantProperties
     public void setBoolean(boolean value)
     {
         System.setProperty(key, Boolean.toString(value));
+    }
+
+    /**
+     * Clears the value set in the system property.
+     */
+    public void clearValue()
+    {
+        System.clearProperty(key);
     }
 
     /**

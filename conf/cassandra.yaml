@@ -923,9 +923,11 @@ rpc_keepalive: true
 # internode_socket_receive_buffer_size:
 
 # Set to true to have Cassandra create a hard link to each sstable
-# flushed or streamed locally in a backups/ subdirectory of the
-# keyspace data.  Removing these links is the operator's
-# responsibility.
+# flushed or streamed locally in a backups/ subdirectory of all the
+# keyspace data in this node.  Removing these links is the operator's
+# responsibility. The operator can also turn off incremental backups 
+# for specified table by setting table parameter incremental_backups to 
+# false, which is set to true by default. See CASSANDRA-15402
 incremental_backups: false
 
 # Whether or not to take a snapshot before each compaction.  Be
@@ -1172,12 +1174,14 @@ slow_query_log_timeout: 500ms
 # since this is a requirement for general correctness of last write wins.
 # internode_timeout: true
 
-# Set keep-alive period for streaming
-# This node will send a keep-alive message periodically with this period.
-# If the node does not receive a keep-alive message from the peer for
-# 2 keep-alive cycles the stream session times out and fail
-# Default value is 300s (5 minutes), which means stalled stream
-# times out in 10 minutes by default
+# Set period for idle state control messages for earlier detection of failed streams
+# This node will send a keep-alive message periodically on the streaming's control channel.
+# This ensures that any eventual SocketTimeoutException will occur within 2 keep-alive cycles
+# If the node cannot send, or timeouts sending, the keep-alive message on the netty control channel
+# the stream session is closed.
+# Default value is 300s (5 minutes), which means stalled streams
+# are detected within 10 minutes
+# Specify 0 to disable.
 # Min unit: s
 # streaming_keep_alive_period: 300s
 
@@ -1392,6 +1396,7 @@ client_encryption_options:
   keystore_password: cassandra
   # Verify client certificates
   require_client_auth: false
+  # require_endpoint_verification: false
   # Set trustore and truststore_password if require_client_auth is true
   # truststore: conf/.truststore
   # truststore_password: cassandra
@@ -1811,6 +1816,7 @@ drop_compact_storage_enabled: false
 # items_per_collection_fail_threshold: -1
 #
 # Guardrail to allow/disallow querying with ALLOW FILTERING. Defaults to true.
+# ALLOW FILTERING can potentially visit all the data in the table and have unpredictable performance.
 # allow_filtering_enabled: true
 #
 # Guardrail to allow/disallow setting SimpleStrategy via keyspace creation or alteration. Defaults to true.
@@ -1856,6 +1862,19 @@ drop_compact_storage_enabled: false
 # maximum_replication_factor_warn_threshold: -1
 # maximum_replication_factor_fail_threshold: -1
 
+# Guardrail to enable a CREATE or ALTER TABLE statement when default_time_to_live is set to 0
+# and the table is using TimeWindowCompactionStrategy compaction or a subclass of it.
+# It is suspicious to use default_time_to_live set to 0 with such compaction strategy.
+# Please keep in mind that data will not start to automatically expire after they are older than
+# a respective compaction window unit of a certain size. Please set TTL for your INSERT or UPDATE
+# statements if you expect data to be expired as table settings will not do it.
+# Defaults to true. If set to false, such statements fail and zero_ttl_on_twcs_warned flag is irrelevant.
+#zero_ttl_on_twcs_enabled: true
+# Guardrail to warn a user upon executing CREATE or ALTER TABLE statement when default_time_to_live is set to 0
+# and the table is using TimeWindowCompactionStrategy compaction or a subclass of it. Defaults to true.
+# if zero_ttl_on_twcs_enabled is set to false, this property is irrelevant as such statements will fail.
+#zero_ttl_on_twcs_warned: true
+
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.
 # Uncomment the startup checks and configure them appropriately to cover your needs.
@@ -1881,3 +1900,4 @@ drop_compact_storage_enabled: false
 #    heartbeat_file: /var/lib/cassandra/data/cassandra-heartbeat
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
+

@@ -202,9 +202,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 CompactionIterator.this.updateCounterFor(merged);
 
-                if (type != OperationType.COMPACTION || !controller.cfs.indexManager.hasIndexes())
+                if ( (type != OperationType.COMPACTION && type != OperationType.MAJOR_COMPACTION) 
+                    || !controller.cfs.indexManager.hasIndexes() ) 
+                {
                     return null;
-
+                }
+                
                 Columns statics = Columns.NONE;
                 Columns regulars = Columns.NONE;
                 for (int i=0, isize=versions.size(); i<isize; i++)
@@ -347,6 +350,18 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             totalSourceCQLRows++;
             if ((++compactedUnfiltered) % UNFILTERED_TO_UPDATE_PROGRESS == 0)
                 updateBytesRead();
+        }
+
+        /*
+         * Called at the beginning of each new partition
+         * Return true if the current partitionKey ignores the gc_grace_seconds during compaction.
+         * Note that this method should be called after the onNewPartition because it depends on the currentKey
+         * which is set in the onNewPartition
+         */
+        @Override
+        protected boolean shouldIgnoreGcGrace()
+        {
+            return controller.cfs.shouldIgnoreGcGraceForKey(currentKey);
         }
 
         /*

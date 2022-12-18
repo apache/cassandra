@@ -57,6 +57,7 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added new Mathematical CQL functions: abs, exp, log, log10 and round.
     - Adds a trie-based memtable implementation, which improves memory use, garbage collection efficiency and lookup
       performance. The new memtable is implemented by the TrieMemtable class and can be selected using the memtable
       API, see src/java/org/apache/cassandra/db/memtable/Memtable_API.md.
@@ -91,12 +92,24 @@ New features
     - Added new CQL table property 'allow_auto_snapshot' which is by default true. When set to false and 'auto_snapshot: true'
       in cassandra.yaml, there will be no snapshot taken when a table is truncated or dropped. When auto_snapshot in
       casandra.yaml is set to false, the newly added table property does not have any effect.
-    - Added --older-than and --older-than-timestamp options to nodetool clearsnapshot command. It is possible to 
-      clear snapshots which are older than some period for example, "--older-than 5h" to remove 
+    - Changed default on resumable bootstrap to be disabled. Resumable bootstrap has edge cases with potential correctness
+      violations or data loss scenarios if nodes go down during bootstrap, tombstones are written, and operations race with
+      repair. As streaming is considerably faster in the 4.0+ era (as well as with zero copy streaming), the risks of
+      having these edge cases during a failed and resumed bootstrap are no longer deemed acceptable.
+      To re-enable this feature, use the -Dcassandra.reset_bootstrap_progress=false environment flag.
+    - Added --older-than and --older-than-timestamp options to nodetool clearsnapshot command. It is possible to
+      clear snapshots which are older than some period for example, "--older-than 5h" to remove
       snapshots older than 5 hours and it is possible to clear all snapshots older than some timestamp, for example
       --older-than-timestamp 2022-12-03T10:15:30Z.
     - Cassandra logs can be viewed in the virtual table system_views.system_logs.
       Please uncomment the respective appender in logback.xml file to make logs flow into this table. This feature is turned off by default.
+    - Added new CQL table property 'incremental_backups' which is by default true. When 'incremental_backups' property in cassandra.yaml
+      is set to true and table property is set to false, incremental backups for that specific table will not be done.
+      When 'incremental_backups' in casandra.yaml is set to false, the newly added table property does not have any effect.
+      Both properties have to be set to true (cassandra.yaml and table property) in order to make incremental backups.
+    - Added new CQL native scalar functions for collections. The new functions are mostly analogous to the existing
+      aggregation functions, but they operate on the elements of collection columns. The new functions are `map_keys`,
+      `map_values`, `collection_count`, `collection_min`, `collection_max`, `collection_sum` and `collection_avg`.
 
 Upgrading
 ---------
@@ -104,7 +117,7 @@ Upgrading
       there is a dedicated flag in snapshot manifest instead. On upgrade of a node to version 4.2, on node's start, in case there
       are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots
       will stop to create ephemeral marker files as flag in a snapshot manifest was introduced instead.
-    - There was new table property introduced called 'allow_auto_snapshot' (see section 'New features'). Hence, upgraded
+    - There were new table properties introduced called 'allow_auto_snapshot' and 'incremental_backups' (see section 'New features'). Hence, upgraded
       node will be on a new schema version. Please do a rolling upgrade of nodes of a cluster to converge to one schema version.
 
 Deprecation

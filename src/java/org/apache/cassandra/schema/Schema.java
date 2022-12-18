@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
 import org.apache.commons.lang3.ObjectUtils;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -74,9 +75,6 @@ public class Schema implements SchemaProvider
 {
     private static final Logger logger = LoggerFactory.getLogger(Schema.class);
 
-    public static final String FORCE_LOAD_LOCAL_KEYSPACES_PROP = "cassandra.schema.force_load_local_keyspaces";
-    private static final boolean FORCE_LOAD_LOCAL_KEYSPACES = Boolean.getBoolean(FORCE_LOAD_LOCAL_KEYSPACES_PROP);
-
     public static final Schema instance = new Schema();
 
     private volatile Keyspaces distributedKeyspaces = Keyspaces.none();
@@ -108,7 +106,7 @@ public class Schema implements SchemaProvider
     private Schema()
     {
         this.online = isDaemonInitialized();
-        this.localKeyspaces = (FORCE_LOAD_LOCAL_KEYSPACES || isDaemonInitialized() || isToolInitialized())
+        this.localKeyspaces = (CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.getBoolean() || isDaemonInitialized() || isToolInitialized())
                               ? Keyspaces.of(SchemaKeyspace.metadata(), SystemKeyspace.metadata())
                               : Keyspaces.none();
 
@@ -463,13 +461,13 @@ public class Schema implements SchemaProvider
     /* Function helpers */
 
     /**
-     * Get all function overloads with the specified name
+     * Get all user-defined function overloads with the specified name.
      *
      * @param name fully qualified function name
      * @return an empty list if the keyspace or the function name are not found;
-     *         a non-empty collection of {@link Function} otherwise
+     *         a non-empty collection of {@link UserFunction} otherwise
      */
-    public Collection<Function> getFunctions(FunctionName name)
+    public Collection<UserFunction> getUserFunctions(FunctionName name)
     {
         if (!name.hasKeyspace())
             throw new IllegalArgumentException(String.format("Function name must be fully qualified: got %s", name));
@@ -477,26 +475,24 @@ public class Schema implements SchemaProvider
         KeyspaceMetadata ksm = getKeyspaceMetadata(name.keyspace);
         return ksm == null
                ? Collections.emptyList()
-               : ksm.functions.get(name);
+               : ksm.userFunctions.get(name);
     }
 
     /**
-     * Find the function with the specified name
+     * Find the function with the specified name and arguments.
      *
      * @param name     fully qualified function name
      * @param argTypes function argument types
      * @return an empty {@link Optional} if the keyspace or the function name are not found;
      *         a non-empty optional of {@link Function} otherwise
      */
-    public Optional<Function> findFunction(FunctionName name, List<AbstractType<?>> argTypes)
+    public Optional<UserFunction> findUserFunction(FunctionName name, List<AbstractType<?>> argTypes)
     {
         if (!name.hasKeyspace())
             throw new IllegalArgumentException(String.format("Function name must be fully quallified: got %s", name));
 
-        KeyspaceMetadata ksm = getKeyspaceMetadata(name.keyspace);
-        return ksm == null
-               ? Optional.empty()
-               : ksm.functions.find(name, argTypes);
+        return Optional.ofNullable(getKeyspaceMetadata(name.keyspace))
+                       .flatMap(ksm -> ksm.userFunctions.find(name, argTypes));
     }
 
     /* Version control */

@@ -39,7 +39,7 @@ export CASS_DRIVER_NO_CYTHON=true
 export CCM_MAX_HEAP_SIZE="2048M"
 export CCM_HEAP_NEWSIZE="200M"
 export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
-export NUM_TOKENS="32"
+export NUM_TOKENS="16"
 export CASSANDRA_DIR=${WORKSPACE}
 export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}"
 
@@ -51,6 +51,7 @@ if [ "$CASSANDRA_USE_JDK11" = true ] ; then
     TESTSUITE_NAME="${TESTSUITE_NAME}.jdk11"
 else
     TESTSUITE_NAME="${TESTSUITE_NAME}.jdk8"
+    unset JAVA11_HOME
 fi
 
 ant -buildfile ${CASSANDRA_DIR}/build.xml realclean
@@ -78,7 +79,7 @@ pip freeze
 
 if [ "$cython" = "yes" ]; then
     TESTSUITE_NAME="${TESTSUITE_NAME}.cython"
-    pip install "Cython>=0.20,<0.25"
+    pip install "Cython>=0.27.2,<0.28"
     cd pylib/; python setup.py build_ext --inplace
     cd ${WORKSPACE}
 else

@@ -596,6 +596,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
                 DatabaseDescriptor.createAllDirectories();
                 CassandraDaemon.getInstanceForTesting().migrateSystemDataIfNeeded();
+                CassandraDaemon.logSystemInfo(inInstancelogger);
                 CommitLog.instance.start();
 
                 CassandraDaemon.getInstanceForTesting().runStartupChecks();
@@ -728,6 +729,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 ActiveRepairService.instance.start();
                 StreamManager.instance.start();
+
+                PaxosState.startAutoRepairs();
+
                 CassandraDaemon.getInstanceForTesting().completeSetup();
             }
             catch (Throwable t)

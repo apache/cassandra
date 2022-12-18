@@ -47,6 +47,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('bloom_filter_fp_chance', None),
         ('comment', None),
         ('gc_grace_seconds', None),
+        ('incremental_backups', None),
         ('min_index_interval', None),
         ('max_index_interval', None),
         ('default_time_to_live', None),
@@ -522,6 +523,8 @@ def cf_prop_val_completer(ctxt, cass):
     if this_opt in ('read_repair'):
         return [Hint('<\'none\'|\'blocking\'>')]
     if this_opt == 'allow_auto_snapshot':
+        return [Hint('<boolean>')]
+    if this_opt == 'incremental_backups':
         return [Hint('<boolean>')]
     return [Hint('<option_value>')]
 
@@ -1313,7 +1316,7 @@ syntax_rules += r'''
                                       ( "WITH" <cfamProperty> ( "AND" <cfamProperty> )* )?
                                     ;
 
-<createUserTypeStatement> ::= "CREATE" "TYPE" ( ks=<nonSystemKeyspaceName> dot="." )? typename=<cfOrKsName> "(" newcol=<cident> <storageType>
+<createUserTypeStatement> ::= "CREATE" "TYPE" ("IF" "NOT" "EXISTS")? ( ks=<nonSystemKeyspaceName> dot="." )? typename=<cfOrKsName> "(" newcol=<cident> <storageType>
                                 ( "," [newcolname]=<cident> <storageType> )*
                             ")"
                          ;
@@ -1377,7 +1380,7 @@ syntax_rules += r'''
 <dropMaterializedViewStatement> ::= "DROP" "MATERIALIZED" "VIEW" ("IF" "EXISTS")? mv=<materializedViewName>
                                   ;
 
-<dropUserTypeStatement> ::= "DROP" "TYPE" ut=<userTypeName>
+<dropUserTypeStatement> ::= "DROP" "TYPE" ( "IF" "EXISTS" )? ut=<userTypeName>
                           ;
 
 <dropFunctionStatement> ::= "DROP" "FUNCTION" ( "IF" "EXISTS" )? <userFunctionName>
@@ -1488,12 +1491,12 @@ syntax_rules += r'''
              | <unreservedKeyword>
              ;
 
-<createRoleStatement> ::= "CREATE" "ROLE" <rolename>
+<createRoleStatement> ::= "CREATE" "ROLE" ("IF" "NOT" "EXISTS")? <rolename>
                               ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
                         ;
 
 <alterRoleStatement> ::= "ALTER" "ROLE" ("IF" "EXISTS")? <rolename>
-                              ( "WITH" <roleProperty> ("AND" <roleProperty>)*)?
+                              ( "WITH" <roleProperty> ("AND" <roleProperty>)*)
                        ;
 
 <roleProperty> ::= (("HASHED")? "PASSWORD") "=" <stringLiteral>
@@ -1504,7 +1507,7 @@ syntax_rules += r'''
                  | "ACCESS" "TO" "ALL" "DATACENTERS"
                  ;
 
-<dropRoleStatement> ::= "DROP" "ROLE" <rolename>
+<dropRoleStatement> ::= "DROP" "ROLE" ("IF" "EXISTS")? <rolename>
                       ;
 
 <grantRoleStatement> ::= "GRANT" <rolename> "TO" <rolename>
