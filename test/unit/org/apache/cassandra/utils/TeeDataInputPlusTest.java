@@ -136,6 +136,6 @@ public class TeeDataInputPlusTest
 
         byte[] limitedTeeData = limitedTeeOut.toByteArray();
         assertTrue(limitedTee.isLimitReached());
-        assertTrue(Arrays.equals(Arrays.copyOf(testData, LIMITED_SIZE -1 ), limitedTeeData));
+        assertTrue(Arrays.equals(Arrays.copyOf(testData, LIMITED_SIZE - 1 ), limitedTeeData));
     }
 }

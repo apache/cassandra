@@ -444,11 +444,11 @@ public class Mutation implements IMutation, Supplier<Mutation>
             if (serialization == null)
             {
                 serialization = new SizeOnlyCacheableSerialization();
-                long sertializedSize = serialization.serializedSize(PartitionUpdate.serializer, mutation, version);
+                long serializedSize = serialization.serializedSize(PartitionUpdate.serializer, mutation, version);
 
-                // Exessively large mutation objects cause GC pressure and huge allocations when serialized.
+                // Excessively large mutation objects cause GC pressure and huge allocations when serialized.
                 // so we only cache serialized mutations when they are below the defined limit.
-                if (sertializedSize < CACHEABLE_MUTATION_SIZE_LIMIT)
+                if (serializedSize < CACHEABLE_MUTATION_SIZE_LIMIT)
                 {
                     try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
                     {
