@@ -25,6 +25,7 @@ import accord.api.Key;
 import accord.api.RoutingKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -93,6 +94,14 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         public static SentinelKey max(TableId tableId)
         {
             return new SentinelKey(tableId, false);
+        }
+
+        public TokenKey toTokenKey()
+        {
+            IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+            return new TokenKey(tableId, isMin ?
+                                         partitioner.getMinimumToken().increaseSlightly() :
+                                         partitioner.getMaximumToken().decreaseSlightly());
         }
 
         @Override

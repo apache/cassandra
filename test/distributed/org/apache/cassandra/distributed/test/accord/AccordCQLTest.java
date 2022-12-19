@@ -24,16 +24,25 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
+import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import accord.primitives.Unseekables;
+import accord.topology.Topologies;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.service.accord.AccordTestUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -66,6 +75,67 @@ public class AccordCQLTest extends AccordTestBase
     {
         AccordTestBase.setupClass();
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
+    }
+
+    @Test
+    public void testMultipleShards() throws Exception
+    {
+        String keyspace = "multipleShards";
+        String currentTable = keyspace + ".tbl";
+        List<String> ddls = Arrays.asList("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
+                                          "CREATE TABLE " + currentTable + " (k blob, c int, v int, primary key (k, c))");
+        List<String> tokens = SHARED_CLUSTER.stream()
+                                            .flatMap(i -> StreamSupport.stream(Splitter.on(",").split(i.config().getString("initial_token")).spliterator(), false))
+                                            .collect(Collectors.toList());
+
+        List<ByteBuffer> keys = tokens.stream()
+                                      .map(t -> (Murmur3Partitioner.LongToken) Murmur3Partitioner.instance.getTokenFactory().fromString(t))
+                                      .map(Murmur3Partitioner.LongToken::keyForToken)
+                                      .collect(Collectors.toList());
+        List<String> keyStrings = keys.stream().map(bb -> "0x" + ByteBufferUtil.bytesToHex(bb)).collect(Collectors.toList());
+        StringBuilder query = new StringBuilder("BEGIN TRANSACTION\n");
+
+        for (int i = 0; i < keys.size(); i++)
+            query.append("  LET row" + i + " = (SELECT * FROM " + currentTable + " WHERE k=" + keyStrings.get(i) + " AND c=0);\n");
+
+        query.append("  SELECT row0.v;\n")
+             .append("  IF ");
+
+        for (int i = 0; i < keys.size(); i++)
+            query.append((i > 0 ? " AND row" : "row") + i + " IS NULL");
+
+        query.append(" THEN\n");
+
+        for (int i = 0; i < keys.size(); i++)
+            query.append("    INSERT INTO " + currentTable + " (k, c, v) VALUES (" + keyStrings.get(i) + ", 0, " + i +");\n");
+
+        query.append("  END IF\n");
+        query.append("COMMIT TRANSACTION");
+
+        test(ddls, cluster -> {
+            // row0.v shouldn't have existed when the txn's SELECT was executed
+            assertRowEqualsWithPreemptedRetry(cluster, new Object[]{ null }, query.toString());
+
+            cluster.get(1).runOnInstance(() -> {
+                StringBuilder sb = new StringBuilder("BEGIN TRANSACTION\n");
+                for (int i = 0; i < keyStrings.size() - 1; i++)
+                    sb.append(String.format("LET row%d = (SELECT * FROM %s WHERE k=%s AND c=0);\n", i, currentTable, keyStrings.get(i)));
+                sb.append(String.format("SELECT * FROM %s WHERE k=%s AND c=0;\n", currentTable, keyStrings.get(keyStrings.size() - 1)));
+                sb.append("COMMIT TRANSACTION");
+
+                Unseekables<?, ?> routables = AccordTestUtils.createTxn(sb.toString()).keys().toUnseekables();
+                Topologies topology = AccordService.instance().node.topology().withUnsyncedEpochs(routables, AccordService.instance().node.topology().epoch());
+                // we don't detect out-of-bounds read/write yet, so use this to validate we reach different shards
+                Assertions.assertThat(topology.totalShards()).isEqualTo(2);
+            });
+
+            String check = "BEGIN TRANSACTION\n" +
+                           "  SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?;\n" +
+                           "COMMIT TRANSACTION";
+
+            for (int i = 0; i < keys.size(); i++)
+                assertRowEqualsWithPreemptedRetry(cluster, new Object[] { keys.get(i), 0, i}, check, keys.get(i), 0);
+        });
     }
 
     @Test
@@ -2114,6 +2184,90 @@ public class AccordCQLTest extends AccordTestBase
                  assertEquals(ImmutableList.of("row0.customer.0x0001"), result.names());
              }
         );
+    }
+
+    @Test
+    public void testMultiKeyQueryAndInsert() throws Throwable
+    {
+        test("CREATE TABLE " + currentTable + " (k int, c int, v int, primary key (k, c))",
+             cluster ->
+             {
+                 String query1 = "BEGIN TRANSACTION\n" +
+                                 "  LET select1 = (SELECT * FROM " + currentTable + " WHERE k=0 AND c=0);\n" +
+                                 "  LET select2 = (SELECT * FROM " + currentTable + " WHERE k=1 AND c=0);\n" +
+                                 "  SELECT v FROM " + currentTable + " WHERE k=0 AND c=0;\n" +
+                                 "  IF select1 IS NULL THEN\n" +
+                                 "    INSERT INTO " + currentTable + " (k, c, v) VALUES (0, 0, 0);\n" +
+                                 "    INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 0);\n" +
+                                 "  END IF\n" +
+                                 "COMMIT TRANSACTION";
+                 assertEmptyWithPreemptedRetry(cluster, query1);
+
+                 String check = "BEGIN TRANSACTION\n" +
+                                "  SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?;\n" +
+                                "COMMIT TRANSACTION";
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, 0, 0}, check, 0, 0);
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, 0, 0}, check, 1, 0);
+
+                 String query2 = "BEGIN TRANSACTION\n" +
+                                 "  LET select1 = (SELECT * FROM " + currentTable + " WHERE k=1 AND c=0);\n" +
+                                 "  LET select2 = (SELECT * FROM " + currentTable + " WHERE k=2 AND c=0);\n" +
+                                 "  SELECT v FROM " + currentTable + " WHERE k=1 AND c=0;\n" +
+                                 "  IF select1.v = ? THEN\n" +
+                                 "    INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 1);\n" +
+                                 "    INSERT INTO " + currentTable + " (k, c, v) VALUES (2, 0, 1);\n" +
+                                 "  END IF\n" +
+                                 "COMMIT TRANSACTION";
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0 }, query2, 0);
+
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {0, 0, 0}, check, 0, 0);
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {1, 0, 1}, check, 1, 0);
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] {2, 0, 1}, check, 2, 0);
+             });
+    }
+
+    @Test
+    public void demoTest() throws Throwable
+    {
+        SHARED_CLUSTER.schemaChange("CREATE KEYSPACE demo_ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2};");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_docs ( org_name text, doc_id int, contents_version int static, title text, permissions int, PRIMARY KEY (org_name, doc_id) );");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_users ( org_name text, user text, members_version int static, permissions int, PRIMARY KEY (org_name, user) );");
+        SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.user_docs ( user text, doc_id int, title text, org_name text, permissions int, PRIMARY KEY (user, doc_id) );");
+
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
+
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.org_users (org_name, user, members_version, permissions) VALUES ('demo', 'blake', 5, 777);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.org_users (org_name, user, members_version, permissions) VALUES ('demo', 'scott', 5, 777);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.org_docs (org_name, doc_id, contents_version, title, permissions) VALUES ('demo', 100, 5, 'README', 644);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('blake', 1, 'recipes', NULL, 777);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('blake', 100, 'README', 'demo', 644);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('scott', 2, 'to do list', NULL, 777);\n", ConsistencyLevel.ALL);
+        SHARED_CLUSTER.coordinator(1).execute("INSERT INTO demo_ks.user_docs (user, doc_id, title, org_name, permissions) VALUES ('scott', 100, 'README', 'demo', 644);\n", ConsistencyLevel.ALL);
+
+        String addDoc = "BEGIN TRANSACTION\n" +
+                        "  LET demo_user = (SELECT * FROM demo_ks.org_users WHERE org_name='demo' LIMIT 1);\n" +
+                        "  LET existing = (SELECT * FROM demo_ks.org_docs WHERE org_name='demo' AND doc_id=101);\n" +
+                        "  SELECT members_version FROM demo_ks.org_users WHERE org_name='demo' LIMIT 1;\n" +
+                        "  IF demo_user.members_version = 5 AND existing IS NULL THEN\n" +
+                        "    UPDATE demo_ks.org_docs SET title='slides.key', permissions=777, contents_version += 1 WHERE org_name='demo' AND doc_id=101;\n" +
+                        "    UPDATE demo_ks.user_docs SET title='slides.key', permissions=777 WHERE user='blake' AND doc_id=101;\n" +
+                        "    UPDATE demo_ks.user_docs SET title='slides.key', permissions=777 WHERE user='scott' AND doc_id=101;\n" +
+                        "  END IF\n" +
+                        "COMMIT TRANSACTION";
+        assertRowEqualsWithPreemptedRetry(SHARED_CLUSTER, new Object[] { 5 }, addDoc);
+
+        String addUser = "BEGIN TRANSACTION\n" +
+                         "  LET demo_doc = (SELECT * FROM demo_ks.org_docs WHERE org_name='demo' LIMIT 1);\n" +
+                         "  LET existing = (SELECT * FROM demo_ks.org_users WHERE org_name='demo' AND user='benedict');\n" +
+                         "  SELECT contents_version FROM demo_ks.org_docs WHERE org_name='demo' LIMIT 1;\n" +
+                         "  IF demo_doc.contents_version = 6 AND existing IS NULL THEN\n" +
+                         "    UPDATE demo_ks.org_users SET permissions=777, members_version += 1 WHERE org_name='demo' AND user='benedict';\n" +
+                         "    UPDATE demo_ks.user_docs SET title='README', permissions=644 WHERE user='benedict' AND doc_id=100;\n" +
+                         "    UPDATE demo_ks.user_docs SET title='slides.key', permissions=777 WHERE user='benedict' AND doc_id=101;\n" +
+                         "  END IF\n" +
+                         "COMMIT TRANSACTION";
+        assertRowEqualsWithPreemptedRetry(SHARED_CLUSTER, new Object[] { 6 }, addUser);
     }
 
     // TODO: Implement support for basic arithmetic on references in INSERT
