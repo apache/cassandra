@@ -29,20 +29,28 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.TeeDataInputPlus;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
@@ -70,6 +78,15 @@ public class Mutation implements IMutation
     final AtomicLong viewLockAcquireStart = new AtomicLong(0);
 
     private final boolean cdcEnabled;
+
+    private static final int SERIALIZATION_VERSION_COUNT = MessagingService.Version.values().length;
+    // Contains serialized representations of this mutation.
+    // Note: there is no functionality to clear/remove serialized instances, because a mutation must never
+    // be modified (e.g. calling add(PartitionUpdate)) when it's being serialized.
+    private final Serialization[] cachedSerializations = new Serialization[SERIALIZATION_VERSION_COUNT];
+
+    /** @see CassandraRelevantProperties#CACHEABLE_MUTATION_SIZE_LIMIT */
+    private static final long CACHEABLE_MUTATION_SIZE_LIMIT = CassandraRelevantProperties.CACHEABLE_MUTATION_SIZE_LIMIT.getLong();
 
     public Mutation(PartitionUpdate update)
     {
@@ -287,6 +304,7 @@ public class Mutation implements IMutation
         }
         return buff.append("])").toString();
     }
+
     private int serializedSize30;
     private int serializedSize3014;
     private int serializedSize40;
@@ -399,34 +417,115 @@ public class Mutation implements IMutation
 
         public void serialize(Mutation mutation, DataOutputPlus out, int version) throws IOException
         {
+            serialization(mutation, version).serialize(PartitionUpdate.serializer, mutation, out, version);
+        }
+
+        /**
+         * Called early during request processing to prevent that {@link #serialization(Mutation, int)} is
+         * called concurrently.
+         * See {@link org.apache.cassandra.service.StorageProxy#sendToHintedReplicas(Mutation, ReplicaPlan.ForWrite, AbstractWriteResponseHandler, String, Stage)}
+         */
+        @SuppressWarnings("JavadocReference")
+        public void prepareSerializedBuffer(Mutation mutation, int version)
+        {
+            serialization(mutation, version);
+        }
+
+        /**
+         * Retrieve the cached serialization of this mutation, or compute and cache said serialization if it doesn't
+         * exist yet. Note that this method is _not_ synchronized even though it may (and will often) be called
+         * concurrently. Concurrent calls are still safe however, the only risk is that the value is not cached yet,
+         * multiple concurrent calls may compute it multiple times instead of just once. This is ok as in practice
+         * as we make sure this doesn't happen in the hot path by forcing the initial caching in
+         * {@link org.apache.cassandra.service.StorageProxy#sendToHintedReplicas(Mutation, ReplicaPlan.ForWrite, AbstractWriteResponseHandler, String, Stage)}
+         * via {@link #prepareSerializedBuffer(Mutation)}, which is the only caller that passes
+         * {@code isPrepare==true}.
+         */
+        @SuppressWarnings("JavadocReference")
+        private Serialization serialization(Mutation mutation, int version)
+        {
+            int versionOrdinal = MessagingService.getVersionOrdinal(version);
+            // Retrieves the cached version, or build+cache it if it's not cached already.
+            Serialization serialization = mutation.cachedSerializations[versionOrdinal];
+            if (serialization == null)
+            {
+                serialization = new SizeOnlyCacheableSerialization();
+                long serializedSize = serialization.serializedSize(PartitionUpdate.serializer, mutation, version);
+
+                // Excessively large mutation objects cause GC pressure and huge allocations when serialized.
+                // so we only cache serialized mutations when they are below the defined limit.
+                if (serializedSize < CACHEABLE_MUTATION_SIZE_LIMIT)
+                {
+                    try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
+                    {
+                        serializeInternal(PartitionUpdate.serializer, mutation, dob, version);
+                        serialization = new CachedSerialization(dob.toByteArray());
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+                mutation.cachedSerializations[versionOrdinal] = serialization;
+            }
+
+            return serialization;
+        }
+
+        static void serializeInternal(PartitionUpdate.PartitionUpdateSerializer serializer,
+                                         Mutation mutation,
+                                         DataOutputPlus out,
+                                         int version) throws IOException
+        {
+            Map<TableId, PartitionUpdate> modifications = mutation.modifications;
+
             /* serialize the modifications in the mutation */
-            int size = mutation.modifications.size();
+            int size = modifications.size();
             out.writeUnsignedVInt(size);
 
             assert size > 0;
-            for (Map.Entry<TableId, PartitionUpdate> entry : mutation.modifications.entrySet())
-                partitionUpdateSerializer.serialize(entry.getValue(), out, version);
+            for (PartitionUpdate partitionUpdate : modifications.values())
+            {
+                serializer.serialize(partitionUpdate, out, version);
+            }
         }
 
         public Mutation deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
-            int size = (int)in.readUnsignedVInt();
-            assert size > 0;
-
-            PartitionUpdate update = partitionUpdateSerializer.deserialize(in, version, flag);
-            if (size == 1)
-                return new Mutation(update);
-
-            ImmutableMap.Builder<TableId, PartitionUpdate> modifications = new ImmutableMap.Builder<>();
-            DecoratedKey dk = update.partitionKey();
-
-            modifications.put(update.metadata().id, update);
-            for (int i = 1; i < size; ++i)
+            Mutation m;
+            TeeDataInputPlus teeIn;
+            try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
             {
-                update = partitionUpdateSerializer.deserialize(in, version, flag);
-                modifications.put(update.metadata().id, update);
+                teeIn = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
+
+                int size = (int) teeIn.readUnsignedVInt();
+                assert size > 0;
+
+                PartitionUpdate update = partitionUpdateSerializer.deserialize(teeIn, version, flag);
+                if (size == 1)
+                {
+                    m = new Mutation(update);
+                }
+                else
+                {
+                    ImmutableMap.Builder<TableId, PartitionUpdate> modifications = new ImmutableMap.Builder<>();
+                    DecoratedKey dk = update.partitionKey();
+
+                    modifications.put(update.metadata().id, update);
+                    for (int i = 1; i < size; ++i)
+                    {
+                        update = partitionUpdateSerializer.deserialize(teeIn, version, flag);
+                        modifications.put(update.metadata().id, update);
+                    }
+                    m = new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now());
+                }
+
+                //Only cache serializations that don't hit the limit
+                if (!teeIn.isLimitReached())
+                    m.cachedSerializations[MessagingService.getVersionOrdinal(version)] = new CachedSerialization(dob.toByteArray());
+
+                return m;
             }
-            return new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now());
         }
 
         public Mutation deserialize(DataInputPlus in, int version) throws IOException
@@ -436,10 +535,71 @@ public class Mutation implements IMutation
 
         public long serializedSize(Mutation mutation, int version)
         {
-            int size = TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
-            for (Map.Entry<TableId, PartitionUpdate> entry : mutation.modifications.entrySet())
-                size += partitionUpdateSerializer.serializedSize(entry.getValue(), version);
+            return serialization(mutation, version).serializedSize(PartitionUpdate.serializer, mutation, version);
+        }
+    }
 
+    /**
+     * There are two implementations of this class. One that keeps the serialized representation on-heap for later
+     * reuse and one that doesn't. Keeping all sized mutations around may lead to "bad" GC pressure (G1 GC) due to humongous objects.
+     * By default serialized mutations up to 2MB are kept on-heap - see {@link org.apache.cassandra.config.CassandraRelevantProperties#CACHEABLE_MUTATION_SIZE_LIMIT}.
+     */
+    private static abstract class Serialization
+    {
+        abstract void serialize(PartitionUpdate.PartitionUpdateSerializer serializer, Mutation mutation, DataOutputPlus out, int version) throws IOException;
+
+        abstract long serializedSize(PartitionUpdate.PartitionUpdateSerializer serializer, Mutation mutation, int version);
+    }
+
+    /**
+     * Represents the cached serialization of a {@link Mutation} as a {@code byte[]}.
+     */
+    private static final class CachedSerialization extends Serialization
+    {
+        private final byte[] serialized;
+
+        CachedSerialization(byte[] serialized)
+        {
+            this.serialized = Preconditions.checkNotNull(serialized);
+        }
+
+        @Override
+        void serialize(PartitionUpdate.PartitionUpdateSerializer serializer, Mutation mutation, DataOutputPlus out, int version) throws IOException
+        {
+            out.write(serialized);
+        }
+
+        @Override
+        long serializedSize(PartitionUpdate.PartitionUpdateSerializer serializer, Mutation mutation, int version)
+        {
+            return serialized.length;
+        }
+    }
+
+    /**
+     * Represents a non-cacheable serialization of a {@link Mutation}, only the size of the mutation is lazily cached.
+     */
+    private static final class SizeOnlyCacheableSerialization extends Serialization
+    {
+        private volatile long size;
+
+        @Override
+        void serialize(PartitionUpdate.PartitionUpdateSerializer serializer, Mutation mutation, DataOutputPlus out, int version) throws IOException
+        {
+            MutationSerializer.serializeInternal(serializer, mutation, out, version);
+        }
+
+        @Override
+        long serializedSize(PartitionUpdate.PartitionUpdateSerializer serializer, Mutation mutation, int version)
+        {
+            long size = this.size;
+            if (size == 0L)
+            {
+                size = TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
+                for (PartitionUpdate partitionUpdate : mutation.modifications.values())
+                    size += serializer.serializedSize(partitionUpdate, version);
+                this.size = size;
+            }
             return size;
         }
     }
