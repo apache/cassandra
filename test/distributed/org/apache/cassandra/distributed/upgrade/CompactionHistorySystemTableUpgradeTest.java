@@ -56,7 +56,7 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
             // force compact
             cluster.stream().forEach(node -> node.forceCompact(KEYSPACE, "tb"));
         }).runAfterNodeUpgrade((cluster, node) -> {
-          String query = "SELECT compaction_type FROM " + KEYSPACE + ".tb where keyspace_name = '" + KEYSPACE + "' AND columnfamily_name = 'tb' ALLOW FILTERING";
+          String query = "SELECT compaction_type FROM system.compaction_history where keyspace_name = '" + KEYSPACE + "' AND columnfamily_name = 'tb' ALLOW FILTERING";
           Object[][] expectedResult = {
               row(null)
           };
