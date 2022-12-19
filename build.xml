@@ -90,7 +90,7 @@
     <property name="version.properties.dir"
               value="${build.src.resources}/org/apache/cassandra/config/" />
     <property name="final.name" value="${ant.project.name}-${version}"/>
-
+    <property name="tarball.location" value="${build.dir}/${final.name}-bin.tar.gz"/>
     <property name="local.repository" value="${user.home}/.m2/repository" />
 
     <!-- details of how and which Maven repository we publish to -->
@@ -446,6 +446,10 @@
 
     <target name="echo-base-version">
         <echo message="${base.version}" />
+    </target>
+
+    <target name="echo-tarball-location">
+        <echo message="${tarball.location}" />
     </target>
 
     <!-- create properties file with C version -->
@@ -867,7 +871,7 @@
     <target name="artifacts" depends="_artifacts-init,gen-doc,sources-jar"
             description="Create Cassandra release artifacts">
       <tar compression="gzip" longfile="gnu"
-        destfile="${build.dir}/${final.name}-bin.tar.gz">
+        destfile="${tarball.location}">
 
         <!-- Everything but bin/ (default mode) -->
         <tarfileset dir="${dist.dir}" prefix="${final.name}">
@@ -1995,9 +1999,78 @@
             classifier="javadoc"/>
 
     <!-- the distribution -->
-    <sign-dist file="${build.dir}/${final.name}-bin.tar.gz" />
+    <sign-dist file="${tarball.location}" />
     <sign-dist file="${build.dir}/${final.name}-src.tar.gz" />
 
+  </target>
+
+  <target name="docker-build"
+          description="Builds a local cassandra-test docker image">
+
+    <!-- check docker exists -->
+    <fail message="docker not found">
+      <condition>
+        <not>
+          <available file="docker" filepath="${env.PATH}"/>
+        </not>
+      </condition>
+    </fail>
+
+    <antcall target="artifacts">
+      <param name="no-javadoc" value="true"/>
+      <param name="ant.gen-doc.skip" value="true"/>
+    </antcall>
+
+    <!-- copy docker templates to build directory and set permissions -->
+    <copy file=".build/docker/Dockerfile" tofile="${build.dir}/Dockerfile"/>
+    <copy file=".build/docker/docker-entrypoint.sh" tofile="${build.dir}/docker-entrypoint.sh"/>
+    <chmod file="${build.dir}/docker-entrypoint.sh" perm="777"/>
+
+    <!-- build docker image -->
+    <exec executable="docker" failonerror="true">
+      <arg value="build"/>
+      <arg value="-t"/>
+      <arg value="apache/cassandra-test"/>
+      <arg value="--build-arg"/>
+      <arg value="CASSANDRA_TARBALL=${final.name}-bin.tar.gz"/>
+      <arg value="${build.dir}"/>
+    </exec>
+
+    <!-- remove docker templates -->
+    <delete file="${build.dir}/Dockerfile"/>
+    <delete file="${build.dir}/docker-entrypoint.sh"/>
+
+     <echo>cassandra-test image built, start it with 'ant docker-start'.</echo>
+  </target>
+
+  <target name="docker-start"
+          description="Starts a local cassandra-test docker container">
+
+    <!-- check docker exists -->
+    <fail message="docker not found">
+      <condition>
+        <not>
+          <available file="docker" filepath="${env.PATH}"/>
+        </not>
+      </condition>
+    </fail>
+
+    <exec executable=".build/docker/start.sh" failonerror="true"/>
+  </target>
+
+  <target name="docker-stop"
+          description="Stops a local cassandra-test docker container">
+
+    <!-- check docker exists -->
+    <fail message="docker not found">
+      <condition>
+        <not>
+          <available file="docker" filepath="${env.PATH}"/>
+        </not>
+      </condition>
+    </fail>
+
+    <exec executable=".build/docker/stop.sh" failonerror="true"/>
   </target>
 
   <import file="${basedir}/.build/build-resolver.xml"/>

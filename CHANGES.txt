@@ -1,4 +1,5 @@
 4.2
+ * Add quick start development guide and ant targets for local docker development (CASSANDRA-18035)
  * Only reload compaction strategies if disk boundaries change (CASSANDRA-17874)
  * CEP-10: Simulator Java11 Support (CASSANDRA-17178)
  * Set the major compaction type correctly for compactionstats (CASSANDRA-18055)
