@@ -47,6 +47,15 @@ public class TokenRange extends Range.EndInclusive
         return new TokenRange((AccordRoutingKey) start, (AccordRoutingKey) end);
     }
 
+    @Override
+    public RoutingKey someIntersectingRoutingKey()
+    {
+        RoutingKey pick = startInclusive() ? start() : end();
+        if (pick instanceof SentinelKey)
+            pick = ((SentinelKey) pick).toTokenKey();
+        return pick;
+    }
+
     public static final IVersionedSerializer<TokenRange> serializer = new IVersionedSerializer<TokenRange>()
     {
         @Override

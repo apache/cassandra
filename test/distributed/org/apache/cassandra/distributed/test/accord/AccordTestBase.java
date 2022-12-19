@@ -19,6 +19,8 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -85,7 +87,13 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected void test(String tableDDL, FailingConsumer<Cluster> fn) throws Exception
     {
-        SHARED_CLUSTER.schemaChange(tableDDL);
+        test(Collections.singletonList(tableDDL), fn);
+    }
+
+    protected void test(List<String> ddls, FailingConsumer<Cluster> fn) throws Exception
+    {
+        for (String ddl : ddls)
+            SHARED_CLUSTER.schemaChange(ddl);
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().createEpochFromConfigUnsafe()));
 
         // Evict commands from the cache immediately to expose problems loading from disk.
