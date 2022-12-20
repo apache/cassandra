@@ -131,6 +131,11 @@ public class TransactionStatement implements CQLStatement
         this.bindVariables = bindVariables;
     }
 
+    public List<ModificationStatement> getUpdates()
+    {
+        return updates;
+    }
+
     @Override
     public List<ColumnSpecification> getBindVariables()
     {

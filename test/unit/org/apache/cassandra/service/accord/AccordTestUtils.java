@@ -174,6 +174,14 @@ public class AccordTestUtils
         return statement.createTxn(ClientState.forInternalCalls(), options);
     }
 
+    public static TransactionStatement parse(String query)
+    {
+        TransactionStatement.Parsed parsed = (TransactionStatement.Parsed) QueryProcessor.parseStatement(query);
+        Assert.assertNotNull(parsed);
+        TransactionStatement statement = (TransactionStatement) parsed.prepare(ClientState.forInternalCalls());
+        return statement;
+    }
+
     public static Txn createTxn(int readKey, int... writeKeys)
     {
         StringBuilder sb = new StringBuilder("BEGIN TRANSACTION\n");

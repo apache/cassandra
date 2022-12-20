@@ -400,7 +400,7 @@ public class AccordCQLTest extends AccordTestBase
                                  "  SELECT row1.v;\n" +
                                  "  UPDATE " + currentTable + " SET v " + operation + " 1 WHERE k = 1;\n" +
                                  "COMMIT TRANSACTION";
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { startingValue }, update);
+                 assertRowEquals(cluster, new Object[] { startingValue }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
                                 "  SELECT v FROM " + currentTable + " WHERE k = 1;\n" +
@@ -1424,7 +1424,7 @@ public class AccordCQLTest extends AccordTestBase
                                  "  SELECT row0.counter, row0.other_counter;\n" +
                                  "  UPDATE " + currentTable + " SET other_counter += 1, counter += row0.counter WHERE k = 0 AND c = 1;\n" +
                                  "COMMIT TRANSACTION";
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 1, 1 }, update);
+                 assertRowEquals(cluster, new Object[] { 1, 1 }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
                                 "  SELECT counter, other_counter FROM " + currentTable + " WHERE k = 0 AND c = 1;\n" +
@@ -1448,7 +1448,7 @@ public class AccordCQLTest extends AccordTestBase
                                  "  UPDATE " + currentTable + " SET int_list[0] = 42 WHERE k = 0 AND c = 0;\n" +
                                  "  UPDATE " + currentTable + " SET counter += 1 WHERE k = 0 AND c = 0;\n" +
                                  "COMMIT TRANSACTION";
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, Arrays.asList(1, 2) }, update);
+                 assertRowEquals(cluster, new Object[] { 0, Arrays.asList(1, 2) }, update);
 
                  String check = "BEGIN TRANSACTION\n" +
                                 "  SELECT counter, int_list FROM " + currentTable + " WHERE k = 0 AND c = 0;\n" +
@@ -2255,7 +2255,7 @@ public class AccordCQLTest extends AccordTestBase
                         "    UPDATE demo_ks.user_docs SET title='slides.key', permissions=777 WHERE user='scott' AND doc_id=101;\n" +
                         "  END IF\n" +
                         "COMMIT TRANSACTION";
-        assertRowEqualsWithPreemptedRetry(SHARED_CLUSTER, new Object[] { 5 }, addDoc);
+        assertRowEquals(SHARED_CLUSTER, new Object[] { 5 }, addDoc);
 
         String addUser = "BEGIN TRANSACTION\n" +
                          "  LET demo_doc = (SELECT * FROM demo_ks.org_docs WHERE org_name='demo' LIMIT 1);\n" +
@@ -2267,7 +2267,7 @@ public class AccordCQLTest extends AccordTestBase
                          "    UPDATE demo_ks.user_docs SET title='slides.key', permissions=777 WHERE user='benedict' AND doc_id=101;\n" +
                          "  END IF\n" +
                          "COMMIT TRANSACTION";
-        assertRowEqualsWithPreemptedRetry(SHARED_CLUSTER, new Object[] { 6 }, addUser);
+        assertRowEquals(SHARED_CLUSTER, new Object[] { 6 }, addUser);
     }
 
     // TODO: Implement support for basic arithmetic on references in INSERT
