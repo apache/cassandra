@@ -18,16 +18,20 @@
 
 package org.apache.cassandra.cql3;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.Nullable;
 
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.Row;
+import com.datastax.driver.core.SimpleStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -64,7 +68,7 @@ public class QueryInterceptorTest extends CQLTester
         {
             @Nullable
             @Override
-            public ResultMessage interceptStatement(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
+            public ResultMessage interceptStatement(CQLStatement statement, QueryState queryState, QueryOptions options, Map<String, ByteBuffer> customPayload, long queryStartNanoTime)
             {
                 if (statement instanceof SelectStatement)
                 {
@@ -94,7 +98,7 @@ public class QueryInterceptorTest extends CQLTester
         {
             @Nullable
             @Override
-            public ResultMessage interceptStatement(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
+            public ResultMessage interceptStatement(CQLStatement statement, QueryState queryState, QueryOptions options, Map<String, ByteBuffer> customPayload, long queryStartNanoTime)
             {
                 if (statement instanceof SelectStatement)
                 {
@@ -128,7 +132,7 @@ public class QueryInterceptorTest extends CQLTester
         {
             @Nullable
             @Override
-            public ResultMessage interceptStatement(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
+            public ResultMessage interceptStatement(CQLStatement statement, QueryState queryState, QueryOptions options, Map<String, ByteBuffer> customPayload, long queryStartNanoTime)
             {
                 if (statement instanceof SelectStatement)
                 {
@@ -149,6 +153,53 @@ public class QueryInterceptorTest extends CQLTester
         assertEquals(1, rows.get(0).getInt(1));
         assertEquals(1, rows.get(1).getInt(0));
         assertEquals(2, rows.get(1).getInt(1));
+    }
+
+    @Test
+    public void testInterceptBatchStatement() throws Throwable
+    {
+        createTable("create table %s (id int primary key, v int)");
+
+        BatchStatement batch = new BatchStatement(BatchStatement.Type.LOGGED);
+        batch.add(new SimpleStatement(String.format("insert into %s.%s (id, v) values (0, 0)", keyspace(), currentTable())));
+        batch.add(new SimpleStatement(String.format("insert into %s.%s (id, v) values (1, 1)", keyspace(), currentTable())));
+        executeNet(batch);
+
+        assertRows(execute("select count(*) from %s"), row(2L));
+
+        // skip batch execution
+        QueryProcessor.instance.registerInterceptor(new QueryInterceptor()
+        {
+            @Override
+            public ResultMessage interceptBatchStatement(org.apache.cassandra.cql3.statements.BatchStatement batch,
+                                                         QueryState state,
+                                                         BatchQueryOptions options,
+                                                         Map<String, ByteBuffer> customPayload,
+                                                         long queryStartNanoTime)
+            {
+                return new ResultMessage.Void();
+            }
+        });
+
+        batch = new BatchStatement(BatchStatement.Type.LOGGED);
+        batch.add(new SimpleStatement(String.format("insert into %s.%s (id, v) values (3, 0)", keyspace(), currentTable())));
+        batch.add(new SimpleStatement(String.format("insert into %s.%s (id, v) values (4, 1)", keyspace(), currentTable())));
+        executeNet(batch);
+
+        // verify second batch is not inserted
+        assertRows(execute("select count(*) from %s"), row(2L));
+
+        // clear interceptor and inject default interceptor
+        QueryProcessor.instance.clearInterceptors();
+        QueryProcessor.instance.registerInterceptor(new QueryInterceptor() {});
+
+        batch = new BatchStatement(BatchStatement.Type.LOGGED);
+        batch.add(new SimpleStatement(String.format("insert into %s.%s (id, v) values (5, 0)", keyspace(), currentTable())));
+        batch.add(new SimpleStatement(String.format("insert into %s.%s (id, v) values (6, 1)", keyspace(), currentTable())));
+        executeNet(batch);
+
+        // verify third batch is inserted
+        assertRows(execute("select count(*) from %s"), row(4L));
     }
 
     private ResultMessage generateResults(Object[]... rows)

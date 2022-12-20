@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.Nullable;
 
 import org.junit.After;
@@ -81,7 +82,7 @@ public class ExternalRestrictionTest extends CQLTester
         {
             @Nullable
             @Override
-            public ResultMessage interceptStatement(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
+            public ResultMessage interceptStatement(CQLStatement statement, QueryState queryState, QueryOptions options, Map<String, ByteBuffer> customPayload, long queryStartNanoTime)
             {
                 if (statement instanceof SelectStatement)
                 {
