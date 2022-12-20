@@ -18,16 +18,16 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.tools.ToolRunner;
 import org.junit.Test;
 
 import java.util.Arrays;
 
-import static org.apache.cassandra.db.compaction.CompactionHistoryTabularData.UNKNOWN_TYPE;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
+import static org.apache.cassandra.tools.ToolRunner.invokeNodetoolJvmDtest;
 import static org.junit.Assert.assertTrue;
 
 public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
@@ -37,8 +37,8 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
     {
         new TestCase()
             .nodes(2)
-            .nodesToUpgrade(2)
-            .upgradesToCurrentFrom(v40).setup((cluster) -> {
+            .nodesToUpgrade(1, 2)
+            .upgradesToCurrentFrom(v41).setup((cluster) -> {
               //create table
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tb (" +
                 "pk text PRIMARY KEY," +
@@ -55,20 +55,20 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
             }
             // force compact
             cluster.stream().forEach(node -> node.forceCompact(KEYSPACE, "tb"));
-        }).runAfterNodeUpgrade((cluster, node) -> {
-          String query = "SELECT compaction_type FROM system.compaction_history where keyspace_name = '" + KEYSPACE + "' AND columnfamily_name = 'tb' ALLOW FILTERING";
+        }).runAfterClusterUpgrade((cluster) -> {
+          String query = "SELECT compaction_type, keyspace_name, columnfamily_name FROM system.compaction_history where keyspace_name = '" + KEYSPACE + "' AND columnfamily_name = 'tb' LIMIT 1 ALLOW FILTERING";
           Object[][] expectedResult = {
-              row(null)
+              row(null, KEYSPACE, "tb")
           };
           assertRows(cluster.coordinator(1).execute(query, ConsistencyLevel.ALL), expectedResult);
           assertRows(cluster.coordinator(2).execute(query, ConsistencyLevel.ALL), expectedResult);
 
-          ToolRunner.ToolResult toolHistory = invokeNodetool("compactionhistory");
+          ToolRunner.ToolResult toolHistory = invokeNodetoolJvmDtest(cluster.get(1), "compactionhistory");
           toolHistory.assertOnCleanExit();
           String stdout = toolHistory.getStdout();
-          String [] resultArray = stdout.split("\n");
+          String[] resultArray = stdout.split("\n");
           assertTrue(Arrays.stream(resultArray)
-              .anyMatch(result -> result.contains(UNKNOWN_TYPE)
+              .anyMatch(result -> result.contains(OperationType.UNKNOWN.type)
                   && result.contains(KEYSPACE)
                   && result.contains("tb")));
       })

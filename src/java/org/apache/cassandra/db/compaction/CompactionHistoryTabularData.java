@@ -39,8 +39,6 @@ public class CompactionHistoryTabularData
 
     private static final String ROW_DESC = "CompactionHistory";
 
-    public static final String UNKNOWN_TYPE = "UNKNOWN";
-
     private static final OpenType<?>[] ITEM_TYPES;
 
     private static final CompositeType COMPOSITE_TYPE;
@@ -76,7 +74,7 @@ public class CompactionHistoryTabularData
             long bytesIn = row.getLong(ITEM_NAMES[4]);
             long bytesOut = row.getLong(ITEM_NAMES[5]);
             Map<Integer, Long> rowMerged = row.getMap(ITEM_NAMES[6], Int32Type.instance, LongType.instance);
-            String compactionType = UNKNOWN_TYPE;
+            String compactionType = OperationType.UNKNOWN.type;
             if (row.has(ITEM_NAMES[7]))
             {
                 compactionType = row.getString(ITEM_NAMES[7]);

@@ -322,7 +322,6 @@ public class UpgradeTestBase extends DistributedTestBase
                 try (UpgradeableCluster cluster = init(UpgradeableCluster.create(nodeCount, upgrade.initial, configConsumer, builderConsumer)))
                 {
                     setup.run(cluster);
-
                     for (Version nextVersion : upgrade.upgrade)
                     {
                         try
