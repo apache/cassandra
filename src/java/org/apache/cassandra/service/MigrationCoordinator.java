@@ -64,11 +64,13 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 public class MigrationCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationCoordinator.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(MigrationCoordinator.logger, 1, TimeUnit.MINUTES);
     private static final RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
     private static final Future<Void> FINISHED_FUTURE = Futures.immediateFuture(null);
 
@@ -504,7 +506,7 @@ public class MigrationCoordinator
     {
         if (!isAlive(callback.endpoint))
         {
-            logger.warn("Can't send schema pull request: node {} is down.", callback.endpoint);
+            noSpamLogger.warn("Can't send schema pull request: node {} is down.", callback.endpoint);
             callback.fail();
             return;
         }
