@@ -3,7 +3,7 @@ Merged from 4.0:
  * Restore internode custom tracing on 4.0's new messaging system (CASSANDRA-17981)
 Merged from 3.11:
 Merged from 3.0:
-
+ * Do not spam the logs with MigrationCoordinator not being able to pull schemas (CASSANDRA-18096)
 
 4.1.0
  * Fix ContentionStrategy backoff and Clock.waitUntil (CASSANDRA-18086)
