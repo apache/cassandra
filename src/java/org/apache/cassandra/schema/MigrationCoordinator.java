@@ -64,6 +64,7 @@ import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_ENDPOINTS;
@@ -81,6 +82,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SC
 public class MigrationCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationCoordinator.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(MigrationCoordinator.logger, 1, TimeUnit.MINUTES);
     private static final Future<Void> FINISHED_FUTURE = Futures.immediateFuture(null);
 
     private static LongSupplier getUptimeFn = () -> ManagementFactory.getRuntimeMXBean().getUptime();
@@ -642,7 +644,7 @@ public class MigrationCoordinator
 
         if (!isAlive(callback.endpoint))
         {
-            logger.warn("Can't send schema pull request: node {} is down.", callback.endpoint);
+            noSpamLogger.warn("Can't send schema pull request: node {} is down.", callback.endpoint);
             callback.fail();
             return;
         }
