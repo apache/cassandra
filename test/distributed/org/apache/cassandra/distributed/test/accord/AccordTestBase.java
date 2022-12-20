@@ -25,17 +25,20 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import accord.primitives.Txn;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.This;
+import org.apache.cassandra.cql3.transactions.ReferenceValue;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.coordinate.Preempted;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
@@ -46,8 +49,10 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FailingConsumer;
+import org.assertj.core.util.Arrays;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.junit.Assert.assertArrayEquals;
@@ -59,6 +64,7 @@ public abstract class AccordTestBase extends TestBaseImpl
     protected static Cluster SHARED_CLUSTER;
     
     protected String currentTable;
+    private final Logger logger = LoggerFactory.getLogger(getClass());
 
     @BeforeClass
     public static void setupClass() throws IOException
@@ -125,37 +131,90 @@ public abstract class AccordTestBase extends TestBaseImpl
                            .start());
     }
 
+    private static SimpleQueryResult execute(Cluster cluster, String check, Object... boundValues)
+    {
+        return cluster.coordinator(1).executeWithResult(check, ConsistencyLevel.ANY, boundValues);
+    }
+
+    protected static SimpleQueryResult assertRowEquals(Cluster cluster, SimpleQueryResult expected, String check, Object... boundValues)
+    {
+        SimpleQueryResult result = execute(cluster, check, boundValues);
+        QueryResultUtil.assertThat(result).isEqualTo(expected);
+        return result;
+    }
+
+    protected static SimpleQueryResult assertRowEquals(Cluster cluster, Object[] row, String check, Object... boundValues)
+    {
+        return assertRowEquals(cluster, QueryResults.builder().row(row).build(), check, boundValues);
+    }
+
     // TODO: Retry on preemption may become unnecessary after the Unified Log is integrated.
-    protected static SimpleQueryResult assertRowEqualsWithPreemptedRetry(Cluster cluster, Object[] row, String check, Object... boundValues)
+    protected SimpleQueryResult assertRowEqualsWithPreemptedRetry(Cluster cluster, Object[] row, String check, Object... boundValues)
     {
         return assertRowWithPreemptedRetry(cluster, QueryResults.builder().row(row).build(), check, boundValues);
     }
 
-    protected static SimpleQueryResult assertEmptyWithPreemptedRetry(Cluster cluster, String check, Object... boundValues)
+    protected SimpleQueryResult assertEmptyWithPreemptedRetry(Cluster cluster, String check, Object... boundValues)
     {
         return assertRowWithPreemptedRetry(cluster, QueryResults.builder().build(), check, boundValues);
     }
 
-    private static SimpleQueryResult assertRowWithPreemptedRetry(Cluster cluster, SimpleQueryResult expected, String check, Object... boundValues)
+    private SimpleQueryResult assertRowWithPreemptedRetry(Cluster cluster, SimpleQueryResult expected, String check, Object... boundValues)
     {
         SimpleQueryResult result = executeWithRetry(cluster, check, boundValues);
         QueryResultUtil.assertThat(result).isEqualTo(expected);
         return result;
     }
 
-    protected static SimpleQueryResult executeWithRetry(Cluster cluster, String check, Object... boundValues)
+    private SimpleQueryResult executeWithRetry0(int count, Cluster cluster, String check, Object... boundValues)
     {
         try
         {
-            return cluster.coordinator(1).executeWithResult(check, ConsistencyLevel.ANY, boundValues);
+            return execute(cluster, check, boundValues);
         }
         catch (Throwable t)
         {
             if (AssertionUtils.rootCauseIs(Preempted.class).matches(t))
-                return executeWithRetry(cluster, check, boundValues);
+            {
+                logger.warn("[Retry attempt={}] Preempted failure for {}", count, check);
+                return executeWithRetry0(count + 1, cluster, check, boundValues);
+            }
 
             throw t;
         }
+    }
+
+    protected SimpleQueryResult executeWithRetry(Cluster cluster, String check, Object... boundValues)
+    {
+        // is this method safe?
+        cluster.get(1).runOnInstance(() -> {
+            TransactionStatement stmt = AccordTestUtils.parse(check);
+            if (!isIdempotent(stmt))
+                throw new AssertionError("Unable to retry txn that is not idempotent: cql=" + check);
+        });
+        return executeWithRetry0(0, cluster, check, boundValues);
+    }
+
+    public static boolean isIdempotent(TransactionStatement statement)
+    {
+        for (ModificationStatement update : statement.getUpdates())
+        {
+            if (!isIdempotent(update))
+                return false;
+        }
+        return true;
+    }
+
+    private static boolean isIdempotent(ModificationStatement update)
+    {
+        update.migrateReadRequiredOperations();
+        // ReferenceValue.Constant is used during migration, which means a case like "a += 1"
+        // ReferenceValue.Substitution uses a LET reference, so rerunning would always just see the new state
+        long numConstants = update.getSubstitutions().stream()
+                                  .filter(f -> f.getValue() instanceof ReferenceValue.Constant)
+                                  .filter(f -> !f.getKind().name().contains("Setter"))
+                                  .count();
+        return numConstants == 0;
     }
 
     public static class EnforceUpdateDoesNotPerformRead
