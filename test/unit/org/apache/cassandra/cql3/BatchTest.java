@@ -27,11 +27,17 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertSame;
 
 import java.io.IOException;
@@ -187,6 +193,19 @@ public class BatchTest extends CQLTester
         assertSame(ConsistencyLevel.ONE, queryOptions.getConsistency());
         queryOptions.updateConsistency(ConsistencyLevel.ALL);
         assertSame(ConsistencyLevel.ALL, queryOptions.getConsistency());
+    }
+
+    @Test
+    public void testGetVariables()
+    {
+        BatchQueryOptions queryOptions = BatchQueryOptions.withoutPerStatementVariables(QueryOptions.DEFAULT);
+        assertThat(queryOptions.getVariables()).isEmpty();
+
+        List<List<ByteBuffer>> variables = Collections.singletonList(Collections.singletonList(ByteBufferUtil.bytes(1)));
+        List<Object> queryOrIdList = Collections.singletonList(1);
+        queryOptions = BatchQueryOptions.withPerStatementVariables(QueryOptions.DEFAULT, variables, queryOrIdList);
+        assertThat(queryOptions.getVariables()).isEqualTo(variables);
+        assertThat(queryOptions.getQueryOrIdList()).isEqualTo(queryOrIdList);
     }
 
     public void sendBatch(BatchStatement.Type type, boolean addCounter, boolean addNonCounter, boolean addClustering)

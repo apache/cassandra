@@ -94,6 +94,7 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -516,7 +517,8 @@ public class StorageProxy implements StorageProxyMBean
                            state,
                            queryStartNanoTime,
                            metrics.casWriteMetrics,
-                           updateProposer);
+                           updateProposer,
+                           false);
 
         }
         catch (CasWriteUnknownResultException e)
@@ -599,6 +601,7 @@ public class StorageProxy implements StorageProxyMBean
      *     this operation and 2) the result that the whole method should return. This can return {@code null} in the
      *     special where, after having "prepared" (and thus potentially replayed in-progress upgdates), we don't want
      *     to propose anything (the whole method then return {@code null}).
+     * @param skipCommitConsistencyValidation whether to skip {@link ConsistencyLevel#validateForCasCommit} for commit consistency
      * @return the second element of the pair returned by {@code createUpdateProposal} (for the last call of that method
      *     if that method is called multiple times due to retries).
      */
@@ -610,7 +613,8 @@ public class StorageProxy implements StorageProxyMBean
                                        QueryState queryState,
                                        long queryStartNanoTime,
                                        CASClientRequestMetrics casMetrics,
-                                       Supplier<Pair<PartitionUpdate, RowIterator>> createUpdateProposal)
+                                       Supplier<Pair<PartitionUpdate, RowIterator>> createUpdateProposal,
+                                       boolean skipCommitConsistencyValidation)
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
         int contentions = 0;
@@ -620,7 +624,8 @@ public class StorageProxy implements StorageProxyMBean
         {
             consistencyForPaxos.validateForCas(metadata.keyspace, queryState);
             consistencyForReplayCommits.validateForCasCommit(latestRs, metadata.keyspace, queryState);
-            consistencyForCommit.validateForCasCommit(latestRs, metadata.keyspace, queryState);
+            if (!skipCommitConsistencyValidation)
+                consistencyForCommit.validateForCasCommit(latestRs, metadata.keyspace, queryState);
 
             long timeoutNanos = DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS);
             while (System.nanoTime() - queryStartNanoTime < timeoutNanos)
@@ -1947,7 +1952,8 @@ public class StorageProxy implements StorageProxyMBean
                         queryState,
                         start,
                         metrics.casReadMetrics,
-                        updateProposer);
+                        updateProposer,
+                        true); // skip guardrail for ANY which is blocked by CNDB
             }
             catch (WriteTimeoutException e)
             {
