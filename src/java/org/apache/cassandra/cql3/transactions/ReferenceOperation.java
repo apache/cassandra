@@ -76,6 +76,16 @@ public class ReferenceOperation
         return new ReferenceOperation(receiver, kind, key, field, value);
     }
 
+    public TxnReferenceOperation.Kind getKind()
+    {
+        return kind;
+    }
+
+    public ReferenceValue getValue()
+    {
+        return value;
+    }
+
     public ColumnMetadata getReceiver()
     {
         return receiver;
