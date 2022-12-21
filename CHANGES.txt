@@ -1,4 +1,5 @@
 4.2
+ * Print friendly error when nodetool attempts to connect to uninitialized server (CASSANDRA-11537)
  * Use G1GC by default, and update default G1GC settings (CASSANDRA-18027)
  * SimpleSeedProvider can resolve multiple IP addresses per DNS record (CASSANDRA-14361)
  * Remove mocking in InternalNodeProbe spying on StorageServiceMBean (CASSANDRA-18152)

@@ -46,6 +46,7 @@ public class SetGetInterDCStreamThroughputTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
+        requireNetwork();
         startJMXServer();
     }
 

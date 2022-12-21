@@ -32,6 +32,7 @@ public class GetAuditLogTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
+        requireNetwork();
         startJMXServer();
     }
 
