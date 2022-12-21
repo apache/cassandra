@@ -213,7 +213,7 @@ public class Murmur3Partitioner implements IPartitioner
         }
 
         @Override
-        public LongToken increaseSlightly()
+        public LongToken nextValidToken()
         {
             return new LongToken(token + 1);
         }
