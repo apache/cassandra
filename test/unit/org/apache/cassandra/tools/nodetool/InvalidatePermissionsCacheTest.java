@@ -85,6 +85,7 @@ public class InvalidatePermissionsCacheTest extends CQLTester
             authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
         }
 
+        requireNetwork();
         startJMXServer();
     }
 
