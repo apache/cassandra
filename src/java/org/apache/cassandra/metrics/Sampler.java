@@ -54,6 +54,23 @@ public abstract class Sampler<T>
                                                      resultBuilder.forType(samplerType, samplerType.description)
                                                                   .addColumn("Query", "value")
                                                                   .addColumn("Microseconds", "count"))),
+        READ_ROW_COUNT("Partitions read with the most rows", ((samplerType, resultBuilder) ->
+                                                      resultBuilder.forType(samplerType, samplerType.description)
+                                                      .addColumn("Table", "table")
+                                                      .addColumn("Partition", "value")
+                                                      .addColumn("Rows", "count"))),
+
+        READ_TOMBSTONE_COUNT("Partitions read with the most tombstones", ((samplerType, resultBuilder) ->
+                                                      resultBuilder.forType(samplerType, samplerType.description)
+                                                                   .addColumn("Table", "table")
+                                                                   .addColumn("Partition", "value")
+                                                                   .addColumn("Tombstones", "count"))),
+
+        READ_SSTABLE_COUNT("Partitions read with the most sstables", ((samplerType, resultBuilder) ->
+                                                                      resultBuilder.forType(samplerType, samplerType.description)
+                                                                                   .addColumn("Table", "table")
+                                                                                   .addColumn("Partition", "value")
+                                                                                   .addColumn("SSTables", "count"))),
         WRITE_SIZE("Max mutation size by partition", ((samplerType, resultBuilder) ->
                                                       resultBuilder.forType(samplerType, samplerType.description)
                                                                    .addColumn("Table", "table")

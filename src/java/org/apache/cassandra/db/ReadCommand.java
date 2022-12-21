@@ -501,7 +501,9 @@ public abstract class ReadCommand extends AbstractReadQuery
             private final boolean enforceStrictLiveness = metadata().enforceStrictLiveness();
 
             private int liveRows = 0;
+            private int lastReportedLiveRows = 0;
             private int tombstones = 0;
+            private int lastReportedTombstones = 0;
 
             private DecoratedKey currentKey;
 
@@ -566,6 +568,22 @@ public abstract class ReadCommand extends AbstractReadQuery
                     }
                     throw new TombstoneOverwhelmingException(tombstones, query, ReadCommand.this.metadata(), currentKey, clustering);
                 }
+            }
+
+            @Override
+            protected void onPartitionClose()
+            {
+                int lr = liveRows - lastReportedLiveRows;
+                int ts = tombstones - lastReportedTombstones;
+
+                if (lr > 0)
+                    metric.topReadPartitionRowCount.addSample(currentKey.getKey(), lr);
+
+                if (ts > 0)
+                    metric.topReadPartitionTombstoneCount.addSample(currentKey.getKey(), ts);
+
+                lastReportedLiveRows = liveRows;
+                lastReportedTombstones = tombstones;
             }
 
             @Override

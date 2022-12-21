@@ -262,6 +262,12 @@ public class TableMetrics
     public final Sampler<ByteBuffer> topCasPartitionContention;
     /** When sampler activated, will track the slowest local reads **/
     public final Sampler<String> topLocalReadQueryTime;
+    /** When sampler activated, will track partitions read with the most rows **/
+    public final Sampler<ByteBuffer> topReadPartitionRowCount;
+    /** When sampler activated, will track partitions read with the most tombstones **/
+    public final Sampler<ByteBuffer> topReadPartitionTombstoneCount;
+    /** When sample activated, will track partitions read with the most merged sstables **/
+    public final Sampler<ByteBuffer> topReadPartitionSSTableCount;
 
     public final TableMeter clientTombstoneWarnings;
     public final TableMeter clientTombstoneAborts;
@@ -442,11 +448,39 @@ public class TableMetrics
             }
         };
 
+        topReadPartitionRowCount = new MaxSampler<ByteBuffer>()
+        {
+            public String toString(ByteBuffer value)
+            {
+                return cfs.metadata().partitionKeyType.getString(value);
+            }
+        };
+
+        topReadPartitionTombstoneCount = new MaxSampler<ByteBuffer>()
+        {
+            public String toString(ByteBuffer value)
+            {
+                return cfs.metadata().partitionKeyType.getString(value);
+            }
+        };
+
+        topReadPartitionSSTableCount = new MaxSampler<ByteBuffer>()
+        {
+            @Override
+            public String toString(ByteBuffer value)
+            {
+                return cfs.metadata().partitionKeyType.getString(value);
+            }
+        };
+
         samplers.put(SamplerType.READS, topReadPartitionFrequency);
         samplers.put(SamplerType.WRITES, topWritePartitionFrequency);
         samplers.put(SamplerType.WRITE_SIZE, topWritePartitionSize);
         samplers.put(SamplerType.CAS_CONTENTIONS, topCasPartitionContention);
         samplers.put(SamplerType.LOCAL_READ_TIME, topLocalReadQueryTime);
+        samplers.put(SamplerType.READ_ROW_COUNT, topReadPartitionRowCount);
+        samplers.put(SamplerType.READ_TOMBSTONE_COUNT, topReadPartitionTombstoneCount);
+        samplers.put(SamplerType.READ_SSTABLE_COUNT, topReadPartitionSSTableCount);
 
         memtableColumnsCount = createTableGauge("MemtableColumnsCount", 
                                                 () -> cfs.getTracker().getView().getCurrentMemtable().operationCount());
