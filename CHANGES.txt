@@ -1,4 +1,5 @@
 4.2
+ * Add row, tombstone, and sstable count to nodetool profileload (CASSANDRA-18022)
  * Coordinator level metrics for read response and mutation row and column counts (CASSANDRA-18155)
  * Add CQL functions for dynamic data masking (CASSANDRA-17941)
  * Print friendly error when nodetool attempts to connect to uninitialized server (CASSANDRA-11537)
