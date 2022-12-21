@@ -38,6 +38,7 @@ public class GetFullQueryLogTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
+        requireNetwork();
         startJMXServer();
     }
 

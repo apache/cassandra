@@ -42,6 +42,7 @@ public class GetAuthCacheConfigTest extends CQLTester
     {
         CQLTester.setUpClass();
         CQLTester.requireAuthentication();
+        requireNetwork();
         startJMXServer();
     }
 

@@ -37,6 +37,7 @@ public class NodeProbeTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
+        requireNetwork();
         startJMXServer();
         probe = new NodeProbe(jmxHost, jmxPort);
     }

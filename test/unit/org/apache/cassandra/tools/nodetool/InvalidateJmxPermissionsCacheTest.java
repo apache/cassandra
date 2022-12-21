@@ -65,6 +65,7 @@ public class InvalidateJmxPermissionsCacheTest extends CQLTester
 
         AuthCacheService.initializeAndRegisterCaches();
 
+        requireNetwork();
         startJMXServer();
     }
 

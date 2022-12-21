@@ -45,6 +45,8 @@ import java.util.Map.Entry;
 import java.util.Scanner;
 import java.util.SortedMap;
 
+import javax.management.InstanceNotFoundException;
+
 import com.google.common.base.Joiner;
 import com.google.common.base.Throwables;
 
@@ -307,6 +309,10 @@ public class NodeTool
 
     protected void err(Throwable e)
     {
+        // CASSANDRA-11537: friendly error message when server is not ready
+        if (e instanceof InstanceNotFoundException)
+            throw new IllegalArgumentException("Server is not initialized yet, cannot run nodetool.");
+
         output.err.println("error: " + e.getMessage());
         output.err.println("-- StackTrace --");
         output.err.println(getStackTraceAsString(e));

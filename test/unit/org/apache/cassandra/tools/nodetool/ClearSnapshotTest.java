@@ -61,6 +61,7 @@ public class ClearSnapshotTest extends CQLTester
     public static void setup() throws Exception
     {
         startJMXServer();
+        requireNetwork();
         probe = new NodeProbe(jmxHost, jmxPort);
     }
 

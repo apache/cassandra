@@ -381,10 +381,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         super(JMXBroadcastExecutor.executor);
 
         jmxObjectName = "org.apache.cassandra.db:type=StorageService";
-        MBeanWrapper.instance.registerMBean(this, jmxObjectName);
-        MBeanWrapper.instance.registerMBean(StreamManager.instance, StreamManager.OBJECT_NAME);
 
         sstablesTracker = new SSTablesGlobalTracker(SSTableFormat.Type.current());
+    }
+
+    private void registerMBeans()
+    {
+        MBeanWrapper.instance.registerMBean(this, jmxObjectName);
+        MBeanWrapper.instance.registerMBean(StreamManager.instance, StreamManager.OBJECT_NAME);
     }
 
     public void registerDaemon(CassandraDaemon daemon)
@@ -844,7 +848,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (!Boolean.parseBoolean(System.getProperty("cassandra.start_gossip", "true")))
         {
             logger.info("Not starting gossip as requested.");
-            initialized = true;
+            completeInitialization();
             return;
         }
 
@@ -882,6 +886,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
+        completeInitialization();
+    }
+
+    private void completeInitialization()
+    {
+        if (!initialized)
+            registerMBeans();
         initialized = true;
     }
 

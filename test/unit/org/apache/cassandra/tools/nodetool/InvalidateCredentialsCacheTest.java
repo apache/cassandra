@@ -62,6 +62,7 @@ public class InvalidateCredentialsCacheTest extends CQLTester
                 .newAuthenticator((EndPoint) null, null)
                 .initialResponse());
 
+        requireNetwork();
         startJMXServer();
     }
 

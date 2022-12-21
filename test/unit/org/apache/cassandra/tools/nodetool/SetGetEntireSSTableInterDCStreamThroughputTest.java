@@ -39,6 +39,7 @@ public class SetGetEntireSSTableInterDCStreamThroughputTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
+        requireNetwork();
         startJMXServer();
     }
 
