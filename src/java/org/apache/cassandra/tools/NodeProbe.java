@@ -290,6 +290,9 @@ public class NodeProbe implements AutoCloseable
                 ManagementFactory.MEMORY_MXBEAN_NAME, MemoryMXBean.class);
         runtimeProxy = ManagementFactory.newPlatformMXBeanProxy(
                 mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
+        if (!isInitialized()) {
+            throw new IllegalStateException("Node is not initialized yet.");
+        }
     }
 
     private RMIClientSocketFactory getRMIClientSocketFactory()
