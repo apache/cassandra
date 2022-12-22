@@ -22,7 +22,6 @@ import java.util.List;
 
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
-import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -30,19 +29,21 @@ public abstract class AbstractMetrics
 {
     public static final String TYPE = "StorageAttachedIndex";
 
-    protected final TableMetadata table;
+    protected final String keyspace;
+    protected final String table;
     private final String index;
     private final String scope;
     protected final List<CassandraMetricsRegistry.MetricName> tracked = new ArrayList<>();
 
-    AbstractMetrics(TableMetadata table, String scope)
+    AbstractMetrics(String keyspace, String table, String scope)
     {
-        this(table, null, scope);
+        this(keyspace, table, null, scope);
     }
 
-    AbstractMetrics(TableMetadata table, String index, String scope)
+    AbstractMetrics(String keyspace, String table, String index, String scope)
     {
-        assert table != null : "SAI metrics must include table metadata";
+        assert keyspace != null && table != null : "SAI metrics must include table metadata";
+        this.keyspace = keyspace;
         this.table = table;
         this.index = index;
         this.scope = scope;
@@ -61,7 +62,7 @@ public abstract class AbstractMetrics
 
     protected CassandraMetricsRegistry.MetricName createMetricName(String name, String scope)
     {
-        String metricScope = table.keyspace + "." + table.name;
+        String metricScope = keyspace + "." + table;
         if (index != null)
         {
             metricScope += "." + index;
@@ -79,8 +80,8 @@ public abstract class AbstractMetrics
         StringBuilder builder = new StringBuilder();
         builder.append(DefaultNameFactory.GROUP_NAME);
         builder.append(":type=").append(TYPE);
-        builder.append(',').append("keyspace=").append(table.keyspace);
-        builder.append(',').append("table=").append(table.name);
+        builder.append(',').append("keyspace=").append(keyspace);
+        builder.append(',').append("table=").append(table);
         if (index != null)
             builder.append(',').append("index=").append(index);
         builder.append(',').append("scope=").append(scope);

@@ -28,7 +28,6 @@ import org.apache.cassandra.db.tries.MemtableTrie;
 import org.apache.cassandra.db.tries.Trie;
 import org.apache.cassandra.index.sai.utils.AbstractIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -88,7 +87,7 @@ public class RowMapping
     {
         assert complete : "RowMapping is not built.";
 
-        Iterator<Pair<ByteComparable, PrimaryKeys>> iterator = index.iterator();
+        Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator = index.iterator(minKey.partitionKey(), maxKey.partitionKey());
         return new AbstractIterator<Pair<ByteComparable, LongArrayList>>()
         {
             @Override
@@ -96,10 +95,10 @@ public class RowMapping
             {
                 while (iterator.hasNext())
                 {
-                    Pair<ByteComparable, PrimaryKeys> pair = iterator.next();
+                    Pair<ByteComparable, Iterator<PrimaryKey>> pair = iterator.next();
 
                     LongArrayList postings = null;
-                    Iterator<PrimaryKey> primaryKeys = pair.right.iterator();
+                    Iterator<PrimaryKey> primaryKeys = pair.right;
 
                     while (primaryKeys.hasNext())
                     {

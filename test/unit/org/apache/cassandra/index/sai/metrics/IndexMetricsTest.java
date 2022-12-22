@@ -92,7 +92,8 @@ public class IndexMetricsTest extends AbstractMetricsTest
             execute("INSERT INTO " + keyspace + "." + TABLE + "(id1, v1, v2) VALUES (?, ?, '0')", Integer.toString(i), i);
 
         assertEquals(10L, getMetricValue(objectName("LiveMemtableIndexWriteCount", keyspace, TABLE, INDEX, "IndexMetrics")));
-        assertTrue((Long)getMetricValue(objectName("MemtableIndexBytes", keyspace, TABLE, INDEX, "IndexMetrics")) > 0);
+        assertTrue((Long)getMetricValue(objectName("MemtableOnHeapIndexBytes", keyspace, TABLE, INDEX, "IndexMetrics")) > 0);
+        assertTrue((Long)getMetricValue(objectName("MemtableOffHeapIndexBytes", keyspace, TABLE, INDEX, "IndexMetrics")) > 0);
         assertEquals(0L, getMetricValue(objectName("MemtableIndexFlushCount", keyspace, TABLE, INDEX, "IndexMetrics")));
 
         waitForAssert(() -> {
@@ -115,7 +116,8 @@ public class IndexMetricsTest extends AbstractMetricsTest
         flush(keyspace, TABLE);
 
         assertEquals(0L, getMetricValue(objectName("LiveMemtableIndexWriteCount", keyspace, TABLE, INDEX, "IndexMetrics")));
-        assertEquals(0L, getMetricValue(objectName("MemtableIndexBytes", keyspace, TABLE, INDEX, "IndexMetrics")));
+        assertEquals(0L, getMetricValue(objectName("MemtableOnHeapIndexBytes", keyspace, TABLE, INDEX, "IndexMetrics")));
+        assertEquals(0L, getMetricValue(objectName("MemtableOffHeapIndexBytes", keyspace, TABLE, INDEX, "IndexMetrics")));
         assertEquals(1L, getMetricValue(objectName("MemtableIndexFlushCount", keyspace, TABLE, INDEX, "IndexMetrics")));
         assertEquals(10L, getMetricValue(objectName("SSTableCellCount", keyspace, TABLE, INDEX, "IndexMetrics")));
         assertTrue((Long)getMetricValue(objectName("DiskUsedBytes", keyspace, TABLE, INDEX, "IndexMetrics")) > 0);

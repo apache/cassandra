@@ -19,9 +19,6 @@ package org.apache.cassandra.index.sai.metrics;
 
 import java.util.concurrent.TimeUnit;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
@@ -29,15 +26,12 @@ import com.codahale.metrics.Timer;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class TableQueryMetrics extends AbstractMetrics
 {
     public static final String TABLE_QUERY_METRIC_TYPE = "TableQueryMetrics";
-    private static final Logger logger = LoggerFactory.getLogger(TableQueryMetrics.class);
-    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 60, TimeUnit.SECONDS);
 
     private final PerQueryMetrics perQueryMetrics;
 
@@ -51,7 +45,7 @@ public class TableQueryMetrics extends AbstractMetrics
 
     public TableQueryMetrics(TableMetadata table)
     {
-        super(table, TABLE_QUERY_METRIC_TYPE);
+        super(table.keyspace, table.name, TABLE_QUERY_METRIC_TYPE);
 
         perQueryMetrics = new PerQueryMetrics(table);
 
@@ -117,7 +111,7 @@ public class TableQueryMetrics extends AbstractMetrics
 
         public PerQueryMetrics(TableMetadata table)
         {
-            super(table, "PerQuery");
+            super(table.keyspace, table.name, "PerQuery");
 
             queryLatency = Metrics.timer(createMetricName("QueryLatency"));
 

@@ -34,7 +34,7 @@ public class QueryEventListeners
     {
         NoOpTrieIndexEventListener()
         {
-            super(null, TableMetadata.builder("ks", "tb").addPartitionKeyColumn("pk", UTF8Type.instance).build());
+            super("ks", "tb", null);
         }
 
         @Override
@@ -56,7 +56,7 @@ public class QueryEventListeners
     {
         NoOpBkdIndexEventListener()
         {
-            super(null, TableMetadata.builder("ks", "tb").addPartitionKeyColumn("pk", UTF8Type.instance).build());
+            super("ks", "tb", null);
         }
 
         @Override

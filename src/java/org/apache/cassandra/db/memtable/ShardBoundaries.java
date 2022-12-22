@@ -18,7 +18,10 @@
 package org.apache.cassandra.db.memtable;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -26,6 +29,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
 /**
@@ -39,6 +44,8 @@ import org.apache.cassandra.dht.Token;
 public class ShardBoundaries
 {
     private static final PartitionPosition[] EMPTY_TOKEN_ARRAY = new PartitionPosition[0];
+    private static final Range<PartitionPosition>[] EMPTY_RANGE_ARRAY = new Range[0];
+    private static final List<Integer> EMPTY_BOUNDARIES_SHARDS = Collections.singletonList(0);
 
     // Special boundaries that map all tokens to one shard.
     // These boundaries will be used in either of these cases:
@@ -48,6 +55,8 @@ public class ShardBoundaries
     public static final ShardBoundaries NONE = new ShardBoundaries(EMPTY_TOKEN_ARRAY, -1);
 
     private final PartitionPosition[] boundaries;
+    private final Range<PartitionPosition>[] ranges;
+    private final List<Integer> allShards;
     public final long ringVersion;
 
     @VisibleForTesting
@@ -55,6 +64,21 @@ public class ShardBoundaries
     {
         this.boundaries = boundaries;
         this.ringVersion = ringVersion;
+        if (boundaries.length == 0)
+            ranges = EMPTY_RANGE_ARRAY;
+        else
+        {
+            ranges = new Range[boundaries.length + 1];
+            int rangeIndex = 0;
+            PartitionPosition minimum = DatabaseDescriptor.getPartitioner().getMinimumToken().minKeyBound();
+            for (PartitionPosition boundary : boundaries)
+            {
+                ranges[rangeIndex++] = new Range<>(minimum, boundary);
+                minimum = boundary;
+            }
+            ranges[rangeIndex] = new Range<>(minimum, DatabaseDescriptor.getPartitioner().getMaximumToken().maxKeyBound());
+        }
+        allShards = IntStream.range(0, boundaries.length + 1).boxed().collect(Collectors.toList());
     }
 
     public ShardBoundaries(List<PartitionPosition> boundaries, long ringVersion)
@@ -86,6 +110,20 @@ public class ShardBoundaries
 
         assert (key.getPartitioner() == DatabaseDescriptor.getPartitioner());
         return getShardForToken(key.getToken());
+    }
+
+    public List<Integer> getShardsForRange(AbstractBounds<PartitionPosition> keyRange)
+    {
+        if (boundaries.length == 0)
+            return EMPTY_BOUNDARIES_SHARDS;
+
+        // If the keyRange tokens match and are minimum then it represents the entire token ring
+        // then we need to return all the shards.
+        if (keyRange.right.isMinimum() && keyRange.left.compareTo(keyRange.right) == 0)
+            return allShards;
+
+        // Otherwise we need to return all the shards whose range intersects the keyrange
+        return allShards.stream().filter(s -> ranges[s].intersects(keyRange)).collect(Collectors.toList());
     }
 
     /**

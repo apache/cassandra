@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.memory;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -26,29 +27,33 @@ import java.util.function.IntFunction;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 import static org.junit.Assert.assertEquals;
 
-//TODO Rework this test
 public class TrieMemoryIndexTest
 {
     private static final String KEYSPACE = "test_keyspace";
@@ -58,48 +63,75 @@ public class TrieMemoryIndexTest
 
     private static DecoratedKey key = Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes("key"));
 
+    private TableMetadata table;
+
     @Before
     public void setup()
     {
-        DatabaseDescriptor.daemonInitialization();
+        SchemaLoader.prepareServer();
     }
 
-//    @Test
-//    public void shouldEncodeAndDecodeStrings()
-//    {
-//        for (int i = 0; i < 31; ++i)
-//        {
-//            final UTF8Type type = UTF8Type.instance;
-//            String input = String.valueOf(i);
-//
-//            final TrieMemoryIndex.Encoder encoder = TrieMemoryIndex.encoderFor(type);
-//            final ByteComparable encodedAndTerminated = encoder.encode(type.decompose(input));
-//            // Note: For string, we unescape the prefix-free encoding, so the comparable contains exactly the bytes of the source.
-//            final ByteBuffer decoded = ByteBuffer.wrap(ByteSourceUtil.readBytes(encoder.decodeEntry(new AbstractMap.SimpleEntry<>(encodedAndTerminated, null)).left.asComparableBytes(ByteComparable.Version.DSE68)));
-//            final String output = type.compose(decoded);
-//
-//            assertEquals(input, output);
-//        }
-//    }
-//
-//    @Test
-//    public void shouldEncodeAndDecodeLongs()
-//    {
-//        for (int i = -31; i < 31; ++i)
-//        {
-//            final LongType type = LongType.instance;
-//            long input = i;
-//
-//            final TrieMemoryIndex.Encoder encoder = TrieMemoryIndex.encoderFor(type);
-//            final ByteComparable encodedAndTerminated = encoder.encode(type.decompose(input));
-//            // Note: For long, we return the prefix-free encoding which must be converted to the type.
-//            final ByteBuffer decoded = type.fromComparableBytes(encoder.decodeEntry(new AbstractMap.SimpleEntry<>(encodedAndTerminated, null)).left.asPeekableBytes(ByteComparable.Version.DSE68),
-//                                                                ByteComparable.Version.DSE68);
-//            final long output = type.compose(decoded);
-//
-//            assertEquals(input, output);
-//        }
-//    }
+    @Test
+    public void iteratorShouldReturnAllValuesNumeric()
+    {
+        TrieMemoryIndex index = newTrieMemoryIndex(Int32Type.instance, Int32Type.instance);
+
+        for (int row = 0; row < 100; row++)
+        {
+            index.add(makeKey(table, Integer.toString(row)), Clustering.EMPTY, Int32Type.instance.decompose(row / 10), allocatedBytes -> {}, allocatesBytes -> {});
+        }
+
+        Iterator<Pair<ByteComparable, PrimaryKeys>> iterator = index.iterator();
+        int valueCount = 0;
+        while(iterator.hasNext())
+        {
+            Pair<ByteComparable, PrimaryKeys> pair = iterator.next();
+            int value = ByteSourceInverse.getSignedInt(pair.left.asComparableBytes(ByteComparable.Version.OSS41));
+            int idCount = 0;
+            Iterator<PrimaryKey> primaryKeyIterator = pair.right.iterator();
+            while (primaryKeyIterator.hasNext())
+            {
+                PrimaryKey primaryKey = primaryKeyIterator.next();
+                int id = Int32Type.instance.compose(primaryKey.partitionKey().getKey());
+                assertEquals(id/10, value);
+                idCount++;
+            }
+            assertEquals(10, idCount);
+            valueCount++;
+        }
+        assertEquals(10, valueCount);
+    }
+
+    @Test
+    public void iteratorShouldReturnAllValuesString()
+    {
+        TrieMemoryIndex index = newTrieMemoryIndex(UTF8Type.instance, UTF8Type.instance);
+
+        for (int row = 0; row < 100; row++)
+        {
+            index.add(makeKey(table, Integer.toString(row)), Clustering.EMPTY, UTF8Type.instance.decompose(Integer.toString(row / 10)), allocatedBytes -> {}, allocatesBytes -> {});
+        }
+
+        Iterator<Pair<ByteComparable, PrimaryKeys>> iterator = index.iterator();
+        int valueCount = 0;
+        while(iterator.hasNext())
+        {
+            Pair<ByteComparable, PrimaryKeys> pair = iterator.next();
+            String value = new String(ByteSourceInverse.readBytes(pair.left.asPeekableBytes(ByteComparable.Version.OSS41)), StandardCharsets.UTF_8);
+            int idCount = 0;
+            Iterator<PrimaryKey> primaryKeyIterator = pair.right.iterator();
+            while (primaryKeyIterator.hasNext())
+            {
+                PrimaryKey primaryKey = primaryKeyIterator.next();
+                String id = UTF8Type.instance.compose(primaryKey.partitionKey().getKey());
+                assertEquals(Integer.toString(Integer.parseInt(id) / 10), value);
+                idCount++;
+            }
+            assertEquals(10, idCount);
+            valueCount++;
+        }
+        assertEquals(10, valueCount);
+    }
 
     @Test
     public void shouldAcceptPrefixValues()
@@ -110,10 +142,10 @@ public class TrieMemoryIndexTest
 
     private void shouldAcceptPrefixValuesForType(AbstractType<?> type, IntFunction<ByteBuffer> decompose)
     {
-        final TrieMemoryIndex index = newTrieMemoryIndex(type);
+        final TrieMemoryIndex index = newTrieMemoryIndex(UTF8Type.instance, type);
         for (int i = 0; i < 99; ++i)
         {
-            index.add(key, Clustering.EMPTY, decompose.apply(i));
+            index.add(key, Clustering.EMPTY, decompose.apply(i), allocatedBytes -> {}, allocatesBytes -> {});
         }
 
         final Iterator<Pair<ByteComparable, PrimaryKeys>> iterator = index.iterator();
@@ -135,22 +167,40 @@ public class TrieMemoryIndexTest
         assertEquals(99, i);
     }
 
-    private TrieMemoryIndex newTrieMemoryIndex(AbstractType<?> columnType)
+    private TrieMemoryIndex newTrieMemoryIndex(AbstractType<?> partitionKeyType, AbstractType<?> columnType)
     {
-        ColumnMetadata column = ColumnMetadata.regularColumn(KEYSPACE, TABLE, REG_COL, columnType);
-        TableMetadata metadata = TableMetadata.builder(KEYSPACE, TABLE)
-                                              .addPartitionKeyColumn(PART_KEY_COL, UTF8Type.instance)
-                                              .addRegularColumn(REG_COL, columnType)
-                                              .partitioner(Murmur3Partitioner.instance)
-                                              .caching(CachingParams.CACHE_NOTHING)
-                                              .build();
+        table = TableMetadata.builder(KEYSPACE, TABLE)
+                             .addPartitionKeyColumn(PART_KEY_COL, partitionKeyType)
+                             .addRegularColumn(REG_COL, columnType)
+                             .partitioner(Murmur3Partitioner.instance)
+                             .caching(CachingParams.CACHE_NOTHING)
+                             .build();
 
         Map<String, String> options = new HashMap<>();
         options.put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, StorageAttachedIndex.class.getCanonicalName());
         options.put("target", REG_COL);
 
         IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata("col_index", IndexMetadata.Kind.CUSTOM, options);
-        IndexContext ci = new IndexContext(metadata, indexMetadata);
-        return new TrieMemoryIndex(ci);
+        Pair<ColumnMetadata, IndexTarget.Type> target = TargetParser.parse(table, indexMetadata);
+        IndexContext indexContext = new IndexContext(table.keyspace,
+                                                     table.name,
+                                                     table.partitionKeyType,
+                                                     table.comparator,
+                                                     target.left,
+                                                     target.right,
+                                                     indexMetadata,
+                                                     MockSchema.newCFS(table));
+
+        return new TrieMemoryIndex(indexContext);
+    }
+
+    DecoratedKey makeKey(TableMetadata table, Object...partitionKeys)
+    {
+        ByteBuffer key;
+        if (TypeUtil.isComposite(table.partitionKeyType))
+            key = ((CompositeType)table.partitionKeyType).decompose(partitionKeys);
+        else
+            key = table.partitionKeyType.fromString((String)partitionKeys[0]);
+        return table.partitioner.decorateKey(key);
     }
 }

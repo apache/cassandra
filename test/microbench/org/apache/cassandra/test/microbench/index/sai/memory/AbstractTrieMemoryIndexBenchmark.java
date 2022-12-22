@@ -30,6 +30,7 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
@@ -37,7 +38,9 @@ import org.apache.cassandra.index.sai.memory.MemoryIndex;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Setup;
@@ -98,10 +101,25 @@ public abstract class AbstractTrieMemoryIndexBenchmark
         integerOptions.put(IndexTarget.TARGET_OPTION_NAME, INTEGER_COLUMN);
 
         IndexMetadata stringMetadata = IndexMetadata.fromSchemaMetadata(STRING_INDEX, IndexMetadata.Kind.CUSTOM, stringOptions);
-        stringContext = new IndexContext(table, stringMetadata);
+        Pair<ColumnMetadata, IndexTarget.Type> target = TargetParser.parse(table, stringMetadata);
+        stringContext = new IndexContext(table.keyspace,
+                                         table.name,
+                                         table.partitionKeyType,
+                                         table.comparator,
+                                         target.left,
+                                         target.right,
+                                         stringMetadata,
+                                         MockSchema.newCFS(table));
 
         IndexMetadata integerMetadata = IndexMetadata.fromSchemaMetadata(INTEGER_INDEX, IndexMetadata.Kind.CUSTOM, integerOptions);
-        integerContext = new IndexContext(table, integerMetadata);
+        integerContext = new IndexContext(table.keyspace,
+                                          table.name,
+                                          table.partitionKeyType,
+                                          table.comparator,
+                                          target.left,
+                                          target.right,
+                                          integerMetadata,
+                                          MockSchema.newCFS(table));
     }
 
 

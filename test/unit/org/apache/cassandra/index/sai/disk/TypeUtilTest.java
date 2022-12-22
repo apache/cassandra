@@ -46,7 +46,6 @@ import org.apache.cassandra.index.sai.utils.SaiRandomizedTest;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 public class TypeUtilTest extends SaiRandomizedTest
@@ -149,12 +148,12 @@ public class TypeUtilTest extends SaiRandomizedTest
             AbstractType<?> frozenCollection = init.apply(elementType.getType(), false);
             AbstractType<?> reversedFrozenCollection = ReversedType.getInstance(frozenCollection);
 
-            AbstractType<?> type = TypeUtil.cellValueType(target(frozenCollection, IndexTarget.Type.FULL));
+            AbstractType<?> type = TypeUtil.cellValueType(column(frozenCollection), IndexTarget.Type.FULL);
             assertTrue(TypeUtil.isFrozenCollection(type));
             assertTrue(TypeUtil.isLiteral(type));
             assertFalse(type.isReversed());
 
-            type = TypeUtil.cellValueType(target(reversedFrozenCollection, IndexTarget.Type.FULL));
+            type = TypeUtil.cellValueType(column(reversedFrozenCollection), IndexTarget.Type.FULL);
             assertTrue(TypeUtil.isFrozenCollection(type));
             assertTrue(TypeUtil.isLiteral(type));
             assertTrue(type.isReversed());
@@ -167,12 +166,7 @@ public class TypeUtilTest extends SaiRandomizedTest
 
     private static AbstractType<?> cellValueType(AbstractType<?> type, IndexTarget.Type indexType)
     {
-        return TypeUtil.cellValueType(target(type, indexType));
-    }
-
-    private static Pair<ColumnMetadata, IndexTarget.Type> target(AbstractType<?> type, IndexTarget.Type indexType)
-    {
-        return Pair.create(column(type), indexType);
+        return TypeUtil.cellValueType(column(type), indexType);
     }
 
     private static ColumnMetadata column(AbstractType<?> type)

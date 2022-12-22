@@ -34,6 +34,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -138,12 +139,17 @@ public class QueryController
     {
         StorageAttachedIndex index = getBestIndexFor(expression);
 
-        return index != null ? index.getIndexContext() : new IndexContext(cfs.metadata(), expression.column());
-    }
+        if (index != null)
+            return index.getIndexContext();
 
-    public StorageAttachedIndex getBestIndexFor(RowFilter.Expression expression)
-    {
-        return cfs.indexManager.getBestIndexFor(expression, StorageAttachedIndex.class).orElse(null);
+        return new IndexContext(cfs.metadata().keyspace,
+                                cfs.metadata().name,
+                                cfs.metadata().partitionKeyType,
+                                cfs.metadata().comparator,
+                                expression.column(),
+                                IndexTarget.Type.VALUES,
+                                null,
+                                cfs);
     }
 
     public UnfilteredRowIterator getPartition(PrimaryKey key, ReadExecutionController executionController)
@@ -232,6 +238,11 @@ public class QueryController
         return !indexFeatureSet.isRowAware() ||
                key.hasEmptyClustering() ||
                command.clusteringIndexFilter(key.partitionKey()).selects(key.clustering());
+    }
+
+    private StorageAttachedIndex getBestIndexFor(RowFilter.Expression expression)
+    {
+        return cfs.indexManager.getBestIndexFor(expression, StorageAttachedIndex.class).orElse(null);
     }
 
     // Note: This method assumes that the selects method has already been called for the

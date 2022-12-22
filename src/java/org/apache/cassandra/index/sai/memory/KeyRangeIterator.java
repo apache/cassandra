@@ -24,15 +24,15 @@ import java.util.SortedSet;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 
+/**
+ * An in-memory {@link RangeIterator} that uses a {@link SortedSet} which has no duplication as its backing store.
+ */
 public class KeyRangeIterator extends RangeIterator
 {
     private final PriorityQueue<PrimaryKey> keys;
     private final boolean uniqueKeys;
     private volatile PrimaryKey lastKey;
 
-    /**
-     * An in-memory {@link RangeIterator} that uses a {@link SortedSet} which has no duplication as its backing store.
-     */
     public KeyRangeIterator(SortedSet<PrimaryKey> keys)
     {
         super(keys.first(), keys.last(), keys.size());
@@ -57,7 +57,7 @@ public class KeyRangeIterator extends RangeIterator
         return key == null ? endOfData() : key;
     }
 
-    private PrimaryKey computeNextKey()
+    protected PrimaryKey computeNextKey()
     {
         PrimaryKey next = null;
 
