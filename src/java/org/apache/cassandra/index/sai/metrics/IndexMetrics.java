@@ -22,7 +22,6 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -33,7 +32,8 @@ public class IndexMetrics extends AbstractMetrics
     public final Gauge ssTableCellCount;
     public final Gauge liveMemtableIndexWriteCount;
     public final Gauge diskUsedBytes;
-    public final Gauge memtableIndexBytes;
+    public final Gauge memtableOnHeapIndexBytes;
+    public final Gauge memtableOffHeapIndexBytes;
     public final Gauge indexFileCacheBytes;
     
     public final Counter memtableIndexFlushCount;
@@ -46,9 +46,9 @@ public class IndexMetrics extends AbstractMetrics
     public final Histogram compactionSegmentCellsPerSecond;
     public final Histogram compactionSegmentBytesPerSecond;
 
-    public IndexMetrics(IndexContext context, TableMetadata table)
+    public IndexMetrics(IndexContext context)
     {
-        super(table, context.getIndexName(), "IndexMetrics");
+        super(context.getKeyspace(), context.getTable(), context.getIndexName(), "IndexMetrics");
 
         memtableIndexWriteLatency = Metrics.timer(createMetricName("MemtableIndexWriteLatency"));
         compactionSegmentCellsPerSecond = Metrics.histogram(createMetricName("CompactionSegmentCellsPerSecond"), false);
@@ -61,7 +61,8 @@ public class IndexMetrics extends AbstractMetrics
         memtableIndexFlushErrors = Metrics.counter(createMetricName("MemtableIndexFlushErrors"));
         segmentFlushErrors = Metrics.counter(createMetricName("CompactionSegmentFlushErrors"));
         liveMemtableIndexWriteCount = Metrics.register(createMetricName("LiveMemtableIndexWriteCount"), context::liveMemtableWriteCount);
-        memtableIndexBytes = Metrics.register(createMetricName("MemtableIndexBytes"), context::estimatedMemIndexMemoryUsed);
+        memtableOnHeapIndexBytes = Metrics.register(createMetricName("MemtableOnHeapIndexBytes"), context::estimatedOnHeapMemIndexMemoryUsed);
+        memtableOffHeapIndexBytes = Metrics.register(createMetricName("MemtableOffHeapIndexBytes"), context::estimatedOffHeapMemIndexMemoryUsed);
         diskUsedBytes = Metrics.register(createMetricName("DiskUsedBytes"), context::diskUsage);
         indexFileCacheBytes = Metrics.register(createMetricName("IndexFileCacheBytes"), context::indexFileCacheSize);
     }

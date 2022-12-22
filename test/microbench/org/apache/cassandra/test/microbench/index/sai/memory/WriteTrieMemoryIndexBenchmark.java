@@ -72,7 +72,7 @@ public class WriteTrieMemoryIndexBenchmark extends AbstractTrieMemoryIndexBenchm
         int keyCount = 0;
         for (ByteBuffer term : stringTerms)
         {
-            stringIndex.add(partitionKeys[keyCount], Clustering.EMPTY, term);
+            stringIndex.add(partitionKeys[keyCount], Clustering.EMPTY, term, allocatedBytes -> {}, allocatesBytes -> {});
             if (++rowCount == rowsPerPartition)
             {
                 rowCount = 0;
@@ -91,7 +91,7 @@ public class WriteTrieMemoryIndexBenchmark extends AbstractTrieMemoryIndexBenchm
         int keyCount = 0;
         for (ByteBuffer term : integerTerms)
         {
-            integerIndex.add(partitionKeys[keyCount], Clustering.EMPTY, term);
+            integerIndex.add(partitionKeys[keyCount], Clustering.EMPTY, term, allocatedBytes -> {}, allocatesBytes -> {});
             if (++rowCount == rowsPerPartition)
             {
                 rowCount = 0;

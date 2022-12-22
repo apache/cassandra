@@ -36,7 +36,7 @@ public class TableStateMetrics extends AbstractMetrics
 
     public TableStateMetrics(TableMetadata table, StorageAttachedIndexGroup group)
     {
-        super(table, TABLE_STATE_METRIC_TYPE);
+        super(table.keyspace, table.name, TABLE_STATE_METRIC_TYPE);
         totalQueryableIndexCount = Metrics.register(createMetricName("TotalQueryableIndexCount"), group::totalQueryableIndexCount);
         totalIndexCount = Metrics.register(createMetricName("TotalIndexCount"), group::totalIndexCount);
         totalIndexBuildsInProgress = Metrics.register(createMetricName("TotalIndexBuildsInProgress"), group::totalIndexBuildsInProgress);

@@ -141,7 +141,7 @@ public class TrieMemtable extends AbstractAllocatorMemtable
     @VisibleForTesting
     public static final String SHARD_COUNT_PROPERTY = "cassandra.trie.memtable.shard.count";
 
-    private static volatile int SHARD_COUNT = Integer.getInteger(SHARD_COUNT_PROPERTY, FBUtilities.getAvailableProcessors());
+    public static volatile int SHARD_COUNT = Integer.getInteger(SHARD_COUNT_PROPERTY, FBUtilities.getAvailableProcessors());
 
     // only to be used by init(), to setup the very first memtable for the cfs
     TrieMemtable(AtomicReference<CommitLogPosition> commitLogLowerBound, TableMetadataRef metadataRef, Owner owner)

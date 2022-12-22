@@ -55,6 +55,7 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.ReadFailureException;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
@@ -82,6 +83,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -206,6 +208,18 @@ public class SAITester extends CQLTester
         Injections.deleteAll();
     }
 
+    public static IndexContext createIndexContext(String name, AbstractType<?> validator, ColumnFamilyStore cfs)
+    {
+        return new IndexContext(cfs.getKeyspaceName(),
+                                cfs.getTableName(),
+                                UTF8Type.instance,
+                                new ClusteringComparator(),
+                                ColumnMetadata.regularColumn("sai", "internal", name, validator),
+                                IndexTarget.Type.SIMPLE,
+                                IndexMetadata.fromSchemaMetadata(name, IndexMetadata.Kind.CUSTOM, null),
+                                cfs);
+    }
+
     public static IndexContext createIndexContext(String name, AbstractType<?> validator)
     {
         return new IndexContext("test_ks",
@@ -213,11 +227,9 @@ public class SAITester extends CQLTester
                                 UTF8Type.instance,
                                 new ClusteringComparator(),
                                 ColumnMetadata.regularColumn("sai", "internal", name, validator),
+                                IndexTarget.Type.SIMPLE,
                                 IndexMetadata.fromSchemaMetadata(name, IndexMetadata.Kind.CUSTOM, null),
-                                IndexWriterConfig.emptyConfig(),
-                                TypeUtil.isLiteral(validator) ? QueryEventListeners.NO_OP_TRIE_LISTENER
-                                                              : QueryEventListeners.NO_OP_BKD_LISTENER,
-                                true);
+                                MockSchema.newCFS("test_ks"));
     }
 
     public static IndexContext createIndexContext(String columnName, String indexName, AbstractType<?> validator)
@@ -227,11 +239,9 @@ public class SAITester extends CQLTester
                                 UTF8Type.instance,
                                 new ClusteringComparator(),
                                 ColumnMetadata.regularColumn("sai", "internal", columnName, validator),
+                                IndexTarget.Type.SIMPLE,
                                 IndexMetadata.fromSchemaMetadata(indexName, IndexMetadata.Kind.CUSTOM, null),
-                                IndexWriterConfig.emptyConfig(),
-                                TypeUtil.isLiteral(validator) ? QueryEventListeners.NO_OP_TRIE_LISTENER
-                                                              : QueryEventListeners.NO_OP_BKD_LISTENER,
-                                true);
+                                MockSchema.newCFS("test_ks"));
     }
 
     protected void simulateNodeRestart()

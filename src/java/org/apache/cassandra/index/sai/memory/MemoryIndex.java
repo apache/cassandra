@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.memory;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.function.LongConsumer;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
@@ -29,7 +30,6 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
@@ -37,35 +37,22 @@ public abstract class MemoryIndex
 {
     protected final IndexContext indexContext;
 
-    private ByteBuffer minTerm;
-    private ByteBuffer maxTerm;
-
     protected MemoryIndex(IndexContext indexContext)
     {
         this.indexContext = indexContext;
     }
 
-    public abstract long add(DecoratedKey key, Clustering clustering, ByteBuffer value);
+    public abstract void add(DecoratedKey key,
+                             Clustering clustering,
+                             ByteBuffer value,
+                             LongConsumer onHeapAllocationsTracker,
+                             LongConsumer offHeapAllocationsTracker);
 
     public abstract RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange);
 
-    public void setMinMaxTerm(ByteBuffer term)
-    {
-        assert term != null;
+    public abstract ByteBuffer getMinTerm();
 
-        minTerm = TypeUtil.min(term, minTerm, indexContext.getValidator());
-        maxTerm = TypeUtil.max(term, maxTerm, indexContext.getValidator());
-    }
-
-    public ByteBuffer getMinTerm()
-    {
-        return minTerm;
-    }
-
-    public ByteBuffer getMaxTerm()
-    {
-        return maxTerm;
-    }
+    public abstract ByteBuffer getMaxTerm();
 
     /**
      * Iterate all Term->PrimaryKeys mappings in sorted order

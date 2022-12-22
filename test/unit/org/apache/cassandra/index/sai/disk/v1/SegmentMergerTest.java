@@ -27,18 +27,21 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
+import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.inject.InvokePointBuilder.newInvokePoint;
-import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class SegmentMergerTest extends SAITester
@@ -255,7 +258,15 @@ public class SegmentMergerTest extends SAITester
         IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor, table.partitioner, table.comparator);
         assertTrue(indexDescriptor.isPerSSTableBuildComplete());
         IndexMetadata index = table.indexes.get(indexName).get();
-        IndexContext indexContext = new IndexContext(table, index);
+        Pair<ColumnMetadata, IndexTarget.Type> target = TargetParser.parse(table, index);
+        IndexContext indexContext = new IndexContext(table.keyspace,
+                                                     table.name,
+                                                     table.partitionKeyType,
+                                                     table.comparator,
+                                                     target.left,
+                                                     target.right,
+                                                     index,
+                                                     MockSchema.newCFS(table));
         assertTrue(indexDescriptor.isPerIndexBuildComplete(indexContext));
         final MetadataSource source = MetadataSource.loadColumnMetadata(indexDescriptor, indexContext);
         return SegmentMetadata.load(source, indexDescriptor.primaryKeyFactory);

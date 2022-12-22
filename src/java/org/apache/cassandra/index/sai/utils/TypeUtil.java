@@ -48,7 +48,6 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
@@ -149,9 +148,9 @@ public class TypeUtil
         return 16;
     }
 
-    public static AbstractType<?> cellValueType(Pair<ColumnMetadata, IndexTarget.Type> target)
+    public static AbstractType<?> cellValueType(ColumnMetadata column, IndexTarget.Type indexType)
     {
-        AbstractType<?> type = target.left.type;
+        AbstractType<?> type = column.type;
         if (isNonFrozenCollection(type))
         {
             CollectionType<?> collection = ((CollectionType<?>) type);
@@ -162,7 +161,7 @@ public class TypeUtil
                 case SET:
                     return collection.nameComparator();
                 case MAP:
-                    switch (target.right)
+                    switch (indexType)
                     {
                         case KEYS:
                             return collection.nameComparator();
@@ -289,14 +288,15 @@ public class TypeUtil
 
     public static Iterator<ByteBuffer> collectionIterator(AbstractType<?> validator,
                                                           ComplexColumnData cellData,
-                                                          Pair<ColumnMetadata, IndexTarget.Type> target,
+                                                          ColumnMetadata column,
+                                                          IndexTarget.Type indexType,
                                                           int nowInSecs)
     {
         if (cellData == null)
             return null;
 
         Stream<ByteBuffer> stream = StreamSupport.stream(cellData.spliterator(), false).filter(cell -> cell != null && cell.isLive(nowInSecs))
-                                                 .map(cell -> cellValue(target, cell));
+                                                 .map(cell -> cellValue(column, indexType, cell));
 
         if (isInetAddress(validator))
             stream = stream.sorted((c1, c2) -> compareInet(encodeInetAddress(c1), encodeInetAddress(c2)));
@@ -313,11 +313,11 @@ public class TypeUtil
         return type;
     }
 
-    private static ByteBuffer cellValue(Pair<ColumnMetadata, IndexTarget.Type> target, Cell cell)
+    private static ByteBuffer cellValue(ColumnMetadata column, IndexTarget.Type indexType, Cell cell)
     {
-        if (target.left.type.isCollection() && target.left.type.isMultiCell())
+        if (column.type.isCollection() && column.type.isMultiCell())
         {
-            switch (((CollectionType<?>) target.left.type).kind)
+            switch (((CollectionType<?>) column.type).kind)
             {
                 case LIST:
                     //TODO Is there any optimisation can be done here with cell values?
@@ -325,7 +325,7 @@ public class TypeUtil
                 case SET:
                     return cell.path().get(0);
                 case MAP:
-                    switch (target.right)
+                    switch (indexType)
                     {
                         case KEYS:
                             return cell.path().get(0);
