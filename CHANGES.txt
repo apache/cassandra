@@ -7,6 +7,7 @@
 Merged from 3.11:
  * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
 Merged from 3.0:
+ * Avoid anticompaction mixing data from two different time windows with TWCS (CASSANDRA-17970)
  * Do not spam the logs with MigrationCoordinator not being able to pull schemas (CASSANDRA-18096)
  * Fix incorrect resource name in LIST PERMISSION output (CASSANDRA-17848)
  * Suppress CVE-2022-41854 and similar (CASSANDRA-18083)
