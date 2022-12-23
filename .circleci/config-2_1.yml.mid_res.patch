@@ -1,5 +1,5 @@
---- config-2_1.yml	2022-11-08 15:19:25.000000000 -0500
-+++ config-2_1.yml.MIDRES	2022-11-08 15:29:46.000000000 -0500
+--- config-2_1.yml	2022-12-23 09:48:14.000000000 -0500
++++ config-2_1.yml.MIDRES	2022-12-23 09:49:05.000000000 -0500
 @@ -136,14 +136,14 @@
  j8_par_executor: &j8_par_executor
    executor:
@@ -37,7 +37,7 @@
 +j8_very_large_par_executor: &j8_very_large_par_executor
 +  executor:
 +    name: java8-executor
-+    exec_resource_class: xlarge
++    exec_resource_class: large
 +  parallelism: 100
  
  j8_seq_executor: &j8_seq_executor
