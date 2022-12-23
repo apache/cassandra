@@ -386,6 +386,20 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         return Collections.singleton(new TimeWindowCompactionTask(cfs, txn, gcBefore, options.ignoreOverlaps));
     }
 
+    /**
+     * TWCS should not group sstables for anticompaction - this can mix new and old data
+     */
+    @Override
+    public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
+    {
+        Collection<Collection<SSTableReader>> groups = new ArrayList<>(sstablesToGroup.size());
+        for (SSTableReader sstable : sstablesToGroup)
+        {
+            groups.add(Collections.singleton(sstable));
+        }
+        return groups;
+    }
+
     @Override
     @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
     public synchronized AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
