@@ -390,7 +390,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
 
         cfs.addSSTables(sstables);
         Collection<Collection<SSTableReader>> groups = cfs.getCompactionStrategyManager().getCompactionStrategyFor(sstables.get(0)).groupSSTablesForAntiCompaction(sstables);
-        assertFalse(groups.isEmpty());
+        assertTrue(groups.size() > 0);
         for (Collection<SSTableReader> group : groups)
             assertEquals(1, group.size());
     }
