@@ -165,6 +165,7 @@ Merged from 3.11:
  * Creating of a keyspace on insufficient number of replicas should filter out gosspping-only members (CASSANDRA-17759)
  * Suppress CVE-2022-25857 and other snakeyaml CVEs (CASSANDRA-17907)
 Merged from 3.0:
+ * Avoid anticompaction mixing data from two different time windows with TWCS (CASSANDRA-17970)
  * Do not spam the logs with MigrationCoordinator not being able to pull schemas (CASSANDRA-18096)
  * Fix incorrect resource name in LIST PERMISSION output (CASSANDRA-17848)
  * Suppress CVE-2022-41854 and similar (CASSANDRA-18083)
