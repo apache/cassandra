@@ -19,6 +19,7 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,8 +32,10 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.locator.SimpleSeedProvider;
 import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
@@ -104,6 +107,56 @@ public class AuthTest extends TestBaseImpl
             Long time2 = (Long) cluster.coordinator(1)
                                        .execute("SELECT WRITETIME (salted_hash) from system_auth.roles where role = 'cassandra'",
                                                 ConsistencyLevel.ONE)[0][0];
+            // we don't do this here but if the user changed the Cassandra user password it will be (read) repaired if the second node has a later
+            // write timestamp - check that this is not the case
+            assertTrue(time1 == time2);
+        }
+    }
+
+    /**
+     * Shows that in some circumstances CassandraRoleManager will create the cassandra role twice
+     */
+    @Test
+    public void testWhatIfNetworkPartitionedDuringStartup() throws IOException
+    {
+        try (Cluster cluster = builder().withDCs(2)
+                                        .withNodes(1)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(2))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP).set("authenticator", "PasswordAuthenticator"))
+                                        .start())
+        {
+            IInvokableInstance instance = cluster.get(1);
+            await().pollDelay(1, SECONDS)
+                   .pollInterval(1, SECONDS)
+                   .atMost(12, SECONDS)
+                   .until(() -> instance.callOnInstance(() -> CassandraRoleManager.hasExistingRoles()));
+
+            //get the time from the the first role setup
+            Long time1 = (Long) cluster.coordinator(1)
+                                       .execute("SELECT WRITETIME (salted_hash) from system_auth.roles where role = 'cassandra'",
+                                                ConsistencyLevel.ONE)[0][0];
+
+            // partition network
+            IMessageFilters.Filter to = cluster.filters().allVerbs().to(instance.config().num()).drop();
+            IMessageFilters.Filter from = cluster.filters().allVerbs().from(instance.config().num()).drop();
+
+            IInstanceConfig config = cluster.newInstanceConfig();
+            // set both nodes as seed nodes in the list
+            config.set("seed_provider", new IInstanceConfig.ParameterizedClass(SimpleSeedProvider.class.getName(),
+                                                                         Collections.singletonMap("seeds", "127.0.0.1, 127.0.0.2" )));
+            IInvokableInstance newInstance = cluster.bootstrap(config);
+            newInstance.startup();
+
+            await().pollDelay(1, SECONDS)
+                   .pollInterval(1, SECONDS)
+                   .atMost(10, SECONDS)
+                   .until(() -> newInstance.callOnInstance(() -> CassandraRoleManager.hasExistingRoles()));
+
+            // get write time from the second role setup
+            Long time2 = (Long) cluster.coordinator(1)
+                                       .execute("SELECT WRITETIME (salted_hash) from system_auth.roles where role = 'cassandra'",
+                                                ConsistencyLevel.ONE)[0][0];
+
             // we don't do this here but if the user changed the Cassandra user password it will be (read) repaired if the second node has a later
             // write timestamp - check that this is not the case
             assertTrue(time1 == time2);
