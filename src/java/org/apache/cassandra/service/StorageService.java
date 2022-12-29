@@ -3849,13 +3849,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
             throw new RuntimeException("Cleanup of the system keyspace is neither necessary nor wise");
 
-        if (!instance.isJoined())
-            throw new RuntimeException("Cleanup cannot run before a node has joined the ring.");
-
         InetAddressAndPort localAddress = FBUtilities.getBroadcastAddressAndPort();
+        Integer pendingRangesCount = tokenMetadata.getPendingRanges(keyspaceName, localAddress).size();
 
-        if (tokenMetadata.getPendingRanges(keyspaceName, localAddress).size() > 0)
-            throw new RuntimeException("Node is receiving data. Not safe to run cleanup.");
+        if (pendingRangesCount > 0)
+        {
+            throw new RuntimeException("Node is involved in cluster membership changes. Not safe to run cleanup.");
+        }
 
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tables))
