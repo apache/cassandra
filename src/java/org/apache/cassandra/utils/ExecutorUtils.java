@@ -98,32 +98,34 @@ public class ExecutorUtils
 
     public static void awaitTerminationUntil(long deadline, Collection<?> executors) throws InterruptedException, TimeoutException
     {
+        int pos = 0;
         for (Object executor : executors)
         {
             long wait = deadline - System.nanoTime();
             if (executor instanceof ExecutorService)
             {
                 if (wait <= 0 || !((ExecutorService)executor).awaitTermination(wait, NANOSECONDS))
-                    throw new TimeoutException(executor + " did not terminate on time");
+                    throw new TimeoutException(executor + " (" + pos + ") did not terminate on time");
             }
             else if (executor instanceof InfiniteLoopExecutor)
             {
                 if (wait <= 0 || !((InfiniteLoopExecutor)executor).awaitTermination(wait, NANOSECONDS))
-                    throw new TimeoutException(executor + " did not terminate on time");
+                    throw new TimeoutException(executor + " (" + pos + ") did not terminate on time");
             }
             else if (executor instanceof Thread)
             {
                 Thread t = (Thread) executor;
                 if (wait <= 0)
-                    throw new TimeoutException(executor + " did not terminate on time");
+                    throw new TimeoutException(executor + " (" + pos + ") did not terminate on time");
                 t.join((wait + 999999) / 1000000L, (int) (wait % 1000000L));
                 if (t.isAlive())
-                    throw new TimeoutException(executor + " did not terminate on time");
+                    throw new TimeoutException(executor + " (" + pos + ") did not terminate on time");
             }
             else if (executor != null)
             {
                 throw new IllegalArgumentException(executor.toString());
             }
+            pos++;
         }
     }
 
