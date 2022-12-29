@@ -278,6 +278,7 @@ public final class SocketFactory
 
     public void shutdownNow()
     {
+        logger.info("Shutting down SocketFactory...");
         acceptGroup.shutdownGracefully(0, 2, SECONDS);
         defaultGroup.shutdownGracefully(0, 2, SECONDS);
         outboundStreamingGroup.shutdownGracefully(0, 2, SECONDS);
@@ -288,6 +289,7 @@ public final class SocketFactory
     {
         List<ExecutorService> groups = ImmutableList.of(acceptGroup, defaultGroup, outboundStreamingGroup, synchronousWorkExecutor);
         ExecutorUtils.awaitTerminationUntil(deadlineNanos, groups);
+        logger.info("SocketFactory shut down");
     }
 
     static boolean isConnectionReset(Throwable t)
