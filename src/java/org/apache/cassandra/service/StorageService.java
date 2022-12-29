@@ -4875,7 +4875,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ColumnFamilyStore.rebuildSecondaryIndex(ksName, cfName, indices);
     }
 
-    public void resetLocalSchema() throws IOException
+    public void resetLocalSchema()
     {
         MigrationManager.resetLocalSchema();
     }
