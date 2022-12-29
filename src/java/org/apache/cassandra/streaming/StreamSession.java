@@ -183,6 +183,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     // data receivers, filled after receiving prepare message
     private final Map<TableId, StreamReceiveTask> receivers = new ConcurrentHashMap<>();
     private final StreamingMetrics metrics;
+    private final Map<String, Long> fileProgress = new ConcurrentHashMap<>();
 
     final Map<String, Set<Range<Token>>> transferredRangesPerKeyspace = new HashMap<>();
 
@@ -966,8 +967,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public void streamSent(OutgoingStreamMessage message)
     {
         long headerSize = message.stream.getEstimatedSize();
-        StreamingMetrics.totalOutgoingBytes.inc(headerSize);
-        metrics.outgoingBytes.inc(headerSize);
 
         if(StreamOperation.REPAIR == getStreamOperation())
         {
@@ -996,8 +995,6 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
 
         long headerSize = message.stream.getSize();
-        StreamingMetrics.totalIncomingBytes.inc(headerSize);
-        metrics.incomingBytes.inc(headerSize);
         // send back file received message
         channel.sendControlMessage(new ReceivedMessage(message.header.tableId, message.header.sequenceNumber)).syncUninterruptibly();
         StreamHook.instance.reportIncomingStream(message.header.tableId, message.stream, this, message.header.sequenceNumber);
@@ -1026,6 +1023,20 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public void progress(String filename, ProgressInfo.Direction direction, long bytes, long total)
     {
+        long newBytes = bytes - fileProgress.getOrDefault(filename, 0L);
+        fileProgress.put(filename, bytes);
+
+        if(direction == ProgressInfo.Direction.IN)
+        {
+            StreamingMetrics.totalIncomingBytes.inc(newBytes);
+            metrics.incomingBytes.inc(newBytes);
+        }
+        else
+        {
+            StreamingMetrics.totalOutgoingBytes.inc(newBytes);
+            metrics.outgoingBytes.inc(newBytes);
+        }
+
         ProgressInfo progress = new ProgressInfo(peer, index, filename, direction, bytes, total);
         streamResult.handleProgress(progress);
     }
