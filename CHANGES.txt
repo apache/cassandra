@@ -1,4 +1,5 @@
 4.1.1
+* Fix perpetual load of denylist on read in cases where denylist can never be loaded (CASSANDRA-18116)
 Merged from 4.0:
  * Avoid ConcurrentModificationException in STCS/DTCS/TWCS.getSSTables (CASSANDRA-17977)
  * Restore internode custom tracing on 4.0's new messaging system (CASSANDRA-17981)
