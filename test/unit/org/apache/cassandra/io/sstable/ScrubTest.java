@@ -267,6 +267,8 @@ public class ScrubTest
     {
         if (reader.descriptor.getFormat().getType() == SSTableFormat.Type.BIG)
             return reader.descriptor.fileFor(Component.PRIMARY_INDEX);
+        if (reader.descriptor.getFormat().getType() == SSTableFormat.Type.BTI)
+            return reader.descriptor.fileFor(Component.PARTITION_INDEX);
         else throw new IllegalArgumentException();
     }
 
@@ -393,7 +395,8 @@ public class ScrubTest
         performScrub(cfs, false, true, false, 2);
 
         // check data is still there
-        assertOrderedAll(cfs, 4);
+        // For Trie format we won't be able to recover the damaged partition key (partion index doesn't store the whole key)
+        assertOrderedAll(cfs, SSTableFormat.Type.current() == SSTableFormat.Type.BTI ? 3 : 4);
     }
 
     @Test
@@ -443,6 +446,11 @@ public class ScrubTest
             {
                 assertTrue(sstable.descriptor.fileFor(Component.PRIMARY_INDEX).tryDelete());
             }
+            else if (sstable.descriptor.getFormat().getType() == SSTableFormat.Type.BTI)
+            {
+                assertTrue(sstable.descriptor.fileFor(Component.PARTITION_INDEX).tryDelete());
+                assertTrue(sstable.descriptor.fileFor(Component.ROW_INDEX).tryDelete());
+            }
         }
 
         performScrub(cfs, false, true, false, 2);
@@ -457,7 +465,7 @@ public class ScrubTest
     {
         // Run only for Big Table format because Big Table Format does not complain if partitions are given in invalid
         // order. Legacy SSTables with out-of-order partitions exist in production systems and must be corrected
-        // by scrubbing.
+        // by scrubbing. The trie index format does not permit such partitions.
         Assume.assumeThat(SSTableFormat.Type.current(), is(SSTableFormat.Type.BIG));
 
         // This test assumes ByteOrderPartitioner to create out-of-order SSTable

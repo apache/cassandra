@@ -174,6 +174,26 @@ public class MetadataSerializerTest
         testVersions("na", "nb");
     }
 
+    @Test
+    public void testAVersions() throws Throwable
+    {
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BTI);
+        testVersions("aa", "ac", "ad");
+    }
+
+    @Test
+    public void testBVersions() throws Throwable
+    {
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BTI);
+        testVersions("ba", "bb");
+    }
+
+    @Test
+    public void testCVersions() throws Throwable
+    {
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BTI);
+        testVersions("ca");
+    }
     public void testOldReadsNew(String oldV, String newV) throws IOException
     {
         Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata(true);

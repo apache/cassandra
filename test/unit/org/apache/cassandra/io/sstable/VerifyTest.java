@@ -554,6 +554,10 @@ public class VerifyTest
         {
             testBrokenComponentHelper(Component.PRIMARY_INDEX);
         }
+        else if (SSTableFormat.Type.current() == SSTableFormat.Type.BTI)
+        {
+            testBrokenComponentHelper(Component.PARTITION_INDEX);
+        }
     }
 
     @Test

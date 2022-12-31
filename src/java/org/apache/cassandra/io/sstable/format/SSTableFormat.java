@@ -27,6 +27,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.GaugeProvider;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.trieindex.BtiFormat;
 import org.apache.cassandra.schema.TableMetadataRef;
 
 /**
@@ -70,7 +71,8 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter<
     enum Type
     {
         //The original sstable format
-        BIG("big", BigFormat.instance);
+        BIG("big", BigFormat.instance),
+        BTI("bti", BtiFormat.instance);
 
         public final SSTableFormat<?, ?> info;
         public final String name;

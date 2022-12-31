@@ -23,9 +23,12 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.trieindex.BtiTableReader;
+import org.apache.cassandra.io.sstable.format.trieindex.TrieIndexEntry;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class QueryWithIndexedSSTableTest extends CQLTester
@@ -64,6 +67,11 @@ public class QueryWithIndexedSSTableTest extends CQLTester
             {
                 RowIndexEntry indexEntry = ((BigTableReader) sstable).getRowIndexEntry(dk, SSTableReader.Operator.EQ);
                 hasIndexed |= indexEntry != null && indexEntry.isIndexed();
+            }
+            else if (sstable instanceof BtiTableReader)
+            {
+                TrieIndexEntry indexEntry = ((BtiTableReader) sstable).getExactPosition(dk, SSTableReadsListener.NOOP_LISTENER, false);
+                hasIndexed |= indexEntry != null && indexEntry.columnsIndexCount() > 0;
             }
         }
         assert hasIndexed;
