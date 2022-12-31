@@ -23,7 +23,6 @@ package org.apache.cassandra.cache;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 
@@ -194,14 +193,6 @@ public class ChunkCache
     public void invalidateFile(String fileName)
     {
         cache.invalidateAll(Iterables.filter(cache.asMap().keySet(), x -> x.path.equals(fileName)));
-    }
-
-    @VisibleForTesting
-    public void enable(boolean enabled)
-    {
-        ChunkCache.enabled = enabled;
-        cache.invalidateAll();
-        metrics.reset();
     }
 
     // TODO: Invalidate caches for obsoleted/MOVED_START tables?

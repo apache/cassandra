@@ -3207,6 +3207,12 @@ public class DatabaseDescriptor
         return conf.file_cache_enabled;
     }
 
+    @VisibleForTesting
+    public static void setFileCacheEnabled(boolean enabled)
+    {
+        conf.file_cache_enabled = enabled;
+    }
+
     public static int getFileCacheSizeInMiB()
     {
         if (conf.file_cache_size == null)

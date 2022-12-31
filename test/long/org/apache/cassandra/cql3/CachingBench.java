@@ -198,7 +198,7 @@ public class CachingBench extends CQLTester
     {
         id.set(0);
         compactionTimeNanos = 0;
-        ChunkCache.instance.enable(cacheEnabled);
+        DatabaseDescriptor.setFileCacheEnabled(cacheEnabled);
         DatabaseDescriptor.setDiskAccessMode(mode);
         alterTable("ALTER TABLE %s WITH compaction = { 'class' :  '" + compactionClass + "'  };");
         alterTable("ALTER TABLE %s WITH compression = { 'sstable_compression' : '" + compressorClass + "'  };");
