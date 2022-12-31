@@ -29,6 +29,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.UnmodifiableIterator;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
@@ -564,18 +565,25 @@ public class Scrubber implements Closeable
     /**
      * During 2.x migration, under some circumstances rows might have gotten duplicated.
      * Merging iterator merges rows with same clustering.
-     *
+     * <p>
      * For more details, refer to CASSANDRA-12144.
      */
-    private static class RowMergingSSTableIterator extends WrappingUnfilteredRowIterator
+    private static class RowMergingSSTableIterator extends UnmodifiableIterator<Unfiltered> implements WrappingUnfilteredRowIterator
     {
         Unfiltered nextToOffer = null;
         private final OutputHandler output;
+        private final UnfilteredRowIterator wrapped;
 
         RowMergingSSTableIterator(UnfilteredRowIterator source, OutputHandler output)
         {
-            super(source);
+            this.wrapped = source;
             this.output = output;
+        }
+
+        @Override
+        public UnfilteredRowIterator wrapped()
+        {
+            return wrapped;
         }
 
         @Override
@@ -721,10 +729,10 @@ public class Scrubber implements Closeable
 
     /**
      * This iterator converts negative {@link AbstractCell#localDeletionTime()} into {@link AbstractCell#MAX_DELETION_TIME}
-     *
+     * <p>
      * This is to recover entries with overflowed localExpirationTime due to CASSANDRA-14092
      */
-    private static final class FixNegativeLocalDeletionTimeIterator extends AbstractIterator<Unfiltered> implements UnfilteredRowIterator
+    private static final class FixNegativeLocalDeletionTimeIterator extends AbstractIterator<Unfiltered> implements WrappingUnfilteredRowIterator
     {
         /**
          * The decorated iterator.
@@ -740,6 +748,12 @@ public class Scrubber implements Closeable
             this.iterator = iterator;
             this.outputHandler = outputHandler;
             this.negativeLocalExpirationTimeMetrics = negativeLocalDeletionInfoMetrics;
+        }
+
+        @Override
+        public UnfilteredRowIterator wrapped()
+        {
+            return iterator;
         }
 
         public TableMetadata metadata()
@@ -788,6 +802,7 @@ public class Scrubber implements Closeable
             return iterator.stats();
         }
 
+        @Override
         protected Unfiltered computeNext()
         {
             if (!iterator.hasNext())
@@ -819,13 +834,13 @@ public class Scrubber implements Closeable
             {
                 if (cd.column().isSimple())
                 {
-                    Cell<?> cell = (Cell<?>)cd;
+                    Cell<?> cell = (Cell<?>) cd;
                     if (cell.isExpiring() && cell.localDeletionTime() < 0)
                         return true;
                 }
                 else
                 {
-                    ComplexColumnData complexData = (ComplexColumnData)cd;
+                    ComplexColumnData complexData = (ComplexColumnData) cd;
                     for (Cell<?> cell : complexData)
                     {
                         if (cell.isExpiring() && cell.localDeletionTime() < 0)
@@ -846,14 +861,14 @@ public class Scrubber implements Closeable
             return row.transformAndFilter(livenessInfo, row.deletion(), cd -> {
                 if (cd.column().isSimple())
                 {
-                    Cell cell = (Cell)cd;
+                    Cell cell = (Cell) cd;
                     return cell.isExpiring() && cell.localDeletionTime() < 0
                            ? cell.withUpdatedTimestampAndLocalDeletionTime(cell.timestamp() + 1, AbstractCell.MAX_DELETION_TIME)
                            : cell;
                 }
                 else
                 {
-                    ComplexColumnData complexData = (ComplexColumnData)cd;
+                    ComplexColumnData complexData = (ComplexColumnData) cd;
                     return complexData.transformAndFilter(cell -> cell.isExpiring() && cell.localDeletionTime() < 0
                                                                   ? cell.withUpdatedTimestampAndLocalDeletionTime(cell.timestamp() + 1, AbstractCell.MAX_DELETION_TIME)
                                                                   : cell);

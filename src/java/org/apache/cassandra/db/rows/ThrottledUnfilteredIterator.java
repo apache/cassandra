@@ -83,7 +83,7 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
             return throttledItr = origin;
         }
 
-        throttledItr = new WrappingUnfilteredRowIterator(origin)
+        throttledItr = new WrappingUnfilteredRowIterator()
         {
             private int count = 0;
             private boolean isFirst = throttledItr == null;
@@ -97,9 +97,15 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
             private RangeTombstoneMarker closeMarker = null;
 
             @Override
+            public UnfilteredRowIterator wrapped()
+            {
+                return origin;
+            }
+
+            @Override
             public boolean hasNext()
             {
-                return (withinLimit() && wrapped.hasNext()) || closeMarker != null;
+                return (withinLimit() && origin.hasNext()) || closeMarker != null;
             }
 
             @Override
@@ -119,7 +125,7 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
                 if (overflowed.hasNext())
                     next = overflowed.next();
                 else
-                    next = wrapped.next();
+                    next = origin.next();
                 recordNext(next);
                 return next;
             }
@@ -132,8 +138,8 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
                 // when reach throttle with a remaining openMarker, we need to create corresponding closeMarker.
                 if (count == throttle && openMarker != null)
                 {
-                    assert wrapped.hasNext();
-                    closeOpenMarker(wrapped.next());
+                    assert origin.hasNext();
+                    closeOpenMarker(origin.next());
                 }
             }
 
@@ -191,13 +197,13 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
             @Override
             public DeletionTime partitionLevelDeletion()
             {
-                return isFirst ? wrapped.partitionLevelDeletion() : DeletionTime.LIVE;
+                return isFirst ? origin.partitionLevelDeletion() : DeletionTime.LIVE;
             }
 
             @Override
             public Row staticRow()
             {
-                return isFirst ? wrapped.staticRow() : Rows.EMPTY_STATIC_ROW;
+                return isFirst ? origin.staticRow() : Rows.EMPTY_STATIC_ROW;
             }
 
             @Override

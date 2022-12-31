@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
+import com.google.common.collect.UnmodifiableIterator;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
@@ -385,8 +386,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
      * The result produced by this iterator is such that when merged with tombSource it produces the same output
      * as the merge of dataSource and tombSource.
      */
-    private static class GarbageSkippingUnfilteredRowIterator extends WrappingUnfilteredRowIterator
+    private static class GarbageSkippingUnfilteredRowIterator extends UnmodifiableIterator<Unfiltered> implements WrappingUnfilteredRowIterator
     {
+        private final UnfilteredRowIterator wrapped;
+
         final UnfilteredRowIterator tombSource;
         final DeletionTime partitionLevelDeletion;
         final Row staticRow;
@@ -413,7 +416,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
          */
         protected GarbageSkippingUnfilteredRowIterator(UnfilteredRowIterator dataSource, UnfilteredRowIterator tombSource, boolean cellLevelGC)
         {
-            super(dataSource);
+            this.wrapped = dataSource;
             this.tombSource = tombSource;
             this.cellLevelGC = cellLevelGC;
             metadata = dataSource.metadata();
@@ -433,6 +436,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             dataNext = advance(dataSource);
         }
 
+        @Override
+        public UnfilteredRowIterator wrapped()
+        {
+            return wrapped;
+        }
+
         private static Unfiltered advance(UnfilteredRowIterator source)
         {
             return source.hasNext() ? source.next() : null;
@@ -446,7 +455,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         public void close()
         {
-            super.close();
+            wrapped.close();
             tombSource.close();
         }
 
