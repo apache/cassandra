@@ -219,7 +219,7 @@ public class BigTableWriter extends SSTableWriter
         observers.forEach((o) -> o.startPartition(key, iwriter.indexFile.position()));
 
         //Reuse the writer for each row
-        columnIndexWriter.reset();
+        columnIndexWriter.reset(DatabaseDescriptor.getColumnIndexCacheSize(), DatabaseDescriptor.getColumnIndexSize());
 
         try (UnfilteredRowIterator collecting = Transformation.apply(iterator, new StatsCollector(metadataCollector)))
         {

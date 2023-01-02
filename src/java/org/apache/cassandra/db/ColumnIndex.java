@@ -24,7 +24,6 @@ import java.util.*;
 
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
@@ -73,14 +72,15 @@ public class ColumnIndex
     private DeletionTime openMarker;
 
     private int cacheSizeThreshold;
+    private int indexSize;
 
     private final Collection<SSTableFlushObserver> observers;
 
     public ColumnIndex(SerializationHeader header,
-                        SequentialWriter writer,
-                        Version version,
-                        Collection<SSTableFlushObserver> observers,
-                        ISerializer<IndexInfo> indexInfoSerializer)
+                       SequentialWriter writer,
+                       Version version,
+                       Collection<SSTableFlushObserver> observers,
+                       ISerializer<IndexInfo> indexInfoSerializer)
     {
         this.helper = new SerializationHelper(header);
         this.header = header;
@@ -90,7 +90,7 @@ public class ColumnIndex
         this.idxSerializer = indexInfoSerializer;
     }
 
-    public void reset()
+    public void reset(int newCacheSizeThreshold, int newIndexSize)
     {
         this.initialPosition = writer.position();
         this.headerLength = -1;
@@ -104,11 +104,11 @@ public class ColumnIndex
         this.lastClustering = null;
         this.openMarker = null;
 
-        int newCacheSizeThreshold = DatabaseDescriptor.getColumnIndexCacheSize();
         if (this.buffer != null && this.cacheSizeThreshold == newCacheSizeThreshold)
             this.reusableBuffer = this.buffer;
         this.buffer = null;
         this.cacheSizeThreshold = newCacheSizeThreshold;
+        this.indexSize = newIndexSize;
     }
 
     public void buildRowIndex(UnfilteredRowIterator iterator) throws IOException
@@ -273,7 +273,7 @@ public class ColumnIndex
         }
 
         // if we hit the column index size that we have to index after, go ahead and index it.
-        if (currentPosition() - startPosition >= DatabaseDescriptor.getColumnIndexSize())
+        if (currentPosition() - startPosition >= indexSize)
             addIndexBlock();
     }
 
@@ -290,11 +290,14 @@ public class ColumnIndex
             addIndexBlock();
 
         // If we serialize the IndexInfo objects directly in the code above into 'buffer',
-        // we have to write the offsts to these here. The offsets have already been are collected
+        // we have to write the offsts to these here. The offsets have already been collected
         // in indexOffsets[]. buffer is != null, if it exceeds Config.column_index_cache_size.
         // In the other case, when buffer==null, the offsets are serialized in RowIndexEntry.IndexedEntry.serialize().
         if (buffer != null)
-            RowIndexEntry.Serializer.serializeOffsets(buffer, indexOffsets, columnIndexCount);
+        {
+            for (int i = 0; i < columnIndexCount; i++)
+                buffer.writeInt(indexOffsets[i]);
+        }
 
         // we should always have at least one computed index block, but we only write it out if there is more than that.
         assert columnIndexCount > 0 && headerLength >= 0;

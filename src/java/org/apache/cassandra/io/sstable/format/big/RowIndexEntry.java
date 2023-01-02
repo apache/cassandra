@@ -38,7 +38,6 @@ import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
@@ -452,12 +451,6 @@ public class RowIndexEntry extends AbstractRowIndexEntry
                 return;
 
             in.skipBytesFully(size);
-        }
-
-        public static void serializeOffsets(DataOutputBuffer out, int[] indexOffsets, int columnIndexCount) throws IOException
-        {
-            for (int i = 0; i < columnIndexCount; i++)
-                out.writeInt(indexOffsets[i]);
         }
     }
 
