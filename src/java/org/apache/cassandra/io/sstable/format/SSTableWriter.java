@@ -18,12 +18,16 @@
 
 package org.apache.cassandra.io.sstable.format;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.SerializationHeader;
@@ -39,6 +43,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableBuilder;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -92,7 +97,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                             Collection<SSTableFlushObserver> observers,
                             Set<Component> components)
     {
-        super(descriptor, components, metadata, DatabaseDescriptor.getDiskOptimizationStrategy());
+        super(new SSTableBuilder<>(descriptor).setComponents(components).setTableMetadataRef(metadata));
         this.keyCount = keyCount;
         this.repairedAt = repairedAt;
         this.pendingRepair = pendingRepair;

@@ -27,19 +27,20 @@ import java.util.Map;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableBuilder;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.format.IOOptions;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -55,16 +56,8 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableZeroCopyWriter.class);
 
-    private final TableMetadataRef metadata;
     private volatile SSTableReader finalReader;
     private final Map<Component.Type, SequentialWriter> componentWriters;
-
-    private static final SequentialWriterOption WRITER_OPTION =
-        SequentialWriterOption.newBuilder()
-                              .trickleFsync(false)
-                              .bufferSize(2 << 20)
-                              .bufferType(BufferType.OFF_HEAP)
-                              .build();
 
     private static final ImmutableSet<Component> SUPPORTED_COMPONENTS =
         ImmutableSet.of(Component.DATA,
@@ -81,10 +74,20 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
                                   LifecycleNewTracker lifecycleNewTracker,
                                   final Collection<Component> components)
     {
-        super(descriptor, ImmutableSet.copyOf(components), metadata, DatabaseDescriptor.getDiskOptimizationStrategy());
+        super(new SSTableBuilder<>(descriptor).setComponents(components)
+                                              .setTableMetadataRef(metadata)
+                                              .setIOOptions(new IOOptions(DatabaseDescriptor.getDiskOptimizationStrategy(),
+                                                                          DatabaseDescriptor.getDiskAccessMode(),
+                                                                          DatabaseDescriptor.getIndexAccessMode(),
+                                                                          DatabaseDescriptor.getDiskOptimizationEstimatePercentile(),
+                                                                          SequentialWriterOption.newBuilder()
+                                                                                                .trickleFsync(false)
+                                                                                                .bufferSize(2 << 20)
+                                                                                                .bufferType(BufferType.OFF_HEAP)
+                                                                                                .build(),
+                                                                          DatabaseDescriptor.getFlushCompression())));
 
         lifecycleNewTracker.trackNew(this);
-        this.metadata = metadata;
         this.componentWriters = new EnumMap<>(Component.Type.class);
 
         if (!SUPPORTED_COMPONENTS.containsAll(components))
@@ -95,9 +98,9 @@ public class BigTableZeroCopyWriter extends SSTable implements SSTableMultiWrite
             componentWriters.put(c.type, makeWriter(descriptor, c));
     }
 
-    private static SequentialWriter makeWriter(Descriptor descriptor, Component component)
+    private SequentialWriter makeWriter(Descriptor descriptor, Component component)
     {
-        return new SequentialWriter(new File(descriptor.filenameFor(component)), WRITER_OPTION, false);
+        return new SequentialWriter(descriptor.fileFor(component), ioOptions.writerOptions, false);
     }
 
     private void write(DataInputPlus in, long size, SequentialWriter out) throws FSWriteError

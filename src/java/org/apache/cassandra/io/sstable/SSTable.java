@@ -22,9 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -36,14 +34,15 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.IOOptions;
 import org.apache.cassandra.io.sstable.format.TOCComponent;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
-import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -54,6 +53,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.memory.HeapCloner;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 
@@ -62,11 +62,11 @@ import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABL
  * data on disk in sorted fashion. However the sorting is upto
  * the application. This class expects keys to be handed to it
  * in sorted order.
- *
+ * <p>
  * A separate index file is maintained as well, containing the
  * SSTable keys and the offset into the SSTable at which they are found.
  * Every 1/indexInterval key is read into memory when the SSTable is opened.
- *
+ * <p>
  * Finally, a bloom filter file is also kept for the keys in each SSTable.
  */
 public abstract class SSTable
@@ -84,22 +84,22 @@ public abstract class SSTable
     public DecoratedKey first;
     public DecoratedKey last;
 
-    protected final DiskOptimizationStrategy optimizationStrategy;
     protected final TableMetadataRef metadata;
 
-    protected SSTable(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata, DiskOptimizationStrategy optimizationStrategy)
-    {
-        // In almost all cases, metadata shouldn't be null, but allowing null allows to create a mostly functional SSTable without
-        // full schema definition. SSTableLoader use that ability
-        assert descriptor != null;
-        assert components != null;
+    protected final ChunkCache chunkCache;
+    protected final IOOptions ioOptions;
 
-        this.descriptor = descriptor;
-        Set<Component> dataComponents = new HashSet<>(components);
-        this.compression = dataComponents.contains(Component.COMPRESSION_INFO);
-        this.components = new CopyOnWriteArraySet<>(dataComponents);
-        this.metadata = metadata;
-        this.optimizationStrategy = Objects.requireNonNull(optimizationStrategy);
+    public SSTable(SSTableBuilder<?, ?> builder)
+    {
+        checkNotNull(builder.descriptor);
+        checkNotNull(builder.getComponents());
+
+        this.descriptor = builder.descriptor;
+        this.ioOptions = builder.getIOOptions();
+        this.components = new CopyOnWriteArraySet<>(builder.getComponents());
+        this.compression = components.contains(Component.COMPRESSION_INFO);
+        this.metadata = builder.getTableMetadataRef();
+        this.chunkCache = builder.getChunkCache();
     }
 
     public static void rename(Descriptor tmpdesc, Descriptor newdesc, Set<Component> components)
@@ -162,7 +162,7 @@ public abstract class SSTable
      * to run for each such file because of the semantics of the JVM gc.  So,
      * we write a marker to `compactedFilename` when a file is compacted;
      * if such a marker exists on startup, the file should be removed.
-     *
+     * <p>
      * This method will also remove SSTables that are marked as temporary.
      *
      * @return true if the file was deleted
@@ -234,6 +234,14 @@ public abstract class SSTable
         for (Component component : components)
             ret.add(descriptor.filenameFor(component));
         return ret;
+    }
+
+    protected <B extends SSTableBuilder<?, B>> B unbuildTo(B builder)
+    {
+        return builder.setTableMetadataRef(metadata)
+                      .setComponents(components)
+                      .setChunkCache(chunkCache)
+                      .setIOOptions(ioOptions);
     }
 
     /**

@@ -25,15 +25,12 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.ChunkCache;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -74,15 +71,7 @@ public class BigTableWriter extends SSTableWriter
     private DecoratedKey lastWrittenKey;
     private DataPosition dataMark;
     private long lastEarlyOpenLength = 0;
-    private final Optional<ChunkCache> chunkCache = Optional.ofNullable(ChunkCache.instance);
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
-
-    private final SequentialWriterOption writerOption = SequentialWriterOption.newBuilder()
-                                                        .trickleFsync(DatabaseDescriptor.getTrickleFsync())
-                                                        .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024)
-                                                        .build();
-
-
 
     public BigTableWriter(Descriptor descriptor,
                           long keyCount,
@@ -107,7 +96,7 @@ public class BigTableWriter extends SSTableWriter
             dataFile = new CompressedSequentialWriter(new File(getFilename()),
                                              descriptor.filenameFor(Component.COMPRESSION_INFO),
                                              new File(descriptor.filenameFor(Component.DIGEST)),
-                                             writerOption,
+                                             ioOptions.writerOptions,
                                              compressionParams,
                                              metadataCollector);
         }
@@ -116,7 +105,7 @@ public class BigTableWriter extends SSTableWriter
             dataFile = new ChecksummedSequentialWriter(new File(getFilename()),
                     new File(descriptor.filenameFor(Component.CRC)),
                     new File(descriptor.filenameFor(Component.DIGEST)),
-                    writerOption);
+                    ioOptions.writerOptions);
         }
         iwriter = new IndexWriter(keyCount);
 
@@ -139,7 +128,7 @@ public class BigTableWriter extends SSTableWriter
             // especially of large tables, can queue up and potentially block writes.
             // This optimization allows us to fall back to a faster compressor if a particular
             // compression algorithm indicates we should. See CASSANDRA-15379 for more details.
-            switch (DatabaseDescriptor.getFlushCompression())
+            switch (ioOptions.flushCompression)
             {
                 // It is relatively easier to insert a Noop compressor than to disable compressed writing
                 // entirely as the "compression" member field is provided outside the scope of this class.
@@ -356,11 +345,11 @@ public class BigTableWriter extends SSTableWriter
             // open the reader early
             indexSummary = iwriter.summary.build(metadata().partitioner, boundary);
             long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
-            int indexBufferSize = optimizationStrategy.bufferSize(indexFileLength / indexSummary.size());
+            int indexBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(indexFileLength / indexSummary.size());
             ifile = iwriter.builder.bufferSize(indexBufferSize).withLengthOverride(boundary.indexLength).complete();
             FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.fileFor(Component.DATA));
-            dbuilder.mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap);
-            chunkCache.ifPresent(dbuilder::withChunkCache);
+            dbuilder.mmapped(ioOptions.defaultDiskAccessMode);
+            dbuilder.withChunkCache(chunkCache);
             if (compression)
                 dbuilder.withCompressionMetadata(((CompressedSequentialWriter) dataFile).open(boundary.dataLength));
 
@@ -375,7 +364,7 @@ public class BigTableWriter extends SSTableWriter
                 partitionSizeHistogram.clearOverflow();
             }
 
-            int dataBufferSize = optimizationStrategy.bufferSize(partitionSizeHistogram.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
+            int dataBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(partitionSizeHistogram.percentile(ioOptions.diskOptimizationEstimatePercentile));
             dfile = dbuilder.bufferSize(dataBufferSize).withLengthOverride(boundary.dataLength).complete();
 
             invalidateCacheAtBoundary(dfile);
@@ -408,10 +397,10 @@ public class BigTableWriter extends SSTableWriter
 
     void invalidateCacheAtBoundary(FileHandle dfile)
     {
-        chunkCache.ifPresent(cache -> {
+        if (chunkCache != null) {
             if (lastEarlyOpenLength != 0 && dfile.dataLength() > lastEarlyOpenLength)
-                cache.invalidatePosition(dfile, lastEarlyOpenLength);
-        });
+                chunkCache.invalidatePosition(dfile, lastEarlyOpenLength);
+        }
         lastEarlyOpenLength = dfile.dataLength();
     }
 
@@ -441,13 +430,13 @@ public class BigTableWriter extends SSTableWriter
             // finalize in-memory state for the reader
             indexSummary = iwriter.summary.build(metadata().partitioner);
             long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
-            int dataBufferSize = optimizationStrategy.bufferSize(stats.estimatedPartitionSize.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
-            int indexBufferSize = optimizationStrategy.bufferSize(indexFileLength / indexSummary.size());
+            int dataBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(stats.estimatedPartitionSize.percentile(ioOptions.diskOptimizationEstimatePercentile));
+            int indexBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(indexFileLength / indexSummary.size());
             ifile = iwriter.builder.bufferSize(indexBufferSize).withLengthOverride(NO_LENGTH_OVERRIDE).complete();
 
             FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.fileFor(Component.DATA));
-            dbuilder.mmapped(DatabaseDescriptor.getDiskAccessMode() == Config.DiskAccessMode.mmap);
-            chunkCache.ifPresent(dbuilder::withChunkCache);
+            dbuilder.mmapped(ioOptions.defaultDiskAccessMode);
+            dbuilder.withChunkCache(chunkCache);
             if (compression)
                 dbuilder.withCompressionMetadata(((CompressedSequentialWriter) dataFile).open(0));
             dfile = dbuilder.bufferSize(dataBufferSize).withLengthOverride(NO_LENGTH_OVERRIDE).complete();
@@ -521,7 +510,7 @@ public class BigTableWriter extends SSTableWriter
     private void writeMetadata(Descriptor desc, Map<MetadataType, MetadataComponent> components)
     {
         File file = new File(desc.filenameFor(Component.STATS));
-        try (SequentialWriter out = new SequentialWriter(file, writerOption))
+        try (SequentialWriter out = new SequentialWriter(file, ioOptions.writerOptions))
         {
             desc.getMetadataSerializer().serialize(components, out, desc.version);
             out.finish();
@@ -560,9 +549,9 @@ public class BigTableWriter extends SSTableWriter
 
         IndexWriter(long keyCount)
         {
-            indexFile = new SequentialWriter(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), writerOption);
-            builder = new FileHandle.Builder(descriptor.fileFor(Component.PRIMARY_INDEX)).mmapped(DatabaseDescriptor.getIndexAccessMode() == Config.DiskAccessMode.mmap);
-            chunkCache.ifPresent(builder::withChunkCache);
+            indexFile = new SequentialWriter(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), ioOptions.writerOptions);
+            builder = new FileHandle.Builder(descriptor.fileFor(Component.PRIMARY_INDEX)).mmapped(ioOptions.indexDiskAccessMode);
+            builder.withChunkCache(chunkCache);
             summary = new IndexSummaryBuilder(keyCount, metadata().params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
             bf = FilterFactory.getFilter(keyCount, metadata().params.bloomFilterFpChance);
             // register listeners to be alerted when the data files are flushed
