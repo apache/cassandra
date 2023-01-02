@@ -29,11 +29,11 @@ import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -41,6 +41,7 @@ import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -361,13 +362,14 @@ public class SSTableImporter
         try
         {
             reader = SSTableReader.open(descriptor, components, cfs.metadata);
-            Verifier.Options verifierOptions = Verifier.options()
-                                                       .extendedVerification(extendedVerify)
-                                                       .checkOwnsTokens(verifyTokens)
-                                                       .quick(!verifySSTables)
-                                                       .invokeDiskFailurePolicy(false)
-                                                       .mutateRepairStatus(false).build();
-            try (Verifier verifier = new Verifier(cfs, reader, false, verifierOptions))
+            IVerifier.Options verifierOptions = IVerifier.options()
+                                                         .extendedVerification(extendedVerify)
+                                                         .checkOwnsTokens(verifyTokens)
+                                                         .quick(!verifySSTables)
+                                                         .invokeDiskFailurePolicy(false)
+                                                         .mutateRepairStatus(false).build();
+
+            try (IVerifier verifier = reader.getVerifier(new OutputHandler.LogOutput(), false, verifierOptions))
             {
                 verifier.verify();
             }

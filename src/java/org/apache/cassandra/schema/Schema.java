@@ -37,6 +37,7 @@ import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
@@ -222,6 +223,15 @@ public class Schema implements SchemaProvider
         return instance.hasColumnFamilyStore(metadata.id)
                ? instance.getColumnFamilyStore(metadata.id)
                : null;
+    }
+
+    public ColumnFamilyStore getColumnFamilyStoreInstance(TableMetadata metadata)
+    {
+        ColumnFamilyStore cfs = getColumnFamilyStoreInstance(metadata.id);
+        if (cfs == null || !metadata.isIndex())
+            return cfs;
+
+        return metadata.indexName().map(cfs.indexManager::getIndexByName).flatMap(Index::getBackingTable).orElse(null);
     }
 
     @Override

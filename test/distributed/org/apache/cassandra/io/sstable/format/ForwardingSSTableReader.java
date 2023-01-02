@@ -33,10 +33,11 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -59,6 +60,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Ref;
 
@@ -290,12 +292,6 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public UnfilteredRowIterator rowIterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed, SSTableReadsListener listener)
     {
         return delegate.rowIterator(key, slices, selectedColumns, reversed, listener);
-    }
-
-    @Override
-    public UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
-    {
-        return delegate.rowIterator(file, key, indexEntry, slices, selectedColumns, reversed);
     }
 
     @Override
@@ -770,5 +766,17 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public ClusteringPrefix<?> getLowerBoundPrefixFromCache(DecoratedKey partitionKey, ClusteringIndexFilter filter)
     {
         return delegate.getLowerBoundPrefixFromCache(partitionKey, filter);
+    }
+
+    @Override
+    public IScrubber getScrubber(LifecycleTransaction transaction, OutputHandler outputHandler, IScrubber.Options options)
+    {
+        return delegate.getScrubber(transaction, outputHandler, options);
+    }
+
+    @Override
+    public IVerifier getVerifier(OutputHandler outputHandler, boolean isOffline, IVerifier.Options options)
+    {
+        return delegate.getVerifier(outputHandler, isOffline, options);
     }
 }

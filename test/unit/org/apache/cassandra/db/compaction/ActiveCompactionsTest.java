@@ -46,7 +46,9 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
+import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
+import org.apache.cassandra.io.sstable.format.IScrubber;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.CacheService;
@@ -191,7 +193,7 @@ public class ActiveCompactionsTest extends CQLTester
         try (LifecycleTransaction txn = getCurrentColumnFamilyStore().getTracker().tryModify(sstable, OperationType.SCRUB))
         {
             MockActiveCompactions mockActiveCompactions = new MockActiveCompactions();
-            CompactionManager.instance.scrubOne(getCurrentColumnFamilyStore(), txn, true, false, false, mockActiveCompactions);
+            CompactionManager.instance.scrubOne(txn, IScrubber.options().skipCorrupted().build(), mockActiveCompactions);
 
             assertTrue(mockActiveCompactions.finished);
             assertEquals(mockActiveCompactions.holder.getCompactionInfo().getSSTables(), Sets.newHashSet(sstable));
@@ -214,7 +216,7 @@ public class ActiveCompactionsTest extends CQLTester
 
         SSTableReader sstable = Iterables.getFirst(getCurrentColumnFamilyStore().getLiveSSTables(), null);
         MockActiveCompactions mockActiveCompactions = new MockActiveCompactions();
-        CompactionManager.instance.verifyOne(getCurrentColumnFamilyStore(), sstable, new Verifier.Options.Builder().build(), mockActiveCompactions);
+        CompactionManager.instance.verifyOne(sstable, IVerifier.options().build(), mockActiveCompactions);
         assertTrue(mockActiveCompactions.finished);
         assertEquals(mockActiveCompactions.holder.getCompactionInfo().getSSTables(), Sets.newHashSet(sstable));
         assertFalse(mockActiveCompactions.holder.getCompactionInfo().shouldStop((s) -> false));

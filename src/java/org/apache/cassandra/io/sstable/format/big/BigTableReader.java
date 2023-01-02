@@ -21,8 +21,12 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.IScrubber;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
 import org.slf4j.Logger;
@@ -43,8 +47,10 @@ import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SelectionReas
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SkippingReason;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.OutputHandler;
 
 /**
  * SSTableReaders are open()ed by Keyspace.onStart; after that they are created by SSTableWriter.renameAndOpen.
@@ -374,4 +380,20 @@ public class BigTableReader extends SSTableReader
         }
 
     }
+
+    @Override
+    public IScrubber getScrubber(LifecycleTransaction transaction, OutputHandler outputHandler, IScrubber.Options options)
+    {
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata());
+        Preconditions.checkArgument(transaction.originals().contains(this));
+        return new BigTableScrubber(cfs, transaction, outputHandler, options);
+    }
+
+    @Override
+    public IVerifier getVerifier(OutputHandler outputHandler, boolean isOffline, IVerifier.Options options)
+    {
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata());
+        return new BigTableVerifier(cfs, this, outputHandler, isOffline, options);
+    }
+
 }

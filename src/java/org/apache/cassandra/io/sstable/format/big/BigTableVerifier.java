@@ -15,33 +15,57 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.compaction;
+package org.apache.cassandra.io.sstable.format.big;
+
+import java.io.DataInputStream;
+import java.io.IOError;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.time.Instant;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
+import java.util.function.LongPredicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.compaction.CompactionController;
+import org.apache.cassandra.db.compaction.CompactionInfo;
+import org.apache.cassandra.db.compaction.CompactionInterruptedException;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.DataIntegrityMetadata.FileDigestValidator;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -55,26 +79,9 @@ import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.TimeUUID;
 
-import java.io.Closeable;
-import java.io.DataInputStream;
-import java.io.IOError;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
-import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Function;
-import java.util.function.LongPredicate;
-
-import org.apache.cassandra.io.util.File;
-
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class Verifier implements Closeable
+public class BigTableVerifier implements IVerifier
 {
     private final ColumnFamilyStore cfs;
     private final SSTableReader sstable;
@@ -100,12 +107,7 @@ public class Verifier implements Closeable
     private final OutputHandler outputHandler;
     private FileDigestValidator validator;
 
-    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, boolean isOffline, Options options)
-    {
-        this(cfs, sstable, new OutputHandler.LogOutput(), isOffline, options);
-    }
-
-    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, OutputHandler outputHandler, boolean isOffline, Options options)
+    public BigTableVerifier(ColumnFamilyStore cfs, BigTableReader sstable, OutputHandler outputHandler, boolean isOffline, Options options)
     {
         this.cfs = cfs;
         this.sstable = sstable;
@@ -125,6 +127,7 @@ public class Verifier implements Closeable
         this.tokenLookup = options.tokenLookup;
     }
 
+    @Override
     public void verify()
     {
         boolean extended = options.extendedVerification;
@@ -298,8 +301,8 @@ public class Verifier implements Closeable
                 {
                     nextIndexKey = indexFile.isEOF() ? null : ByteBufferUtil.readWithShortLength(indexFile);
                     nextRowPositionFromIndex = indexFile.isEOF()
-                                             ? dataFile.length()
-                                             : rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
+                                               ? dataFile.length()
+                                               : rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
                 }
                 catch (Throwable th)
                 {
@@ -308,8 +311,8 @@ public class Verifier implements Closeable
 
                 long dataStart = dataFile.getFilePointer();
                 long dataStartFromIndex = currentIndexKey == null
-                                        ? -1
-                                        : rowStart + 2 + currentIndexKey.remaining();
+                                          ? -1
+                                          : rowStart + 2 + currentIndexKey.remaining();
 
                 long dataSize = nextRowPositionFromIndex - dataStartFromIndex;
                 // avoid an NPE if key is null
@@ -361,7 +364,7 @@ public class Verifier implements Closeable
 
                     if ( (prevKey != null && prevKey.compareTo(key) > 0) || !key.getKey().equals(currentIndexKey) || dataStart != dataStartFromIndex )
                         markAndThrow(new RuntimeException("Key out of order: previous = "+prevKey + " : current = " + key));
-                    
+
                     goodRows++;
                     prevKey = key;
 
@@ -496,9 +499,9 @@ public class Verifier implements Closeable
         try (DataInputStream iStream = new DataInputStream(Files.newInputStream(file.toPath())))
         {
             try (IndexSummary indexSummary = IndexSummary.serializer.deserialize(iStream,
-                                                               cfs.getPartitioner(),
-                                                               metadata.params.minIndexInterval,
-                                                               metadata.params.maxIndexInterval))
+                                                                                 cfs.getPartitioner(),
+                                                                                 metadata.params.minIndexInterval,
+                                                                                 metadata.params.maxIndexInterval))
             {
                 ByteBufferUtil.readWithLength(iStream);
                 ByteBufferUtil.readWithLength(iStream);
@@ -518,6 +521,7 @@ public class Verifier implements Closeable
         }
     }
 
+    @Override
     public void close()
     {
         fileAccessLock.writeLock().lock();
@@ -564,6 +568,7 @@ public class Verifier implements Closeable
             throw new RuntimeException(e);
     }
 
+    @Override
     public CompactionInfo.Holder getVerifyInfo()
     {
         return verifyInfo;
@@ -623,105 +628,6 @@ public class Verifier implements Closeable
         public LongPredicate getPurgeEvaluator(DecoratedKey key)
         {
             return time -> false;
-        }
-    }
-
-    public static Options.Builder options()
-    {
-        return new Options.Builder();
-    }
-
-    public static class Options
-    {
-        public final boolean invokeDiskFailurePolicy;
-        public final boolean extendedVerification;
-        public final boolean checkVersion;
-        public final boolean mutateRepairStatus;
-        public final boolean checkOwnsTokens;
-        public final boolean quick;
-        public final Function<String, ? extends Collection<Range<Token>>> tokenLookup;
-
-        private Options(boolean invokeDiskFailurePolicy, boolean extendedVerification, boolean checkVersion, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, Function<String, ? extends Collection<Range<Token>>> tokenLookup)
-        {
-            this.invokeDiskFailurePolicy = invokeDiskFailurePolicy;
-            this.extendedVerification = extendedVerification;
-            this.checkVersion = checkVersion;
-            this.mutateRepairStatus = mutateRepairStatus;
-            this.checkOwnsTokens = checkOwnsTokens;
-            this.quick = quick;
-            this.tokenLookup = tokenLookup;
-        }
-
-        @Override
-        public String toString()
-        {
-            return "Options{" +
-                   "invokeDiskFailurePolicy=" + invokeDiskFailurePolicy +
-                   ", extendedVerification=" + extendedVerification +
-                   ", checkVersion=" + checkVersion +
-                   ", mutateRepairStatus=" + mutateRepairStatus +
-                   ", checkOwnsTokens=" + checkOwnsTokens +
-                   ", quick=" + quick +
-                   '}';
-        }
-
-        public static class Builder
-        {
-            private boolean invokeDiskFailurePolicy = false; // invoking disk failure policy can stop the node if we find a corrupt stable
-            private boolean extendedVerification = false;
-            private boolean checkVersion = false;
-            private boolean mutateRepairStatus = false; // mutating repair status can be dangerous
-            private boolean checkOwnsTokens = false;
-            private boolean quick = false;
-            private Function<String, ? extends Collection<Range<Token>>> tokenLookup = StorageService.instance::getLocalAndPendingRanges;
-
-            public Builder invokeDiskFailurePolicy(boolean param)
-            {
-                this.invokeDiskFailurePolicy = param;
-                return this;
-            }
-
-            public Builder extendedVerification(boolean param)
-            {
-                this.extendedVerification = param;
-                return this;
-            }
-
-            public Builder checkVersion(boolean param)
-            {
-                this.checkVersion = param;
-                return this;
-            }
-
-            public Builder mutateRepairStatus(boolean param)
-            {
-                this.mutateRepairStatus = param;
-                return this;
-            }
-
-            public Builder checkOwnsTokens(boolean param)
-            {
-                this.checkOwnsTokens = param;
-                return this;
-            }
-
-            public Builder quick(boolean param)
-            {
-                this.quick = param;
-                return this;
-            }
-
-            public Builder tokenLookup(Function<String, ? extends Collection<Range<Token>>> tokenLookup)
-            {
-                this.tokenLookup = tokenLookup;
-                return this;
-            }
-
-            public Options build()
-            {
-                return new Options(invokeDiskFailurePolicy, extendedVerification, checkVersion, mutateRepairStatus, checkOwnsTokens, quick, tokenLookup);
-            }
-
         }
     }
 }

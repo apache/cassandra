@@ -35,6 +35,7 @@ import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredSource;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.slf4j.Logger;
@@ -50,7 +51,6 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -1449,8 +1449,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                                                               boolean permitMatchPastLast,
                                                               SSTableReadsListener listener);
 
-    public abstract UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed);
-
     public UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, long dataPosition, boolean tombstoneOnly)
     {
         return SSTableIdentityIterator.create(this, file, dataPosition, key, tombstoneOnly);
@@ -2408,4 +2406,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     {
         tidy.global.maybePersistSSTableReadMeter();
     }
+
+    public abstract IScrubber getScrubber(LifecycleTransaction transaction,
+                                          OutputHandler outputHandler,
+                                          IScrubber.Options options);
+
+    public abstract IVerifier getVerifier(OutputHandler outputHandler,
+                                          boolean isOffline,
+                                          IVerifier.Options options);
 }

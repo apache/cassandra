@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.io.sstable.format.IScrubber;
 import org.apache.cassandra.io.util.File;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -43,7 +44,6 @@ import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -222,7 +222,7 @@ public class StandaloneScrubber
                     try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, sstable))
                     {
                         txn.obsoleteOriginals(); // make sure originals are deleted and avoid NPE if index is missing, CASSANDRA-9591
-                        try (Scrubber scrubber = new Scrubber(cfs, txn, options.skipCorrupted, handler, !options.noValidate, options.reinserOverflowedTTL))
+                        try (IScrubber scrubber = txn.onlyOne().getScrubber(txn, handler, options.build()))
                         {
                             scrubber.scrub();
                         }
@@ -276,7 +276,7 @@ public class StandaloneScrubber
         }
     }
 
-    private static class Options
+    private static class Options extends IScrubber.Options.Builder
     {
         public final String keyspaceName;
         public final String cfName;
@@ -284,9 +284,6 @@ public class StandaloneScrubber
         public boolean debug;
         public boolean verbose;
         public boolean manifestCheckOnly;
-        public boolean skipCorrupted;
-        public boolean noValidate;
-        public boolean reinserOverflowedTTL;
         public HeaderFixMode headerFixMode = HeaderFixMode.VALIDATE;
 
         enum HeaderFixMode
@@ -345,9 +342,9 @@ public class StandaloneScrubber
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.manifestCheckOnly = cmd.hasOption(MANIFEST_CHECK_OPTION);
-                opts.skipCorrupted = cmd.hasOption(SKIP_CORRUPTED_OPTION);
-                opts.noValidate = cmd.hasOption(NO_VALIDATE_OPTION);
-                opts.reinserOverflowedTTL = cmd.hasOption(REINSERT_OVERFLOWED_TTL_OPTION);
+                opts.skipCorrupted(cmd.hasOption(SKIP_CORRUPTED_OPTION));
+                opts.checkData(!cmd.hasOption(NO_VALIDATE_OPTION));
+                opts.reinsertOverflowedTTLRows(cmd.hasOption(REINSERT_OVERFLOWED_TTL_OPTION));
                 if (cmd.hasOption(HEADERFIX_OPTION))
                 {
                     try

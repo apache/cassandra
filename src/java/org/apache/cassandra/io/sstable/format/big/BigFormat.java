@@ -19,18 +19,38 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Set;
+
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.format.*;
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.TimeUUID;
+
+import static org.apache.cassandra.io.sstable.Component.COMPRESSION_INFO;
+import static org.apache.cassandra.io.sstable.Component.CRC;
+import static org.apache.cassandra.io.sstable.Component.DATA;
+import static org.apache.cassandra.io.sstable.Component.DIGEST;
+import static org.apache.cassandra.io.sstable.Component.FILTER;
+import static org.apache.cassandra.io.sstable.Component.PRIMARY_INDEX;
+import static org.apache.cassandra.io.sstable.Component.STATS;
+import static org.apache.cassandra.io.sstable.Component.SUMMARY;
+import static org.apache.cassandra.io.sstable.Component.TOC;
 
 /**
  * Legacy bigtable format
@@ -41,6 +61,16 @@ public class BigFormat implements SSTableFormat
     public static final Version latestVersion = new BigVersion(BigVersion.current_version);
     private static final SSTableReader.Factory readerFactory = new ReaderFactory();
     private static final SSTableWriter.Factory writerFactory = new WriterFactory();
+
+    private static final Set<Component> SUPPORTED_COMPONENTS = ImmutableSet.of(DATA,
+                                                                               PRIMARY_INDEX,
+                                                                               STATS,
+                                                                               COMPRESSION_INFO,
+                                                                               FILTER,
+                                                                               SUMMARY,
+                                                                               DIGEST,
+                                                                               CRC,
+                                                                               TOC);
 
     private BigFormat()
     {
@@ -75,6 +105,12 @@ public class BigFormat implements SSTableFormat
     public SSTableReader.Factory getReaderFactory()
     {
         return readerFactory;
+    }
+
+    @Override
+    public Set<Component> supportedComponents()
+    {
+        return SUPPORTED_COMPONENTS;
     }
 
     @Override

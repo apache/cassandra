@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.db;
+package org.apache.cassandra.tools.nodetool;
 
 import java.io.IOError;
 import java.io.IOException;
@@ -27,17 +27,21 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.ScrubTest;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.tools.StandaloneScrubber;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Throwables;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
@@ -45,19 +49,18 @@ import static org.apache.cassandra.SchemaLoader.createKeyspace;
 import static org.apache.cassandra.SchemaLoader.getCompressionParameters;
 import static org.apache.cassandra.SchemaLoader.loadSchema;
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
-import static org.apache.cassandra.db.ScrubTest.CF_INDEX1;
-import static org.apache.cassandra.db.ScrubTest.CF_INDEX1_BYTEORDERED;
-import static org.apache.cassandra.db.ScrubTest.CF_INDEX2;
-import static org.apache.cassandra.db.ScrubTest.CF_INDEX2_BYTEORDERED;
-import static org.apache.cassandra.db.ScrubTest.CF_UUID;
-import static org.apache.cassandra.db.ScrubTest.COMPRESSION_CHUNK_LENGTH;
-import static org.apache.cassandra.db.ScrubTest.COUNTER_CF;
-import static org.apache.cassandra.db.ScrubTest.assertOrderedAll;
-import static org.apache.cassandra.db.ScrubTest.fillCF;
-import static org.apache.cassandra.db.ScrubTest.fillCounterCF;
-import static org.apache.cassandra.db.ScrubTest.overrideWithGarbage;
+import static org.apache.cassandra.io.sstable.ScrubTest.CF_INDEX1;
+import static org.apache.cassandra.io.sstable.ScrubTest.CF_INDEX1_BYTEORDERED;
+import static org.apache.cassandra.io.sstable.ScrubTest.CF_INDEX2;
+import static org.apache.cassandra.io.sstable.ScrubTest.CF_INDEX2_BYTEORDERED;
+import static org.apache.cassandra.io.sstable.ScrubTest.CF_UUID;
+import static org.apache.cassandra.io.sstable.ScrubTest.COMPRESSION_CHUNK_LENGTH;
+import static org.apache.cassandra.io.sstable.ScrubTest.COUNTER_CF;
+import static org.apache.cassandra.io.sstable.ScrubTest.assertOrderedAll;
+import static org.apache.cassandra.io.sstable.ScrubTest.fillCF;
+import static org.apache.cassandra.io.sstable.ScrubTest.fillCounterCF;
+import static org.apache.cassandra.io.sstable.ScrubTest.overrideWithGarbage;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class ScrubToolTest
@@ -121,7 +124,7 @@ public class ScrubToolTest
         assertEquals(1, cfs.getLiveSSTables().size());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"));
+        ScrubTest.overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"), (byte) 0x7A);
 
         // with skipCorrupted == true, the corrupt rows will be skipped
         ToolRunner.ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class, "-s", ksName, COUNTER_CF);
@@ -143,7 +146,9 @@ public class ScrubToolTest
         assertEquals(1, cfs.getLiveSSTables().size());
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"));
+        //use 0x00 instead of the usual 0x7A because if by any chance it's able to iterate over the corrupt
+        //section, then we get many out-of-order errors, which we don't want
+        overrideWithGarbage(sstable, ByteBufferUtil.bytes("0"), ByteBufferUtil.bytes("1"), (byte) 0x0);
 
         // with skipCorrupted == false, the scrub is expected to fail
         try
@@ -151,8 +156,9 @@ public class ScrubToolTest
             ToolRunner.invokeClass(StandaloneScrubber.class, ksName, COUNTER_CF);
             fail("Expected a CorruptSSTableException to be thrown");
         }
-        catch (IOError err) {
-            assertTrue(err.getCause() instanceof CorruptSSTableException);
+        catch (IOError err)
+        {
+            Throwables.assertAnyCause(err, CorruptSSTableException.class);
         }
     }
 

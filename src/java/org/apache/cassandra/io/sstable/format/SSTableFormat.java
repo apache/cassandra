@@ -17,8 +17,11 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
+import java.util.Set;
+
 import com.google.common.base.CharMatcher;
 
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 
 /**
@@ -35,6 +38,8 @@ public interface SSTableFormat
 
     SSTableWriter.Factory getWriterFactory();
     SSTableReader.Factory getReaderFactory();
+
+    Set<Component> supportedComponents();
 
     boolean isKeyCacheSupported();
     AbstractRowIndexEntry.KeyCacheValueSerializer<?, ?> getKeyCacheValueSerializer();

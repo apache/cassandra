@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.utils;
 
-import org.apache.cassandra.io.util.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
@@ -29,8 +28,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 public final class Throwables
@@ -266,5 +268,12 @@ public final class Throwables
     public static RuntimeException cleaned(Throwable t)
     {
         return unchecked(unwrapped(t));
+    }
+
+    @VisibleForTesting
+    public static void assertAnyCause(Throwable err, Class<? extends Throwable> cause)
+    {
+        if (!anyCauseMatches(err, cause::isInstance))
+            throw new AssertionError("The exception is not caused by " + cause.getName(), err);
     }
 }
