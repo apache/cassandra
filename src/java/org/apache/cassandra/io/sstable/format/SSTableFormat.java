@@ -53,6 +53,8 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
 
     Set<Component> mutableComponents();
 
+    Set<Component> generatedOnLoadComponents();
+
     boolean isKeyCacheSupported();
     AbstractRowIndexEntry.KeyCacheValueSerializer<?, ?> getKeyCacheValueSerializer();
 

@@ -35,7 +35,6 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -52,9 +51,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.base.Preconditions;
-
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -210,9 +208,14 @@ public final class FileUtils
 
     public static void createHardLinkWithoutConfirm(String from, String to)
     {
+        createHardLinkWithoutConfirm(new File(from), new File(to));
+    }
+
+    public static void createHardLinkWithoutConfirm(File from, File to)
+    {
         try
         {
-            createHardLink(new File(from), new File(to));
+            createHardLink(from, to);
         }
         catch (FSWriteError fse)
         {
@@ -223,9 +226,14 @@ public final class FileUtils
 
     public static void copyWithOutConfirm(String from, String to)
     {
+        copyWithOutConfirm(new File(from), new File(to));
+    }
+
+    public static void copyWithOutConfirm(File from, File to)
+    {
         try
         {
-            Files.copy(Paths.get(from), Paths.get(to));
+            Files.copy(from.toPath(), to.toPath());
         }
         catch (IOException e)
         {

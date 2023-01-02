@@ -110,6 +110,8 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
     private static final Set<Component> MUTABLE_COMPONENTS = ImmutableSet.of(STATS,
                                                                              SUMMARY);
 
+    private static final Set<Component> GENERATED_ON_LOAD_COMPONENTS = ImmutableSet.of(FILTER, SUMMARY);
+
     private BigFormat()
     {
 
@@ -179,6 +181,12 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
     public Set<Component> mutableComponents()
     {
         return MUTABLE_COMPONENTS;
+    }
+
+    @Override
+    public Set<Component> generatedOnLoadComponents()
+    {
+        return GENERATED_ON_LOAD_COMPONENTS;
     }
 
     @Override
