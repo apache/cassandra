@@ -32,10 +32,8 @@ import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.io.sstable.KeyReader;
-import org.apache.cassandra.io.sstable.IVerifier;
-import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -48,6 +46,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.IVerifier;
+import org.apache.cassandra.io.sstable.KeyReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -66,14 +66,35 @@ public abstract class ForwardingSSTableReader extends SSTableReader
 {
     private final SSTableReader delegate;
 
+    private static class Builder extends SSTableReaderBuilder<ForwardingSSTableReader, Builder>
+    {
+        public Builder(SSTableReader delegate)
+        {
+            super(delegate.descriptor);
+            setTableMetadataRef(TableMetadataRef.forOfflineTools(delegate.metadata()));
+            setComponents(delegate.getComponents());
+            setMaxDataAge(delegate.maxDataAge);
+            setStatsMetadata(delegate.getSSTableMetadata());
+            setOpenReason(delegate.openReason);
+            setSerializationHeader(delegate.header);
+            setDataFile(delegate.dfile);
+            setFilter(delegate.bf);
+            setFirst(delegate.first);
+            setLast(delegate.last);
+        }
+
+        @Override
+        public ForwardingSSTableReader buildInternal()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+    }
+
     public ForwardingSSTableReader(SSTableReader delegate)
     {
-        super(delegate.descriptor, TOCComponent.loadOrCreate(delegate.descriptor),
-              TableMetadataRef.forOfflineTools(delegate.metadata()), delegate.maxDataAge, delegate.getSSTableMetadata(),
-              delegate.openReason, delegate.header, delegate.dfile, delegate.bf);
+        super(new Builder(delegate));
         this.delegate = delegate;
-        this.first = delegate.first;
-        this.last = delegate.last;
     }
 
     @Override
@@ -617,7 +638,7 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    void setup(boolean trackHotness)
+    public void setup(boolean trackHotness)
     {
         delegate.setup(trackHotness);
     }

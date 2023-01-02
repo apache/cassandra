@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable;
 
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,10 +41,8 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.IOOptions;
 import org.apache.cassandra.io.sstable.format.TOCComponent;
-import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -308,24 +305,6 @@ public abstract class SSTable
         }
     }
 
-    /** @return An estimate of the number of keys contained in the given index file. */
-    public static long estimateRowsFromIndex(RandomAccessReader ifile, Descriptor descriptor) throws IOException
-    {
-        // collect sizes for the first 10000 keys, or first 10 mebibytes of data
-        final int SAMPLES_CAP = 10000, BYTES_CAP = (int)Math.min(10000000, ifile.length());
-        int keys = 0;
-        while (ifile.getFilePointer() < BYTES_CAP && keys < SAMPLES_CAP)
-        {
-            ByteBufferUtil.skipShortLength(ifile);
-            RowIndexEntry.Serializer.skip(ifile, descriptor.version);
-            keys++;
-        }
-        assert keys > 0 && ifile.getFilePointer() > 0 && ifile.length() > 0 : "Unexpected empty index file: " + ifile;
-        long estimatedRows = ifile.length() / (ifile.getFilePointer() / keys);
-        ifile.seek(0);
-        return estimatedRows;
-    }
-
     @Override
     public String toString()
     {
@@ -359,6 +338,5 @@ public abstract class SSTable
                                     "pendingRepair cannot be set on a repaired sstable");
         Preconditions.checkArgument(!isTransient || (pendingRepair != NO_PENDING_REPAIR),
                                     "isTransient can only be true for sstables pending repair");
-
     }
 }

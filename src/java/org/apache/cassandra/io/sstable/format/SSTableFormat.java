@@ -23,8 +23,10 @@ import java.util.Set;
 import com.google.common.base.CharMatcher;
 
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.GaugeProvider;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.schema.TableMetadataRef;
 
 /**
  * Provides the accessors to data on disk.
@@ -39,7 +41,7 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
     Version getVersion(String version);
 
     SSTableWriter.Factory getWriterFactory();
-    SSTableReader.Factory<R> getReaderFactory();
+    SSTableReaderFactory<R, ?> getReaderFactory();
 
     Set<Component> supportedComponents();
 
@@ -102,5 +104,12 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
     interface FormatSpecificMetricsProviders
     {
         List<GaugeProvider<?, ?>> getGaugeProviders();
+    }
+
+    interface SSTableReaderFactory<R extends SSTableReader, B extends SSTableReaderBuilder<R, B>>
+    {
+        SSTableReaderBuilder<R, B> builder(Descriptor descriptor);
+
+        SSTableReaderLoadingBuilder<R, B> builder(Descriptor descriptor, TableMetadataRef tableMetadataRef, Set<Component> components);
     }
 }

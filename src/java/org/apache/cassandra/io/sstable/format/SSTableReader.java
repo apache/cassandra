@@ -69,12 +69,10 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.*;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
@@ -351,25 +349,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public static SSTableReader open(Descriptor descriptor)
     {
-        TableMetadataRef metadata;
-        if (descriptor.cfname.contains(SECONDARY_INDEX_NAME_SEPARATOR))
-        {
-            int i = descriptor.cfname.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
-            String indexName = descriptor.cfname.substring(i + 1);
-            metadata = Schema.instance.getIndexTableMetadataRef(descriptor.ksname, indexName);
-            if (metadata == null)
-                throw new AssertionError("Could not find index metadata for index cf " + i);
-        }
-        else
-        {
-            metadata = Schema.instance.getTableMetadataRef(descriptor.ksname, descriptor.cfname);
-        }
-        return open(descriptor, metadata);
+        return open(descriptor, null);
     }
 
     public static SSTableReader open(Descriptor desc, TableMetadataRef metadata)
     {
-        return open(desc, TOCComponent.loadOrCreate(desc), metadata);
+        return open(desc, null, metadata);
     }
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
@@ -386,7 +371,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     // use only for offline or "Standalone" operations
     public static SSTableReader openNoValidation(Descriptor descriptor, TableMetadataRef metadata)
     {
-        return open(descriptor, TOCComponent.loadOrCreate(descriptor), metadata, false, true);
+        return open(descriptor, null, metadata, false, true);
     }
 
     /**
@@ -400,7 +385,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      */
     public static SSTableReader openForBatch(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
     {
-        return descriptor.getFormat().getReaderFactory().openForBatch(descriptor, components, metadata);
+        return open(descriptor, components, metadata, true, true);
     }
 
     /**
@@ -420,7 +405,9 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                                      boolean validate,
                                      boolean isOffline)
     {
-        return descriptor.getFormat().getReaderFactory().open(descriptor, components, metadata, validate, isOffline);
+        SSTableReaderLoadingBuilder<?, ?> builder = descriptor.getFormat().getReaderFactory().builder(descriptor, metadata, components);
+
+        return builder.build(validate, !isOffline);
     }
 
     public static Collection<SSTableReader> openAll(Set<Map.Entry<Descriptor, Set<Component>>> entries,
@@ -474,36 +461,18 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     }
 
-    protected SSTableReader(SSTableReaderBuilder builder)
+    protected SSTableReader(SSTableReaderBuilder<?, ?> builder)
     {
-        this(builder.descriptor,
-             builder.components,
-             builder.metadataRef,
-             builder.maxDataAge,
-             builder.statsMetadata,
-             builder.openReason,
-             builder.header,
-             builder.dfile,
-             builder.bf);
-    }
+        super(builder);
 
-    protected SSTableReader(final Descriptor desc,
-                            Set<Component> components,
-                            TableMetadataRef metadata,
-                            long maxDataAge,
-                            StatsMetadata sstableMetadata,
-                            OpenReason openReason,
-                            SerializationHeader header,
-                            FileHandle dfile,
-                            IFilter bf)
-    {
-        super(new SSTableBuilder<>(desc).setComponents(components).setTableMetadataRef(metadata));
-        this.sstableMetadata = sstableMetadata;
-        this.header = header;
-        this.dfile = dfile;
-        this.bf = bf;
-        this.maxDataAge = maxDataAge;
-        this.openReason = openReason;
+        this.sstableMetadata = builder.getStatsMetadata();
+        this.header = builder.getSerializationHeader();
+        this.dfile = builder.getDataFile();
+        this.bf = builder.getFilter();
+        this.maxDataAge = builder.getMaxDataAge();
+        this.openReason = builder.getOpenReason();
+        this.first = builder.getFirst();
+        this.last = builder.getLast();
         tidy = new InstanceTidier(descriptor, metadata.id);
         selfRef = new Ref<>(this, tidy);
     }
@@ -542,12 +511,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public void setupOnline()
     {
-        // under normal operation we can do this at any time, but SSTR is also used outside C* proper,
-        // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
-        // here when we know we're being wired into the rest of the server infrastructure.
-        InstrumentingCache<KeyCacheKey, AbstractRowIndexEntry> maybeKeyCache = CacheService.instance.keyCache;
-        if (maybeKeyCache.getCapacity() > 0)
-            keyCache = maybeKeyCache;
 
         final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata().id);
         if (cfs != null)
@@ -599,6 +562,19 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         }
     }
 
+    protected <B extends SSTableReaderBuilder<?, B>> B unbuild(B builder)
+    {
+        return super.unbuildTo(builder)
+                    .setStatsMetadata(sstableMetadata)
+                    .setSerializationHeader(header)
+                    .setMaxDataAge(maxDataAge)
+                    .setOpenReason(openReason)
+                    .setDataFile(dfile)
+                    .setFilter(bf)
+                    .setFirst(first)
+                    .setLast(last)
+                    .setSuspected(isSuspect.get());
+    }
     /**
      * Clone this reader with the new values and set the clone as replacement.
      *
@@ -1373,7 +1349,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return Collections.singletonList(dfile);
     }
 
-    void setup(boolean trackHotness)
+    public void setup(boolean trackHotness)
     {
         assert tidy.closeables == null;
         trackHotness &= TRACK_ACTIVITY;
@@ -1608,8 +1584,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                 obsoletion.run();
 
             // don't ideally want to dropPageCache for the file until all instances have been released
-            NativeLibrary.trySkipCache(desc.filenameFor(Component.DATA), 0, 0);
-            NativeLibrary.trySkipCache(desc.filenameFor(Component.PRIMARY_INDEX), 0, 0);
+            for (Component c : desc.discoverComponents())
+                NativeLibrary.trySkipCache(desc.filenameFor(c), 0, 0);
         }
 
         public String name()
@@ -1650,35 +1626,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public static void resetTidying()
     {
         GlobalTidy.lookup.clear();
-    }
-
-    public interface Factory<T extends SSTableReader>
-    {
-        T open(SSTableReaderBuilder builder);
-
-        /**
-         * Open an SSTable for reading
-         * @param descriptor SSTable to open
-         * @param components Components included with this SSTable
-         * @param metadata for this SSTables CF
-         * @param validate Check SSTable for corruption (limited)
-         * @param isOffline Whether we are opening this SSTable "offline", for example from an external tool or not for inclusion in queries (validations)
-         *                  This stops regenerating BF + Summaries and also disables tracking of hotness for the SSTable.
-         * @return {@link SSTableReader}
-         * @throws IOException
-         */
-        T open(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata, boolean validate, boolean isOffline);
-
-        /**
-         * Open SSTable reader to be used in batch mode(such as sstableloader).
-         *
-         * @param descriptor
-         * @param components
-         * @param metadata
-         * @return opened SSTableReader
-         * @throws IOException
-         */
-        T openForBatch(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata);
     }
 
     public static class PartitionPositionBounds

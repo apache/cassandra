@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.stream.Stream;
@@ -471,12 +470,11 @@ public class SSTableReaderTest
 
         executeInternal(format("ALTER TABLE \"%s\".\"%s\" WITH bloom_filter_fp_chance = 0.3", ks, cf));
 
-        File summaryFile = new File(desc.filenameFor(Component.SUMMARY));
-        Path bloomPath = new File(desc.filenameFor(Component.FILTER)).toPath();
-        Path summaryPath = summaryFile.toPath();
+        File bloomFile = desc.fileFor(Component.FILTER);
+        long bloomModified = bloomFile.lastModified();
 
-        long bloomModified = Files.getLastModifiedTime(bloomPath).toMillis();
-        long summaryModified = Files.getLastModifiedTime(summaryPath).toMillis();
+        File summaryFile = desc.getFormat().supportedComponents().contains(Component.SUMMARY) ? desc.fileFor(Component.SUMMARY) : null;
+        long summaryModified = summaryFile != null ? summaryFile.lastModified() : 0;
 
         TimeUnit.MILLISECONDS.sleep(1000); // sleep to ensure modified time will be different
 
@@ -484,8 +482,10 @@ public class SSTableReaderTest
         // check that bloomfilter/summary ARE NOT regenerated
         target = SSTableReader.openNoValidation(desc, store.metadata);
 
-        assertEquals(bloomModified, Files.getLastModifiedTime(bloomPath).toMillis());
-        assertEquals(summaryModified, Files.getLastModifiedTime(summaryPath).toMillis());
+        assertEquals(bloomModified, bloomFile.lastModified());
+
+        if (summaryFile != null)
+            assertEquals(summaryModified, summaryFile.lastModified());
 
         target.selfRef().release();
 
@@ -494,8 +494,9 @@ public class SSTableReaderTest
         components.remove(Component.FILTER);
         target = SSTableReader.openNoValidation(desc, components, store);
 
-        assertEquals(bloomModified, Files.getLastModifiedTime(bloomPath).toMillis());
-        assertEquals(summaryModified, Files.getLastModifiedTime(summaryPath).toMillis());
+        assertEquals(bloomModified, bloomFile.lastModified());
+        if (summaryFile != null)
+            assertEquals(summaryModified, summaryFile.lastModified());
         assertEquals(FilterFactory.AlwaysPresent, target.getBloomFilter());
 
         target.selfRef().release();
@@ -504,47 +505,57 @@ public class SSTableReaderTest
         // check that summary & bloomfilter are not regenerated when SSTable is opened and BFFP has been changed
         target = SSTableReader.open(desc, store.metadata);
 
-        assertEquals(bloomModified, Files.getLastModifiedTime(bloomPath).toMillis());
-        assertEquals(summaryModified, Files.getLastModifiedTime(summaryPath).toMillis());
+        assertEquals(bloomModified, bloomFile.lastModified());
+        if (summaryFile != null)
+            assertEquals(summaryModified, summaryFile.lastModified());
 
         target.selfRef().release();
 
         // check that bloomfilter is recreated when it doesn't exist and this causes the summary to be recreated
         components = desc.discoverComponents();
         components.remove(Component.FILTER);
+        components.remove(Component.SUMMARY);
 
         target = SSTableReader.open(desc, components, store.metadata);
 
-        assertTrue("Bloomfilter was not recreated", bloomModified < Files.getLastModifiedTime(bloomPath).toMillis());
-        assertTrue("Summary was not recreated", summaryModified < Files.getLastModifiedTime(summaryPath).toMillis());
+        assertTrue("Bloomfilter was not recreated", bloomModified < bloomFile.lastModified());
+        if (summaryFile != null)
+            assertTrue("Summary was not recreated", summaryModified < summaryFile.lastModified());
 
         target.selfRef().release();
 
         // check that only the summary is regenerated when it is deleted
         components.add(Component.FILTER);
-        summaryModified = Files.getLastModifiedTime(summaryPath).toMillis();
-        summaryFile.tryDelete();
+        if (summaryFile != null)
+        {
+            summaryModified = summaryFile.lastModified();
+            summaryFile.tryDelete();
+        }
 
         TimeUnit.MILLISECONDS.sleep(1000); // sleep to ensure modified time will be different
-        bloomModified = Files.getLastModifiedTime(bloomPath).toMillis();
+        bloomModified = bloomFile.lastModified();
 
         target = SSTableReader.open(desc, components, store.metadata);
 
-        assertEquals(bloomModified, Files.getLastModifiedTime(bloomPath).toMillis());
-        assertTrue("Summary was not recreated", summaryModified < Files.getLastModifiedTime(summaryPath).toMillis());
+        assertEquals(bloomModified, bloomFile.lastModified());
+        if (summaryFile != null)
+            assertTrue("Summary was not recreated", summaryModified < summaryFile.lastModified());
 
         target.selfRef().release();
 
         // check that summary and bloomfilter is not recreated when the INDEX is missing
-        components.add(Component.SUMMARY);
+        if (summaryFile != null)
+            components.add(Component.SUMMARY);
         components.remove(Component.PRIMARY_INDEX);
 
-        summaryModified = Files.getLastModifiedTime(summaryPath).toMillis();
+        if (summaryFile != null)
+            summaryModified = summaryFile.lastModified();
         target = SSTableReader.open(desc, components, store.metadata, false, false);
 
         TimeUnit.MILLISECONDS.sleep(1000); // sleep to ensure modified time will be different
-        assertEquals(bloomModified, Files.getLastModifiedTime(bloomPath).toMillis());
-        assertEquals(summaryModified, Files.getLastModifiedTime(summaryPath).toMillis());
+        assertEquals(bloomModified, bloomFile.lastModified());
+        if (summaryFile != null)
+            assertEquals(summaryModified, summaryFile.lastModified());
 
         target.selfRef().release();
     }

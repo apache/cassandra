@@ -368,19 +368,20 @@ public class BigTableWriter extends SSTableWriter
             dfile = dbuilder.bufferSize(dataBufferSize).withLengthOverride(boundary.dataLength).complete();
 
             invalidateCacheAtBoundary(dfile);
-            sstable = BigTableReader.internalOpen(descriptor,
-                                                  components, metadata,
-                                                  ifile, dfile,
-                                                  indexSummary,
-                                                  iwriter.bf.sharedCopy(),
-                                                  maxDataAge,
-                                                  stats,
-                                                  SSTableReader.OpenReason.EARLY,
-                                                  header);
+            sstable = new BigTableReaderBuilder(descriptor).setComponents(components)
+                                                           .setTableMetadataRef(metadata)
+                                                           .setIndexFile(ifile)
+                                                           .setDataFile(dfile)
+                                                           .setIndexSummary(indexSummary)
+                                                           .setFilter(iwriter.bf.sharedCopy())
+                                                           .setMaxDataAge(maxDataAge)
+                                                           .setStatsMetadata(stats)
+                                                           .setOpenReason(SSTableReader.OpenReason.EARLY)
+                                                           .setSerializationHeader(header)
+                                                           .setFirst(first)
+                                                           .setLast(boundary.lastKey)
+                                                           .build(true, true);
 
-            // now it's open, find the ACTUAL last readable key (i.e. for which the data file has also been flushed)
-            sstable.first = getMinimalKey(first);
-            sstable.last = getMinimalKey(boundary.lastKey);
             return sstable;
         }
         catch (Throwable t)
@@ -441,19 +442,19 @@ public class BigTableWriter extends SSTableWriter
                 dbuilder.withCompressionMetadata(((CompressedSequentialWriter) dataFile).open(0));
             dfile = dbuilder.bufferSize(dataBufferSize).withLengthOverride(NO_LENGTH_OVERRIDE).complete();
             invalidateCacheAtBoundary(dfile);
-            sstable = BigTableReader.internalOpen(descriptor,
-                                                  components,
-                                                  metadata,
-                                                  ifile,
-                                                  dfile,
-                                                  indexSummary,
-                                                  iwriter.bf.sharedCopy(),
-                                                  maxDataAge,
-                                                  stats,
-                                                  openReason,
-                                                  header);
-            sstable.first = getMinimalKey(first);
-            sstable.last = getMinimalKey(last);
+            sstable = new BigTableReaderBuilder(descriptor).setComponents(components)
+                                                           .setTableMetadataRef(metadata)
+                                                           .setIndexFile(ifile)
+                                                           .setDataFile(dfile)
+                                                           .setIndexSummary(indexSummary)
+                                                           .setFilter(iwriter.bf.sharedCopy())
+                                                           .setMaxDataAge(maxDataAge)
+                                                           .setStatsMetadata(stats)
+                                                           .setOpenReason(openReason)
+                                                           .setSerializationHeader(header)
+                                                           .setFirst(first)
+                                                           .setLast(last)
+                                                           .build(true, true);
             return sstable;
         }
         catch (Throwable t)
