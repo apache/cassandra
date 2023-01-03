@@ -190,12 +190,18 @@ public final class Throwables
 
     public static void closeAndAddSuppressed(@Nonnull Throwable t, AutoCloseable... closeables)
     {
+        closeAndAddSuppressed(t, Arrays.asList(closeables));
+    }
+
+    public static void closeAndAddSuppressed(@Nonnull Throwable t, Iterable<AutoCloseable> closeables)
+    {
         Preconditions.checkNotNull(t);
         for (AutoCloseable closeable : closeables)
         {
             try
             {
-                closeable.close();
+                if (closeable != null)
+                    closeable.close();
             }
             catch (Throwable ex)
             {
@@ -204,13 +210,19 @@ public final class Throwables
         }
     }
 
+    public static Throwable close(Throwable accumulate, AutoCloseable... closeables)
+    {
+        return close(accumulate, Arrays.asList(closeables));
+    }
+
     public static Throwable close(Throwable accumulate, Iterable<? extends AutoCloseable> closeables)
     {
         for (AutoCloseable closeable : closeables)
         {
             try
             {
-                closeable.close();
+                if (closeable != null)
+                    closeable.close();
             }
             catch (Throwable t)
             {

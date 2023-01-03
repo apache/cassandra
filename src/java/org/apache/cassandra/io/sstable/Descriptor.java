@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -34,6 +37,8 @@ import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Pair;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.io.sstable.Component.separator;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
@@ -90,7 +95,13 @@ public class Descriptor
 
     public Descriptor(Version version, File directory, String ksname, String cfname, SSTableId id, SSTableFormat.Type formatType)
     {
-        assert version != null && directory != null && ksname != null && cfname != null && formatType.info.getLatestVersion().getClass().equals(version.getClass());
+        checkNotNull(version);
+        checkNotNull(directory);
+        checkNotNull(ksname);
+        checkNotNull(cfname);
+        checkNotNull(formatType);
+        checkArgument(version.getSSTableFormat().getType() == formatType.info.getType());
+
         this.version = version;
         this.directory = directory.toCanonical();
         this.ksname = ksname;
