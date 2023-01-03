@@ -52,6 +52,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.format.CompressionInfoComponent;
+import org.apache.cassandra.io.sstable.format.EmptySSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
@@ -65,6 +66,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FilterFactory;
+import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.ServerTestUtils.getLiveBigTableReaders;
@@ -604,11 +606,15 @@ public class SSTableReaderTest
 
         Util.flush(store);
         boolean foundScanner = false;
-        for (SSTableReader s : store.getLiveSSTables())
+
+        Set<SSTableReader> liveSSTables = store.getLiveSSTables();
+        assertEquals("The table should have only one sstable", 1, liveSSTables.size());
+
+        for (SSTableReader s : liveSSTables)
         {
-            try (ISSTableScanner scanner = s.getScanner(new Range<Token>(t(0), t(1))))
+            try (ISSTableScanner scanner = s.getScanner(new Range<>(t(0), t(1))))
             {
-                scanner.next(); // throws exception pre 5407
+                Assertions.assertThat(scanner).isInstanceOf(EmptySSTableScanner.class);
                 foundScanner = true;
             }
         }
