@@ -106,7 +106,7 @@ public class SSTableHeaderFixTest
     @BeforeClass
     public static void beforeClass()
     {
-        Assume.assumeTrue(BigFormat.isDefault());
+        Assume.assumeTrue(BigFormat.isSelected());
     }
 
     @Before

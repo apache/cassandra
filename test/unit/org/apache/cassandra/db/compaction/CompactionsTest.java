@@ -110,11 +110,16 @@ public class CompactionsTest
 
     public static long populate(String ks, String cf, int startRowKey, int endRowKey, int ttl)
     {
+        return populate(ks, cf, startRowKey, endRowKey, "", ttl);
+    }
+
+    public static long populate(String ks, String cf, int startRowKey, int endRowKey, String suffix, int ttl)
+    {
         long timestamp = System.currentTimeMillis();
         TableMetadata cfm = Keyspace.open(ks).getColumnFamilyStore(cf).metadata();
         for (int i = startRowKey; i <= endRowKey; i++)
         {
-            DecoratedKey key = Util.dk(Integer.toString(i));
+            DecoratedKey key = Util.dk(Integer.toString(i) + suffix);
             for (int j = 0; j < 10; j++)
             {
                 new RowUpdateBuilder(cfm, timestamp, j > 0 ? ttl : 0, key.getKey())
@@ -181,12 +186,12 @@ public class CompactionsTest
         // disable compaction while flushing
         store.disableAutoCompaction();
 
-        //Populate sstable1 with with keys [0..9]
-        populate(KEYSPACE1, CF_STANDARD1, 0, 9, 3); //ttl=3s
+        //Populate sstable1 with with keys [0a..29a]
+        populate(KEYSPACE1, CF_STANDARD1, 0, 29, "a",3); //ttl=3s
         Util.flush(store);
 
-        //Populate sstable2 with with keys [10..19] (keys do not overlap with SSTable1)
-        long timestamp2 = populate(KEYSPACE1, CF_STANDARD1, 10, 19, 3); //ttl=3s
+        //Populate sstable2 with with keys [0b..29b] (keys do not overlap with SSTable1, but the range is almost fully covered)
+        long timestamp2 = populate(KEYSPACE1, CF_STANDARD1, 0, 29, "b", 3); //ttl=3s
         Util.flush(store);
 
         assertEquals(2, store.getLiveSSTables().size());

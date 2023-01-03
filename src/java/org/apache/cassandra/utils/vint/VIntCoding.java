@@ -257,7 +257,7 @@ public class VIntCoding
             int extraBytes = size - 1;
             long mask = (long)VIntCoding.encodeExtraBytesToRead(extraBytes) << 56;
             long register = (value << shift) | mask;
-            output.writeBytes(register, size);
+            output.writeMostSignificantBytes(register, size);
         }
         else if (size == 9)
         {

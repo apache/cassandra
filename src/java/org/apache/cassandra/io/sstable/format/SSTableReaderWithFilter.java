@@ -79,7 +79,7 @@ public abstract class SSTableReaderWithFilter extends SSTableReader
     {
         super.notifySelected(reason, localListener, op, updateStats, entry);
 
-        if (!updateStats && op == SSTableReader.Operator.EQ)
+        if (!(updateStats && op == SSTableReader.Operator.EQ))
             return;
 
         filterTracker.addTruePositive();

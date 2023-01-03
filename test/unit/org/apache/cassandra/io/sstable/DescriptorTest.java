@@ -27,7 +27,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -122,10 +124,12 @@ public class DescriptorTest
     @Test
     public void validateNames()
     {
-        String name = DatabaseDescriptor.getSelectedSSTableFormat().name();
-        String[] fileNames = { "ma-1-" + name + "-Data.db",
+        final SSTableFormat<?, ?> ssTableFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        String name = ssTableFormat.name();
+        final Version version = ssTableFormat.getLatestVersion();
+        String[] fileNames = { version + "-1-" + name + "-Data.db",
                                // 2ndary index
-                               ".idx1" + File.pathSeparator() + "ma-1-" + name + "-Data.db",
+                               ".idx1" + File.pathSeparator() + version + "-1-" + name + "-Data.db",
                                };
 
         for (String fileName : fileNames)

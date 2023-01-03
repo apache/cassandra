@@ -619,7 +619,7 @@ public class BufferedDataOutputStreamTest
             int size = r.nextInt(9);
             byte[] bytes = ByteBufferUtil.bytes(val).array();
             canonical.write(bytes, 0, size);
-            dosp.writeBytes(val, size);
+            dosp.writeMostSignificantBytes(val, size);
         }
         dosp.flush();
         assertArrayEquals(canonical.toByteArray(), generated.toByteArray());

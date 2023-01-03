@@ -187,9 +187,9 @@ public class KeyCacheTest
             AbstractRowIndexEntry expected = entry.getValue();
             AbstractRowIndexEntry actual = CacheService.instance.keyCache.get(entry.getKey());
             assertEquals(expected.position, actual.position);
-            assertEquals(expected.columnsIndexCount(), actual.columnsIndexCount());
+            assertEquals(expected.blockCount(), actual.blockCount());
             assertEquals(expected.getSSTableFormat(), actual.getSSTableFormat());
-            for (int i = 0; i < expected.columnsIndexCount(); i++)
+            for (int i = 0; i < expected.blockCount(); i++)
             {
                 SSTableReader actualSstr = readerForKey(entry.getKey());
                 Assertions.assertThat(actualSstr.descriptor.version.format).isEqualTo(expected.getSSTableFormat());

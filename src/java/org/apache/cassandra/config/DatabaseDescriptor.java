@@ -601,7 +601,8 @@ public class DatabaseDescriptor
                                              false);
         }
 
-        checkValidForByteConversion(conf.column_index_size, "column_index_size");
+        if (conf.column_index_size != null)
+            checkValidForByteConversion(conf.column_index_size, "column_index_size");
         checkValidForByteConversion(conf.column_index_cache_size, "column_index_cache_size");
         checkValidForByteConversion(conf.batch_size_warn_threshold, "batch_size_warn_threshold");
 
@@ -1781,19 +1782,19 @@ public class DatabaseDescriptor
         newFailureDetector = () -> createFailureDetector("FailureDetector");
     }
 
-    public static int getColumnIndexSize()
+    public static int getColumnIndexSize(int defaultValue)
     {
-        return conf.column_index_size.toBytes();
+        return conf.column_index_size != null ? conf.column_index_size.toBytes() : defaultValue;
     }
 
     public static int getColumnIndexSizeInKiB()
     {
-        return conf.column_index_size.toKibibytes();
+        return conf.column_index_size != null ? conf.column_index_size.toKibibytes() : -1;
     }
 
-    public static void setColumnIndexSize(int val)
+    public static void setColumnIndexSizeInKiB(int val)
     {
-        conf.column_index_size =  createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_size");
+        conf.column_index_size = val != -1 ? createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_size") : null;
     }
 
     public static int getColumnIndexCacheSize()

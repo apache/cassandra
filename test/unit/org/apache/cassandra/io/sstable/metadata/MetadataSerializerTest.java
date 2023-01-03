@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable.metadata;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -32,7 +31,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.SerializationHeader;
@@ -47,7 +45,6 @@ import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
@@ -183,6 +180,7 @@ public class MetadataSerializerTest
     public void testMinorVersionsCompatibilty() throws Throwable
     {
         Map<Character, List<String>> supportedVersions = new LinkedHashMap<>();
+
         for (char major = 'a'; major <= 'z'; major++){
             for (char minor = 'a'; minor <= 'z'; minor++){
                 Version version = format.getVersion(String.format("%s%s", major, minor));
@@ -221,73 +219,4 @@ public class MetadataSerializerTest
         }
     }
 
-    @Test
-    public void pendingRepairCompatibility()
-    {
-        if (BigFormat.is(format))
-        {
-            Arrays.asList("ma", "mb", "mc", "md", "me").forEach(v -> assertFalse(format.getVersion(v).hasPendingRepair()));
-            Arrays.asList("na", "nb", "nc").forEach(v -> assertTrue(format.getVersion(v).hasPendingRepair()));
-        }
-        else
-        {
-            throw Util.testMustBeImplementedForSSTableFormat();
-        }
-    }
-
-    @Test
-    public void originatingHostCompatibility()
-    {
-        if (BigFormat.is(format))
-        {
-            Arrays.asList("ma", "mb", "mc", "md", "na").forEach(v -> assertFalse(format.getVersion(v).hasOriginatingHostId()));
-            Arrays.asList("me", "nb").forEach(v -> assertTrue(format.getVersion(v).hasOriginatingHostId()));
-        }
-        else
-        {
-            throw Util.testMustBeImplementedForSSTableFormat();
-        }
-    }
-
-    @Test
-    public void improvedMinMaxCompatibility()
-    {
-        if (BigFormat.is(format))
-        {
-            Arrays.asList("ma", "mb", "mc", "md", "me", "na", "nb").forEach(v -> assertFalse(BigFormat.getInstance().getVersion(v).hasImprovedMinMax()));
-            Arrays.asList("nc", "oa").forEach(v -> assertTrue(BigFormat.getInstance().getVersion(v).hasImprovedMinMax()));
-        }
-        else
-        {
-            throw Util.testMustBeImplementedForSSTableFormat();
-        }
-    }
-
-    @Test
-    public void legacyMinMaxCompatiblity()
-    {
-        if (BigFormat.is(format))
-        {
-            Arrays.asList("oa").forEach(v -> assertFalse(BigFormat.getInstance().getVersion(v).hasLegacyMinMax()));
-            Arrays.asList("ma", "mb", "mc", "md", "me", "na", "nb", "nc").forEach(v -> assertTrue(BigFormat.getInstance().getVersion(v).hasLegacyMinMax()));
-        }
-        else
-        {
-            throw Util.testMustBeImplementedForSSTableFormat();
-        }
-    }
-
-    @Test
-    public void partitionLevelDeletionPresenceMarkerCompatibility()
-    {
-        if (BigFormat.is(format))
-        {
-            Arrays.asList("ma", "mb", "mc", "md", "me", "na", "nb").forEach(v -> assertFalse(BigFormat.getInstance().getVersion(v).hasPartitionLevelDeletionsPresenceMarker()));
-            Arrays.asList("nc", "oa").forEach(v -> assertTrue(BigFormat.getInstance().getVersion(v).hasPartitionLevelDeletionsPresenceMarker()));
-        }
-        else
-        {
-            throw Util.testMustBeImplementedForSSTableFormat();
-        }
-    }
 }

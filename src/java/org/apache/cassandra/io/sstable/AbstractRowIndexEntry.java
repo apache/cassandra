@@ -51,7 +51,7 @@ public abstract class AbstractRowIndexEntry implements IMeasurableMemory
      */
     public boolean isIndexed()
     {
-        return columnsIndexCount() > 1;
+        return blockCount() > 1;
     }
 
     public DeletionTime deletionTime()
@@ -59,7 +59,7 @@ public abstract class AbstractRowIndexEntry implements IMeasurableMemory
         throw new UnsupportedOperationException();
     }
 
-    public int columnsIndexCount()
+    public int blockCount()
     {
         return 0;
     }

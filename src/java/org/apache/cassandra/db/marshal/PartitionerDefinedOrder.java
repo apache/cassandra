@@ -104,7 +104,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
         ByteBuffer buf = ByteBufferAccessor.instance.convert(data, accessor);
         if (version != Version.LEGACY)
         {
-            // For ByteComparable.Version.OSS42 and above we encode an empty key with a null byte source. This
+            // For ByteComparable.Version.OSS50 and above we encode an empty key with a null byte source. This
             // way we avoid the need to special-handle a sentinel value when we decode the byte source for such a key
             // (e.g. for ByteComparable.Version.Legacy we use the minimum key bound of the partitioner's minimum token as
             // a sentinel value, and that results in the need to go twice through the byte source that is being

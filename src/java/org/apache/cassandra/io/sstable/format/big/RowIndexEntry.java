@@ -170,7 +170,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
     @Override
     public boolean isIndexed()
     {
-        return columnsIndexCount() > 1;
+        return blockCount() > 1;
     }
 
     public boolean indexOnHeap()
@@ -185,7 +185,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
     }
 
     @Override
-    public int columnsIndexCount()
+    public int blockCount()
     {
         return 0;
     }
@@ -566,7 +566,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
         }
 
         @Override
-        public int columnsIndexCount()
+        public int blockCount()
         {
             return columnsIndex.length;
         }
@@ -638,7 +638,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
 
             out.writeUnsignedVInt(headerLength);
             DeletionTime.serializer.serialize(deletionTime, out);
-            out.writeUnsignedVInt32(columnsIndexCount());
+            out.writeUnsignedVInt32(blockCount());
 
             for (IndexInfo indexInfo : columnsIndex)
                 idxInfoSerializer.serialize(indexInfo, out);
@@ -725,7 +725,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
         }
 
         @Override
-        public int columnsIndexCount()
+        public int blockCount()
         {
             return columnsIndexCount;
         }

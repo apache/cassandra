@@ -65,7 +65,7 @@ public interface SSTableReadsListener
 
         public void trace(Descriptor descriptor, AbstractRowIndexEntry entry)
         {
-            Tracing.trace(message, descriptor.id, entry.columnsIndexCount());
+            Tracing.trace(message, descriptor.id, entry.blockCount());
         }
     }
 

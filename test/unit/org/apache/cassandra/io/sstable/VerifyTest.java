@@ -62,6 +62,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
 import org.apache.cassandra.io.sstable.format.SortedTableVerifier.RangeOwnHelper;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
@@ -118,7 +119,7 @@ public class VerifyTest
     {
         CompressionParams compressionParameters = CompressionParams.snappy(32768);
         DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setColumnIndexSize(0);
+        DatabaseDescriptor.setColumnIndexSizeInKiB(0);
 
         loadSchema();
         createKeyspace(KEYSPACE,
@@ -551,8 +552,12 @@ public class VerifyTest
     @Test
     public void testVerifyIndex() throws IOException
     {
-        Assume.assumeTrue(BigFormat.isDefault());
-        testBrokenComponentHelper(Components.PRIMARY_INDEX);
+        if (BigFormat.isSelected())
+            testBrokenComponentHelper(BigFormat.Components.PRIMARY_INDEX);
+        else if (BtiFormat.isSelected())
+            testBrokenComponentHelper(BtiFormat.Components.PARTITION_INDEX);
+        else
+            throw Util.testMustBeImplementedForSSTableFormat();
     }
 
     @Test
@@ -565,7 +570,7 @@ public class VerifyTest
     @Test
     public void testVerifyIndexSummary() throws IOException
     {
-        Assume.assumeTrue(BigFormat.isDefault());
+        Assume.assumeTrue(BigFormat.isSelected());
         testBrokenComponentHelper(Components.SUMMARY);
     }
 

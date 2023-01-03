@@ -331,7 +331,8 @@ public class TrackerTest
         Assert.assertEquals(singleton(reader), ((SSTableAddedNotification) listener.received.get(1)).added);
         Assert.assertEquals(Optional.of(prev2), ((SSTableAddedNotification) listener.received.get(1)).memtable());
         listener.received.clear();
-        Assert.assertTrue(((KeyCacheSupport<?>) reader).getKeyCache().isEnabled());
+        if (reader instanceof KeyCacheSupport<?>)
+            Assert.assertTrue(((KeyCacheSupport<?>) reader).getKeyCache().isEnabled());
         Assert.assertEquals(10, cfs.metric.liveDiskSpaceUsed.getCount());
 
         // test invalidated CFS

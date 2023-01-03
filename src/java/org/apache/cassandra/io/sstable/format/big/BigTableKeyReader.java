@@ -27,6 +27,7 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Throwables;
 
 @NotThreadSafe
 public class BigTableKeyReader implements KeyReader
@@ -87,8 +88,7 @@ public class BigTableKeyReader implements KeyReader
             }
             else
             {
-                FileUtils.closeQuietly(reader);
-                FileUtils.closeQuietly(iFile);
+                Throwables.closeNonNullAndAddSuppressed(ex, reader, iFile);
             }
             throw ex;
         }

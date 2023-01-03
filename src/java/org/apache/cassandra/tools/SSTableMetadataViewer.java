@@ -87,7 +87,7 @@ public class SSTableMetadataViewer
 
     static
     {
-        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.toolInitialization();
     }
 
     boolean color;

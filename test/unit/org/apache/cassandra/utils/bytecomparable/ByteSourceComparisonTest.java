@@ -656,7 +656,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
     }
 
     @Test
-    public void testDecoratedKeyPrefixesVOSS42()
+    public void testDecoratedKeyPrefixesVOSS50()
     {
         // This should pass with the OSS 4.1 encoding
         testDecoratedKeyPrefixes(Version.OSS42);

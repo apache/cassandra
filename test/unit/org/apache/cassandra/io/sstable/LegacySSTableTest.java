@@ -55,6 +55,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.sstable.keycache.KeyCacheSupport;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
@@ -91,7 +92,7 @@ public class LegacySSTableTest
      * See {@link #testGenerateSstables()} to generate sstables.
      * Take care on commit as you need to add the sstable files using {@code git add -f}
      */
-    public static final String[] legacyVersions = {"nc", "nb", "na", "me", "md", "mc", "mb", "ma"};
+    public static final String[] legacyVersions = {"da", "nc", "nb", "na", "me", "md", "mc", "mb", "ma"};
 
     // 1200 chars
     static final String longString = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
@@ -460,6 +461,11 @@ public class LegacySSTableTest
 
     private static void verifyCache(String legacyVersion, long startCount) throws InterruptedException, java.util.concurrent.ExecutionException
     {
+        // Only perform test if format uses cache.
+        SSTableReader sstable = Iterables.getFirst(Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).getLiveSSTables(), null);
+        if (!(sstable instanceof KeyCacheSupport))
+            return;
+
         //For https://issues.apache.org/jira/browse/CASSANDRA-10778
         //Validate whether the key cache successfully saves in the presence of old keys as
         //well as loads the correct number of keys
