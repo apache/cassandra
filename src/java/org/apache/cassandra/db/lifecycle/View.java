@@ -136,13 +136,30 @@ public class View
             case NONCOMPACTING:
                 return filter(sstables, (s) -> !compacting.contains(s));
             case CANONICAL:
+                // When early open is not in play, the LIVE and CANONICAL sets are the same.
+                // However, when we do have early-open sstables, we will have some unfinished sources in the live set.
+                // For these sources we need to extract the originals, in their non-moved-start versions, from the
+                // compacting set.
+                // This creates a problem when the compaction completes, as then both:
+                // - the source is in the compacting set
+                // - the result is in the live set
+                // This currently causes the CANONICAL set to return both source and result when early-open is disabled,
+                // and is otherwise worked around by opening early the last sstable in the result set (which pushes it
+                // in the compacting set with EARLY openReason) and the !compacting.contains(sstable) check in the
+                // second loop below.
+                // Unfortunately there does not appear to be a way to avoid this workaround. Filtering the compacting
+                // set through having an early-open version in live does not work because sources are fully removed from
+                // the live set when they are completely exhausted.
+
+                // Add the compacting versions first because they will be the canonical versions of compaction sources.
                 Set<SSTableReader> canonicalSSTables = new HashSet<>(sstables.size() + compacting.size());
                 for (SSTableReader sstable : compacting)
                     if (sstable.openReason != SSTableReader.OpenReason.EARLY)
                         canonicalSSTables.add(sstable);
-                // reason for checking if compacting contains the sstable is that if compacting has an EARLY version
-                // of a NORMAL sstable, we still have the canonical version of that sstable in sstables.
-                // note that the EARLY version is equal, but not == since it is a different instance of the same sstable.
+                // Add anything that is not compacting, removing any compaction result where we still have the
+                // compaction sources.
+                // note that the EARLY version is equal to the original, i.e. the set itself can guarantee early-open
+                // versions of sstables in compacting won't be added, but we also want to remove the results.
                 for (SSTableReader sstable : sstables)
                     if (!compacting.contains(sstable) && sstable.openReason != SSTableReader.OpenReason.EARLY)
                         canonicalSSTables.add(sstable);

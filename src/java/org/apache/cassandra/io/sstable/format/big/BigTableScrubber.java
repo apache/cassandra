@@ -340,7 +340,9 @@ public class BigTableScrubber implements IScrubber
                 {
                     for (Partition partition : outOfOrder)
                         inOrderWriter.append(partition.unfilteredIterator());
-                    newInOrderSstable = inOrderWriter.finish(-1, sstable.maxDataAge, true);
+                    inOrderWriter.setRepairedAt(-1);
+                    inOrderWriter.setMaxDataAge(sstable.maxDataAge);
+                    newInOrderSstable = inOrderWriter.finish(true);
                 }
                 transaction.update(newInOrderSstable, false);
                 finished.add(newInOrderSstable);

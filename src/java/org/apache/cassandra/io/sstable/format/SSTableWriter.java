@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -217,7 +218,7 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
     /**
      * Open the resultant SSTableReader before it has been fully written
      */
-    public abstract SSTableReader openEarly();
+    public abstract void openEarly(Consumer<SSTableReader> doWhenReady);
 
     /**
      * Open the resultant SSTableReader once it has been fully written, but before the
@@ -227,17 +228,9 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
 
     protected abstract SSTableReader openFinal(SSTableReader.OpenReason openReason);
 
-    public SSTableReader finish(long repairedAt, long maxDataAge, boolean openResult)
-    {
-        if (repairedAt > 0)
-            this.repairedAt = repairedAt;
-        this.maxDataAge = maxDataAge;
-        return finish(openResult);
-    }
-
     public SSTableReader finish(boolean openResult)
     {
-        setOpenResult(openResult);
+        this.setOpenResult(openResult);
         txnProxy.finish();
         observers.forEach(SSTableFlushObserver::complete);
         return finished();

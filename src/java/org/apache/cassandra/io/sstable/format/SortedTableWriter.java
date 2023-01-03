@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -39,14 +40,18 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.DataPosition;
+import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -57,8 +62,10 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, RI
 
     protected final SequentialWriter dataWriter;
     protected final P partitionWriter;
+    private final FileHandle.Builder dataFileBuilder = new FileHandle.Builder(descriptor.fileFor(Component.DATA));
     private DecoratedKey lastWrittenKey;
     private DataPosition dataMark;
+    private long lastEarlyOpenLength;
 
     public SortedTableWriter(SortedTableWriterBuilder<RIE, P, ?, ?> builder, LifecycleNewTracker lifecycleNewTracker)
     {
@@ -270,6 +277,35 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, RI
     public long getEstimatedOnDiskBytesWritten()
     {
         return dataWriter.getEstimatedOnDiskBytesWritten();
+    }
+
+    protected FileHandle openDataFile(long lengthOverride, StatsMetadata statsMetadata)
+    {
+        int dataBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(statsMetadata.estimatedPartitionSize.percentile(ioOptions.diskOptimizationEstimatePercentile));
+
+        FileHandle dataFile = dataFileBuilder.mmapped(ioOptions.defaultDiskAccessMode == Config.DiskAccessMode.mmap)
+                                             .withChunkCache(chunkCache)
+                                             .withCompressionMetadata(compression ? ((CompressedSequentialWriter) dataWriter).open(lengthOverride) : null)
+                                             .bufferSize(dataBufferSize)
+                                             .withLengthOverride(lengthOverride)
+                                             .complete();
+
+        try
+        {
+            if (chunkCache != null)
+            {
+                if (lastEarlyOpenLength != 0 && dataFile.dataLength() > lastEarlyOpenLength)
+                    chunkCache.invalidatePosition(dataFile, lastEarlyOpenLength);
+            }
+            lastEarlyOpenLength = dataFile.dataLength();
+        }
+        catch (RuntimeException | Error ex)
+        {
+            Throwables.closeAndAddSuppressed(ex, dataFile);
+            throw ex;
+        }
+
+        return dataFile;
     }
 
     private void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)

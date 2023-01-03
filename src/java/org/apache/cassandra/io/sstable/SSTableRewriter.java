@@ -170,14 +170,12 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             else
             {
                 writer.setMaxDataAge(maxAge);
-                SSTableReader reader = writer.openEarly();
-                if (reader != null)
-                {
+                writer.openEarly(reader -> {
                     transaction.update(reader, false);
                     currentlyOpenedEarlyAt = writer.getFilePointer();
                     moveStarts(reader, reader.last);
                     transaction.checkpoint();
-                }
+                });
             }
         }
     }

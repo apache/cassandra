@@ -51,7 +51,9 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 
     public Collection<SSTableReader> finish(long repairedAt, long maxDataAge, boolean openResult)
     {
-        return Collections.singleton(writer.finish(repairedAt, maxDataAge, openResult));
+        writer.setRepairedAt(repairedAt);
+        writer.setMaxDataAge(maxDataAge);
+        return Collections.singleton(writer.finish(openResult));
     }
 
     public Collection<SSTableReader> finish(boolean openResult)

@@ -19,8 +19,7 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Objects;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,15 +27,12 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
-import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.io.util.FileHandle.Builder.NO_LENGTH_OVERRIDE;
@@ -47,7 +43,6 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     private static final Logger logger = LoggerFactory.getLogger(BigTableWriter.class);
 
     private final IndexWriter indexWriter;
-    private long lastEarlyOpenLength = 0;
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
     public BigTableWriter(BigTableWriterBuilder builder, LifecycleNewTracker lifecycleNewTracker)
@@ -101,85 +96,72 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         return entry;
     }
 
-    @SuppressWarnings("resource")
-    @Override
-    public SSTableReader openEarly()
+    private BigTableReader openInternal(IndexSummaryBuilder.ReadableBoundary boundary, SSTableReader.OpenReason openReason)
     {
-        // find the max (exclusive) readable key
-        IndexSummaryBuilder.ReadableBoundary boundary = indexWriter.getMaxReadable();
-        if (boundary == null)
-            return null;
+        assert boundary == null || (boundary.indexLength > 0 && boundary.dataLength > 0);
 
+        IFilter filter = null;
         IndexSummary indexSummary = null;
-        FileHandle ifile = null;
-        FileHandle dfile = null;
-        SSTableReader sstable = null;
+        FileHandle dataFile = null;
+        FileHandle indexFile = null;
+
+        BigTableReaderBuilder builder = unbuildTo(new BigTableReaderBuilder(descriptor)).setMaxDataAge(maxDataAge)
+                                                                                        .setSerializationHeader(header)
+                                                                                        .setOpenReason(openReason)
+                                                                                        .setFirst(first)
+                                                                                        .setLast(boundary != null ? boundary.lastKey : last);
 
         try
         {
-            StatsMetadata stats = statsMetadata();
-            assert boundary.indexLength > 0 && boundary.dataLength > 0;
-            // open the reader early
-            indexSummary = indexWriter.summary.build(metadata().partitioner, boundary);
-            long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
-            int indexBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(indexFileLength / indexSummary.size());
-            ifile = indexWriter.builder.bufferSize(indexBufferSize).withLengthOverride(boundary.indexLength).complete();
-            FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.fileFor(Component.DATA));
-            dbuilder.mmapped(ioOptions.defaultDiskAccessMode);
-            dbuilder.withChunkCache(chunkCache);
-            if (compression)
-                dbuilder.withCompressionMetadata(((CompressedSequentialWriter) dataWriter).open(boundary.dataLength));
 
-            EstimatedHistogram partitionSizeHistogram = stats.estimatedPartitionSize;
+            builder.setStatsMetadata(statsMetadata());
 
-            if (partitionSizeHistogram.isOverflowed())
+            EstimatedHistogram partitionSizeHistogram = builder.getStatsMetadata().estimatedPartitionSize;
+            if (boundary != null)
             {
-                logger.warn("Estimated partition size histogram for '{}' is overflowed ({} values greater than {}). " +
-                            "Clearing the overflow bucket to allow for degraded mean and percentile calculations...",
-                            descriptor, partitionSizeHistogram.overflowCount(), partitionSizeHistogram.getLargestBucketOffset());
-
-                partitionSizeHistogram.clearOverflow();
+                if (partitionSizeHistogram.isOverflowed())
+                {
+                    logger.warn("Estimated partition size histogram for '{}' is overflowed ({} values greater than {}). " +
+                                "Clearing the overflow bucket to allow for degraded mean and percentile calculations...",
+                                descriptor, partitionSizeHistogram.overflowCount(), partitionSizeHistogram.getLargestBucketOffset());
+                    partitionSizeHistogram.clearOverflow();
+                }
             }
 
-            int dataBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(partitionSizeHistogram.percentile(ioOptions.diskOptimizationEstimatePercentile));
-            dfile = dbuilder.bufferSize(dataBufferSize).withLengthOverride(boundary.dataLength).complete();
+            filter = indexWriter.getFilterCopy();
+            builder.setFilter(filter);
+            indexSummary = indexWriter.summary.build(metadata().partitioner, boundary);
+            builder.setIndexSummary(indexSummary);
 
-            invalidateCacheAtBoundary(dfile);
-            sstable = new BigTableReaderBuilder(descriptor).setComponents(components)
-                                                           .setTableMetadataRef(metadata)
-                                                           .setIndexFile(ifile)
-                                                           .setDataFile(dfile)
-                                                           .setIndexSummary(indexSummary)
-                                                           .setFilter(indexWriter.getFilterCopy())
-                                                           .setMaxDataAge(maxDataAge)
-                                                           .setStatsMetadata(stats)
-                                                           .setOpenReason(SSTableReader.OpenReason.EARLY)
-                                                           .setSerializationHeader(header)
-                                                           .setFirst(first)
-                                                           .setLast(boundary.lastKey)
-                                                           .build(true, true);
+            long indexFileLength = descriptor.fileFor(Component.PRIMARY_INDEX).length();
+            int indexBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(indexFileLength / builder.getIndexSummary().size());
+            FileHandle.Builder indexFileBuilder = indexWriter.builder;
+            indexFile = indexFileBuilder.bufferSize(indexBufferSize)
+                                        .withLengthOverride(boundary != null ? boundary.indexLength : NO_LENGTH_OVERRIDE)
+                                        .complete();
+            builder.setIndexFile(indexFile);
+            dataFile = openDataFile(boundary != null ? boundary.dataLength : NO_LENGTH_OVERRIDE, builder.getStatsMetadata());
+            builder.setDataFile(dataFile);
 
-            return sstable;
+            return builder.build(true, true);
         }
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t);
-            // If we successfully created our sstable, we can rely on its InstanceTidier to clean things up for us
-            if (sstable != null)
-                sstable.selfRef().release();
-            else
-                Throwables.closeAndAddSuppressed(t, indexSummary, ifile, dfile);
+            Throwables.closeAndAddSuppressed(t, dataFile, indexFile, indexSummary, filter);
             throw t;
         }
     }
 
-    void invalidateCacheAtBoundary(FileHandle dfile)
+    @Override
+    public void openEarly(Consumer<SSTableReader> doWhenReady)
     {
-        if (chunkCache != null) {
-            if (lastEarlyOpenLength != 0 && dfile.dataLength() > lastEarlyOpenLength)
-                chunkCache.invalidatePosition(dfile, lastEarlyOpenLength);
-        }
-        lastEarlyOpenLength = dfile.dataLength();
+        // find the max (exclusive) readable key
+        IndexSummaryBuilder.ReadableBoundary boundary = indexWriter.getMaxReadable();
+        if (boundary == null)
+            return;
+
+        doWhenReady.accept(openInternal(boundary, SSTableReader.OpenReason.EARLY));
     }
 
     @Override
@@ -193,59 +175,12 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     }
 
     @Override
-    @SuppressWarnings("resource")
-    protected SSTableReader openFinal(SSTableReader.OpenReason openReason)
+    public SSTableReader openFinal(SSTableReader.OpenReason openReason)
     {
         if (maxDataAge < 0)
             maxDataAge = currentTimeMillis();
 
-        IndexSummary indexSummary = null;
-        FileHandle ifile = null;
-        FileHandle dfile = null;
-        SSTableReader sstable = null;
-
-        try
-        {
-            StatsMetadata stats = statsMetadata();
-            // finalize in-memory state for the reader
-            indexSummary = indexWriter.summary.build(metadata().partitioner);
-            long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
-            int dataBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(stats.estimatedPartitionSize.percentile(ioOptions.diskOptimizationEstimatePercentile));
-            int indexBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(indexFileLength / indexSummary.size());
-            ifile = indexWriter.builder.bufferSize(indexBufferSize).withLengthOverride(NO_LENGTH_OVERRIDE).complete();
-
-            FileHandle.Builder dbuilder = new FileHandle.Builder(descriptor.fileFor(Component.DATA));
-            dbuilder.mmapped(ioOptions.defaultDiskAccessMode);
-            dbuilder.withChunkCache(chunkCache);
-            if (compression)
-                dbuilder.withCompressionMetadata(((CompressedSequentialWriter) dataWriter).open(0));
-            dfile = dbuilder.bufferSize(dataBufferSize).withLengthOverride(NO_LENGTH_OVERRIDE).complete();
-            invalidateCacheAtBoundary(dfile);
-            sstable = new BigTableReaderBuilder(descriptor).setComponents(components)
-                                                           .setTableMetadataRef(metadata)
-                                                           .setIndexFile(ifile)
-                                                           .setDataFile(dfile)
-                                                           .setIndexSummary(indexSummary)
-                                                           .setFilter(indexWriter.getFilterCopy())
-                                                           .setMaxDataAge(maxDataAge)
-                                                           .setStatsMetadata(stats)
-                                                           .setOpenReason(openReason)
-                                                           .setSerializationHeader(header)
-                                                           .setFirst(first)
-                                                           .setLast(last)
-                                                           .build(true, true);
-            return sstable;
-        }
-        catch (Throwable t)
-        {
-            JVMStabilityInspector.inspectThrowable(t);
-            // If we successfully created our sstable, we can rely on its InstanceTidier to clean things up for us
-            if (sstable != null)
-                sstable.selfRef().release();
-            else
-                Stream.of(indexSummary, ifile, dfile).filter(Objects::nonNull).forEach(SharedCloseableImpl::close);
-            throw t;
-        }
+        return openInternal(null, openReason);
     }
 
     @Override

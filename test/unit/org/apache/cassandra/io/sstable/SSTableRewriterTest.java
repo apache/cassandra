@@ -884,38 +884,17 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             try
             {
                 UnfilteredRowIterator uri = mock(UnfilteredRowIterator.class);
-                when(uri.partitionLevelDeletion()).thenReturn(new DeletionTime(0,0));
+                when(uri.partitionLevelDeletion()).thenReturn(new DeletionTime(0, 0));
                 when(uri.partitionKey()).thenReturn(bopKeyFromInt(0));
                 // should not be able to append after buffer release on switch
                 firstWriter.append(uri);
                 fail("Expected AssertionError was not thrown.");
             }
-            catch(AssertionError ae) {
-                if (!ae.getMessage().contains("update is being called after releaseBuffers"))
+            catch (AssertionError ae)
+            {
+                if (!ae.getMessage().contains("update is being called after releaseBuffers") && !ae.getMessage().contains("Attempt to use a closed data output"))
                     throw ae;
             }
-        }
-
-        // Can update a writer that is not eagerly cleared on switch
-        eagerWriterMetaRelease = false;
-        try (LifecycleTransaction txn = cfs.getTracker().tryModify(new HashSet<>(), OperationType.UNKNOWN);
-             SSTableRewriter rewriter = new SSTableRewriter(txn, 1000, 1000000, false, eagerWriterMetaRelease)
-        )
-        {
-            SSTableWriter<?> firstWriter = getWriter(cfs, dir, txn);
-            rewriter.switchWriter(firstWriter);
-
-            // At least one write so it's not aborted when switched out.
-            UnfilteredRowIterator uri = mock(UnfilteredRowIterator.class);
-            when(uri.partitionLevelDeletion()).thenReturn(new DeletionTime(0,0));
-            when(uri.partitionKey()).thenReturn(bopKeyFromInt(0));
-            rewriter.append(uri);
-
-            rewriter.switchWriter(getWriter(cfs, dir, txn));
-
-            // should be able to append after switch, and assert is not tripped
-            when(uri.partitionKey()).thenReturn(bopKeyFromInt(1));
-            firstWriter.append(uri);
         }
     }
 
