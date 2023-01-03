@@ -63,7 +63,6 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
 
     public CassandraEntireSSTableStreamReader(StreamMessageHeader messageHeader, CassandraStreamHeader streamHeader, StreamSession session)
     {
-
         if (session.getPendingRepair() != null)
         {
             // we should only ever be streaming pending repair sstables if the session has a pending repair id
@@ -85,7 +84,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
      */
     @SuppressWarnings("resource") // input needs to remain open, streams on top of it can't be closed
     @Override
-    public SSTableMultiWriter read(DataInputPlus in) throws Throwable
+    public SSTableMultiWriter read(DataInputPlus in) throws IOException
     {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
         if (cfs == null)
