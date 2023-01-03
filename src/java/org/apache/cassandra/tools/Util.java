@@ -18,20 +18,21 @@
 
 package org.apache.cassandra.tools;
 
-import static java.lang.String.format;
-
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.TreeMap;
-import java.util.Map.Entry;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
+import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -47,8 +48,7 @@ import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 
-import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
+import static java.lang.String.format;
 
 @SuppressWarnings("serial")
 public final class Util
@@ -309,8 +309,8 @@ public final class Util
      */
     public static TableMetadata metadataFromSSTable(Descriptor desc) throws IOException
     {
-        if (desc.version.getVersion().compareTo("ma") < 0)
-            throw new IOException("pre-3.0 SSTable is not supported.");
+        if (!desc.version.isCompatible())
+            throw new IOException("Unsupported SSTable version " + desc.getFormat().getType().name + "/" + desc.version);
 
         StatsComponent statsComponent = StatsComponent.load(desc, MetadataType.STATS, MetadataType.HEADER);
         SerializationHeader.Component header = statsComponent.serializationHeader();
