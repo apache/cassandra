@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
-import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
@@ -26,17 +25,14 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.ICompressor;
@@ -45,6 +41,7 @@ import org.apache.cassandra.io.sstable.format.FilterComponent;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 import org.apache.cassandra.io.sstable.format.TOCComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
@@ -61,15 +58,11 @@ import org.apache.cassandra.utils.concurrent.Transactional;
 import static org.apache.cassandra.io.util.FileHandle.Builder.NO_LENGTH_OVERRIDE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
-public class BigTableWriter extends SSTableWriter
+public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, RowIndexEntry>
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableWriter.class);
 
-    private final BigFormatPartitionWriter partitionWriter;
     private final IndexWriter indexWriter;
-    protected final SequentialWriter dataWriter;
-    private DecoratedKey lastWrittenKey;
-    private DataPosition dataMark;
     private long lastEarlyOpenLength = 0;
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
@@ -151,181 +144,27 @@ public class BigTableWriter extends SSTableWriter
         return compressionParams;
     }
 
+    @Override
     public void mark()
     {
-        dataMark = dataWriter.mark();
+        super.mark();
         indexWriter.mark();
     }
 
+    @Override
     public void resetAndTruncate()
     {
-        dataWriter.resetAndTruncate(dataMark);
+        super.resetAndTruncate();
         indexWriter.resetAndTruncate();
     }
 
-    /**
-     * Appends partition data to this writer.
-     *
-     * @param partition the partition to write
-     * @return the created index entry if something was written, that is if {@code iterator}
-     * wasn't empty, {@code null} otherwise.
-     * @throws FSWriteError if write to the dataFile fails
-     */
     @Override
-    public final RowIndexEntry append(UnfilteredRowIterator partition)
-    {
-        if (partition.isEmpty())
-            return null;
-
-        try
-        {
-            if (!verifyPartition(partition.partitionKey()))
-                return null;
-
-            startPartition(partition.partitionKey(), partition.partitionLevelDeletion());
-
-            RowIndexEntry indexEntry;
-            if (header.hasStatic())
-                addStaticRow(partition.partitionKey(), partition.staticRow());
-
-            while (partition.hasNext())
-                addUnfiltered(partition.partitionKey(), partition.next());
-
-            indexEntry = endPartition(partition.partitionKey(), partition.partitionLevelDeletion());
-
-            return indexEntry;
-        }
-        catch (BufferOverflowException boe)
-        {
-            throw new PartitionSerializationException(partition, boe);
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, getFilename());
-        }
-    }
-
-    private boolean verifyPartition(DecoratedKey key)
-    {
-        assert key != null : "Keys must not be null"; // empty keys ARE allowed b/c of indexed column values
-
-        if (key.getKey().remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-        {
-            logger.error("Key size {} exceeds maximum of {}, skipping row", key.getKey().remaining(), FBUtilities.MAX_UNSIGNED_SHORT);
-            return false;
-        }
-
-        if (lastWrittenKey != null && lastWrittenKey.compareTo(key) >= 0)
-            throw new RuntimeException(String.format("Last written key %s >= current key %s, writing into %s", lastWrittenKey, key, getFilename()));
-
-        return true;
-    }
-
-    private void startPartition(DecoratedKey key, DeletionTime partitionLevelDeletion) throws IOException
-    {
-        partitionWriter.start(key, partitionLevelDeletion);
-        metadataCollector.update(partitionLevelDeletion);
-
-        onStartPartition(key);
-    }
-
-    private void addStaticRow(DecoratedKey key, Row row) throws IOException
-    {
-        guardCollectionSize(metadata(), key, row);
-
-        partitionWriter.addStaticRow(row);
-        if (!row.isEmpty())
-            Rows.collectStats(row, metadataCollector);
-
-        onStaticRow(row);
-    }
-
-    private void addUnfiltered(DecoratedKey key, Unfiltered unfiltered) throws IOException
-    {
-        if (unfiltered.isRow())
-        {
-            addRow(key, (Row) unfiltered);
-        }
-        else
-        {
-            assert unfiltered.isRangeTombstoneMarker();
-            addRangeTomstoneMarker((RangeTombstoneMarker) unfiltered);
-        }
-    }
-
-    private void addRow(DecoratedKey key, Row row) throws IOException
-    {
-        guardCollectionSize(metadata(), key, row);
-
-        partitionWriter.addUnfiltered(row);
-        metadataCollector.updateClusteringValues(row.clustering());
-        Rows.collectStats(row, metadataCollector);
-
-        onRow(row);
-    }
-
-    private void addRangeTomstoneMarker(RangeTombstoneMarker marker) throws IOException
-    {
-        partitionWriter.addUnfiltered(marker);
-
-        metadataCollector.updateClusteringValues(marker.clustering());
-        if (marker.isBoundary())
-        {
-            RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker) marker;
-            metadataCollector.update(bm.endDeletionTime());
-            metadataCollector.update(bm.startDeletionTime());
-        }
-        else
-        {
-            metadataCollector.update(((RangeTombstoneBoundMarker) marker).deletionTime());
-        }
-
-        onRangeTombstoneMarker(marker);
-    }
-
-    private RowIndexEntry endPartition(DecoratedKey key, DeletionTime partitionLevelDeletion) throws IOException
-    {
-        long finishResult = partitionWriter.finish();
-
-        long endPosition = dataWriter.position();
-        long rowSize = endPosition - partitionWriter.getInitialPosition();
-        maybeLogLargePartitionWarning(key, rowSize);
-        maybeLogManyTombstonesWarning(key, metadataCollector.totalTombstones);
-        metadataCollector.addPartitionSizeInBytes(rowSize);
-        metadataCollector.addKey(key.getKey());
-        metadataCollector.addCellPerPartitionCount();
-
-        lastWrittenKey = key;
-        last = lastWrittenKey;
-        if (first == null)
-            first = lastWrittenKey;
-
-        if (logger.isTraceEnabled())
-            logger.trace("wrote {} at {}", key, endPosition);
-
-        return createRowIndexEntry(key, partitionLevelDeletion, finishResult);
-    }
-
     protected void onStartPartition(DecoratedKey key)
     {
         notifyObservers(o -> o.startPartition(key, partitionWriter.getInitialPosition(), indexWriter.writer.position()));
     }
 
-    protected void onStaticRow(Row row)
-    {
-        notifyObservers(o -> o.staticRow(row));
-    }
-
-    protected void onRow(Row row)
-    {
-        notifyObservers(o -> o.nextUnfilteredCluster(row));
-    }
-
-    protected void onRangeTombstoneMarker(RangeTombstoneMarker marker)
-    {
-        notifyObservers(o -> o.nextUnfilteredCluster(marker));
-    }
-
+    @Override
     protected RowIndexEntry createRowIndexEntry(DecoratedKey key, DeletionTime partitionLevelDeletion, long finishResult) throws IOException
     {
         // afterAppend() writes the partition key before the first RowIndexEntry - so we have to add it's
@@ -346,31 +185,8 @@ public class BigTableWriter extends SSTableWriter
         return entry;
     }
 
-    protected final void notifyObservers(Consumer<SSTableFlushObserver> action)
-    {
-        if (observers != null && !observers.isEmpty())
-            observers.forEach(action);
-    }
-
-    private void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)
-    {
-        if (rowSize > DatabaseDescriptor.getCompactionLargePartitionWarningThreshold())
-        {
-            String keyString = metadata().partitionKeyType.getString(key.getKey());
-            logger.warn("Writing large partition {}/{}:{} ({}) to sstable {}", metadata.keyspace, metadata.name, keyString, FBUtilities.prettyPrintMemory(rowSize), getFilename());
-        }
-    }
-
-    private void maybeLogManyTombstonesWarning(DecoratedKey key, int tombstoneCount)
-    {
-        if (tombstoneCount > DatabaseDescriptor.getCompactionTombstoneWarningThreshold())
-        {
-            String keyString = metadata().partitionKeyType.getString(key.getKey());
-            logger.warn("Writing {} tombstones to {}/{}:{} in sstable {}", tombstoneCount, metadata.keyspace, metadata.name, keyString, getFilename());
-        }
-    }
-
     @SuppressWarnings("resource")
+    @Override
     public SSTableReader openEarly()
     {
         // find the max (exclusive) readable key
@@ -450,6 +266,7 @@ public class BigTableWriter extends SSTableWriter
         lastEarlyOpenLength = dfile.dataLength();
     }
 
+    @Override
     public SSTableReader openFinalEarly()
     {
         // we must ensure the data is completely flushed to disk
@@ -514,6 +331,7 @@ public class BigTableWriter extends SSTableWriter
         }
     }
 
+    @Override
     protected SSTableWriter.TransactionalProxy txnProxy()
     {
         return new TransactionalProxy();
@@ -565,21 +383,6 @@ public class BigTableWriter extends SSTableWriter
         {
             throw new FSWriteError(e, file.path());
         }
-    }
-
-    public long getFilePointer()
-    {
-        return dataWriter.position();
-    }
-
-    public long getOnDiskFilePointer()
-    {
-        return dataWriter.getOnDiskFilePointer();
-    }
-
-    public long getEstimatedOnDiskBytesWritten()
-    {
-        return dataWriter.getEstimatedOnDiskBytesWritten();
     }
 
     /**
