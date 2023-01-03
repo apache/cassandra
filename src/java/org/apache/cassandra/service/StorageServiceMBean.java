@@ -930,10 +930,16 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Sets the number of rows cached at the coordinator before filtering/index queries fail outright. */
     public void setCachedReplicaRowsFailThreshold(int threshold);
 
-    /** Returns the granularity of the collation index of rows within a partition **/
+    /**
+     * Returns the granularity of the collation index of rows within a partition.
+     * -1 stands for the SSTable format's default.
+     **/
     public int getColumnIndexSizeInKiB();
 
-    /** Sets the granularity of the collation index of rows within a partition **/
+    /**
+     * Sets the granularity of the collation index of rows within a partition.
+     * Use -1 to select the SSTable format's default.
+     **/
     public void setColumnIndexSizeInKiB(int columnIndexSizeInKiB);
 
     /**

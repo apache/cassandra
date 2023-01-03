@@ -765,14 +765,14 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public final long getPosition(PartitionPosition key, Operator op, SSTableReadsListener listener)
     {
-        return getPosition(key, op, true, false, listener);
+        return getPosition(key, op, true, listener);
     }
 
     public final long getPosition(PartitionPosition key,
                                   Operator op,
                                   boolean updateStats)
     {
-        return getPosition(key, op, updateStats, false, SSTableReadsListener.NOOP_LISTENER);
+        return getPosition(key, op, updateStats, SSTableReadsListener.NOOP_LISTENER);
     }
 
     /**
@@ -783,16 +783,14 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * @param op          The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param updateStats true if updating stats and cache
      * @param listener    a listener used to handle internal events
-     *
      * @return The index entry corresponding to the key, or null if the key is not present
      */
     protected long getPosition(PartitionPosition key,
                                Operator op,
                                boolean updateStats,
-                               boolean permitMatchPastLast,
                                SSTableReadsListener listener)
     {
-        AbstractRowIndexEntry rie = getRowIndexEntry(key, op, updateStats, permitMatchPastLast, listener);
+        AbstractRowIndexEntry rie = getRowIndexEntry(key, op, updateStats, listener);
         return rie != null ? rie.position : -1;
     }
 
@@ -804,14 +802,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * @param op          The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param updateStats true if updating stats and cache
      * @param listener    a listener used to handle internal events
-     *
      * @return The index entry corresponding to the key, or null if the key is not present
      */
     @VisibleForTesting
     protected abstract AbstractRowIndexEntry getRowIndexEntry(PartitionPosition key,
                                                               Operator op,
                                                               boolean updateStats,
-                                                              boolean permitMatchPastLast,
                                                               SSTableReadsListener listener);
 
     public UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, long dataPosition, boolean tombstoneOnly)
@@ -1734,8 +1730,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                                           IVerifier.Options options);
 
     /**
-     * A method to be called by {@link #getPosition(PartitionPosition, Operator, boolean, boolean, SSTableReadsListener)}
-     * and {@link #getRowIndexEntry(PartitionPosition, Operator, boolean, boolean, SSTableReadsListener)} methods when
+     * A method to be called by {@link #getPosition(PartitionPosition, Operator, boolean, SSTableReadsListener)}
+     * and {@link #getRowIndexEntry(PartitionPosition, Operator, boolean, SSTableReadsListener)} methods when
      * a searched key is found. It adds a trace message and notify the provided listener.
      */
     protected void notifySelected(SSTableReadsListener.SelectionReason reason, SSTableReadsListener localListener, Operator op, boolean updateStats, AbstractRowIndexEntry entry)
@@ -1747,8 +1743,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
-     * A method to be called by {@link #getPosition(PartitionPosition, Operator, boolean, boolean, SSTableReadsListener)}
-     * and {@link #getRowIndexEntry(PartitionPosition, Operator, boolean, boolean, SSTableReadsListener)} methods when
+     * A method to be called by {@link #getPosition(PartitionPosition, Operator, boolean, SSTableReadsListener)}
+     * and {@link #getRowIndexEntry(PartitionPosition, Operator, boolean, SSTableReadsListener)} methods when
      * a searched key is not found. It adds a trace message and notify the provided listener.
      */
     protected void notifySkipped(SSTableReadsListener.SkippingReason reason, SSTableReadsListener localListener, Operator op, boolean updateStats)

@@ -469,7 +469,7 @@ public class DataOutputTest
             // keep only first i random bytes
             Arrays.fill(rndBytes,  i, rndBytes.length, (byte) 0);
             long val = ByteBufferUtil.toLong(ByteBuffer.wrap(rndBytes));
-            test.writeBytes(val, i);
+            test.writeMostSignificantBytes(val, i);
             byte[] arr = new byte[i];
             System.arraycopy(rndBytes, 0, arr, 0, i);
             canon.write(arr);

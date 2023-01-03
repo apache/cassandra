@@ -131,7 +131,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
                                              boolean reversed,
                                              SSTableReadsListener listener)
     {
-        RowIndexEntry rie = getRowIndexEntry(key, SSTableReader.Operator.EQ, true, false, listener);
+        RowIndexEntry rie = getRowIndexEntry(key, SSTableReader.Operator.EQ, true, listener);
         return rowIterator(null, key, rie, slices, selectedColumns, reversed);
     }
 
@@ -238,7 +238,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
      */
     public final RowIndexEntry getRowIndexEntry(PartitionPosition key, Operator op)
     {
-        return getRowIndexEntry(key, op, true, false, SSTableReadsListener.NOOP_LISTENER);
+        return getRowIndexEntry(key, op, true, SSTableReadsListener.NOOP_LISTENER);
     }
 
     /**
@@ -252,7 +252,6 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     public RowIndexEntry getRowIndexEntry(PartitionPosition key,
                                           Operator operator,
                                           boolean updateStats,
-                                          boolean permitMatchPastLast,
                                           SSTableReadsListener listener)
     {
         // Having no index file is impossible in a normal operation. The only way it might happen is running
@@ -280,7 +279,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
         {
             int l = last.compareTo(key);
             skip = l < 0 // out of range, skip
-                   || l == 0 && searchOp == Operator.GT && !permitMatchPastLast; // search entry > key, but key is the last in range, so if permitMatchPastLast == false skip
+                   || l == 0 && searchOp == Operator.GT; // search entry > key, but key is the last in range, so skip
             if (l == 0)
                 searchOp = Operator.GE; // since op != EQ, bloom filter will be skipped, last key is included so no reason to check bloom filter
         }
@@ -408,10 +407,9 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     protected long getPosition(PartitionPosition key,
                                Operator op,
                                boolean updateCacheAndStats,
-                               boolean permitMatchPastLast,
                                SSTableReadsListener listener)
     {
-        RowIndexEntry rowIndexEntry = getRowIndexEntry(key, op, updateCacheAndStats, permitMatchPastLast, listener);
+        RowIndexEntry rowIndexEntry = getRowIndexEntry(key, op, updateCacheAndStats, listener);
         return rowIndexEntry != null ? rowIndexEntry.position : -1;
     }
 
@@ -454,7 +452,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
 
         try (RowIndexEntry.IndexInfoRetriever onHeapRetriever = rowIndexEntry.openWithIndex(null))
         {
-            IndexInfo columns = onHeapRetriever.columnsIndex(isReversed ? rowIndexEntry.columnsIndexCount() - 1 : 0);
+            IndexInfo columns = onHeapRetriever.columnsIndex(isReversed ? rowIndexEntry.blockCount() - 1 : 0);
             ClusteringBound<?> bound = isReversed ? columns.lastName.asEndBound() : columns.firstName.asStartBound();
             UnfilteredRowIteratorWithLowerBound.assertBoundSize(bound, this);
             return bound.artificialLowerBound(isReversed);

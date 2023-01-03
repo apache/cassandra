@@ -94,10 +94,6 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
                           OutputHandler outputHandler,
                           IScrubber.Options options);
 
-    R cast(SSTableReader sstr);
-
-    W cast(SSTableWriter sstw);
-
     MetricsProviders getFormatSpecificMetricsProviders();
 
     void deleteOrphanedComponents(Descriptor descriptor, Set<Component> components);
