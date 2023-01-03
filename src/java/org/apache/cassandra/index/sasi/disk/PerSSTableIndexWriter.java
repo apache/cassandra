@@ -110,6 +110,12 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
     }
 
     @Override
+    public void staticRow(Row staticRow)
+    {
+        nextUnfilteredCluster(staticRow);
+    }
+
+    @Override
     public void nextUnfilteredCluster(Unfiltered unfiltered)
     {
         if (!unfiltered.isRow())

@@ -164,7 +164,7 @@ public class RowIndexEntryTest extends CQLTester
 
         final SequentialWriter dataWriterNew;
         final SequentialWriter dataWriterOld;
-        final org.apache.cassandra.db.ColumnIndex columnIndex;
+        final BigFormatPartitionWriter partitionWriter;
 
         RowIndexEntry rieNew;
         ByteBuffer rieNewSerialized;
@@ -176,8 +176,7 @@ public class RowIndexEntryTest extends CQLTester
             SequentialWriterOption option = SequentialWriterOption.newBuilder().bufferSize(1024).build();
             File f = FileUtils.createTempFile("RowIndexEntryTest-", "db");
             dataWriterNew = new SequentialWriter(f, option);
-            columnIndex = new org.apache.cassandra.db.ColumnIndex(header, dataWriterNew, version, Collections.emptyList(),
-                                                                  rieSerializer.indexInfoSerializer());
+            partitionWriter = new BigFormatPartitionWriter(header, dataWriterNew, version, rieSerializer.indexInfoSerializer());
 
             f = FileUtils.createTempFile("RowIndexEntryTest-", "db");
             dataWriterOld = new SequentialWriter(f, option);
@@ -194,14 +193,20 @@ public class RowIndexEntryTest extends CQLTester
         {
 
             Iterator<Clustering<?>> clusteringIter = clusterings.iterator();
-            columnIndex.reset(DatabaseDescriptor.getColumnIndexCacheSize(), DatabaseDescriptor.getColumnIndexSize());
-            columnIndex.buildRowIndex(makeRowIter(staticRow, partitionKey, clusteringIter, dataWriterNew));
+            partitionWriter.start(partitionKey, DeletionTime.LIVE);
+            if (staticRow != null)
+                partitionWriter.addStaticRow(staticRow);
+            AbstractUnfilteredRowIterator rowIter = makeRowIter(staticRow, partitionKey, clusteringIter, dataWriterNew);
+            while (rowIter.hasNext())
+                partitionWriter.addUnfiltered(rowIter.next());
+            partitionWriter.finish();
+
             rieNew = RowIndexEntry.create(startPosition, 0L,
-                                          deletionInfo, columnIndex.headerLength, columnIndex.columnIndexCount,
-                                          columnIndex.indexInfoSerializedSize(),
-                                          columnIndex.indexSamples(), columnIndex.offsets(),
+                                          deletionInfo, partitionWriter.getHeaderLength(), partitionWriter.getColumnIndexCount(),
+                                          partitionWriter.indexInfoSerializedSize(),
+                                          partitionWriter.indexSamples(), partitionWriter.offsets(),
                                           rieSerializer.indexInfoSerializer());
-            rieSerializer.serialize(rieNew, rieOutput, columnIndex.buffer());
+            rieSerializer.serialize(rieNew, rieOutput, partitionWriter.buffer());
             rieNewSerialized = rieOutput.buffer().duplicate();
 
             Iterator<Clustering<?>> clusteringIter2 = clusterings.iterator();

@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.io.sstable.format.big.BigFormatPartitionWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
@@ -60,7 +61,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  *
  * Please note that the format described above is the on-wire format. On-disk, the format is basically the
  * same, but the header is written once per sstable, not once per-partition. Further, the actual row and
- * range tombstones are not written using this class, but rather by {@link ColumnIndex}.
+ * range tombstones are not written using this class, but rather by {@link BigFormatPartitionWriter}.
  */
 public class UnfilteredRowIteratorSerializer
 {

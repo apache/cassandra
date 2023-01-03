@@ -80,7 +80,6 @@ import org.apache.cassandra.io.sstable.format.IScrubber;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -89,7 +88,7 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.cassandra.utils.TimeUUID;
+import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.SchemaLoader.counterCFMD;
@@ -453,6 +452,7 @@ public class ScrubTest
     }
 
     @Test
+    @BMRule(name = "skip partition order verification", targetClass = "BigTableWriter", targetMethod = "verifyPartition", action = "return true")
     public void testScrubOutOfOrder()
     {
         // Run only for Big Table format because Big Table Format does not complain if partitions are given in invalid
@@ -809,7 +809,7 @@ public class ScrubTest
     {
         SerializationHeader header = new SerializationHeader(true, metadata.get(), metadata.get().regularAndStaticColumns(), EncodingStats.NO_STATS);
         MetadataCollector collector = new MetadataCollector(metadata.get().comparator).sstableLevel(0);
-        return new TestMultiWriter(new TestWriter(descriptor, keyCount, 0, null, false, metadata, collector, header, txn), txn);
+        return new TestMultiWriter(descriptor.getFormat().getWriterFactory().open(descriptor, keyCount, 0, null, false, metadata, collector, header, Collections.emptyList(), txn), txn);
     }
 
     private static class TestMultiWriter extends SimpleSSTableMultiWriter
@@ -817,24 +817,6 @@ public class ScrubTest
         TestMultiWriter(SSTableWriter writer, LifecycleNewTracker lifecycleNewTracker)
         {
             super(writer, lifecycleNewTracker);
-        }
-    }
-
-    /**
-     * Test writer that allows to write out of order SSTable.
-     */
-    private static class TestWriter extends BigTableWriter
-    {
-        TestWriter(Descriptor descriptor, long keyCount, long repairedAt, TimeUUID pendingRepair, boolean isTransient, TableMetadataRef metadata,
-                   MetadataCollector collector, SerializationHeader header, LifecycleTransaction txn)
-        {
-            super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, collector, header, Collections.emptySet(), txn);
-        }
-
-        @Override
-        protected long beforeAppend(DecoratedKey decoratedKey)
-        {
-            return dataFile.position();
         }
     }
 

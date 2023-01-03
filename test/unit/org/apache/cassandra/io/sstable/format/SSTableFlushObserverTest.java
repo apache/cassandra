@@ -229,6 +229,12 @@ public class SSTableFlushObserverTest
         {
             isComplete = true;
         }
+
+        @Override
+        public void staticRow(Row staticRow)
+        {
+            staticRow.forEach((c) -> staticRows.put(currentKey, (Cell<?>) c));
+        }
     }
 
     private static Row buildRow(Collection<Cell<?>> cells)
