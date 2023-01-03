@@ -878,7 +878,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
              SSTableRewriter rewriter = new SSTableRewriter(txn, 1000, 1000000, false, eagerWriterMetaRelease)
         )
         {
-            SSTableWriter firstWriter = getWriter(cfs, dir, txn);
+            SSTableWriter<?> firstWriter = getWriter(cfs, dir, txn);
             rewriter.switchWriter(firstWriter);
             rewriter.switchWriter(getWriter(cfs, dir, txn));
             try
@@ -902,7 +902,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
              SSTableRewriter rewriter = new SSTableRewriter(txn, 1000, 1000000, false, eagerWriterMetaRelease)
         )
         {
-            SSTableWriter firstWriter = getWriter(cfs, dir, txn);
+            SSTableWriter<?> firstWriter = getWriter(cfs, dir, txn);
             rewriter.switchWriter(firstWriter);
 
             // At least one write so it's not aborted when switched out.

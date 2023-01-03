@@ -203,7 +203,7 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
     }
 
     @Override
-    public BigTableWriter cast(SSTableWriter sstw)
+    public BigTableWriter cast(SSTableWriter<?> sstw)
     {
         return sstw == null ? null : (BigTableWriter) sstw;
     }
@@ -267,7 +267,7 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
         }
 
         @Override
-        public SSTableWriter open(Descriptor descriptor,
+        public SSTableWriter<?> open(Descriptor descriptor,
                                   long keyCount,
                                   long repairedAt,
                                   TimeUUID pendingRepair,

@@ -25,11 +25,10 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Function;
 
-import com.google.common.collect.ImmutableSet;
-import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -48,9 +47,11 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableZeroCopyWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.schema.CachingParams;
@@ -64,7 +65,7 @@ import static org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
-public class BigTableZeroCopyWriterTest
+public class SSTableZeroCopyWriterTest
 {
     public static final String KEYSPACE1 = "BigTableBlockWriterTest";
     public static final String CF_STANDARD = "Standard1";
@@ -136,7 +137,9 @@ public class BigTableZeroCopyWriterTest
         {
             writeDataTestCycle(buffer ->
             {
-                input.append(Unpooled.wrappedBuffer(buffer));
+                if (buffer.limit() > 0) { // skip empty files that would cause premature EOF
+                    input.append(Unpooled.wrappedBuffer(buffer));
+                }
                 return input;
             });
 
@@ -152,10 +155,11 @@ public class BigTableZeroCopyWriterTest
         TableMetadataRef metadata = Schema.instance.getTableMetadataRef(desc);
 
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
-        Set<Component> componentsToWrite = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX,
-                                                           Component.STATS);
+        Set<Component> componentsToWrite = new HashSet<>(desc.getFormat().uploadComponents());
+        if (!metadata.getLocal().params.compression.isEnabled())
+            componentsToWrite.remove(Component.COMPRESSION_INFO);
 
-        BigTableZeroCopyWriter btzcw = new BigTableZeroCopyWriter(desc, metadata, txn, componentsToWrite);
+        SSTableZeroCopyWriter btzcw = new SSTableZeroCopyWriter(desc, metadata, txn, componentsToWrite);
 
         for (Component component : componentsToWrite)
         {

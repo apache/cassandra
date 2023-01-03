@@ -34,10 +34,10 @@ import org.apache.cassandra.utils.TimeUUID;
 
 public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 {
-    private final SSTableWriter writer;
+    private final SSTableWriter<?> writer;
     private final LifecycleNewTracker lifecycleNewTracker;
 
-    protected SimpleSSTableMultiWriter(SSTableWriter writer, LifecycleNewTracker lifecycleNewTracker)
+    protected SimpleSSTableMultiWriter(SSTableWriter<?> writer, LifecycleNewTracker lifecycleNewTracker)
     {
         this.lifecycleNewTracker = lifecycleNewTracker;
         this.writer = writer;
@@ -118,7 +118,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             Collection<Index> indexes,
                                             LifecycleNewTracker lifecycleNewTracker)
     {
-        SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, indexes, lifecycleNewTracker);
+        SSTableWriter<?> writer = SSTableWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, indexes, lifecycleNewTracker);
         return new SimpleSSTableMultiWriter(writer, lifecycleNewTracker);
     }
 }

@@ -814,7 +814,7 @@ public class ScrubTest
 
     private static class TestMultiWriter extends SimpleSSTableMultiWriter
     {
-        TestMultiWriter(SSTableWriter writer, LifecycleNewTracker lifecycleNewTracker)
+        TestMultiWriter(SSTableWriter<?> writer, LifecycleNewTracker lifecycleNewTracker)
         {
             super(writer, lifecycleNewTracker);
         }

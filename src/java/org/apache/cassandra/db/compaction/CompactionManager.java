@@ -1541,7 +1541,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    public static SSTableWriter createWriter(ColumnFamilyStore cfs,
+    public static SSTableWriter<?> createWriter(ColumnFamilyStore cfs,
                                              File compactionFileLocation,
                                              long expectedBloomFilterSize,
                                              long repairedAt,
@@ -1564,7 +1564,7 @@ public class CompactionManager implements CompactionManagerMBean
                                     txn);
     }
 
-    public static SSTableWriter createWriterForAntiCompaction(ColumnFamilyStore cfs,
+    public static SSTableWriter<?> createWriterForAntiCompaction(ColumnFamilyStore cfs,
                                                               File compactionFileLocation,
                                                               int expectedBloomFilterSize,
                                                               long repairedAt,

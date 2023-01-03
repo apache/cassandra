@@ -70,7 +70,7 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
         sstableDirectory = directory;
 
         @SuppressWarnings("resource")
-        SSTableWriter writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(directory)),
+        SSTableWriter<?> writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(directory)),
                                                     estimatedTotalKeys,
                                                     minRepairedAt,
                                                     pendingRepair,

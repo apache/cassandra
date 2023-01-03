@@ -332,12 +332,12 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     }
 
     @Override
-    protected SSTableWriter.TransactionalProxy txnProxy()
+    protected SSTableWriter<RowIndexEntry>.TransactionalProxy txnProxy()
     {
         return new TransactionalProxy();
     }
 
-    class TransactionalProxy extends SSTableWriter.TransactionalProxy
+    class TransactionalProxy extends SSTableWriter<RowIndexEntry>.TransactionalProxy
     {
         // finalise our state on disk, including renaming
         protected void doPrepare()

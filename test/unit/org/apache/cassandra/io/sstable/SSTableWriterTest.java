@@ -53,7 +53,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
 
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
-        try (SSTableWriter writer = getWriter(cfs, dir, txn))
+        try (SSTableWriter<?> writer = getWriter(cfs, dir, txn))
         {
             for (int i = 0; i < 10000; i++)
             {
@@ -63,7 +63,8 @@ public class SSTableWriterTest extends SSTableWriterTestBase
                 writer.append(builder.build().unfilteredIterator());
             }
 
-            SSTableReader s = writer.setMaxDataAge(1000).openEarly();
+            writer.setMaxDataAge(1000);
+            SSTableReader s = writer.openEarly();
             assert s != null;
             assertFileCounts(dir.tryListNames());
             for (int i = 10000; i < 20000; i++)
@@ -73,7 +74,8 @@ public class SSTableWriterTest extends SSTableWriterTestBase
                     builder.newRow("" + j).add("val", ByteBuffer.allocate(1000));
                 writer.append(builder.build().unfilteredIterator());
             }
-            SSTableReader s2 = writer.setMaxDataAge(1000).openEarly();
+            writer.setMaxDataAge(1000);
+            SSTableReader s2 = writer.openEarly();
             assertTrue(s.last.compareTo(s2.last) < 0);
             assertFileCounts(dir.tryListNames());
             s.selfRef().release();
@@ -104,7 +106,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
 
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
-        try (SSTableWriter writer = getWriter(cfs, dir, txn))
+        try (SSTableWriter<?> writer = getWriter(cfs, dir, txn))
         {
             for (int i = 0; i < 10000; i++)
             {
@@ -149,8 +151,8 @@ public class SSTableWriterTest extends SSTableWriterTestBase
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
 
-        SSTableWriter writer1 = getWriter(cfs, dir, txn);
-        SSTableWriter writer2 = getWriter(cfs, dir, txn);
+        SSTableWriter<?> writer1 = getWriter(cfs, dir, txn);
+        SSTableWriter<?> writer2 = getWriter(cfs, dir, txn);
         try
         {
             for (int i = 0; i < 10000; i++)
@@ -203,7 +205,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
 
-        try (SSTableWriter writer1 = getWriter(cfs, dir, txn))
+        try (SSTableWriter<?> writer1 = getWriter(cfs, dir, txn))
         {
             UpdateBuilder largeValue = UpdateBuilder.create(cfs.metadata(), "large_value").withTimestamp(1);
             largeValue.newRow("clustering").add("val", ByteBuffer.allocate(2 * 1024 * 1024));
@@ -244,7 +246,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
 
-        try (SSTableWriter writer = getWriter(cfs, dir, txn, repairedAt, pendingRepair, isTransient))
+        try (SSTableWriter<?> writer = getWriter(cfs, dir, txn, repairedAt, pendingRepair, isTransient))
         {
             // expected
         }
@@ -264,7 +266,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
         File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.STREAM);
 
-        try (SSTableWriter writer = getWriter(cfs, dir, txn, repairedAt, pendingRepair, isTransient))
+        try (SSTableWriter<?> writer = getWriter(cfs, dir, txn, repairedAt, pendingRepair, isTransient))
         {
             fail("Expected IllegalArgumentException");
         }

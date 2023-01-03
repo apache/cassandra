@@ -68,7 +68,7 @@ public class Upgrader
         this.estimatedRows = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
     }
 
-    private SSTableWriter createCompactionWriter(StatsMetadata metadata)
+    private SSTableWriter<?> createCompactionWriter(StatsMetadata metadata)
     {
         MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.getComparator());
         sstableMetadataCollector.sstableLevel(sstable.getSSTableLevel());
@@ -125,4 +125,3 @@ public class Upgrader
         }
     }
 }
-

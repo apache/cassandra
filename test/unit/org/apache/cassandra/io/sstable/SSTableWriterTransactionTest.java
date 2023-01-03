@@ -18,23 +18,25 @@
 */
 package org.apache.cassandra.io.sstable;
 
-import org.apache.cassandra.io.util.File;
 import java.io.IOException;
-
-import org.junit.BeforeClass;
+import java.util.Collection;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 
-public class BigTableWriterTest extends AbstractTransactionalTest
+public class SSTableWriterTransactionTest extends AbstractTransactionalTest
 {
     public static final String KEYSPACE1 = "BigTableWriterTest";
     public static final String CF_STANDARD = "Standard1";
@@ -78,7 +80,7 @@ public class BigTableWriterTest extends AbstractTransactionalTest
         private TestableBTW(Descriptor desc, SSTableTxnWriter sw)
         {
             super(sw);
-            this.file = new File(desc.filenameFor(Component.DATA));
+            this.file = desc.fileFor(Component.DATA);
             this.descriptor = desc;
             this.writer = sw;
 
@@ -93,19 +95,21 @@ public class BigTableWriterTest extends AbstractTransactionalTest
 
         protected void assertInProgress() throws Exception
         {
-            assertExists(Component.DATA, Component.PRIMARY_INDEX);
-            assertNotExists(Component.FILTER, Component.SUMMARY);
+            assertExists(descriptor.formatType.info.primaryComponents());
+            assertNotExists(descriptor.formatType.info.generatedOnLoadComponents());
             Assert.assertTrue(file.length() > 0);
         }
 
         protected void assertPrepared() throws Exception
         {
-            assertExists(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.SUMMARY);
+            assertExists(descriptor.formatType.info.primaryComponents());
+            assertExists(descriptor.formatType.info.generatedOnLoadComponents());
         }
 
         protected void assertAborted() throws Exception
         {
-            assertNotExists(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.SUMMARY);
+            assertNotExists(descriptor.formatType.info.primaryComponents());
+            assertNotExists(descriptor.formatType.info.generatedOnLoadComponents());
             Assert.assertFalse(file.exists());
         }
 
@@ -120,17 +124,16 @@ public class BigTableWriterTest extends AbstractTransactionalTest
             return true;
         }
 
-        private void assertExists(Component ... components)
+        private void assertExists(Collection<Component> components)
         {
             for (Component component : components)
-                Assert.assertTrue(new File(descriptor.filenameFor(component)).exists());
+                Assert.assertTrue(descriptor.fileFor(component).exists());
         }
 
-        private void assertNotExists(Component ... components)
+        private void assertNotExists(Collection<Component> components)
         {
             for (Component component : components)
-                Assert.assertFalse(component.toString(), new File(descriptor.filenameFor(component)).exists());
+                Assert.assertFalse(component.toString(), descriptor.fileFor(component).exists());
         }
     }
-
 }

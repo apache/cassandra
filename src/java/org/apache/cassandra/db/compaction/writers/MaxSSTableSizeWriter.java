@@ -93,7 +93,7 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
     {
         sstableDirectory = location;
         @SuppressWarnings("resource")
-        SSTableWriter writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory)),
+        SSTableWriter<?> writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory)),
                                                     estimatedTotalKeys / estimatedSSTables,
                                                     minRepairedAt,
                                                     pendingRepair,

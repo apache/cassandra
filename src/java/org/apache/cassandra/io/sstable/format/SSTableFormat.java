@@ -31,7 +31,7 @@ import org.apache.cassandra.schema.TableMetadataRef;
 /**
  * Provides the accessors to data on disk.
  */
-public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
+public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter<?>>
 {
     boolean enableSSTableDevelopmentTestMode = Boolean.getBoolean("cassandra.test.sstableformatdevelopment");
 
@@ -62,7 +62,7 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
 
     R cast(SSTableReader sstr);
 
-    W cast(SSTableWriter sstw);
+    W cast(SSTableWriter<?> sstw);
 
     FormatSpecificMetricsProviders getFormatSpecificMetricsProviders();
 

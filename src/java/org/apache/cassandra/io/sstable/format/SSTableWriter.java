@@ -106,7 +106,7 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
         this.observers = observers == null ? Collections.emptySet() : observers;
     }
 
-    public static SSTableWriter create(Descriptor descriptor,
+    public static SSTableWriter<?> create(Descriptor descriptor,
                                        Long keyCount,
                                        Long repairedAt,
                                        TimeUUID pendingRepair,
@@ -121,7 +121,7 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
         return writerFactory.open(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers(descriptor, indexes, lifecycleNewTracker.opType()), lifecycleNewTracker);
     }
 
-    public static SSTableWriter create(Descriptor descriptor,
+    public static SSTableWriter<?> create(Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
                                        TimeUUID pendingRepair,
@@ -135,7 +135,7 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
         return create(metadata, descriptor, keyCount, repairedAt, pendingRepair, isTransient, sstableLevel, header, indexes, lifecycleNewTracker);
     }
 
-    public static SSTableWriter create(TableMetadataRef metadata,
+    public static SSTableWriter<?> create(TableMetadataRef metadata,
                                        Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
@@ -151,7 +151,7 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
     }
 
     @VisibleForTesting
-    public static SSTableWriter create(Descriptor descriptor,
+    public static SSTableWriter<?> create(Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
                                        TimeUUID pendingRepair,
@@ -208,23 +208,20 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
 
     public abstract void resetAndTruncate();
 
-    public SSTableWriter setRepairedAt(long repairedAt)
+    public void setRepairedAt(long repairedAt)
     {
         if (repairedAt > 0)
             this.repairedAt = repairedAt;
-        return this;
     }
 
-    public SSTableWriter setMaxDataAge(long maxDataAge)
+    public void setMaxDataAge(long maxDataAge)
     {
         this.maxDataAge = maxDataAge;
-        return this;
     }
 
-    public SSTableWriter setOpenResult(boolean openResult)
+    public void setOpenResult(boolean openResult)
     {
         txnProxy.openResult = openResult;
-        return this;
     }
 
     /**
@@ -331,7 +328,7 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
     {
         public abstract long estimateSize(SSTableSizeParameters parameters);
 
-        public abstract SSTableWriter open(Descriptor descriptor,
+        public abstract SSTableWriter<?> open(Descriptor descriptor,
                                            long keyCount,
                                            long repairedAt,
                                            TimeUUID pendingRepair,
