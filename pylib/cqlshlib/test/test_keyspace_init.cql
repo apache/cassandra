@@ -311,3 +311,18 @@ CREATE AGGREGATE aggMin(int)
     STYPE int
     INITCOND null;
 
+CREATE TYPE random (
+    data text
+);
+
+CREATE TABLE t1 (
+    id int PRIMARY KEY,
+    text_data text,
+    map_data map<int, text>,
+    set_data set<text>,
+    list_data list<text>,
+    tuple_data tuple<int, text>,
+    udt_data frozen<random>
+);
+
+INSERT INTO t1 (id, text_data, map_data, set_data, list_data, tuple_data, udt_data) values(1, 'I''m newb', {1:'I''m newb'}, {'I''m newb'}, ['I''m newb'], (1, 'I''m newb'), {data: 'I''m newb'});

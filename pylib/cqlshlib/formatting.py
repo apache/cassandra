@@ -493,7 +493,7 @@ def format_simple_collection(val, cqltype, lbracket, rbracket, encoding,
                              decimal_sep, thousands_sep, boolean_styles):
     subs = [format_value(sval, cqltype=stype, encoding=encoding, colormap=colormap,
                          date_time_format=date_time_format, float_precision=float_precision,
-                         nullval=nullval, quote=True, decimal_sep=decimal_sep,
+                         nullval=nullval, quote=False, decimal_sep=decimal_sep,
                          thousands_sep=thousands_sep, boolean_styles=boolean_styles)
             for sval, stype in zip(val, cqltype.get_n_sub_types(len(val)))]
     bval = lbracket + ', '.join(get_str(sval) for sval in subs) + rbracket
@@ -542,7 +542,7 @@ def format_value_map(val, cqltype, encoding, colormap, date_time_format, float_p
     def subformat(v, t):
         return format_value(v, cqltype=t, encoding=encoding, colormap=colormap,
                             date_time_format=date_time_format, float_precision=float_precision,
-                            nullval=nullval, quote=True, decimal_sep=decimal_sep,
+                            nullval=nullval, quote=False, decimal_sep=decimal_sep,
                             thousands_sep=thousands_sep, boolean_styles=boolean_styles)
 
     subs = [(subformat(k, cqltype.sub_types[0]), subformat(v, cqltype.sub_types[1])) for (k, v) in sorted(val.items())]
@@ -572,7 +572,7 @@ def format_value_utype(val, cqltype, encoding, colormap, date_time_format, float
             return colorme(nullval, colormap, 'error')
         return format_value(v, cqltype=t, encoding=encoding, colormap=colormap,
                             date_time_format=date_time_format, float_precision=float_precision,
-                            nullval=nullval, quote=True, decimal_sep=decimal_sep,
+                            nullval=nullval, quote=False, decimal_sep=decimal_sep,
                             thousands_sep=thousands_sep, boolean_styles=boolean_styles)
 
     def format_field_name(name):
