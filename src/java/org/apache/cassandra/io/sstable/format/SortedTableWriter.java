@@ -29,8 +29,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.PartitionSerializationException;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundaryMarker;
@@ -47,6 +50,8 @@ import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FilterFactory;
@@ -145,7 +150,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, RI
 
     private void addStaticRow(DecoratedKey key, Row row) throws IOException
     {
-        guardCollectionSize(metadata(), key, row);
+        guardCollectionSize(key, row);
 
         partitionWriter.addStaticRow(row);
         if (!row.isEmpty())
@@ -169,7 +174,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, RI
 
     private void addRow(DecoratedKey key, Row row) throws IOException
     {
-        guardCollectionSize(metadata(), key, row);
+        guardCollectionSize(key, row);
 
         partitionWriter.addUnfiltered(row);
         metadataCollector.updateClusteringValues(row.clustering());
@@ -326,6 +331,44 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, RI
         }
     }
 
+    private void guardCollectionSize(DecoratedKey partitionKey, Row row)
+    {
+        if (!Guardrails.collectionSize.enabled() && !Guardrails.itemsPerCollection.enabled())
+            return;
+
+        if (row.isEmpty() || SchemaConstants.isSystemKeyspace(metadata.keyspace))
+            return;
+
+        for (ColumnMetadata column : row.columns())
+        {
+            if (!column.type.isCollection() || !column.type.isMultiCell())
+                continue;
+
+            ComplexColumnData cells = row.getComplexColumnData(column);
+            if (cells == null)
+                continue;
+
+            ComplexColumnData liveCells = cells.purge(DeletionPurger.PURGE_ALL, FBUtilities.nowInSeconds());
+            if (liveCells == null)
+                continue;
+
+            int cellsSize = liveCells.dataSize();
+            int cellsCount = liveCells.cellsCount();
+
+            if (!Guardrails.collectionSize.triggersOn(cellsSize, null) &&
+                !Guardrails.itemsPerCollection.triggersOn(cellsCount, null))
+                continue;
+
+            String keyString = metadata.getLocal().primaryKeyAsCQLLiteral(partitionKey.getKey(), row.clustering());
+            String msg = String.format("%s in row %s in table %s",
+                                       column.name.toString(),
+                                       keyString,
+                                       metadata);
+            Guardrails.collectionSize.guard(cellsSize, msg, true, null);
+            Guardrails.itemsPerCollection.guard(cellsCount, msg, true, null);
+        }
+    }
+
     protected static abstract class AbstractIndexWriter extends AbstractTransactional implements Transactional
     {
         protected final Descriptor descriptor;
@@ -375,5 +418,4 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, RI
             return bf.sharedCopy();
         }
     }
-
 }

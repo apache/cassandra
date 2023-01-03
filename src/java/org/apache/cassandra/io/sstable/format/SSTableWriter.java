@@ -25,14 +25,8 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.db.rows.ComplexColumnData;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -41,10 +35,6 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -229,45 +219,6 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
         long estimateSize(SSTableSizeParameters parameters);
 
         B builder(Descriptor descriptor);
-    }
-
-    public static void guardCollectionSize(TableMetadata metadata, DecoratedKey partitionKey, Unfiltered unfiltered)
-    {
-        if (!Guardrails.collectionSize.enabled() && !Guardrails.itemsPerCollection.enabled())
-            return;
-
-        if (!unfiltered.isRow() || SchemaConstants.isSystemKeyspace(metadata.keyspace))
-            return;
-
-        Row row = (Row) unfiltered;
-        for (ColumnMetadata column : row.columns())
-        {
-            if (!column.type.isCollection() || !column.type.isMultiCell())
-                continue;
-
-            ComplexColumnData cells = row.getComplexColumnData(column);
-            if (cells == null)
-                continue;
-
-            ComplexColumnData liveCells = cells.purge(DeletionPurger.PURGE_ALL, FBUtilities.nowInSeconds());
-            if (liveCells == null)
-                continue;
-
-            int cellsSize = liveCells.dataSize();
-            int cellsCount = liveCells.cellsCount();
-
-            if (!Guardrails.collectionSize.triggersOn(cellsSize, null) &&
-                !Guardrails.itemsPerCollection.triggersOn(cellsCount, null))
-                continue;
-
-            String keyString = metadata.primaryKeyAsCQLLiteral(partitionKey.getKey(), row.clustering());
-            String msg = String.format("%s in row %s in table %s",
-                                       column.name.toString(),
-                                       keyString,
-                                       metadata);
-            Guardrails.collectionSize.guard(cellsSize, msg, true, null);
-            Guardrails.itemsPerCollection.guard(cellsCount, msg, true, null);
-        }
     }
 
     // due to lack of multiple inheritance, we use an inner class to proxy our Transactional implementation details
