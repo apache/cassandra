@@ -214,15 +214,15 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    protected long getPosition(PartitionPosition key, Operator op, boolean updateStats, boolean permitMatchPastLast, SSTableReadsListener listener)
+    protected long getPosition(PartitionPosition key, Operator op, boolean updateStats, SSTableReadsListener listener)
     {
-        return delegate.getPosition(key, op, updateStats, permitMatchPastLast, listener);
+        return delegate.getPosition(key, op, updateStats, listener);
     }
 
     @Override
-    protected AbstractRowIndexEntry getRowIndexEntry(PartitionPosition key, Operator op, boolean updateCacheAndStats, boolean permitMatchPastLast, SSTableReadsListener listener)
+    protected AbstractRowIndexEntry getRowIndexEntry(PartitionPosition key, Operator op, boolean updateCacheAndStats, SSTableReadsListener listener)
     {
-        return delegate.getRowIndexEntry(key, op, updateCacheAndStats, permitMatchPastLast, listener);
+        return delegate.getRowIndexEntry(key, op, updateCacheAndStats, listener);
     }
 
     @Override

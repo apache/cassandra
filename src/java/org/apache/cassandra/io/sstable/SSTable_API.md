@@ -38,7 +38,7 @@ Each implementation must have a unique name that is used to unanonimously identi
 consistently returned by `name()` methods in the `SSTableFormat` and `SSTableFormat.Factory` implementations. It must 
 include only lowercase ASCII letters.
 
-Parameters specified under the key named after the format name are passed to the factory method of the correspondin
+Parameters specified under the key named after the format name are passed to the factory method of the corresponding
 implementation. All of those parameters are optional and depend on the implementation.
 
 The assumed default configuration - which is equivalent to empty configuration:

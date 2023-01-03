@@ -6530,7 +6530,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
         try
         {
-            DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKiB);
+            DatabaseDescriptor.setColumnIndexSizeInKiB(columnIndexSizeInKiB);
         }
         catch (ConfigurationException e)
         {
@@ -6544,7 +6544,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setColumnIndexSize(int columnIndexSizeInKB)
     {
         int oldValueInKiB = DatabaseDescriptor.getColumnIndexSizeInKiB();
-        DatabaseDescriptor.setColumnIndexSize(columnIndexSizeInKB);
+        DatabaseDescriptor.setColumnIndexSizeInKiB(columnIndexSizeInKB);
         logger.info("Updated column_index_size to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKiB);
     }
 

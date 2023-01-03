@@ -58,9 +58,13 @@ using the provided 'sstableupgrade' tool.
 New features
 ------------
     - Added new Mathematical CQL functions: abs, exp, log, log10 and round.
-    - Adds a trie-based memtable implementation, which improves memory use, garbage collection efficiency and lookup
+    - Added a trie-based memtable implementation, which improves memory use, garbage collection efficiency and lookup
       performance. The new memtable is implemented by the TrieMemtable class and can be selected using the memtable
       API, see src/java/org/apache/cassandra/db/memtable/Memtable_API.md.
+    - Added a new trie-indexed SSTable format with better lookup efficiency and size. The new format removes the index
+      summary component and does not require key caching. Additionally, it is able to efficiently search in partitions
+      spanning thousands or millions of rows.
+      The format is applied by setting "bti" as the selected sstable format in cassandra.yaml's sstables option.
     - Added a new configuration cdc_on_repair_enabled to toggle whether CDC mutations are replayed through the
       write path on streaming, e.g. repair. When enabled, CDC data streamed to the destination node will be written into
       commit log first. When disabled, the streamed CDC data is written into SSTables just the same as normal streaming.

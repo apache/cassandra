@@ -214,6 +214,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.io.sstable.format.SSTableReaderLoadingBuilder",
     "org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter",
     "org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter$Builder",
+    "org.apache.cassandra.io.sstable.format.SortedTableReaderLoadingBuilder",
     "org.apache.cassandra.io.sstable.format.SSTableWriter",
     "org.apache.cassandra.io.sstable.format.SSTableWriter$Builder",
     "org.apache.cassandra.io.sstable.format.SortedTableWriter",

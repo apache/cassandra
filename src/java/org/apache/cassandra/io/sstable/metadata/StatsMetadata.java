@@ -322,6 +322,10 @@ public class StatsMetadata extends MetadataComponent
                 ClusteringBound<?> maxClusteringValues = component.coveredClustering.end();
                 size += maxClusteringValues.size() * 2 /* short length */ + maxClusteringValues.dataSize();
             }
+            else if (version.hasImprovedMinMax())
+            {
+                size = improvedMinMaxSize(version, component, size);
+            }
 
             size += TypeSizes.sizeof(component.hasLegacyCounterShards);
             size += 8 + 8; // totalColumnsSet, totalRows
@@ -354,12 +358,9 @@ public class StatsMetadata extends MetadataComponent
                 size += TypeSizes.sizeof(component.hasPartitionLevelDeletions);
             }
 
-            if (version.hasImprovedMinMax())
+            if (version.hasImprovedMinMax() && version.hasLegacyMinMax())
             {
-                size += typeSerializer.serializedListSize(component.clusteringTypes);
-                size += Slice.serializer.serializedSize(component.coveredClustering,
-                                                        version.correspondingMessagingVersion(),
-                                                        component.clusteringTypes);
+                size = improvedMinMaxSize(version, component, size);
             }
 
             if (version.hasKeyRange())
@@ -368,6 +369,15 @@ public class StatsMetadata extends MetadataComponent
                 size += ByteBufferUtil.serializedSizeWithVIntLength(component.lastKey);
             }
 
+            return size;
+        }
+
+        private int improvedMinMaxSize(Version version, StatsMetadata component, int size)
+        {
+            size += typeSerializer.serializedListSize(component.clusteringTypes);
+            size += Slice.serializer.serializedSize(component.coveredClustering,
+                                                    version.correspondingMessagingVersion(),
+                                                    component.clusteringTypes);
             return size;
         }
 
@@ -405,6 +415,10 @@ public class StatsMetadata extends MetadataComponent
                         break;
                     ByteBufferUtil.writeWithShortLength(value, out);
                 }
+            }
+            else if (version.hasImprovedMinMax())
+            {
+                serializeImprovedMinMax(version, component, out);
             }
 
             out.writeBoolean(component.hasLegacyCounterShards);
@@ -453,14 +467,9 @@ public class StatsMetadata extends MetadataComponent
                 out.writeBoolean(component.hasPartitionLevelDeletions);
             }
 
-            if (version.hasImprovedMinMax())
+            if (version.hasImprovedMinMax() && version.hasLegacyMinMax())
             {
-                assert component.clusteringTypes != null;
-                typeSerializer.serializeList(component.clusteringTypes, out);
-                Slice.serializer.serialize(component.coveredClustering,
-                                           out,
-                                           version.correspondingMessagingVersion(),
-                                           component.clusteringTypes);
+                serializeImprovedMinMax(version, component, out);
             }
 
             if (version.hasKeyRange())
@@ -468,6 +477,16 @@ public class StatsMetadata extends MetadataComponent
                 ByteBufferUtil.writeWithVIntLength(component.firstKey, out);
                 ByteBufferUtil.writeWithVIntLength(component.lastKey, out);
             }
+        }
+
+        private void serializeImprovedMinMax(Version version, StatsMetadata component, DataOutputPlus out) throws IOException
+        {
+            assert component.clusteringTypes != null;
+            typeSerializer.serializeList(component.clusteringTypes, out);
+            Slice.serializer.serialize(component.coveredClustering,
+                                       out,
+                                       version.correspondingMessagingVersion(),
+                                       component.clusteringTypes);
         }
 
         public StatsMetadata deserialize(Version version, DataInputPlus in) throws IOException
@@ -527,6 +546,12 @@ public class StatsMetadata extends MetadataComponent
                     coveredClustering = Slice.make(BufferClusteringBound.inclusiveStartOf(minClusteringValues),
                                                    BufferClusteringBound.inclusiveEndOf(maxClusteringValues));
             }
+            else if (version.hasImprovedMinMax())
+            {
+                // improvedMinMax will be in this place when legacyMinMax is removed
+                clusteringTypes = typeSerializer.deserializeList(in);
+                coveredClustering = Slice.serializer.deserialize(in, version.correspondingMessagingVersion(), clusteringTypes);
+            }
 
             boolean hasLegacyCounterShards = in.readBoolean();
 
@@ -561,8 +586,9 @@ public class StatsMetadata extends MetadataComponent
                 hasPartitionLevelDeletions = in.readBoolean();
             }
 
-            if (version.hasImprovedMinMax())
+            if (version.hasImprovedMinMax() && version.hasLegacyMinMax())
             {
+                // improvedMinMax will be in this place until legacyMinMax is removed
                 clusteringTypes = typeSerializer.deserializeList(in);
                 coveredClustering = Slice.serializer.deserialize(in, version.correspondingMessagingVersion(), clusteringTypes);
             }
