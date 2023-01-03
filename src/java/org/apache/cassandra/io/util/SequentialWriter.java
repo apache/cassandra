@@ -24,6 +24,7 @@ import java.nio.file.StandardOpenOption;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.utils.PageAware;
 import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
@@ -84,16 +85,19 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
             return accumulate;
         }
 
+        @Override
         protected void doPrepare()
         {
             syncInternal();
         }
 
+        @Override
         protected Throwable doCommit(Throwable accumulate)
         {
             return accumulate;
         }
 
+        @Override
         protected Throwable doAbort(Throwable accumulate)
         {
             return accumulate;
@@ -169,7 +173,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         this.option = option;
     }
 
-    public void skipBytes(int numBytes) throws IOException
+    public void skipBytes(long numBytes) throws IOException
     {
         flush();
         fchannel.position(fchannel.position() + numBytes);
@@ -252,14 +256,42 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
             runPostFlush.run();
     }
 
+    @Override
     public boolean hasPosition()
     {
         return true;
     }
 
+    @Override
     public long position()
     {
         return current();
+    }
+
+    @Override
+    public int maxBytesInPage()
+    {
+        return PageAware.PAGE_SIZE;
+    }
+
+    @Override
+    public void padToPageBoundary() throws IOException
+    {
+        PageAware.pad(this);
+    }
+
+    @Override
+    public int bytesLeftInPage()
+    {
+        long position = position();
+        long bytesLeft = PageAware.pageLimit(position) - position;
+        return (int) bytesLeft;
+    }
+
+    @Override
+    public long paddedPosition()
+    {
+        return PageAware.padded(position());
     }
 
     /**
@@ -380,16 +412,19 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         return channel.isOpen();
     }
 
+    @Override
     public final void prepareToCommit()
     {
         txnProxy.prepareToCommit();
     }
 
+    @Override
     public final Throwable commit(Throwable accumulate)
     {
         return txnProxy.commit(accumulate);
     }
 
+    @Override
     public final Throwable abort(Throwable accumulate)
     {
         return txnProxy.abort(accumulate);
