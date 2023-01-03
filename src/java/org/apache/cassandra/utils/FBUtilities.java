@@ -45,6 +45,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableList;
 
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -1155,5 +1156,17 @@ public class FBUtilities
             }
         }
         return sb.toString();
+    }
+
+    @SafeVarargs
+    public static <T> ImmutableList<T> immutableListWithFilteredNulls(T... values)
+    {
+        ImmutableList.Builder<T> builder = ImmutableList.builderWithExpectedSize(values.length);
+        for (int i = 0; i < values.length; i++)
+        {
+            if (values[i] != null)
+                builder.add(values[i]);
+        }
+        return builder.build();
     }
 }

@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.exceptions.UnknownColumnException;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -35,6 +36,9 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.TableMetadata;
 
 public class StatsComponent
@@ -103,4 +107,19 @@ public class StatsComponent
     {
         return (StatsMetadata) metadata.get(MetadataType.STATS);
     }
+
+    public void save(Descriptor desc)
+    {
+        File file = desc.fileFor(Component.STATS);
+        try (SequentialWriter out = new SequentialWriter(file, SequentialWriterOption.DEFAULT))
+        {
+            desc.getMetadataSerializer().serialize(metadata, out, desc.version);
+            out.finish();
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, file.path());
+        }
+    }
+
 }

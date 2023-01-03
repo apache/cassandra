@@ -19,7 +19,6 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -34,9 +33,6 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
-import org.apache.cassandra.io.sstable.format.TOCComponent;
-import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
-import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.*;
@@ -196,8 +192,9 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         return openFinal(SSTableReader.OpenReason.EARLY);
     }
 
+    @Override
     @SuppressWarnings("resource")
-    private SSTableReader openFinal(SSTableReader.OpenReason openReason)
+    protected SSTableReader openFinal(SSTableReader.OpenReason openReason)
     {
         if (maxDataAge < 0)
             maxDataAge = currentTimeMillis();
@@ -254,55 +251,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     @Override
     protected SSTableWriter<RowIndexEntry>.TransactionalProxy txnProxy()
     {
-        return new TransactionalProxy();
-    }
-
-    class TransactionalProxy extends SSTableWriter<RowIndexEntry>.TransactionalProxy
-    {
-        // finalise our state on disk, including renaming
-        protected void doPrepare()
-        {
-            indexWriter.prepareToCommit();
-
-            // write sstable statistics
-            dataWriter.prepareToCommit();
-            writeMetadata(descriptor, finalizeMetadata());
-
-            // save the table of components
-            TOCComponent.appendTOC(descriptor, components);
-
-            if (openResult)
-                finalReader = openFinal(SSTableReader.OpenReason.NORMAL);
-        }
-
-        protected Throwable doCommit(Throwable accumulate)
-        {
-            accumulate = dataWriter.commit(accumulate);
-            accumulate = indexWriter.commit(accumulate);
-            return accumulate;
-        }
-
-
-        protected Throwable doAbort(Throwable accumulate)
-        {
-            accumulate = indexWriter.abort(accumulate);
-            accumulate = dataWriter.abort(accumulate);
-            return accumulate;
-        }
-    }
-
-    private void writeMetadata(Descriptor desc, Map<MetadataType, MetadataComponent> components)
-    {
-        File file = new File(desc.filenameFor(Component.STATS));
-        try (SequentialWriter out = new SequentialWriter(file, ioOptions.writerOptions))
-        {
-            desc.getMetadataSerializer().serialize(components, out, desc.version);
-            out.finish();
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, file.path());
-        }
+        return new SSTableWriter<RowIndexEntry>.TransactionalProxy(() -> FBUtilities.immutableListWithFilteredNulls(indexWriter, dataWriter));
     }
 
     /**

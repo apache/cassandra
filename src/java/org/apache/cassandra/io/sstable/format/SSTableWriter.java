@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -51,6 +52,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
@@ -75,14 +77,6 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
     protected final Collection<SSTableFlushObserver> observers;
 
     protected abstract TransactionalProxy txnProxy();
-
-    // due to lack of multiple inheritance, we use an inner class to proxy our Transactional implementation details
-    protected abstract class TransactionalProxy extends AbstractTransactional
-    {
-        // should be set during doPrepare()
-        protected SSTableReader finalReader;
-        protected boolean openResult;
-    }
 
     protected SSTableWriter(SSTableWriterBuilder<?, ?> builder, LifecycleNewTracker lifecycleNewTracker)
     {
@@ -231,6 +225,8 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
      */
     public abstract SSTableReader openFinalEarly();
 
+    protected abstract SSTableReader openFinal(SSTableReader.OpenReason openReason);
+
     public SSTableReader finish(long repairedAt, long maxDataAge, boolean openResult)
     {
         if (repairedAt > 0)
@@ -253,6 +249,7 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
      */
     public SSTableReader finished()
     {
+        txnProxy.finalReaderAccessed = true;
         return txnProxy.finalReader;
     }
 
@@ -372,6 +369,58 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
                                        metadata);
             Guardrails.collectionSize.guard(cellsSize, msg, true, null);
             Guardrails.itemsPerCollection.guard(cellsCount, msg, true, null);
+        }
+    }
+
+    // due to lack of multiple inheritance, we use an inner class to proxy our Transactional implementation details
+    protected class TransactionalProxy extends AbstractTransactional
+    {
+        // should be set during doPrepare()
+        private final Supplier<ImmutableList<Transactional>> transactionals;
+
+        private SSTableReader finalReader;
+        private boolean openResult;
+        private boolean finalReaderAccessed;
+
+        public TransactionalProxy(Supplier<ImmutableList<Transactional>> transactionals)
+        {
+            this.transactionals = transactionals;
+        }
+
+        // finalise our state on disk, including renaming
+        protected void doPrepare()
+        {
+            transactionals.get().forEach(Transactional::prepareToCommit);
+            new StatsComponent(finalizeMetadata()).save(descriptor);
+
+            // save the table of components
+            TOCComponent.appendTOC(descriptor, components);
+
+            if (openResult)
+                finalReader = openFinal(SSTableReader.OpenReason.NORMAL);
+        }
+
+        protected Throwable doCommit(Throwable accumulate)
+        {
+            for (Transactional t : transactionals.get().reverse())
+                accumulate = t.commit(accumulate);
+
+            return accumulate;
+        }
+
+        protected Throwable doAbort(Throwable accumulate)
+        {
+            for (Transactional t : transactionals.get())
+                accumulate = t.abort(accumulate);
+
+            if (!finalReaderAccessed && finalReader != null)
+            {
+                accumulate = Throwables.perform(accumulate, () -> finalReader.selfRef().release());
+                finalReader = null;
+                finalReaderAccessed = false;
+            }
+
+            return accumulate;
         }
     }
 }
