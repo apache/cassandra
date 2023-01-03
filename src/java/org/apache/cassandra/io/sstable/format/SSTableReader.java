@@ -79,7 +79,7 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
  * An SSTableReader can be constructed in a number of places, but typically is either
  * read from disk at startup, or constructed from a flushed memtable, or after compaction
  * to replace some existing sstables. However once created, an sstablereader may also be modified.
- *
+ * <p>
  * A reader's OpenReason describes its current stage in its lifecycle, as follows:
  *
  *
@@ -106,32 +106,32 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
  *                            constrained, so its index summary has been downsampled.
  *         METADATA_CHANGE => Same
  * } </pre>
- *
+ * <p>
  * Note that in parallel to this, there are two different Descriptor types; TMPLINK and FINAL; the latter corresponds
  * to NORMAL state readers and all readers that replace a NORMAL one. TMPLINK is used for EARLY state readers and
  * no others.
- *
+ * <p>
  * When a reader is being compacted, if the result is large its replacement may be opened as EARLY before compaction
  * completes in order to present the result to consumers earlier. In this case the reader will itself be changed to
  * a MOVED_START state, where its start no longer represents its on-disk minimum key. This is to permit reads to be
  * directed to only one reader when the two represent the same data. The EARLY file can represent a compaction result
  * that is either partially complete and still in-progress, or a complete and immutable sstable that is part of a larger
  * macro compaction action that has not yet fully completed.
- *
+ * <p>
  * Currently ALL compaction results at least briefly go through an EARLY open state prior to completion, regardless
  * of if early opening is enabled.
- *
+ * <p>
  * Since a reader can be created multiple times over the same shared underlying resources, and the exact resources
  * it shares between each instance differ subtly, we track the lifetime of any underlying resource with its own
  * reference count, which each instance takes a Ref to. Each instance then tracks references to itself, and once these
  * all expire it releases its Refs to these underlying resources.
- *
+ * <p>
  * There is some shared cleanup behaviour needed only once all sstablereaders in a certain stage of their lifecycle
  * (i.e. EARLY or NORMAL opening), and some that must only occur once all readers of any kind over a single logical
  * sstable have expired. These are managed by the TypeTidy and GlobalTidy classes at the bottom, and are effectively
  * managed as another resource each instance tracks its own Ref instance to, to ensure all of these resources are
  * cleaned up safely and can be debugged otherwise.
- *
+ * <p>
  * TODO: fill in details about Tracker and lifecycle interactions for tools, and for compaction strategies
  */
 public abstract class SSTableReader extends SSTable implements UnfilteredSource, SelfRefCounted<SSTableReader>
@@ -141,6 +141,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     private static final boolean TRACK_ACTIVITY = CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING.getBoolean();
 
     private static final ScheduledExecutorPlus syncExecutor = initSyncExecutor();
+
     private static ScheduledExecutorPlus initSyncExecutor()
     {
         if (DatabaseDescriptor.isClientOrToolInitialized())
@@ -152,9 +153,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         // Immediately remove readMeter sync task when cancelled.
         // TODO: should we set this by default on all scheduled executors?
         if (syncExecutor instanceof ScheduledThreadPoolExecutor)
-            ((ScheduledThreadPoolExecutor)syncExecutor).setRemoveOnCancelPolicy(true);
+            ((ScheduledThreadPoolExecutor) syncExecutor).setRemoveOnCancelPolicy(true);
         return syncExecutor;
     }
+
     private static final RateLimiter meterSyncThrottle = RateLimiter.create(100.0);
 
     public static final Comparator<SSTableReader> maxTimestampDescending = (o1, o2) -> Long.compare(o2.getMaxTimestamp(), o1.getMaxTimestamp());
@@ -165,7 +167,9 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public abstract ClusteringPrefix<?> getLowerBoundPrefixFromCache(DecoratedKey partitionKey, ClusteringIndexFilter filter);
 
     // it's just an object, which we use regular Object equality on; we introduce a special class just for easy recognition
-    public static final class UniqueIdentifier {}
+    public static final class UniqueIdentifier
+    {
+    }
 
     public static final Comparator<SSTableReader> sstableComparator = (o1, o2) -> o1.first.compareTo(o2.first);
 
@@ -186,12 +190,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * maxDataAge is a timestamp in local server time (e.g. Global.currentTimeMilli) which represents an upper bound
      * to the newest piece of data stored in the sstable. In other words, this sstable does not contain items created
      * later than maxDataAge.
-     *
+     * <p>
      * The field is not serialized to disk, so relying on it for more than what truncate does is not advised.
-     *
+     * <p>
      * When a new sstable is flushed, maxDataAge is set to the time of creation.
      * When a sstable is created from compaction, maxDataAge is set to max of all merged sstables.
-     *
+     * <p>
      * The age is in milliseconds since epoc and is local to this host.
      */
     public final long maxDataAge;
@@ -329,8 +333,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
             return 1;
 
         long totalKeyCountAfter = mergeCardinalities(cardinalities).cardinality();
-        logger.trace("Estimated compaction gain: {}/{}={}", totalKeyCountAfter, totalKeyCountBefore, ((double)totalKeyCountAfter)/totalKeyCountBefore);
-        return ((double)totalKeyCountAfter)/totalKeyCountBefore;
+        logger.trace("Estimated compaction gain: {}/{}={}", totalKeyCountAfter, totalKeyCountBefore, ((double) totalKeyCountAfter) / totalKeyCountBefore);
+        return ((double) totalKeyCountAfter) / totalKeyCountBefore;
     }
 
     private static ICardinality mergeCardinalities(Collection<ICardinality> cardinalities)
@@ -376,12 +380,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     /**
      * Open SSTable reader to be used in batch mode(such as sstableloader).
-     *
-     * @param descriptor
-     * @param components
-     * @param metadata
-     * @return opened SSTableReader
-     * @throws IOException
      */
     public static SSTableReader openForBatch(Descriptor descriptor, Set<Component> components, TableMetadataRef metadata)
     {
@@ -390,14 +388,14 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     /**
      * Open an SSTable for reading
+     *
      * @param descriptor SSTable to open
      * @param components Components included with this SSTable
-     * @param metadata for this SSTables CF
-     * @param validate Check SSTable for corruption (limited)
-     * @param isOffline Whether we are opening this SSTable "offline", for example from an external tool or not for inclusion in queries (validations)
-     *                  This stops regenerating BF + Summaries and also disables tracking of hotness for the SSTable.
+     * @param metadata   for this SSTables CF
+     * @param validate   Check SSTable for corruption (limited)
+     * @param isOffline  Whether we are opening this SSTable "offline", for example from an external tool or not for inclusion in queries (validations)
+     *                   This stops regenerating BF + Summaries and also disables tracking of hotness for the SSTable.
      * @return {@link SSTableReader}
-     * @throws IOException
      */
     public static SSTableReader open(Descriptor descriptor,
                                      Set<Component> components,
@@ -458,7 +456,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         }
 
         return sstables;
-
     }
 
     protected SSTableReader(SSTableReaderBuilder<?, ?> builder)
@@ -473,6 +470,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         this.openReason = builder.getOpenReason();
         this.first = builder.getFirst();
         this.last = builder.getLast();
+
         tidy = new InstanceTidier(descriptor, metadata.id);
         selfRef = new Ref<>(this, tidy);
     }
@@ -511,7 +509,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public void setupOnline()
     {
-
         final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata().id);
         if (cfs != null)
             setCrcCheckChance(cfs.getCrcCheckChance());
@@ -579,7 +576,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * Clone this reader with the new values and set the clone as replacement.
      *
      * @param newBloomFilter for the replacement
-     *
      * @return the cloned reader. That reader is set as a replacement by the method.
      */
     @VisibleForTesting
@@ -629,6 +625,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     /**
      * Returns the compression metadata for this sstable.
+     *
      * @throws IllegalStateException if the sstable is not compressed
      */
     public CompressionMetadata getCompressionMetadata()
@@ -641,6 +638,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     /**
      * Returns the amount of memory in bytes used off heap by the compression meta-data.
+     *
      * @return the amount of memory in bytes used off heap by the compression meta-data
      */
     public long getCompressionMetadataOffHeapSize()
@@ -663,6 +661,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     /**
      * Returns the amount of memory in bytes used off heap by the bloom filter.
+     *
      * @return the amount of memory in bytes used off heap by the bloom filter
      */
     public long getBloomFilterOffHeapSize()
@@ -691,6 +690,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     /**
      * Determine the minimal set of sections that can be extracted from this SSTable to cover the given ranges.
+     *
      * @return A sorted list of (offset,end) pairs that cover the given ranges in the datafile for this SSTable.
      */
     public List<PartitionPositionBounds> getPositionsForRanges(Collection<Range<Token>> ranges)
@@ -786,8 +786,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     /**
      * Retrieves the position while updating the key cache and the stats.
      * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
-     * allow key selection by token bounds but only if op != * EQ
-     * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     *            allow key selection by token bounds but only if op != * EQ
+     * @param op  The Operator defining matching keys: the nearest key to the target matching the operator wins.
      */
     public final long getPosition(PartitionPosition key, Operator op)
     {
@@ -796,9 +796,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     /**
      * Retrieves the position while updating the key cache and the stats.
-     * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
-     * allow key selection by token bounds but only if op != * EQ
-     * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     *
+     *
+     * @param key      The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
+     *                 allow key selection by token bounds but only if op != * EQ
+     * @param op       The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param listener the {@code SSTableReaderListener} that must handle the notifications.
      */
     public final long getPosition(PartitionPosition key, Operator op, SSTableReadsListener listener)
@@ -807,18 +809,18 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     public final long getPosition(PartitionPosition key,
-                                           Operator op,
-                                           boolean updateCacheAndStats)
+                                  Operator op,
+                                  boolean updateCacheAndStats)
     {
         return getPosition(key, op, updateCacheAndStats, false, SSTableReadsListener.NOOP_LISTENER);
     }
 
     /**
-     * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
-     * allow key selection by token bounds but only if op != * EQ
-     * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     * @param key                 The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
+     *                            allow key selection by token bounds but only if op != * EQ
+     * @param op                  The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param updateCacheAndStats true if updating stats and cache
-     * @param listener a listener used to handle internal events
+     * @param listener            a listener used to handle internal events
      * @return The index entry corresponding to the key, or null if the key is not present
      */
     protected long getPosition(PartitionPosition key,
@@ -832,11 +834,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
-     * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
-     * allow key selection by token bounds but only if op != * EQ
-     * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     * @param key                 The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
+     *                            allow key selection by token bounds but only if op != * EQ
+     * @param op                  The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param updateCacheAndStats true if updating stats and cache
-     * @param listener a listener used to handle internal events
+     * @param listener            a listener used to handle internal events
      * @return The index entry corresponding to the key, or null if the key is not present
      */
     protected abstract AbstractRowIndexEntry getRowIndexEntry(PartitionPosition key,
@@ -892,6 +894,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * Set the value of CRC check chance. The argument supplied is obtained
      * from the the property of the owning CFS. Called when either the SSTR
      * is initialized, or the CFS's property is updated via JMX
+     *
      * @param crcCheckChance
      */
     public void setCrcCheckChance(double crcCheckChance)
@@ -902,10 +905,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     /**
      * Mark the sstable as obsolete, i.e., compacted into newer sstables.
-     *
+     * <p>
      * When calling this function, the caller must ensure that the SSTableReader is not referenced anywhere
      * except for threads holding a reference.
-     *
+     * <p>
      * multiple times is usually buggy (see exceptions in Tracker.unmarkCompacting and removeOldSSTablesSize).
      */
     public void markObsolete(Runnable tidier)
@@ -916,7 +919,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         synchronized (tidy.global)
         {
             assert !tidy.isReplaced;
-            assert tidy.global.obsoletion == null: this + " was already marked compacted";
+            assert tidy.global.obsoletion == null : this + " was already marked compacted";
 
             tidy.global.obsoletion = tidier;
             tidy.global.stopReadMeterPersistence();
@@ -991,6 +994,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     /**
      * Tests if the sstable contains data newer than the given age param (in localhost currentMilli time).
      * This works in conjunction with maxDataAge which is an upper bound on the create of data in this sstable.
+     *
      * @param age The age to compare the maxDataAre of this sstable. Measured in millisec since epoc on this host
      * @return True iff this sstable contains data that's newer than the given age parameter.
      */
@@ -1088,17 +1092,26 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
         final static class Equals extends Operator
         {
-            public int apply(int comparison) { return -comparison; }
+            public int apply(int comparison)
+            {
+                return -comparison;
+            }
         }
 
         final static class GreaterThanOrEqualTo extends Operator
         {
-            public int apply(int comparison) { return comparison >= 0 ? 0 : 1; }
+            public int apply(int comparison)
+            {
+                return comparison >= 0 ? 0 : 1;
+            }
         }
 
         final static class GreaterThan extends Operator
         {
-            public int apply(int comparison) { return comparison > 0 ? 0 : 1; }
+            public int apply(int comparison)
+            {
+                return comparison > 0 ? 0 : 1;
+            }
         }
     }
 
@@ -1219,8 +1232,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public int getAvgColumnSetPerRow()
     {
         return sstableMetadata.totalRows < 0
-             ? -1
-             : (sstableMetadata.totalRows == 0 ? 0 : (int)(sstableMetadata.totalColumnsSet / sstableMetadata.totalRows));
+               ? -1
+               : (sstableMetadata.totalRows == 0 ? 0 : (int) (sstableMetadata.totalColumnsSet / sstableMetadata.totalRows));
     }
 
     public int getSSTableLevel()
@@ -1254,9 +1267,9 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     /**
      * Reloads the sstable metadata from disk.
-     *
+     * <p>
      * Called after level is changed on sstable, for example if the sstable is dropped to L0
-     *
+     * <p>
      * Might be possible to remove in future versions
      *
      * @throws IOException
@@ -1382,10 +1395,10 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     /**
      * One instance per SSTableReader we create.
-     *
+     * <p>
      * We can create many InstanceTidiers (one for every time we reopen an sstable with MOVED_START for example),
      * but there can only be one GlobalTidy for one single logical sstable.
-     *
+     * <p>
      * When the InstanceTidier cleansup, it releases its reference to its GlobalTidy; when all InstanceTidiers
      * for that type have run, the GlobalTidy cleans up.
      */
@@ -1511,7 +1524,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     /**
      * One instance per logical sstable. This both tracks shared cleanup and some shared state related
      * to the sstable's lifecycle.
-     *
+     * <p>
      * All InstanceTidiers, on setup(), ask the static get() method for their shared state,
      * and stash a reference to it to be released when they are. Once all such references are
      * released, this shared tidy will be performed.
@@ -1643,15 +1656,15 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         public final int hashCode()
         {
             int hashCode = (int) lowerPosition ^ (int) (lowerPosition >>> 32);
-            return 31 * (hashCode ^ (int) ((int) upperPosition ^  (upperPosition >>> 32)));
+            return 31 * (hashCode ^ (int) ((int) upperPosition ^ (upperPosition >>> 32)));
         }
 
         @Override
         public final boolean equals(Object o)
         {
-            if(!(o instanceof PartitionPositionBounds))
+            if (!(o instanceof PartitionPositionBounds))
                 return false;
-            PartitionPositionBounds that = (PartitionPositionBounds)o;
+            PartitionPositionBounds that = (PartitionPositionBounds) o;
             return lowerPosition == that.lowerPosition && upperPosition == that.upperPosition;
         }
     }
@@ -1685,7 +1698,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     /**
      * Moves the sstable in oldDescriptor to a new place (with generation etc) in newDescriptor.
-     *
+     * <p>
      * All components given will be moved/renamed
      */
     public static SSTableReader moveAndOpenSSTable(ColumnFamilyStore cfs, Descriptor oldDescriptor, Descriptor newDescriptor, Set<Component> components, boolean copyData)

@@ -115,14 +115,13 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
         return rowIterator(null, key, rie, slices, selectedColumns, reversed);
     }
 
-    @SuppressWarnings("resource")
     public UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
     {
         if (indexEntry == null)
             return UnfilteredRowIterators.noRowsIterator(metadata(), key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, reversed);
         return reversed
-             ? new SSTableReversedIterator(this, file, key, indexEntry, slices, selectedColumns, ifile)
-             : new SSTableIterator(this, file, key, indexEntry, slices, selectedColumns, ifile);
+               ? new SSTableReversedIterator(this, file, key, indexEntry, slices, selectedColumns, ifile)
+               : new SSTableIterator(this, file, key, indexEntry, slices, selectedColumns, ifile);
     }
 
     @Override
@@ -211,9 +210,10 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
 
     /**
      * Retrieves the position while updating the key cache and the stats.
+     *
      * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
-     * allow key selection by token bounds but only if op != * EQ
-     * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     *            allow key selection by token bounds but only if op != * EQ
+     * @param op  The Operator defining matching keys: the nearest key to the target matching the operator wins.
      */
     public final RowIndexEntry getRowIndexEntry(PartitionPosition key, Operator op)
     {
@@ -221,21 +221,21 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
     }
 
     /**
-     * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
-     * allow key selection by token bounds but only if op != * EQ
-     * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     * @param key                 The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
+     *                            allow key selection by token bounds but only if op != * EQ
+     * @param op                  The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param updateCacheAndStats true if updating stats and cache
      * @return The index entry corresponding to the key, or null if the key is not present
      */
     @Override
     protected RowIndexEntry getRowIndexEntry(PartitionPosition key,
-                                                        Operator op,
-                                                        boolean updateCacheAndStats,
-                                                        boolean permitMatchPastLast,
-                                                        SSTableReadsListener listener)
+                                             Operator op,
+                                             boolean updateCacheAndStats,
+                                             boolean permitMatchPastLast,
+                                             SSTableReadsListener listener)
     {
         // Having no index file is impossible in a normal operation. The only way it might happen is running
-        // Scrubber that does not really rely onto this method.
+        // Scrubber that does not really rely on this method.
         if (ifile == null)
         {
             return null;
@@ -244,7 +244,7 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
         if (op == Operator.EQ)
         {
             assert key instanceof DecoratedKey; // EQ only make sense if the key is a valid row key
-            if (!bf.isPresent((DecoratedKey)key))
+            if (!bf.isPresent((DecoratedKey) key))
             {
                 listener.onSSTableSkipped(this, SkippingReason.BLOOM_FILTER);
                 Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.id);
@@ -303,7 +303,7 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
         int effectiveInterval = indexSummary.getEffectiveIndexIntervalAfterIndex(sampledIndex);
 
         // scan the on-disk index, starting at the nearest sampled position.
-        // The check against IndexInterval is to be exit the loop in the EQ case when the key looked for is not present
+        // The check against IndexInterval is to be exited the loop in the EQ case when the key looked for is not present
         // (bloom filter false positive). But note that for non-EQ cases, we might need to check the first key of the
         // next index position because the searched key can be greater the last key of the index interval checked if it
         // is lesser than the first key of next interval (and in that case we must return the position of the first key
@@ -351,7 +351,7 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
                     if (exactMatch && updateCacheAndStats)
                     {
                         assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
-                        DecoratedKey decoratedKey = (DecoratedKey)key;
+                        DecoratedKey decoratedKey = (DecoratedKey) key;
 
                         if (logger.isTraceEnabled())
                         {
@@ -482,7 +482,6 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
     }
 
     /**
-     * @param ranges
      * @return An estimate of the number of keys for given ranges in this SSTable.
      */
     @Override
@@ -538,7 +537,7 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
     }
 
     /**
-     * Gets the position in the index file to start scanning to find the given key (at most indexInterval keys away,
+     * Gets the position with the index file to start scanning to find the given key (at most indexInterval keys away,
      * modulo downsampling of the index summary). Always returns a {@code value >= 0}
      */
     long getIndexScanPosition(PartitionPosition key)
@@ -635,7 +634,6 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
      *
      * @param samplingLevel the desired sampling level for the index summary on the new SSTableReader
      * @return a new SSTableReader
-     * @throws IOException
      */
     @SuppressWarnings("resource")
     public BigTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
@@ -677,7 +675,7 @@ public class BigTableReader extends SSTableReader implements IndexSummarySupport
 
     private IndexSummary buildSummaryAtLevel(int newSamplingLevel) throws IOException
     {
-        // we read the positions in a BRAF so we don't have to worry about an entry spanning a mmap boundary.
+        // we read the positions in a BRAF, so we don't have to worry about an entry spanning a mmap boundary.
         RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
         try
         {

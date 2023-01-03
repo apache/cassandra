@@ -25,7 +25,6 @@ import java.util.concurrent.*;
 import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
-
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -75,6 +74,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 
 public class SSTableReaderTest
 {
@@ -575,7 +575,7 @@ public class SSTableReaderTest
 
         Util.flush(store);
 
-        for(ColumnFamilyStore indexCfs : store.indexManager.getAllIndexColumnFamilyStores())
+        for (ColumnFamilyStore indexCfs : store.indexManager.getAllIndexColumnFamilyStores())
         {
             assert indexCfs.isIndex();
             SSTableReader sstable = indexCfs.getLiveSSTables().iterator().next();
@@ -591,7 +591,9 @@ public class SSTableReaderTest
         }
     }
 
-    /** see CASSANDRA-5407 */
+    /**
+     * see CASSANDRA-5407
+     */
     @Test
     public void testGetScannerForNoIntersectingRanges() throws Exception
     {
@@ -665,7 +667,7 @@ public class SSTableReaderTest
     @Test
     public void testIndexSummaryReplacement() throws IOException, ExecutionException, InterruptedException
     {
-        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
+        assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
         ColumnFamilyStore store = discardSSTables(KEYSPACE1, CF_STANDARD_LOW_INDEX_INTERVAL); // index interval of 8, no key caching
 
         final int NUM_PARTITIONS = 512;
@@ -676,7 +678,6 @@ public class SSTableReaderTest
             .add("val", format("%3d", j))
             .build()
             .applyUnsafe();
-
         }
         Util.flush(store);
         CompactionManager.instance.performMaximal(store, false);
@@ -706,7 +707,7 @@ public class SSTableReaderTest
                 public void run()
                 {
                     Iterable<DecoratedKey> results = store.keySamples(
-                            new Range<>(sstable.getPartitioner().getMinimumToken(), sstable.getPartitioner().getToken(key)));
+                    new Range<>(sstable.getPartitioner().getMinimumToken(), sstable.getPartitioner().getToken(key)));
                     assertTrue(results.iterator().hasNext());
                 }
             }));
@@ -728,7 +729,7 @@ public class SSTableReaderTest
     @Test
     public void testIndexSummaryUpsampleAndReload() throws Exception
     {
-        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
+        assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
         int originalMaxSegmentSize = MmappedRegions.MAX_SEGMENT_SIZE;
         MmappedRegions.MAX_SEGMENT_SIZE = 40; // each index entry is ~11 bytes, so this will generate lots of segments
 
@@ -754,7 +755,6 @@ public class SSTableReaderTest
             .add("val", format("%3d", j))
             .build()
             .applyUnsafe();
-
         }
         Util.flush(store);
         CompactionManager.instance.performMaximal(store, false);
