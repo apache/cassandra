@@ -915,3 +915,51 @@ class TestCqlshOutput(BaseTestCase):
         row_headers = [s for s in output.splitlines() if "@ Row" in s]
         row_ids = [int(s.split(' ')[2]) for s in row_headers]
         self.assertEqual([i for i in range(1, 21)], row_ids)
+
+    def test_quoted_output_text_in_map(self):
+        ks = get_keyspace()
+
+        query = "SELECT text_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "I'm newb")
+
+        query = "SELECT map_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "{1: 'I''m newb'}")
+
+    def test_quoted_output_text_in_simple_collections(self):
+        ks = get_keyspace()
+
+        # Sets
+        query = "SELECT set_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "{'I''m newb'}")
+
+        # Lists
+        query = "SELECT list_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "['I''m newb']")
+
+        # Tuples
+        query = "SELECT tuple_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "(1, 'I''m newb')")
+
+    def test_quoted_output_text_in_udts(self):
+        ks = get_keyspace()
+
+        query = "SELECT udt_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "{data: 'I''m newb'}")

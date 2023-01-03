@@ -574,7 +574,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_drop_type(self):
         self.trycompletions('DROP TYPE ', choices=['IF', 'system_views.',
                                                     'tags', 'system_traces.', 'system_distributed.',
-                                                    'phone_number', 'band_info_type', 'address', 'system.', 'system_schema.',
+                                                    'phone_number', 'quote_udt', 'band_info_type', 'address', 'system.', 'system_schema.',
                                                     'system_auth.', 'system_virtual_schema.', self.cqlsh.keyspace + '.'
                                                     ])
 
@@ -951,7 +951,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('ALTER TABLE ', choices=['IF', 'twenty_rows_table',
                                                      'ascii_with_special_chars', 'users',
                                                      'has_all_types', 'system.',
-                                                     'empty_composite_table', 'empty_table',
+                                                     'empty_composite_table', 'escape_quotes', 'empty_table',
                                                      'system_auth.', 'undefined_values_table',
                                                      'dynamic_columns',
                                                      'twenty_rows_composite_table',
@@ -971,7 +971,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('ALTER TYPE I', immediate='F EXISTS ')
         self.trycompletions('ALTER TYPE ', choices=['IF', 'system_views.',
                                                     'tags', 'system_traces.', 'system_distributed.',
-                                                    'phone_number', 'band_info_type', 'address', 'system.', 'system_schema.',
+                                                    'phone_number', 'quote_udt', 'band_info_type', 'address', 'system.', 'system_schema.',
                                                     'system_auth.', 'system_virtual_schema.', self.cqlsh.keyspace + '.'
                                                     ])
         self.trycompletions('ALTER TYPE IF EXISTS new_type ADD ', choices=['<new_field_name>', 'IF'])
