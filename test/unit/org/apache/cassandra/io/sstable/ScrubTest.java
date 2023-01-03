@@ -452,7 +452,7 @@ public class ScrubTest
     }
 
     @Test
-    @BMRule(name = "skip partition order verification", targetClass = "BigTableWriter", targetMethod = "verifyPartition", action = "return true")
+    @BMRule(name = "skip partition order verification", targetClass = "SortedTableWriter", targetMethod = "verifyPartition", action = "return true")
     public void testScrubOutOfOrder()
     {
         // Run only for Big Table format because Big Table Format does not complain if partitions are given in invalid
@@ -573,7 +573,7 @@ public class ScrubTest
 
     private static void overrideWithGarbage(SSTableReader sstable, long startPosition, long endPosition, byte junk) throws IOException
     {
-        overrideWithGarbage(new File(sstable.getDataChannel().filePath()), startPosition, endPosition, junk);
+        overrideWithGarbage(sstable.getDataChannel().file(), startPosition, endPosition, junk);
     }
 
     private static void overrideWithGarbage(File path, long startPosition, long endPosition, byte junk) throws IOException
@@ -599,9 +599,13 @@ public class ScrubTest
     {
         int size = 0;
         DecoratedKey prev = null;
+        logger.info("Reading data from " + cmd);
         for (Partition partition : Util.getAllUnfiltered(cmd))
         {
             DecoratedKey current = partition.partitionKey();
+            logger.info("Read " + current.toString());
+            if (!(prev == null || prev.compareTo(current) < 0))
+                logger.error("key " + current + " does not sort after previous key " + prev);
             assertTrue("key " + current + " does not sort after previous key " + prev, prev == null || prev.compareTo(current) < 0);
             prev = current;
             ++size;
