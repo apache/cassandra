@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOException;
 import java.nio.BufferOverflowException;
-import java.util.Collection;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -30,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.PartitionSerializationException;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundaryMarker;
@@ -42,34 +41,33 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.FilterFactory;
+import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.concurrent.Transactional;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, RIE extends AbstractRowIndexEntry> extends SSTableWriter<RIE>
 {
     private final static Logger logger = LoggerFactory.getLogger(SortedTableWriter.class);
 
-    protected SequentialWriter dataWriter;
-    protected P partitionWriter;
+    protected final SequentialWriter dataWriter;
+    protected final P partitionWriter;
     private DecoratedKey lastWrittenKey;
     private DataPosition dataMark;
 
-    public SortedTableWriter(Descriptor descriptor,
-                             long keyCount,
-                             long repairedAt,
-                             TimeUUID pendingRepair,
-                             boolean isTransient,
-                             TableMetadataRef metadata,
-                             MetadataCollector metadataCollector,
-                             SerializationHeader header,
-                             Collection<SSTableFlushObserver> observers,
-                             Set<Component> components)
+    public SortedTableWriter(SortedTableWriterBuilder<RIE, P, ?, ?> builder, LifecycleNewTracker lifecycleNewTracker)
     {
-        super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers, components);
+        super(builder, lifecycleNewTracker);
+        checkNotNull(builder.getDataWriter());
+        checkNotNull(builder.getPartitionWriter());
+
+        this.dataWriter = builder.getDataWriter();
+        this.partitionWriter = builder.getPartitionWriter();
     }
 
     /**
@@ -291,4 +289,55 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, RI
             logger.warn("Writing {} tombstones to {}/{}:{} in sstable {}", tombstoneCount, metadata.keyspace, metadata.name, keyString, getFilename());
         }
     }
+
+    protected static abstract class AbstractIndexWriter extends AbstractTransactional implements Transactional
+    {
+        protected final Descriptor descriptor;
+        protected final TableMetadataRef metadata;
+        protected final Set<Component> components;
+
+        protected final IFilter bf;
+
+        protected AbstractIndexWriter(SortedTableWriterBuilder<?, ?, ?, ?> b)
+        {
+            this.descriptor = b.descriptor;
+            this.metadata = b.getTableMetadataRef();
+            this.components = b.getComponents();
+
+            bf = FilterFactory.getFilter(b.getKeyCount(), b.getTableMetadataRef().getLocal().params.bloomFilterFpChance);
+        }
+
+        protected void flushBf()
+        {
+            if (components.contains(Component.FILTER))
+            {
+                try
+                {
+                    FilterComponent.saveOrDeleteCorrupted(descriptor, bf);
+                }
+                catch (IOException ex)
+                {
+                    throw new FSWriteError(ex, descriptor.fileFor(Component.FILTER));
+                }
+            }
+        }
+
+        protected void doPrepare()
+        {
+            flushBf();
+        }
+
+        @Override
+        protected Throwable doPostCleanup(Throwable accumulate)
+        {
+            accumulate = bf.close(accumulate);
+            return accumulate;
+        }
+
+        public IFilter getFilterCopy()
+        {
+            return bf.sharedCopy();
+        }
+    }
+
 }

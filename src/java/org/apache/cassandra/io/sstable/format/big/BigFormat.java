@@ -107,6 +107,13 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
 
     private static final Set<Component> GENERATED_ON_LOAD_COMPONENTS = ImmutableSet.of(FILTER, SUMMARY);
 
+    private static final Set<Component> WRITE_COMPONENTS = ImmutableSet.of(DATA,
+                                                                           PRIMARY_INDEX,
+                                                                           STATS,
+                                                                           SUMMARY,
+                                                                           TOC,
+                                                                           DIGEST);
+
     private BigFormat()
     {
 
@@ -182,6 +189,12 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
     public Set<Component> generatedOnLoadComponents()
     {
         return GENERATED_ON_LOAD_COMPONENTS;
+    }
+
+    @Override
+    public Set<Component> writeComponents()
+    {
+        return WRITE_COMPONENTS;
     }
 
     @Override
@@ -279,7 +292,15 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
                                   LifecycleNewTracker lifecycleNewTracker)
         {
             SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
-            return new BigTableWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers, lifecycleNewTracker);
+            BigTableWriterBuilder builder = new BigTableWriterBuilder(descriptor).setTableMetadataRef(metadata)
+                                                                                 .addDefaultComponents()
+                                                                                 .setKeyCount(keyCount).setRepairedAt(repairedAt)
+                                                                                 .setPendingRepair(pendingRepair)
+                                                                                 .setTransientSSTable(isTransient)
+                                                                                 .setMetadataCollector(metadataCollector)
+                                                                                 .setSerializationHeader(header)
+                                                                                 .setFlushObservers(observers);
+            return builder.build(lifecycleNewTracker);
         }
     }
 

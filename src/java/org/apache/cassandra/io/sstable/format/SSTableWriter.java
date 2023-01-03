@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -40,10 +39,8 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableBuilder;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
@@ -56,6 +53,8 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
+
+import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * This is the API all table writers must implement.
@@ -85,25 +84,22 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
         protected boolean openResult;
     }
 
-    protected SSTableWriter(Descriptor descriptor,
-                            long keyCount,
-                            long repairedAt,
-                            TimeUUID pendingRepair,
-                            boolean isTransient,
-                            TableMetadataRef metadata,
-                            MetadataCollector metadataCollector,
-                            SerializationHeader header,
-                            Collection<SSTableFlushObserver> observers,
-                            Set<Component> components)
+    protected SSTableWriter(SSTableWriterBuilder<?, ?> builder, LifecycleNewTracker lifecycleNewTracker)
     {
-        super(new SSTableBuilder<>(descriptor).setComponents(components).setTableMetadataRef(metadata));
-        this.keyCount = keyCount;
-        this.repairedAt = repairedAt;
-        this.pendingRepair = pendingRepair;
-        this.isTransient = isTransient;
-        this.metadataCollector = metadataCollector;
-        this.header = header;
-        this.observers = observers == null ? Collections.emptySet() : observers;
+        super(builder);
+        checkNotNull(builder.getFlushObservers());
+        checkNotNull(builder.getMetadataCollector());
+        checkNotNull(builder.getSerializationHeader());
+
+        this.keyCount = builder.getKeyCount();
+        this.repairedAt = builder.getRepairedAt();
+        this.pendingRepair = builder.getPendingRepair();
+        this.isTransient = builder.isTransientSSTable();
+        this.metadataCollector = builder.getMetadataCollector();
+        this.header = builder.getSerializationHeader();
+        this.observers = builder.getFlushObservers();
+
+        lifecycleNewTracker.trackNew(this);
     }
 
     public static SSTableWriter<?> create(Descriptor descriptor,
@@ -193,7 +189,7 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
      * @return the created index entry if something was written, that is if {@code iterator}
      * wasn't empty, {@code null} otherwise.
      *
-     * @throws FSWriteError if a write to the dataFile fails
+     * @throws FSWriteError if writing to the dataFile fails
      */
     public abstract RIE append(UnfilteredRowIterator iterator);
 
@@ -314,7 +310,7 @@ public abstract class SSTableWriter<RIE extends AbstractRowIndexEntry> extends S
     }
 
     /**
-     * Parameters for calculating the expected size of an sstable. Exposed on memtable flush sets (i.e. collected
+     * Parameters for calculating the expected size of an SSTable. Exposed on memtable flush sets (i.e. collected
      * subsets of a memtable that will be written to sstables).
      */
     public interface SSTableSizeParameters

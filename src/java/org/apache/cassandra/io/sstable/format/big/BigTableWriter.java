@@ -19,42 +19,30 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
-import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.io.sstable.format.FilterComponent;
-import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.SortedTableWriter;
 import org.apache.cassandra.io.sstable.format.TOCComponent;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
-import org.apache.cassandra.utils.concurrent.Transactional;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.io.util.FileHandle.Builder.NO_LENGTH_OVERRIDE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -66,82 +54,14 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     private long lastEarlyOpenLength = 0;
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
-    public BigTableWriter(Descriptor descriptor,
-                          long keyCount,
-                          long repairedAt,
-                          TimeUUID pendingRepair,
-                          boolean isTransient,
-                          TableMetadataRef metadata,
-                          MetadataCollector metadataCollector, 
-                          SerializationHeader header,
-                          Collection<SSTableFlushObserver> observers,
-                          LifecycleNewTracker lifecycleNewTracker)
+    public BigTableWriter(BigTableWriterBuilder builder, LifecycleNewTracker lifecycleNewTracker)
     {
-        super(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers, components(metadata.getLocal()));
-        lifecycleNewTracker.trackNew(this); // must track before any files are created
+        super(builder, lifecycleNewTracker);
+        checkNotNull(builder.getRowIndexEntrySerializer());
+        checkNotNull(builder.getIndexWriter());
 
-        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
-
-        if (compression)
-        {
-            final CompressionParams compressionParams = compressionFor(lifecycleNewTracker.opType());
-
-            dataWriter = new CompressedSequentialWriter(new File(getFilename()),
-                                                        descriptor.filenameFor(Component.COMPRESSION_INFO),
-                                                        new File(descriptor.filenameFor(Component.DIGEST)),
-                                                        ioOptions.writerOptions,
-                                                        compressionParams,
-                                                        metadataCollector);
-        }
-        else
-        {
-            dataWriter = new ChecksummedSequentialWriter(new File(getFilename()),
-                                                         new File(descriptor.filenameFor(Component.CRC)),
-                                                         new File(descriptor.filenameFor(Component.DIGEST)),
-                                                         ioOptions.writerOptions);
-        }
-        indexWriter = new IndexWriter(keyCount);
-
-        partitionWriter = new BigFormatPartitionWriter(this.header, dataWriter, descriptor.version, rowIndexEntrySerializer.indexInfoSerializer());
-    }
-
-    /**
-     * Given an OpType, determine the correct Compression Parameters
-     * @param opType
-     * @return {@link org.apache.cassandra.schema.CompressionParams}
-     */
-    private CompressionParams compressionFor(final OperationType opType)
-    {
-        CompressionParams compressionParams = metadata.getLocal().params.compression;
-        final ICompressor compressor = compressionParams.getSstableCompressor();
-
-        if (null != compressor && opType == OperationType.FLUSH)
-        {
-            // When we are flushing out of the memtable throughput of the compressor is critical as flushes,
-            // especially of large tables, can queue up and potentially block writes.
-            // This optimization allows us to fall back to a faster compressor if a particular
-            // compression algorithm indicates we should. See CASSANDRA-15379 for more details.
-            switch (ioOptions.flushCompression)
-            {
-                // It is relatively easier to insert a Noop compressor than to disable compressed writing
-                // entirely as the "compression" member field is provided outside the scope of this class.
-                // It may make sense in the future to refactor the ownership of the compression flag so that
-                // We can bypass the CompressedSequentialWriter in this case entirely.
-                case none:
-                    compressionParams = CompressionParams.NOOP;
-                    break;
-                case fast:
-                    if (!compressor.recommendedUses().contains(ICompressor.Uses.FAST_COMPRESSION))
-                    {
-                        // The default compressor is generally fast (LZ4 with 16KiB block size)
-                        compressionParams = CompressionParams.DEFAULT;
-                        break;
-                    }
-                case table:
-                default:
-            }
-        }
-        return compressionParams;
+        this.rowIndexEntrySerializer = builder.getRowIndexEntrySerializer();
+        this.indexWriter = builder.getIndexWriter();
     }
 
     @Override
@@ -234,7 +154,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
                                                            .setIndexFile(ifile)
                                                            .setDataFile(dfile)
                                                            .setIndexSummary(indexSummary)
-                                                           .setFilter(indexWriter.bf.sharedCopy())
+                                                           .setFilter(indexWriter.getFilterCopy())
                                                            .setMaxDataAge(maxDataAge)
                                                            .setStatsMetadata(stats)
                                                            .setOpenReason(SSTableReader.OpenReason.EARLY)
@@ -309,7 +229,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
                                                            .setIndexFile(ifile)
                                                            .setDataFile(dfile)
                                                            .setIndexSummary(indexSummary)
-                                                           .setFilter(indexWriter.bf.sharedCopy())
+                                                           .setFilter(indexWriter.getFilterCopy())
                                                            .setMaxDataAge(maxDataAge)
                                                            .setStatsMetadata(stats)
                                                            .setOpenReason(openReason)
@@ -388,23 +308,28 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
     /**
      * Encapsulates writing the index and filter for an SSTable. The state of this object is not valid until it has been closed.
      */
-    class IndexWriter extends AbstractTransactional implements Transactional
+    static class IndexWriter extends SortedTableWriter.AbstractIndexWriter
     {
-        private final SequentialWriter writer;
-        public final FileHandle.Builder builder;
-        public final IndexSummaryBuilder summary;
-        public final IFilter bf;
-        private DataPosition mark;
+        private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
-        IndexWriter(long keyCount)
+        final SequentialWriter writer;
+        final FileHandle.Builder builder;
+        final IndexSummaryBuilder summary;
+        private DataPosition mark;
+        private DecoratedKey first;
+        private DecoratedKey last;
+
+        protected IndexWriter(BigTableWriterBuilder b)
         {
-            writer = new SequentialWriter(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)), ioOptions.writerOptions);
-            builder = new FileHandle.Builder(descriptor.fileFor(Component.PRIMARY_INDEX)).mmapped(ioOptions.indexDiskAccessMode);
-            builder.withChunkCache(chunkCache);
-            summary = new IndexSummaryBuilder(keyCount, metadata().params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
-            bf = FilterFactory.getFilter(keyCount, metadata().params.bloomFilterFpChance);
+            super(b);
+            this.rowIndexEntrySerializer = b.getRowIndexEntrySerializer();
+
+            writer = new SequentialWriter(b.descriptor.fileFor(Component.PRIMARY_INDEX), b.getIOOptions().writerOptions);
+            builder = IndexComponent.fileBuilder(Component.PRIMARY_INDEX, b);
+            summary = new IndexSummaryBuilder(b.getKeyCount(), b.getTableMetadataRef().getLocal().params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
             // register listeners to be alerted when the data files are flushed
             writer.setPostFlushListener(() -> summary.markIndexSynced(writer.getLastFlushOffset()));
+            SequentialWriter dataWriter = b.getDataWriter();
             dataWriter.setPostFlushListener(() -> summary.markDataSynced(dataWriter.getLastFlushOffset()));
         }
 
@@ -417,6 +342,10 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         public void append(DecoratedKey key, RowIndexEntry indexEntry, long dataEnd, ByteBuffer indexInfo) throws IOException
         {
             bf.add(key);
+            if (first == null)
+                first = key;
+            last = key;
+
             long indexStart = writer.position();
             try
             {
@@ -435,24 +364,6 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
             summary.maybeAddEntry(key, indexStart, indexEnd, dataEnd);
         }
 
-        /**
-         * Closes the index and bloomfilter, making the public state of this writer valid for consumption.
-         */
-        void flushBf()
-        {
-            if (components.contains(Component.FILTER))
-            {
-                try
-                {
-                    FilterComponent.saveOrDeleteCorrupted(descriptor, bf);
-                }
-                catch (IOException ex)
-                {
-                    throw new FSWriteError(ex, descriptor.fileFor(Component.FILTER));
-                }
-            }
-        }
-
         public void mark()
         {
             mark = writer.mark();
@@ -461,14 +372,17 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         public void resetAndTruncate()
         {
             // we can't un-set the bloom filter addition, but extra keys in there are harmless.
-            // we can't reset dbuilder either, but that is the last thing called in afterappend so
+            // we can't reset dbuilder either, but that is the last thing called in afterappend, so
             // we assume that if that worked then we won't be trying to reset.
             writer.resetAndTruncate(mark);
         }
 
         protected void doPrepare()
         {
-            flushBf();
+            checkNotNull(first);
+            checkNotNull(last);
+
+            super.doPrepare();
 
             // truncate index file
             long position = writer.position();
@@ -477,7 +391,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
 
             // save summary
             summary.prepareToCommit();
-            try (IndexSummary indexSummary = summary.build(getPartitioner()))
+            try (IndexSummary indexSummary = summary.build(metadata.getLocal().partitioner))
             {
                 new IndexSummaryComponent(indexSummary, first, last).saveOrDeleteCorrupted(descriptor);
             }
@@ -500,35 +414,9 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         @Override
         protected Throwable doPostCleanup(Throwable accumulate)
         {
+            accumulate = super.doPostCleanup(accumulate);
             accumulate = summary.close(accumulate);
-            accumulate = bf.close(accumulate);
             return accumulate;
         }
     }
-
-    private static Set<Component> components(TableMetadata metadata)
-    {
-        Set<Component> components = new HashSet<Component>(Arrays.asList(Component.DATA,
-                                                                         Component.PRIMARY_INDEX,
-                                                                         Component.STATS,
-                                                                         Component.SUMMARY,
-                                                                         Component.TOC,
-                                                                         Component.DIGEST));
-
-        if (metadata.params.bloomFilterFpChance < 1.0)
-            components.add(Component.FILTER);
-
-        if (metadata.params.compression.isEnabled())
-        {
-            components.add(Component.COMPRESSION_INFO);
-        }
-        else
-        {
-            // it would feel safer to actually add this component later in maybeWriteDigest(),
-            // but the components are unmodifiable after construction
-            components.add(Component.CRC);
-        }
-        return components;
-    }
-
 }
