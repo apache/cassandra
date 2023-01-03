@@ -153,7 +153,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     @Override
     public DeletionTime partitionLevelDeletion()
     {
-        if (!sstable.mayHaveTombstones())
+        if (!sstable.getSSTableMetadata().hasPartitionLevelDeletions)
             return DeletionTime.LIVE;
 
         return super.partitionLevelDeletion();

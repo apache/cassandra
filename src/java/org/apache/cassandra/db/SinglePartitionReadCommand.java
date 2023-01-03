@@ -718,6 +718,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                     break;
                 }
 
+                boolean hasPartitionLevelDeletions = hasPartitionLevelDeletions(sstable);
+
                 if (shouldInclude(sstable))
                 {
                     if (!sstable.isRepaired())
@@ -727,8 +729,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                     @SuppressWarnings("resource")
                     UnfilteredRowIteratorWithLowerBound iter = makeIterator(cfs, sstable, metricsCollector);
                     inputCollector.addSSTableIterator(sstable, iter);
-                    mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
-                                                            iter.partitionLevelDeletion().markedForDeleteAt());
+                    if (hasPartitionLevelDeletions)
+                        mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
+                                                                iter.partitionLevelDeletion().markedForDeleteAt());
                 }
                 else
                 {
@@ -747,8 +750,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                 controller.updateMinOldestUnrepairedTombstone(sstable.getMinLocalDeletionTime());
                             inputCollector.addSSTableIterator(sstable, iter);
                             includedDueToTombstones++;
-                            mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
-                                                                    iter.partitionLevelDeletion().markedForDeleteAt());
+                            if (hasPartitionLevelDeletions)
+                                mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
+                                                                        iter.partitionLevelDeletion().markedForDeleteAt());
                         }
                         else
                         {
@@ -793,6 +797,11 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             return true;
 
         return clusteringIndexFilter().shouldInclude(sstable);
+    }
+
+    private boolean hasPartitionLevelDeletions(SSTableReader sstable)
+    {
+        return sstable.getSSTableMetadata().hasPartitionLevelDeletions;
     }
 
     private UnfilteredRowIteratorWithLowerBound makeIterator(ColumnFamilyStore cfs,

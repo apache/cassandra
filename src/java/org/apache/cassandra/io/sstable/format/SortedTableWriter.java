@@ -143,7 +143,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, RI
     private void startPartition(DecoratedKey key, DeletionTime partitionLevelDeletion) throws IOException
     {
         partitionWriter.start(key, partitionLevelDeletion);
-        metadataCollector.update(partitionLevelDeletion);
+        metadataCollector.updatePartitionDeletion(partitionLevelDeletion);
 
         onStartPartition(key);
     }
