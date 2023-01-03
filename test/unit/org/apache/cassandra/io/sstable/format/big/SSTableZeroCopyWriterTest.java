@@ -159,7 +159,12 @@ public class SSTableZeroCopyWriterTest
         if (!metadata.getLocal().params.compression.isEnabled())
             componentsToWrite.remove(Component.COMPRESSION_INFO);
 
-        SSTableZeroCopyWriter btzcw = new SSTableZeroCopyWriter(desc, metadata, txn, componentsToWrite);
+        SSTableZeroCopyWriter btzcw = desc.getFormat()
+                                          .getWriterFactory()
+                                          .builder(desc)
+                                          .setComponents(componentsToWrite)
+                                          .setTableMetadataRef(metadata)
+                                          .createZeroCopyWriter(txn);
 
         for (Component component : componentsToWrite)
         {

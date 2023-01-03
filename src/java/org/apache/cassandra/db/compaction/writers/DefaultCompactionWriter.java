@@ -28,6 +28,7 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -69,17 +70,15 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
     {
         sstableDirectory = directory;
 
+        Descriptor descriptor = cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(directory));
+        MetadataCollector collector = new MetadataCollector(txn.originals(), cfs.metadata().comparator, sstableLevel);
+        SerializationHeader header = SerializationHeader.make(cfs.metadata(), nonExpiredSSTables);
+
         @SuppressWarnings("resource")
-        SSTableWriter<?> writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(directory)),
-                                                    estimatedTotalKeys,
-                                                    minRepairedAt,
-                                                    pendingRepair,
-                                                    isTransient,
-                                                    cfs.metadata,
-                                                    new MetadataCollector(txn.originals(), cfs.metadata().comparator, sstableLevel),
-                                                    SerializationHeader.make(cfs.metadata(), nonExpiredSSTables),
-                                                    cfs.indexManager.listIndexes(),
-                                                    txn);
+        SSTableWriter<?> writer = newWriterBuilder(descriptor).setMetadataCollector(collector)
+                                                              .setSerializationHeader(header)
+                                                              .setKeyCount(estimatedTotalKeys)
+                                                              .build(txn);
         sstableWriter.switchWriter(writer);
     }
 

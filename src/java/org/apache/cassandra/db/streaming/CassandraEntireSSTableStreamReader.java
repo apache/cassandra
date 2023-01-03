@@ -25,16 +25,20 @@ import java.util.function.UnaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.SSTableZeroCopyWriter;
+import org.apache.cassandra.io.sstable.format.IOOptions;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamReceiver;
@@ -177,8 +181,24 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
 
         Descriptor desc = cfs.newSSTableDescriptor(dataDir, header.version, header.format);
 
-        logger.debug("[Table #{}] {} Components to write: {}", cfs.metadata(), desc.filenameFor(Component.DATA), components);
+        IOOptions ioOptions = new IOOptions(DatabaseDescriptor.getDiskOptimizationStrategy(),
+                                            DatabaseDescriptor.getDiskAccessMode(),
+                                            DatabaseDescriptor.getIndexAccessMode(),
+                                            DatabaseDescriptor.getDiskOptimizationEstimatePercentile(),
+                                            SequentialWriterOption.newBuilder()
+                                                                  .trickleFsync(false)
+                                                                  .bufferSize(2 << 20)
+                                                                  .bufferType(BufferType.OFF_HEAP)
+                                                                  .build(),
+                                            DatabaseDescriptor.getFlushCompression());
 
-        return new SSTableZeroCopyWriter(desc, cfs.metadata, lifecycleNewTracker, components);
+        logger.debug("[Table #{}] {} Components to write: {}", cfs.metadata(), desc.filenameFor(Component.DATA), components);
+        return desc.getFormat()
+                   .getWriterFactory()
+                   .builder(desc)
+                   .setComponents(components)
+                   .setTableMetadataRef(cfs.metadata)
+                   .setIOOptions(ioOptions)
+                   .createZeroCopyWriter(lifecycleNewTracker);
     }
 }

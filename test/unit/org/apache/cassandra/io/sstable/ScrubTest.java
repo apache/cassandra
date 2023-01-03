@@ -809,7 +809,21 @@ public class ScrubTest
     {
         SerializationHeader header = new SerializationHeader(true, metadata.get(), metadata.get().regularAndStaticColumns(), EncodingStats.NO_STATS);
         MetadataCollector collector = new MetadataCollector(metadata.get().comparator).sstableLevel(0);
-        return new TestMultiWriter(descriptor.getFormat().getWriterFactory().open(descriptor, keyCount, 0, null, false, metadata, collector, header, Collections.emptyList(), txn), txn);
+        SSTableWriter<?> writer = descriptor.getFormat()
+                                         .getWriterFactory()
+                                         .builder(descriptor)
+                                         .setKeyCount(keyCount)
+                                         .setRepairedAt(0)
+                                         .setPendingRepair(null)
+                                         .setTransientSSTable(false)
+                                         .setTableMetadataRef(metadata)
+                                         .setMetadataCollector(collector)
+                                         .setSerializationHeader(header)
+                                         .setFlushObservers(Collections.emptyList())
+                                         .addDefaultComponents()
+                                         .build(txn);
+
+        return new TestMultiWriter(writer, txn);
     }
 
     private static class TestMultiWriter extends SimpleSSTableMultiWriter

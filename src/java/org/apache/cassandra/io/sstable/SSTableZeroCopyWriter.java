@@ -30,19 +30,14 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.sstable.format.IOOptions;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.SequentialWriter;
-import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.net.AsyncStreamingInputPlus;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadataRef;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.utils.FBUtilities.prettyPrintMemory;
@@ -54,23 +49,10 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     private volatile SSTableReader finalReader;
     private final Map<Component.Type, SequentialWriter> componentWriters;
 
-    public SSTableZeroCopyWriter(Descriptor descriptor,
-                                 TableMetadataRef metadata,
-                                 LifecycleNewTracker lifecycleNewTracker,
-                                 final Collection<Component> components)
+    public SSTableZeroCopyWriter(SSTableBuilder<?, ?> builder,
+                                 LifecycleNewTracker lifecycleNewTracker)
     {
-        super(new SSTableBuilder<>(descriptor).setComponents(components)
-                                              .setTableMetadataRef(metadata)
-                                              .setIOOptions(new IOOptions(DatabaseDescriptor.getDiskOptimizationStrategy(),
-                                                                          DatabaseDescriptor.getDiskAccessMode(),
-                                                                          DatabaseDescriptor.getIndexAccessMode(),
-                                                                          DatabaseDescriptor.getDiskOptimizationEstimatePercentile(),
-                                                                          SequentialWriterOption.newBuilder()
-                                                                                                .trickleFsync(false)
-                                                                                                .bufferSize(2 << 20)
-                                                                                                .bufferType(BufferType.OFF_HEAP)
-                                                                                                .build(),
-                                                                          DatabaseDescriptor.getFlushCompression())));
+        super(builder);
 
         lifecycleNewTracker.trackNew(this);
         this.componentWriters = new EnumMap<>(Component.Type.class);

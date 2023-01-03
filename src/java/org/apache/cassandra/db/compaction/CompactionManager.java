@@ -1552,16 +1552,18 @@ public class CompactionManager implements CompactionManagerMBean
     {
         FileUtils.createDirectory(compactionFileLocation);
 
-        return SSTableWriter.create(cfs.metadata,
-                                    cfs.newSSTableDescriptor(compactionFileLocation),
-                                    expectedBloomFilterSize,
-                                    repairedAt,
-                                    pendingRepair,
-                                    isTransient,
-                                    sstable.getSSTableLevel(),
-                                    sstable.header,
-                                    cfs.indexManager.listIndexes(),
-                                    txn);
+        Descriptor descriptor = cfs.newSSTableDescriptor(compactionFileLocation);
+        return descriptor.getFormat().getWriterFactory().builder(descriptor)
+                         .setKeyCount(expectedBloomFilterSize)
+                         .setRepairedAt(repairedAt)
+                         .setPendingRepair(pendingRepair)
+                         .setTransientSSTable(isTransient)
+                         .setTableMetadataRef(cfs.metadata)
+                         .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator).sstableLevel(sstable.getSSTableLevel()))
+                         .setSerializationHeader(sstable.header)
+                         .addDefaultComponents()
+                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
+                         .build(txn);
     }
 
     public static SSTableWriter<?> createWriterForAntiCompaction(ColumnFamilyStore cfs,
@@ -1589,16 +1591,19 @@ public class CompactionManager implements CompactionManagerMBean
                 break;
             }
         }
-        return SSTableWriter.create(cfs.newSSTableDescriptor(compactionFileLocation),
-                                    (long) expectedBloomFilterSize,
-                                    repairedAt,
-                                    pendingRepair,
-                                    isTransient,
-                                    cfs.metadata,
-                                    new MetadataCollector(sstables, cfs.metadata().comparator, minLevel),
-                                    SerializationHeader.make(cfs.metadata(), sstables),
-                                    cfs.indexManager.listIndexes(),
-                                    txn);
+
+        Descriptor descriptor = cfs.newSSTableDescriptor(compactionFileLocation);
+        return descriptor.getFormat().getWriterFactory().builder(descriptor)
+                         .setKeyCount(expectedBloomFilterSize)
+                         .setRepairedAt(repairedAt)
+                         .setPendingRepair(pendingRepair)
+                         .setTransientSSTable(isTransient)
+                         .setTableMetadataRef(cfs.metadata)
+                         .setMetadataCollector(new MetadataCollector(sstables, cfs.metadata().comparator, minLevel))
+                         .setSerializationHeader(SerializationHeader.make(cfs.metadata(), sstables))
+                         .addDefaultComponents()
+                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
+                         .build(txn);
     }
 
     /**

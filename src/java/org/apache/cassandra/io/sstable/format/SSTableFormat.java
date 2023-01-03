@@ -40,7 +40,7 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter<
     Version getLatestVersion();
     Version getVersion(String version);
 
-    SSTableWriter.Factory getWriterFactory();
+    SSTableWriter.Factory<W, ?> getWriterFactory();
     SSTableReaderFactory<R, ?> getReaderFactory();
 
     Set<Component> supportedComponents();
@@ -73,7 +73,7 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter<
         //The original sstable format
         BIG("big", BigFormat.instance);
 
-        public final SSTableFormat info;
+        public final SSTableFormat<?, ?> info;
         public final String name;
 
         public static Type current()
@@ -81,7 +81,7 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter<
             return BIG;
         }
 
-        Type(String name, SSTableFormat info)
+        Type(String name, SSTableFormat<?, ?> info)
         {
             //Since format comes right after generation
             //we disallow formats with numeric names

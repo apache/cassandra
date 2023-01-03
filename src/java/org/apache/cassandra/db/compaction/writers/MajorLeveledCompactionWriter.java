@@ -25,6 +25,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -91,16 +92,18 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     {
         sstableDirectory = location;
         averageEstimatedKeysPerSSTable = Math.round(((double) averageEstimatedKeysPerSSTable * sstablesWritten + partitionsWritten) / (sstablesWritten + 1));
-        sstableWriter.switchWriter(SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory)),
-                keysPerSSTable,
-                minRepairedAt,
-                pendingRepair,
-                isTransient,
-                cfs.metadata,
-                new MetadataCollector(txn.originals(), cfs.metadata().comparator, currentLevel),
-                SerializationHeader.make(cfs.metadata(), txn.originals()),
-                cfs.indexManager.listIndexes(),
-                txn));
+
+        Descriptor descriptor = cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory));
+        MetadataCollector collector = new MetadataCollector(txn.originals(), cfs.metadata().comparator, currentLevel);
+        SerializationHeader serializationHeader = SerializationHeader.make(cfs.metadata(), txn.originals());
+
+        @SuppressWarnings("resource")
+        SSTableWriter<?> writer = newWriterBuilder(descriptor).setKeyCount(keysPerSSTable)
+                                                              .setSerializationHeader(serializationHeader)
+                                                              .setMetadataCollector(collector)
+                                                              .build(txn);
+
+        sstableWriter.switchWriter(writer);
         partitionsWritten = 0;
         sstablesWritten = 0;
     }

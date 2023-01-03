@@ -25,6 +25,7 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -92,18 +93,16 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
     public void switchCompactionLocation(Directories.DataDirectory location)
     {
         sstableDirectory = location;
-        @SuppressWarnings("resource")
-        SSTableWriter<?> writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory)),
-                                                    estimatedTotalKeys / estimatedSSTables,
-                                                    minRepairedAt,
-                                                    pendingRepair,
-                                                    isTransient,
-                                                    cfs.metadata,
-                                                    new MetadataCollector(allSSTables, cfs.metadata().comparator, level),
-                                                    SerializationHeader.make(cfs.metadata(), nonExpiredSSTables),
-                                                    cfs.indexManager.listIndexes(),
-                                                    txn);
 
+        Descriptor descriptor = cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory));
+        MetadataCollector collector = new MetadataCollector(allSSTables, cfs.metadata().comparator, level);
+        SerializationHeader header = SerializationHeader.make(cfs.metadata(), nonExpiredSSTables);
+
+        @SuppressWarnings("resource")
+        SSTableWriter<?> writer = newWriterBuilder(descriptor).setKeyCount(estimatedTotalKeys / estimatedSSTables)
+                                                              .setMetadataCollector(collector)
+                                                              .setSerializationHeader(header)
+                                                              .build(txn);
         sstableWriter.switchWriter(writer);
     }
 
