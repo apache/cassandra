@@ -59,6 +59,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "failures");
     private volatile int failures = 0;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
+    private final boolean couldSpeculate;
 
     public ReadCallback(ResponseResolver<E, P> resolver, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
@@ -70,6 +71,12 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
         assert !(command instanceof PartitionRangeReadCommand) || blockFor >= replicaPlan().contacts().size();
+        SpeculativeRetryPolicy retry = replicaPlan()
+                .keyspace()
+                .getColumnFamilyStore(command.metadata().id)
+                .metadata()
+                .params.speculativeRetry;
+        this.couldSpeculate = !NeverSpeculativeRetryPolicy.INSTANCE.equals(retry);
 
         if (logger.isTraceEnabled())
             logger.trace("Blockfor is {}; setting up requests to {}", blockFor, this.replicaPlan);
@@ -172,7 +179,12 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                 
         failureReasonByEndpoint.put(from, failureReason);
 
-        if (blockFor + failuresUpdater.incrementAndGet(this) > replicaPlan().contacts().size())
+        int numContacts = replicaPlan().contacts().size();
+        int numCandidates = replicaPlan().candidates().size();
+        // If potentially there is a replica which could be requested as part of the speculative read path
+        // then increase the number of nodes we wait for in case of failures.
+        int failFastPoint = (numContacts < numCandidates && couldSpeculate) ? numContacts + 1 : numContacts;
+        if (blockFor + failuresUpdater.incrementAndGet(this) > failFastPoint)
             condition.signalAll();
     }
 
