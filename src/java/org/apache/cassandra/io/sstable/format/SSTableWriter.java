@@ -327,7 +327,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                                   repairedAt,
                                                   pendingRepair,
                                                   isTransient,
-                                                  header);
+                                                  header,
+                                                  SSTable.getMinimalKey(first).getKey(),
+                                                  SSTable.getMinimalKey(last).getKey());
     }
 
     protected StatsMetadata statsMetadata()
