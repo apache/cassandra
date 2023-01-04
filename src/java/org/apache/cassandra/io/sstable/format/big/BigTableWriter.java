@@ -304,7 +304,7 @@ public class BigTableWriter extends SSTableWriter
         @Override
         public RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
         {
-            collector.updateClusteringValues(marker.clustering());
+            collector.updateClusteringValuesByBoundOrBoundary(marker.clustering());
             if (marker.isBoundary())
             {
                 RangeTombstoneBoundaryMarker bm = (RangeTombstoneBoundaryMarker)marker;
@@ -327,7 +327,7 @@ public class BigTableWriter extends SSTableWriter
         @Override
         public DeletionTime applyToDeletion(DeletionTime deletionTime)
         {
-            collector.update(deletionTime);
+            collector.updatePartitionDeletion(deletionTime);
             return deletionTime;
         }
     }

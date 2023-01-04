@@ -18,14 +18,7 @@
 
 package org.apache.cassandra.db.marshal;
 
-import org.apache.cassandra.db.AbstractArrayClusteringPrefix;
-import org.apache.cassandra.db.ArrayClustering;
-import org.apache.cassandra.db.ArrayClusteringBound;
-import org.apache.cassandra.db.ArrayClusteringBoundary;
-import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.ClusteringBound;
-import org.apache.cassandra.db.ClusteringBoundary;
-import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.ArrayCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
@@ -74,6 +67,13 @@ class ByteArrayObjectFactory implements ValueAccessor.ObjectFactory<byte[]>
     private static final ArrayClusteringBound TOP_BOUND = new ArrayClusteringBound(ClusteringPrefix.Kind.INCL_END_BOUND,
                                                                                    AbstractArrayClusteringPrefix.EMPTY_VALUES_ARRAY);
 
+    /** The biggest start bound, i.e. the one that starts after any row. */
+    private static final ArrayClusteringBound MAX_START_BOUND = new ArrayClusteringBound(ClusteringPrefix.Kind.EXCL_START_BOUND,
+                                                                                      AbstractArrayClusteringPrefix.EMPTY_VALUES_ARRAY);
+    /** The smallest end bound, i.e. the one that end before any row. */
+    private static final ArrayClusteringBound MIN_END_BOUND = new ArrayClusteringBound(ClusteringPrefix.Kind.EXCL_END_BOUND,
+                                                                                   AbstractArrayClusteringPrefix.EMPTY_VALUES_ARRAY);
+
     public Cell<byte[]> cell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, byte[] value, CellPath path)
     {
         return new ArrayCell(column, timestamp, ttl, localDeletionTime, value, path);
@@ -101,7 +101,15 @@ class ByteArrayObjectFactory implements ValueAccessor.ObjectFactory<byte[]>
 
     public ClusteringBound<byte[]> bound(ClusteringPrefix.Kind kind)
     {
-        return kind.isStart() ? BOTTOM_BOUND : TOP_BOUND;
+        switch (kind)
+        {
+            case EXCL_END_BOUND: return MIN_END_BOUND;
+            case INCL_START_BOUND: return BOTTOM_BOUND;
+            case INCL_END_BOUND: return TOP_BOUND;
+            case EXCL_START_BOUND: return MAX_START_BOUND;
+            default:
+                throw new AssertionError(String.format("Unexpected kind %s for empty bound or boundary", kind));
+        }
     }
 
     public ClusteringBoundary<byte[]> boundary(ClusteringPrefix.Kind kind, byte[]... values)

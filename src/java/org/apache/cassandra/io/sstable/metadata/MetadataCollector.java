@@ -18,37 +18,42 @@
 package org.apache.cassandra.io.sstable.metadata;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import com.google.common.base.Preconditions;
-
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringBoundOrBoundary;
+import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 import org.apache.cassandra.utils.streamhist.StreamingTombstoneHistogramBuilder;
+import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 
 public class MetadataCollector implements PartitionStatisticsCollector
 {
     public static final double NO_COMPRESSION_RATIO = -1.0;
-    private static final ByteBuffer[] EMPTY_CLUSTERING = new ByteBuffer[0];
 
     static EstimatedHistogram defaultCellPerPartitionCountHistogram()
     {
@@ -82,15 +87,18 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  NO_COMPRESSION_RATIO,
                                  defaultTombstoneDropTimeHistogram(),
                                  0,
-                                 Collections.<ByteBuffer>emptyList(),
-                                 Collections.<ByteBuffer>emptyList(),
+                                 Collections.emptyList(),
+                                 Slice.ALL,
                                  true,
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                  -1,
                                  -1,
                                  null,
                                  null,
-                                 false);
+                                 false,
+                                 true,
+                                 ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                 ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
     protected EstimatedHistogram estimatedPartitionSize = defaultPartitionSizeHistogram();
@@ -103,9 +111,25 @@ public class MetadataCollector implements PartitionStatisticsCollector
     protected double compressionRatio = NO_COMPRESSION_RATIO;
     protected StreamingTombstoneHistogramBuilder estimatedTombstoneDropTime = new StreamingTombstoneHistogramBuilder(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS);
     protected int sstableLevel;
-    private ClusteringPrefix<?> minClustering = null;
-    private ClusteringPrefix<?> maxClustering = null;
+
+    /**
+     * The smallest clustering prefix for any {@link Unfiltered} in the sstable.
+     *
+     * <p>This is always either a Clustering, or a start bound (since for any end range tombstone bound, there should
+     * be a corresponding start bound that is smaller).
+     */
+    private ClusteringPrefix<?> minClustering = ClusteringBound.MAX_START;
+    /**
+     * The largest clustering prefix for any {@link Unfiltered} in the sstable.
+     *
+     * <p>This is always either a Clustering, or an end bound (since for any start range tombstone bound, there should
+     * be a corresponding end bound that is bigger).
+     */
+    private ClusteringPrefix<?> maxClustering = ClusteringBound.MIN_END;
+    private boolean clusteringInitialized = false;
+
     protected boolean hasLegacyCounterShards = false;
+    private boolean hasPartitionLevelDeletions = false;
     protected long totalColumnsSet;
     protected long totalRows;
     public int totalTombstones;
@@ -201,6 +225,12 @@ public class MetadataCollector implements PartitionStatisticsCollector
             updateTombstoneCount();
     }
 
+    public void updatePartitionDeletion(DeletionTime dt)
+    {
+        if (!dt.isLive())
+            hasPartitionLevelDeletions = true;
+        update(dt);
+    }
     public void update(DeletionTime dt)
     {
         if (!dt.isLive())
@@ -251,11 +281,54 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return this;
     }
 
-    public MetadataCollector updateClusteringValues(ClusteringPrefix<?> clustering)
+    public void updateClusteringValues(Clustering<?> clustering)
     {
-        minClustering = minClustering == null || comparator.compare(clustering, minClustering) < 0 ? clustering : minClustering;
-        maxClustering = maxClustering == null || comparator.compare(clustering, maxClustering) > 0 ? clustering : maxClustering;
-        return this;
+        if (clustering == Clustering.STATIC_CLUSTERING)
+            return;
+
+        // In case of monotonically growing stream of clusterings, we will usually require only one comparison
+        // because if we detected X is greater than the current MAX, then it cannot be lower than the current MIN
+        // at the same time. The only case when we need to update MIN when the current MAX was detected to be updated
+        // is the case when MIN was not yet initialized and still point the ClusteringBound.MAX_START
+        if (comparator.compare(clustering, maxClustering) > 0)
+        {
+            maxClustering = clustering;
+            if (minClustering == ClusteringBound.MAX_START)
+                minClustering = clustering;
+        }
+        else if (comparator.compare(clustering, minClustering) < 0)
+        {
+            minClustering = clustering;
+        }
+    }
+
+    public void updateClusteringValuesByBoundOrBoundary(ClusteringBoundOrBoundary<?> clusteringBoundOrBoundary)
+    {
+        // In a SSTable, every opening marker will be closed, so the start of a range tombstone marker will never be
+        // the maxClustering (the corresponding close might though) and there is no point in doing the comparison
+        // (and vice-versa for the close). By the same reasoning, a boundary will never be either the min or max
+        // clustering, and we can save on comparisons.
+        if (clusteringBoundOrBoundary.isBoundary())
+            return;
+
+        // see the comment in updateClusteringValues(Clustering)
+        if (comparator.compare(clusteringBoundOrBoundary, maxClustering) > 0)
+        {
+            if (clusteringBoundOrBoundary.kind().isEnd())
+                maxClustering = clusteringBoundOrBoundary;
+
+            // note that since we excluded boundaries above, there is no way that the provided clustering prefix is
+            // a start and en end at the same time
+            else if (minClustering == ClusteringBound.MAX_START)
+                minClustering = clusteringBoundOrBoundary;
+        }
+        else if (comparator.compare(clusteringBoundOrBoundary, minClustering) < 0)
+        {
+            if (clusteringBoundOrBoundary.kind().isStart())
+                minClustering = clusteringBoundOrBoundary;
+            else if (maxClustering == ClusteringBound.MIN_END)
+                maxClustering = clusteringBoundOrBoundary;
+        }
     }
 
     public void updateHasLegacyCounterShards(boolean hasLegacyCounterShards)
@@ -263,12 +336,11 @@ public class MetadataCollector implements PartitionStatisticsCollector
         this.hasLegacyCounterShards = this.hasLegacyCounterShards || hasLegacyCounterShards;
     }
 
-    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, TimeUUID pendingRepair, boolean isTransient, SerializationHeader header)
+    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, TimeUUID pendingRepair, boolean isTransient, SerializationHeader header, ByteBuffer firstKey, ByteBuffer lastKey)
     {
-        Preconditions.checkState((minClustering == null && maxClustering == null)
-                                 || comparator.compare(maxClustering, minClustering) >= 0);
-        ByteBuffer[] minValues = minClustering != null ? minClustering.retainable().getBufferArray() : EMPTY_CLUSTERING;
-        ByteBuffer[] maxValues = maxClustering != null ? maxClustering.retainable().getBufferArray() : EMPTY_CLUSTERING;
+        assert minClustering.kind() == ClusteringPrefix.Kind.CLUSTERING || minClustering.kind().isStart();
+        assert maxClustering.kind() == ClusteringPrefix.Kind.CLUSTERING || maxClustering.kind().isEnd();
+
         Map<MetadataType, MetadataComponent> components = new EnumMap<>(MetadataType.class);
         components.put(MetadataType.VALIDATION, new ValidationMetadata(partitioner, bloomFilterFPChance));
         components.put(MetadataType.STATS, new StatsMetadata(estimatedPartitionSize,
@@ -283,15 +355,18 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              compressionRatio,
                                                              estimatedTombstoneDropTime.build(),
                                                              sstableLevel,
-                                                             makeList(minValues),
-                                                             makeList(maxValues),
+                                                             comparator.subtypes(),
+                                                             Slice.make(minClustering.retainable().asStartBound(), maxClustering.retainable().asEndBound()),
                                                              hasLegacyCounterShards,
                                                              repairedAt,
                                                              totalColumnsSet,
                                                              totalRows,
                                                              originatingHostId,
                                                              pendingRepair,
-                                                             isTransient));
+                                                             isTransient,
+                                                             hasPartitionLevelDeletions,
+                                                             firstKey,
+                                                             lastKey));
         components.put(MetadataType.COMPACTION, new CompactionMetadata(cardinality));
         components.put(MetadataType.HEADER, header.toComponent());
         return components;
@@ -303,18 +378,6 @@ public class MetadataCollector implements PartitionStatisticsCollector
     public void release()
     {
         estimatedTombstoneDropTime.releaseBuffers();
-    }
-
-    private static List<ByteBuffer> makeList(ByteBuffer[] values)
-    {
-        // In most case, l will be the same size than values, but it's possible for it to be smaller
-        List<ByteBuffer> l = new ArrayList<ByteBuffer>(values.length);
-        for (int i = 0; i < values.length; i++)
-            if (values[i] == null)
-                break;
-            else
-                l.add(values[i]);
-        return l;
     }
 
     public static class MinMaxLongTracker

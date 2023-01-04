@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IndexSummary;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -182,14 +183,18 @@ public class MockSchema
             SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
             MetadataCollector collector = new MetadataCollector(cfs.metadata().comparator);
             collector.update(new DeletionTime(timestamp, minLocalDeletionTime));
+
+            BufferDecoratedKey first = readerBounds(firstToken);
+            BufferDecoratedKey last = readerBounds(lastToken);
+
             StatsMetadata metadata = (StatsMetadata) collector.sstableLevel(level)
-                                                              .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header)
+                                                              .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header, SSTable.getMinimalKey(first).getKey().slice(), SSTable.getMinimalKey(last).getKey().slice())
                                                               .get(MetadataType.STATS);
             SSTableReader reader = SSTableReader.internalOpen(descriptor, components, cfs.metadata,
                                                               fileHandle.sharedCopy(), fileHandle.sharedCopy(), indexSummary.sharedCopy(),
                                                               new AlwaysPresentFilter(), 1L, metadata, SSTableReader.OpenReason.NORMAL, header);
-            reader.first = readerBounds(firstToken);
-            reader.last = readerBounds(lastToken);
+            reader.first = first ;
+            reader.last = last;
             if (!keepRef)
                 reader.selfRef().release();
             return reader;

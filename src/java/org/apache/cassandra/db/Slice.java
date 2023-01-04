@@ -19,24 +19,28 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.List;
+import java.util.Objects;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.Comparables;
 
 /**
  * A slice represents the selection of a range of rows.
  * <p>
  * A slice has a start and an end bound that are both (potentially full) clustering prefixes.
- * A slice selects every rows whose clustering is bigger than the slice start prefix but smaller
- * than the end prefix. Both start and end can be either inclusive or exclusive.
+ * A slice selects every row whose clustering is included within its start and end bounds.
+ * Both start and end can be either inclusive or exclusive.
  */
 public class Slice
 {
     public static final Serializer serializer = new Serializer();
 
-    /** The slice selecting all rows (of a given partition) */
+    /**
+     * The slice selecting all rows (of a given partition)
+     */
     public static final Slice ALL = new Slice(BufferClusteringBound.BOTTOM, BufferClusteringBound.TOP)
     {
         @Override
@@ -46,9 +50,9 @@ public class Slice
         }
 
         @Override
-        public boolean intersects(ClusteringComparator comparator, List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues)
+        public boolean intersects(ClusteringComparator comparator, Slice other)
         {
-            return true;
+            return !other.isEmpty(comparator);
         }
 
         @Override
@@ -91,6 +95,9 @@ public class Slice
         return new Slice(builder.buildBound(true, true), builder.buildBound(false, true));
     }
 
+    /**
+     * Makes a slice covering a single clustering
+     */
     public static Slice make(Clustering<?> clustering)
     {
         // This doesn't give us what we want with the clustering prefix
@@ -98,12 +105,23 @@ public class Slice
         return new Slice(ClusteringBound.inclusiveStartOf(clustering), ClusteringBound.inclusiveEndOf(clustering));
     }
 
+    /**
+     * Makes a slice covering a range from start to end clusterings, with both start and end included
+     */
     public static Slice make(Clustering<?> start, Clustering<?> end)
     {
         // This doesn't give us what we want with the clustering prefix
         assert start != Clustering.STATIC_CLUSTERING && end != Clustering.STATIC_CLUSTERING;
-
         return new Slice(ClusteringBound.inclusiveStartOf(start), ClusteringBound.inclusiveEndOf(end));
+    }
+
+    /**
+     * Makes a slice for the given bounds
+     */
+    public static Slice make(ClusteringBoundOrBoundary<?> start, ClusteringBoundOrBoundary<?> end)
+    {
+        // This doesn't give us what we want with the clustering prefix
+        return make(start.asStartBound(), end.asEndBound());
     }
 
     public ClusteringBound<?> start()
@@ -141,31 +159,23 @@ public class Slice
      * Return whether the slice formed by the two provided bound is empty or not.
      *
      * @param comparator the comparator to compare the bounds.
-     * @param start the start for the slice to consider. This must be a start bound.
-     * @param end the end for the slice to consider. This must be an end bound.
+     * @param start      the start for the slice to consider. This must be a start bound.
+     * @param end        the end for the slice to consider. This must be an end bound.
      * @return whether the slice formed by {@code start} and {@code end} is
      * empty or not.
      */
     public static boolean isEmpty(ClusteringComparator comparator, ClusteringBound<?> start, ClusteringBound<?> end)
     {
         assert start.isStart() && end.isEnd();
-
-        int cmp = comparator.compare(start, end);
-
-        if (cmp < 0)
-            return false;
-        else if (cmp > 0)
-            return true;
-        else
-            return start.isExclusive() || end.isExclusive();
+        // Note: the comparator orders inclusive starts and exclusive ends as equal, and inclusive ends as being greater than starts.
+        return comparator.compare(start, end) >= 0;
     }
 
     /**
      * Returns whether a given clustering or bound is included in this slice.
      *
      * @param comparator the comparator for the table this is a slice of.
-     * @param bound the bound to test inclusion of.
-     *
+     * @param bound      the bound to test inclusion of.
      * @return whether {@code bound} is within the bounds of this slice.
      */
     public boolean includes(ClusteringComparator comparator, ClusteringPrefix<?> bound)
@@ -176,13 +186,12 @@ public class Slice
     /**
      * Returns a slice for continuing paging from the last returned clustering prefix.
      *
-     * @param comparator the comparator for the table this is a filter for.
+     * @param comparator   the comparator for the table this is a filter for.
      * @param lastReturned the last clustering that was returned for the query we are paging for. The
-     * resulting slices will be such that only results coming stricly after {@code lastReturned} are returned
-     * (where coming after means "greater than" if {@code !reversed} and "lesser than" otherwise).
-     * @param inclusive whether or not we want to include the {@code lastReturned} in the newly returned page of results.
-     * @param reversed whether the query we're paging for is reversed or not.
-     *
+     *                     resulting slices will be such that only results coming stricly after {@code lastReturned} are returned
+     *                     (where coming after means "greater than" if {@code !reversed} and "lesser than" otherwise).
+     * @param inclusive    whether we want to include the {@code lastReturned} in the newly returned page of results.
+     * @param reversed     whether the query we're paging for is reversed or not.
      * @return a new slice that selects results coming after {@code lastReturned}, or {@code null} if paging
      * the resulting slice selects nothing (i.e. if it originally selects nothing coming after {@code lastReturned}).
      */
@@ -229,20 +238,18 @@ public class Slice
     }
 
     /**
-     * Given the per-clustering column minimum and maximum value a sstable contains, whether or not this slice potentially
-     * intersects that sstable or not.
+     * Whether this slice and the provided slice intersects.
      *
      * @param comparator the comparator for the table this is a slice of.
-     * @param minClusteringValues the smallest values for each clustering column that a sstable contains.
-     * @param maxClusteringValues the biggest values for each clustering column that a sstable contains.
-     *
-     * @return whether the slice might intersects with the sstable having {@code minClusteringValues} and
-     * {@code maxClusteringValues}.
+     * @param other      the other slice to check intersection with.
+     * @return whether this slice intersects {@code other}.
      */
-    public boolean intersects(ClusteringComparator comparator, List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues)
+    public boolean intersects(ClusteringComparator comparator, Slice other)
     {
-        // If this slice starts after max clustering or ends before min clustering, it can't intersect
-        return start.compareTo(comparator, maxClusteringValues) <= 0 && end.compareTo(comparator, minClusteringValues) >= 0;
+        // Construct the intersection of the two slices and check if it is non-empty.
+        // This also works correctly when one or more of the inputs are be empty (i.e. with end <= start).
+        return comparator.compare(Comparables.max(start, other.start, comparator),
+                                  Comparables.min(end, other.end, comparator)) < 0;
     }
 
     public String toString(ClusteringComparator comparator)
@@ -269,12 +276,12 @@ public class Slice
     @Override
     public boolean equals(Object other)
     {
-        if(!(other instanceof Slice))
+        if (!(other instanceof Slice))
             return false;
 
-        Slice that = (Slice)other;
+        Slice that = (Slice) other;
         return this.start().equals(that.start())
-            && this.end().equals(that.end());
+               && this.end().equals(that.end());
     }
 
     @Override
@@ -294,7 +301,7 @@ public class Slice
         public long serializedSize(Slice slice, int version, List<AbstractType<?>> types)
         {
             return ClusteringBound.serializer.serializedSize(slice.start, version, types)
-                 + ClusteringBound.serializer.serializedSize(slice.end, version, types);
+                   + ClusteringBound.serializer.serializedSize(slice.end, version, types);
         }
 
         public Slice deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException

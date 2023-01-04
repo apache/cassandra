@@ -124,6 +124,8 @@ New features
       - `mask_hash` replaces the data by its hash, according to the specified algorithm.
     - On virtual tables, it is not strictly necessary to specify `ALLOW FILTERING` for select statements which would
       normally require it, except `system_views.system_logs`.
+    - More accurate skipping of sstables in read path due to better handling of min/max clustering and lower bound;
+      SSTable format has been bumped to 'nc' because there are new fields in stats metadata
 
 Upgrading
 ---------

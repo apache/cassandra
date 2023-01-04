@@ -42,6 +42,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -1275,9 +1276,10 @@ public class LogTransactionTest extends AbstractTransactionalTest
         FileHandle dFile = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).complete();
         FileHandle iFile = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX)).complete();
 
+        DecoratedKey key = MockSchema.readerBounds(generation);
         SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
         StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
-                                                 .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, null, false, header)
+                                                 .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, null, false, header, key.getKey().slice(), key.getKey().slice())
                                                  .get(MetadataType.STATS);
         SSTableReader reader = SSTableReader.internalOpen(descriptor,
                                                           components,
@@ -1290,7 +1292,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                                           metadata,
                                                           SSTableReader.OpenReason.NORMAL,
                                                           header);
-        reader.first = reader.last = MockSchema.readerBounds(generation);
+        reader.first = reader.last = key;
         return reader;
     }
 

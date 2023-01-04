@@ -395,10 +395,11 @@ public abstract class MergeIterator<In,Out> extends AbstractIterator<Out> implem
 
         private boolean isLowerBound()
         {
+            assert item != null;
             return item == lowerBound;
         }
 
-        public void consume(Reducer reducer)
+        public <Out> void consume(Reducer<In, Out> reducer)
         {
             if (isLowerBound())
             {

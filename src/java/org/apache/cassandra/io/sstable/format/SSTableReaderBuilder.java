@@ -88,6 +88,12 @@ public abstract class SSTableReaderBuilder
         this.openReason = openReason;
         this.header = header;
         this.readerFactory = descriptor.getFormat().getReaderFactory();
+
+        if (statsMetadata.firstKey != null && statsMetadata.lastKey != null)
+        {
+            this.first = metadata.partitioner.decorateKey(statsMetadata.firstKey);
+            this.last = metadata.partitioner.decorateKey(statsMetadata.lastKey);
+        }
     }
 
     public abstract SSTableReader build();
@@ -140,8 +146,13 @@ public abstract class SSTableReaderBuilder
                                                           metadata.partitioner,
                                                           metadata.params.minIndexInterval,
                                                           metadata.params.maxIndexInterval);
-            first = metadata.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
-            last = metadata.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
+            if (first == null || last == null)
+            {
+                // this is a legacy code in order to be able to load older sstables
+                // since version 'nc', first and last keys are stored in stats file
+                first = metadata.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
+                last = metadata.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
+            }
         }
         catch (IOException e)
         {

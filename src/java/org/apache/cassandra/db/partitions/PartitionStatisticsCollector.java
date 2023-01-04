@@ -22,9 +22,10 @@ import org.apache.cassandra.db.rows.Cell;
 
 public interface PartitionStatisticsCollector
 {
-    public void update(LivenessInfo info);
-    public void update(DeletionTime deletionTime);
-    public void update(Cell<?> cell);
-    public void updateColumnSetPerRow(long columnSetInRow);
-    public void updateHasLegacyCounterShards(boolean hasLegacyCounterShards);
+    void update(LivenessInfo info);
+    void updatePartitionDeletion(DeletionTime dt);
+    void update(DeletionTime deletionTime);
+    void update(Cell<?> cell);
+    void updateColumnSetPerRow(long columnSetInRow);
+    void updateHasLegacyCounterShards(boolean hasLegacyCounterShards);
 }
