@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
@@ -31,7 +30,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.transform.RTBoundValidator;
-import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
@@ -155,7 +153,7 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     @Override
     public DeletionTime partitionLevelDeletion()
     {
-        if (!sstable.mayHaveTombstones())
+        if (!sstable.getSSTableMetadata().hasPartitionLevelDeletions)
             return DeletionTime.LIVE;
 
         return super.partitionLevelDeletion();
@@ -189,25 +187,11 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
         if (!canUseMetadataLowerBound())
             maybeInit();
 
-        RowIndexEntry rowIndexEntry = sstable.getCachedPosition(partitionKey(), false);
-        if (rowIndexEntry == null || !rowIndexEntry.indexOnHeap())
+        ClusteringPrefix<?> lowerBoundPrefix = sstable.getLowerBoundPrefixFromCache(partitionKey(), filter);
+        if (lowerBoundPrefix == null)
             return null;
 
-        try (RowIndexEntry.IndexInfoRetriever onHeapRetriever = rowIndexEntry.openWithIndex(null))
-        {
-            IndexInfo column = onHeapRetriever.columnsIndex(filter.isReversed() ? rowIndexEntry.columnsIndexCount() - 1 : 0);
-            ClusteringPrefix<?> lowerBoundPrefix = filter.isReversed() ? column.lastName : column.firstName;
-            assert lowerBoundPrefix.getRawValues().length <= metadata().comparator.size() :
-            String.format("Unexpected number of clustering values %d, expected %d or fewer for %s",
-                          lowerBoundPrefix.getRawValues().length,
-                          metadata().comparator.size(),
-                          sstable.getFilename());
-            return createInclusiveOpen(filter.isReversed(), lowerBoundPrefix);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("should never occur", e);
-        }
+        return createInclusiveOpen(filter.isReversed(), lowerBoundPrefix);
     }
 
     /**

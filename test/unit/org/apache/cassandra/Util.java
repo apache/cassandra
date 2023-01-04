@@ -465,10 +465,10 @@ public class Util
             assert iterator.hasNext() : "Expecting one row in one partition but got nothing";
             try (RowIterator partition = iterator.next())
             {
-                assert !iterator.hasNext() : "Expecting a single partition but got more";
                 assert partition.hasNext() : "Expecting one row in one partition but got an empty partition";
                 Row row = partition.next();
                 assert !partition.hasNext() : "Expecting a single row but got more";
+                assert !iterator.hasNext() : "Expecting a single partition but got more";
                 return row;
             }
         }
@@ -1236,4 +1236,5 @@ public class Util
     {
         view.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
+
 }

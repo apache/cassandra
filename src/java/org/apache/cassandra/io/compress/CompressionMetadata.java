@@ -17,14 +17,12 @@
  */
 package org.apache.cassandra.io.compress;
 
-import java.nio.file.NoSuchFileException;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.EOFException;
-
-import org.apache.cassandra.io.util.*;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,13 +37,12 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.utils.concurrent.Transactional;
 import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.Transactional;
 
 /**
  * Holds metadata about compressed file
@@ -62,39 +59,12 @@ public class CompressionMetadata
     public final String indexFilePath;
     public final CompressionParams parameters;
 
-    /**
-     * Create metadata about given compressed file including uncompressed data length, chunk size
-     * and list of the chunk offsets of the compressed data.
-     *
-     * This is an expensive operation! Don't create more than one for each
-     * sstable.
-     *
-     * @param dataFilePath Path to the compressed file
-     *
-     * @return metadata about given compressed file.
-     */
-    public static CompressionMetadata create(String dataFilePath)
-    {
-        return createWithLength(dataFilePath, new File(dataFilePath).length());
-    }
-
-    public static CompressionMetadata createWithLength(String dataFilePath, long compressedLength)
-    {
-        return new CompressionMetadata(Descriptor.fromFilename(dataFilePath), compressedLength);
-    }
-
     @VisibleForTesting
-    public CompressionMetadata(Descriptor desc, long compressedLength)
+    public CompressionMetadata(File indexFile, long compressedLength, boolean hasMaxCompressedSize)
     {
-        this(desc.filenameFor(Component.COMPRESSION_INFO), compressedLength, desc.version.hasMaxCompressedLength());
-    }
+        this.indexFilePath = indexFile.path();
 
-    @VisibleForTesting
-    public CompressionMetadata(String indexFilePath, long compressedLength, boolean hasMaxCompressedSize)
-    {
-        this.indexFilePath = indexFilePath;
-
-        try (FileInputStreamPlus stream = new File(indexFilePath).newInputStream())
+        try (FileInputStreamPlus stream = indexFile.newInputStream())
         {
             String compressorName = stream.readUTF();
             int optionCount = stream.readInt();

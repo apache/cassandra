@@ -422,12 +422,12 @@ public class SSTablesIteratedTest extends CQLTester
 
         if (deleteWithRange)
         {
-            execute("DELETE FROM %s WHERE id =1 and col <= ?", 1000);
+            execute("DELETE FROM %s WHERE id = 1 and col <= ?", 1000);
         }
         else
         {
             for (int i = 1; i <= 1000; i++)
-                execute("DELETE FROM %s WHERE id=1 and col = ?", i);
+                execute("DELETE FROM %s WHERE id = 1 and col = ?", i);
         }
         flush();
 
@@ -435,9 +435,11 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT * FROM %s WHERE id=1 LIMIT 2", 3, row(1, 1001, "1001"), row(1, 1002, "1002"));
 
         executeAndCheck("SELECT * FROM %s WHERE id=1", 3, allRows);
-        executeAndCheck("SELECT * FROM %s WHERE id=1 AND col > 1000 LIMIT 1", 2, row(1, 1001, "1001"));
+
+        executeAndCheck("SELECT * FROM %s WHERE id=1 AND col > 1000 LIMIT 1", deleteWithRange ? 2 : 1, row(1, 1001, "1001"));
+        executeAndCheck("SELECT * FROM %s WHERE id=1 AND col > 1000", deleteWithRange ? 2 : 1, allRows);
+
         executeAndCheck("SELECT * FROM %s WHERE id=1 AND col <= 2000 LIMIT 1", 3, row(1, 1001, "1001"));
-        executeAndCheck("SELECT * FROM %s WHERE id=1 AND col > 1000", 2, allRows);
         executeAndCheck("SELECT * FROM %s WHERE id=1 AND col <= 2000", 3, allRows);
     }
 
@@ -519,10 +521,15 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT * FROM %s WHERE id=1 LIMIT 2", 2, row(1, 1, "1", "1"), row(1, 2, "2", null));
 
         executeAndCheck("SELECT * FROM %s WHERE id=1", 2, allRows);
+
         executeAndCheck("SELECT * FROM %s WHERE id=1 AND col > 1000 LIMIT 1", 2, row(1, 1001, "1001", "1001"));
-        executeAndCheck("SELECT * FROM %s WHERE id=1 AND col <= 2000 LIMIT 1", 2, row(1, 1, "1", "1"));
+
         executeAndCheck("SELECT * FROM %s WHERE id=1 AND col > 500 LIMIT 1", 2, row(1, 751, "751", "751"));
+
+        executeAndCheck("SELECT * FROM %s WHERE id=1 AND col <= 2000 LIMIT 1", 2, row(1, 1, "1", "1"));
         executeAndCheck("SELECT * FROM %s WHERE id=1 AND col <= 500 LIMIT 1", 2, row(1, 1, "1", "1"));
+
+        executeAndCheck("SELECT * FROM %s WHERE id=1 AND col <= 2000 ORDER BY col DESC LIMIT 1", 1, row(1, 2000, "2000", null));
     }
 
     @Test
@@ -1038,7 +1045,7 @@ public class SSTablesIteratedTest extends CQLTester
         executeAndCheck("SELECT s, v FROM %s WHERE pk = 3 AND c = 3", 3, row(3, set(1)));
         executeAndCheck("SELECT v FROM %s WHERE pk = 1 AND c = 1", 3, row(set(3)));
         executeAndCheck("SELECT v FROM %s WHERE pk = 2 AND c = 1", 2, row(set(3)));
-        executeAndCheck("SELECT v FROM %s WHERE pk = 3 AND c = 3", 3, row(set(1)));
+        executeAndCheck("SELECT v FROM %s WHERE pk = 3 AND c = 3", 1, row(set(1)));
         executeAndCheck("SELECT s FROM %s WHERE pk = 1", 3, row((Integer) null));
         executeAndCheck("SELECT s FROM %s WHERE pk = 2", 2, row(1), row(1));
         executeAndCheck("SELECT DISTINCT s FROM %s WHERE pk = 2", 2, row(1));

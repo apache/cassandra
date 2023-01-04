@@ -28,6 +28,7 @@ import java.util.Random;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
@@ -51,7 +52,6 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.repair.PendingAntiCompaction;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.db.SinglePartitionSliceCommandTest;
-import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.dht.IPartitioner;
@@ -68,6 +68,7 @@ import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.Collections.singleton;
@@ -332,7 +333,7 @@ public class LegacySSTableTest
 
             for (SSTableReader sstable : cfs.getLiveSSTables())
             {
-                try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().checkVersion(true).build()))
+                try (IVerifier verifier = sstable.getVerifier(new OutputHandler.LogOutput(), false, IVerifier.options().checkVersion(true).build()))
                 {
                     verifier.verify();
                     if (!sstable.descriptor.version.isLatestVersion())
@@ -344,7 +345,7 @@ public class LegacySSTableTest
             // make sure we don't throw any exception if not checking version:
             for (SSTableReader sstable : cfs.getLiveSSTables())
             {
-                try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().checkVersion(false).build()))
+                try (IVerifier verifier = sstable.getVerifier(new OutputHandler.LogOutput(), false, IVerifier.options().checkVersion(false).build()))
                 {
                     verifier.verify();
                 }

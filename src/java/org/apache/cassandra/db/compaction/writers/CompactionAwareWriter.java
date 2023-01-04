@@ -31,12 +31,15 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriterBuilder;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -245,5 +248,26 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     protected long getExpectedWriteSize()
     {
         return cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType());
+    }
+
+    /**
+     * It is up to the caller to set the following fields:
+     * - {@link SSTableWriterBuilder#setKeyCount(long)},
+     * - {@link SSTableWriterBuilder#setSerializationHeader(SerializationHeader)} and,
+     * - {@link SSTableWriterBuilder#setMetadataCollector(MetadataCollector)}
+     *
+     * @param descriptor
+     * @return
+     */
+    protected SSTableWriterBuilder<?, ?> newWriterBuilder(Descriptor descriptor)
+    {
+        return descriptor.getFormat().getWriterFactory().builder(descriptor)
+                         .setTableMetadataRef(cfs.metadata)
+                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
+                         .setTransientSSTable(isTransient)
+                         .setRepairedAt(minRepairedAt)
+                         .setPendingRepair(pendingRepair)
+                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
+                         .addDefaultComponents();
     }
 }

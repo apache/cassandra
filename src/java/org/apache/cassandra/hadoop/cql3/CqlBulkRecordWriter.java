@@ -321,6 +321,6 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
         public void output(String msg) {}
         public void debug(String msg) {}
         public void warn(String msg) {}
-        public void warn(String msg, Throwable th) {}
+        public void warn(Throwable th, String msg) {}
     }
 }

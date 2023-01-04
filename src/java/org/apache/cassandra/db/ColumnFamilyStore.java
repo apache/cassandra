@@ -90,7 +90,7 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.compaction.Verifier;
+import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.memtable.Flushing;
@@ -126,6 +126,7 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.format.IScrubber;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -1671,13 +1672,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return CompactionManager.instance.performCleanup(ColumnFamilyStore.this, jobs);
     }
 
-    public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs) throws ExecutionException, InterruptedException
+    public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, IScrubber.Options options, int jobs) throws ExecutionException, InterruptedException
     {
-        return scrub(disableSnapshot, skipCorrupted, reinsertOverflowedTTL, false, checkData, jobs);
+        return scrub(disableSnapshot, false, options, jobs);
     }
 
     @VisibleForTesting
-    public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, boolean skipCorrupted, boolean reinsertOverflowedTTL, boolean alwaysFail, boolean checkData, int jobs) throws ExecutionException, InterruptedException
+    public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, boolean alwaysFail, IScrubber.Options options, int jobs) throws ExecutionException, InterruptedException
     {
         // skip snapshot creation during scrub, SEE JIRA 5891
         if(!disableSnapshot)
@@ -1689,7 +1690,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         try
         {
-            return CompactionManager.instance.performScrub(ColumnFamilyStore.this, skipCorrupted, checkData, reinsertOverflowedTTL, jobs);
+            return CompactionManager.instance.performScrub(ColumnFamilyStore.this, options, jobs);
         }
         catch(Throwable t)
         {
@@ -1724,7 +1725,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return true;
     }
 
-    public CompactionManager.AllSSTableOpStatus verify(Verifier.Options options) throws ExecutionException, InterruptedException
+    public CompactionManager.AllSSTableOpStatus verify(IVerifier.Options options) throws ExecutionException, InterruptedException
     {
         return CompactionManager.instance.performVerify(ColumnFamilyStore.this, options);
     }
@@ -1732,7 +1733,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     /**
      * Rewrites all SSTables according to specified parameters
      *
-     * @param skipIfCurrentVersion - if {@link true}, will rewrite only SSTables that have version older than the current one ({@link org.apache.cassandra.io.sstable.format.big.BigFormat#latestVersion})
+     * @param skipIfCurrentVersion - if {@link true}, will rewrite only SSTables that have version older than the current one ({@link SSTableFormat#getLatestVersion()})
      * @param skipIfNewerThanTimestamp - max timestamp (local creation time) for SSTable; SSTables created _after_ this timestamp will be excluded from compaction
      * @param skipIfCompressionMatches - if {@link true}, will rewrite only SSTables whose compression parameters are different from {@link TableMetadata#params#getCompressionParameters()} ()}
      * @param jobs number of jobs for parallel execution
@@ -1966,7 +1967,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             for (SSTableReader sstr : select(View.select(SSTableSet.LIVE, dk)).sstables)
             {
                 // check if the key actually exists in this sstable, without updating cache and stats
-                if (sstr.getPosition(dk, SSTableReader.Operator.EQ, false) != null)
+                if (sstr.getPosition(dk, SSTableReader.Operator.EQ, false) >= 0)
                     mapped.add(mapper.apply(sstr));
             }
             return mapped;

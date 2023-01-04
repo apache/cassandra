@@ -18,7 +18,6 @@
 */
 package org.apache.cassandra.utils;
 
-import org.apache.cassandra.io.util.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
@@ -28,9 +27,14 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 public final class Throwables
@@ -184,13 +188,41 @@ public final class Throwables
         }));
     }
 
+    public static void closeAndAddSuppressed(@Nonnull Throwable t, AutoCloseable... closeables)
+    {
+        closeAndAddSuppressed(t, Arrays.asList(closeables));
+    }
+
+    public static void closeAndAddSuppressed(@Nonnull Throwable t, Iterable<AutoCloseable> closeables)
+    {
+        Preconditions.checkNotNull(t);
+        for (AutoCloseable closeable : closeables)
+        {
+            try
+            {
+                if (closeable != null)
+                    closeable.close();
+            }
+            catch (Throwable ex)
+            {
+                t.addSuppressed(ex);
+            }
+        }
+    }
+
+    public static Throwable close(Throwable accumulate, AutoCloseable... closeables)
+    {
+        return close(accumulate, Arrays.asList(closeables));
+    }
+
     public static Throwable close(Throwable accumulate, Iterable<? extends AutoCloseable> closeables)
     {
         for (AutoCloseable closeable : closeables)
         {
             try
             {
-                closeable.close();
+                if (closeable != null)
+                    closeable.close();
             }
             catch (Throwable t)
             {
@@ -266,5 +298,12 @@ public final class Throwables
     public static RuntimeException cleaned(Throwable t)
     {
         return unchecked(unwrapped(t));
+    }
+
+    @VisibleForTesting
+    public static void assertAnyCause(Throwable err, Class<? extends Throwable> cause)
+    {
+        if (!anyCauseMatches(err, cause::isInstance))
+            throw new AssertionError("The exception is not caused by " + cause.getName(), err);
     }
 }

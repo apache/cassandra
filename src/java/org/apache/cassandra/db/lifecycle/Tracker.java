@@ -99,7 +99,7 @@ public class Tracker
     /**
      * @return a Transaction over the provided sstables if we are able to mark the given @param sstables as compacted, before anyone else
      */
-    public LifecycleTransaction tryModify(Iterable<SSTableReader> sstables, OperationType operationType)
+    public LifecycleTransaction tryModify(Iterable<? extends SSTableReader> sstables, OperationType operationType)
     {
         if (Iterables.isEmpty(sstables))
             return new LifecycleTransaction(this, operationType, sstables);

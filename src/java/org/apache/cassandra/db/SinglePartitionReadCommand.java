@@ -538,20 +538,26 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 try
                 {
                     // Use a custom iterator instead of DataLimits to avoid stopping the original iterator
-                    UnfilteredRowIterator toCacheIterator = new WrappingUnfilteredRowIterator(iter)
+                    UnfilteredRowIterator toCacheIterator = new WrappingUnfilteredRowIterator()
                     {
                         private int rowsCounted = 0;
 
                         @Override
+                        public UnfilteredRowIterator wrapped()
+                        {
+                            return iter;
+                        }
+
+                        @Override
                         public boolean hasNext()
                         {
-                            return rowsCounted < rowsToCache && super.hasNext();
+                            return rowsCounted < rowsToCache && iter.hasNext();
                         }
 
                         @Override
                         public Unfiltered next()
                         {
-                            Unfiltered unfiltered = super.next();
+                            Unfiltered unfiltered = iter.next();
                             if (unfiltered.isRow())
                             {
                                 Row row = (Row) unfiltered;
@@ -712,6 +718,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                     break;
                 }
 
+                boolean hasPartitionLevelDeletions = hasPartitionLevelDeletions(sstable);
+
                 if (shouldInclude(sstable))
                 {
                     if (!sstable.isRepaired())
@@ -721,8 +729,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                     @SuppressWarnings("resource")
                     UnfilteredRowIteratorWithLowerBound iter = makeIterator(cfs, sstable, metricsCollector);
                     inputCollector.addSSTableIterator(sstable, iter);
-                    mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
-                                                            iter.partitionLevelDeletion().markedForDeleteAt());
+                    if (hasPartitionLevelDeletions)
+                        mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
+                                                                iter.partitionLevelDeletion().markedForDeleteAt());
                 }
                 else
                 {
@@ -741,8 +750,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                 controller.updateMinOldestUnrepairedTombstone(sstable.getMinLocalDeletionTime());
                             inputCollector.addSSTableIterator(sstable, iter);
                             includedDueToTombstones++;
-                            mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
-                                                                    iter.partitionLevelDeletion().markedForDeleteAt());
+                            if (hasPartitionLevelDeletions)
+                                mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
+                                                                        iter.partitionLevelDeletion().markedForDeleteAt());
                         }
                         else
                         {
@@ -787,6 +797,11 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             return true;
 
         return clusteringIndexFilter().shouldInclude(sstable);
+    }
+
+    private boolean hasPartitionLevelDeletions(SSTableReader sstable)
+    {
+        return sstable.getSSTableMetadata().hasPartitionLevelDeletions;
     }
 
     private UnfilteredRowIteratorWithLowerBound makeIterator(ColumnFamilyStore cfs,
@@ -1275,7 +1290,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         private int mergedSSTables;
 
         @Override
-        public void onSSTableSelected(SSTableReader sstable, RowIndexEntry<?> indexEntry, SelectionReason reason)
+        public void onSSTableSelected(SSTableReader sstable, SelectionReason reason)
         {
             sstable.incrementReadCount();
             mergedSSTables++;

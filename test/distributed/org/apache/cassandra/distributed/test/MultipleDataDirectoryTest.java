@@ -37,6 +37,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.TOCComponent;
 import org.apache.cassandra.io.util.File;
 
 public class MultipleDataDirectoryTest extends TestBaseImpl
@@ -151,7 +152,7 @@ public class MultipleDataDirectoryTest extends TestBaseImpl
             // getting a new file index in order to move SSTable between directories.
             second = cfs.newSSTableDescriptor(second.directory);
             // now we just move all sstables from first to second
-            for (Component component : SSTableReader.componentsFor(first))
+            for (Component component : TOCComponent.loadOrCreate(first))
             {
                 File file = new File(first.filenameFor(component));
                 if (file.exists())

@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -34,13 +35,15 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 
+import static org.apache.cassandra.ServerTestUtils.getLiveBigTableReaders;
 import static org.junit.Assert.assertEquals;
 
 public class IndexSummaryRedistributionTest
@@ -51,6 +54,8 @@ public class IndexSummaryRedistributionTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        Assume.assumeTrue("This test make sense only if the default SSTable format support index summary",
+                          SSTableFormat.Type.current().info.supportedComponents().contains(Component.SUMMARY));
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -77,16 +82,16 @@ public class IndexSummaryRedistributionTest
 
         createSSTables(ksname, cfname, numSSTables, numRows);
 
-        List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
-        for (SSTableReader sstable : sstables)
+        List<BigTableReader> sstables = getLiveBigTableReaders(cfs);
+        for (BigTableReader sstable : sstables)
             sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
 
         long oldSize = 0;
         long oldSizeUncompressed = 0;
 
-        for (SSTableReader sstable : sstables)
+        for (BigTableReader sstable : sstables)
         {
-            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getEffectiveIndexInterval(), 0.001);
+            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
             oldSize += sstable.bytesOnDisk();
             oldSizeUncompressed += sstable.logicalBytesOnDisk();
         }
@@ -105,10 +110,10 @@ public class IndexSummaryRedistributionTest
         long newSize = 0;
         long newSizeUncompressed = 0;
 
-        for (SSTableReader sstable : cfs.getLiveSSTables())
+        for (BigTableReader sstable : getLiveBigTableReaders(cfs))
         {
-            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getEffectiveIndexInterval(), 0.001);
-            assertEquals(numRows / cfs.metadata().params.minIndexInterval, sstable.getIndexSummarySize());
+            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
+            assertEquals(numRows / cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().size());
             newSize += sstable.bytesOnDisk();
             newSizeUncompressed += sstable.logicalBytesOnDisk();
         }
@@ -156,6 +161,6 @@ public class IndexSummaryRedistributionTest
                 throw new RuntimeException(e);
             }
         }
-        assertEquals(numSSTables, cfs.getLiveSSTables().size());
+        assertEquals(numSSTables, getLiveBigTableReaders(cfs).size());
     }
 }

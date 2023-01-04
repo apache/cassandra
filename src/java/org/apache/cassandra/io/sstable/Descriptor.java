@@ -17,12 +17,17 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -32,6 +37,8 @@ import org.apache.cassandra.io.sstable.metadata.MetadataSerializer;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Pair;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.io.sstable.Component.separator;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
@@ -88,7 +95,13 @@ public class Descriptor
 
     public Descriptor(Version version, File directory, String ksname, String cfname, SSTableId id, SSTableFormat.Type formatType)
     {
-        assert version != null && directory != null && ksname != null && cfname != null && formatType.info.getLatestVersion().getClass().equals(version.getClass());
+        checkNotNull(version);
+        checkNotNull(directory);
+        checkNotNull(ksname);
+        checkNotNull(cfname);
+        checkNotNull(formatType);
+        checkArgument(version.getSSTableFormat().getType() == formatType.info.getType());
+
         this.version = version;
         this.directory = directory.toCanonical();
         this.ksname = ksname;
@@ -153,7 +166,7 @@ public class Descriptor
         return buff.toString();
     }
 
-    public SSTableFormat getFormat()
+    public SSTableFormat<?, ?> getFormat()
     {
         return formatType.info;
     }
@@ -169,6 +182,18 @@ public class Descriptor
             ret.add(tmpFile);
 
         return ret;
+    }
+
+    public Set<Component> getComponents(Set<Component> alwaysAdd, Set<Component> optional)
+    {
+        ImmutableSet.Builder<Component> builder = ImmutableSet.builder();
+        builder.addAll(alwaysAdd);
+        for (Component component : optional)
+        {
+            if (fileFor(component).exists())
+                builder.add(component);
+        }
+        return builder.build();
     }
 
     public static boolean isValidFile(File file)
@@ -376,6 +401,19 @@ public class Descriptor
     public boolean isCompatible()
     {
         return version.isCompatible();
+    }
+
+    public Set<Component> discoverComponents()
+    {
+        Set<Component.Type> knownTypes = Sets.difference(Component.TYPES, Collections.singleton(Component.Type.CUSTOM));
+        Set<Component> components = Sets.newHashSetWithExpectedSize(knownTypes.size());
+        for (Component.Type componentType : knownTypes)
+        {
+            Component component = new Component(componentType);
+            if (fileFor(component).exists())
+                components.add(component);
+        }
+        return components;
     }
 
     @Override

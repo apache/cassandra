@@ -342,7 +342,7 @@ public abstract class SSTableHeaderFix
             return;
         }
 
-        Set<Component> components = SSTable.discoverComponentsFor(desc);
+        Set<Component> components = desc.discoverComponents();
         if (components.stream().noneMatch(c -> c.type == Component.Type.STATS))
         {
             error("sstable %s has no -Statistics.db component.", desc);

@@ -331,7 +331,9 @@ public enum CassandraRelevantProperties
      *
      * If only keyspaces are specified, mutations for all tables in such keyspace will be replayed
      * */
-    COMMIT_LOG_REPLAY_LIST("cassandra.replayList", null)
+    COMMIT_LOG_REPLAY_LIST("cassandra.replayList", null),
+
+    SSTABLE_FORMAT_DEFAULT("cassandra.sstable.format.default", "BIG")
 
     ;
 
@@ -528,6 +530,21 @@ public enum CassandraRelevantProperties
     }
 
     /**
+     * Gets the value of a system property as an enum, optionally calling {@link String#toUpperCase()} first.
+     * If the value is missing, the default value for this property is used
+     *
+     * @param toUppercase before converting to enum
+     * @param enumClass enumeration class
+     * @param <T> type
+     * @return enum value
+     */
+    public <T extends Enum<T>> T getEnum(boolean toUppercase, Class<T> enumClass)
+    {
+        String value = System.getProperty(key, defaultVal);
+        return Enum.valueOf(enumClass, toUppercase ? value.toUpperCase() : value);
+    }
+
+    /**
      * Sets the value into system properties.
      * @param value to set
      */
@@ -578,4 +595,3 @@ public enum CassandraRelevantProperties
         return System.getProperties().containsKey(key);
     }
 }
-

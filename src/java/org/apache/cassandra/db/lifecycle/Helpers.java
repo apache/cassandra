@@ -50,7 +50,7 @@ class Helpers
      * really present, and that the items to add are not (unless we're also removing them)
      * @return a new identity map with the contents of the provided one modified
      */
-    static <T> Map<T, T> replace(Map<T, T> original, Set<T> remove, Iterable<T> add)
+    static <T> Map<T, T> replace(Map<T, T> original, Set<? extends T> remove, Iterable<? extends T> add)
     {
         // ensure the ones being removed are the exact same ones present
         for (T reader : remove)

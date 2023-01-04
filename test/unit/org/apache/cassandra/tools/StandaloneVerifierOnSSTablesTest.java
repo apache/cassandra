@@ -34,7 +34,9 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.VerifyTest;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableVerifier;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
@@ -47,13 +49,13 @@ import static org.junit.Assert.assertEquals;
 /**
  * Class that tests tables for {@link StandaloneVerifier} by updating using {@link SchemaLoader}
  * Similar in vein to other {@link SchemaLoader} type tests, as well as {@link StandaloneUpgraderOnSStablesTest}.
- * Since the tool mainly exercises the {@link org.apache.cassandra.db.compaction.Verifier}, we elect to
- * not run every conceivable option as many tests are already covered by {@link org.apache.cassandra.db.VerifyTest}.
+ * Since the tool mainly exercises the {@link BigTableVerifier}, we elect to
+ * not run every conceivable option as many tests are already covered by {@link VerifyTest}.
  * 
  * Note: the complete coverage is composed of:
  * - {@link StandaloneVerifierOnSSTablesTest}
  * - {@link StandaloneVerifierTest}
- * - {@link org.apache.cassandra.db.VerifyTest}
+ * - {@link VerifyTest}
  */
 public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
 {
@@ -150,8 +152,8 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
 
         createAndPopulateTable(keyspaceName, corruptDataTable, cfs -> {
             SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
-            long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("0"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
-            long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("1"), cfs.getPartitioner()), SSTableReader.Operator.EQ).position;
+            long row0Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("0"), cfs.getPartitioner()), SSTableReader.Operator.EQ);
+            long row1Start = sstable.getPosition(PartitionPosition.ForKey.get(ByteBufferUtil.bytes("1"), cfs.getPartitioner()), SSTableReader.Operator.EQ);
             long startPosition = Math.min(row0Start, row1Start);
 
             try (RandomAccessFile file = new RandomAccessFile(sstable.getFilename(), "rw"))

@@ -64,10 +64,12 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.fql.FullQueryLoggerOptionsCompositeData;
+import org.apache.cassandra.io.sstable.format.IScrubber;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.metrics.Sampler;
@@ -100,7 +102,6 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.*;
@@ -131,8 +132,6 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
-import org.apache.cassandra.net.AsyncOneResponse;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
@@ -3859,27 +3858,22 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return status.statusCode;
     }
 
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
-    {
-        return scrub(disableSnapshot, skipCorrupted, true, 0, keyspaceName, tables);
-    }
-
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
-    {
-        return scrub(disableSnapshot, skipCorrupted, checkData, 0, keyspaceName, tables);
-    }
-
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, int jobs, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
-    {
-        return scrub(disableSnapshot, skipCorrupted, checkData, false, jobs, keyspaceName, tables);
-    }
-
     public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
+    {
+        IScrubber.Options options = IScrubber.options()
+                                             .skipCorrupted(skipCorrupted)
+                                             .checkData(checkData)
+                                             .reinsertOverflowedTTLRows(reinsertOverflowedTTL)
+                                             .build();
+        return scrub(disableSnapshot, options, jobs, keyspaceName, tables);
+    }
+
+    public int scrub(boolean disableSnapshot, IScrubber.Options options, int jobs, String keyspaceName, String... tables) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tables))
         {
-            CompactionManager.AllSSTableOpStatus oneStatus = cfStore.scrub(disableSnapshot, skipCorrupted, reinsertOverflowedTTL, checkData, jobs);
+            CompactionManager.AllSSTableOpStatus oneStatus = cfStore.scrub(disableSnapshot, options, jobs);
             if (oneStatus != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
                 status = oneStatus;
         }
@@ -3895,12 +3889,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public int verify(boolean extendedVerify, boolean checkVersion, boolean diskFailurePolicy, boolean mutateRepairStatus, boolean checkOwnsTokens, boolean quick, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
-        Verifier.Options options = Verifier.options().invokeDiskFailurePolicy(diskFailurePolicy)
-                                                     .extendedVerification(extendedVerify)
-                                                     .checkVersion(checkVersion)
-                                                     .mutateRepairStatus(mutateRepairStatus)
-                                                     .checkOwnsTokens(checkOwnsTokens)
-                                                     .quick(quick).build();
+        IVerifier.Options options = IVerifier.options().invokeDiskFailurePolicy(diskFailurePolicy)
+                                             .extendedVerification(extendedVerify)
+                                             .checkVersion(checkVersion)
+                                             .mutateRepairStatus(mutateRepairStatus)
+                                             .checkOwnsTokens(checkOwnsTokens)
+                                             .quick(quick).build();
         logger.info("Verifying {}.{} with options = {}", keyspaceName, Arrays.toString(tableNames), options);
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tableNames))
         {

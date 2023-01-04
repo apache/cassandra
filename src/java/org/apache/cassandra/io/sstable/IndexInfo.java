@@ -23,7 +23,7 @@ import java.util.List;
 
 import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;

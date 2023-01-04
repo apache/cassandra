@@ -17,29 +17,37 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
-import org.apache.cassandra.io.util.*;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Throwables;
 
 import static org.junit.Assert.assertEquals;
@@ -57,12 +65,12 @@ public class MetadataSerializerTest
     @Test
     public void testSerialization() throws IOException
     {
-        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata();
+        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata(false);
 
         MetadataSerializer serializer = new MetadataSerializer();
-        File statsFile = serialize(originalMetadata, serializer, BigFormat.latestVersion);
+        File statsFile = serialize(originalMetadata, serializer, SSTableFormat.Type.current().info.getLatestVersion());
 
-        Descriptor desc = new Descriptor(statsFile.parent(), "", "", new SequenceBasedSSTableId(0), SSTableFormat.Type.BIG);
+        Descriptor desc = new Descriptor(statsFile.parent(), "", "", new SequenceBasedSSTableId(0), SSTableFormat.Type.current());
         try (RandomAccessReader in = RandomAccessReader.open(statsFile))
         {
             Map<MetadataType, MetadataComponent> deserialized = serializer.deserialize(desc, in, EnumSet.allOf(MetadataType.class));
@@ -77,7 +85,7 @@ public class MetadataSerializerTest
     @Test
     public void testHistogramSterilization() throws IOException
     {
-        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata();
+        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata(false);
 
         // Modify the histograms to overflow:
         StatsMetadata originalStats = (StatsMetadata) originalMetadata.get(MetadataType.STATS);
@@ -113,7 +121,7 @@ public class MetadataSerializerTest
         return statsFile;
     }
 
-    public Map<MetadataType, MetadataComponent> constructMetadata()
+    public Map<MetadataType, MetadataComponent> constructMetadata(boolean withNulls)
     {
         CommitLogPosition club = new CommitLogPosition(11L, 12);
         CommitLogPosition cllb = new CommitLogPosition(9L, 12);
@@ -124,6 +132,8 @@ public class MetadataSerializerTest
 
         String partitioner = RandomPartitioner.class.getCanonicalName();
         double bfFpChance = 0.1;
+        collector.updateClusteringValues(Clustering.make(UTF8Type.instance.decompose("abc"), Int32Type.instance.decompose(123)));
+        collector.updateClusteringValues(Clustering.make(UTF8Type.instance.decompose("cba"), withNulls ? null : Int32Type.instance.decompose(234)));
         return collector.finalizeMetadata(partitioner, bfFpChance, 0, null, false, SerializationHeader.make(cfm, Collections.emptyList()));
     }
 
@@ -153,23 +163,45 @@ public class MetadataSerializerTest
     @Test
     public void testMVersions() throws Throwable
     {
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
         testVersions("ma", "mb", "mc", "md", "me");
     }
 
     @Test
     public void testNVersions() throws Throwable
     {
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
         testVersions("na", "nb");
     }
 
+    @Test
+    public void testAVersions() throws Throwable
+    {
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BTI);
+        testVersions("aa", "ac", "ad");
+    }
+
+    @Test
+    public void testBVersions() throws Throwable
+    {
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BTI);
+        testVersions("ba", "bb");
+    }
+
+    @Test
+    public void testCVersions() throws Throwable
+    {
+        Assume.assumeTrue(SSTableFormat.Type.current() == SSTableFormat.Type.BTI);
+        testVersions("ca");
+    }
     public void testOldReadsNew(String oldV, String newV) throws IOException
     {
-        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata();
+        Map<MetadataType, MetadataComponent> originalMetadata = constructMetadata(true);
 
         MetadataSerializer serializer = new MetadataSerializer();
         // Write metadata in two minor formats.
-        File statsFileLb = serialize(originalMetadata, serializer, BigFormat.instance.getVersion(newV));
-        File statsFileLa = serialize(originalMetadata, serializer, BigFormat.instance.getVersion(oldV));
+        File statsFileLb = serialize(originalMetadata, serializer, SSTableFormat.Type.current().info.getVersion(newV));
+        File statsFileLa = serialize(originalMetadata, serializer, SSTableFormat.Type.current().info.getVersion(oldV));
         // Reading both as earlier version should yield identical results.
         SSTableFormat.Type stype = SSTableFormat.Type.current();
         Descriptor desc = new Descriptor(stype.info.getVersion(oldV), statsFileLb.parent(), "", "", new SequenceBasedSSTableId(0), stype);

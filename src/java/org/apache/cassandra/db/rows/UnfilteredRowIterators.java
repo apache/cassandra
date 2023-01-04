@@ -263,16 +263,22 @@ public abstract class UnfilteredRowIterators
     /**
      * Returns an iterator that concatenate the specified atom with the iterator.
      */
-    public static UnfilteredRowIterator concat(final Unfiltered first, final UnfilteredRowIterator rest)
+    public static UnfilteredRowIterator concat(final Unfiltered first, final UnfilteredRowIterator wrapped)
     {
-        return new WrappingUnfilteredRowIterator(rest)
+        return new WrappingUnfilteredRowIterator()
         {
             private boolean hasReturnedFirst;
 
             @Override
+            public UnfilteredRowIterator wrapped()
+            {
+                return wrapped;
+            }
+
+            @Override
             public boolean hasNext()
             {
-                return hasReturnedFirst ? super.hasNext() : true;
+                return hasReturnedFirst ? wrapped.hasNext() : true;
             }
 
             @Override
@@ -283,7 +289,7 @@ public abstract class UnfilteredRowIterators
                     hasReturnedFirst = true;
                     return first;
                 }
-                return super.next();
+                return wrapped.next();
             }
         };
     }

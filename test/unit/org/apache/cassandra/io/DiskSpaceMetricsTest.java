@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
@@ -36,8 +37,10 @@ import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.schema.TableId;
@@ -72,6 +75,7 @@ public class DiskSpaceMetricsTest extends CQLTester
     @Test
     public void summaryRedistribution() throws Throwable
     {
+        Assume.assumeTrue(SSTableFormat.Type.current().info.supportedComponents().contains(Component.SUMMARY));
         createTable("CREATE TABLE %s (pk bigint, PRIMARY KEY (pk)) WITH min_index_interval=1");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 

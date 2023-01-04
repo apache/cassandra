@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -44,6 +45,8 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.sstable.GaugeProvider;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
@@ -144,8 +147,6 @@ public class TableMetrics
     public final Gauge<Long> bloomFilterDiskSpaceUsed;
     /** Off heap memory used by bloom filter */
     public final Gauge<Long> bloomFilterOffHeapMemoryUsed;
-    /** Off heap memory used by index summary */
-    public final Gauge<Long> indexSummaryOffHeapMemoryUsed;
     /** Off heap memory used by compression meta data*/
     public final Gauge<Long> compressionMetadataOffHeapMemoryUsed;
     /** Key cache hit rate  for this CF */
@@ -277,6 +278,8 @@ public class TableMetrics
     public final TableMeter rowIndexSizeWarnings;
     public final TableMeter rowIndexSizeAborts;
     public final TableHistogram rowIndexSize;
+
+    public final ImmutableMap<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
@@ -805,16 +808,6 @@ public class TableMetrics
                 return total;
             }
         });
-        indexSummaryOffHeapMemoryUsed = createTableGauge("IndexSummaryOffHeapMemoryUsed", new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                long total = 0;
-                for (SSTableReader sst : cfs.getSSTables(SSTableSet.LIVE))
-                    total += sst.getIndexSummaryOffHeapSize();
-                return total;
-            }
-        });
         compressionMetadataOffHeapMemoryUsed = createTableGauge("CompressionMetadataOffHeapMemoryUsed", new Gauge<Long>()
         {
             public Long getValue()
@@ -947,6 +940,8 @@ public class TableMetrics
         rowIndexSizeWarnings = createTableMeter("RowIndexSizeWarnings", cfs.keyspace.metric.rowIndexSizeWarnings);
         rowIndexSizeAborts = createTableMeter("RowIndexSizeAborts", cfs.keyspace.metric.rowIndexSizeAborts);
         rowIndexSize = createTableHistogram("RowIndexSize", cfs.keyspace.metric.rowIndexSize, false);
+
+        formatSpecificGauges = createFormatSpecificGauges(cfs);
     }
 
     private Memtable.MemoryUsage getMemoryUsageWithIndexes(ColumnFamilyStore cfs)
@@ -972,6 +967,22 @@ public class TableMetrics
         {
             entry.release();
         }
+    }
+
+    private ImmutableMap<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> createFormatSpecificGauges(ColumnFamilyStore cfs)
+    {
+        ImmutableMap.Builder<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> builder = ImmutableMap.builder();
+        for (SSTableFormat.Type formatType : SSTableFormat.Type.values())
+        {
+            ImmutableMap.Builder<String, Gauge<? extends Number>> gauges = ImmutableMap.builder();
+            for (GaugeProvider<?, ?> gaugeProvider : formatType.info.getFormatSpecificMetricsProviders().getGaugeProviders())
+            {
+                Gauge<? extends Number> gauge = createTableGauge(gaugeProvider.name, gaugeProvider.getTableGauge(cfs));
+                gauges.put(gaugeProvider.name, gauge);
+            }
+            builder.put(formatType, gauges.build());
+        }
+        return builder.build();
     }
 
     /**

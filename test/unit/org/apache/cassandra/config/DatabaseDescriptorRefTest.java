@@ -46,7 +46,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 /**
- * Verifies that {@link DatabaseDescriptor#clientInitialization()} } and a couple of <i>apply</i> methods
+ * Verifies that {@link DatabaseDescriptor#clientInitialization()} and a couple of <i>apply</i> methods
  * do not somehow lazily initialize any unwanted part of Cassandra like schema, commit log or start
  * unexpected threads.
  *

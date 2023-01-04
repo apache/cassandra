@@ -66,7 +66,7 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
 
     private static int maxValueSize;
     private static Random random;
-    private static SSTableWriter writer;
+    private static SSTableWriter<?> writer;
     private static LifecycleTransaction txn;
     private static ColumnFamilyStore cfs;
     private static SSTableReader ssTableReader;

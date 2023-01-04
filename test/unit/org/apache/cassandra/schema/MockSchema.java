@@ -33,7 +33,12 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
@@ -44,16 +49,17 @@ import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableReaderBuilder;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
-import org.apache.cassandra.utils.AlwaysPresentFilter;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FilterFactory;
 
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 
@@ -164,8 +170,7 @@ public class MockSchema
             file.createFileIfNotExists();
         }
         // .complete() with size to make sstable.onDiskLength work
-        try (FileHandle.Builder builder = new FileHandle.Builder(new ChannelProxy(tempFile)).bufferSize(size);
-             FileHandle fileHandle = builder.complete(size))
+        try (FileHandle fileHandle = new FileHandle.Builder(tempFile).bufferSize(size).withLengthOverride(size).complete())
         {
             if (size > 0)
             {
@@ -185,11 +190,19 @@ public class MockSchema
             StatsMetadata metadata = (StatsMetadata) collector.sstableLevel(level)
                                                               .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header)
                                                               .get(MetadataType.STATS);
-            SSTableReader reader = SSTableReader.internalOpen(descriptor, components, cfs.metadata,
-                                                              fileHandle.sharedCopy(), fileHandle.sharedCopy(), indexSummary.sharedCopy(),
-                                                              new AlwaysPresentFilter(), 1L, metadata, SSTableReader.OpenReason.NORMAL, header);
-            reader.first = readerBounds(firstToken);
-            reader.last = readerBounds(lastToken);
+            BigTableReader reader = new BigTableReaderBuilder(descriptor).setComponents(components)
+                                                                         .setTableMetadataRef(cfs.metadata)
+                                                                         .setDataFile(fileHandle.sharedCopy())
+                                                                         .setIndexFile(fileHandle.sharedCopy())
+                                                                         .setIndexSummary(indexSummary.sharedCopy())
+                                                                         .setFilter(FilterFactory.AlwaysPresent)
+                                                                         .setMaxDataAge(1L)
+                                                                         .setStatsMetadata(metadata)
+                                                                         .setOpenReason(SSTableReader.OpenReason.NORMAL)
+                                                                         .setSerializationHeader(header)
+                                                                         .setFirst(readerBounds(firstToken))
+                                                                         .setLast(readerBounds(lastToken))
+                                                                         .build(false, false);
             if (!keepRef)
                 reader.selfRef().release();
             return reader;

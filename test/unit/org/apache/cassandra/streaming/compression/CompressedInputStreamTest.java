@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+import org.apache.cassandra.io.sstable.format.CompressionInfoComponent;
 import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -139,7 +140,7 @@ public class CompressedInputStreamTest
             writer.finish();
         }
 
-        CompressionMetadata comp = CompressionMetadata.create(tmp.absolutePath());
+        CompressionMetadata comp = CompressionInfoComponent.load(desc);
         List<SSTableReader.PartitionPositionBounds> sections = new ArrayList<>();
         for (long l : valuesToCheck)
         {

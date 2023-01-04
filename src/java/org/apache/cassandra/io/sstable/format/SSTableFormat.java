@@ -17,43 +17,72 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
+import java.util.List;
+import java.util.Set;
+
 import com.google.common.base.CharMatcher;
 
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.GaugeProvider;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.trieindex.BtiFormat;
+import org.apache.cassandra.schema.TableMetadataRef;
 
 /**
  * Provides the accessors to data on disk.
  */
-public interface SSTableFormat
+public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter<?>>
 {
-    static boolean enableSSTableDevelopmentTestMode = Boolean.getBoolean("cassandra.test.sstableformatdevelopment");
-
+    Type getType();
 
     Version getLatestVersion();
     Version getVersion(String version);
 
-    SSTableWriter.Factory getWriterFactory();
-    SSTableReader.Factory getReaderFactory();
+    SSTableWriter.Factory<W, ?> getWriterFactory();
+    SSTableReaderFactory<R, ?> getReaderFactory();
 
-    RowIndexEntry.IndexSerializer<?> getIndexSerializer(TableMetadata metadata, Version version, SerializationHeader header);
+    Set<Component> supportedComponents();
 
-    public static enum Type
+    Set<Component> streamingComponents();
+
+    Set<Component> primaryComponents();
+
+    Set<Component> batchComponents();
+
+    Set<Component> uploadComponents();
+
+    Set<Component> mutableComponents();
+
+    Set<Component> generatedOnLoadComponents();
+
+    Set<Component> writeComponents();
+
+    boolean isKeyCacheSupported();
+    AbstractRowIndexEntry.KeyCacheValueSerializer<?, ?> getKeyCacheValueSerializer();
+
+    R cast(SSTableReader sstr);
+
+    W cast(SSTableWriter<?> sstw);
+
+    FormatSpecificMetricsProviders getFormatSpecificMetricsProviders();
+
+    enum Type
     {
         //The original sstable format
-        BIG("big", BigFormat.instance);
+        BIG("big", BigFormat.instance),
+        BTI("bti", BtiFormat.instance);
 
-        public final SSTableFormat info;
+        public final SSTableFormat<?, ?> info;
         public final String name;
 
         public static Type current()
         {
-            return BIG;
+            return CassandraRelevantProperties.SSTABLE_FORMAT_DEFAULT.getEnum(true, Type.class);
         }
 
-        private Type(String name, SSTableFormat info)
+        Type(String name, SSTableFormat<?, ?> info)
         {
             //Since format comes right after generation
             //we disallow formats with numeric names
@@ -73,5 +102,17 @@ public interface SSTableFormat
 
             throw new IllegalArgumentException("No Type constant " + name);
         }
+    }
+
+    interface FormatSpecificMetricsProviders
+    {
+        List<GaugeProvider<?, ?>> getGaugeProviders();
+    }
+
+    interface SSTableReaderFactory<R extends SSTableReader, B extends SSTableReaderBuilder<R, B>>
+    {
+        SSTableReaderBuilder<R, B> builder(Descriptor descriptor);
+
+        SSTableReaderLoadingBuilder<R, B> builder(Descriptor descriptor, TableMetadataRef tableMetadataRef, Set<Component> components);
     }
 }

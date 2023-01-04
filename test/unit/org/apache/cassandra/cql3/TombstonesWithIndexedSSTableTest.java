@@ -19,17 +19,29 @@ package org.apache.cassandra.cql3;
 
 import java.util.Random;
 
+import org.junit.Assume;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
+import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class TombstonesWithIndexedSSTableTest extends CQLTester
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        Assume.assumeTrue("This test requires that the default SSTable format is BIG", SSTableFormat.Type.current() == SSTableFormat.Type.BIG);
+    }
+
     @Test
     public void testTombstoneBoundariesInIndexCached() throws Throwable
     {
@@ -74,14 +86,15 @@ public class TombstonesWithIndexedSSTableTest extends CQLTester
             int indexedRow = -1;
             for (SSTableReader sstable : getCurrentColumnFamilyStore().getLiveSSTables())
             {
+                BigTableReader reader = (BigTableReader) sstable;
                 // The line below failed with key caching off (CASSANDRA-11158)
                 @SuppressWarnings("unchecked")
-                RowIndexEntry indexEntry = sstable.getPosition(dk, SSTableReader.Operator.EQ);
+                RowIndexEntry indexEntry = reader.getRowIndexEntry(dk, SSTableReader.Operator.EQ);
                 if (indexEntry != null && indexEntry.isIndexed())
                 {
-                    try (FileDataInput reader = sstable.openIndexReader())
+                    try (FileDataInput indexFile = reader.openIndexReader())
                     {
-                        RowIndexEntry.IndexInfoRetriever infoRetriever = indexEntry.openWithIndex(sstable.getIndexFile());
+                        RowIndexEntry.IndexInfoRetriever infoRetriever = indexEntry.openWithIndex(reader.getIndexFile());
                         ClusteringPrefix<?> firstName = infoRetriever.columnsIndex(1).firstName;
                         if (firstName.kind().isBoundary())
                             break deletionLoop;

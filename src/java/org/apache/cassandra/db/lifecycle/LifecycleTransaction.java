@@ -160,12 +160,12 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional im
     }
 
     @SuppressWarnings("resource") // log closed during postCleanup
-    LifecycleTransaction(Tracker tracker, OperationType operationType, Iterable<SSTableReader> readers)
+    LifecycleTransaction(Tracker tracker, OperationType operationType, Iterable<? extends SSTableReader> readers)
     {
         this(tracker, new LogTransaction(operationType, tracker), readers);
     }
 
-    LifecycleTransaction(Tracker tracker, LogTransaction log, Iterable<SSTableReader> readers)
+    LifecycleTransaction(Tracker tracker, LogTransaction log, Iterable<? extends SSTableReader> readers)
     {
         this.tracker = tracker;
         this.log = log;

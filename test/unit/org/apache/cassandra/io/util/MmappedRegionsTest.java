@@ -314,7 +314,7 @@ public class MmappedRegionsTest
             writer.finish();
         }
 
-        CompressionMetadata metadata = new CompressionMetadata(cf.absolutePath(), f.length(), true);
+        CompressionMetadata metadata = new CompressionMetadata(cf, f.length(), true);
         try(ChannelProxy channel = new ChannelProxy(f);
             MmappedRegions regions = MmappedRegions.map(channel, metadata))
         {

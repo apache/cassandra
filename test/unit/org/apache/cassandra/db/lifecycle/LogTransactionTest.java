@@ -50,6 +50,8 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigTableReaderBuilder;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
@@ -57,7 +59,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.MockSchema;
-import org.apache.cassandra.utils.AlwaysPresentFilter;
+import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -1272,25 +1274,26 @@ public class LogTransactionTest extends AbstractTransactionalTest
             Util.setFileLength(file, size);
         }
 
-        FileHandle dFile = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).complete();
-        FileHandle iFile = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX)).complete();
+        FileHandle dFile = new FileHandle.Builder(descriptor.fileFor(Component.DATA)).complete();
+        FileHandle iFile = new FileHandle.Builder(descriptor.fileFor(Component.PRIMARY_INDEX)).complete();
 
         SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
         StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, null, false, header)
                                                  .get(MetadataType.STATS);
-        SSTableReader reader = SSTableReader.internalOpen(descriptor,
-                                                          components,
-                                                          cfs.metadata,
-                                                          iFile,
-                                                          dFile,
-                                                          MockSchema.indexSummary.sharedCopy(),
-                                                          new AlwaysPresentFilter(),
-                                                          1L,
-                                                          metadata,
-                                                          SSTableReader.OpenReason.NORMAL,
-                                                          header);
-        reader.first = reader.last = MockSchema.readerBounds(generation);
+        BigTableReader reader = new BigTableReaderBuilder(descriptor).setComponents(components)
+                                .setTableMetadataRef(cfs.metadata)
+                                .setDataFile(dFile)
+                                .setIndexFile(iFile)
+                                .setIndexSummary(MockSchema.indexSummary.sharedCopy())
+                                .setFilter(FilterFactory.AlwaysPresent)
+                                .setMaxDataAge(1L)
+                                .setStatsMetadata(metadata)
+                                .setOpenReason(SSTableReader.OpenReason.NORMAL)
+                                .setSerializationHeader(header)
+                                .setFirst(MockSchema.readerBounds(generation))
+                                .setLast(MockSchema.readerBounds(generation))
+                                .build(false, false);
         return reader;
     }
 

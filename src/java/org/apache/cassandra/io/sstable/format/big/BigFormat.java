@@ -17,33 +17,105 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
-import java.util.Collection;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.*;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.sstable.GaugeProvider;
+import org.apache.cassandra.io.sstable.SSTableBuilder;
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReaderLoadingBuilder;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.schema.TableMetadataRef;
+
+import static org.apache.cassandra.io.sstable.Component.COMPRESSION_INFO;
+import static org.apache.cassandra.io.sstable.Component.CRC;
+import static org.apache.cassandra.io.sstable.Component.DATA;
+import static org.apache.cassandra.io.sstable.Component.DIGEST;
+import static org.apache.cassandra.io.sstable.Component.FILTER;
+import static org.apache.cassandra.io.sstable.Component.PRIMARY_INDEX;
+import static org.apache.cassandra.io.sstable.Component.STATS;
+import static org.apache.cassandra.io.sstable.Component.SUMMARY;
+import static org.apache.cassandra.io.sstable.Component.TOC;
 
 /**
  * Legacy bigtable format
  */
-public class BigFormat implements SSTableFormat
+public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
 {
     public static final BigFormat instance = new BigFormat();
     public static final Version latestVersion = new BigVersion(BigVersion.current_version);
-    private static final SSTableReader.Factory readerFactory = new ReaderFactory();
-    private static final SSTableWriter.Factory writerFactory = new WriterFactory();
+    private static final BigTableReaderFactory readerFactory = new BigTableReaderFactory();
+    private static final BigTableWriterFactory writerFactory = new BigTableWriterFactory();
+
+    private static final Set<Component> SUPPORTED_COMPONENTS = ImmutableSet.of(DATA,
+                                                                               PRIMARY_INDEX,
+                                                                               STATS,
+                                                                               COMPRESSION_INFO,
+                                                                               FILTER,
+                                                                               SUMMARY,
+                                                                               DIGEST,
+                                                                               CRC,
+                                                                               TOC);
+
+    private static final Set<Component> STREAM_COMPONENTS = ImmutableSet.of(DATA,
+                                                                            PRIMARY_INDEX,
+                                                                            STATS,
+                                                                            COMPRESSION_INFO,
+                                                                            FILTER,
+                                                                            SUMMARY,
+                                                                            DIGEST,
+                                                                            CRC);
+
+    private static final Set<Component> PRIMARY_COMPONENTS = ImmutableSet.of(DATA,
+                                                                             PRIMARY_INDEX);
+
+    private static final Set<Component> BATCH_COMPONENTS = ImmutableSet.of(DATA,
+                                                                           PRIMARY_INDEX,
+                                                                           COMPRESSION_INFO,
+                                                                           FILTER,
+                                                                           STATS);
+
+    private static final Set<Component> UPLOAD_COMPONENTS = ImmutableSet.of(DATA,
+                                                                            PRIMARY_INDEX,
+                                                                            SUMMARY,
+                                                                            COMPRESSION_INFO,
+                                                                            STATS);
+
+    private static final Set<Component> MUTABLE_COMPONENTS = ImmutableSet.of(STATS,
+                                                                             SUMMARY);
+
+    private static final Set<Component> GENERATED_ON_LOAD_COMPONENTS = ImmutableSet.of(FILTER, SUMMARY);
+
+    private static final Set<Component> WRITE_COMPONENTS = ImmutableSet.of(DATA,
+                                                                           PRIMARY_INDEX,
+                                                                           STATS,
+                                                                           SUMMARY,
+                                                                           TOC,
+                                                                           DIGEST);
 
     private BigFormat()
     {
 
+    }
+
+    @Override
+    public Type getType()
+    {
+        return Type.BIG;
     }
 
     @Override
@@ -59,24 +131,137 @@ public class BigFormat implements SSTableFormat
     }
 
     @Override
-    public SSTableWriter.Factory getWriterFactory()
+    public BigTableWriterFactory getWriterFactory()
     {
         return writerFactory;
     }
 
     @Override
-    public SSTableReader.Factory getReaderFactory()
+    public BigTableReaderFactory getReaderFactory()
     {
         return readerFactory;
     }
 
     @Override
-    public RowIndexEntry.IndexSerializer getIndexSerializer(TableMetadata metadata, Version version, SerializationHeader header)
+    public Set<Component> supportedComponents()
     {
-        return new RowIndexEntry.Serializer(version, header);
+        return SUPPORTED_COMPONENTS;
     }
 
-    static class WriterFactory extends SSTableWriter.Factory
+    @Override
+    public Set<Component> streamingComponents()
+    {
+        return STREAM_COMPONENTS;
+    }
+
+    @Override
+    public Set<Component> primaryComponents()
+    {
+        return PRIMARY_COMPONENTS;
+    }
+
+    @Override
+    public Set<Component> batchComponents()
+    {
+        return BATCH_COMPONENTS;
+    }
+
+    @Override
+    public Set<Component> uploadComponents()
+    {
+        return UPLOAD_COMPONENTS;
+    }
+
+    @Override
+    public Set<Component> mutableComponents()
+    {
+        return MUTABLE_COMPONENTS;
+    }
+
+    @Override
+    public Set<Component> generatedOnLoadComponents()
+    {
+        return GENERATED_ON_LOAD_COMPONENTS;
+    }
+
+    @Override
+    public Set<Component> writeComponents()
+    {
+        return WRITE_COMPONENTS;
+    }
+
+    @Override
+    public boolean isKeyCacheSupported()
+    {
+        return true;
+    }
+
+    @Override
+    public AbstractRowIndexEntry.KeyCacheValueSerializer<BigTableReader, RowIndexEntry> getKeyCacheValueSerializer()
+    {
+        return KeyCacheValueSerializer.instance;
+    }
+
+    @Override
+    public BigTableReader cast(SSTableReader sstr)
+    {
+        return sstr == null ? null : (BigTableReader) sstr;
+    }
+
+    @Override
+    public BigTableWriter cast(SSTableWriter<?> sstw)
+    {
+        return sstw == null ? null : (BigTableWriter) sstw;
+    }
+
+    @Override
+    public FormatSpecificMetricsProviders getFormatSpecificMetricsProviders()
+    {
+        return BigTableSpecificMetricsProviders.instance;
+    }
+
+    static class KeyCacheValueSerializer implements AbstractRowIndexEntry.KeyCacheValueSerializer<BigTableReader, RowIndexEntry>
+    {
+        private final static KeyCacheValueSerializer instance = new KeyCacheValueSerializer();
+
+        @Override
+        public void skip(DataInputPlus input) throws IOException
+        {
+            RowIndexEntry.Serializer.skipForCache(input);
+        }
+
+        @Override
+        public RowIndexEntry deserialize(BigTableReader reader, DataInputPlus input) throws IOException
+        {
+            return reader.deserializeKeyCacheValue(input);
+        }
+
+        @Override
+        public void serialize(RowIndexEntry entry, DataOutputPlus output) throws IOException
+        {
+            entry.serializeForCache(output);
+        }
+    }
+
+    static class BigTableReaderFactory implements SSTableReaderFactory<BigTableReader, BigTableReaderBuilder>
+    {
+        @Override
+        public BigTableReaderBuilder builder(Descriptor descriptor)
+        {
+            return new BigTableReaderBuilder(descriptor);
+        }
+
+        @Override
+        public SSTableReaderLoadingBuilder<BigTableReader, BigTableReaderBuilder> builder(Descriptor descriptor,
+                                                                                          TableMetadataRef tableMetadataRef,
+                                                                                          Set<Component> components)
+        {
+            return new BigSSTableReaderLoadingBuilder(new SSTableBuilder<>(descriptor).setTableMetadataRef(tableMetadataRef)
+                                                                                      .setComponents(components));
+        }
+    }
+
+    static class BigTableWriterFactory implements SSTableWriter.Factory<BigTableWriter, BigTableWriterBuilder>
     {
         @Override
         public long estimateSize(SSTableWriter.SSTableSizeParameters parameters)
@@ -88,28 +273,9 @@ public class BigFormat implements SSTableFormat
         }
 
         @Override
-        public SSTableWriter open(Descriptor descriptor,
-                                  long keyCount,
-                                  long repairedAt,
-                                  TimeUUID pendingRepair,
-                                  boolean isTransient,
-                                  TableMetadataRef metadata,
-                                  MetadataCollector metadataCollector,
-                                  SerializationHeader header,
-                                  Collection<SSTableFlushObserver> observers,
-                                  LifecycleNewTracker lifecycleNewTracker)
+        public BigTableWriterBuilder builder(Descriptor descriptor)
         {
-            SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
-            return new BigTableWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers, lifecycleNewTracker);
-        }
-    }
-
-    static class ReaderFactory extends SSTableReader.Factory
-    {
-        @Override
-        public SSTableReader open(SSTableReaderBuilder builder)
-        {
-            return new BigTableReader(builder);
+            return new BigTableWriterBuilder(descriptor);
         }
     }
 
@@ -189,6 +355,7 @@ public class BigFormat implements SSTableFormat
             return hasCommitLogIntervals;
         }
 
+        @Override
         public boolean hasPendingRepair()
         {
             return hasPendingRepair;
@@ -218,6 +385,7 @@ public class BigFormat implements SSTableFormat
             return hasAccurateMinMax;
         }
 
+        @Override
         public boolean isCompatible()
         {
             return version.compareTo(earliest_supported_version) >= 0 && version.charAt(0) <= current_version.charAt(0);
@@ -244,6 +412,63 @@ public class BigFormat implements SSTableFormat
         public boolean hasOldBfFormat()
         {
             return hasOldBfFormat;
+        }
+
+
+        @Override
+        public boolean hasImprovedMinMax()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean hasIncrementalNodeSyncMetadata()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean hasZeroCopyMetadata()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean hasPartitionLevelDeletionsPresenceMarker()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean hasMaxColumnValueLengths()
+        {
+            return false;
+        }
+    }
+
+    private static class BigTableGaugeProvider<T extends Number> extends GaugeProvider<T, BigTableReader>
+    {
+        public BigTableGaugeProvider(String name, T neutralValue, Function<BigTableReader, T> extractor, BiFunction<T, T, T> combiner)
+        {
+            super(BigFormat.instance, name, neutralValue, extractor, combiner);
+        }
+    }
+
+    private static class BigTableSpecificMetricsProviders implements FormatSpecificMetricsProviders
+    {
+        private final static BigTableSpecificMetricsProviders instance = new BigTableSpecificMetricsProviders();
+
+        private final BigTableGaugeProvider<Long> indexSummaryOffHeapMemoryUsed = new BigTableGaugeProvider<>("IndexSummaryOffHeapMemoryUsed",
+                                                                                                              0L,
+                                                                                                              r -> r.getIndexSummary().getOffHeapSize(),
+                                                                                                              Long::sum);
+
+        private final List<GaugeProvider<?, ?>> gaugeProviders = Arrays.asList(indexSummaryOffHeapMemoryUsed);
+
+        @Override
+        public List<GaugeProvider<?, ?>> getGaugeProviders()
+        {
+            return gaugeProviders;
         }
     }
 }

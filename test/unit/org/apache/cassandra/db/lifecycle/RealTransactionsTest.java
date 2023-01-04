@@ -24,14 +24,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.io.util.File;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.junit.Assert;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
@@ -43,8 +40,11 @@ import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -160,16 +160,13 @@ public class RealTransactionsTest extends SchemaLoader
                 File directory = txn.originals().iterator().next().descriptor.directory;
                 Descriptor desc = cfs.newSSTableDescriptor(directory);
                 TableMetadataRef metadata = Schema.instance.getTableMetadataRef(desc);
-                rewriter.switchWriter(SSTableWriter.create(metadata,
-                                                           desc,
-                                                           0,
-                                                           0,
-                                                           null,
-                                                           false,
-                                                           0,
-                                                           SerializationHeader.make(cfs.metadata(), txn.originals()),
-                                                           cfs.indexManager.listIndexes(),
-                                                           txn));
+                rewriter.switchWriter(desc.getFormat().getWriterFactory().builder(desc)
+                                          .setTableMetadataRef(metadata)
+                                          .setSerializationHeader(SerializationHeader.make(cfs.metadata(), txn.originals()))
+                                          .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
+                                          .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))
+                                          .addDefaultComponents()
+                                          .build(txn));
                 while (ci.hasNext())
                 {
                     ci.setTargetDirectory(rewriter.currentWriter().getFilename());

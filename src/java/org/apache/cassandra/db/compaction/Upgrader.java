@@ -68,20 +68,23 @@ public class Upgrader
         this.estimatedRows = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
     }
 
-    private SSTableWriter createCompactionWriter(StatsMetadata metadata)
+    private SSTableWriter<?> createCompactionWriter(StatsMetadata metadata)
     {
         MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.getComparator());
         sstableMetadataCollector.sstableLevel(sstable.getSSTableLevel());
-        return SSTableWriter.create(cfs.newSSTableDescriptor(directory),
-                                    estimatedRows,
-                                    metadata.repairedAt,
-                                    metadata.pendingRepair,
-                                    metadata.isTransient,
-                                    cfs.metadata,
-                                    sstableMetadataCollector,
-                                    SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)),
-                                    cfs.indexManager.listIndexes(),
-                                    transaction);
+
+        Descriptor descriptor = cfs.newSSTableDescriptor(directory);
+        return descriptor.getFormat().getWriterFactory().builder(descriptor)
+                         .setKeyCount(estimatedRows)
+                         .setRepairedAt(metadata.repairedAt)
+                         .setPendingRepair(metadata.pendingRepair)
+                         .setTransientSSTable(metadata.isTransient)
+                         .setTableMetadataRef(cfs.metadata)
+                         .setMetadataCollector(sstableMetadataCollector)
+                         .setSerializationHeader(SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)))
+                         .addDefaultComponents()
+                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), transaction.opType())
+                         .build(transaction);
     }
 
     public void upgrade(boolean keepOriginals)
@@ -125,4 +128,3 @@ public class Upgrader
         }
     }
 }
-

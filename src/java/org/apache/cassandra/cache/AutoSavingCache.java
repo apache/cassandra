@@ -85,8 +85,10 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
      * "e" introduced with CASSANDRA-11206, omits IndexInfo from key-cache, stores offset into index-file
      *
      * "f" introduced with CASSANDRA-9425, changes "keyspace.table.index" in cache keys to TableMetadata.id+TableMetadata.indexName
+     *
+     * "g" introduced an explicit sstable format type ordinal number so that the entry can be skipped regardless of the actual implementation and used serializer
      */
-    private static final String CURRENT_VERSION = "f";
+    private static final String CURRENT_VERSION = "g";
 
     private static volatile IStreamFactory streamFactory = new IStreamFactory()
     {

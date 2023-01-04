@@ -21,13 +21,22 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.io.sstable.format.SSTableReaderBuilder;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+
+import org.apache.cassandra.cache.InstrumentingCache;
+import org.apache.cassandra.cache.KeyCacheKey;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.IScrubber;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.SSTableIterator;
-import org.apache.cassandra.db.columniterator.SSTableReversedIterator;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -40,21 +49,60 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SelectionReason;
 import org.apache.cassandra.io.sstable.format.SSTableReadsListener.SkippingReason;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.OutputHandler;
+
+import static org.apache.cassandra.utils.concurrent.SharedCloseable.sharedCopyOrNull;
 
 /**
  * SSTableReaders are open()ed by Keyspace.onStart; after that they are created by SSTableWriter.renameAndOpen.
  * Do not re-call open() on existing SSTable files; use the references kept by ColumnFamilyStore post-start instead.
  */
-public class BigTableReader extends SSTableReader
+public class BigTableReader extends SSTableReader implements IndexSummarySupport<BigTableReader>
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableReader.class);
 
-    BigTableReader(SSTableReaderBuilder builder)
+    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
+    private final IndexSummary indexSummary;
+    private final FileHandle ifile;
+
+    public BigTableReader(BigTableReaderBuilder builder)
     {
         super(builder);
+        this.ifile = builder.getIndexFile();
+        this.indexSummary = builder.getIndexSummary();
+        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(descriptor.version, header);
+    }
+
+    @Override
+    protected List<AutoCloseable> setupInstance(boolean trackHotness)
+    {
+        ArrayList<AutoCloseable> closeables = Lists.newArrayList(bf, indexSummary, ifile);
+        closeables.addAll(super.setupInstance(trackHotness));
+        return closeables;
+    }
+
+    @Override
+    public void releaseComponents()
+    {
+        closeInternalComponent(indexSummary);
+        assert indexSummary.isCleanedUp();
+    }
+
+    @Override
+    public IndexSummary getIndexSummary()
+    {
+        return indexSummary;
     }
 
     public UnfilteredRowIterator rowIterator(DecoratedKey key,
@@ -63,24 +111,29 @@ public class BigTableReader extends SSTableReader
                                              boolean reversed,
                                              SSTableReadsListener listener)
     {
-        RowIndexEntry rie = getPosition(key, SSTableReader.Operator.EQ, listener);
+        RowIndexEntry rie = getRowIndexEntry(key, SSTableReader.Operator.EQ, true, false, listener);
         return rowIterator(null, key, rie, slices, selectedColumns, reversed);
     }
 
-    @SuppressWarnings("resource")
     public UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
     {
         if (indexEntry == null)
             return UnfilteredRowIterators.noRowsIterator(metadata(), key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, reversed);
         return reversed
-             ? new SSTableReversedIterator(this, file, key, indexEntry, slices, selectedColumns, ifile)
-             : new SSTableIterator(this, file, key, indexEntry, slices, selectedColumns, ifile);
+               ? new SSTableReversedIterator(this, file, key, indexEntry, slices, selectedColumns, ifile)
+               : new SSTableIterator(this, file, key, indexEntry, slices, selectedColumns, ifile);
     }
 
     @Override
     public ISSTableScanner partitionIterator(ColumnFilter columns, DataRange dataRange, SSTableReadsListener listener)
     {
         return BigTableScanner.getScanner(this, columns, dataRange, listener);
+    }
+
+    @Override
+    public KeyReader keyReader() throws IOException
+    {
+        return BigTableKeyReader.create(ifile, rowIndexEntrySerializer);
     }
 
     /**
@@ -118,29 +171,71 @@ public class BigTableReader extends SSTableReader
             return getScanner();
     }
 
-
-    @SuppressWarnings("resource") // caller to close
+    /**
+     * Finds and returns the first key beyond a given token in this SSTable or null if no such key exists.
+     */
     @Override
-    public UnfilteredRowIterator simpleIterator(FileDataInput dfile, DecoratedKey key, RowIndexEntry position, boolean tombstoneOnly)
+    public DecoratedKey firstKeyBeyond(PartitionPosition token)
     {
-        return SSTableIdentityIterator.create(this, dfile, position, key, tombstoneOnly);
+        if (token.compareTo(first) < 0)
+            return first;
+
+        long sampledPosition = getIndexScanPosition(token);
+
+        if (ifile == null)
+            return null;
+
+        String path = null;
+        try (FileDataInput in = ifile.createReader(sampledPosition))
+        {
+            path = in.getPath();
+            while (!in.isEOF())
+            {
+                ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
+                DecoratedKey indexDecoratedKey = decorateKey(indexKey);
+                if (indexDecoratedKey.compareTo(token) > 0)
+                    return indexDecoratedKey;
+
+                RowIndexEntry.Serializer.skip(in, descriptor.version);
+            }
+        }
+        catch (IOException e)
+        {
+            markSuspect();
+            throw new CorruptSSTableException(e, path);
+        }
+
+        return null;
     }
 
     /**
+     * Retrieves the position while updating the key cache and the stats.
+     *
      * @param key The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
-     * allow key selection by token bounds but only if op != * EQ
-     * @param op The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     *            allow key selection by token bounds but only if op != * EQ
+     * @param op  The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     */
+    public final RowIndexEntry getRowIndexEntry(PartitionPosition key, Operator op)
+    {
+        return getRowIndexEntry(key, op, true, false, SSTableReadsListener.NOOP_LISTENER);
+    }
+
+    /**
+     * @param key                 The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
+     *                            allow key selection by token bounds but only if op != * EQ
+     * @param op                  The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param updateCacheAndStats true if updating stats and cache
      * @return The index entry corresponding to the key, or null if the key is not present
      */
-    protected RowIndexEntry getPosition(PartitionPosition key,
-                                        Operator op,
-                                        boolean updateCacheAndStats,
-                                        boolean permitMatchPastLast,
-                                        SSTableReadsListener listener)
+    @Override
+    protected RowIndexEntry getRowIndexEntry(PartitionPosition key,
+                                             Operator op,
+                                             boolean updateCacheAndStats,
+                                             boolean permitMatchPastLast,
+                                             SSTableReadsListener listener)
     {
         // Having no index file is impossible in a normal operation. The only way it might happen is running
-        // Scrubber that does not really rely onto this method.
+        // Scrubber that does not really rely on this method.
         if (ifile == null)
         {
             return null;
@@ -149,7 +244,7 @@ public class BigTableReader extends SSTableReader
         if (op == Operator.EQ)
         {
             assert key instanceof DecoratedKey; // EQ only make sense if the key is a valid row key
-            if (!bf.isPresent((DecoratedKey)key))
+            if (!bf.isPresent((DecoratedKey) key))
             {
                 listener.onSSTableSkipped(this, SkippingReason.BLOOM_FILTER);
                 Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.id);
@@ -162,14 +257,14 @@ public class BigTableReader extends SSTableReader
         if ((op == Operator.EQ || op == Operator.GE) && (key instanceof DecoratedKey))
         {
             DecoratedKey decoratedKey = (DecoratedKey) key;
-            RowIndexEntry cachedPosition = getCachedPosition(decoratedKey, updateCacheAndStats);
-            if (cachedPosition != null)
+            AbstractRowIndexEntry cachedPosition = getCachedPosition(decoratedKey, updateCacheAndStats);
+            if (cachedPosition != null && cachedPosition.getSSTableFormat().getType() == SSTableFormat.Type.BIG)
             {
                 // we do not need to track "true positive" for Bloom Filter here because it has been already tracked
                 // inside getCachedPosition method
-                listener.onSSTableSelected(this, cachedPosition, SelectionReason.KEY_CACHE_HIT);
+                listener.onSSTableSelected(this, SelectionReason.KEY_CACHE_HIT);
                 Tracing.trace("Key cache hit for sstable {}", descriptor.id);
-                return cachedPosition;
+                return (RowIndexEntry) cachedPosition;
             }
         }
 
@@ -202,13 +297,13 @@ public class BigTableReader extends SSTableReader
         }
 
         int binarySearchResult = indexSummary.binarySearch(key);
-        long sampledPosition = getIndexScanPositionFromBinarySearchResult(binarySearchResult, indexSummary);
-        int sampledIndex = getIndexSummaryIndexFromBinarySearchResult(binarySearchResult);
+        long sampledPosition = indexSummary.getScanPositionFromBinarySearchResult(binarySearchResult);
+        int sampledIndex = IndexSummary.getIndexFromBinarySearchResult(binarySearchResult);
 
         int effectiveInterval = indexSummary.getEffectiveIndexIntervalAfterIndex(sampledIndex);
 
         // scan the on-disk index, starting at the nearest sampled position.
-        // The check against IndexInterval is to be exit the loop in the EQ case when the key looked for is not present
+        // The check against IndexInterval is to be exited the loop in the EQ case when the key looked for is not present
         // (bloom filter false positive). But note that for non-EQ cases, we might need to check the first key of the
         // next index position because the searched key can be greater the last key of the index interval checked if it
         // is lesser than the first key of next interval (and in that case we must return the position of the first key
@@ -256,7 +351,7 @@ public class BigTableReader extends SSTableReader
                     if (exactMatch && updateCacheAndStats)
                     {
                         assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
-                        DecoratedKey decoratedKey = (DecoratedKey)key;
+                        DecoratedKey decoratedKey = (DecoratedKey) key;
 
                         if (logger.isTraceEnabled())
                         {
@@ -274,7 +369,7 @@ public class BigTableReader extends SSTableReader
                     }
                     if (op == Operator.EQ && updateCacheAndStats)
                         bloomFilterTracker.addTruePositive();
-                    listener.onSSTableSelected(this, indexEntry, SelectionReason.INDEX_ENTRY_FOUND);
+                    listener.onSSTableSelected(this, SelectionReason.INDEX_ENTRY_FOUND);
                     Tracing.trace("Partition index with {} entries found for sstable {}", indexEntry.columnsIndexCount(), descriptor.id);
                     return indexEntry;
                 }
@@ -295,5 +390,312 @@ public class BigTableReader extends SSTableReader
         return null;
     }
 
+    /**
+     * @param key                 The key to apply as the rhs to the given Operator. A 'fake' key is allowed to
+     *                            allow key selection by token bounds but only if op != * EQ
+     * @param op                  The Operator defining matching keys: the nearest key to the target matching the operator wins.
+     * @param updateCacheAndStats true if updating stats and cache
+     * @return The index entry corresponding to the key, or null if the key is not present
+     */
+    @Override
+    protected long getPosition(PartitionPosition key,
+                               Operator op,
+                               boolean updateCacheAndStats,
+                               boolean permitMatchPastLast,
+                               SSTableReadsListener listener)
+    {
+        RowIndexEntry rowIndexEntry = getRowIndexEntry(key, op, updateCacheAndStats, permitMatchPastLast, listener);
+        return rowIndexEntry != null ? rowIndexEntry.position : -1;
+    }
+
+    @Override
+    public DecoratedKey keyAtPositionFromSecondaryIndex(long keyPositionFromSecondaryIndex) throws IOException
+    {
+        DecoratedKey key;
+        try (FileDataInput in = ifile.createReader(keyPositionFromSecondaryIndex))
+        {
+            if (in.isEOF())
+                return null;
+
+            key = decorateKey(ByteBufferUtil.readWithShortLength(in));
+
+            // hint read path about key location if caching is enabled
+            // this saves index summary lookup and index file iteration which whould be pretty costly
+            // especially in presence of promoted column indexes
+            if (isKeyCacheEnabled())
+                cacheKey(key, rowIndexEntrySerializer.deserialize(in));
+        }
+
+        return key;
+    }
+
+    @Override
+    public RowIndexEntry deserializeKeyCacheValue(DataInputPlus input) throws IOException
+    {
+        return rowIndexEntrySerializer.deserializeForCache(input);
+    }
+
+    @Override
+    public ClusteringPrefix<?> getLowerBoundPrefixFromCache(DecoratedKey partitionKey, ClusteringIndexFilter filter)
+    {
+        RowIndexEntry rowIndexEntry = (RowIndexEntry) getCachedPosition(partitionKey, false);
+        if (rowIndexEntry == null || !rowIndexEntry.indexOnHeap())
+            return null;
+
+        try (RowIndexEntry.IndexInfoRetriever onHeapRetriever = rowIndexEntry.openWithIndex(null))
+        {
+            IndexInfo column = onHeapRetriever.columnsIndex(filter.isReversed() ? rowIndexEntry.columnsIndexCount() - 1 : 0);
+            ClusteringPrefix<?> lowerBoundPrefix = filter.isReversed() ? column.lastName : column.firstName;
+            assert lowerBoundPrefix.getRawValues().length <= metadata().comparator.size() :
+            String.format("Unexpected number of clustering values %d, expected %d or fewer for %s",
+                          lowerBoundPrefix.getRawValues().length,
+                          metadata().comparator.size(),
+                          getFilename());
+            return lowerBoundPrefix;
+        }
+        catch (IOException e)
+        {
+            throw new AssertionError("Failed to deserialize row index entry", e);
+        }
+    }
+
+    @Override
+    public void setupOnline()
+    {
+        // under normal operation we can do this at any time, but SSTR is also used outside C* proper,
+        // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
+        // here when we know we're being wired into the rest of the server infrastructure.
+        InstrumentingCache<KeyCacheKey, AbstractRowIndexEntry> maybeKeyCache = CacheService.instance.keyCache;
+        if (maybeKeyCache.getCapacity() > 0)
+            keyCache = maybeKeyCache;
+
+        super.setupOnline();
+    }
+
+    /**
+     * @return An estimate of the number of keys in this SSTable based on the index summary.
+     */
+    @Override
+    public long estimatedKeys()
+    {
+        return indexSummary.getEstimatedKeyCount();
+    }
+
+    /**
+     * @return An estimate of the number of keys for given ranges in this SSTable.
+     */
+    @Override
+    public long estimatedKeysForRanges(Collection<Range<Token>> ranges)
+    {
+        long sampleKeyCount = 0;
+        List<IndexesBounds> sampleIndexes = indexSummary.getSampleIndexesForRanges(ranges);
+        for (IndexesBounds sampleIndexRange : sampleIndexes)
+            sampleKeyCount += (sampleIndexRange.upperPosition - sampleIndexRange.lowerPosition + 1);
+
+        // adjust for the current sampling level: (BSL / SL) * index_interval_at_full_sampling
+        long estimatedKeys = sampleKeyCount * ((long) Downsampling.BASE_SAMPLING_LEVEL * indexSummary.getMinIndexInterval()) / indexSummary.getSamplingLevel();
+        return Math.max(1, estimatedKeys);
+    }
+
+    @Override
+    public int getEstimationSamples()
+    {
+        return indexSummary.size();
+    }
+
+    @Override
+    public Iterable<DecoratedKey> getKeySamples(final Range<Token> range)
+    {
+        return Iterables.transform(indexSummary.getKeySamples(range), bytes -> decorateKey(ByteBuffer.wrap(bytes)));
+    }
+
+    public RandomAccessReader openIndexReader()
+    {
+        if (ifile != null)
+            return ifile.createReader();
+        return null;
+    }
+
+    public FileHandle getIndexFile()
+    {
+        return ifile;
+    }
+
+    @Override
+    public IScrubber getScrubber(LifecycleTransaction transaction, OutputHandler outputHandler, IScrubber.Options options)
+    {
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata());
+        Preconditions.checkArgument(transaction.originals().size() == 1 && transaction.originals().contains(this));
+        return new BigTableScrubber(cfs, transaction, outputHandler, options);
+    }
+
+    @Override
+    public IVerifier getVerifier(OutputHandler outputHandler, boolean isOffline, IVerifier.Options options)
+    {
+        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata());
+        return new BigTableVerifier(cfs, this, outputHandler, isOffline, options);
+    }
+
+    /**
+     * Gets the position with the index file to start scanning to find the given key (at most indexInterval keys away,
+     * modulo downsampling of the index summary). Always returns a {@code value >= 0}
+     */
+    long getIndexScanPosition(PartitionPosition key)
+    {
+        if (openReason == OpenReason.MOVED_START && key.compareTo(first) < 0)
+            key = first;
+
+        return indexSummary.getScanPositionFromBinarySearch(key);
+    }
+
+    private BigTableReaderBuilder unbuild()
+    {
+        return super.unbuild(new BigTableReaderBuilder(descriptor))
+                    .setIndexFile(ifile)
+                    .setIndexSummary(indexSummary);
+    }
+    /**
+     * Clone this reader with the provided start and open reason, and set the clone as replacement.
+     *
+     * @param newFirst the first key for the replacement (which can be different from the original due to the pre-emptive
+     *                 opening of compaction results).
+     * @param reason   the {@code OpenReason} for the replacement.
+     * @return the cloned reader. That reader is set as a replacement by the method.
+     */
+    private SSTableReader cloneAndReplace(DecoratedKey newFirst, OpenReason reason)
+    {
+        return cloneAndReplace(newFirst, reason, sharedCopyOrNull(indexSummary));
+    }
+
+    /**
+     * Clone this reader with the new values and set the clone as replacement.
+     *
+     * @param newFirst   the first key for the replacement (which can be different from the original due to the pre-emptive
+     *                   opening of compaction results).
+     * @param reason     the {@code OpenReason} for the replacement.
+     * @param newSummary the index summary for the replacement.
+     * @return the cloned reader. That reader is set as a replacement by the method.
+     */
+    private BigTableReader cloneAndReplace(DecoratedKey newFirst, OpenReason reason, IndexSummary newSummary)
+    {
+        return unbuild().setFilter(sharedCopyOrNull(bf))
+                        .setDataFile(sharedCopyOrNull(dfile))
+                        .setIndexFile(sharedCopyOrNull(ifile))
+                        .setIndexSummary(newSummary)
+                        .setFirst(newFirst)
+                        .setOpenReason(reason)
+                        .build(true, true);
+    }
+
+    /**
+     * Clone this reader with the new values and set the clone as replacement.
+     *
+     * @param newBloomFilter for the replacement
+     * @return the cloned reader. That reader is set as a replacement by the method.
+     */
+    @VisibleForTesting
+    public SSTableReader cloneAndReplace(IFilter newBloomFilter)
+    {
+        return unbuild().setDataFile(sharedCopyOrNull(dfile))
+                        .setIndexFile(sharedCopyOrNull(ifile))
+                        .setIndexSummary(sharedCopyOrNull(indexSummary))
+                        .setFilter(newBloomFilter)
+                        .build(true, true);
+    }
+
+    public SSTableReader cloneWithRestoredStart(DecoratedKey restoredStart)
+    {
+        return runWithLock(ignored -> cloneAndReplace(restoredStart, OpenReason.NORMAL));
+    }
+
+    public SSTableReader cloneWithNewStart(DecoratedKey newStart)
+    {
+        return runWithLock(ignored -> {
+            assert openReason != OpenReason.EARLY;
+            // TODO: merge with caller's firstKeyBeyond() work,to save time
+            if (newStart.compareTo(first) > 0)
+            {
+                Map<FileHandle, Long> handleAndPositions = new LinkedHashMap<>(2);
+                if (dfile != null)
+                    handleAndPositions.put(dfile, getPosition(newStart, Operator.EQ));
+                if (ifile != null)
+                    handleAndPositions.put(ifile, getIndexScanPosition(newStart));
+                runOnClose(() -> handleAndPositions.forEach(FileHandle::dropPageCache));
+            }
+
+            return cloneAndReplace(newStart, OpenReason.MOVED_START);
+        });
+    }
+
+    /**
+     * Returns a new SSTableReader with the same properties as this SSTableReader except that a new IndexSummary will
+     * be built at the target samplingLevel.  This (original) SSTableReader instance will be marked as replaced, have
+     * its DeletingTask removed, and have its periodic read-meter sync task cancelled.
+     *
+     * @param samplingLevel the desired sampling level for the index summary on the new SSTableReader
+     * @return a new SSTableReader
+     */
+    @SuppressWarnings("resource")
+    public BigTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
+    {
+        assert openReason != OpenReason.EARLY;
+
+        int minIndexInterval = metadata().params.minIndexInterval;
+        int maxIndexInterval = metadata().params.maxIndexInterval;
+        double effectiveInterval = indexSummary.getEffectiveIndexInterval();
+
+        IndexSummary newSummary;
+
+        // We have to rebuild the summary from the on-disk primary index in three cases:
+        // 1. The sampling level went up, so we need to read more entries off disk
+        // 2. The min_index_interval changed (in either direction); this changes what entries would be in the summary
+        //    at full sampling (and consequently at any other sampling level)
+        // 3. The max_index_interval was lowered, forcing us to raise the sampling level
+        if (samplingLevel > indexSummary.getSamplingLevel() || indexSummary.getMinIndexInterval() != minIndexInterval || effectiveInterval > maxIndexInterval)
+        {
+            newSummary = buildSummaryAtLevel(samplingLevel);
+        }
+        else if (samplingLevel < indexSummary.getSamplingLevel())
+        {
+            // we can use the existing index summary to make a smaller one
+            newSummary = IndexSummaryBuilder.downsample(indexSummary, samplingLevel, minIndexInterval, getPartitioner());
+        }
+        else
+        {
+            throw new AssertionError("Attempted to clone SSTableReader with the same index summary sampling level and " +
+                                     "no adjustments to min/max_index_interval");
+        }
+
+        // Always save the resampled index with lock to avoid racing with entire-sstable streaming
+        return runWithLock(ignored -> {
+            new IndexSummaryComponent(newSummary, first, last).saveOrDeleteCorrupted(descriptor);
+            return cloneAndReplace(first, OpenReason.METADATA_CHANGE, newSummary);
+        });
+    }
+
+    private IndexSummary buildSummaryAtLevel(int newSamplingLevel) throws IOException
+    {
+        // we read the positions in a BRAF, so we don't have to worry about an entry spanning a mmap boundary.
+        RandomAccessReader primaryIndex = RandomAccessReader.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
+        try
+        {
+            long indexSize = primaryIndex.length();
+            try (IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(estimatedKeys(), metadata().params.minIndexInterval, newSamplingLevel))
+            {
+                long indexPosition;
+                while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)
+                {
+                    summaryBuilder.maybeAddEntry(decorateKey(ByteBufferUtil.readWithShortLength(primaryIndex)), indexPosition);
+                    RowIndexEntry.Serializer.skip(primaryIndex, descriptor.version);
+                }
+
+                return summaryBuilder.build(getPartitioner());
+            }
+        }
+        finally
+        {
+            FileUtils.closeQuietly(primaryIndex);
+        }
+    }
 
 }

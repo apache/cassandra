@@ -50,6 +50,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
     public static final double NO_COMPRESSION_RATIO = -1.0;
     private static final ByteBuffer[] EMPTY_CLUSTERING = new ByteBuffer[0];
 
+    private long currentPartitionCells = 0;
+
     static EstimatedHistogram defaultCellPerPartitionCountHistogram()
     {
         // EH of 118 can track a max value of 4139110981, i.e., > 4B cells
@@ -82,8 +84,9 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  NO_COMPRESSION_RATIO,
                                  defaultTombstoneDropTimeHistogram(),
                                  0,
-                                 Collections.<ByteBuffer>emptyList(),
-                                 Collections.<ByteBuffer>emptyList(),
+                                 Collections.emptyList(),
+                                 Collections.emptyList(),
+                                 true,
                                  true,
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                  -1,
@@ -106,6 +109,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     private ClusteringPrefix<?> minClustering = null;
     private ClusteringPrefix<?> maxClustering = null;
     protected boolean hasLegacyCounterShards = false;
+    private boolean hasPartitionLevelDeletions = false;
     protected long totalColumnsSet;
     protected long totalRows;
     public int totalTombstones;
@@ -170,6 +174,13 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return this;
     }
 
+    public MetadataCollector addCellPerPartitionCount()
+    {
+        estimatedCellPerPartitionCount.add(currentPartitionCells);
+        currentPartitionCells = 0;
+        return this;
+    }
+
     /**
      * Ratio is compressed/uncompressed and it is
      * if you have 1.x then compression isn't helping
@@ -194,11 +205,19 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     public void update(Cell<?> cell)
     {
+        ++currentPartitionCells;
         updateTimestamp(cell.timestamp());
         updateTTL(cell.ttl());
         updateLocalDeletionTime(cell.localDeletionTime());
         if (!cell.isLive(nowInSec))
             updateTombstoneCount();
+    }
+
+    public void updatePartitionDeletion(DeletionTime dt)
+    {
+        if (!dt.isLive())
+            hasPartitionLevelDeletions = true;
+        update(dt);
     }
 
     public void update(DeletionTime dt)
@@ -286,6 +305,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              makeList(minValues),
                                                              makeList(maxValues),
                                                              hasLegacyCounterShards,
+                                                             hasPartitionLevelDeletions,
                                                              repairedAt,
                                                              totalColumnsSet,
                                                              totalRows,

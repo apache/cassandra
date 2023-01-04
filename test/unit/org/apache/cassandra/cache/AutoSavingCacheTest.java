@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.cache;
 
+import org.apache.cassandra.io.sstable.format.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -24,6 +26,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.Assert;
+import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -44,6 +47,7 @@ public class AutoSavingCacheTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        Assume.assumeTrue(SSTableFormat.Type.current().info.isKeyCacheSupported());
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -85,7 +89,7 @@ public class AutoSavingCacheTest
         for (SSTableReader sstable : cfs.getLiveSSTables())
             sstable.getPosition(Util.dk("key1"), SSTableReader.Operator.EQ);
 
-        AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;
+        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry> keyCache = CacheService.instance.keyCache;
 
         // serialize to file
         keyCache.submitWrite(keyCache.size()).get();

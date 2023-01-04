@@ -310,8 +310,8 @@ public class CompactionController extends AbstractCompactionController
             reader.getMaxTimestamp() <= minTimestamp ||
             tombstoneOnly && !reader.mayHaveTombstones())
             return null;
-        RowIndexEntry<?> position = reader.getPosition(key, SSTableReader.Operator.EQ);
-        if (position == null)
+        long position = reader.getPosition(key, SSTableReader.Operator.EQ);
+        if (position < 0)
             return null;
         FileDataInput dfile = openDataFiles.computeIfAbsent(reader, this::openDataFile);
         return reader.simpleIterator(dfile, key, position, tombstoneOnly);

@@ -39,7 +39,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.Verifier;
+import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -103,7 +103,7 @@ public class StandaloneVerifier
             for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
             {
                 Set<Component> components = entry.getValue();
-                if (!components.contains(Component.DATA) || !components.contains(Component.PRIMARY_INDEX))
+                if (!components.containsAll(entry.getKey().getFormat().primaryComponents()))
                     continue;
 
                 try
@@ -120,23 +120,23 @@ public class StandaloneVerifier
                     System.exit(1);
                 }
             }
-            Verifier.Options verifyOptions = Verifier.options().invokeDiskFailurePolicy(false)
-                                                               .extendedVerification(options.extended)
-                                                               .checkVersion(options.checkVersion)
-                                                               .mutateRepairStatus(options.mutateRepairStatus)
-                                                               .checkOwnsTokens(!options.tokens.isEmpty())
-                                                               .tokenLookup(ignore -> options.tokens)
-                                                               .build();
+            IVerifier.Options verifyOptions = IVerifier.options().invokeDiskFailurePolicy(false)
+                                                       .extendedVerification(options.extended)
+                                                       .checkVersion(options.checkVersion)
+                                                       .mutateRepairStatus(options.mutateRepairStatus)
+                                                       .checkOwnsTokens(!options.tokens.isEmpty())
+                                                       .tokenLookup(ignore -> options.tokens)
+                                                       .build();
             handler.output("Running verifier with the following options: " + verifyOptions);
             for (SSTableReader sstable : sstables)
             {
-                try (Verifier verifier = new Verifier(cfs, sstable, handler, true, verifyOptions))
+                try (IVerifier verifier = sstable.getVerifier(handler, true, verifyOptions))
                 {
                     verifier.verify();
                 }
                 catch (Exception e)
                 {
-                    handler.warn(String.format("Error verifying %s: %s", sstable, e.getMessage()), e);
+                    handler.warn(e, String.format("Error verifying %s: %s", sstable, e.getMessage()));
                     hasFailed = true;
                 }
             }

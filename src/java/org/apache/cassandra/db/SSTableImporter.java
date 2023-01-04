@@ -28,19 +28,20 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
-
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.KeyIterator;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -185,7 +186,7 @@ public class SSTableImporter
             for (SSTableReader reader : newSSTables)
             {
                 if (options.invalidateCaches && cfs.isRowCacheEnabled())
-                    invalidateCachesForSSTable(reader.descriptor);
+                    invalidateCachesForSSTable(reader);
             }
 
         }
@@ -308,7 +309,7 @@ public class SSTableImporter
             {
                 logger.debug("Moving sstable {} back to {}", movedSSTable.newDescriptor.filenameFor(Component.DATA)
                                                           , movedSSTable.oldDescriptor.filenameFor(Component.DATA));
-                SSTableWriter.rename(movedSSTable.newDescriptor, movedSSTable.oldDescriptor, movedSSTable.components);
+                SSTable.rename(movedSSTable.newDescriptor, movedSSTable.oldDescriptor, movedSSTable.components);
             }
         }
     }
@@ -336,15 +337,19 @@ public class SSTableImporter
      * Iterates over all keys in the sstable index and invalidates the row cache
      */
     @VisibleForTesting
-    void invalidateCachesForSSTable(Descriptor desc)
+    void invalidateCachesForSSTable(SSTableReader reader)
     {
-        try (KeyIterator iter = new KeyIterator(desc, cfs.metadata()))
+        try (KeyIterator iter = reader.keyIterator())
         {
             while (iter.hasNext())
             {
                 DecoratedKey decoratedKey = iter.next();
                 cfs.invalidateCachedPartition(decoratedKey);
             }
+        }
+        catch (IOException ex)
+        {
+            throw new RuntimeException("Failed to import sstable " + reader.getFilename(), ex);
         }
     }
 
@@ -361,13 +366,14 @@ public class SSTableImporter
         try
         {
             reader = SSTableReader.open(descriptor, components, cfs.metadata);
-            Verifier.Options verifierOptions = Verifier.options()
-                                                       .extendedVerification(extendedVerify)
-                                                       .checkOwnsTokens(verifyTokens)
-                                                       .quick(!verifySSTables)
-                                                       .invokeDiskFailurePolicy(false)
-                                                       .mutateRepairStatus(false).build();
-            try (Verifier verifier = new Verifier(cfs, reader, false, verifierOptions))
+            IVerifier.Options verifierOptions = IVerifier.options()
+                                                         .extendedVerification(extendedVerify)
+                                                         .checkOwnsTokens(verifyTokens)
+                                                         .quick(!verifySSTables)
+                                                         .invokeDiskFailurePolicy(false)
+                                                         .mutateRepairStatus(false).build();
+
+            try (IVerifier verifier = reader.getVerifier(new OutputHandler.LogOutput(), false, verifierOptions))
             {
                 verifier.verify();
             }

@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
@@ -58,11 +59,11 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
  * Manages the fixed-size memory pool for index summaries, periodically resizing them
  * in order to give more memory to hot sstables and less memory to cold sstables.
  */
-public class IndexSummaryManager implements IndexSummaryManagerMBean
+public class IndexSummaryManager<T extends SSTableReader & IndexSummarySupport> implements IndexSummaryManagerMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSummaryManager.class);
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=IndexSummaries";
-    public static final IndexSummaryManager instance;
+    public static final IndexSummaryManager<?> instance;
 
     private long memoryPoolBytes;
 
@@ -71,14 +72,28 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     // our next scheduled resizing run
     private ScheduledFuture future;
 
+    private final Supplier<List<T>> indexSummariesProvider;
+
+    private static <T extends SSTableReader & IndexSummarySupport> List<T> getAllSupportedReaders() {
+        List<T> readers = new ArrayList<>();
+        for (Keyspace keyspace : Keyspace.all())
+            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                for (SSTableReader sstr : cfs.getLiveSSTables())
+                    if (sstr instanceof IndexSummarySupport)
+                        readers.add(((T) sstr));
+        return readers;
+    }
+
     static
     {
-        instance = new IndexSummaryManager();
+        instance = new IndexSummaryManager<>(IndexSummaryManager::getAllSupportedReaders);
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
     }
 
-    private IndexSummaryManager()
+    private IndexSummaryManager(Supplier<List<T>> indexSummariesProvider)
     {
+        this.indexSummariesProvider = indexSummariesProvider;
+
         executor = executorFactory().scheduled(false, "IndexSummaryManager", Thread.MIN_PRIORITY);
 
         long indexSummarySizeInMB = DatabaseDescriptor.getIndexSummaryCapacityInMiB();
@@ -145,21 +160,21 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
 
     public Map<String, Integer> getIndexIntervals()
     {
-        List<SSTableReader> sstables = getAllSSTables();
-        Map<String, Integer> intervals = new HashMap<>(sstables.size());
-        for (SSTableReader sstable : sstables)
-            intervals.put(sstable.getFilename(), (int) Math.round(sstable.getEffectiveIndexInterval()));
+        List<T> summaryProviders = indexSummariesProvider.get();
+        Map<String, Integer> intervals = new HashMap<>(summaryProviders.size());
+        for (T summaryProvider : summaryProviders)
+            intervals.put(summaryProvider.getFilename(), (int) Math.round(summaryProvider.getIndexSummary().getEffectiveIndexInterval()));
 
         return intervals;
     }
 
     public double getAverageIndexInterval()
     {
-        List<SSTableReader> sstables = getAllSSTables();
+        List<T> summaryProviders = indexSummariesProvider.get();
         double total = 0.0;
-        for (SSTableReader sstable : sstables)
-            total += sstable.getEffectiveIndexInterval();
-        return total / sstables.size();
+        for (IndexSummarySupport summaryProvider : summaryProviders)
+            total += summaryProvider.getIndexSummary().getEffectiveIndexInterval();
+        return total / summaryProviders.size();
     }
 
     public void setMemoryPoolCapacityInMB(long memoryPoolCapacityInMB)
@@ -174,21 +189,9 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     public double getMemoryPoolSizeInMB()
     {
         long total = 0;
-        for (SSTableReader sstable : getAllSSTables())
-            total += sstable.getIndexSummaryOffHeapSize();
+        for (IndexSummarySupport summaryProvider : indexSummariesProvider.get())
+            total += summaryProvider.getIndexSummary().getOffHeapSize();
         return total / 1024.0 / 1024.0;
-    }
-
-    private List<SSTableReader> getAllSSTables()
-    {
-        List<SSTableReader> result = new ArrayList<>();
-        for (Keyspace ks : Keyspace.all())
-        {
-            for (ColumnFamilyStore cfStore: ks.getColumnFamilyStores())
-                result.addAll(cfStore.getLiveSSTables());
-        }
-
-        return result;
     }
 
     /**
@@ -221,7 +224,12 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
                 allCompacting.addAll(Sets.difference(allSSTables, nonCompacting));
             }
         }
-        long nonRedistributingOffHeapSize = allCompacting.stream().mapToLong(SSTableReader::getIndexSummaryOffHeapSize).sum();
+        long nonRedistributingOffHeapSize = allCompacting.stream()
+                                                         .filter(IndexSummarySupport.class::isInstance)
+                                                         .map(IndexSummarySupport.class::cast)
+                                                         .map(IndexSummarySupport::getIndexSummary)
+                                                         .mapToLong(IndexSummary::getOffHeapSize)
+                                                         .sum();
         return Pair.create(nonRedistributingOffHeapSize, allNonCompacting);
     }
 
@@ -272,9 +280,9 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
      * @return a list of new SSTableReader instances
      */
     @VisibleForTesting
-    public static List<SSTableReader> redistributeSummaries(IndexSummaryRedistribution redistribution) throws IOException
+    public static <T extends SSTableReader & IndexSummarySupport> List<T> redistributeSummaries(IndexSummaryRedistribution redistribution) throws IOException
     {
-        return CompactionManager.instance.runIndexSummaryRedistribution(redistribution);
+        return CompactionManager.instance.runWithActiveCompactions(redistribution, redistribution::redistributeSummaries);
     }
 
     @VisibleForTesting
