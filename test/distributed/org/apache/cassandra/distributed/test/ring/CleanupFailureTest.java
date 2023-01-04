@@ -137,5 +137,6 @@ public class CleanupFailureTest extends TestBaseImpl
 
         Object[][] afterBootstrapResponse = CLUSTER.get(2).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl ;");
         Assert.assertEquals(5006, afterBootstrapResponse.length);
+
     }
 }
