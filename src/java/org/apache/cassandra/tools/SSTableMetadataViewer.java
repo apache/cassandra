@@ -17,20 +17,12 @@
  */
 package org.apache.cassandra.tools;
 
-import static org.apache.cassandra.tools.Util.BLUE;
-import static org.apache.cassandra.tools.Util.CYAN;
-import static org.apache.cassandra.tools.Util.RESET;
-import static org.apache.cassandra.tools.Util.WHITE;
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.commons.lang3.time.DurationFormatUtils.formatDurationWords;
-
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
@@ -38,7 +30,17 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.MinMaxPriorityQueue;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -65,15 +67,13 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.tools.Util.TermHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
 
-import com.google.common.collect.MinMaxPriorityQueue;
+import static org.apache.cassandra.tools.Util.BLUE;
+import static org.apache.cassandra.tools.Util.CYAN;
+import static org.apache.cassandra.tools.Util.RESET;
+import static org.apache.cassandra.tools.Util.WHITE;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.commons.lang3.time.DurationFormatUtils.formatDurationWords;
 
 /**
  * Shows the contents of sstable metadata
@@ -354,22 +354,12 @@ public class SSTableMetadataViewer
             field("TTL max", stats.maxTTL, toDurationString(stats.maxTTL, TimeUnit.SECONDS));
 
             if (validation != null && header != null)
-                printMinMaxToken(descriptor, FBUtilities.newPartitioner(descriptor), header.getKeyType());
+                printMinMaxToken(descriptor, FBUtilities.newPartitioner(descriptor), header.getKeyType(), stats);
 
-            if (header != null && header.getClusteringTypes().size() == stats.minClusteringValues.size())
+            if (header != null)
             {
-                List<AbstractType<?>> clusteringTypes = header.getClusteringTypes();
-                List<ByteBuffer> minClusteringValues = stats.minClusteringValues;
-                List<ByteBuffer> maxClusteringValues = stats.maxClusteringValues;
-                String[] minValues = new String[clusteringTypes.size()];
-                String[] maxValues = new String[clusteringTypes.size()];
-                for (int i = 0; i < clusteringTypes.size(); i++)
-                {
-                    minValues[i] = clusteringTypes.get(i).getString(minClusteringValues.get(i));
-                    maxValues[i] = clusteringTypes.get(i).getString(maxClusteringValues.get(i));
-                }
-                field("minClusteringValues", Arrays.toString(minValues));
-                field("maxClusteringValues", Arrays.toString(maxValues));
+                ClusteringComparator comparator = new ClusteringComparator(header.getClusteringTypes());
+                field("Covered clusterings", stats.coveredClustering.toString(comparator));
             }
             field("Estimated droppable tombstones",
                   stats.getEstimatedDroppableTombstoneRatio((int) (currentTimeMillis() / 1000) - this.gc));
@@ -474,19 +464,30 @@ public class SSTableMetadataViewer
         }
     }
 
-    private void printMinMaxToken(Descriptor descriptor, IPartitioner partitioner, AbstractType<?> keyType)
+    private void printMinMaxToken(Descriptor descriptor, IPartitioner partitioner, AbstractType<?> keyType, StatsMetadata statsMetadata)
             throws IOException
     {
-        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
-        if (!summariesFile.exists())
-            return;
-
-        try (DataInputStream iStream = new DataInputStream(Files.newInputStream(summariesFile.toPath())))
+        if (descriptor.version.hasKeyRange())
         {
-            Pair<DecoratedKey, DecoratedKey> firstLast = new IndexSummary.IndexSummarySerializer()
-                    .deserializeFirstLastKey(iStream, partitioner);
-            field("First token", firstLast.left.getToken(), keyType.getString(firstLast.left.getKey()));
-            field("Last token", firstLast.right.getToken(), keyType.getString(firstLast.right.getKey()));
+            if (statsMetadata.firstKey == null || statsMetadata.lastKey == null)
+                return;
+
+            field("First token", partitioner.getToken(statsMetadata.firstKey), keyType.getString(statsMetadata.firstKey));
+            field("Last token", partitioner.getToken(statsMetadata.lastKey), keyType.getString(statsMetadata.lastKey));
+        }
+        else
+        {
+            File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
+            if (!summariesFile.exists())
+                return;
+
+            try (DataInputStream iStream = new DataInputStream(Files.newInputStream(summariesFile.toPath())))
+            {
+                Pair<DecoratedKey, DecoratedKey> firstLast = new IndexSummary.IndexSummarySerializer()
+                                                             .deserializeFirstLastKey(iStream, partitioner);
+                field("First token", firstLast.left.getToken(), keyType.getString(firstLast.left.getKey()));
+                field("Last token", firstLast.right.getToken(), keyType.getString(firstLast.right.getKey()));
+            }
         }
     }
 

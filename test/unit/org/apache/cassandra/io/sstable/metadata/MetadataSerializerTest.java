@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable.metadata;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.util.*;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -40,6 +41,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Throwables;
 
 import static org.junit.Assert.assertEquals;
@@ -124,7 +126,9 @@ public class MetadataSerializerTest
 
         String partitioner = RandomPartitioner.class.getCanonicalName();
         double bfFpChance = 0.1;
-        return collector.finalizeMetadata(partitioner, bfFpChance, 0, null, false, SerializationHeader.make(cfm, Collections.emptyList()));
+        ByteBuffer first = ByteBufferUtil.bytes(1);
+        ByteBuffer last = ByteBufferUtil.bytes(2);
+        return collector.finalizeMetadata(partitioner, bfFpChance, 0, null, false, SerializationHeader.make(cfm, Collections.emptyList()), first, last);
     }
 
     private void testVersions(String... versions) throws Throwable
@@ -159,7 +163,7 @@ public class MetadataSerializerTest
     @Test
     public void testNVersions() throws Throwable
     {
-        testVersions("na", "nb");
+        testVersions("na", "nb", "nc");
     }
 
     public void testOldReadsNew(String oldV, String newV) throws IOException
@@ -193,13 +197,34 @@ public class MetadataSerializerTest
     public void pendingRepairCompatibility()
     {
         Arrays.asList("ma", "mb", "mc", "md", "me").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasPendingRepair()));
-        Arrays.asList("na", "nb").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasPendingRepair()));
+        Arrays.asList("na", "nb", "nc").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasPendingRepair()));
     }
 
     @Test
     public void originatingHostCompatibility()
     {
         Arrays.asList("ma", "mb", "mc", "md", "na").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasOriginatingHostId()));
-        Arrays.asList("me", "nb").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasOriginatingHostId()));
+        Arrays.asList("me", "nb", "nc").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasOriginatingHostId()));
+    }
+
+    @Test
+    public void improvedMinMaxCompatibility()
+    {
+        Arrays.asList("ma", "mb", "mc", "md", "me", "na", "nb").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasImprovedMinMax()));
+        Arrays.asList("nc", "oa").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasImprovedMinMax()));
+    }
+
+    @Test
+    public void legacyMinMaxCompatiblity()
+    {
+        Arrays.asList("oa").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasLegacyMinMax()));
+        Arrays.asList("ma", "mb", "mc", "md", "me", "na", "nb", "nc").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasLegacyMinMax()));
+    }
+
+    @Test
+    public void partitionLevelDeletionPresenceMarkerCompatibility()
+    {
+        Arrays.asList("ma", "mb", "mc", "md", "me", "na", "nb").forEach(v -> assertFalse(BigFormat.instance.getVersion(v).hasPartitionLevelDeletionsPresenceMarker()));
+        Arrays.asList("nc", "oa").forEach(v -> assertTrue(BigFormat.instance.getVersion(v).hasPartitionLevelDeletionsPresenceMarker()));
     }
 }

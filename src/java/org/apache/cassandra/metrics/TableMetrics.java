@@ -100,8 +100,10 @@ public class TableMetrics
     public final Gauge<Long> estimatedPartitionCount;
     /** Histogram of estimated number of columns. */
     public final Gauge<long[]> estimatedColumnCountHistogram;
-    /** Histogram of the number of sstable data files accessed per read */
+    /** Histogram of the number of sstable data files accessed per single partition read */
     public final TableHistogram sstablesPerReadHistogram;
+    /** Histogram of the number of sstable data files accessed per partition range read */
+    public final TableHistogram sstablesPerRangeReadHistogram;
     /** (Local) read metrics */
     public final LatencyMetrics readLatency;
     /** (Local) range slice metrics */
@@ -548,6 +550,7 @@ public class TableMetrics
                                                                                  SSTableReader::getEstimatedCellPerPartitionCount), null);
         
         sstablesPerReadHistogram = createTableHistogram("SSTablesPerReadHistogram", cfs.keyspace.metric.sstablesPerReadHistogram, true);
+        sstablesPerRangeReadHistogram = createTableHistogram("SSTablesPerRangeReadHistogram", cfs.keyspace.metric.sstablesPerRangeReadHistogram, true);
         compressionRatio = createTableGauge("CompressionRatio", new Gauge<Double>()
         {
             public Double getValue()
@@ -995,6 +998,11 @@ public class TableMetrics
     public void updateSSTableIterated(int count)
     {
         sstablesPerReadHistogram.update(count);
+    }
+
+    public void updateSSTableIteratedInRangeRead(int count)
+    {
+        sstablesPerRangeReadHistogram.update(count);
     }
 
     /**

@@ -327,7 +327,8 @@ public class ByteSourceConversionTest extends ByteSourceTestBase
     {
         ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
         ClusteringComparator comp = new ClusteringComparator();
-        for (ClusteringPrefix.Kind kind : ClusteringPrefix.Kind.values())
+        EnumSet<ClusteringPrefix.Kind> skippedKinds = EnumSet.of(ClusteringPrefix.Kind.SSTABLE_LOWER_BOUND, ClusteringPrefix.Kind.SSTABLE_UPPER_BOUND);
+        for (ClusteringPrefix.Kind kind : EnumSet.complementOf(skippedKinds))
         {
             if (kind.isBoundary())
                 continue;
@@ -350,7 +351,8 @@ public class ByteSourceConversionTest extends ByteSourceTestBase
                                               BiFunction<AbstractType, Object, ByteBuffer> decompose)
     {
         boolean checkEquals = t1 != DecimalType.instance && t2 != DecimalType.instance;
-        for (ClusteringPrefix.Kind k1 : ClusteringPrefix.Kind.values())
+        EnumSet<ClusteringPrefix.Kind> skippedKinds = EnumSet.of(ClusteringPrefix.Kind.SSTABLE_LOWER_BOUND, ClusteringPrefix.Kind.SSTABLE_UPPER_BOUND);
+        for (ClusteringPrefix.Kind k1 : EnumSet.complementOf(skippedKinds))
             {
                 ClusteringComparator comp = new ClusteringComparator(t1, t2);
                 V[] b = accessor.createArray(2);

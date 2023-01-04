@@ -82,8 +82,10 @@ public class KeyspaceMetrics
     public final LatencyMetrics rangeLatency;
     /** (Local) write metrics */
     public final LatencyMetrics writeLatency;
-    /** Histogram of the number of sstable data files accessed per read */
+    /** Histogram of the number of sstable data files accessed per single partition read */
     public final Histogram sstablesPerReadHistogram;
+    /** Histogram of the number of sstable data files accessed per partition range read */
+    public final Histogram sstablesPerRangeReadHistogram;
     /** Tombstones scanned in queries on this Keyspace */
     public final Histogram tombstoneScannedHistogram;
     /** Live cells scanned in queries on this Keyspace */
@@ -231,6 +233,7 @@ public class KeyspaceMetrics
 
         // create histograms for TableMetrics to replicate updates to
         sstablesPerReadHistogram = createKeyspaceHistogram("SSTablesPerReadHistogram", true);
+        sstablesPerRangeReadHistogram = createKeyspaceHistogram("SSTablesPerRangeReadHistogram", true);
         tombstoneScannedHistogram = createKeyspaceHistogram("TombstoneScannedHistogram", false);
         liveScannedHistogram = createKeyspaceHistogram("LiveScannedHistogram", false);
         colUpdateTimeDeltaHistogram = createKeyspaceHistogram("ColUpdateTimeDeltaHistogram", false);
