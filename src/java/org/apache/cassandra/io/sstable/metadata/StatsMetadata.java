@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable.metadata;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,10 +29,10 @@ import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.commitlog.IntervalSet;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -39,8 +40,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 import org.apache.cassandra.utils.UUIDSerializer;
+import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 
 /**
  * SSTable metadata that always stay on heap.
@@ -270,14 +271,23 @@ public class StatsMetadata extends MetadataComponent
             size += 8 + 8 + 4 + 4 + 4 + 4 + 8 + 8; // mix/max timestamp(long), min/maxLocalDeletionTime(int), min/max TTL, compressionRatio(double), repairedAt (long)
             size += TombstoneHistogram.serializer.serializedSize(component.estimatedTombstoneDropTime);
             size += TypeSizes.sizeof(component.sstableLevel);
-            // min column names
-            size += 4;
-            for (ByteBuffer value : component.minClusteringValues)
-                size += 2 + value.remaining(); // with short length
-            // max column names
-            size += 4;
-            for (ByteBuffer value : component.maxClusteringValues)
-                size += 2 + value.remaining(); // with short length
+
+            if (version.hasImprovedMinMax())
+            {
+                throw new UnsupportedEncodingException();
+            }
+            else
+            {
+                // min column names
+                size += 4;
+                for (ByteBuffer value : component.minClusteringValues)
+                    size += 2 + value.remaining(); // with short length
+                // max column names
+                size += 4;
+                for (ByteBuffer value : component.maxClusteringValues)
+                    size += 2 + value.remaining(); // with short length
+            }
+
             size += TypeSizes.sizeof(component.hasLegacyCounterShards);
             size += 8 + 8; // totalColumnsSet, totalRows
             if (version.hasCommitLogLowerBound())
@@ -292,9 +302,31 @@ public class StatsMetadata extends MetadataComponent
                     size += TimeUUID.sizeInBytes();
             }
 
+            // we do not have zero copy metadata
+            if (version.hasZeroCopyMetadata())
+            {
+                throw new UnsupportedEncodingException();
+            }
+
+            // we do not have node sync metadata
+            if (version.hasIncrementalNodeSyncMetadata())
+            {
+                throw new UnsupportedEncodingException();
+            }
+
+            if (version.hasMaxColumnValueLengths())
+            {
+                throw new UnsupportedEncodingException();
+            }
+
             if (version.hasIsTransient())
             {
                 size += TypeSizes.sizeof(component.isTransient);
+            }
+
+            if (version.hasPartitionLevelDeletionsPresenceMarker())
+            {
+                throw new UnsupportedEncodingException();
             }
 
             if (version.hasOriginatingHostId())
@@ -322,12 +354,20 @@ public class StatsMetadata extends MetadataComponent
             TombstoneHistogram.serializer.serialize(component.estimatedTombstoneDropTime, out);
             out.writeInt(component.sstableLevel);
             out.writeLong(component.repairedAt);
-            out.writeInt(component.minClusteringValues.size());
-            for (ByteBuffer value : component.minClusteringValues)
-                ByteBufferUtil.writeWithShortLength(value, out);
-            out.writeInt(component.maxClusteringValues.size());
-            for (ByteBuffer value : component.maxClusteringValues)
-                ByteBufferUtil.writeWithShortLength(value, out);
+
+            if (version.hasImprovedMinMax())
+            {
+                throw new UnsupportedEncodingException();
+            }
+            else
+            {
+                out.writeInt(component.minClusteringValues.size());
+                for (ByteBuffer value : component.minClusteringValues)
+                    ByteBufferUtil.writeWithShortLength(value, out);
+                out.writeInt(component.maxClusteringValues.size());
+                for (ByteBuffer value : component.maxClusteringValues)
+                    ByteBufferUtil.writeWithShortLength(value, out);
+            }
             out.writeBoolean(component.hasLegacyCounterShards);
 
             out.writeLong(component.totalColumnsSet);
@@ -351,9 +391,32 @@ public class StatsMetadata extends MetadataComponent
                 }
             }
 
+            // we do not have zero copy metadata
+            if (version.hasZeroCopyMetadata())
+            {
+                throw new UnsupportedEncodingException();
+            }
+
+            // we do not have node sync metadata
+            if (version.hasIncrementalNodeSyncMetadata())
+            {
+                throw new UnsupportedEncodingException();
+            }
+
+            // left for being able to import DSE sstables, not used
+            if (version.hasMaxColumnValueLengths())
+            {
+                throw new UnsupportedEncodingException();
+            }
+
             if (version.hasIsTransient())
             {
                 out.writeBoolean(component.isTransient);
+            }
+
+            if (version.hasPartitionLevelDeletionsPresenceMarker())
+            {
+                throw new UnsupportedEncodingException();
             }
 
             if (version.hasOriginatingHostId())
@@ -407,6 +470,11 @@ public class StatsMetadata extends MetadataComponent
             int sstableLevel = in.readInt();
             long repairedAt = in.readLong();
 
+            if (version.hasImprovedMinMax())
+            {
+                throw new UnsupportedEncodingException();
+            }
+
             // for legacy sstables, we skip deserializing the min and max clustering value
             // to prevent erroneously excluding sstables from reads (see CASSANDRA-14861)
             int colCount = in.readInt();
@@ -438,7 +506,7 @@ public class StatsMetadata extends MetadataComponent
             if (version.hasCommitLogIntervals())
                 commitLogIntervals = commitLogPositionSetSerializer.deserialize(in);
             else
-                commitLogIntervals = new IntervalSet<CommitLogPosition>(commitLogLowerBound, commitLogUpperBound);
+                commitLogIntervals = new IntervalSet<>(commitLogLowerBound, commitLogUpperBound);
 
             TimeUUID pendingRepair = null;
             if (version.hasPendingRepair() && in.readByte() != 0)
@@ -446,7 +514,27 @@ public class StatsMetadata extends MetadataComponent
                 pendingRepair = TimeUUID.deserialize(in);
             }
 
+            if (version.hasZeroCopyMetadata())
+            {
+                throw new UnsupportedEncodingException();
+            }
+
+            if (version.hasIncrementalNodeSyncMetadata())
+            {
+                throw new UnsupportedEncodingException();
+            }
+
+            if (version.hasMaxColumnValueLengths())
+            {
+                throw new UnsupportedEncodingException();
+            }
+
             boolean isTransient = version.hasIsTransient() && in.readBoolean();
+
+            if (version.hasPartitionLevelDeletionsPresenceMarker())
+            {
+                throw new UnsupportedEncodingException();
+            }
 
             UUID originatingHostId = null;
             if (version.hasOriginatingHostId() && in.readByte() != 0)

@@ -355,6 +355,7 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
             return hasCommitLogIntervals;
         }
 
+        @Override
         public boolean hasPendingRepair()
         {
             return hasPendingRepair;
@@ -384,6 +385,7 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
             return hasAccurateMinMax;
         }
 
+        @Override
         public boolean isCompatible()
         {
             return version.compareTo(earliest_supported_version) >= 0 && version.charAt(0) <= current_version.charAt(0);
@@ -410,6 +412,37 @@ public class BigFormat implements SSTableFormat<BigTableReader, BigTableWriter>
         public boolean hasOldBfFormat()
         {
             return hasOldBfFormat;
+        }
+
+
+        @Override
+        public boolean hasImprovedMinMax()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean hasIncrementalNodeSyncMetadata()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean hasZeroCopyMetadata()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean hasPartitionLevelDeletionsPresenceMarker()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean hasMaxColumnValueLengths()
+        {
+            return false;
         }
     }
 
