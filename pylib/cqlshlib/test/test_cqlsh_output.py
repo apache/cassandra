@@ -929,7 +929,7 @@ class TestCqlshOutput(BaseTestCase):
         output, result = testcall_cqlsh(prompt=None, env=self.default_env,
                                                         tty=False, input=query)
         self.assertEqual(0, result)
-        self.assertEqual(output.splitlines()[3].strip(), "{1: I'm newb}")
+        self.assertEqual(output.splitlines()[3].strip(), "{1: 'I''m newb'}")
 
     def test_quoted_output_text_in_simple_collections(self):
         ks = get_keyspace()
@@ -939,21 +939,21 @@ class TestCqlshOutput(BaseTestCase):
         output, result = testcall_cqlsh(prompt=None, env=self.default_env,
                                                         tty=False, input=query)
         self.assertEqual(0, result)
-        self.assertEqual(output.splitlines()[3].strip(), "{I'm newb}")
+        self.assertEqual(output.splitlines()[3].strip(), "{'I''m newb'}")
 
         # Lists
         query = "SELECT list_data FROM " + ks + ".t1;"
         output, result = testcall_cqlsh(prompt=None, env=self.default_env,
                                                         tty=False, input=query)
         self.assertEqual(0, result)
-        self.assertEqual(output.splitlines()[3].strip(), "[I'm newb]")
+        self.assertEqual(output.splitlines()[3].strip(), "['I''m newb']")
 
         # Tuples
         query = "SELECT tuple_data FROM " + ks + ".t1;"
         output, result = testcall_cqlsh(prompt=None, env=self.default_env,
                                                         tty=False, input=query)
         self.assertEqual(0, result)
-        self.assertEqual(output.splitlines()[3].strip(), "(1, I'm newb)")
+        self.assertEqual(output.splitlines()[3].strip(), "(1, 'I''m newb')")
 
     def test_quoted_output_text_in_udts(self):
         ks = get_keyspace()
@@ -962,4 +962,4 @@ class TestCqlshOutput(BaseTestCase):
         output, result = testcall_cqlsh(prompt=None, env=self.default_env,
                                                         tty=False, input=query)
         self.assertEqual(0, result)
-        self.assertEqual(output.splitlines()[3].strip(), "{data: I'm newb}")
+        self.assertEqual(output.splitlines()[3].strip(), "{data: 'I''m newb'}")
