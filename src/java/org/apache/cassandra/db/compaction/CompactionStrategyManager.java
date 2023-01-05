@@ -50,6 +50,8 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.compaction.AbstractStrategyHolder.TaskSupplier;
 import org.apache.cassandra.db.compaction.PendingRepairManager.CleanupTask;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -64,7 +66,6 @@ import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.notifications.INotification;
@@ -1073,7 +1074,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             {
                 for (AbstractStrategyHolder holder : holders)
                 {
-                    for (AbstractCompactionTask task: holder.getMaximalTasks(gcBefore, splitOutput)) 
+                    for (AbstractCompactionTask task: holder.getMaximalTasks(gcBefore, splitOutput))
                     {
                         tasks.add(task.setCompactionType(operationType));
                     }
@@ -1233,7 +1234,8 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
                                                        boolean isTransient,
-                                                       MetadataCollector collector,
+                                                       IntervalSet<CommitLogPosition> commitLogPositions,
+                                                       int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index> indexes,
                                                        LifecycleNewTracker lifecycleNewTracker)
@@ -1248,7 +1250,8 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                                                               repairedAt,
                                                                                               pendingRepair,
                                                                                               isTransient,
-                                                                                              collector,
+                                                                                              commitLogPositions,
+                                                                                              sstableLevel,
                                                                                               header,
                                                                                               indexes,
                                                                                               lifecycleNewTracker);

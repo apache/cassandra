@@ -41,7 +41,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -201,16 +200,13 @@ public class Flushing
                                                        Descriptor descriptor,
                                                        long partitionCount)
     {
-        MetadataCollector sstableMetadataCollector = new MetadataCollector(flushSet.metadata().comparator)
-                                                     .commitLogIntervals(new IntervalSet<>(flushSet.commitLogLowerBound(),
-                                                                                           flushSet.commitLogUpperBound()));
-
         return cfs.createSSTableMultiWriter(descriptor,
                                             partitionCount,
                                             ActiveRepairService.UNREPAIRED_SSTABLE,
                                             ActiveRepairService.NO_PENDING_REPAIR,
                                             false,
-                                            sstableMetadataCollector,
+                                            new IntervalSet<>(flushSet.commitLogLowerBound(),
+                                                              flushSet.commitLogUpperBound()),
                                             new SerializationHeader(true,
                                                                     flushSet.metadata(),
                                                                     flushSet.columns(),

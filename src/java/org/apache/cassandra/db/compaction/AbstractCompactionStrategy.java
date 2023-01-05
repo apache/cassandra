@@ -34,6 +34,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
@@ -560,12 +562,23 @@ public abstract class AbstractCompactionStrategy
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
                                                        boolean isTransient,
-                                                       MetadataCollector meta,
+                                                       IntervalSet<CommitLogPosition> commitLogPositions,
+                                                       int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index> indexes,
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
-        return SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, cfs.metadata, meta, header, indexes, lifecycleNewTracker, cfs);
+        return SimpleSSTableMultiWriter.create(descriptor,
+                                               keyCount,
+                                               repairedAt,
+                                               pendingRepair,
+                                               isTransient,
+                                               cfs.metadata,
+                                               commitLogPositions,
+                                               sstableLevel,
+                                               header,
+                                               indexes,
+                                               lifecycleNewTracker, cfs);
     }
 
     public boolean supportsEarlyOpen()

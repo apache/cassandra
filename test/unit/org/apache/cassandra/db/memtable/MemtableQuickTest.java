@@ -18,9 +18,11 @@
 
 package org.apache.cassandra.db.memtable;
 
+import java.util.Collection;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -34,6 +36,9 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 @RunWith(Parameterized.class)
 public class MemtableQuickTest extends CQLTester
@@ -138,5 +143,33 @@ public class MemtableQuickTest extends CQLTester
         logger.info("Selecting *");
         result = execute("SELECT * FROM " + table);
         assertRowCount(result, rowsPerPartition * (partitions - deletedPartitions) - deletedRows);
+
+        try (Refs<SSTableReader> refs = new Refs())
+        {
+            Collection<SSTableReader> sstables = cfs.getLiveSSTables();
+            if (sstables.isEmpty()) // persistent memtables won't flush
+            {
+                assert cfs.streamFromMemtable();
+                cfs.writeAndAddMemtableRanges(null,
+                                              () -> ImmutableList.of(new Range(Util.testPartitioner().getMinimumToken().minKeyBound(),
+                                                                               Util.testPartitioner().getMinimumToken().minKeyBound())),
+                                              refs);
+                sstables = refs;
+                Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
+            }
+
+            // make sure the row counts are correct in both the metadata as well as the cardinality estimator
+            // (see STAR-1826)
+            long totalPartitions = 0;
+            for (SSTableReader sstable : sstables)
+            {
+                long sstableKeys = sstable.estimatedKeys();
+                long cardinality = SSTableReader.getApproximateKeyCount(ImmutableList.of(sstable));
+                // should be within 10% of each other
+                Assert.assertEquals((double) sstableKeys, (double) cardinality, sstableKeys * 0.1);
+                totalPartitions += sstableKeys;
+            }
+            Assert.assertEquals((double) partitions, (double) totalPartitions, partitions * 0.1);
+        }
     }
 }
