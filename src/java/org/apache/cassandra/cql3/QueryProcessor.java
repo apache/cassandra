@@ -264,7 +264,7 @@ public class QueryProcessor implements QueryHandler
     public ResultMessage processStatement(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
-        return processStatement(statement, queryState, options, Map.of(), queryStartNanoTime);
+        return processStatement(statement, queryState, options, Collections.emptyMap(), queryStartNanoTime);
     }
 
     public ResultMessage processStatement(CQLStatement statement, QueryState queryState, QueryOptions options, Map<String, ByteBuffer> customPayload, long queryStartNanoTime)
@@ -397,7 +397,7 @@ public class QueryProcessor implements QueryHandler
     public ResultMessage process(CQLStatement prepared, QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
-        return process(prepared, queryState, options, Map.of(), queryStartNanoTime);
+        return process(prepared, queryState, options, Collections.emptyMap(), queryStartNanoTime);
     }
 
     public static CQLStatement parseStatement(String queryStr, ClientState clientState) throws RequestValidationException
@@ -779,7 +779,7 @@ public class QueryProcessor implements QueryHandler
     public ResultMessage processPrepared(CQLStatement statement, QueryState queryState, QueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
-        return processPrepared(statement, queryState, options, Map.of(), queryStartNanoTime);
+        return processPrepared(statement, queryState, options, Collections.emptyMap(), queryStartNanoTime);
     }
 
     public ResultMessage processBatch(BatchStatement batch,
@@ -809,7 +809,7 @@ public class QueryProcessor implements QueryHandler
     public ResultMessage processBatch(BatchStatement batch, QueryState queryState, BatchQueryOptions options, long queryStartNanoTime)
     throws RequestExecutionException, RequestValidationException
     {
-        return processBatch(batch, queryState, options, Map.of(), queryStartNanoTime);
+        return processBatch(batch, queryState, options, Collections.emptyMap(), queryStartNanoTime);
     }
 
     public static CQLStatement getStatement(String queryStr, ClientState clientState)

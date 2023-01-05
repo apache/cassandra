@@ -299,16 +299,13 @@ public class Flushing
                                                        Descriptor descriptor,
                                                        long partitionCount)
     {
-        MetadataCollector sstableMetadataCollector = new MetadataCollector(flushSet.metadata().comparator)
-                                                     .commitLogIntervals(new IntervalSet<>(flushSet.commitLogLowerBound(),
-                                                                                           flushSet.commitLogUpperBound()));
-
         return cfs.createSSTableMultiWriter(descriptor,
                                             partitionCount,
                                             ActiveRepairService.UNREPAIRED_SSTABLE,
                                             ActiveRepairService.NO_PENDING_REPAIR,
                                             false,
-                                            sstableMetadataCollector,
+                                            new IntervalSet<>(flushSet.commitLogLowerBound(),
+                                                              flushSet.commitLogUpperBound()),
                                             new SerializationHeader(true,
                                                                     flushSet.metadata(),
                                                                     flushSet.columns(),
