@@ -72,6 +72,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.compaction.AbstractTableOperation;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionRealm;
@@ -123,7 +124,6 @@ import org.apache.cassandra.io.sstable.StorageHandler;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -133,9 +133,6 @@ import org.apache.cassandra.metrics.Sampler.Sample;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.nodes.Nodes;
-import org.apache.cassandra.nodes.virtual.LocalNodeSystemView;
-import org.apache.cassandra.nodes.virtual.NodesSystemViews;
-import org.apache.cassandra.nodes.virtual.PeersSystemView;
 import org.apache.cassandra.repair.TableRepairManager;
 import org.apache.cassandra.repair.consistent.admin.PendingStat;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -714,15 +711,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return memtableFactory.streamFromMemtable();
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, int sstableLevel, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
     {
-        MetadataCollector collector = new MetadataCollector(metadata().comparator).sstableLevel(sstableLevel);
-        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, collector, header, lifecycleNewTracker);
+        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, null, 0, header, lifecycleNewTracker);
     }
 
-    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, MetadataCollector metadataCollector, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, IntervalSet<CommitLogPosition> commitLogPositions, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
     {
-        return getCompactionStrategy().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadataCollector, header, indexManager.listIndexGroups(), lifecycleNewTracker);
+        return createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, commitLogPositions, 0, header, lifecycleNewTracker);
+    }
+
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, IntervalSet<CommitLogPosition> commitLogPositions, int sstableLevel, SerializationHeader header, LifecycleNewTracker lifecycleNewTracker)
+    {
+        return getCompactionStrategy().createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, commitLogPositions, sstableLevel, header, indexManager.listIndexGroups(), lifecycleNewTracker);
     }
 
     public boolean supportsEarlyOpen()
@@ -2469,11 +2470,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             return null;
 
         List<Memtable.FlushCollection<?>> dataSets = new ArrayList<>(ranges.size());
+        IntervalSet.Builder<CommitLogPosition> commitLogIntervals = new IntervalSet.Builder();
         long keys = 0;
         for (Range<PartitionPosition> range : ranges)
         {
             Memtable.FlushCollection<?> dataSet = current.getFlushSet(range.left, range.right);
             dataSets.add(dataSet);
+            commitLogIntervals.add(dataSet.commitLogLowerBound(), dataSet.commitLogUpperBound());
             keys += dataSet.partitionCount();
         }
         if (keys == 0)
@@ -2486,7 +2489,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                              0,
                                                              repairSessionID,
                                                              false,
-                                                             0,
+                                                             commitLogIntervals.build(),
                                                              new SerializationHeader(true,
                                                                                      firstDataSet.metadata(),
                                                                                      firstDataSet.columns(),

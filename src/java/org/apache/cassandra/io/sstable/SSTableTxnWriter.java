@@ -32,7 +32,6 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
@@ -94,10 +93,10 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
     }
 
     @SuppressWarnings("resource") // log and writer closed during doPostCleanup
-    public static SSTableTxnWriter create(ColumnFamilyStore cfs, Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, int sstableLevel, SerializationHeader header)
+    public static SSTableTxnWriter create(ColumnFamilyStore cfs, Descriptor descriptor, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, SerializationHeader header)
     {
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE, cfs.metadata);
-        SSTableMultiWriter writer = cfs.createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, sstableLevel, header, txn);
+        SSTableMultiWriter writer = cfs.createSSTableMultiWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, header, txn);
         return new SSTableTxnWriter(txn, writer);
     }
 
@@ -109,7 +108,6 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
                                                     UUID pendingRepair,
                                                     boolean isTransient,
                                                     SSTableFormat.Type type,
-                                                    int sstableLevel,
                                                     SerializationHeader header)
     {
 
@@ -118,7 +116,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         SSTableMultiWriter writer;
         try
         {
-            writer = new RangeAwareSSTableWriter(cfs, keyCount, repairedAt, pendingRepair, isTransient, type, sstableLevel, 0, txn, header);
+            writer = new RangeAwareSSTableWriter(cfs, keyCount, repairedAt, pendingRepair, isTransient, type, 0, 0, txn, header);
         }
         catch (IOException e)
         {
@@ -137,19 +135,12 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
                                           long repairedAt,
                                           UUID pendingRepair,
                                           boolean isTransient,
-                                          int sstableLevel,
                                           SerializationHeader header,
                                           Collection<Index.Group> indexGroups)
     {
         // if the column family store does not exist, we create a new default SSTableMultiWriter to use:
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE, metadata);
-        MetadataCollector collector = new MetadataCollector(metadata.get().comparator).sstableLevel(sstableLevel);
-        SSTableMultiWriter writer = SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, collector, header, indexGroups, txn);
+        SSTableMultiWriter writer = SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, null, 0, header, indexGroups, txn);
         return new SSTableTxnWriter(txn, writer);
-    }
-
-    public static SSTableTxnWriter create(ColumnFamilyStore cfs, Descriptor desc, long keyCount, long repairedAt, UUID pendingRepair, boolean isTransient, SerializationHeader header)
-    {
-        return create(cfs, desc, keyCount, repairedAt, pendingRepair, isTransient, 0, header);
     }
 }

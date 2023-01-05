@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.cql3;
 
+import java.util.Collection;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
@@ -27,12 +28,12 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 
@@ -78,7 +79,8 @@ public class MemtableQuickTest extends CQLTester
         keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
         table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
                                       " with compression = {'enabled': false}" +
-                                      " and memtable = { 'class': '" + memtableClass + "'}");
+                                      " and memtable = { 'class': '" + memtableClass + "'}" +
+                                      " and compaction = { 'class': 'UnifiedCompactionStrategy', 'min_sstable_size_in_mb': '1' }"); // to trigger splitting of sstables, STAR-1826
         execute("use " + keyspace + ';');
 
         String writeStatement = "INSERT INTO "+table+"(userid,picid,commentid)VALUES(?,?,?)";
@@ -140,5 +142,33 @@ public class MemtableQuickTest extends CQLTester
         System.out.println("Selecting *");
         result = execute("SELECT * FROM " + table);
         assertRowCount(result, rowsPerPartition * (partitions - deletedPartitions) - deletedRows);
+
+        try (Refs<SSTableReader> refs = new Refs())
+        {
+            Collection<SSTableReader> sstables = cfs.getLiveSSTables();
+            if (sstables.isEmpty()) // persistent memtables won't flush
+            {
+                assert cfs.streamFromMemtable();
+                cfs.writeAndAddMemtableRanges(null,
+                                              () -> ImmutableList.of(new Range(Util.testPartitioner().getMinimumToken().minKeyBound(),
+                                                                               Util.testPartitioner().getMinimumToken().minKeyBound())),
+                                              refs);
+                sstables = refs;
+                Assert.assertTrue(cfs.getLiveSSTables().isEmpty());
+            }
+
+            // make sure the row counts are correct in both the metadata as well as the cardinality estimator
+            // (see STAR-1826)
+            long totalPartitions = 0;
+            for (SSTableReader sstable : sstables)
+            {
+                long sstableKeys = sstable.estimatedKeys();
+                long cardinality = sstable.keyCardinalityEstimator().cardinality();
+                // should be within 10% of each other
+                Assert.assertEquals((double) sstableKeys, (double) cardinality, sstableKeys * 0.1);
+                totalPartitions += sstableKeys;
+            }
+            Assert.assertEquals((double) partitions, (double) totalPartitions, partitions * 0.1);
+        }
     }
 }

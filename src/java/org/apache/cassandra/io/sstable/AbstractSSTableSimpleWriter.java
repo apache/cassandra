@@ -67,7 +67,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         SerializationHeader header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
 
         if (makeRangeAware)
-            return SSTableTxnWriter.createRangeAware(metadata, 0,  ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, formatType, 0, header);
+            return SSTableTxnWriter.createRangeAware(metadata, 0, ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, formatType, header);
 
         return SSTableTxnWriter.create(metadata,
                                        createDescriptor(directory, metadata.keyspace, metadata.name, formatType),
@@ -75,7 +75,6 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
                                        ActiveRepairService.UNREPAIRED_SSTABLE,
                                        ActiveRepairService.NO_PENDING_REPAIR,
                                        false,
-                                       0,
                                        header,
                                        Collections.emptySet());
     }

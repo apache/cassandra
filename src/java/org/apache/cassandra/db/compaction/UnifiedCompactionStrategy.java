@@ -46,6 +46,8 @@ import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.SortedLocalRanges;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.db.compaction.unified.ShardedMultiWriter;
 import org.apache.cassandra.db.compaction.unified.UnifiedCompactionTask;
@@ -59,7 +61,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -237,7 +238,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                        long repairedAt,
                                                        UUID pendingRepair,
                                                        boolean isTransient,
-                                                       MetadataCollector meta,
+                                                       IntervalSet<CommitLogPosition> commitLogPositions,
+                                                       int sstableLevel,
                                                        SerializationHeader header,
                                                        Collection<Index.Group> indexGroups,
                                                        LifecycleNewTracker lifecycleNewTracker)
@@ -248,7 +250,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                   repairedAt,
                                                   pendingRepair,
                                                   isTransient,
-                                                  meta,
+                                                  commitLogPositions,
+                                                  sstableLevel,
                                                   header,
                                                   indexGroups,
                                                   lifecycleNewTracker);
@@ -259,7 +262,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                       repairedAt,
                                       pendingRepair,
                                       isTransient,
-                                      meta,
+                                      commitLogPositions,
                                       header,
                                       indexGroups,
                                       lifecycleNewTracker,

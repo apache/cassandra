@@ -21,6 +21,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
 
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.io.sstable.format.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -123,11 +125,15 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             UUID pendingRepair,
                                             boolean isTransient,
                                             TableMetadataRef metadata,
-                                            MetadataCollector metadataCollector,
+                                            IntervalSet<CommitLogPosition> commitLogPositions,
+                                            int sstableLevel,
                                             SerializationHeader header,
                                             Collection<Index.Group> indexGroups,
                                             LifecycleNewTracker lifecycleNewTracker)
     {
+        MetadataCollector metadataCollector = new MetadataCollector(metadata.get().comparator)
+                                              .commitLogIntervals(commitLogPositions != null ? commitLogPositions : IntervalSet.empty())
+                                              .sstableLevel(sstableLevel);
         SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, indexGroups, lifecycleNewTracker);
         return new SimpleSSTableMultiWriter(writer, lifecycleNewTracker);
     }
