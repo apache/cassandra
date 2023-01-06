@@ -230,6 +230,8 @@ public class StreamManager implements StreamManagerMBean
         @Override
         public void onRegister(StreamResultFuture result)
         {
+            if (!DatabaseDescriptor.getStreamingStatsEnabled())
+                return;
             // reason for synchronized rather than states.get is to detect duplicates
             // streaming shouldn't be producing duplicates as that would imply a planId collision
             synchronized (states)
@@ -310,6 +312,18 @@ public class StreamManager implements StreamManagerMBean
                 return StreamStateCompositeData.toCompositeData(input.getCurrentState());
             }
         }));
+    }
+
+    @Override
+    public boolean getStreamingStatsEnabled()
+    {
+        return DatabaseDescriptor.getStreamingStatsEnabled();
+    }
+
+    @Override
+    public void setStreamingStatsEnabled(boolean streamingStatsEnabled)
+    {
+        DatabaseDescriptor.setStreamingStatsEnabled(streamingStatsEnabled);
     }
 
     public void registerInitiator(final StreamResultFuture result)

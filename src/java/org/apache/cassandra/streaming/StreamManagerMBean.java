@@ -29,4 +29,14 @@ public interface StreamManagerMBean extends NotificationEmitter
      * Returns the current state of all ongoing streams.
      */
     Set<CompositeData> getCurrentStreams();
+
+    /**
+     * @return weather or not the streaming virtual table should collect stats while streaming is running
+     */
+    boolean getStreamingStatsEnabled();
+
+    /**
+     * enable/disable collection of streaming stats while streaming is running.
+     */
+    void setStreamingStatsEnabled(boolean streamingStatsEnabled);
 }

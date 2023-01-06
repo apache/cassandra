@@ -4391,6 +4391,20 @@ public class DatabaseDescriptor
         }
     }
 
+    public static boolean getStreamingStatsEnabled()
+    {
+        return conf.streaming_stats_enabled;
+    }
+
+    public static void setStreamingStatsEnabled(boolean streamingStatsEnabled)
+    {
+        if (conf.streaming_stats_enabled != streamingStatsEnabled)
+        {
+            logger.info("Setting streaming_stats_enabled to {}", streamingStatsEnabled);
+            conf.streaming_stats_enabled = streamingStatsEnabled;
+        }
+    }
+
     public static boolean isUUIDSSTableIdentifiersEnabled()
     {
         return conf.uuid_sstable_identifiers_enabled;
