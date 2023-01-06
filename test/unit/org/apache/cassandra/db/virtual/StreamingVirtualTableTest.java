@@ -90,7 +90,7 @@ public class StreamingVirtualTableTest extends CQLTester
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
                    new Object[] { state.id(), true, "Repair", Collections.emptyList(), "start", 0F, new Date(state.lastUpdatedAtMillis()), null, null });
 
-        state.handleStreamEvent(new StreamEvent.SessionPreparedEvent(state.id(), new SessionInfo(PEER2, 1, PEER1, Collections.emptyList(), Collections.emptyList(), StreamSession.State.PREPARING)));
+        state.handleStreamEvent(new StreamEvent.SessionPreparedEvent(state.id(), new SessionInfo(PEER2, 1, PEER1, Collections.emptyList(), Collections.emptyList(), StreamSession.State.PREPARING), StreamSession.PrepareType.ACK));
 
         state.onSuccess(new StreamState(state.id(), StreamOperation.REPAIR, ImmutableSet.of(new SessionInfo(PEER2, 1, PEER1, Collections.emptyList(), Collections.emptyList(), StreamSession.State.COMPLETE))));
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
@@ -118,8 +118,8 @@ public class StreamingVirtualTableTest extends CQLTester
         SessionInfo s1 = new SessionInfo(PEER2, 0, FBUtilities.getBroadcastAddressAndPort(), Arrays.asList(streamSummary()), Arrays.asList(streamSummary(), streamSummary()), StreamSession.State.PREPARING);
         SessionInfo s2 = new SessionInfo(PEER3, 0, FBUtilities.getBroadcastAddressAndPort(), Arrays.asList(streamSummary()), Arrays.asList(streamSummary(), streamSummary()), StreamSession.State.PREPARING);
 
-        state.handleStreamEvent(new StreamEvent.SessionPreparedEvent(state.id(), s1));
-        state.handleStreamEvent(new StreamEvent.SessionPreparedEvent(state.id(), s2));
+        state.handleStreamEvent(new StreamEvent.SessionPreparedEvent(state.id(), s1, StreamSession.PrepareType.ACK));
+        state.handleStreamEvent(new StreamEvent.SessionPreparedEvent(state.id(), s2, StreamSession.PrepareType.ACK));
 
         long bytesToReceive = 0, bytesToSend = 0;
         long filesToReceive = 0, filesToSend = 0;

@@ -158,6 +158,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
 
+    public enum PrepareType { SEND, ACK }
+
     // for test purpose to record received message and state transition
     public volatile static MessageStateSink sink = MessageStateSink.NONE;
 
@@ -758,7 +760,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             for (StreamTransferTask task : transfers.values())
                 prepareSynAck.summaries.add(task.getSummary());
 
-        streamResult.handleSessionPrepared(this);
+        streamResult.handleSessionPrepared(this, PrepareType.SEND);
         // After sending the message the initiator can close the channel which will cause a ClosedChannelException
         // in buffer logic, this then gets sent to onError which validates the state isFinalState, if not fails
         // the session.  To avoid a race condition between sending and setting state, make sure to update the state
@@ -791,14 +793,14 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (isPreview())
             completePreview();
         else
-            startStreamingFiles(true);
+            startStreamingFiles(PrepareType.ACK);
     }
 
     private void prepareAck(PrepareAckMessage msg)
     {
         if (isPreview())
             throw new RuntimeException(String.format("[Stream #%s] Cannot receive PrepareAckMessage for preview session", planId()));
-        startStreamingFiles(true);
+        startStreamingFiles(PrepareType.ACK);
     }
 
     /**
@@ -1187,10 +1189,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             receivers.put(summary.tableId, new StreamReceiveTask(this, summary.tableId, summary.files, summary.totalSize));
     }
 
-    private void startStreamingFiles(boolean notifyPrepared)
+    private void startStreamingFiles(@Nullable PrepareType prepareType)
     {
-        if (notifyPrepared)
-            streamResult.handleSessionPrepared(this);
+        if (prepareType != null)
+            streamResult.handleSessionPrepared(this, prepareType);
 
         state(State.STREAMING);
 

@@ -18,6 +18,7 @@
 package org.apache.cassandra.distributed.test.streaming;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 
 import org.junit.Test;
@@ -37,18 +38,21 @@ public class RebuildStreamingTest extends TestBaseImpl
     @Test
     public void test() throws IOException
     {
+        ByteBuffer blob = ByteBuffer.wrap(new byte[1 << 16]);
         try (Cluster cluster = init(Cluster.build(2)
                                            .withConfig(c -> c.with(Feature.values()).set("stream_entire_sstables", false))
                                            .start()))
         {
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.users (user_id varchar PRIMARY KEY);"));
+            // streaming sends events every 65k, so need to make sure that the files are larger than this to hit
+            // all cases of the vtable
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.users (user_id varchar, spacing blob, PRIMARY KEY (user_id)) WITH compression = { 'enabled' : false };"));
             cluster.stream().forEach(i -> i.nodetoolResult("disableautocompaction", KEYSPACE).asserts().success());
             IInvokableInstance first = cluster.get(1);
             IInvokableInstance second = cluster.get(2);
             long expectedFiles = 10;
             for (int i = 0; i < expectedFiles; i++)
             {
-                first.executeInternal(withKeyspace("insert into %s.users(user_id) values (?)"), "dcapwell" + i);
+                first.executeInternal(withKeyspace("insert into %s.users(user_id, spacing) values (?, ? )"), "dcapwell" + i, blob);
                 first.flush(KEYSPACE);
             }
 

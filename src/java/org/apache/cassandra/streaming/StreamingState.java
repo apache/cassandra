@@ -27,14 +27,20 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.concurrent.GuardedBy;
+
 import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -235,6 +241,8 @@ public class StreamingState implements StreamEventHandler
 
     private void streamPrepared(StreamEvent.SessionPreparedEvent event)
     {
+        if (event.prepareType != StreamSession.PrepareType.ACK)
+            return;
         SessionInfo session = event.session;
         peers.add(session.peer);
         sessions.bytesToReceive += session.getTotalSizeToReceive();
@@ -244,23 +252,30 @@ public class StreamingState implements StreamEventHandler
         sessions.filesToSend += session.getTotalFilesToSend();
     }
 
+    @GuardedBy("this")
+    private final ObjectLongMap<Pair<InetAddressAndPort, String>> activeFiles = new ObjectLongHashMap<>();
+
     private void streamProgress(StreamEvent.ProgressEvent event)
     {
         ProgressInfo info = event.progress;
+        Pair<InetAddressAndPort, String> key = Pair.create(info.peer, info.fileName);
+        long seenBytes = activeFiles.getOrDefault(key, 0);
+        long delta = info.currentBytes - seenBytes;
         if (info.direction == ProgressInfo.Direction.IN)
         {
             // receiving
-            sessions.bytesReceived += info.currentBytes;
+            sessions.bytesReceived += delta;
             if (info.isCompleted())
                 sessions.filesReceived++;
         }
         else
         {
             // sending
-            sessions.bytesSent += info.currentBytes;
+            sessions.bytesSent += delta;
             if (info.isCompleted())
                 sessions.filesSent++;
         }
+        activeFiles.put(key, info.currentBytes);
     }
 
     @Override
@@ -357,6 +372,23 @@ public class StreamingState implements StreamEventHandler
               .column("files_received", filesReceived)
               .column("files_to_send", filesToSend)
               .column("files_sent", filesSent);
+        }
+
+        @Override
+        public String toString()
+        {
+            TableBuilder builder = new TableBuilder();
+            builder.add("bytes_to_receive", "bytes_received");
+            builder.add(Long.toString(bytesToReceive), Long.toString(bytesReceived));
+            builder.add("bytes_to_send", "bytes_sent");
+            builder.add(Long.toString(bytesToSend), Long.toString(bytesSent));
+
+            builder.add("files_to_receive", "files_received");
+            builder.add(Long.toString(filesToReceive), Long.toString(filesReceived));
+            builder.add("files_to_send", "files_sent");
+            builder.add(Long.toString(filesToSend), Long.toString(filesSent));
+
+            return builder.toString();
         }
     }
 }
