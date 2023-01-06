@@ -374,22 +374,5 @@ public class StreamingState implements StreamEventHandler
               .column("files_to_send", filesToSend)
               .column("files_sent", filesSent);
         }
-
-        @Override
-        public String toString()
-        {
-            TableBuilder builder = new TableBuilder();
-            builder.add("bytes_to_receive", "bytes_received");
-            builder.add(Long.toString(bytesToReceive), Long.toString(bytesReceived));
-            builder.add("bytes_to_send", "bytes_sent");
-            builder.add(Long.toString(bytesToSend), Long.toString(bytesSent));
-
-            builder.add("files_to_receive", "files_received");
-            builder.add(Long.toString(filesToReceive), Long.toString(filesReceived));
-            builder.add("files_to_send", "files_sent");
-            builder.add(Long.toString(filesToSend), Long.toString(filesSent));
-
-            return builder.toString();
-        }
     }
 }
