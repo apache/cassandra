@@ -61,6 +61,9 @@ public class StreamingState implements StreamEventHandler
     private final boolean follower;
     private final StreamOperation operation;
     private final Set<InetSocketAddress> peers = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    @GuardedBy("this")
+    private final ObjectLongMap<Pair<InetAddressAndPort, String>> activeFiles = new ObjectLongHashMap<>();
+    @GuardedBy("this")
     private final Sessions sessions = new Sessions();
 
     private Status status;
@@ -252,9 +255,6 @@ public class StreamingState implements StreamEventHandler
         sessions.filesToReceive += session.getTotalFilesToReceive();
         sessions.filesToSend += session.getTotalFilesToSend();
     }
-
-    @GuardedBy("this")
-    private final ObjectLongMap<Pair<InetAddressAndPort, String>> activeFiles = new ObjectLongHashMap<>();
 
     private void streamProgress(StreamEvent.ProgressEvent event)
     {
