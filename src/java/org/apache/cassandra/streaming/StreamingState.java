@@ -241,10 +241,11 @@ public class StreamingState implements StreamEventHandler
 
     private void streamPrepared(StreamEvent.SessionPreparedEvent event)
     {
-        if (event.prepareType != StreamSession.PrepareType.ACK)
-            return;
         SessionInfo session = event.session;
         peers.add(session.peer);
+        // only update stats on ACK to avoid duplication
+        if (event.prepareType != StreamSession.PrepareType.ACK)
+            return;
         sessions.bytesToReceive += session.getTotalSizeToReceive();
         sessions.bytesToSend += session.getTotalSizeToSend();
 
