@@ -133,8 +133,7 @@ public class AccordKeyspace
         parse(COMMANDS,
               "accord commands",
               "CREATE TABLE %s ("
-              + "store_generation int,"
-              + "store_index int,"
+              + "store_id int,"
               + format("txn_id %s,", TIMESTAMP_TUPLE)
               + "status int,"
               + "home_key blob,"
@@ -154,7 +153,7 @@ public class AccordKeyspace
               + "listeners set<blob>, "
               + format("blocking_commit_on set<%s>, ", TIMESTAMP_TUPLE)
               + format("blocking_apply_on set<%s>, ", TIMESTAMP_TUPLE)
-              + "PRIMARY KEY((store_generation, store_index, txn_id))"
+              + "PRIMARY KEY((store_id, txn_id))"
               + ')');
 
     // TODO: naming is not very clearly distinct from the base serializers
@@ -208,8 +207,7 @@ public class AccordKeyspace
         parse(COMMANDS_FOR_KEY,
               "accord commands per key",
               "CREATE TABLE %s ("
-              + "store_generation int, "
-              + "store_index int, "
+              + "store_id int, "
               + format("key %s, ", KEY_TUPLE)
               + format("max_timestamp %s static, ", TIMESTAMP_TUPLE)
               + format("last_executed_timestamp %s static, ", TIMESTAMP_TUPLE)
@@ -219,7 +217,7 @@ public class AccordKeyspace
               + "series int, "
               + format("timestamp %s, ", TIMESTAMP_TUPLE)
               + "data blob, "
-              + "PRIMARY KEY((store_generation, store_index, key), series, timestamp)"
+              + "PRIMARY KEY((store_id, key), series, timestamp)"
               + ')');
 
     private static class CommandsForKeyColumns
@@ -504,8 +502,7 @@ public class AccordKeyspace
                                     timestampMicros, nowInSeconds, command.storedListeners,
                                     ListenerProxy::identifier);
             }
-            ByteBuffer key = CommandsColumns.keyComparator.make(commandStore.generation(),
-                                                                commandStore.index(),
+            ByteBuffer key = CommandsColumns.keyComparator.make(commandStore.id(),
                                                                 serializeTimestamp(command.txnId())).serializeAsPartitionKey();
             PartitionUpdate update = PartitionUpdate.singleRowUpdate(Commands, key, builder.build());
             return new Mutation(update);
@@ -563,13 +560,11 @@ public class AccordKeyspace
     public static UntypedResultSet loadCommandRow(CommandStore commandStore, TxnId txnId)
     {
         String cql = "SELECT * FROM %s.%s " +
-                     "WHERE store_generation=? " +
-                     "AND store_index=? " +
+                     "WHERE store_id = ? " +
                      "AND txn_id=(?, ?, ?, ?)";
 
         return executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
-                                   commandStore.generation(),
-                                   commandStore.index(),
+                                   commandStore.id(),
                                    txnId.epoch, txnId.real, txnId.logical, txnId.node.id);
     }
 
@@ -650,8 +645,7 @@ public class AccordKeyspace
 
     private static DecoratedKey makeKey(CommandStore commandStore, PartitionKey key)
     {
-        ByteBuffer pk = CommandsForKeyColumns.keyComparator.make(commandStore.generation(),
-                                                                  commandStore.index(),
+        ByteBuffer pk = CommandsForKeyColumns.keyComparator.make(commandStore.id(),
                                                                   serializeKey(key)).serializeAsPartitionKey();
         return CommandsForKey.partitioner.decorateKey(pk);
     }

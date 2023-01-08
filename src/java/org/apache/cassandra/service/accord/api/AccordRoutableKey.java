@@ -22,32 +22,28 @@ import java.util.Objects;
 
 import accord.primitives.RoutableKey;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 
 public abstract class AccordRoutableKey implements RoutableKey
 {
-    final TableId tableId;
+    final String keyspace; // TODO (desired): use an id (TrM)
 
-    protected AccordRoutableKey(TableId tableId)
+    protected AccordRoutableKey(String keyspace)
     {
-        this.tableId = tableId;
+        this.keyspace = keyspace;
     }
 
-    public final TableId tableId() { return tableId; }
+    public final String keyspace() { return keyspace; }
     public abstract Token token();
-
-    @Override
-    public final int routingHash()
-    {
-        return token().tokenHash();
-    }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(tableId, routingHash());
+        return Objects.hash(keyspace, token().tokenHash());
     }
 
+    @Override
     public final int compareTo(RoutableKey that)
     {
         return compareTo((AccordRoutableKey) that);
@@ -55,18 +51,24 @@ public abstract class AccordRoutableKey implements RoutableKey
 
     public final int compareTo(AccordRoutableKey that)
     {
-        int cmp = this.tableId().compareTo(that.tableId());
+        int cmp = this.keyspace().compareTo(that.keyspace());
         if (cmp != 0)
             return cmp;
 
-        if (this instanceof AccordRoutingKey.SentinelKey || that instanceof AccordRoutingKey.SentinelKey)
+        if (this.getClass() == SentinelKey.class || that.getClass() == SentinelKey.class)
         {
-            int leftInt = this instanceof AccordRoutingKey.SentinelKey ? ((AccordRoutingKey.SentinelKey) this).asInt() : 0;
-            int rightInt = that instanceof AccordRoutingKey.SentinelKey ? ((AccordRoutingKey.SentinelKey) that).asInt() : 0;
+            int leftInt = this.getClass() == SentinelKey.class ? ((SentinelKey) this).asInt() : 0;
+            int rightInt = that.getClass() == SentinelKey.class ? ((SentinelKey) that).asInt() : 0;
             return Integer.compare(leftInt, rightInt);
         }
 
-        return this.token().compareTo(that.token());
+        cmp = this.token().compareTo(that.token());
+        if (cmp != 0)
+            return cmp;
+
+        if (this.getClass() == TokenKey.class)
+            return that.getClass() == TokenKey.class ? 0 : 1;
+        return that.getClass() == TokenKey.class ? -1 : ((PartitionKey)this).tableId.compareTo(((PartitionKey)that).tableId);
     }
 
     @Override

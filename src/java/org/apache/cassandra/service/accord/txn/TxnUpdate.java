@@ -161,7 +161,7 @@ public class TxnUpdate implements Update
             else if (ByteBufferUtil.compareUnsigned(left[l], right[r]) != 0) { throw new IllegalStateException("The same keys have different values in each input"); }
             else { out[o++] = left[l++]; r++; }
         }
-        while (l < leftKeys.size()) { out[o++] = left[l]; }
+        while (l < leftKeys.size()) { out[o++] = left[l++]; }
         while (r < rightKeys.size()) { out[o++] = right[r++]; }
         return out;
     }

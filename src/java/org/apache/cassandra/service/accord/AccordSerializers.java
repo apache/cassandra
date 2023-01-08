@@ -168,7 +168,7 @@ public class AccordSerializers
         @Override
         public long serializedSize(TableMetadata metadata, int version)
         {
-            return TableId.serializedSize();
+            return metadata.id.serializedSize();
         }
     };
 }
