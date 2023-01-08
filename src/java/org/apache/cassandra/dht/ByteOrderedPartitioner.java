@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 
 import com.google.common.collect.Maps;
 
@@ -385,5 +387,11 @@ public class ByteOrderedPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering()
     {
         return BytesType.instance;
+    }
+
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        return AccordBytesSplitter::new;
     }
 }

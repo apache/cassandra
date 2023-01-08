@@ -23,7 +23,9 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PreHashedDecoratedKey;
 import org.apache.cassandra.db.TypeSizes;
@@ -58,6 +60,8 @@ public class Murmur3Partitioner implements IPartitioner
 
     private final Splitter splitter = new Splitter(this)
     {
+        final BigInteger MAX = BigInteger.valueOf(Long.MAX_VALUE), MIN = BigInteger.valueOf(Long.MIN_VALUE);
+
         public Token tokenForValue(BigInteger value)
         {
             return new LongToken(value.longValue());
@@ -66,6 +70,18 @@ public class Murmur3Partitioner implements IPartitioner
         public BigInteger valueForToken(Token token)
         {
             return BigInteger.valueOf(((LongToken) token).token);
+        }
+
+        @Override
+        BigInteger minimumValue()
+        {
+            return MIN;
+        }
+
+        @Override
+        BigInteger maximumValue()
+        {
+            return MAX;
         }
     };
 
@@ -447,5 +463,11 @@ public class Murmur3Partitioner implements IPartitioner
     public Optional<Splitter> splitter()
     {
         return Optional.of(splitter);
+    }
+
+    @Override
+    public Function<Ranges, AccordSplitter> accordSplitter()
+    {
+        return ignore -> splitter;
     }
 }

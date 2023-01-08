@@ -40,7 +40,6 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.primitives.Writes;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
@@ -62,7 +61,7 @@ public class AccordObjectSizes
         return ((AccordRoutingKey) key).estimatedSizeOnHeap();
     }
 
-    private static final long EMPTY_KEY_RANGE_SIZE = ObjectSizes.measure(TokenRange.fullRange(TableId.generate()));
+    private static final long EMPTY_KEY_RANGE_SIZE = ObjectSizes.measure(TokenRange.fullRange(""));
     public static long range(Range range)
     {
         return EMPTY_KEY_RANGE_SIZE + key(range.start()) + key(range.end());
