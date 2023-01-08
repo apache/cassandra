@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord.api;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
@@ -45,21 +44,24 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public class PartitionKey extends AccordRoutableKey implements Key
+// final in part because we refer to its class directly in AccordRoutableKey.compareTo
+public final class PartitionKey extends AccordRoutableKey implements Key
 {
     private static final long EMPTY_SIZE;
 
     static
     {
         DecoratedKey key = DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.EMPTY_BYTE_BUFFER);
-        EMPTY_SIZE = ObjectSizes.measureDeep(new PartitionKey(null, key));
+        EMPTY_SIZE = ObjectSizes.measureDeep(new PartitionKey(null, null, key));
     }
 
+    final TableId tableId; // TODO (expected): move to PartitionKey
     final DecoratedKey key;
 
-    public PartitionKey(TableId tableId, DecoratedKey key)
+    public PartitionKey(String keyspace, TableId tableId, DecoratedKey key)
     {
-        super(tableId);
+        super(keyspace);
+        this.tableId = tableId;
         this.key = key;
     }
 
@@ -70,13 +72,15 @@ public class PartitionKey extends AccordRoutableKey implements Key
 
     public static PartitionKey of(Partition partition)
     {
-        return new PartitionKey(partition.metadata().id, partition.partitionKey());
+        return new PartitionKey(partition.metadata().keyspace, partition.metadata().id, partition.partitionKey());
     }
 
     public static PartitionKey of(SinglePartitionReadCommand command)
     {
-        return new PartitionKey(command.metadata().id, command.partitionKey());
+        return new PartitionKey(command.metadata().keyspace, command.metadata().id, command.partitionKey());
     }
+
+    public final TableId tableId() { return tableId; }
 
     @Override
     public Token token()
@@ -92,7 +96,7 @@ public class PartitionKey extends AccordRoutableKey implements Key
     @Override
     public RoutingKey toUnseekable()
     {
-        return new TokenKey(tableId(), token());
+        return new TokenKey(keyspace, token());
     }
 
     public long estimatedSizeOnHeap()
@@ -147,20 +151,20 @@ public class PartitionKey extends AccordRoutableKey implements Key
             TableId tableId = TableId.deserialize(in);
             TableMetadata metadata = Schema.instance.getExistingTableMetadata(tableId);
             DecoratedKey key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
-            return new PartitionKey(tableId, key);
+            return new PartitionKey(metadata.keyspace, tableId, key);
         }
 
         public <V> PartitionKey deserialize(V src, ValueAccessor<V> accessor, int offset) throws IOException
         {
             TableId tableId = TableId.deserialize(src, accessor, offset);
-            offset += TableId.serializedSize();
+            offset += tableId.serializedSize();
             TableMetadata metadata = Schema.instance.getTableMetadata(tableId);
             int numBytes = accessor.getShort(src, offset);
             offset += TypeSizes.SHORT_SIZE;
             ByteBuffer bytes = ByteBuffer.allocate(numBytes);
             accessor.copyTo(src, offset, bytes, ByteBufferAccessor.instance, 0, numBytes);
             DecoratedKey key = metadata.partitioner.decorateKey(bytes);
-            return new PartitionKey(tableId, key);
+            return new PartitionKey(metadata.keyspace, tableId, key);
         }
 
         @Override

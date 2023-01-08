@@ -31,6 +31,7 @@ import accord.coordinate.Timeout;
 import accord.impl.SimpleProgressLog;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.local.Node;
+import accord.local.ShardDistributor.EvenSplit;
 import accord.messages.Request;
 import accord.primitives.Txn;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -41,6 +42,7 @@ import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.service.accord.api.AccordAgent;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.Clock;
@@ -48,6 +50,9 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentAccordOps;
+import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 
 public class AccordService implements Shutdownable
 {
@@ -84,6 +89,7 @@ public class AccordService implements Shutdownable
                              configService,
                              AccordService::uniqueNow,
                              () -> null,
+                             new KeyspaceSplitter(new EvenSplit<>(getConcurrentAccordOps(), getPartitioner().accordSplitter())),
                              new AccordAgent(),
                              new Random(),
                              scheduler,

@@ -25,8 +25,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.google.common.base.Preconditions;
-
 import accord.topology.Shard;
 import accord.topology.Topology;
 import org.apache.cassandra.db.Keyspace;
@@ -35,9 +33,6 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
@@ -52,26 +47,23 @@ public class AccordTopologyUtils
                          pending.stream().map(EndpointMapping::getId).collect(Collectors.toSet()));
     }
 
-    private static TokenRange minRange(TableId tableId, Token token)
+    private static TokenRange minRange(String keyspace, Token token)
     {
-        return new TokenRange(SentinelKey.min(tableId), new TokenKey(tableId, token));
+        return new TokenRange(SentinelKey.min(keyspace), new TokenKey(keyspace, token));
     }
 
-    private static TokenRange maxRange(TableId tableId, Token token)
+    private static TokenRange maxRange(String keyspace, Token token)
     {
-        return new TokenRange(new TokenKey(tableId, token), SentinelKey.max(tableId));
+        return new TokenRange(new TokenKey(keyspace, token), SentinelKey.max(keyspace));
     }
 
-    private static TokenRange range(TableId tableId, Token left, Token right)
+    private static TokenRange range(String keyspace, Token left, Token right)
     {
-        return new TokenRange(new TokenKey(tableId, left), new TokenKey(tableId, right));
+        return new TokenRange(new TokenKey(keyspace, left), new TokenKey(keyspace, right));
     }
 
-    public static List<Shard> createShards(TableMetadata tableMetadata, TokenMetadata tokenMetadata)
+    public static List<Shard> createShards(String keyspace, TokenMetadata tokenMetadata)
     {
-        TableId tableId = tableMetadata.id;
-        String keyspace = tableMetadata.keyspace;
-
         AbstractReplicationStrategy replication = Keyspace.open(keyspace).getReplicationStrategy();
         Set<Token> tokenSet = new HashSet<>(tokenMetadata.sortedTokens());
         tokenSet.addAll(tokenMetadata.getBootstrapTokens().keySet());
@@ -88,13 +80,13 @@ public class AccordTopologyUtils
             EndpointsForToken pending = tokenMetadata.pendingEndpointsForToken(token, keyspace);
             if (i == 0)
             {
-                shards.add(createShard(minRange(tableId, token), natural, pending));
-                finalShard = createShard(maxRange(tableId, tokens.get(mi-1)), natural, pending);
+                shards.add(createShard(minRange(keyspace, token), natural, pending));
+                finalShard = createShard(maxRange(keyspace, tokens.get(mi-1)), natural, pending);
             }
             else
             {
                 Token prev = tokens.get(i - 1);
-                shards.add(createShard(range(tableId, prev, token), natural, pending));
+                shards.add(createShard(range(keyspace, prev, token), natural, pending));
             }
         }
         shards.add(finalShard);
@@ -104,32 +96,13 @@ public class AccordTopologyUtils
 
     public static Topology createTopology(long epoch)
     {
-        List<TableId> tableIds = new ArrayList<>();
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-        for (String ksname: Schema.instance.getKeyspaces())
-        {
-            // TODO: add a table metadata flag to enable and enforce accord use
-            if (SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES.contains(ksname))
-                continue;
-            if (SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES.contains(ksname))
-                continue;
-
-            Keyspace keyspace = Keyspace.open(ksname);
-            for (TableMetadata tableMetadata : keyspace.getMetadata().tables)
-            {
-                tableIds.add(tableMetadata.id);
-            }
-        }
-
-        tableIds.sort(Comparator.naturalOrder());
+        List<String> keyspaces = new ArrayList<>(Schema.instance.distributedKeyspaces().names());
+        keyspaces.sort(String::compareTo);
 
         List<Shard> shards = new ArrayList<>();
-        for (TableId tableId : tableIds)
-        {
-            TableMetadata tableMetadata = Schema.instance.getTableMetadata(tableId);
-            Preconditions.checkNotNull(tableMetadata);
-            shards.addAll(createShards(tableMetadata, tokenMetadata));
-        }
+        for (String keyspace : keyspaces)
+            shards.addAll(createShards(keyspace, tokenMetadata));
 
         return new Topology(epoch, shards.toArray(new Shard[0]));
     }
