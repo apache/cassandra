@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,13 +25,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.primitives.Ranges;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.TokenRange;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -214,5 +220,114 @@ public abstract class PartitionerTestCase
         for (float ownership : owns.values())
             totalOwnership += ownership;
         assertEquals(1.0, totalOwnership, 0.001);
+    }
+
+    @Test
+    public void testCompare()
+    {
+        if (!partitioner.preservesOrder())
+            return;
+
+        assert tok("").compareTo(tok("asdf")) < 0;
+        assert tok("asdf").compareTo(tok("")) > 0;
+        assert tok("").compareTo(tok("")) == 0;
+        assert tok("z").compareTo(tok("a")) > 0;
+        assert tok("a").compareTo(tok("z")) < 0;
+        assert tok("asdf").compareTo(tok("asdf")) == 0;
+        assert tok("asdz").compareTo(tok("asdf")) > 0;
+    }
+
+    @Test
+    public void testCompareSplitter()
+    {
+        for (int i = 0 ; i < 16 ; ++i)
+        {
+            Token a = partitioner.getRandomToken(), b = partitioner.getRandomToken();
+            while (a.equals(b))
+                b = partitioner.getRandomToken();
+            if (a.compareTo(b) > 0) { Token tmp = a; a = b; b = tmp; }
+            testCompareSplitter(a, b);
+        }
+
+        if (!partitioner.preservesOrder())
+            return;
+
+        testCompareSplitter(tok(""), tok("asdf"));
+        testCompareSplitter(tok(""), tok(""));
+        testCompareSplitter(tok("a"), tok("z"));
+        testCompareSplitter(tok("asdf"), tok("asdf"));
+        testCompareSplitter(tok("asd"), tok("asdf"));
+        testCompareSplitter(tok("asdf"), tok("asf"));
+        testCompareSplitter(tok("asdf"), tok("asdz"));
+    }
+
+    @Test
+    public void testSplitter()
+    {
+        for (int i = 0 ; i < 1024 ; ++i)
+        {
+            Token a = partitioner.getRandomToken(), b = partitioner.getRandomToken();
+            while (a.equals(b))
+                b = partitioner.getRandomToken();
+            if (a.compareTo(b) > 0) { Token tmp = a; a = b; b = tmp; }
+            testSplitter(a, b);
+        }
+
+        if (!partitioner.preservesOrder())
+            return;
+
+        testSplitter(tok(""), tok("asdf"));
+        testSplitter(tok("a"), tok("z"));
+        testSplitter(tok("asd"), tok("asdf"));
+        testSplitter(tok("asdf"), tok("asdz"));
+    }
+
+    void testCompareSplitter(Token less, Token more)
+    {
+        Ranges ranges;
+        if (less.equals(more) && less.isMinimum())
+            ranges = Ranges.EMPTY;
+        else if (less.equals(more))
+            ranges = Ranges.of(new TokenRange(new TokenKey("", partitioner.getMinimumToken()), new TokenKey("", less)));
+        else
+            ranges = Ranges.of(new TokenRange(new TokenKey("", less), new TokenKey("", more)));
+
+        AccordSplitter splitter = partitioner.accordSplitter().apply(ranges);
+        BigInteger lv = splitter.valueForToken(less);
+        BigInteger rv = splitter.valueForToken(more);
+        Assert.assertEquals(less.equals(more) ? 0 : -1, normaliseCompare(lv.compareTo(rv)));
+        Assert.assertEquals(less.equals(more) ? 0 : 1, normaliseCompare(rv.compareTo(lv)));
+        checkRoundTrip(less, splitter.tokenForValue(lv));
+        checkRoundTrip(more, splitter.tokenForValue(rv));
+    }
+
+    void testSplitter(Token start, Token end)
+    {
+        accord.primitives.Range range = new TokenRange(new TokenKey("", start), new TokenKey("", end));
+        AccordSplitter splitter = partitioner.accordSplitter().apply(Ranges.of(range));
+        if (!start.isMinimum())
+            testSplitter(new TokenRange(new TokenKey("", partitioner.getMinimumToken()), new TokenKey("", start)));
+        testSplitter(new TokenRange(new TokenKey("", start), new TokenKey("", splitter.tokenForValue(splitter.maximumValue()))));
+        checkRoundTrip(start, splitter.tokenForValue(splitter.valueForToken(start)));
+        checkRoundTrip(end, splitter.tokenForValue(splitter.valueForToken(end)));
+    }
+
+    void testSplitter(accord.primitives.Range range)
+    {
+        AccordSplitter splitter = partitioner.accordSplitter().apply(Ranges.of(range));
+        BigInteger size = splitter.sizeOf(range);
+        Assert.assertEquals(range, splitter.subRange(range, BigInteger.ZERO, size));
+    }
+
+    protected void checkRoundTrip(Token original, Token roundTrip)
+    {
+        Assert.assertEquals(original, roundTrip);
+    }
+
+    static int normaliseCompare(int compareResult)
+    {
+        if (compareResult < 0) return -1;
+        if (compareResult > 0) return 1;
+        return 0;
     }
 }

@@ -49,6 +49,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -75,7 +76,7 @@ public class AccordCommandTest
     private static PartitionKey key(int k)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata("ks", "tbl");
-        return new PartitionKey(metadata.id, metadata.partitioner.decorateKey(ByteBufferUtil.bytes(k)));
+        return new PartitionKey(metadata.keyspace, metadata.id, metadata.partitioner.decorateKey(ByteBufferUtil.bytes(k)));
     }
 
     /**
@@ -85,7 +86,7 @@ public class AccordCommandTest
     public void basicCycleTest() throws ExecutionException, InterruptedException
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        commandStore.execute(PreLoadContext.empty(), instance -> { ((AccordCommandStore) instance).setCacheSize(0); }).get();
+        commandStore.execute(PreLoadContext.empty(), instance -> { ((SafeAccordCommandStore) instance).commandStore().setCacheSize(0); }).get();
 
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
@@ -167,7 +168,7 @@ public class AccordCommandTest
     public void computeDeps() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        commandStore.execute(PreLoadContext.empty(), instance -> { ((AccordCommandStore) instance).setCacheSize(0); }).get();
+        commandStore.execute(PreLoadContext.empty(), instance -> { ((SafeAccordCommandStore) instance).commandStore().setCacheSize(0); }).get();
 
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
         Txn txn = createTxn(2);
