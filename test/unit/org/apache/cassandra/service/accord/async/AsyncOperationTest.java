@@ -109,8 +109,8 @@ public class AsyncOperationTest
         Txn txn = createTxn((int)clock.incrementAndGet());
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
-        commandStore.execute(contextFor(Collections.emptyList(), Keys.of(key)),instance -> {
-            CommandsForKey cfk = commandStore.maybeCommandsForKey(key);
+        commandStore.execute(contextFor(Collections.emptyList(), Keys.of(key)), instance -> {
+            CommandsForKey cfk = instance.maybeCommandsForKey(key);
             Assert.assertNull(cfk);
         }).get();
 

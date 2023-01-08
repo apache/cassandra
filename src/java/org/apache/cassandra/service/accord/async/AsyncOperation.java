@@ -33,6 +33,7 @@ import accord.local.SafeCommandStore;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
@@ -140,6 +141,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
 
     protected void runInternal()
     {
+        SafeAccordCommandStore safeStore = commandStore.safeStore(context);
         switch (state)
         {
             case INITIALIZED:
@@ -149,7 +151,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
                     return;
 
                 state = State.RUNNING;
-                result = apply(commandStore);
+                result = apply(safeStore);
 
                 state = State.SAVING;
             case SAVING:
