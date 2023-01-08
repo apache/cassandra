@@ -18,50 +18,50 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.concurrent.ExecutorService;
-
 import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.ProgressLog;
 import accord.local.AsyncCommandStores;
-import accord.local.CommandStore;
-import accord.local.Node;
 import accord.local.NodeTimeService;
-import org.apache.cassandra.concurrent.ExecutorFactory;
-import org.apache.cassandra.utils.ExecutorUtils;
+import accord.local.ShardDistributor;
+import accord.topology.Topology;
+import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 
 public class AccordCommandStores extends AsyncCommandStores
 {
-    private final ExecutorService[] executors;
-
-    public AccordCommandStores(int numShards, Node node, Agent agent, DataStore store,
-                               ProgressLog.Factory progressLogFactory)
+    private long cacheSize;
+    AccordCommandStores(NodeTimeService time, Agent agent, DataStore store,
+                        ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory)
     {
-        this(numShards, node, agent, store, progressLogFactory, executors(node, numShards));
+        super(time, agent, store, shardDistributor, progressLogFactory, AccordCommandStore::new);
+        setCacheSize(maxCacheSize());
     }
 
-    private AccordCommandStores(int numShards, NodeTimeService time, Agent agent, DataStore store,
-                                ProgressLog.Factory progressLogFactory, ExecutorService[] executors)
+    synchronized void setCacheSize(long bytes)
     {
-        super(numShards, time, agent, store, progressLogFactory,
-              (id, generation, index, numShards1, time1, agent1, store1, progressLogFactory1, rangesForEpoch)
-                -> new AccordCommandStore(id, generation, index, numShards1, time1, agent1, store1, progressLogFactory1, rangesForEpoch, executors[index]));
-        this.executors = executors;
+        cacheSize = bytes;
+        refreshCacheSizes();
     }
 
-    private static ExecutorService[] executors(Node node, int count)
+    synchronized void refreshCacheSizes()
     {
-        ExecutorService[] executors = new ExecutorService[count];
-        for (int i=0; i<count; i++)
-        {
-            executors[i] = ExecutorFactory.Global.executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + node + ':' + i + ']');
-        }
-        return executors;
+        if (count() == 0)
+            return;
+        long perStore = cacheSize / count();
+        // TODO (low priority, safety): we might transiently breach our limit if we increase one store before decreasing another
+        forEach(commandStore -> ((SafeAccordCommandStore) commandStore).commandStore().setCacheSize(perStore));
     }
 
-    void setCacheSize(long bytes)
+    private static long maxCacheSize()
     {
-        forEach(commandStore -> ((AccordCommandStore) commandStore).setCacheSize(bytes));
+        return 5 << 20; // TODO (required): make configurable
+    }
+
+    @Override
+    public synchronized void updateTopology(Topology newTopology)
+    {
+        super.updateTopology(newTopology);
+        refreshCacheSizes();
     }
 
     @Override
@@ -69,6 +69,5 @@ public class AccordCommandStores extends AsyncCommandStores
     {
         super.shutdown();
         //TODO shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
-        ExecutorUtils.shutdown(executors);
     }
 }

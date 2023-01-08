@@ -34,6 +34,7 @@ import accord.primitives.Keys;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
@@ -128,8 +129,8 @@ public abstract class ListenerProxy implements CommandListener, Comparable<Liste
         public void onChange(SafeCommandStore safeStore, Command c)
         {
             AccordCommand command = (AccordCommand) c;
-            AccordCommandStore commandStore = (AccordCommandStore) safeStore;
-            AsyncContext context = commandStore.getContext();
+            SafeAccordCommandStore commandStore = (SafeAccordCommandStore) safeStore;
+            AsyncContext context = commandStore.context();
             PreLoadContext loadCtx = PreLoadContext.contextFor(ImmutableList.of(command.txnId(), txnId), Keys.EMPTY);
             if (context.containsScopedItems(loadCtx))
             {
@@ -228,8 +229,8 @@ public abstract class ListenerProxy implements CommandListener, Comparable<Liste
         public void onChange(SafeCommandStore safeStore, Command c)
         {
             AccordCommand command = (AccordCommand) c;
-            AccordCommandStore commandStore = (AccordCommandStore) safeStore;
-            AsyncContext context = commandStore.getContext();
+            SafeAccordCommandStore commandStore = (SafeAccordCommandStore) safeStore;
+            AsyncContext context = commandStore.context();
             PreLoadContext loadCtx = PreLoadContext.contextFor(ImmutableList.of(command.txnId()), Keys.of(key));
             if (context.containsScopedItems(loadCtx))
             {

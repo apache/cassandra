@@ -24,8 +24,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.base.Preconditions;
-
 import accord.api.Data;
 import accord.api.Result;
 import org.apache.cassandra.db.TypeSizes;
@@ -131,20 +129,16 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         public void serialize(FilteredPartition partition, DataOutputPlus out, int version) throws IOException
         {
             partition.metadata().id.serialize(out);
-            TableMetadata metadata = Schema.instance.getTableMetadata(partition.metadata().id);
-
             try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
             {
-                // TODO: Will metadata be null if we've dropped a table?
-                UnfilteredRowIteratorSerializer.serializer.serialize(iterator, ColumnFilter.all(metadata), out, version, partition.rowCount());
+                UnfilteredRowIteratorSerializer.serializer.serialize(iterator, ColumnFilter.all(partition.metadata()), out, version, partition.rowCount());
             }
         }
 
         @Override
         public FilteredPartition deserialize(DataInputPlus in, int version) throws IOException
         {
-            TableMetadata metadata = Schema.instance.getTableMetadata(TableId.deserialize(in));
-            Preconditions.checkState(metadata != null);
+            TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
             try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, ColumnFilter.all(metadata), DeserializationHelper.Flag.FROM_REMOTE))
             {
                 return new FilteredPartition(UnfilteredRowIterators.filter(partition, 0));
@@ -154,12 +148,11 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         @Override
         public long serializedSize(FilteredPartition partition, int version)
         {
-            long size = TableId.serializedSize();
-            TableMetadata metadata = Schema.instance.getTableMetadata(partition.metadata().id);
-            Preconditions.checkState(metadata != null);
+            TableId tableId = partition.metadata().id;
+            long size = tableId.serializedSize();
             try (UnfilteredRowIterator iterator = partition.unfilteredIterator())
             {
-                return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, ColumnFilter.all(metadata), version, partition.rowCount());
+                return size + UnfilteredRowIteratorSerializer.serializer.serializedSize(iterator, ColumnFilter.all(partition.metadata()), version, partition.rowCount());
             }
         }
     };
