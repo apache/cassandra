@@ -114,7 +114,7 @@ public class AbstractKeySortedTest
     private static PartitionKey key(int k)
     {
         DecoratedKey dk = ByteOrderedPartitioner.instance.decorateKey(ByteBufferUtil.bytes(k));
-        return new PartitionKey(TABLE1, dk);
+        return new PartitionKey("", TABLE1, dk);
     }
 
     private static Item item(int k, int v)
