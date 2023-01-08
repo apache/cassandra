@@ -173,7 +173,7 @@ public class TableId implements Comparable<TableId>
         return position - offset;
     }
 
-    public static int serializedSize()
+    public final int serializedSize()
     {
         return 16;
     }

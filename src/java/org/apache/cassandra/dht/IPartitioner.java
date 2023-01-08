@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.function.Function;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
@@ -149,6 +150,8 @@ public interface IPartitioner
     {
         return Optional.empty();
     }
+
+    Function<accord.primitives.Ranges, AccordSplitter> accordSplitter();
 
     default boolean isFixedLength()
     {

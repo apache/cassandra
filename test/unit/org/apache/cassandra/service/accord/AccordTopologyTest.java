@@ -62,10 +62,10 @@ public class AccordTopologyTest
         Token maxToken = partitioner.getMaximumToken();
 
 //        topology.forKey(new AccordKey.TokenKey(tableId, minToken.minKeyBound()));
-        topology.forKey(new PartitionKey(tableId, new BufferDecoratedKey(minToken, ByteBufferUtil.bytes(0))).toUnseekable());
+        topology.forKey(new PartitionKey("ks", tableId, new BufferDecoratedKey(minToken, ByteBufferUtil.bytes(0))).toUnseekable());
 //        topology.forKey(new AccordKey.TokenKey(tableId, minToken.maxKeyBound()));
 //        topology.forKey(new AccordKey.TokenKey(tableId, maxToken.minKeyBound()));
-        topology.forKey(new PartitionKey(tableId, new BufferDecoratedKey(maxToken, ByteBufferUtil.bytes(0))).toUnseekable());
+        topology.forKey(new PartitionKey("ks", tableId, new BufferDecoratedKey(maxToken, ByteBufferUtil.bytes(0))).toUnseekable());
 //        topology.forKey(new AccordKey.TokenKey(tableId, maxToken.maxKeyBound()));
     }
 }

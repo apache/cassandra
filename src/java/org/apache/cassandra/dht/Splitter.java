@@ -36,7 +36,7 @@ import static java.util.stream.Collectors.toSet;
 /**
  * Partition splitter.
  */
-public abstract class Splitter
+public abstract class Splitter extends AccordSplitter
 {
     private final IPartitioner partitioner;
 
@@ -44,12 +44,6 @@ public abstract class Splitter
     {
         this.partitioner = partitioner;
     }
-
-    @VisibleForTesting
-    protected abstract Token tokenForValue(BigInteger value);
-
-    @VisibleForTesting
-    protected abstract BigInteger valueForToken(Token token);
 
     @VisibleForTesting
     protected BigInteger tokensInRange(Range<Token> range)

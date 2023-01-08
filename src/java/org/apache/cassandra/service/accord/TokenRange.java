@@ -25,7 +25,6 @@ import accord.primitives.Range;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 
@@ -36,9 +35,9 @@ public class TokenRange extends Range.EndInclusive
         super(start, end);
     }
 
-    public static TokenRange fullRange(TableId tableId)
+    public static TokenRange fullRange(String keyspace)
     {
-        return new TokenRange(SentinelKey.min(tableId), SentinelKey.max(tableId));
+        return new TokenRange(SentinelKey.min(keyspace), SentinelKey.max(keyspace));
     }
 
     @Override
