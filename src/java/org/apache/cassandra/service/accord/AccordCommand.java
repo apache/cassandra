@@ -56,6 +56,7 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.DeterministicIdentitySet;
+import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
@@ -342,7 +343,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         blockingCommitOn.clearModifiedFlag();
         waitingOnApply.clearModifiedFlag();
         blockingApplyOn.clearModifiedFlag();
-        storedListeners.clearModifiedFlag();;
+        storedListeners.clearModifiedFlag();
     }
 
     @Override
@@ -628,7 +629,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     protected void postApply(SafeCommandStore safeStore)
     {
-        AccordStateCache.Instance<TxnId, AccordCommand> cache = ((AccordCommandStore) safeStore).commandCache();
+        AccordStateCache.Instance<TxnId, AccordCommand> cache = ((SafeAccordCommandStore) safeStore).commandStore().commandCache();
         cache.cleanupWriteFuture(txnId);
         super.postApply(safeStore);
     }
@@ -640,10 +641,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         for (int i=0,mi=keys.size(); i<mi; i++)
         {
             PartitionKey key = (PartitionKey) keys.get(i);
-            if (((AccordCommandStore)safeStore).isCommandsForKeyInContext(key))
-                continue;
-
-            if (!safeStore.commandStore().hashIntersects(key))
+            if (((SafeAccordCommandStore) safeStore).commandStore().isCommandsForKeyInContext(key))
                 continue;
 
             if (!ranges.contains(key))
@@ -672,7 +670,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     private Future<Void> apply(SafeCommandStore safeStore, boolean canReschedule)
     {
-        AccordStateCache.Instance<TxnId, AccordCommand> cache = ((AccordCommandStore) safeStore).commandCache();
+        AccordStateCache.Instance<TxnId, AccordCommand> cache = ((SafeAccordCommandStore) safeStore).commandStore().commandCache();
         Future<Void> future = cache.getWriteFuture(txnId);
         if (future != null)
             return future;
@@ -700,7 +698,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     public Future<Data> read(SafeCommandStore safeStore)
     {
-        AccordStateCache.Instance<TxnId, AccordCommand> cache = ((AccordCommandStore) safeStore).commandCache();
+        AccordStateCache.Instance<TxnId, AccordCommand> cache = ((SafeAccordCommandStore) safeStore).commandStore().commandCache();
         Future<Data> future = cache.getReadFuture(txnId);
         if (future != null)
             return future;
@@ -756,7 +754,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         storedListeners.getView().forEach(l -> l.onChange(safeStore, this));
         transientListeners.forEach(listener -> {
             PreLoadContext ctx = listener.listenerPreLoadContext(txnId());
-            AsyncContext context = ((AccordCommandStore)safeStore).getContext();
+            AsyncContext context = ((SafeAccordCommandStore)safeStore).context();
             if (context.containsScopedItems(ctx))
             {
                 logger.trace("{}: synchronously updating listener {}", txnId(), listener);

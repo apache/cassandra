@@ -22,18 +22,17 @@ import java.util.Objects;
 
 import accord.primitives.RoutableKey;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.schema.TableId;
 
 public abstract class AccordRoutableKey implements RoutableKey
 {
-    final TableId tableId;
+    final String keyspace; // TODO (desired): use an id (TrM)
 
-    protected AccordRoutableKey(TableId tableId)
+    protected AccordRoutableKey(String keyspace)
     {
-        this.tableId = tableId;
+        this.keyspace = keyspace;
     }
 
-    public final TableId tableId() { return tableId; }
+    public final String keyspace() { return keyspace; }
     public abstract Token token();
 
     @Override
@@ -45,7 +44,7 @@ public abstract class AccordRoutableKey implements RoutableKey
     @Override
     public int hashCode()
     {
-        return Objects.hash(tableId, routingHash());
+        return Objects.hash(keyspace, routingHash());
     }
 
     public final int compareTo(RoutableKey that)
@@ -55,7 +54,7 @@ public abstract class AccordRoutableKey implements RoutableKey
 
     public final int compareTo(AccordRoutableKey that)
     {
-        int cmp = this.tableId().compareTo(that.tableId());
+        int cmp = this.keyspace().compareTo(that.keyspace());
         if (cmp != 0)
             return cmp;
 

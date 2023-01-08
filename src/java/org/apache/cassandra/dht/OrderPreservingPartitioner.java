@@ -23,6 +23,7 @@ import java.nio.charset.CharacterCodingException;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -40,7 +41,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
-public class OrderPreservingPartitioner implements IPartitioner
+public class OrderPreservingPartitioner extends AccordSplitter implements IPartitioner
 {
     private static final String rndchars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
@@ -275,5 +276,46 @@ public class OrderPreservingPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering()
     {
         return UTF8Type.instance;
+    }
+
+    @Override
+    public AccordSplitter accordSplitter()
+    {
+        return this;
+    }
+
+    @Override
+    BigInteger valueForToken(Token token)
+    {
+        String chars = ((StringToken) token).token;
+        int bitLength = chars.length() * 16;
+        BigInteger value = BigInteger.ZERO;
+        for (int i = 0 ; i < Math.min(8, chars.length()) ; ++i)
+            value = value.add(BigInteger.valueOf(chars.charAt(i) & 0xffffL).shiftLeft(bitLength - (i + 1) * 16));
+        return value;
+    }
+
+    @Override
+    Token tokenForValue(BigInteger value)
+    {
+        // TODO (required): test
+        Invariants.checkArgument(value.compareTo(BigInteger.ZERO) >= 0);
+        int bitLength = value.bitLength();
+        char[] chars = new char[(bitLength + 15) / 16];
+        for (int i = 0 ; i < bitLength ; i += 16)
+            chars[i/16] = (char)value.shiftRight(bitLength - (i+1)*8).shortValue();
+        return new StringToken(new String(chars));
+    }
+
+    @Override
+    BigInteger minimumValue()
+    {
+        return BigInteger.ZERO;
+    }
+
+    @Override
+    BigInteger maximumValue(BigInteger start)
+    {
+        return BigInteger.ONE.shiftLeft(1 + start.bitLength());
     }
 }

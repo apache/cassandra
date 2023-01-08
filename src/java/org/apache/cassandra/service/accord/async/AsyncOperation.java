@@ -33,6 +33,7 @@ import accord.local.SafeCommandStore;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
@@ -65,6 +66,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
 
     private State state = State.INITIALIZED;
     private final AccordCommandStore commandStore;
+    private SafeAccordCommandStore safeStore;
     private final AsyncLoader loader;
     private final AsyncWriter writer;
     private final AsyncContext context = new AsyncContext();
@@ -143,13 +145,14 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         switch (state)
         {
             case INITIALIZED:
+                safeStore = commandStore.safeStore(context);
                 state = State.LOADING;
             case LOADING:
                 if (!loader.load(context, this))
                     return;
 
                 state = State.RUNNING;
-                result = apply(commandStore);
+                result = apply(safeStore);
 
                 state = State.SAVING;
             case SAVING:

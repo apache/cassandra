@@ -36,9 +36,9 @@ public class TokenRange extends Range.EndInclusive
         super(start, end);
     }
 
-    public static TokenRange fullRange(TableId tableId)
+    public static TokenRange fullRange(String keyspace, TableId tableId)
     {
-        return new TokenRange(SentinelKey.min(tableId), SentinelKey.max(tableId));
+        return new TokenRange(SentinelKey.min(keyspace), SentinelKey.max(keyspace));
     }
 
     @Override

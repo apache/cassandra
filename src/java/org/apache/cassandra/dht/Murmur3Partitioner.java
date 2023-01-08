@@ -42,6 +42,8 @@ import org.apache.cassandra.utils.ObjectSizes;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
 
+import static java.math.BigInteger.ONE;
+
 /**
  * This class generates a BigIntegerToken using a Murmur3 hash.
  */
@@ -58,6 +60,8 @@ public class Murmur3Partitioner implements IPartitioner
 
     private final Splitter splitter = new Splitter(this)
     {
+        final BigInteger MAX = ONE.shiftLeft(63), REAL_MIN = MAX.negate().add(ONE);
+
         public Token tokenForValue(BigInteger value)
         {
             return new LongToken(value.longValue());
@@ -66,6 +70,18 @@ public class Murmur3Partitioner implements IPartitioner
         public BigInteger valueForToken(Token token)
         {
             return BigInteger.valueOf(((LongToken) token).token);
+        }
+
+        @Override
+        BigInteger minimumValue()
+        {
+            return REAL_MIN;
+        }
+
+        @Override
+        BigInteger maximumValue(BigInteger start)
+        {
+            return MAX;
         }
     };
 
@@ -447,5 +463,10 @@ public class Murmur3Partitioner implements IPartitioner
     public Optional<Splitter> splitter()
     {
         return Optional.of(splitter);
+    }
+
+    public AccordSplitter accordSplitter()
+    {
+        return splitter;
     }
 }

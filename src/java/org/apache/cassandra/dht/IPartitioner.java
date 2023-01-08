@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 
+import accord.local.ShardDistributor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.StorageService;
@@ -135,6 +136,8 @@ public interface IPartitioner
     {
         return Optional.empty();
     }
+
+    AccordSplitter accordSplitter();
 
     default boolean isFixedLength()
     {

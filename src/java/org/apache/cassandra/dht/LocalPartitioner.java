@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.HeapCloner;
 
-public class LocalPartitioner implements IPartitioner
+public class LocalPartitioner extends AccordBytesSplitter implements IPartitioner
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new LocalPartitioner(null).new LocalToken());
 
@@ -206,5 +206,11 @@ public class LocalPartitioner implements IPartitioner
         {
             return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(token);
         }
+    }
+
+    @Override
+    public AccordSplitter accordSplitter()
+    {
+        return this;
     }
 }

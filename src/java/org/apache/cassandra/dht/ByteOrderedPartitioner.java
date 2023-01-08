@@ -47,7 +47,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.collect.Maps;
 
-public class ByteOrderedPartitioner implements IPartitioner
+public class ByteOrderedPartitioner extends AccordBytesSplitter implements IPartitioner
 {
     public static final BytesToken MINIMUM = new BytesToken(ArrayUtils.EMPTY_BYTE_ARRAY);
 
@@ -385,5 +385,11 @@ public class ByteOrderedPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering()
     {
         return BytesType.instance;
+    }
+
+    @Override
+    public AccordSplitter accordSplitter()
+    {
+        return this;
     }
 }

@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
-public class LengthPartitioner implements IPartitioner
+public class LengthPartitioner extends AccordSplitter implements IPartitioner
 {
     public static final BigInteger ZERO = new BigInteger("0");
     public static final BigIntegerToken MINIMUM = new BigIntegerToken("-1");
@@ -178,5 +178,35 @@ public class LengthPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering()
     {
         return new PartitionerDefinedOrder(this);
+    }
+
+    @Override
+    public AccordSplitter accordSplitter()
+    {
+        return this;
+    }
+
+    @Override
+    BigInteger valueForToken(Token token)
+    {
+        return ((BigIntegerToken)token).token;
+    }
+
+    @Override
+    Token tokenForValue(BigInteger value)
+    {
+        return new BigIntegerToken(value);
+    }
+
+    @Override
+    BigInteger minimumValue()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    BigInteger maximumValue(BigInteger start)
+    {
+        throw new UnsupportedOperationException();
     }
 }

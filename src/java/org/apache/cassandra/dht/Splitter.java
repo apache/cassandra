@@ -36,7 +36,7 @@ import static java.util.stream.Collectors.toSet;
 /**
  * Partition splitter.
  */
-public abstract class Splitter
+public abstract class Splitter extends AccordSplitter
 {
     private final IPartitioner partitioner;
 

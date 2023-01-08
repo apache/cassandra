@@ -92,6 +92,18 @@ public class RandomPartitioner implements IPartitioner
         {
             return ((BigIntegerToken)token).getTokenValue();
         }
+
+        @Override
+        BigInteger minimumValue()
+        {
+            return ZERO;
+        }
+
+        @Override
+        BigInteger maximumValue(BigInteger start)
+        {
+            return MAXIMUM;
+        }
     };
 
     public DecoratedKey decorateKey(ByteBuffer key)
@@ -366,6 +378,12 @@ public class RandomPartitioner implements IPartitioner
     public Optional<Splitter> splitter()
     {
         return Optional.of(splitter);
+    }
+
+    @Override
+    public AccordSplitter accordSplitter()
+    {
+        return splitter;
     }
 
     private static BigInteger hashToBigInteger(ByteBuffer data)

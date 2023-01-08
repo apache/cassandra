@@ -55,8 +55,8 @@ public class CommandSerializersTest
                                                  "    INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1);\n" +
                                                  "  END IF\n" +
                                                  "COMMIT TRANSACTION");
-        TableId tableId = ((PartitionKey) txn.keys().get(0)).tableId();
-        PartialTxn expected = txn.slice(Ranges.of(TokenRange.fullRange(tableId)), true);
+        PartitionKey key = (PartitionKey) txn.keys().get(0);
+        PartialTxn expected = txn.slice(Ranges.of(TokenRange.fullRange(key.keyspace(), key.tableId())), true);
         SerializerTestUtils.assertSerializerIOEquality(expected, CommandSerializers.partialTxn);
     }
 }

@@ -224,7 +224,7 @@ public abstract class AbstractCell<V> extends Cell<V>
         if (isTombstone())
             return String.format("[%s=<tombstone> %s]", column().name, livenessInfoString());
         else
-            return String.format("[%s=%s %s]", column().name, safeToString(type), livenessInfoString());
+            return String.format("[%s=%s %s]", column().name, safeToString(column.type), livenessInfoString());
     }
 
     private String safeToString(AbstractType<?> type)

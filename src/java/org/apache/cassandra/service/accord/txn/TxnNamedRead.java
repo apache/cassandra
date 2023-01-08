@@ -58,7 +58,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
     {
         super(value);
         this.name = name;
-        this.key = new PartitionKey(value.metadata().id, value.partitionKey());
+        this.key = new PartitionKey(value.metadata().keyspace, value.metadata().id, value.partitionKey());
     }
 
     private TxnNamedRead(TxnDataName name, PartitionKey key, ByteBuffer bytes)
