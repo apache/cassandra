@@ -141,9 +141,8 @@ public class AsyncWriterTest
 
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
         AccordKeyspace.getCommandsForKeyMutation(commandStore, cfk, commandStore.nextSystemTimestampMicros()).apply();
-        Assert.assertTrue(cfk.uncommitted.isEmpty());
-        Assert.assertTrue(cfk.committedByExecuteAt.isEmpty());
-        Assert.assertTrue(cfk.committedById.isEmpty());
+        Assert.assertTrue(cfk.byExecuteAt.isEmpty());
+        Assert.assertTrue(cfk.byId.isEmpty());
 
         AccordCommand command = new AccordCommand(txnId).initialize();
         command.setPartialTxn(txn.slice(ranges, true));
@@ -157,13 +156,11 @@ public class AsyncWriterTest
         execute(commandStore, () -> {
             AsyncContext ctx = new AsyncContext();
             commandStore.setContext(ctx);
-            AccordPartialCommand summary = getOnlyElement(cfkUncommitted.uncommitted().all().collect(Collectors.toList()));
-            Assert.assertTrue(cfkUncommitted.uncommitted.map.getView().containsKey(txnId));
+            AccordPartialCommand summary = getOnlyElement(cfkUncommitted.byId().all().collect(Collectors.toList()));
+            Assert.assertTrue(cfkUncommitted.byId.map.getView().containsKey(txnId));
+            Assert.assertTrue(cfkUncommitted.byExecuteAt.map.getView().containsKey(executeAt));
             Assert.assertEquals(Status.Accepted, summary.status());
             Assert.assertEquals(executeAt, summary.executeAt());
-
-            Assert.assertTrue(cfkUncommitted.committedByExecuteAt.isEmpty());
-            Assert.assertTrue(cfkUncommitted.committedById.isEmpty());
             commandStore.unsetContext(ctx);
         });
 
@@ -177,17 +174,15 @@ public class AsyncWriterTest
         execute(commandStore, () -> {
             AsyncContext ctx = new AsyncContext();
             commandStore.setContext(ctx);
-            AccordPartialCommand idSummary = getOnlyElement(cfkCommitted.committedById().all().collect(Collectors.toList()));
-            AccordPartialCommand executeSummary = getOnlyElement(cfkCommitted.committedByExecuteAt().all().collect(Collectors.toList()));
+            AccordPartialCommand idSummary = getOnlyElement(cfkCommitted.byId().all().collect(Collectors.toList()));
+            AccordPartialCommand executeSummary = getOnlyElement(cfkCommitted.byExecuteAt().all().collect(Collectors.toList()));
 
-            Assert.assertTrue(cfkCommitted.committedById.map.getView().containsKey(txnId));
-            Assert.assertTrue(cfkCommitted.committedByExecuteAt.map.getView().containsKey(executeAt));
+            Assert.assertTrue(cfkCommitted.byId.map.getView().containsKey(txnId));
+            Assert.assertTrue(cfkCommitted.byExecuteAt.map.getView().containsKey(executeAt));
             Assert.assertEquals(idSummary, executeSummary);
 
             Assert.assertEquals(Status.Committed, idSummary.status());
             Assert.assertEquals(executeAt, idSummary.executeAt());
-
-            Assert.assertTrue(cfkCommitted.uncommitted.isEmpty());
             commandStore.unsetContext(ctx);
         });
     }

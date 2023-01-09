@@ -49,7 +49,7 @@ public class PreacceptSerializers
         {
             CommandSerializers.partialTxn.serialize(msg.partialTxn, out, version);
             serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
-            out.writeUnsignedVInt(msg.maxEpoch - msg.minEpoch);
+            out.writeUnsignedVInt(msg.maxEpoch - msg.minUnsyncedEpoch);
         }
 
         @Override
@@ -67,7 +67,7 @@ public class PreacceptSerializers
         {
             return CommandSerializers.partialTxn.serializedSize(msg.partialTxn, version)
                    + serializedNullableSize(msg.route, version, KeySerializers.fullRoute)
-                   + TypeSizes.sizeofUnsignedVInt(msg.maxEpoch - msg.minEpoch);
+                   + TypeSizes.sizeofUnsignedVInt(msg.maxEpoch - msg.minUnsyncedEpoch);
         }
     };
 

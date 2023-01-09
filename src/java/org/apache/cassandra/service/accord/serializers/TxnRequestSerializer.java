@@ -79,7 +79,7 @@ public abstract class TxnRequestSerializer<T extends TxnRequest<?>> implements I
         void serializeHeader(T msg, DataOutputPlus out, int version) throws IOException
         {
             super.serializeHeader(msg, out, version);
-            out.writeUnsignedVInt(msg.minEpoch);
+            out.writeUnsignedVInt(msg.minUnsyncedEpoch);
             out.writeBoolean(msg.doNotComputeProgressKey);
         }
 
@@ -97,7 +97,7 @@ public abstract class TxnRequestSerializer<T extends TxnRequest<?>> implements I
         long serializedHeaderSize(T msg, int version)
         {
             long size = super.serializedHeaderSize(msg, version);
-            size += TypeSizes.sizeofUnsignedVInt(msg.minEpoch);
+            size += TypeSizes.sizeofUnsignedVInt(msg.minUnsyncedEpoch);
             size += TypeSizes.BOOL_SIZE;
             return size;
         }
