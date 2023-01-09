@@ -45,7 +45,6 @@ public class AcceptSerializers
             CommandSerializers.timestamp.serialize(accept.executeAt, out, version);
             KeySerializers.seekables.serialize(accept.keys, out, version);
             DepsSerializer.partialDeps.serialize(accept.partialDeps, out, version);
-            CommandSerializers.kind.serialize(accept.kind, out, version);
         }
 
         @Override
@@ -55,8 +54,7 @@ public class AcceptSerializers
                           CommandSerializers.ballot.deserialize(in, version),
                           CommandSerializers.timestamp.deserialize(in, version),
                           KeySerializers.seekables.deserialize(in, version),
-                          DepsSerializer.partialDeps.deserialize(in, version),
-                          CommandSerializers.kind.deserialize(in, version));
+                          DepsSerializer.partialDeps.deserialize(in, version));
         }
 
         @Override
@@ -65,8 +63,7 @@ public class AcceptSerializers
             return CommandSerializers.ballot.serializedSize(accept.ballot, version)
                    + CommandSerializers.timestamp.serializedSize(accept.executeAt, version)
                    + KeySerializers.seekables.serializedSize(accept.keys, version)
-                   + DepsSerializer.partialDeps.serializedSize(accept.partialDeps, version)
-                   + CommandSerializers.kind.serializedSize(accept.kind, version);
+                   + DepsSerializer.partialDeps.serializedSize(accept.partialDeps, version);
         }
     };
 

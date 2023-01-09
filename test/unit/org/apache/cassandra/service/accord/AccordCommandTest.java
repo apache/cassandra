@@ -28,7 +28,6 @@ import org.junit.Test;
 import accord.api.Key;
 import accord.api.RoutingKey;
 import accord.local.Command;
-import accord.local.CommandsForKey;
 import accord.local.Node;
 import accord.local.PreLoadContext;
 import accord.local.Status;
@@ -113,11 +112,10 @@ public class AccordCommandTest
             Assert.assertEquals(Status.PreAccepted, command.status());
             Assert.assertTrue(command.partialDeps().isEmpty());
 
-            CommandsForKey cfk = instance.commandsForKey(key(1));
+            AccordCommandsForKey cfk = ((SafeAccordCommandStore)instance).commandsForKey(key(1));
             Assert.assertEquals(txnId, cfk.max());
-            Assert.assertNotNull(((AccordCommandsForKey.Series<?>)cfk.uncommitted()).get(txnId));
-            Assert.assertNull(((AccordCommandsForKey.Series<?>)cfk.committedById()).get(txnId));
-            Assert.assertNull(((AccordCommandsForKey.Series<?>)cfk.committedByExecuteAt()).get(txnId));
+            Assert.assertNotNull((cfk.byId()).get(txnId));
+            Assert.assertNotNull((cfk.byExecuteAt()).get(txnId));
         }).get();
 
         // check accept
@@ -129,7 +127,7 @@ public class AccordCommandTest
             builder.add(key, txnId2);
             deps = builder.build();
         }
-        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, false, Ballot.ZERO, executeAt, partialTxn.keys(), deps, partialTxn.kind());
+        Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, false, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
 
         commandStore.execute(accept, instance -> {
             Accept.AcceptReply reply = accept.apply(instance);
@@ -143,11 +141,10 @@ public class AccordCommandTest
             Assert.assertEquals(Status.Accepted, command.status());
             Assert.assertEquals(deps, command.partialDeps());
 
-            CommandsForKey cfk = instance.commandsForKey(key(1));
+            AccordCommandsForKey cfk = ((SafeAccordCommandStore)instance).commandsForKey(key(1));
             Assert.assertEquals(executeAt, cfk.max());
-            Assert.assertNotNull(((AccordCommandsForKey.Series<?>)cfk.uncommitted()).get(txnId));
-            Assert.assertNull(((AccordCommandsForKey.Series<?>)cfk.committedById()).get(txnId));
-            Assert.assertNull(((AccordCommandsForKey.Series<?>)cfk.committedByExecuteAt()).get(txnId));
+            Assert.assertNotNull((cfk.byId()).get(txnId));
+            Assert.assertNotNull((cfk.byExecuteAt()).get(txnId));
         }).get();
 
         // check commit
@@ -160,10 +157,9 @@ public class AccordCommandTest
             Assert.assertTrue(command.hasBeen(Status.Committed));
             Assert.assertEquals(commit.partialDeps, command.partialDeps());
 
-            CommandsForKey cfk = instance.commandsForKey(key(1));
-            Assert.assertNull(((AccordCommandsForKey.Series<?>)cfk.uncommitted()).get(txnId));
-            Assert.assertNotNull(((AccordCommandsForKey.Series<?>)cfk.committedById()).get(txnId));
-            Assert.assertNotNull(((AccordCommandsForKey.Series<?>)cfk.committedByExecuteAt()).get(commit.executeAt));
+            AccordCommandsForKey cfk = ((SafeAccordCommandStore)instance).commandsForKey(key(1));
+            Assert.assertNotNull((cfk.byId()).get(txnId));
+            Assert.assertNotNull((cfk.byExecuteAt()).get(commit.executeAt));
         }).get();
     }
 

@@ -47,6 +47,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static accord.utils.SortedArrays.Search.CEIL;
 import static org.apache.cassandra.service.accord.AccordSerializers.serialize;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
@@ -135,7 +136,7 @@ public class TxnUpdate implements Update
         int j = 0;
         for (int i = 0 ; i < out.size() ; ++i)
         {
-            j = in.findNext(out.get(i), j);
+            j = in.findNext(j, out.get(i), CEIL);
             result[i] = from[j];
         }
         return result;
@@ -146,7 +147,7 @@ public class TxnUpdate implements Update
     {
         // TODO: special method for linear merging keyed and non-keyed lists simultaneously
         TxnUpdate that = (TxnUpdate) update;
-        Keys mergedKeys = this.keys.union(that.keys);
+        Keys mergedKeys = this.keys.with(that.keys);
         ByteBuffer[] mergedFragments = merge(this.keys, that.keys, this.fragments, that.fragments, mergedKeys.size());
         return new TxnUpdate(mergedKeys, mergedFragments, condition);
     }
@@ -226,7 +227,7 @@ public class TxnUpdate implements Update
             while (j < mi && toKey.apply(items.get(j)).equals(key))
                 ++j;
 
-            int nextki = keys.findNext(key, ki);
+            int nextki = keys.findNext(ki, key, CEIL);
             Arrays.fill(result, ki, nextki, ByteBufferUtil.EMPTY_BYTE_BUFFER);
             ki = nextki;
             result[ki++] = toSerializedValues(items, i, j, serializer, MessagingService.current_version);
