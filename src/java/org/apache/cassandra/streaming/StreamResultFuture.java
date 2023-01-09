@@ -175,7 +175,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
         return planId.hashCode();
     }
 
-    void handleSessionPrepared(StreamSession session, StreamSession.PrepareType prepareType)
+    void handleSessionPrepared(StreamSession session, StreamSession.PrepareDirection prepareDirection)
     {
         SessionInfo sessionInfo = session.getSessionInfo();
         logger.info("[Stream #{} ID#{}] Prepare completed. Receiving {} files({}), sending {} files({})",
@@ -185,7 +185,7 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
                               FBUtilities.prettyPrintMemory(sessionInfo.getTotalSizeToReceive()),
                               sessionInfo.getTotalFilesToSend(),
                               FBUtilities.prettyPrintMemory(sessionInfo.getTotalSizeToSend()));
-        StreamEvent.SessionPreparedEvent event = new StreamEvent.SessionPreparedEvent(planId, sessionInfo, prepareType);
+        StreamEvent.SessionPreparedEvent event = new StreamEvent.SessionPreparedEvent(planId, sessionInfo, prepareDirection);
         coordinator.addSessionInfo(sessionInfo);
         fireStreamEvent(event);
     }
