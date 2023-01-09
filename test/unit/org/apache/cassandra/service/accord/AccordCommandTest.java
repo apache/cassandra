@@ -89,7 +89,7 @@ public class AccordCommandTest
         commandStore.execute(PreLoadContext.empty(), instance -> { ((SafeAccordCommandStore) instance).commandStore().setCacheSize(0); }).get();
 
 
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createTxn(1);
         Key key = (Key)txn.keys().get(0);
         RoutingKey homeKey = key.toUnseekable();
@@ -121,8 +121,8 @@ public class AccordCommandTest
         }).get();
 
         // check accept
-        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
-        Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
+        Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 1);
         PartialDeps.OrderedBuilder builder = PartialDeps.orderedBuilder(route.covering(), false);
         builder.add(key, txnId2);
         PartialDeps deps = builder.build();
@@ -170,7 +170,7 @@ public class AccordCommandTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         commandStore.execute(PreLoadContext.empty(), instance -> { ((SafeAccordCommandStore) instance).commandStore().setCacheSize(0); }).get();
 
-        TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createTxn(2);
         Key key = (Key)txn.keys().get(0);
         RoutingKey homeKey = key.toUnseekable();
@@ -182,7 +182,7 @@ public class AccordCommandTest
         commandStore.execute(preAccept1, preAccept1::apply).get();
 
         // second preaccept should identify txnId1 as a dependency
-        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, false, 1, partialTxn, fullRoute);
         commandStore.execute(preAccept2, instance -> {
             PreAccept.PreAcceptReply reply = preAccept2.apply(instance);
