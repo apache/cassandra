@@ -81,11 +81,14 @@ public class AccordCommandStoreTest
         Key key = (Key)depTxn.keys().get(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
-        PartialDeps.OrderedBuilder builder = PartialDeps.orderedBuilder(depTxn.covering(), false);
-        builder.add(key, txnId(1, clock.incrementAndGet(), 1));
-        PartialDeps dependencies = builder.build();
-        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
+        PartialDeps dependencies;
+        try (PartialDeps.Builder builder = PartialDeps.builder(depTxn.covering()))
+        {
+            builder.add(key, txnId(1, clock.incrementAndGet(), 1));
+            dependencies = builder.build();
+        }
 
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
         TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 1);
         TxnId oldTxnId2 = txnId(1, clock.incrementAndGet(), 1);
         TxnId oldTimestamp = txnId(1, clock.incrementAndGet(), 1);
