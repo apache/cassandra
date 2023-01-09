@@ -53,7 +53,7 @@ import org.assertj.core.util.VisibleForTesting;
 import static accord.local.CommandsForKey.CommandTimeseries.TestDep.ANY_DEPS;
 import static accord.local.CommandsForKey.CommandTimeseries.TestDep.WITHOUT;
 import static accord.local.CommandsForKey.CommandTimeseries.TestKind.RorWs;
-import static accord.primitives.Txn.Kind.WRITE;
+import static accord.primitives.Txn.Kind.Write;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applyMapChanges;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applySetChanges;
 
@@ -158,7 +158,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         public Stream<T> before(Timestamp timestamp, TestKind testKind, TestDep testDep, @Nullable TxnId depId, TestStatus testStatus, @Nullable Status status)
         {
             return idsToCommands(map.getView().headMap(timestamp, false).values())
-                   .filter(cmd -> testKind == RorWs || cmd.kind() == WRITE)
+                   .filter(cmd -> testKind == RorWs || cmd.txnId().isWrite())
                    .filter(cmd -> testDep == ANY_DEPS || (cmd.hasDep(depId) ^ (testDep == WITHOUT)))
                    .filter(cmd -> TestStatus.test(cmd.status(), testStatus, status))
                    .map(translate);
@@ -168,7 +168,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         public Stream<T> after(Timestamp timestamp, TestKind testKind, TestDep testDep, @Nullable TxnId depId, TestStatus testStatus, @Nullable Status status)
         {
             return idsToCommands(map.getView().tailMap(timestamp, false).values())
-                   .filter(cmd -> testKind == RorWs || cmd.kind() == WRITE)
+                   .filter(cmd -> testKind == RorWs || cmd.txnId().isWrite())
                    .filter(cmd -> testDep == ANY_DEPS || (cmd.hasDep(depId) ^ (testDep == WITHOUT)))
                    .filter(cmd -> TestStatus.test(cmd.status(), testStatus, status))
                    .map(translate);
@@ -386,7 +386,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
 
     private static long getTimestampMicros(Timestamp timestamp)
     {
-        return timestamp.real + timestamp.logical;
+        return timestamp.hlc();
     }
 
     private void maybeUpdatelastTimestamp(Timestamp executeAt, boolean isForWriteTxn)

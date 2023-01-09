@@ -29,7 +29,6 @@ import accord.local.Command;
 import accord.local.CommandsForKey;
 import accord.local.Status;
 import accord.primitives.Timestamp;
-import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -53,21 +52,19 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
     private final List<TxnId> deps;
     // TODO (soon): we only require this for Accepted; perhaps more tightly couple query API for efficiency
     private final Status status;
-    private final Txn.Kind kind;
 
-    AccordPartialCommand(TxnId txnId, Timestamp executeAt, List<TxnId> deps, Status status, Txn.Kind kind)
+    AccordPartialCommand(TxnId txnId, Timestamp executeAt, List<TxnId> deps, Status status)
     {
         super(txnId, executeAt);
         this.deps = deps;
         this.status = status;
-        this.kind = kind;
     }
 
     public AccordPartialCommand(Key key, Command command)
     {
         this(command.txnId(), command.executeAt(),
              command.partialDeps() == null ? Collections.emptyList() : command.partialDeps().txnIds(key),
-             command.status(), command.kind());
+             command.status());
     }
 
     public TxnId txnId()
@@ -95,11 +92,6 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
         return status;
     }
 
-    public Txn.Kind kind()
-    {
-        return kind;
-    }
-
     @Override
     public boolean equals(Object obj)
     {
@@ -109,8 +101,7 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
         return txnId.equals(that.txnId)
                && Objects.equals(executeAt, that.executeAt)
                && Objects.equals(deps, that.deps)
-               && status == that.status
-               && kind == that.kind;
+               && status == that.status;
     }
 
     public static class PartialCommandSerializer
@@ -121,7 +112,6 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
             CommandSerializers.txnId.serialize(command.txnId(), out, version.msgVersion);
             serializeNullable(command.executeAt(), out, version.msgVersion, CommandSerializers.timestamp);
             CommandSerializers.status.serialize(command.status(), out, version.msgVersion);
-            CommandSerializers.kind.serialize(command.kind(), out, version.msgVersion);
             serializeCollection(command.deps, out, version.msgVersion, CommandSerializers.txnId);
         }
 
@@ -157,9 +147,8 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
 
             Timestamp executeAt = deserializeNullable(in, version.msgVersion, CommandSerializers.timestamp);
             Status status = CommandSerializers.status.deserialize(in, version.msgVersion);
-            Txn.Kind kind = CommandSerializers.kind.deserialize(in, version.msgVersion);
             List<TxnId> deps = deserializeList(in, version.msgVersion, CommandSerializers.txnId);
-            AccordPartialCommand partial = new AccordPartialCommand(txnId, executeAt, deps, status, kind);
+            AccordPartialCommand partial = new AccordPartialCommand(txnId, executeAt, deps, status);
             addToContext(partial, context);
             return partial;
         }
@@ -182,7 +171,6 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
             size += CommandSerializers.txnId.serializedSize();
             size += serializedSizeNullable(command.executeAt(), version.msgVersion, CommandSerializers.timestamp);
             size += CommandSerializers.status.serializedSize(command.status(), version.msgVersion);
-            size += CommandSerializers.kind.serializedSize(command.kind(), version.msgVersion);
             size += serializedCollectionSize(command.deps, version.msgVersion, CommandSerializers.txnId);
             return size;
         }
