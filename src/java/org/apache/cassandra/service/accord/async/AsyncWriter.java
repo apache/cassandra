@@ -32,7 +32,6 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.primitives.Routable;
 import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -49,6 +48,8 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
+
+import static accord.primitives.Routable.Domain.Range;
 
 public class AsyncWriter
 {
@@ -263,7 +264,7 @@ public class AsyncWriter
             for (Seekable key : command.partialTxn().keys())
             {
                 // TODO: implement
-                if (key.kind() == Routable.Kind.Range)
+                if (key.domain() == Range)
                     throw new UnsupportedOperationException();
                 PartitionKey partitionKey = (PartitionKey) key;
                 AccordCommandsForKey cfk = cfkForDenormalization(partitionKey, context);

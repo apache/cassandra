@@ -74,7 +74,7 @@ public class AsyncLoaderTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         AccordStateCache.Instance<TxnId, AccordCommand> commandCache = commandStore.commandCache();
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
@@ -108,7 +108,7 @@ public class AsyncLoaderTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         AccordStateCache.Instance<TxnId, AccordCommand> commandCache = commandStore.commandCache();
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
@@ -150,7 +150,7 @@ public class AsyncLoaderTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         AccordStateCache.Instance<TxnId, AccordCommand> commandCache = commandStore.commandCache();
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
@@ -192,7 +192,7 @@ public class AsyncLoaderTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         AccordStateCache.Instance<TxnId, AccordCommand> commandCache = commandStore.commandCache();
         AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCacche = commandStore.commandsForKeyCache();
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
@@ -237,9 +237,9 @@ public class AsyncLoaderTest
         AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
-        TxnId blockApply = txnId(1, clock.incrementAndGet(), 0, 1);
-        TxnId blockCommit = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
+        TxnId blockApply = txnId(1, clock.incrementAndGet(), 1);
+        TxnId blockCommit = txnId(1, clock.incrementAndGet(), 1);
         PartialTxn txn = createPartialTxn(0);
         PartitionKey key = (PartitionKey) getOnlyElement(txn.keys());
 
@@ -283,8 +283,8 @@ public class AsyncLoaderTest
     {
         AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
-        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
+        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
 
         AsyncPromise<Void> promise1 = new AsyncPromise<>();
         AsyncPromise<Void> promise2 = new AsyncPromise<>();

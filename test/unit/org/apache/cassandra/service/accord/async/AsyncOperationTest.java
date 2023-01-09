@@ -89,7 +89,7 @@ public class AsyncOperationTest
     public void optionalCommandTest() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createTxn((int)clock.incrementAndGet());
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
@@ -158,7 +158,7 @@ public class AsyncOperationTest
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
         AccordCommand command = createCommittedAndPersist(commandStore, txnId);
 
