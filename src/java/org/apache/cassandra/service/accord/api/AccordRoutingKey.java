@@ -37,6 +37,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -154,12 +155,28 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
                 return TypeSizes.BOOL_SIZE + TypeSizes.sizeof(key.keyspace);
             }
         };
+
+        @Override
+        public Range asRange()
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 
     // final in part because we refer to its class directly in AccordRoutableKey.compareToe
     public static final class TokenKey extends AccordRoutingKey
     {
         private static final long EMPTY_SIZE;
+
+        @Override
+        public Range asRange()
+        {
+            AccordRoutingKey before = token.isMinimum()
+                                      ? new SentinelKey(keyspace, true)
+                                      : new TokenKey(keyspace, token.decreaseSlightly());
+
+            return new TokenRange(before, this);
+        }
 
         static
         {
@@ -308,7 +325,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
                 for (int i = 0; i < splits.size(); i++)
                 {
                     if (i == results.size()) results.add(Ranges.EMPTY);
-                    results.set(i, results.get(i).union(splits.get(i)));
+                    results.set(i, results.get(i).with(splits.get(i)));
                 }
             }
             return results;
