@@ -212,13 +212,13 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
 
     private static Iterable<PartitionKey> toPartitionKeys(Seekables<?, ?> keys)
     {
-        switch (keys.kindOfContents())
+        switch (keys.domain())
         {
             default: throw new AssertionError();
             case Key:
                 return (Iterable<PartitionKey>) keys;
             case Range:
-                // TODO: implement
+                // TODO (required): implement
                 throw new UnsupportedOperationException();
         }
     }
