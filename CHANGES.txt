@@ -1,4 +1,5 @@
 4.0.8
+ * Fix legacy clustering serialization for paging with compact storage (CASSANDRA-17507)
  * Add support for python 3.11 (CASSANDRA-18088)
  * Fix formatting of duration in cqlsh (CASSANDRA-18141)
  * Fix sstable loading of keyspaces named snapshots or backups (CASSANDRA-14013)
