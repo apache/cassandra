@@ -168,7 +168,7 @@ public interface ColumnFamilyStoreMBean
      * @param hexFormat
      * @return list of filenames and levels containing the key
      */
-    public Map<Integer, Collection<String>> getSSTablesForKeyWithLevel(String key, boolean hexFormat);
+    public Map<Integer, Set<String>> getSSTablesForKeyWithLevel(String key, boolean hexFormat);
 
     /**
      * Load new sstables from the given directory

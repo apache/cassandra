@@ -64,12 +64,10 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
-import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
@@ -1946,14 +1944,23 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return withSSTablesForKey(key, hexFormat, SSTableReader::getFilename);
     }
 
-    public Map<Integer, Collection<String>> getSSTablesForKeyWithLevel(String key, boolean hexFormat)
+    public Map<Integer, Set<String>> getSSTablesForKeyWithLevel(String key, boolean hexFormat)
     {
         List<Pair<Integer, String>> ssts = withSSTablesForKey(key, hexFormat, sstr -> Pair.create(sstr.getSSTableLevel(), sstr.getFilename()));
-        Multimap<Integer, String> result = HashMultimap.create();
+        HashMap<Integer, Set<String>> result = new HashMap<>();
         for (Pair<Integer, String> sst : ssts)
-            result.put(sst.left, sst.right);
+        {
+            Set<String> perLevel = result.get(sst.left);
+            if (perLevel == null)
+            {
+                perLevel = new HashSet<>();
+                result.put(sst.left, perLevel);
+            }
 
-        return result.asMap();
+            perLevel.add(sst.right);
+        }
+
+        return result;
     }
 
     public <T> List<T> withSSTablesForKey(String key, boolean hexFormat, Function<SSTableReader, T> mapper)

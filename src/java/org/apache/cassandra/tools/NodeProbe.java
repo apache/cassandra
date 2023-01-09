@@ -30,7 +30,6 @@ import java.rmi.server.RMIClientSocketFactory;
 import java.rmi.server.RMISocketFactory;
 import java.util.AbstractMap;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -1045,7 +1044,7 @@ public class NodeProbe implements AutoCloseable
         return cfsProxy.getSSTablesForKey(key, hexFormat);
     }
 
-    public Map<Integer, Collection<String>> getSSTablesWithLevel(String keyspace, String cf, String key, boolean hexFormat)
+    public Map<Integer, Set<String>> getSSTablesWithLevel(String keyspace, String cf, String key, boolean hexFormat)
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(keyspace, cf);
         return cfsProxy.getSSTablesForKeyWithLevel(key, hexFormat);

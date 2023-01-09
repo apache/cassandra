@@ -22,9 +22,9 @@ import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
@@ -54,7 +54,7 @@ public class GetSSTables extends NodeToolCmd
 
         if (showLevels && probe.isLeveledCompaction(ks, cf))
         {
-            Map<Integer, Collection<String>> sstables = probe.getSSTablesWithLevel(ks, cf, key, hexFormat);
+            Map<Integer, Set<String>> sstables = probe.getSSTablesWithLevel(ks, cf, key, hexFormat);
             for (Integer level : sstables.keySet())
                 for (String sstable : sstables.get(level))
                     probe.output().out.println(level + ": " + sstable);
