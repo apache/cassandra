@@ -83,8 +83,8 @@ public class AsyncWriterTest
         AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
-        TxnId blockingId = txnId(1, clock.incrementAndGet(), 0, 1);
-        TxnId waitingId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId blockingId = txnId(1, clock.incrementAndGet(), 1);
+        TxnId waitingId = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createTxn(0);
         Ranges ranges = fullRange(txn);
         AccordCommand blocking = new AccordCommand(blockingId).initialize();
@@ -133,8 +133,8 @@ public class AsyncWriterTest
         AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
-        Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
+        Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 1);
         Txn txn = createTxn(0);
         Ranges ranges = fullRange(txn);
         PartitionKey key = (PartitionKey) getOnlyElement(txn.keys());
@@ -198,8 +198,8 @@ public class AsyncWriterTest
         AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
-        TxnId blockingId = txnId(1, clock.incrementAndGet(), 0, 1);
-        TxnId waitingId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId blockingId = txnId(1, clock.incrementAndGet(), 1);
+        TxnId waitingId = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createTxn(0);
         Ranges ranges = fullRange(txn);
 

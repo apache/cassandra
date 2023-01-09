@@ -82,22 +82,22 @@ public class AccordCommandStoreTest
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
         PartialDeps.OrderedBuilder builder = PartialDeps.orderedBuilder(depTxn.covering(), false);
-        builder.add(key, txnId(1, clock.incrementAndGet(), 0, 1));
+        builder.add(key, txnId(1, clock.incrementAndGet(), 1));
         PartialDeps dependencies = builder.build();
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
 
-        TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
-        TxnId oldTxnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
-        TxnId oldTimestamp = txnId(1, clock.incrementAndGet(), 0, 1);
-        TxnId txnId = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 1);
+        TxnId oldTxnId2 = txnId(1, clock.incrementAndGet(), 1);
+        TxnId oldTimestamp = txnId(1, clock.incrementAndGet(), 1);
+        TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         AccordCommand command = new AccordCommand(txnId).initialize();
         command.setPartialTxn(createPartialTxn(0));
         command.homeKey(key.toUnseekable());
         command.progressKey(key.toUnseekable());
         command.setDurability(Durable);
-        command.setPromised(ballot(1, clock.incrementAndGet(), 0, 1));
-        command.setAccepted(ballot(1, clock.incrementAndGet(), 0, 1));
-        command.setExecuteAt(timestamp(1, clock.incrementAndGet(), 0, 1));
+        command.setPromised(ballot(1, clock.incrementAndGet(), 1));
+        command.setAccepted(ballot(1, clock.incrementAndGet(), 1));
+        command.setExecuteAt(timestamp(1, clock.incrementAndGet(), 1));
         command.setPartialDeps(dependencies);
         command.setStatus(Status.Accepted);
         command.addWaitingOnCommit(oldTxnId1);
@@ -119,26 +119,26 @@ public class AccordCommandStoreTest
     {
         AtomicLong clock = new AtomicLong(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        Timestamp maxTimestamp = timestamp(1, clock.incrementAndGet(), 0, 1);
+        Timestamp maxTimestamp = timestamp(1, clock.incrementAndGet(), 1);
 
         PartialTxn txn = createPartialTxn(1);
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
-        TxnId txnId1 = txnId(1, clock.incrementAndGet(), 0, 1);
-        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 0, 1);
+        TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
+        TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         AccordCommand command1 = new AccordCommand(txnId1).initialize();
         AccordCommand command2 = new AccordCommand(txnId2).initialize();
         command1.setPartialTxn(txn);
         command2.setPartialTxn(txn);
-        command1.setExecuteAt(timestamp(1, clock.incrementAndGet(), 0, 1));
-        command2.setExecuteAt(timestamp(1, clock.incrementAndGet(), 0, 1));
+        command1.setExecuteAt(timestamp(1, clock.incrementAndGet(), 1));
+        command2.setExecuteAt(timestamp(1, clock.incrementAndGet(), 1));
 
         AccordCommandsForKey cfk = new AccordCommandsForKey(commandStore, key).initialize();
         cfk.updateMax(maxTimestamp);
 
-        Assert.assertEquals(txnId1.real, cfk.timestampMicrosFor(txnId1, true));
-        Assert.assertEquals(txnId2.real, cfk.timestampMicrosFor(txnId2, true));
+        Assert.assertEquals(txnId1.hlc(), cfk.timestampMicrosFor(txnId1, true));
+        Assert.assertEquals(txnId2.hlc(), cfk.timestampMicrosFor(txnId2, true));
         Assert.assertEquals(txnId2, cfk.lastExecutedTimestamp.get());
-        Assert.assertEquals(txnId2.real, cfk.lastExecutedMicros.get());
+        Assert.assertEquals(txnId2.hlc(), cfk.lastExecutedMicros.get());
 
         cfk.register(command1);
         cfk.register(command2);
@@ -165,7 +165,7 @@ public class AccordCommandStoreTest
 
         for (int i=0; i<4; i++)
         {
-            maxTimestamp = timestamp(1, clock.incrementAndGet(), 0, 1);
+            maxTimestamp = timestamp(1, clock.incrementAndGet(), 1);
             expected.add(maxTimestamp);
             writeOnlyCfk.updateMax(maxTimestamp);
         }
