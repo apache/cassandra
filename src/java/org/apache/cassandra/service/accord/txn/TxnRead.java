@@ -28,11 +28,11 @@ import com.google.common.collect.ImmutableList;
 
 import accord.api.Data;
 import accord.api.DataStore;
-import accord.api.Key;
 import accord.api.Read;
 import accord.local.SafeCommandStore;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
+import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -139,11 +139,11 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             if (!reads.contains(namedRead))
                 reads.add(namedRead);
 
-        return new TxnRead(reads, txnKeys.union(read.keys()));
+        return new TxnRead(reads, txnKeys.with((Keys)read.keys()));
     }
 
     @Override
-    public Future<Data> read(Key key, Txn.Kind kind, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
+    public Future<Data> read(Seekable key, Txn.Kind kind, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
     {
         List<Future<Data>> futures = new ArrayList<>();
         forEachWithKey((PartitionKey) key, read -> futures.add(read.read(kind.isWrite(), safeStore, executeAt)));

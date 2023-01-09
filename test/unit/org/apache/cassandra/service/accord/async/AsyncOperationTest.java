@@ -30,7 +30,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.local.Command;
-import accord.local.CommandsForKey;
 import accord.local.SafeCommandStore;
 import accord.local.Status;
 import accord.primitives.Keys;
@@ -47,6 +46,8 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
+import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -109,8 +110,8 @@ public class AsyncOperationTest
         Txn txn = createTxn((int)clock.incrementAndGet());
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
-        commandStore.execute(contextFor(Collections.emptyList(), Keys.of(key)), instance -> {
-            CommandsForKey cfk = instance.maybeCommandsForKey(key);
+        commandStore.execute(contextFor(Collections.emptyList(), Keys.of(key)),instance -> {
+            AccordCommandsForKey cfk = ((SafeAccordCommandStore)instance).maybeCommandsForKey(key);
             Assert.assertNull(cfk);
         }).get();
 

@@ -24,7 +24,6 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
@@ -36,7 +35,10 @@ import org.slf4j.LoggerFactory;
 
 import accord.local.Command;
 import accord.local.CommandStore;
-import accord.local.CommandsForKey;
+import accord.impl.CommandsForKey;
+import accord.local.SafeCommandStore;
+import accord.local.SafeCommandStore.TestDep;
+import accord.local.SafeCommandStore.TestKind;
 import accord.local.Status;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -50,9 +52,10 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.assertj.core.util.VisibleForTesting;
 
-import static accord.local.CommandsForKey.CommandTimeseries.TestDep.ANY_DEPS;
-import static accord.local.CommandsForKey.CommandTimeseries.TestDep.WITHOUT;
-import static accord.local.CommandsForKey.CommandTimeseries.TestKind.RorWs;
+import static accord.local.SafeCommandStore.TestDep.ANY_DEPS;
+import static accord.local.SafeCommandStore.TestDep.WITH;
+import static accord.local.SafeCommandStore.TestKind.Ws;
+import static accord.local.Status.KnownDeps.DepsUnknown;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applyMapChanges;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applySetChanges;
 
@@ -97,37 +100,25 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         public void applyChanges(AccordCommandsForKey instance)
         {
             applySetChanges(this, instance, cfk -> cfk.blindWitnessed);
-            applyMapChanges(this, instance, cfk -> cfk.uncommitted.map);
-            applyMapChanges(this, instance, cfk -> cfk.committedById.map);
-            applyMapChanges(this, instance, cfk -> cfk.committedByExecuteAt.map);
+            applyMapChanges(this, instance, cfk -> cfk.byId.map);
+            applyMapChanges(this, instance, cfk -> cfk.byExecuteAt.map);
         }
     }
 
     public enum SeriesKind
     {
-        UNCOMMITTED(Command::txnId),
-        COMMITTED_BY_ID(Command::txnId),
-        COMMITTED_BY_EXECUTE_AT(Command::executeAt);
-
-        private final Function<Command, Timestamp> getTimestamp;
-
-        SeriesKind(Function<Command, Timestamp> timestampFunction)
-        {
-            this.getTimestamp = timestampFunction;
-        }
+        BY_ID, BY_EXECUTE_AT;
     }
 
-    public class Series<T> implements CommandTimeseries<T>
+    public class Series implements CommandTimeseries
     {
         public final SeriesKind kind;
         public final StoredNavigableMap<Timestamp, ByteBuffer> map;
-        private final Function<AccordPartialCommand, T> translate;
 
-        public Series(ReadWrite readWrite, SeriesKind kind, Function<AccordPartialCommand, T> translate)
+        public Series(ReadWrite readWrite, SeriesKind kind)
         {
             this.kind = kind;
             map = new StoredNavigableMap<>(readWrite);
-            this.translate = translate;
         }
 
         @Override
@@ -153,24 +144,28 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
             return map.getView().isEmpty();
         }
 
-        @Override
-        public Stream<T> before(Timestamp timestamp, TestKind testKind, TestDep testDep, @Nullable TxnId depId, TestStatus testStatus, @Nullable Status status)
+        public <T> T mapReduce(TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp,
+                        TestDep testDep, @Nullable TxnId depId,
+                        @Nullable Status minStatus, @Nullable Status maxStatus,
+                        SafeCommandStore.CommandFunction<T, T> map, T initialValue, T terminalValue)
         {
-            return idsToCommands(map.getView().headMap(timestamp, false).values())
-                   .filter(cmd -> testKind == RorWs || cmd.txnId().isWrite())
-                   .filter(cmd -> testDep == ANY_DEPS || (cmd.hasDep(depId) ^ (testDep == WITHOUT)))
-                   .filter(cmd -> TestStatus.test(cmd.status(), testStatus, status))
-                   .map(translate);
-        }
 
-        @Override
-        public Stream<T> after(Timestamp timestamp, TestKind testKind, TestDep testDep, @Nullable TxnId depId, TestStatus testStatus, @Nullable Status status)
-        {
-            return idsToCommands(map.getView().tailMap(timestamp, false).values())
-                   .filter(cmd -> testKind == RorWs || cmd.txnId().isWrite())
-                   .filter(cmd -> testDep == ANY_DEPS || (cmd.hasDep(depId) ^ (testDep == WITHOUT)))
-                   .filter(cmd -> TestStatus.test(cmd.status(), testStatus, status))
-                   .map(translate);
+            for (ByteBuffer buffer : (testTimestamp == TestTimestamp.BEFORE ? this.map.getView().headMap(timestamp, false) : this.map.getView().tailMap(timestamp, false)).values())
+            {
+                AccordPartialCommand cmd = AccordPartialCommand.serializer.deserialize(AccordCommandsForKey.this, commandStore, buffer);
+                if (testKind == Ws && cmd.txnId().isRead()) continue;
+                // If we don't have any dependencies, we treat a dependency filter as a mismatch
+                if (testDep != ANY_DEPS && (cmd.known().deps == DepsUnknown || (cmd.deps().contains(depId) != (testDep == WITH))))
+                    continue;
+                if (minStatus != null && minStatus.compareTo(cmd.status()) > 0)
+                    continue;
+                if (maxStatus != null && maxStatus.compareTo(cmd.status()) < 0)
+                    continue;
+                initialValue = map.apply(key, cmd.txnId(), cmd.executeAt(), initialValue);
+                if (initialValue.equals(terminalValue))
+                    break;
+            }
+            return initialValue;
         }
 
         @VisibleForTesting
@@ -195,9 +190,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
     public final StoredLong lastExecutedMicros;
     public final StoredValue<Timestamp> lastWriteTimestamp;
     public final StoredSet.Navigable<Timestamp> blindWitnessed;
-    public final Series<TxnIdWithExecuteAt> uncommitted;
-    public final Series<TxnId> committedById;
-    public final Series<TxnId> committedByExecuteAt;
+    public final Series byId;
+    public final Series byExecuteAt;
 
     public AccordCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
     {
@@ -208,9 +202,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         lastExecutedMicros = new StoredLong(rw());
         lastWriteTimestamp = new StoredValue<>(rw());
         blindWitnessed = new StoredSet.Navigable<>(rw());
-        uncommitted = new Series<>(rw(), SeriesKind.UNCOMMITTED, x -> x);
-        committedById = new Series<>(rw(), SeriesKind.COMMITTED_BY_ID, AccordPartialCommand::txnId);
-        committedByExecuteAt = new Series<>(rw(), SeriesKind.COMMITTED_BY_EXECUTE_AT, AccordPartialCommand::txnId);
+        byId = new Series(rw(), SeriesKind.BY_ID);
+        byExecuteAt = new Series(rw(), SeriesKind.BY_EXECUTE_AT);
     }
 
     @Override
@@ -221,9 +214,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
                && lastExecutedMicros.isEmpty()
                && lastWriteTimestamp.isEmpty()
                && blindWitnessed.isEmpty()
-               && uncommitted.map.isEmpty()
-               && committedById.map.isEmpty()
-               && committedByExecuteAt.map.isEmpty();
+               && byId.map.isEmpty()
+               && byExecuteAt.map.isEmpty();
     }
 
     public void setEmpty()
@@ -233,9 +225,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         lastExecutedMicros.setEmpty();
         lastWriteTimestamp.setEmpty();
         blindWitnessed.setEmpty();
-        uncommitted.map.setEmpty();
-        committedById.map.setEmpty();
-        committedByExecuteAt.map.setEmpty();
+        byId.map.setEmpty();
+        byExecuteAt.map.setEmpty();
     }
 
     public AccordCommandsForKey initialize()
@@ -245,9 +236,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         lastExecutedMicros.load(Defaults.lastExecutedMicros);
         lastWriteTimestamp.load(Defaults.lastWriteTimestamp);
         blindWitnessed.load(new TreeSet<>());
-        uncommitted.map.load(new TreeMap<>());
-        committedById.map.load(new TreeMap<>());
-        committedByExecuteAt.map.load(new TreeMap<>());
+        byId.map.load(new TreeMap<>());
+        byExecuteAt.map.load(new TreeMap<>());
         return this;
     }
 
@@ -259,9 +249,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
                || lastExecutedMicros.hasModifications()
                || lastWriteTimestamp.hasModifications()
                || blindWitnessed.hasModifications()
-               || uncommitted.map.hasModifications()
-               || committedById.map.hasModifications()
-               || committedByExecuteAt.map.hasModifications();
+               || byId.map.hasModifications()
+               || byExecuteAt.map.hasModifications();
     }
 
     @Override
@@ -272,9 +261,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         lastExecutedMicros.clearModifiedFlag();
         lastWriteTimestamp.clearModifiedFlag();
         blindWitnessed.clearModifiedFlag();
-        uncommitted.map.clearModifiedFlag();
-        committedById.map.clearModifiedFlag();
-        committedByExecuteAt.map.clearModifiedFlag();
+        byId.map.clearModifiedFlag();
+        byExecuteAt.map.clearModifiedFlag();
     }
 
     @Override
@@ -285,9 +273,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
                && lastExecutedMicros.isLoaded()
                && lastWriteTimestamp.isLoaded()
                && blindWitnessed.isLoaded()
-               && uncommitted.map.isLoaded()
-               && committedById.map.isLoaded()
-               && committedByExecuteAt.map.isLoaded();
+               && byId.map.isLoaded()
+               && byExecuteAt.map.isLoaded();
     }
 
     public CommandStore commandStore()
@@ -310,28 +297,21 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         size += lastExecutedMicros.estimatedSizeOnHeap();
         size += lastWriteTimestamp.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += blindWitnessed.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
-        size += uncommitted.map.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
-        size += committedById.map.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
-        size += committedByExecuteAt.map.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
+        size += byId.map.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
+        size += byExecuteAt.map.estimatedSizeOnHeap(AccordObjectSizes::timestamp, ByteBufferUtil::estimatedSizeOnHeap);
         return size;
     }
 
     @Override
-    public Series<TxnIdWithExecuteAt> uncommitted()
+    public Series byId()
     {
-        return uncommitted;
+        return byId;
     }
 
     @Override
-    public Series<TxnId> committedById()
+    public Series byExecuteAt()
     {
-        return committedById;
-    }
-
-    @Override
-    public Series<TxnId> committedByExecuteAt()
-    {
-        return committedByExecuteAt;
+        return byExecuteAt;
     }
 
     @Override
@@ -368,19 +348,9 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
 
     public void updateSummaries(AccordCommand command)
     {
-        if (command.status().hasBeen(Status.Committed))
-        {
-            if (command.status.previous() == null || !command.status.previous().status.hasBeen(Status.Committed))
-                uncommitted.map.blindRemove(command.txnId());
-
-            ByteBuffer partialCommand = AccordPartialCommand.serializer.serialize(new AccordPartialCommand(key, command));
-            committedById.map.blindPut(command.txnId(), partialCommand);
-            committedByExecuteAt.map.blindPut(command.executeAt(), partialCommand);
-        }
-        else
-        {   // TODO: somebody is inserting large buffers into this map (presumably from loading from disk)
-            uncommitted.map.blindPut(command.txnId(), AccordPartialCommand.serializer.serialize(new AccordPartialCommand(key, command)));
-        }
+        ByteBuffer partialCommand = AccordPartialCommand.serializer.serialize(new AccordPartialCommand(key, command));
+        byId.map.blindPut(command.txnId(), partialCommand);
+        byExecuteAt.map.blindPut(command.executeAt(), partialCommand);
     }
 
     private static long getTimestampMicros(Timestamp timestamp)
@@ -439,15 +409,14 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
                && lastExecutedMicros.equals(that.lastExecutedMicros)
                && lastWriteTimestamp.equals(that.lastWriteTimestamp)
                && blindWitnessed.equals(that.blindWitnessed)
-               && uncommitted.map.equals(that.uncommitted.map)
-               && committedById.map.equals(that.committedById.map)
-               && committedByExecuteAt.map.equals(that.committedByExecuteAt.map);
+               && byId.map.equals(that.byId.map)
+               && byExecuteAt.map.equals(that.byExecuteAt.map);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(commandStore, key, blindWitnessed, maxTimestamp, lastExecutedTimestamp, lastExecutedMicros, lastWriteTimestamp, uncommitted, committedById, committedByExecuteAt);
+        return Objects.hash(commandStore, key, blindWitnessed, maxTimestamp, lastExecutedTimestamp, lastExecutedMicros, lastWriteTimestamp, byId, byExecuteAt);
     }
 
     @Override
