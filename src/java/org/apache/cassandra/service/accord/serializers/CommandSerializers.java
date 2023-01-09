@@ -48,16 +48,16 @@ public class CommandSerializers
 {
     private CommandSerializers() {}
 
-    public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::new);
-    public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::new);
-    public static final TimestampSerializer<Ballot> ballot = new TimestampSerializer<>(Ballot::new);
+    public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::fromBits);
+    public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::fromBits);
+    public static final TimestampSerializer<Ballot> ballot = new TimestampSerializer<>(Ballot::fromBits);
     public static final EnumSerializer<Txn.Kind> kind = new EnumSerializer<>(Txn.Kind.class);
 
     public static class TimestampSerializer<T extends Timestamp> implements IVersionedSerializer<T>
     {
         interface Factory<T extends Timestamp>
         {
-            T create(long epoch, long real, int logical, Node.Id node);
+            T create(long msb, long lsb, Node.Id node);
         }
 
         private final TimestampSerializer.Factory<T> factory;
@@ -70,18 +70,16 @@ public class CommandSerializers
         @Override
         public void serialize(T ts, DataOutputPlus out, int version) throws IOException
         {
-            out.writeLong(ts.epoch);
-            out.writeLong(ts.real);
-            out.writeInt(ts.logical);
+            out.writeLong(ts.msb);
+            out.writeLong(ts.lsb);
             TopologySerializers.nodeId.serialize(ts.node, out, version);
         }
 
         public <V> int serialize(T ts, V dst, ValueAccessor<V> accessor, int offset)
         {
             int position = offset;
-            position += accessor.putLong(dst, position, ts.epoch);
-            position += accessor.putLong(dst, position, ts.real);
-            position += accessor.putInt(dst, position, ts.logical);
+            position += accessor.putLong(dst, position, ts.msb);
+            position += accessor.putLong(dst, position, ts.lsb);
             position += TopologySerializers.nodeId.serialize(ts.node, dst, accessor, position);
             int size = position - offset;
             Preconditions.checkState(size == serializedSize());
@@ -93,20 +91,17 @@ public class CommandSerializers
         {
             return factory.create(in.readLong(),
                                   in.readLong(),
-                                  in.readInt(),
                                   TopologySerializers.nodeId.deserialize(in, version));
         }
 
         public <V> T deserialize(V src, ValueAccessor<V> accessor, int offset)
         {
-            long epoch = accessor.getLong(src, offset);
+            long msb = accessor.getLong(src, offset);
             offset += TypeSizes.LONG_SIZE;
-            long real = accessor.getLong(src, offset);
+            long lsb = accessor.getLong(src, offset);
             offset += TypeSizes.LONG_SIZE;
-            int logical = accessor.getInt(src, offset);
-            offset += TypeSizes.INT_SIZE;
             Node.Id node = TopologySerializers.nodeId.deserialize(src, accessor, offset);
-            return factory.create(epoch, real, logical, node);
+            return factory.create(msb, lsb, node);
         }
 
         @Override
@@ -117,9 +112,8 @@ public class CommandSerializers
 
         public int serializedSize()
         {
-            return TypeSizes.LONG_SIZE +  // ts.epoch
-                   TypeSizes.LONG_SIZE +  // ts.real
-                   TypeSizes.INT_SIZE +   // ts.logical
+            return TypeSizes.LONG_SIZE +  // ts.msb
+                   TypeSizes.LONG_SIZE +  // ts.lsb
                    TopologySerializers.nodeId.serializedSize();   // ts.node
         }
     }
