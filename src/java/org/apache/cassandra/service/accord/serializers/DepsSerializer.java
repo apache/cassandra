@@ -21,36 +21,48 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.primitives.Deps;
+import accord.primitives.KeyDeps;
 import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
+import accord.primitives.Range;
+import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.TokenRange;
 
-import static accord.primitives.Deps.SerializerSupport.keyToTxnId;
-import static accord.primitives.Deps.SerializerSupport.keyToTxnIdCount;
+import static accord.primitives.KeyDeps.SerializerSupport.keysToTxnIds;
+import static accord.primitives.KeyDeps.SerializerSupport.keysToTxnIdsCount;
+import static accord.primitives.RangeDeps.SerializerSupport.rangesToTxnIds;
+import static accord.primitives.RangeDeps.SerializerSupport.rangesToTxnIdsCount;
 
 public abstract class DepsSerializer<D extends Deps> implements IVersionedSerializer<D>
 {
     public static final DepsSerializer<Deps> deps = new DepsSerializer<Deps>()
     {
         @Override
-        Deps deserialize(Keys keys, TxnId[] txnIds, int[] keyToTxnIds, DataInputPlus in, int version)
+        Deps deserialize(Keys keys, TxnId[] keyTxnIds, int[] keysToTxnIds,
+                         Range[] ranges, TxnId[] rangeTxnIds, int[] rangesToTxnIds,
+                         DataInputPlus in, int version)
         {
-            return Deps.SerializerSupport.create(keys, txnIds, keyToTxnIds);
+            return new Deps(KeyDeps.SerializerSupport.create(keys, keyTxnIds, keysToTxnIds),
+                            RangeDeps.SerializerSupport.create(ranges, rangeTxnIds, rangesToTxnIds));
         }
     };
 
     public static final DepsSerializer<PartialDeps> partialDeps = new DepsSerializer<PartialDeps>()
     {
         @Override
-        PartialDeps deserialize(Keys keys, TxnId[] txnIds, int[] keyToTxnIds, DataInputPlus in, int version) throws IOException
+        PartialDeps deserialize(Keys keys, TxnId[] keyTxnIds, int[] keysToTxnIds,
+                         Range[] ranges, TxnId[] rangeTxnIds, int[] rangesToTxnIds,
+                         DataInputPlus in, int version) throws IOException
         {
             Ranges covering = KeySerializers.ranges.deserialize(in, version);
-            return PartialDeps.SerializerSupport.create(covering, keys, txnIds, keyToTxnIds);
+            return new PartialDeps(covering, KeyDeps.SerializerSupport.create(keys, keyTxnIds, keysToTxnIds),
+                            RangeDeps.SerializerSupport.create(ranges, rangeTxnIds, rangesToTxnIds));
         }
 
         @Override
@@ -71,53 +83,101 @@ public abstract class DepsSerializer<D extends Deps> implements IVersionedSerial
     @Override
     public void serialize(D deps, DataOutputPlus out, int version) throws IOException
     {
-        Keys keys = deps.keys();
+        Keys keys = deps.keyDeps.keys();
         KeySerializers.keys.serialize(keys, out, version);
 
-        int txnIdCount = deps.txnIdCount();
-        out.writeUnsignedVInt(txnIdCount);
-        for (int i=0; i<txnIdCount; i++)
-            CommandSerializers.txnId.serialize(deps.txnId(i), out, version);
+        {
+            int txnIdCount = deps.keyDeps.txnIdCount();
+            out.writeUnsignedVInt(txnIdCount);
+            for (int i = 0; i < txnIdCount; i++)
+                CommandSerializers.txnId.serialize(deps.keyDeps.txnId(i), out, version);
 
-        int keyToTxnIdCount = keyToTxnIdCount(deps);
-        out.writeUnsignedVInt(keyToTxnIdCount);
-        for (int i=0; i<keyToTxnIdCount; i++)
-            out.writeUnsignedVInt(keyToTxnId(deps, i));
+            int keysToTxnIdsCount = keysToTxnIdsCount(deps.keyDeps);
+            out.writeUnsignedVInt(keysToTxnIdsCount);
+            for (int i = 0; i < keysToTxnIdsCount; i++)
+                out.writeUnsignedVInt(keysToTxnIds(deps.keyDeps, i));
+        }
+
+        {
+            int rangeCount = deps.rangeDeps.rangeCount();
+            out.writeUnsignedVInt(rangeCount);
+            for (int i = 0; i < rangeCount; i++)
+                TokenRange.serializer.serialize((TokenRange) deps.rangeDeps.range(i), out, version);
+
+            int txnIdCount = deps.rangeDeps.txnIdCount();
+            out.writeUnsignedVInt(txnIdCount);
+            for (int i = 0; i < txnIdCount; i++)
+                CommandSerializers.txnId.serialize(deps.rangeDeps.txnId(i), out, version);
+
+            int rangesToTxnIdsCount = rangesToTxnIdsCount(deps.rangeDeps);
+            out.writeUnsignedVInt(rangesToTxnIdsCount);
+            for (int i = 0; i < rangesToTxnIdsCount; i++)
+                out.writeUnsignedVInt(rangesToTxnIds(deps.rangeDeps, i));
+        }
     }
 
     @Override
     public D deserialize(DataInputPlus in, int version) throws IOException
     {
         Keys keys = KeySerializers.keys.deserialize(in, version);
+        TxnId[] keyTxnIds = new TxnId[(int) in.readUnsignedVInt()];
+        for (int i = 0; i < keyTxnIds.length; i++)
+            keyTxnIds[i] = CommandSerializers.txnId.deserialize(in, version);
+        int[] keysToTxnIds = new int[(int) in.readUnsignedVInt()];
+        for (int i = 0; i < keysToTxnIds.length; i++)
+            keysToTxnIds[i] = (int) in.readUnsignedVInt();
 
-        TxnId[] txnIds = new TxnId[(int) in.readUnsignedVInt()];
-        for (int i=0; i<txnIds.length; i++)
-            txnIds[i] = CommandSerializers.txnId.deserialize(in, version);
+        Range[] ranges = new Range[(int) in.readUnsignedVInt()];
+        for (int i = 0; i < ranges.length; i++)
+            ranges[i] = TokenRange.serializer.deserialize(in, version);
+        TxnId[] rangeTxnIds = new TxnId[(int) in.readUnsignedVInt()];
+        for (int i = 0; i < rangeTxnIds.length; i++)
+            rangeTxnIds[i] = CommandSerializers.txnId.deserialize(in, version);
 
-        int[] keyToTxnIds = new int[(int) in.readUnsignedVInt()];
-        for (int i=0; i<keyToTxnIds.length; i++)
-            keyToTxnIds[i] = (int) in.readUnsignedVInt();
+        int[] rangeToTxnIds = new int[(int) in.readUnsignedVInt()];
+        for (int i = 0; i < rangeToTxnIds.length; i++)
+            rangeToTxnIds[i] = (int) in.readUnsignedVInt();
 
-        return deserialize(keys, txnIds, keyToTxnIds, in, version);
+        return deserialize(keys, keyTxnIds, keysToTxnIds, ranges, rangeTxnIds, rangeToTxnIds, in, version);
     }
 
-    abstract D deserialize(Keys keys, TxnId[] txnIds, int[] keyToTxnIds, DataInputPlus in, int version) throws IOException;
+    abstract D deserialize(Keys keys, TxnId[] keyTxnIds, int[] keysToTxnIds,
+                           Range[] ranges, TxnId[] rangeTxnIds, int[] rangesToTxnIds,
+                           DataInputPlus in, int version) throws IOException;
 
     @Override
     public long serializedSize(D deps, int version)
     {
-        Keys keys = deps.keys();
-        long size = KeySerializers.keys.serializedSize(keys, version);
+        long size = KeySerializers.keys.serializedSize(deps.keyDeps.keys(), version);
 
-        int txnIdCount = deps.txnIdCount();
-        size += TypeSizes.sizeofUnsignedVInt(txnIdCount);
-        for (int i=0; i<txnIdCount; i++)
-            size += CommandSerializers.txnId.serializedSize(deps.txnId(i), version);
+        {
+            int txnIdCount = deps.keyDeps.txnIdCount();
+            size += TypeSizes.sizeofUnsignedVInt(txnIdCount);
+            for (int i = 0; i < txnIdCount; i++)
+                size += CommandSerializers.txnId.serializedSize(deps.keyDeps.txnId(i), version);
 
-        int keyToTxnIdCount = keyToTxnIdCount(deps);
-        size += TypeSizes.sizeofUnsignedVInt(keyToTxnIdCount);
-        for (int i=0; i<keyToTxnIdCount; i++)
-            size += TypeSizes.sizeofUnsignedVInt(keyToTxnId(deps, i));
+            int keyToTxnIdCount = keysToTxnIdsCount(deps.keyDeps);
+            size += TypeSizes.sizeofUnsignedVInt(keyToTxnIdCount);
+            for (int i = 0; i < keyToTxnIdCount; i++)
+                size += TypeSizes.sizeofUnsignedVInt(keysToTxnIds(deps.keyDeps, i));
+        }
+
+        {
+            int rangeCount = deps.rangeDeps.rangeCount();
+            size += TypeSizes.sizeofUnsignedVInt(rangeCount);
+            for (int i = 0 ; i < rangeCount ; ++i)
+                size += TokenRange.serializer.serializedSize((TokenRange) deps.rangeDeps.range(i), version);
+
+            int txnIdCount = deps.rangeDeps.txnIdCount();
+            size += TypeSizes.sizeofUnsignedVInt(txnIdCount);
+            for (int i = 0; i<txnIdCount; i++)
+                size += CommandSerializers.txnId.serializedSize(deps.rangeDeps.txnId(i), version);
+
+            int rangesToTxnIdsCount = rangesToTxnIdsCount(deps.rangeDeps);
+            size += TypeSizes.sizeofUnsignedVInt(rangesToTxnIdsCount);
+            for (int i = 0; i < rangesToTxnIdsCount; i++)
+                size += TypeSizes.sizeofUnsignedVInt(rangesToTxnIds(deps.rangeDeps, i));
+        }
         return size;
     }
 }

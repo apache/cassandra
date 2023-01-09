@@ -28,11 +28,13 @@ import accord.primitives.AbstractRanges;
 import accord.primitives.Deps;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.FullRangeRoute;
+import accord.primitives.KeyDeps;
 import accord.primitives.Keys;
 import accord.primitives.PartialKeyRoute;
 import accord.primitives.PartialRangeRoute;
 import accord.primitives.PartialTxn;
 import accord.primitives.Range;
+import accord.primitives.RangeDeps;
 import accord.primitives.Ranges;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Seekables;
@@ -197,12 +199,20 @@ public class AccordObjectSizes
     private static final long EMPTY_DEPS_SIZE = ObjectSizes.measureDeep(Deps.NONE);
     public static long dependencies(Deps dependencies)
     {
-        long size = EMPTY_DEPS_SIZE;
-        for (Map.Entry<Key, TxnId> entry : dependencies)
-        {
-            size += key(entry.getKey());
-            size += timestamp(entry.getValue());
-        }
+        // TODO (expected): this doesn't measure the backing arrays, is inefficient
+        long size = EMPTY_DEPS_SIZE - EMPTY_KEYS_SIZE - ObjectSizes.sizeOfReferenceArray(0);
+        size += keys(dependencies.keyDeps.keys());
+        for (int i = 0 ; i < dependencies.rangeDeps.rangeCount() ; ++i)
+            size += range(dependencies.rangeDeps.range(i));
+        size += ObjectSizes.sizeOfReferenceArray(dependencies.rangeDeps.rangeCount());
+
+        for (int i = 0 ; i < dependencies.keyDeps.txnIdCount() ; ++i)
+            size += timestamp(dependencies.keyDeps.txnId(i));
+        for (int i = 0 ; i < dependencies.rangeDeps.txnIdCount() ; ++i)
+            size += timestamp(dependencies.rangeDeps.txnId(i));
+
+        size += KeyDeps.SerializerSupport.keysToTxnIdsCount(dependencies.keyDeps) * 4L;
+        size += RangeDeps.SerializerSupport.rangesToTxnIdsCount(dependencies.rangeDeps) * 4L;
         return size;
     }
 

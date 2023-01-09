@@ -24,8 +24,8 @@ set -o nounset
 
 bin="$(cd "$(dirname "$0")" > /dev/null; pwd)"
 
-accord_repo='https://github.com/apache/cassandra-accord.git'
-accord_branch='bf414d39ea495f8914f7cb5fb5c4138a9c16760b'
+accord_repo='https://github.com/belliottsmith/cassandra-accord.git'
+accord_branch='rangedeps'
 accord_src="$bin/cassandra-accord"
 
 checkout() {
