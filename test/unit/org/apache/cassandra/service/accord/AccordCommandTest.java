@@ -123,9 +123,12 @@ public class AccordCommandTest
         // check accept
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 1);
-        PartialDeps.OrderedBuilder builder = PartialDeps.orderedBuilder(route.covering(), false);
-        builder.add(key, txnId2);
-        PartialDeps deps = builder.build();
+        PartialDeps deps;
+        try (PartialDeps.Builder builder = PartialDeps.builder(route.covering()))
+        {
+            builder.add(key, txnId2);
+            deps = builder.build();
+        }
         Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, false, Ballot.ZERO, executeAt, partialTxn.keys(), deps, partialTxn.kind());
 
         commandStore.execute(accept, instance -> {
