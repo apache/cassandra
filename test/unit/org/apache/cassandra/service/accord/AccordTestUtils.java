@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.LongSupplier;
@@ -49,7 +46,6 @@ import accord.primitives.Ballot;
 import accord.primitives.Ranges;
 import accord.primitives.Keys;
 import accord.primitives.PartialTxn;
-import accord.primitives.Range;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -61,7 +57,6 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.api.AccordAgent;
@@ -71,6 +66,7 @@ import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static accord.primitives.Routable.Domain.Key;
 import static java.lang.String.format;
 
 public class AccordTestUtils
@@ -95,19 +91,19 @@ public class AccordTestUtils
         @Override public void waiting(TxnId blockedBy, Known blockedUntil, Unseekables<?, ?> blockedOn) {}
     };
 
-    public static TxnId txnId(long epoch, long real, int logical, long node)
+    public static TxnId txnId(long epoch, long real, long node)
     {
-        return new TxnId(epoch, real, logical, new Node.Id(node));
+        return new TxnId(epoch, real, Txn.Kind.Write, Key, new Node.Id(node));
     }
 
-    public static Timestamp timestamp(long epoch, long real, int logical, long node)
+    public static Timestamp timestamp(long epoch, long real, long node)
     {
-        return new Timestamp(epoch, real, logical, new Node.Id(node));
+        return Timestamp.fromValues(epoch, real, new Node.Id(node));
     }
 
-    public static Ballot ballot(long epoch, long real, int logical, long node)
+    public static Ballot ballot(long epoch, long real, long node)
     {
-        return new Ballot(epoch, real, logical, new Node.Id(node));
+        return Ballot.fromValues(epoch, real, new Node.Id(node));
     }
 
     /**
@@ -124,7 +120,7 @@ public class AccordTestUtils
                                 .map(key -> {
                                     try
                                     {
-                                        return read.read(key, command.kind(), instance, command.executeAt(), null).get();
+                                        return read.read(key, command.txnId().rw(), instance, command.executeAt(), null).get();
                                     }
                                     catch (InterruptedException e)
                                     {
@@ -216,7 +212,7 @@ public class AccordTestUtils
             @Override public Id id() { return node;}
             @Override public long epoch() {return 1; }
             @Override public long now() {return now.getAsLong(); }
-            @Override public Timestamp uniqueNow(Timestamp atLeast) { return new Timestamp(1, now.getAsLong(), 0, node); }
+            @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
         };
         return new InMemoryCommandStore.Synchronized(0,
                                                      time,
@@ -233,7 +229,7 @@ public class AccordTestUtils
             @Override public Id id() { return node;}
             @Override public long epoch() {return 1; }
             @Override public long now() {return now.getAsLong(); }
-            @Override public Timestamp uniqueNow(Timestamp atLeast) { return new Timestamp(1, now.getAsLong(), 0, node); }
+            @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
         };
         return new AccordCommandStore(0,
                                       time,

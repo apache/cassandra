@@ -185,7 +185,7 @@ public class AccordCommandStore extends CommandStore
 
         public void forEach(Routable keyOrRange, Consumer<CommandsForKey> forEach)
         {
-            switch (keyOrRange.kind())
+            switch (keyOrRange.domain())
             {
                 default: throw new AssertionError();
                 case Key:
@@ -216,7 +216,7 @@ public class AccordCommandStore extends CommandStore
 
         public void forEach(Routable keyOrRange, Ranges slice, Consumer<CommandsForKey> forEach)
         {
-            switch (keyOrRange.kind())
+            switch (keyOrRange.domain())
             {
                 default: throw new AssertionError();
                 case Key:
@@ -271,7 +271,7 @@ public class AccordCommandStore extends CommandStore
         {
             Timestamp max = maxConflict(keys);
             long epoch = latestEpoch();
-            if (txnId.compareTo(max) > 0 && txnId.epoch >= epoch && !agent.isExpired(txnId, time.now()))
+            if (txnId.compareTo(max) > 0 && txnId.epoch() >= epoch && !agent.isExpired(txnId, time.now()))
                 return txnId;
 
             return time.uniqueNow(max);

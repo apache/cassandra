@@ -122,8 +122,8 @@ public class AccordKeyspace
     public static final String COMMANDS = "commands";
     public static final String COMMANDS_FOR_KEY = "commands_for_key";
 
-    private static final String TIMESTAMP_TUPLE = "tuple<bigint, bigint, int, bigint>";
-    private static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance, LongType.instance));
+    private static final String TIMESTAMP_TUPLE = "tuple<bigint, bigint, bigint>";
+    private static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, LongType.instance));
     private static final String KEY_TUPLE = "tuple<uuid, blob>";
 
     private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexSliceFilter(Slices.ALL, false);
@@ -328,7 +328,7 @@ public class AccordKeyspace
 
         NavigableMap<Timestamp, TxnId> result = new TreeMap<>();
         for (Map.Entry<ByteBuffer, ByteBuffer> entry : serialized.entrySet())
-            result.put(deserializeTimestampOrNull(entry.getKey(), Timestamp::new), deserializeTimestampOrNull(entry.getValue(), TxnId::new));
+            result.put(deserializeTimestampOrNull(entry.getKey(), Timestamp::fromBits), deserializeTimestampOrNull(entry.getValue(), TxnId::fromBits));
         return result;
     }
 
@@ -346,7 +346,7 @@ public class AccordKeyspace
 
     private static NavigableSet<TxnId> deserializeTxnIdNavigableSet(UntypedResultSet.Row row, String name)
     {
-        return deserializeTimestampSet(row.getSet(name, BytesType.instance), TreeSet::new, TxnId::new);
+        return deserializeTimestampSet(row.getSet(name, BytesType.instance), TreeSet::new, TxnId::fromBits);
     }
 
     private static DeterministicIdentitySet<ListenerProxy> deserializeListeners(Set<ByteBuffer> serialized) throws IOException
@@ -521,12 +521,12 @@ public class AccordKeyspace
 
     private static ByteBuffer serializeTimestamp(Timestamp timestamp)
     {
-        return TupleType.buildValue(new ByteBuffer[]{bytes(timestamp.epoch), bytes(timestamp.real), bytes(timestamp.logical), bytes(timestamp.node.id)});
+        return TupleType.buildValue(new ByteBuffer[]{bytes(timestamp.msb), bytes(timestamp.lsb), bytes(timestamp.node.id)});
     }
 
     public interface TimestampFactory<T extends Timestamp>
     {
-        T create(long epoch, long real, int logical, Node.Id node);
+        T create(long msb, long lsb, Node.Id node);
     }
 
     public static <T extends Timestamp> T deserializeTimestampOrNull(ByteBuffer bytes, TimestampFactory<T> factory)
@@ -534,7 +534,7 @@ public class AccordKeyspace
         if (bytes == null || ByteBufferAccessor.instance.isEmpty(bytes))
             return null;
         ByteBuffer[] split = TIMESTAMP_TYPE.split(ByteBufferAccessor.instance, bytes);
-        return factory.create(split[0].getLong(), split[1].getLong(), split[2].getInt(), new Node.Id(split[3].getLong()));
+        return factory.create(split[0].getLong(), split[1].getLong(), new Node.Id(split[2].getLong()));
     }
 
     private static <T extends Timestamp> T deserializeTimestampOrNull(UntypedResultSet.Row row, String name, TimestampFactory<T> factory)
@@ -561,11 +561,11 @@ public class AccordKeyspace
     {
         String cql = "SELECT * FROM %s.%s " +
                      "WHERE store_id = ? " +
-                     "AND txn_id=(?, ?, ?, ?)";
+                     "AND txn_id=(?, ?, ?)";
 
         return executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
                                    commandStore.id(),
-                                   txnId.epoch, txnId.real, txnId.logical, txnId.node.id);
+                                   txnId.msb, txnId.lsb, txnId.node.id);
     }
 
     public static void loadCommand(AccordCommandStore commandStore, AccordCommand command)
@@ -585,7 +585,7 @@ public class AccordKeyspace
         try
         {
             UntypedResultSet.Row row = result.one();
-            Preconditions.checkState(deserializeTimestampOrNull(row, "txn_id", TxnId::new).equals(txnId));
+            Preconditions.checkState(deserializeTimestampOrNull(row, "txn_id", TxnId::fromBits).equals(txnId));
             command.status.load(SaveStatus.values()[row.getInt("status")]);
             command.homeKey.load(deserializeOrNull(row.getBlob("home_key"), CommandsSerializers.routingKey));
             command.progressKey.load(deserializeOrNull(row.getBlob("progress_key"), CommandsSerializers.routingKey));
@@ -594,9 +594,9 @@ public class AccordKeyspace
             command.durability.load(Status.Durability.values()[row.getInt("durability", 0)]);
             command.partialTxn.load(deserializeOrNull(row.getBlob("txn"), CommandsSerializers.partialTxn));
             command.kind.load(row.has("kind") ? Txn.Kind.values()[row.getInt("kind")] : null);
-            command.executeAt.load(deserializeTimestampOrNull(row, "execute_at", Timestamp::new));
-            command.promised.load(deserializeTimestampOrNull(row, "promised_ballot", Ballot::new));
-            command.accepted.load(deserializeTimestampOrNull(row, "accepted_ballot", Ballot::new));
+            command.executeAt.load(deserializeTimestampOrNull(row, "execute_at", Timestamp::fromBits));
+            command.promised.load(deserializeTimestampOrNull(row, "promised_ballot", Ballot::fromBits));
+            command.accepted.load(deserializeTimestampOrNull(row, "accepted_ballot", Ballot::fromBits));
             command.partialDeps.load(deserializeOrNull(row.getBlob("dependencies"), CommandsSerializers.partialDeps));
             command.writes.load(deserializeWithVersionOr(row, "writes", CommandsSerializers.writes, () -> null));
             command.result.load(deserializeWithVersionOr(row, "result", CommandsSerializers.result, () -> null));
@@ -769,11 +769,11 @@ public class AccordKeyspace
                 // empty static row will be interpreted as all null cells which will cause everything to be initialized
                 Row staticRow = partition.staticRow();
                 Cell<?> cell = staticRow.getCell(CommandsForKeyColumns.max_timestamp);
-                cfk.maxTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::new)
+                cfk.maxTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::fromBits)
                                                                           : AccordCommandsForKey.Defaults.maxTimestamp);
 
                 cell = staticRow.getCell(CommandsForKeyColumns.last_executed_timestamp);
-                cfk.lastExecutedTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::new)
+                cfk.lastExecutedTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::fromBits)
                                                                                    : AccordCommandsForKey.Defaults.lastExecutedTimestamp);
 
                 cell = staticRow.getCell(CommandsForKeyColumns.last_executed_micros);
@@ -782,13 +782,13 @@ public class AccordKeyspace
                                                                 : AccordCommandsForKey.Defaults.lastExecutedMicros);
 
                 cell = staticRow.getCell(CommandsForKeyColumns.last_write_timestamp);
-                cfk.lastWriteTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::new)
+                cfk.lastWriteTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::fromBits)
                                                                                    : AccordCommandsForKey.Defaults.lastWriteTimestamp);
 
                 TreeSet<Timestamp> blindWitnessed = new TreeSet<>();
                 ComplexColumnData cmplx = staticRow.getComplexColumnData(CommandsForKeyColumns.blind_witnessed);
                 if (cmplx != null)
-                    cmplx.forEach(c -> blindWitnessed.add(deserializeTimestampOrNull(c.path().get(0), Timestamp::new)));
+                    cmplx.forEach(c -> blindWitnessed.add(deserializeTimestampOrNull(c.path().get(0), Timestamp::fromBits)));
                 cfk.blindWitnessed.load(blindWitnessed);
 
                 while (partition.hasNext())
@@ -796,7 +796,7 @@ public class AccordKeyspace
                     Row row = partition.next();
                     Clustering<?> clustering = row.clustering();
                     int ordinal = Int32Type.instance.compose(clusteringValue(clustering, 0));
-                    Timestamp timestamp = deserializeTimestampOrNull(clusteringValue(clustering, 1), Timestamp::new);
+                    Timestamp timestamp = deserializeTimestampOrNull(clusteringValue(clustering, 1), Timestamp::fromBits);
                     ByteBuffer data = cellValue(row, CommandsForKeyColumns.data);
                     if (data == null)
                         continue;
