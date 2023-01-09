@@ -288,7 +288,7 @@ public class KeySerializers
         @Override
         public void serialize(Seekables<?, ?> t, DataOutputPlus out, int version) throws IOException
         {
-            switch (t.kindOfContents())
+            switch (t.domain())
             {
                 default: throw new AssertionError();
                 case Key:
@@ -317,7 +317,7 @@ public class KeySerializers
         @Override
         public long serializedSize(Seekables<?, ?> t, int version)
         {
-            switch (t.kindOfContents())
+            switch (t.domain())
             {
                 default: throw new AssertionError();
                 case Key:
