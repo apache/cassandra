@@ -89,12 +89,15 @@ public abstract class DepsSerializer<D extends Deps> implements IVersionedSerial
     public D deserialize(DataInputPlus in, int version) throws IOException
     {
         Keys keys = KeySerializers.keys.deserialize(in, version);
+
         TxnId[] txnIds = new TxnId[(int) in.readUnsignedVInt()];
         for (int i=0; i<txnIds.length; i++)
             txnIds[i] = CommandSerializers.txnId.deserialize(in, version);
+
         int[] keyToTxnIds = new int[(int) in.readUnsignedVInt()];
         for (int i=0; i<keyToTxnIds.length; i++)
             keyToTxnIds[i] = (int) in.readUnsignedVInt();
+
         return deserialize(keys, txnIds, keyToTxnIds, in, version);
     }
 
