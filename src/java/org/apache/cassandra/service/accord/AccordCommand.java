@@ -533,18 +533,6 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     }
 
     @Override
-    public Txn.Kind kind()
-    {
-        return kind.get();
-    }
-
-    @Override
-    public void setKind(Txn.Kind kind)
-    {
-        this.kind.set(kind);
-    }
-
-    @Override
     public void setExecuteAt(Timestamp timestamp)
     {
         Preconditions.checkState(!status().hasBeen(Status.Committed) || executeAt().equals(timestamp));
@@ -636,7 +624,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
 
     private boolean canApplyWithCurrentScope(SafeCommandStore safeStore)
     {
-        Ranges ranges = safeStore.ranges().at(executeAt().epoch);
+        Ranges ranges = safeStore.ranges().at(executeAt().epoch());
         Seekables<?, ?> keys = partialTxn().keys();
         for (int i=0,mi=keys.size(); i<mi; i++)
         {

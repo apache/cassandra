@@ -182,7 +182,7 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long TIMESTAMP_SIZE = ObjectSizes.measureDeep(new Timestamp(0, 0, 0, new Node.Id(0)));
+    private static final long TIMESTAMP_SIZE = ObjectSizes.measureDeep(Timestamp.fromBits(0, 0, new Node.Id(0)));
 
     public static long timestamp()
     {
