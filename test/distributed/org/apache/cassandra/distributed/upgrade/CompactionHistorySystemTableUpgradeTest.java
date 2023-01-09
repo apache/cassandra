@@ -18,11 +18,16 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import com.google.common.collect.Lists;
+import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.tools.ToolRunner;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
@@ -30,15 +35,25 @@ import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetoolJvmDtest;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
 {
-    @Test
+    @Parameterized.Parameter
+    public Semver version;
+
+    @Parameterized.Parameters()
+    public static ArrayList<Semver> versions()
+    {
+      return Lists.newArrayList(v40, v41);
+    }
+
+  @Test
     public void compactionHistorySystemTableTest() throws Throwable
     {
         new TestCase()
             .nodes(2)
             .nodesToUpgrade(1, 2)
-            .upgradesToCurrentFrom(v41).setup((cluster) -> {
+            .upgradesToCurrentFrom(version).setup((cluster) -> {
               //create table
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tb (" +
                 "pk text PRIMARY KEY," +
