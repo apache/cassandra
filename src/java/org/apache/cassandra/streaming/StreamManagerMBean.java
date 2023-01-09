@@ -31,7 +31,7 @@ public interface StreamManagerMBean extends NotificationEmitter
     Set<CompositeData> getCurrentStreams();
 
     /**
-     * @return weather or not the streaming virtual table should collect stats while streaming is running
+     * @return whether the streaming virtual table should collect stats while streaming is running
      */
     boolean getStreamingStatsEnabled();
 
