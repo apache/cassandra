@@ -22,6 +22,7 @@ import java.io.IOException;
 
 import accord.api.RoutingKey;
 import accord.primitives.Range;
+import accord.primitives.Ranges;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -48,9 +49,9 @@ public class TokenRange extends Range.EndInclusive
     }
 
     @Override
-    public RoutingKey someIntersectingRoutingKey()
+    public RoutingKey someIntersectingRoutingKey(Ranges ranges)
     {
-        RoutingKey pick = startInclusive() ? start() : end();
+        RoutingKey pick = super.someIntersectingRoutingKey(ranges);
         if (pick instanceof SentinelKey)
             pick = ((SentinelKey) pick).toTokenKey();
         return pick;

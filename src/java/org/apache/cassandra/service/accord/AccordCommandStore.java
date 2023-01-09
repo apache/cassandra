@@ -23,9 +23,12 @@ import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
@@ -33,19 +36,23 @@ import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.ProgressLog;
+import accord.impl.CommandsForKey;
+import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
 import accord.local.CommandListener;
 import accord.local.CommandStore;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.CommandStores.RangesForEpochHolder;
-import accord.local.CommandsForKey;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
+import accord.local.Status;
 import accord.primitives.Keys;
+import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.Routable;
 import accord.primitives.Routables;
+import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.AbstractKeys;
@@ -105,55 +112,9 @@ public class AccordCommandStore extends CommandStore
             return null;
         }
 
-        @Override
-        public CommandsForKey commandsForKey(Key key)
-        {
-            AccordCommandsForKey commandsForKey = getCommandsForKeyInternal(key);
-            if (commandsForKey.isEmpty())
-                commandsForKey.initialize();
-            return commandsForKey;
-        }
-
-        @Override
-        public CommandsForKey maybeCommandsForKey(Key key)
-        {
-            AccordCommandsForKey commandsForKey = getCommandsForKeyInternal(key);
-            return !commandsForKey.isEmpty() ? commandsForKey : null;
-        }
-
-        @Override
-        public void addAndInvokeListener(TxnId txnId, CommandListener listener)
-        {
-            AccordCommand.WriteOnly command = (AccordCommand.WriteOnly) getContext().commands.getOrCreateWriteOnly(txnId, (ignore, id) -> new AccordCommand.WriteOnly(id), commandStore());
-            command.addListener(listener);
-            execute(listener.listenerPreLoadContext(txnId), store -> {
-                listener.onChange(store, store.command(txnId));
-            });
-        }
-
-        @Override
-        public <T> T mapReduce(Routables<?, ?> keysOrRanges, Ranges slice, Function<CommandsForKey, T> map, BinaryOperator<T> reduce, T initialValue)
-        {
-            switch (keysOrRanges.kindOfContents()) {
-                default:
-                    throw new AssertionError();
-                case Key:
-                    // TODO: efficiency
-                    AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
-                    return keys.stream()
-                               .filter(slice::contains)
-                               .map(this::commandsForKey)
-                               .map(map)
-                               .reduce(initialValue, reduce);
-                case Range:
-                    // TODO:
-                    throw new UnsupportedOperationException();
-            }
-        }
-
         public <T> T mapReduce(Routables<?, ?> keysOrRanges, Function<CommandsForKey, T> map, BinaryOperator<T> reduce, T initialValue)
         {
-            switch (keysOrRanges.kindOfContents()) {
+            switch (keysOrRanges.domain()) {
                 default:
                     throw new AssertionError();
                 case Key:
@@ -170,7 +131,7 @@ public class AccordCommandStore extends CommandStore
 
         public void forEach(Routables<?, ?> keysOrRanges, Consumer<CommandsForKey> forEach)
         {
-            switch (keysOrRanges.kindOfContents()) {
+            switch (keysOrRanges.domain()) {
                 default:
                     throw new AssertionError();
                 case Key:
@@ -199,7 +160,7 @@ public class AccordCommandStore extends CommandStore
 
         public void forEach(Routables<?, ?> keysOrRanges, Ranges slice, Consumer<CommandsForKey> forEach)
         {
-            switch (keysOrRanges.kindOfContents()) {
+            switch (keysOrRanges.domain()) {
                 default:
                     throw new AssertionError();
                 case Key:
@@ -228,6 +189,104 @@ public class AccordCommandStore extends CommandStore
                     // TODO:
                     throw new UnsupportedOperationException();
             }
+        }
+
+        public <O> O mapReduceForKey(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandsForKey, O, O> map, O accumulate, O terminalValue)
+        {
+            switch (keysOrRanges.domain()) {
+                default:
+                    throw new AssertionError();
+                case Key:
+                    // TODO: efficiency
+                    AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
+                    for (Key key : keys)
+                    {
+                        if (!slice.contains(key)) continue;
+                        CommandsForKey forKey = commandsForKey(key);
+                        accumulate = map.apply(forKey, accumulate);
+                        if (accumulate.equals(terminalValue))
+                            return accumulate;
+                    }
+                    break;
+                case Range:
+                    // TODO (required): implement
+                    throw new UnsupportedOperationException();
+            }
+            return accumulate;
+        }
+
+        @Override
+        public <T> T mapReduce(Seekables<?, ?> keysOrRanges, Ranges slice, TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp, TestDep testDep, @Nullable TxnId depId, @Nullable Status minStatus, @Nullable Status maxStatus, CommandFunction<T, T> map, T accumulate, T terminalValue)
+        {
+            accumulate = mapReduceForKey(keysOrRanges, slice, (forKey, prev) -> {
+                CommandsForKey.CommandTimeseries timeseries;
+                switch (testTimestamp)
+                {
+                    default: throw new AssertionError();
+                    case STARTED_AFTER:
+                    case STARTED_BEFORE:
+                        timeseries = forKey.byId();
+                        break;
+                    case EXECUTES_AFTER:
+                    case MAY_EXECUTE_BEFORE:
+                        timeseries = forKey.byExecuteAt();
+                }
+                CommandsForKey.CommandTimeseries.TestTimestamp remapTestTimestamp;
+                switch (testTimestamp)
+                {
+                    default: throw new AssertionError();
+                    case STARTED_AFTER:
+                    case EXECUTES_AFTER:
+                        remapTestTimestamp = CommandsForKey.CommandTimeseries.TestTimestamp.AFTER;
+                        break;
+                    case STARTED_BEFORE:
+                    case MAY_EXECUTE_BEFORE:
+                        remapTestTimestamp = CommandsForKey.CommandTimeseries.TestTimestamp.BEFORE;
+                }
+                return timeseries.mapReduce(testKind, remapTestTimestamp, timestamp, testDep, depId, minStatus, maxStatus, map, prev, terminalValue);
+            }, accumulate, terminalValue);
+
+            return accumulate;
+        }
+
+        @Override
+        public void register(Seekables<?, ?> keysOrRanges, Ranges slice, Command command)
+        {
+            // TODO (required): support ranges
+            Routables.foldl((Keys)keysOrRanges, slice, (k, v, i) -> { commandsForKey(k).register(command); return v; }, null);
+        }
+
+        @Override
+        public void register(Seekable keyOrRange, Ranges slice, Command command)
+        {
+            // TODO (required): support ranges
+            Key key = (Key) keyOrRange;
+            if (slice.contains(key))
+                commandsForKey(key).register(command);
+        }
+
+        public AccordCommandsForKey commandsForKey(Key key)
+        {
+            AccordCommandsForKey commandsForKey = getCommandsForKeyInternal(key);
+            if (commandsForKey.isEmpty())
+                commandsForKey.initialize();
+            return commandsForKey;
+        }
+
+        public AccordCommandsForKey maybeCommandsForKey(Key key)
+        {
+            AccordCommandsForKey commandsForKey = getCommandsForKeyInternal(key);
+            return !commandsForKey.isEmpty() ? commandsForKey : null;
+        }
+
+        @Override
+        public void addAndInvokeListener(TxnId txnId, CommandListener listener)
+        {
+            AccordCommand.WriteOnly command = (AccordCommand.WriteOnly) getContext().commands.getOrCreateWriteOnly(txnId, (ignore, id) -> new AccordCommand.WriteOnly(id), commandStore());
+            command.addListener(listener);
+            execute(listener.listenerPreLoadContext(txnId), store -> {
+                listener.onChange(store, store.command(txnId));
+            });
         }
 
         @Override
@@ -457,7 +516,6 @@ public class AccordCommandStore extends CommandStore
         Preconditions.checkState(commandsForKey.isLoaded());
         return commandsForKey;
     }
-
 
     @Override
     public <T> Future<T> submit(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)

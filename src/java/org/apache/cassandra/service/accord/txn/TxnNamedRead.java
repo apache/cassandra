@@ -37,6 +37,8 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -114,7 +116,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
     public Future<Data> read(boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
     {
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) get();
-        AccordCommandsForKey cfk = (AccordCommandsForKey) safeStore.commandsForKey(key);
+        AccordCommandsForKey cfk = ((SafeAccordCommandStore)safeStore).commandsForKey(key);
         int nowInSeconds = cfk.nowInSecondsFor(executeAt, isForWriteTxn);
 
         return Stage.READ.submit(() ->

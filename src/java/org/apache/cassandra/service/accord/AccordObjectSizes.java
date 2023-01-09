@@ -93,7 +93,7 @@ public class AccordObjectSizes
 
     public static long seekables(Seekables<?, ?> seekables)
     {
-        switch (seekables.kindOfContents())
+        switch (seekables.domain())
         {
             default: throw new AssertionError();
             case Key: return keys((Keys) seekables);
@@ -221,7 +221,7 @@ public class AccordObjectSizes
     {
         long size = EMPTY_WRITES_SIZE;
         size += timestamp(writes.executeAt);
-        size += keys(writes.keys);
+        size += seekables(writes.keys);
         if (writes.write != null)
             size += ((TxnWrite) writes.write).estimatedSizeOnHeap();
         return size;

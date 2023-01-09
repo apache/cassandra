@@ -34,6 +34,7 @@ import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.Write;
 import accord.local.SafeCommandStore;
+import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.primitives.Writes;
 import org.apache.cassandra.concurrent.Stage;
@@ -50,6 +51,8 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.service.accord.AccordCommandStore;
+import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -340,9 +343,9 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     }
 
     @Override
-    public Future<Void> apply(Key key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
+    public Future<Void> apply(Seekable key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
     {
-        AccordCommandsForKey cfk = (AccordCommandsForKey) safeStore.commandsForKey(key);
+        AccordCommandsForKey cfk = ((SafeAccordCommandStore) safeStore).commandsForKey((Key)key);
         long timestamp = cfk.timestampMicrosFor(executeAt, true);
         int nowInSeconds = cfk.nowInSecondsFor(executeAt, true);
 

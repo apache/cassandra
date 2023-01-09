@@ -33,6 +33,7 @@ import accord.api.Update;
 import accord.api.Write;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
+import accord.utils.SortedArrays;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -47,6 +48,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static accord.utils.SortedArrays.Search.CEIL;
 import static java.lang.Math.toIntExact;
 import static org.apache.cassandra.service.accord.AccordSerializers.serialize;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
@@ -133,7 +135,7 @@ public class TxnUpdate implements Update
         int j = 0;
         for (int i = 0 ; i < out.size() ; ++i)
         {
-            j = in.findNext(out.get(i), j);
+            j = in.findNext(j, out.get(i), CEIL);
             result[i] = from[j];
         }
         return result;
@@ -225,7 +227,7 @@ public class TxnUpdate implements Update
             while (j < mi && toKey.apply(items.get(j)).equals(key))
                 ++j;
 
-            int nextki = keys.findNext(key, ki);
+            int nextki = keys.findNext(ki, key, CEIL);
             Arrays.fill(result, ki, nextki, ByteBufferUtil.EMPTY_BYTE_BUFFER);
             ki = nextki;
             result[ki++] = toSerializedValues(items, i, j, serializer, MessagingService.current_version);

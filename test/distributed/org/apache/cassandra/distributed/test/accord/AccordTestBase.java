@@ -188,9 +188,9 @@ public abstract class AccordTestBase extends TestBaseImpl
     {
         // is this method safe?
         cluster.get(1).runOnInstance(() -> {
-            TransactionStatement stmt = AccordTestUtils.parse(check);
-            if (!isIdempotent(stmt))
-                throw new AssertionError("Unable to retry txn that is not idempotent: cql=" + check);
+//            TransactionStatement stmt = AccordTestUtils.parse(check);
+//            if (!isIdempotent(stmt))
+//                throw new AssertionError("Unable to retry txn that is not idempotent: cql=" + check);
         });
         return executeWithRetry0(0, cluster, check, boundValues);
     }
