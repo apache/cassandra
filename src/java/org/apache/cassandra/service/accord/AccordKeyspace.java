@@ -251,9 +251,8 @@ public class AccordKeyspace
 
         private static boolean hasRegularChanges(AccordCommandsForKey commandsForKey)
         {
-            return commandsForKey.uncommitted.map.hasModifications()
-                   || commandsForKey.committedById.map.hasModifications()
-                   || commandsForKey.committedByExecuteAt.map.hasModifications();
+            return commandsForKey.byId.map.hasModifications()
+                   || commandsForKey.byExecuteAt.map.hasModifications();
         }
 
         static RegularAndStaticColumns columnsFor(AccordCommandsForKey commandsForKey)
@@ -617,7 +616,7 @@ public class AccordKeyspace
         }
     }
 
-    private static void addSeriesMutations(AccordCommandsForKey.Series<?> series,
+    private static void addSeriesMutations(AccordCommandsForKey.Series series,
                                            PartitionUpdate.Builder partitionBuilder,
                                            Row.Builder rowBuilder,
                                            long timestampMicros,
@@ -661,9 +660,8 @@ public class AccordKeyspace
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
         int expectedRows = (CommandsForKeyColumns.hasStaticChanges(cfk) ? 1 : 0)
-                           + cfk.uncommitted.map.totalModifications()
-                           + cfk.committedById.map.totalModifications()
-                           + cfk.committedByExecuteAt.map.totalModifications();
+                           + cfk.byId.map.totalModifications()
+                           + cfk.byExecuteAt.map.totalModifications();
 
         PartitionUpdate.Builder partitionBuilder = new PartitionUpdate.Builder(CommandsForKey,
                                                                                makeKey(cfk),
@@ -700,9 +698,8 @@ public class AccordKeyspace
             partitionBuilder.add(rowBuilder.build());
         }
 
-        addSeriesMutations(cfk.uncommitted, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
-        addSeriesMutations(cfk.committedById, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
-        addSeriesMutations(cfk.committedByExecuteAt, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
+        addSeriesMutations(cfk.byId, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
+        addSeriesMutations(cfk.byExecuteAt, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
 
         return new Mutation(partitionBuilder.build());
     }
@@ -804,9 +801,8 @@ public class AccordKeyspace
             }
             Preconditions.checkState(!partitions.hasNext());
 
-            cfk.uncommitted.map.load(seriesMaps.get(SeriesKind.UNCOMMITTED));
-            cfk.committedById.map.load(seriesMaps.get(SeriesKind.COMMITTED_BY_ID));
-            cfk.committedByExecuteAt.map.load(seriesMaps.get(SeriesKind.COMMITTED_BY_EXECUTE_AT));
+            cfk.byId.map.load(seriesMaps.get(SeriesKind.BY_ID));
+            cfk.byExecuteAt.map.load(seriesMaps.get(SeriesKind.BY_EXECUTE_AT));
         }
         catch (Throwable t)
         {

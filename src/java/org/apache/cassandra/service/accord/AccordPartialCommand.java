@@ -26,8 +26,9 @@ import java.util.Objects;
 
 import accord.api.Key;
 import accord.local.Command;
-import accord.local.CommandsForKey;
+import accord.local.SaveStatus;
 import accord.local.Status;
+import accord.local.Status.Known;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -44,18 +45,22 @@ import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 
-public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
+public class AccordPartialCommand
 {
     public static final PartialCommandSerializer serializer = new PartialCommandSerializer();
+
+    private final TxnId txnId;
+    private final Timestamp executeAt;
 
     // TODO (soon): this should only be a list of TxnId (the deps for the key we are persisted against); but should also be stored separately and not brought into memory
     private final List<TxnId> deps;
     // TODO (soon): we only require this for Accepted; perhaps more tightly couple query API for efficiency
-    private final Status status;
+    private final SaveStatus status;
 
-    AccordPartialCommand(TxnId txnId, Timestamp executeAt, List<TxnId> deps, Status status)
+    AccordPartialCommand(TxnId txnId, Timestamp executeAt, List<TxnId> deps, SaveStatus status)
     {
-        super(txnId, executeAt);
+        this.txnId = txnId;
+        this.executeAt = executeAt;
         this.deps = deps;
         this.status = status;
     }
@@ -64,7 +69,7 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
     {
         this(command.txnId(), command.executeAt(),
              command.partialDeps() == null ? Collections.emptyList() : command.partialDeps().txnIds(key),
-             command.status());
+             command.saveStatus());
     }
 
     public TxnId txnId()
@@ -89,7 +94,12 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
 
     public Status status()
     {
-        return status;
+        return status.status;
+    }
+
+    public Known known()
+    {
+        return status.known;
     }
 
     @Override
@@ -111,7 +121,7 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
             out.write(version.version);
             CommandSerializers.txnId.serialize(command.txnId(), out, version.msgVersion);
             serializeNullable(command.executeAt(), out, version.msgVersion, CommandSerializers.timestamp);
-            CommandSerializers.status.serialize(command.status(), out, version.msgVersion);
+            CommandSerializers.saveStatus.serialize(command.status, out, version.msgVersion);
             serializeCollection(command.deps, out, version.msgVersion, CommandSerializers.txnId);
         }
 
@@ -146,7 +156,7 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
                 return command;
 
             Timestamp executeAt = deserializeNullable(in, version.msgVersion, CommandSerializers.timestamp);
-            Status status = CommandSerializers.status.deserialize(in, version.msgVersion);
+            SaveStatus status = CommandSerializers.saveStatus.deserialize(in, version.msgVersion);
             List<TxnId> deps = deserializeList(in, version.msgVersion, CommandSerializers.txnId);
             AccordPartialCommand partial = new AccordPartialCommand(txnId, executeAt, deps, status);
             addToContext(partial, context);
@@ -170,7 +180,7 @@ public class AccordPartialCommand extends CommandsForKey.TxnIdWithExecuteAt
             int size = Math.toIntExact(AccordSerializerVersion.serializer.serializedSize(version));
             size += CommandSerializers.txnId.serializedSize();
             size += serializedNullableSize(command.executeAt(), version.msgVersion, CommandSerializers.timestamp);
-            size += CommandSerializers.status.serializedSize(command.status(), version.msgVersion);
+            size += CommandSerializers.saveStatus.serializedSize(command.status, version.msgVersion);
             size += serializedCollectionSize(command.deps, version.msgVersion, CommandSerializers.txnId);
             return size;
         }
