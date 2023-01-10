@@ -243,7 +243,8 @@ public class MessagingService extends MessagingServiceMBeanImpl
         VERSION_3014(MessagingService.VERSION_3014),
         VERSION_40(MessagingService.VERSION_40),
         VERSION_41(MessagingService.VERSION_41),
-        STARGAZER_10(MessagingService.VERSION_SG_10);
+        STARGAZER_10(MessagingService.VERSION_SG_10),
+        VERSION_DSE68(MessagingService.VERSION_DSE_68);
 
         public final int value;
 
