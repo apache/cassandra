@@ -3,4 +3,14 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
   </component>
+  <component name="IssueNavigationConfiguration">
+    <option name="links">
+      <list>
+        <IssueNavigationLink>
+          <option name="issueRegexp" value="CASSANDRA-(\d+)" />
+          <option name="linkRegexp" value="https://issues.apache.org/jira/browse/CASSANDRA-$1" />
+        </IssueNavigationLink>
+      </list>
+    </option>
+  </component>
 </project>
