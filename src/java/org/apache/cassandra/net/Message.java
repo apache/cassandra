@@ -57,6 +57,7 @@ import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_41;
+import static org.apache.cassandra.net.MessagingService.VERSION_DSE_68;
 import static org.apache.cassandra.net.MessagingService.VERSION_SG_10;
 import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.utils.MonotonicClock.approxTime;
@@ -1380,6 +1381,7 @@ public class Message<T>
     private int serializedSize40;
     private int serializedSize41;
     private int serializedSizeSG10;
+    private int serializedSizeDSE68;
 
     /**
      * Serialized size of the entire message, for the provided messaging version. Caches the calculated value.
@@ -1408,6 +1410,10 @@ public class Message<T>
                 if (serializedSizeSG10 == 0)
                     serializedSizeSG10 = (int) serializer.serializedSize(this, VERSION_SG_10);
                 return serializedSizeSG10;
+            case VERSION_DSE_68:
+                if (serializedSizeDSE68 == 0)
+                    serializedSizeDSE68 = (int) serializer.serializedSize(this, VERSION_DSE_68);
+                return serializedSizeDSE68;
             default:
                 throw new IllegalStateException();
         }
@@ -1418,6 +1424,7 @@ public class Message<T>
     private int payloadSize40   = -1;
     private int payloadSize41   = -1;
     private int payloadSizeSG10 = -1;
+    private int payloadSizeDSE68 = -1;
 
     private int payloadSize(int version)
     {
@@ -1443,6 +1450,10 @@ public class Message<T>
                 if (payloadSizeSG10 < 0)
                     payloadSizeSG10 = serializer.payloadSize(this, VERSION_SG_10);
                 return payloadSizeSG10;
+            case VERSION_DSE_68:
+                if (payloadSizeDSE68 < 0)
+                    payloadSizeDSE68 = serializer.payloadSize(this, VERSION_DSE_68);
+                return payloadSizeDSE68;
             default:
                 throw new IllegalStateException();
         }
