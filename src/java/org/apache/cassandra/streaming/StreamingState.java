@@ -338,16 +338,6 @@ public class StreamingState implements StreamEventHandler
             return bytesToReceive == 0 && bytesToSend == 0 && filesToReceive == 0 && filesToSend == 0;
         }
 
-        public BigDecimal receivedBytesPercent()
-        {
-            return div(bytesReceived, bytesToReceive);
-        }
-
-        public BigDecimal sentBytesPercent()
-        {
-            return div(bytesSent, bytesToSend);
-        }
-
         public BigDecimal progress()
         {
             return div(bytesSent + bytesReceived, bytesToSend + bytesToReceive);
