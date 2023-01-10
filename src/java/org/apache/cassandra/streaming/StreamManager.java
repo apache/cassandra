@@ -326,6 +326,18 @@ public class StreamManager implements StreamManagerMBean
         DatabaseDescriptor.setStreamingStatsEnabled(streamingStatsEnabled);
     }
 
+    @Override
+    public String getStreamingSlowEventsLogTimeout()
+    {
+        return DatabaseDescriptor.getStreamingSlowEventsLogTimeout().toString();
+    }
+
+    @Override
+    public void setStreamingSlowEventsLogTimeout(String value)
+    {
+        DatabaseDescriptor.setStreamingSlowEventsLogTimeout(value);
+    }
+
     public void registerInitiator(final StreamResultFuture result)
     {
         result.addEventListener(notifier);

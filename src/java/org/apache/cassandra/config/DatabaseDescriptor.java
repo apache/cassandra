@@ -4405,6 +4405,19 @@ public class DatabaseDescriptor
         }
     }
 
+    public static DurationSpec.IntSecondsBound getStreamingSlowEventsLogTimeout() {
+        return conf.streaming_slow_events_log_timeout;
+    }
+
+    public static void setStreamingSlowEventsLogTimeout(String value) {
+        DurationSpec.IntSecondsBound next = new DurationSpec.IntSecondsBound(value);
+        if (!conf.streaming_slow_events_log_timeout.equals(next))
+        {
+            logger.info("Setting streaming_slow_events_log to " + value);
+            conf.streaming_slow_events_log_timeout = next;
+        }
+    }
+
     public static boolean isUUIDSSTableIdentifiersEnabled()
     {
         return conf.uuid_sstable_identifiers_enabled;

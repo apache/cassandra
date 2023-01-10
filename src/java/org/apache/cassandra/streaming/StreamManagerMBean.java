@@ -39,4 +39,14 @@ public interface StreamManagerMBean extends NotificationEmitter
      * enable/disable collection of streaming stats while streaming is running.
      */
     void setStreamingStatsEnabled(boolean streamingStatsEnabled);
+
+    /**
+     * @return current timeout for streaming slow events log
+     */
+    String getStreamingSlowEventsLogTimeout();
+
+    /**
+     * Sets the timeout for the streaming slow events log
+     */
+    void setStreamingSlowEventsLogTimeout(String value);
 }
