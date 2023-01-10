@@ -43,8 +43,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.junit.Assert.fail;
-
 public class DataOutputTest
 {
     @BeforeClass
@@ -248,32 +246,6 @@ public class DataOutputTest
             checkThrowsException(validateReallocationCallable( write, 0), BufferOverflowException.class);
             checkThrowsException(validateReallocationCallable( write, 1), BufferOverflowException.class);
             checkThrowsIAE(validateReallocationCallable( write, -1));
-        }
-    }
-
-    @Test
-    public void testDataOutputBufferLimitingScratchBuffer() throws IOException
-    {
-        // Note the default minimum buffer size is 128 so our limit needs
-        // to be >128 bytes for this test to work
-        DataOutputBuffer write = DataOutputBuffer.limitedScratchBuffer(200);
-        // Should accept less than the limit
-        write.write(new byte[199]);
-        write.clear();
-
-        // Should accept the limit
-        write.write(new byte[200]);
-        write.clear();
-
-        // More than the limit will throw
-        try
-        {
-            write.write(new byte[201]);
-            fail("Should have failed with BufferCapacityExceededException");
-        }
-        catch (DataOutputBuffer.BufferCapacityExceededException e)
-        {
-            // Ignore as a pass
         }
     }
 
