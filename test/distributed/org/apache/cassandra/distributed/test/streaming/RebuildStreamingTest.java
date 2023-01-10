@@ -35,12 +35,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class RebuildStreamingTest extends TestBaseImpl
 {
+    private static final ByteBuffer BLOB = ByteBuffer.wrap(new byte[1 << 16]);
+    // zero copy streaming sends all components, so the events will include non-Data files as well
+    private static final int NUM_COMPONENTS = 7;
+
     @Test
-    public void test() throws IOException
+    public void zeroCopy() throws IOException
     {
-        ByteBuffer blob = ByteBuffer.wrap(new byte[1 << 16]);
+        test(true);
+    }
+
+    @Test
+    public void notZeroCopy() throws IOException
+    {
+        test(false);
+    }
+
+    private void test(boolean zeroCopyStreaming) throws IOException
+    {
         try (Cluster cluster = init(Cluster.build(2)
-                                           .withConfig(c -> c.with(Feature.values()).set("stream_entire_sstables", false))
+                                           .withConfig(c -> c.with(Feature.values()).set("stream_entire_sstables", zeroCopyStreaming))
                                            .start()))
         {
             // streaming sends events every 65k, so need to make sure that the files are larger than this to hit
@@ -52,9 +66,11 @@ public class RebuildStreamingTest extends TestBaseImpl
             long expectedFiles = 10;
             for (int i = 0; i < expectedFiles; i++)
             {
-                first.executeInternal(withKeyspace("insert into %s.users(user_id, spacing) values (?, ? )"), "dcapwell" + i, blob);
+                first.executeInternal(withKeyspace("insert into %s.users(user_id, spacing) values (?, ? )"), "dcapwell" + i, BLOB);
                 first.flush(KEYSPACE);
             }
+            if (zeroCopyStreaming) // will include all components so need to account for
+                expectedFiles *= NUM_COMPONENTS;
 
             second.nodetoolResult("rebuild", "--keyspace", KEYSPACE).asserts().success();
 
