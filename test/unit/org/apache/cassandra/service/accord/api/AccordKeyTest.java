@@ -59,7 +59,7 @@ public class AccordKeyTest
     public void partitionKeyTest()
     {
         DecoratedKey dk = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
-        PartitionKey pk = new PartitionKey("", TABLE1, dk);
+        PartitionKey pk = new PartitionKey("ks", TABLE1, dk);
         SerializerTestUtils.assertSerializerIOEquality(pk, PartitionKey.serializer);
     }
 
@@ -96,6 +96,18 @@ public class AccordKeyTest
         DecoratedKey dk2 = partitioner(TABLE2).decorateKey(ByteBufferUtil.bytes(5));
         PartitionKey pk2 = new PartitionKey("", TABLE2, dk2);
 
+        Assert.assertTrue(pk1.compareTo(pk2) == 0);
+    }
+
+    @Test
+    public void keyspaceComparisonTest()
+    {
+        DecoratedKey dk1 = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
+        PartitionKey pk1 = new PartitionKey("a", TABLE1, dk1);
+
+        DecoratedKey dk2 = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
+        PartitionKey pk2 = new PartitionKey("b", TABLE1, dk2);
+
         Assert.assertTrue(pk1.compareTo(pk2) < 0);
     }
 
@@ -104,16 +116,18 @@ public class AccordKeyTest
     {
         Assert.assertTrue(TABLE1.compareTo(TABLE2) < 0);
         DecoratedKey dk1 = partitioner(TABLE1).decorateKey(ByteBufferUtil.bytes(5));
-        PartitionKey pk1 = new PartitionKey("", TABLE1, dk1);
+        PartitionKey pk1 = new PartitionKey("a", TABLE1, dk1);
 
         DecoratedKey dk2 = partitioner(TABLE2).decorateKey(ByteBufferUtil.bytes(5));
-        PartitionKey pk2 = new PartitionKey("", TABLE2, dk2);
+        PartitionKey pk2 = new PartitionKey("b", TABLE2, dk2);
 
-        SentinelKey loSentinel = SentinelKey.min("");
-        SentinelKey hiSentinel = SentinelKey.max("");
+        SentinelKey loSentinel = SentinelKey.min("a");
+        SentinelKey hiSentinel = SentinelKey.max("a");
         Assert.assertTrue(loSentinel.compareTo(hiSentinel) < 0);
         Assert.assertTrue(pk1.compareTo(loSentinel) > 0);
         Assert.assertTrue(loSentinel.compareTo(pk1) < 0);
+        Assert.assertTrue(pk1.compareTo(hiSentinel) < 0);
+        Assert.assertTrue(hiSentinel.compareTo(pk1) > 0);
         Assert.assertTrue(hiSentinel.compareTo(pk2) < 0);
     }
 }
