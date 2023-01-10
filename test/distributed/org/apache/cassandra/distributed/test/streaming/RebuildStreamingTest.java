@@ -30,6 +30,7 @@ import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
+import org.assertj.core.api.Assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -54,7 +55,8 @@ public class RebuildStreamingTest extends TestBaseImpl
     private void test(boolean zeroCopyStreaming) throws IOException
     {
         try (Cluster cluster = init(Cluster.build(2)
-                                           .withConfig(c -> c.with(Feature.values()).set("stream_entire_sstables", zeroCopyStreaming))
+                                           .withConfig(c -> c.with(Feature.values())
+                                                             .set("stream_entire_sstables", zeroCopyStreaming).set("streaming_slow_events_log_timeout", "0s"))
                                            .start()))
         {
             // streaming sends events every 65k, so need to make sure that the files are larger than this to hit
@@ -111,6 +113,9 @@ public class RebuildStreamingTest extends TestBaseImpl
                            .columnsEqualTo("files_to_receive", "files_received").isEqualTo("files_received", expectedFiles)
                            .columnsEqualTo("bytes_to_receive", "bytes_received").isEqualTo("bytes_received", totalBytes)
                            .columnsEqualTo("files_sent", "files_to_send", "bytes_sent", "bytes_to_send").isEqualTo("files_sent", 0L);
+
+            // did we trigger slow event log?
+            cluster.forEach(i -> Assertions.assertThat(i.logs().grep("Handling streaming events took longer than").getResult()).describedAs("Unable to find slow log for node%d", i.config().num()).isNotEmpty());
         }
     }
 }
