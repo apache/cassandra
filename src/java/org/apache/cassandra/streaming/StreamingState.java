@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.concurrent.GuardedBy;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,6 +63,9 @@ public class StreamingState implements StreamEventHandler
     private final boolean follower;
     private final StreamOperation operation;
     private final Set<InetSocketAddress> peers = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    /**
+     * This must be cleared on stream complete as this is temp memory for calculating stats.
+     */
     @GuardedBy("this")
     private final ObjectLongMap<Pair<InetAddressAndPort, String>> activeFiles = new ObjectLongHashMap<>();
     @GuardedBy("this")
@@ -132,6 +136,7 @@ public class StreamingState implements StreamEventHandler
         }
     }
 
+    @VisibleForTesting
     public StreamResultFuture future()
     {
         if (follower)
