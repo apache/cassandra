@@ -54,9 +54,16 @@ public class ProgressInfo implements Serializable
     public final String fileName;
     public final Direction direction;
     public final long currentBytes;
+    public final long deltaBytes; // change from previous ProgressInfo
     public final long totalBytes;
 
     public ProgressInfo(InetAddressAndPort peer, int sessionIndex, String fileName, Direction direction, long currentBytes, long totalBytes)
+    {
+        this(peer, sessionIndex, fileName, direction, currentBytes, currentBytes, totalBytes);
+    }
+
+    public ProgressInfo(InetAddressAndPort peer, int sessionIndex, String fileName, Direction direction,
+                        long currentBytes,  long deltaBytes, long totalBytes)
     {
         assert totalBytes > 0;
 
@@ -65,6 +72,7 @@ public class ProgressInfo implements Serializable
         this.fileName = fileName;
         this.direction = direction;
         this.currentBytes = currentBytes;
+        this.deltaBytes = deltaBytes;
         this.totalBytes = totalBytes;
     }
 

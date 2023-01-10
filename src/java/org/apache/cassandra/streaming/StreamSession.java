@@ -1026,9 +1026,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
     }
 
-    public void progress(String filename, ProgressInfo.Direction direction, long bytes, long total)
+    public void progress(String filename, ProgressInfo.Direction direction, long bytes, long delta, long total)
     {
-        ProgressInfo progress = new ProgressInfo(peer, index, filename, direction, bytes, total);
+        ProgressInfo progress = new ProgressInfo(peer, index, filename, direction, bytes, delta, total);
         streamResult.handleProgress(progress);
     }
 

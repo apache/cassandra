@@ -89,11 +89,15 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
                 cis.position(section.lowerPosition);
                 in.reset(0);
 
+                long lastBytesRead = 0;
                 while (in.getBytesRead() < sectionLength)
                 {
                     writePartition(deserializer, writer);
                     // when compressed, report total bytes of compressed chunks read since remoteFile.size is the sum of chunks transferred
-                    session.progress(filename + '-' + fileSeqNum, ProgressInfo.Direction.IN, cis.chunkBytesRead(), totalSize);
+                    long bytesRead = cis.chunkBytesRead();
+                    long bytesDelta = bytesRead - lastBytesRead;
+                    lastBytesRead = bytesRead;
+                    session.progress(filename + '-' + fileSeqNum, ProgressInfo.Direction.IN, bytesRead, bytesDelta, totalSize);
                 }
                 assert in.getBytesRead() == sectionLength;
             }

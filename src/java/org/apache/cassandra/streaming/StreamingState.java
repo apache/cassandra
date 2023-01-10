@@ -34,10 +34,7 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -63,11 +60,6 @@ public class StreamingState implements StreamEventHandler
     private final boolean follower;
     private final StreamOperation operation;
     private final Set<InetSocketAddress> peers = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    /**
-     * This must be cleared on stream complete as this is temp memory for calculating stats.
-     */
-    @GuardedBy("this")
-    private final ObjectLongMap<Pair<InetAddressAndPort, String>> activeFiles = new ObjectLongHashMap<>();
     @GuardedBy("this")
     private final Sessions sessions = new Sessions();
 
@@ -265,15 +257,13 @@ public class StreamingState implements StreamEventHandler
     private void streamProgress(StreamEvent.ProgressEvent event)
     {
         ProgressInfo info = event.progress;
-        Pair<InetAddressAndPort, String> key = Pair.create(info.peer, info.fileName);
-        long seenBytes = activeFiles.getOrDefault(key, 0);
-        long delta = info.currentBytes - seenBytes;
+
+        long delta = info.deltaBytes;
         if (delta < 0)
         {
             NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES,
-                             "[id={}, key={}] Stream event showed currentBytes smaller than previously" +
-                             " witnessed; currentBytes {}, seenBytes {}",
-                             this.id, key, info.currentBytes, seenBytes);
+                             "[id={}, key={}] Stream event reported a negative delta ({})",
+                             this.id, Pair.create(info.peer, info.fileName), delta);
         }
         if (info.direction == ProgressInfo.Direction.IN)
         {
@@ -289,13 +279,11 @@ public class StreamingState implements StreamEventHandler
             if (info.isCompleted())
                 sessions.filesSent++;
         }
-        activeFiles.put(key, info.currentBytes);
     }
 
     @Override
     public synchronized void onSuccess(@Nullable StreamState state)
     {
-        activeFiles.clear();
         updateState(Status.SUCCESS);
     }
 
@@ -303,7 +291,6 @@ public class StreamingState implements StreamEventHandler
     public synchronized void onFailure(Throwable throwable)
     {
         completeMessage = Throwables.getStackTraceAsString(throwable);
-        activeFiles.clear();
         updateState(Status.FAILURE);
     }
 

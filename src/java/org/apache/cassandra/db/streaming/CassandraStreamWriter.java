@@ -113,7 +113,7 @@ public class CassandraStreamWriter
                     start += lastBytesRead;
                     bytesRead += lastBytesRead;
                     progress += (lastBytesRead - transferOffset);
-                    session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, totalSize);
+                    session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, lastBytesRead - transferOffset, totalSize);
                     transferOffset = 0;
                 }
 

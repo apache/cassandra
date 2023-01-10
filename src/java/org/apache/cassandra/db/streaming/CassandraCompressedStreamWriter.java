@@ -94,7 +94,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
 
                     bytesTransferred += toTransfer;
                     progress += toTransfer;
-                    session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, totalSize);
+                    session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, toTransfer, totalSize);
                 }
             }
             logger.debug("[Stream #{}] Finished streaming file {} to {}, bytesTransferred = {}, totalSize = {}",
