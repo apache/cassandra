@@ -78,6 +78,8 @@ public class CleanupFailureTest extends TestBaseImpl
         // check data still present on node2
         Object[][] afterDecommResponse = cluster.get(2).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl ;");
         Assert.assertEquals(1, afterDecommResponse.length);
+
+        cluster.close();
     }
     @Test
     public void testCleanupFailsDuringOngoingBootstrap() throws IOException, InterruptedException
@@ -86,6 +88,7 @@ public class CleanupFailureTest extends TestBaseImpl
         int originalNodeCount = 1;
         int expandedNodeCount = originalNodeCount + 1;
 
+        String keyspace = "distributed_test_cleanup_bootstrap";
         Cluster cluster = init(Cluster.build()
                               .withNodes(originalNodeCount)
                               .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
@@ -94,17 +97,21 @@ public class CleanupFailureTest extends TestBaseImpl
                               .start());
 
         // set up keyspace and table
-        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'};");
-        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
-        cluster.schemaChange("ALTER KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'};");
+        cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + keyspace + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'};");
+        cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + keyspace + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         cluster.schemaChange("ALTER KEYSPACE system_distributed WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'};");
         cluster.schemaChange("ALTER KEYSPACE system_traces WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'};");
 
         // populate data
-        populate(cluster,0,10000);
-        cluster.get(1).flush(KEYSPACE);
+        for (int i = 0; i < 10000; i++)
+        {
+            cluster.coordinator(1).execute("INSERT INTO " + keyspace + ".tbl (pk, ck, v) VALUES (?, ?, ?)",
+                                           ConsistencyLevel.ALL,
+                                           i, i, i);
+        }
+        cluster.get(1).flush(keyspace);
 
-        Object[][] beforeBootstrapResponse = cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + ".tbl ;", ConsistencyLevel.ONE);
+        Object[][] beforeBootstrapResponse = cluster.coordinator(1).execute("SELECT * FROM " + keyspace + ".tbl ;", ConsistencyLevel.ONE);
         Assert.assertEquals(10000, beforeBootstrapResponse.length);
 
         // kick off bootstrap
@@ -125,8 +132,9 @@ public class CleanupFailureTest extends TestBaseImpl
         // assert data on new node
         Assert.assertEquals(expandedNodeCount, cluster.size());
 
-        Object[][] afterBootstrapResponse = cluster.get(2).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl ;");
+        Object[][] afterBootstrapResponse = cluster.get(2).executeInternal("SELECT * FROM " + keyspace + ".tbl ;");
         Assert.assertEquals(5006, afterBootstrapResponse.length);
 
+        cluster.close();
     }
 }
