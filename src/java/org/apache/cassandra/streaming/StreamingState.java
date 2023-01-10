@@ -282,6 +282,7 @@ public class StreamingState implements StreamEventHandler
     @Override
     public synchronized void onSuccess(@Nullable StreamState state)
     {
+        activeFiles.clear();
         updateState(Status.SUCCESS);
     }
 
@@ -289,6 +290,7 @@ public class StreamingState implements StreamEventHandler
     public synchronized void onFailure(Throwable throwable)
     {
         completeMessage = Throwables.getStackTraceAsString(throwable);
+        activeFiles.clear();
         updateState(Status.FAILURE);
     }
 
