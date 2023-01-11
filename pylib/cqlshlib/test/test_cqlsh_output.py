@@ -313,9 +313,9 @@ class TestCqlshOutput(BaseTestCase):
         # same query should show up as empty in cql 3
         self.assertQueriesGiveColoredOutput((
             (q, """
-             num | asciicol | bigintcol | blobcol | booleancol | decimalcol | doublecol | floatcol | intcol | smallintcol | textcol | timestampcol | tinyintcol | uuidcol | varcharcol | varintcol
-             RRR   MMMMMMMM   MMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMMM   MMMMMMMMM   MMMMMMMM   MMMMMM   MMMMMMMMMMM   MMMMMMM   MMMMMMMMMMMM   MMMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMM
-            -----+----------+-----------+---------+------------+------------+-----------+----------+--------+-------------+---------+--------------+------------+---------+------------+-----------
+             num | asciicol | bigintcol | blobcol | booleancol | decimalcol | doublecol | durationcol | floatcol | intcol | smallintcol | textcol | timestampcol | tinyintcol | uuidcol | varcharcol | varintcol
+             RRR   MMMMMMMM   MMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMMM   MMMMMMMMM   MMMMMMMMMMM   MMMMMMMM   MMMMMM   MMMMMMMMMMM   MMMMMMM   MMMMMMMMMMMM   MMMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMM
+            -----+----------+-----------+---------+------------+------------+-----------+-------------+----------+--------+-------------+---------+--------------+------------+---------+------------+-----------
 
 
             (0 rows)
@@ -567,6 +567,28 @@ class TestCqlshOutput(BaseTestCase):
             """, ),
         ))
 
+    def test_duration_output(self):
+        self.assertQueriesGiveColoredOutput((
+            ("select num, durationcol from has_all_types where num in (0, 1, 2, 3);", r"""
+             num | durationcol
+             RRR   MMMMMMMMMMM
+            -----+----------------
+
+               0 |            12h
+               G   GGGGGGGGGGGGGG
+               1 |         12h30m
+               G   GGGGGGGGGGGGGG
+               2 |      12h30m30s
+               G   GGGGGGGGGGGGGG
+               3 | 12h30m30s250ms
+               G   GGGGGGGGGGGGGG
+
+
+            (4 rows)
+            nnnnnnnn
+            """, ),
+        ))
+
     def test_prompt(self):
         with testrun_cqlsh(tty=True, keyspace=None, env=self.default_env) as c:
             self.assertTrue(c.output_header.splitlines()[-1].endswith('cqlsh> '))
@@ -649,6 +671,7 @@ class TestCqlshOutput(BaseTestCase):
                 booleancol boolean,
                 decimalcol decimal,
                 doublecol double,
+                durationcol duration,
                 floatcol float,
                 intcol int,
                 smallintcol smallint,
