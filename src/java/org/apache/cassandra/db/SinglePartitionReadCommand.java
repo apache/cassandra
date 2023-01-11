@@ -670,7 +670,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 if (iter == null)
                     continue;
 
-                minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
+                if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
+                    minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
 
                 // Memtable data is always considered unrepaired
                 controller.updateMinOldestUnrepairedTombstone(memtable.getMinLocalDeletionTime());
