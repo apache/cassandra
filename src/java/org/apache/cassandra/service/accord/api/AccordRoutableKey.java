@@ -36,15 +36,9 @@ public abstract class AccordRoutableKey implements RoutableKey
     public abstract Token token();
 
     @Override
-    public final int routingHash()
-    {
-        return token().tokenHash();
-    }
-
-    @Override
     public int hashCode()
     {
-        return Objects.hash(keyspace, routingHash());
+        return Objects.hash(keyspace, token().tokenHash());
     }
 
     public final int compareTo(RoutableKey that)
