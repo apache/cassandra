@@ -363,7 +363,7 @@ public class CollectionFcts
                 return null;
 
             AggregateFunction.Aggregate aggregate = aggregateFunction.newAggregate();
-            inputType.forEach(value, version, element -> aggregate.addInput(version, Collections.singletonList(element)));
+            inputType.forEach(value, element -> aggregate.addInput(version, Collections.singletonList(element)));
             return aggregate.compute(version);
         }
     }

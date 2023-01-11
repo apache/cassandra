@@ -392,7 +392,7 @@ public abstract class Selector
             AbstractType<?> type = columns.get(index).type;
             if (type.isCollection())
             {
-                values[index] = ((CollectionType<?>) type).serializeForNativeProtocol(ccd.iterator(), protocolVersion);
+                values[index] = ((CollectionType<?>) type).serializeForNativeProtocol(ccd.iterator());
 
                 for (Cell<?> cell : ccd)
                 {

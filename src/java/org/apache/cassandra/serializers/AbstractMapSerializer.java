@@ -25,7 +25,6 @@ import com.google.common.collect.Range;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -55,8 +54,8 @@ abstract class AbstractMapSerializer<T> extends CollectionSerializer<T>
         try
         {
             ByteBuffer input = collection.duplicate();
-            int n = readCollectionSize(input, ByteBufferAccessor.instance, ProtocolVersion.V3);
-            input.position(input.position() + sizeOfCollectionSize(n, ProtocolVersion.V3));
+            int n = readCollectionSize(input, ByteBufferAccessor.instance);
+            input.position(input.position() + sizeOfCollectionSize());
             int startPos = input.position();
             int count = 0;
             boolean inSlice = from == ByteBufferUtil.UNSET_BYTE_BUFFER;
@@ -64,8 +63,8 @@ abstract class AbstractMapSerializer<T> extends CollectionSerializer<T>
             for (int i = 0; i < n; i++)
             {
                 int pos = input.position();
-                ByteBuffer key = readValue(input, ByteBufferAccessor.instance, 0, ProtocolVersion.V3); // key
-                input.position(input.position() + sizeOfValue(key, ByteBufferAccessor.instance, ProtocolVersion.V3));
+                ByteBuffer key = readValue(input, ByteBufferAccessor.instance, 0);
+                input.position(input.position() + sizeOfValue(key, ByteBufferAccessor.instance));
 
                 // If we haven't passed the start already, check if we have now
                 if (!inSlice)
@@ -106,7 +105,7 @@ abstract class AbstractMapSerializer<T> extends CollectionSerializer<T>
             if (count == 0 && !frozen)
                 return null;
 
-            return copyAsNewCollection(collection, count, startPos, input.position(), ProtocolVersion.V3);
+            return copyAsNewCollection(collection, count, startPos, input.position());
         }
         catch (BufferUnderflowException | IndexOutOfBoundsException e)
         {
@@ -120,12 +119,12 @@ abstract class AbstractMapSerializer<T> extends CollectionSerializer<T>
         try
         {
             ByteBuffer input = collection.duplicate();
-            int n = readCollectionSize(input, ByteBufferAccessor.instance, ProtocolVersion.V3);
-            int offset = sizeOfCollectionSize(n, ProtocolVersion.V3);
+            int n = readCollectionSize(input, ByteBufferAccessor.instance);
+            int offset = sizeOfCollectionSize();
             for (int i = 0; i < n; i++)
             {
-                ByteBuffer kbb = readValue(input, ByteBufferAccessor.instance, offset, ProtocolVersion.V3);
-                offset += sizeOfValue(kbb, ByteBufferAccessor.instance, ProtocolVersion.V3);
+                ByteBuffer kbb = readValue(input, ByteBufferAccessor.instance, offset);
+                offset += sizeOfValue(kbb, ByteBufferAccessor.instance);
                 int comparison = comparator.compareForCQL(kbb, key);
 
                 if (comparison == 0)
@@ -137,7 +136,7 @@ abstract class AbstractMapSerializer<T> extends CollectionSerializer<T>
 
                 // comparison < 0
                 if (hasValues)
-                    offset += skipValue(input, ByteBufferAccessor.instance, offset, ProtocolVersion.V3);
+                    offset += skipValue(input, ByteBufferAccessor.instance, offset);
             }
             return -1;
         }
@@ -159,8 +158,8 @@ abstract class AbstractMapSerializer<T> extends CollectionSerializer<T>
         try
         {
             ByteBuffer input = collection.duplicate();
-            int n = readCollectionSize(input, ByteBufferAccessor.instance, ProtocolVersion.V3);
-            input.position(input.position() + sizeOfCollectionSize(n, ProtocolVersion.V3));
+            int n = readCollectionSize(input, ByteBufferAccessor.instance);
+            input.position(input.position() + sizeOfCollectionSize());
             int start = from == ByteBufferUtil.UNSET_BYTE_BUFFER ? 0 : -1;
             int end = to == ByteBufferUtil.UNSET_BYTE_BUFFER ? n : -1;
 
@@ -171,8 +170,8 @@ abstract class AbstractMapSerializer<T> extends CollectionSerializer<T>
                 else if (i > 0)
                     skipMapValue(input);
 
-                ByteBuffer key = readValue(input, ByteBufferAccessor.instance, 0, ProtocolVersion.V3);
-                input.position(input.position() + sizeOfValue(key, ByteBufferAccessor.instance, ProtocolVersion.V3));
+                ByteBuffer key = readValue(input, ByteBufferAccessor.instance, 0);
+                input.position(input.position() + sizeOfValue(key, ByteBufferAccessor.instance));
 
                 if (start < 0)
                 {
@@ -208,6 +207,6 @@ abstract class AbstractMapSerializer<T> extends CollectionSerializer<T>
     private void skipMapValue(ByteBuffer input)
     {
         if (hasValues)
-            skipValue(input, ProtocolVersion.V3);
+            skipValue(input);
     }
 }

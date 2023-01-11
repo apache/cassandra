@@ -1,4 +1,5 @@
 4.2
+ * Remove ProtocolVersion entirely from the CollectionSerializer ecosystem (CASSANDRA-18114)
  * Fix serialization error in new getsstables --show-levels option (CASSANDRA-18140)
  * Use checked casts when reading vints as ints (CASSANDRA-18099)
  * Add Mutation Serialization Caching (CASSANDRA-17998)

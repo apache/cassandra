@@ -152,12 +152,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return values.size();
     }
 
-    public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells, ProtocolVersion version)
+    public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells)
     {
         assert isMultiCell();
         List<ByteBuffer> values = serializedValues(cells);
         int size = collectionSize(values);
-        return CollectionSerializer.pack(values, ByteBufferAccessor.instance, size, version);
+        return CollectionSerializer.pack(values, ByteBufferAccessor.instance, size);
     }
 
     @Override
@@ -169,7 +169,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
         if (!getClass().equals(previous.getClass()))
             return false;
 
-        CollectionType tprev = (CollectionType) previous;
+        CollectionType<?> tprev = (CollectionType<?>) previous;
         if (this.isMultiCell() != tprev.isMultiCell())
             return false;
 
@@ -197,7 +197,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
         if (!getClass().equals(previous.getClass()))
             return false;
 
-        CollectionType tprev = (CollectionType) previous;
+        CollectionType<?> tprev = (CollectionType<?>) previous;
         if (this.isMultiCell() != tprev.isMultiCell())
             return false;
 
@@ -234,7 +234,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
         if (!(o instanceof CollectionType))
             return false;
 
-        CollectionType other = (CollectionType)o;
+        CollectionType<?> other = (CollectionType<?>) o;
 
         if (kind != other.kind)
             return false;
@@ -257,17 +257,17 @@ public abstract class CollectionType<T> extends AbstractType<T>
         if (accessorL.isEmpty(left) || accessorR.isEmpty(right))
             return Boolean.compare(accessorR.isEmpty(right), accessorL.isEmpty(left));
 
-        int sizeL = CollectionSerializer.readCollectionSize(left, accessorL, ProtocolVersion.V3);
-        int offsetL = CollectionSerializer.sizeOfCollectionSize(sizeL, ProtocolVersion.V3);
-        int sizeR = CollectionSerializer.readCollectionSize(right, accessorR, ProtocolVersion.V3);
+        int sizeL = CollectionSerializer.readCollectionSize(left, accessorL);
+        int offsetL = CollectionSerializer.sizeOfCollectionSize();
+        int sizeR = CollectionSerializer.readCollectionSize(right, accessorR);
         int offsetR = TypeSizes.INT_SIZE;
 
         for (int i = 0; i < Math.min(sizeL, sizeR); i++)
         {
-            VL v1 = CollectionSerializer.readValue(left, accessorL, offsetL, ProtocolVersion.V3);
-            offsetL += CollectionSerializer.sizeOfValue(v1, accessorL, ProtocolVersion.V3);
-            VR v2 = CollectionSerializer.readValue(right, accessorR, offsetR, ProtocolVersion.V3);
-            offsetR += CollectionSerializer.sizeOfValue(v2, accessorR, ProtocolVersion.V3);
+            VL v1 = CollectionSerializer.readValue(left, accessorL, offsetL);
+            offsetL += CollectionSerializer.sizeOfValue(v1, accessorL);
+            VR v2 = CollectionSerializer.readValue(right, accessorR, offsetR);
+            offsetR += CollectionSerializer.sizeOfValue(v2, accessorR);
             int cmp = elementsComparator.compare(v1, accessorL, v2, accessorR);
             if (cmp != 0)
                 return cmp;
@@ -285,13 +285,13 @@ public abstract class CollectionType<T> extends AbstractType<T>
             return null;
 
         int offset = 0;
-        int size = CollectionSerializer.readCollectionSize(data, accessor, ProtocolVersion.V3);
-        offset += CollectionSerializer.sizeOfCollectionSize(size, ProtocolVersion.V3);
+        int size = CollectionSerializer.readCollectionSize(data, accessor);
+        offset += CollectionSerializer.sizeOfCollectionSize();
         ByteSource[] srcs = new ByteSource[size];
         for (int i = 0; i < size; ++i)
         {
-            V v = CollectionSerializer.readValue(data, accessor, offset, ProtocolVersion.V3);
-            offset += CollectionSerializer.sizeOfValue(v, accessor, ProtocolVersion.V3);
+            V v = CollectionSerializer.readValue(data, accessor, offset);
+            offset += CollectionSerializer.sizeOfValue(v, accessor);
             srcs[i] = elementsComparator.asComparableBytes(accessor, v, version);
         }
         return ByteSource.withTerminatorMaybeLegacy(version, 0x00, srcs);
@@ -316,21 +316,21 @@ public abstract class CollectionType<T> extends AbstractType<T>
                 buffers.add(null);
             separator = comparableBytes.next();
         }
-        return CollectionSerializer.pack(buffers, accessor, buffers.size(), ProtocolVersion.V3);
+        return CollectionSerializer.pack(buffers, accessor, buffers.size());
     }
 
-    public static String setOrListToJsonString(ByteBuffer buffer, AbstractType elementsType, ProtocolVersion protocolVersion)
+    public static String setOrListToJsonString(ByteBuffer buffer, AbstractType<?> elementsType, ProtocolVersion protocolVersion)
     {
         ByteBuffer value = buffer.duplicate();
         StringBuilder sb = new StringBuilder("[");
-        int size = CollectionSerializer.readCollectionSize(value, ByteBufferAccessor.instance, protocolVersion);
-        int offset = CollectionSerializer.sizeOfCollectionSize(size, protocolVersion);
+        int size = CollectionSerializer.readCollectionSize(value, ByteBufferAccessor.instance);
+        int offset = CollectionSerializer.sizeOfCollectionSize();
         for (int i = 0; i < size; i++)
         {
             if (i > 0)
                 sb.append(", ");
-            ByteBuffer element = CollectionSerializer.readValue(value, ByteBufferAccessor.instance, offset, protocolVersion);
-            offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance, protocolVersion);
+            ByteBuffer element = CollectionSerializer.readValue(value, ByteBufferAccessor.instance, offset);
+            offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance);
             sb.append(elementsType.toJSONString(element, protocolVersion));
         }
         return sb.append("]").toString();
@@ -361,8 +361,8 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     public int size(ByteBuffer buffer)
     {
-        return CollectionSerializer.readCollectionSize(buffer.duplicate(), ByteBufferAccessor.instance, ProtocolVersion.V3);
+        return CollectionSerializer.readCollectionSize(buffer.duplicate(), ByteBufferAccessor.instance);
     }
 
-    public abstract void forEach(ByteBuffer input, ProtocolVersion version, Consumer<ByteBuffer> action);
+    public abstract void forEach(ByteBuffer input, Consumer<ByteBuffer> action);
 }

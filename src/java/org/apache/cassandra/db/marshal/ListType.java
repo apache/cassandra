@@ -160,14 +160,14 @@ public class ListType<T> extends CollectionType<List<T>>
     public boolean isCompatibleWithFrozen(CollectionType<?> previous)
     {
         assert !isMultiCell;
-        return this.elements.isCompatibleWith(((ListType) previous).elements);
+        return this.elements.isCompatibleWith(((ListType<?>) previous).elements);
     }
 
     @Override
     public boolean isValueCompatibleWithFrozen(CollectionType<?> previous)
     {
         assert !isMultiCell;
-        return this.elements.isValueCompatibleWithInternal(((ListType) previous).elements);
+        return this.elements.isValueCompatibleWithInternal(((ListType<?>) previous).elements);
     }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
@@ -221,7 +221,7 @@ public class ListType<T> extends CollectionType<List<T>>
             throw new MarshalException(String.format(
                     "Expected a list, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
 
-        List list = (List) parsed;
+        List<?> list = (List<?>) parsed;
         List<Term> terms = new ArrayList<>(list.size());
         for (Object element : list)
         {
@@ -246,8 +246,8 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
-    public void forEach(ByteBuffer input, ProtocolVersion version, Consumer<ByteBuffer> action)
+    public void forEach(ByteBuffer input, Consumer<ByteBuffer> action)
     {
-        serializer.forEach(input, version, action);
+        serializer.forEach(input, action);
     }
 }

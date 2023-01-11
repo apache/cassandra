@@ -31,7 +31,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 public class ListSerializer<T> extends CollectionSerializer<List<T>>
 {
@@ -55,6 +54,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         this.elements = elements;
     }
 
+    @Override
     protected List<ByteBuffer> serializeValues(List<T> values)
     {
         List<ByteBuffer> output = new ArrayList<>(values.size());
@@ -63,21 +63,23 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         return output;
     }
 
+    @Override
     public int getElementCount(List<T> value)
     {
         return value.size();
     }
 
-    public <V> void validateForNativeProtocol(V input, ValueAccessor<V> accessor, ProtocolVersion version)
+    @Override
+    public <V> void validate(V input, ValueAccessor<V> accessor)
     {
         try
         {
-            int n = readCollectionSize(input, accessor, version);
-            int offset = sizeOfCollectionSize(n, version);
+            int n = readCollectionSize(input, accessor);
+            int offset = sizeOfCollectionSize();
             for (int i = 0; i < n; i++)
             {
-                V value = readValue(input, accessor, offset, version);
-                offset += sizeOfValue(value, accessor, version);
+                V value = readValue(input, accessor, offset);
+                offset += sizeOfValue(value, accessor);
                 elements.validate(value, accessor);
             }
 
@@ -90,12 +92,13 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         }
     }
 
-    public <V> List<T> deserializeForNativeProtocol(V input, ValueAccessor<V> accessor, ProtocolVersion version)
+    @Override
+    public <V> List<T> deserialize(V input, ValueAccessor<V> accessor)
     {
         try
         {
-            int n = readCollectionSize(input, accessor, version);
-            int offset = sizeOfCollectionSize(n, version);
+            int n = readCollectionSize(input, accessor);
+            int offset = sizeOfCollectionSize();
 
             if (n < 0)
                 throw new MarshalException("The data cannot be deserialized as a list");
@@ -108,8 +111,8 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
             for (int i = 0; i < n; i++)
             {
                 // We can have nulls in lists that are used for IN values
-                V databb = readValue(input, accessor, offset, version);
-                offset += sizeOfValue(databb, accessor, version);
+                V databb = readValue(input, accessor, offset);
+                offset += sizeOfValue(databb, accessor);
                 if (databb != null)
                 {
                     elements.validate(databb, accessor);
@@ -141,8 +144,8 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     {
         try
         {
-            int s = readCollectionSize(input, accessor, ProtocolVersion.V3);
-            int offset = sizeOfCollectionSize(s, ProtocolVersion.V3);
+            int s = readCollectionSize(input, accessor);
+            int offset = sizeOfCollectionSize();
 
             for (int i = 0; i < s; i++)
             {
@@ -177,8 +180,8 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     {
         try
         {
-            int n = readCollectionSize(input, accessor, ProtocolVersion.V3);
-            int offset = sizeOfCollectionSize(n, ProtocolVersion.V3);
+            int n = readCollectionSize(input, accessor);
+            int offset = sizeOfCollectionSize();
             if (n <= index)
                 return null;
 
@@ -187,7 +190,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
                 int length = accessor.getInt(input, offset);
                 offset += TypeSizes.INT_SIZE + length;
             }
-            return readValue(input, accessor, offset, ProtocolVersion.V3);
+            return readValue(input, accessor, offset);
         }
         catch (BufferUnderflowException | IndexOutOfBoundsException e)
         {
@@ -200,6 +203,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         return getElement(input, ByteBufferAccessor.instance, index);
     }
 
+    @Override
     public String toString(List<T> value)
     {
         StringBuilder sb = new StringBuilder();
@@ -217,6 +221,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
         return sb.toString();
     }
 
+    @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public Class<List<T>> getType()
     {

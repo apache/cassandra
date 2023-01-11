@@ -382,7 +382,7 @@ abstract class ColumnTimestamps
             List<ByteBuffer> buffers = new ArrayList<>(timestamps.size());
             timestamps.forEach(timestamp -> buffers.add(type.toByteBuffer(timestamp)));
 
-            return CollectionSerializer.pack(buffers, timestamps.size(), protocolVersion);
+            return CollectionSerializer.pack(buffers, timestamps.size());
         }
 
         @Override
