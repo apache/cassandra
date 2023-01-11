@@ -187,7 +187,7 @@ public class StreamingVirtualTableTest extends CQLTester
             for (int i = 0; i < summary.files - 1; i++)
             {
                 String fileName = summary.tableId + "-" + direction.name().toLowerCase() + "-" + i;
-                state.handleStreamEvent(new ProgressEvent(state.id(), new ProgressInfo((InetAddressAndPort) s.peer, 0, fileName, direction, fileSize, fileSize)));
+                state.handleStreamEvent(new ProgressEvent(state.id(), new ProgressInfo((InetAddressAndPort) s.peer, 0, fileName, direction, fileSize, fileSize, fileSize)));
                 counter += fileSize;
             }
         }
@@ -201,7 +201,7 @@ public class StreamingVirtualTableTest extends CQLTester
         {
             long fileSize = summary.totalSize / summary.files;
             String fileName = summary.tableId + "-" + direction.name().toLowerCase() + "-" + summary.files;
-            state.handleStreamEvent(new ProgressEvent(state.id(), new ProgressInfo((InetAddressAndPort) s.peer, 0, fileName, direction, fileSize, fileSize)));
+            state.handleStreamEvent(new ProgressEvent(state.id(), new ProgressInfo((InetAddressAndPort) s.peer, 0, fileName, direction, fileSize, fileSize, fileSize)));
             counter += fileSize;
         }
         return counter;

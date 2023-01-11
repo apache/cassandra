@@ -57,11 +57,6 @@ public class ProgressInfo implements Serializable
     public final long deltaBytes; // change from previous ProgressInfo
     public final long totalBytes;
 
-    public ProgressInfo(InetAddressAndPort peer, int sessionIndex, String fileName, Direction direction, long currentBytes, long totalBytes)
-    {
-        this(peer, sessionIndex, fileName, direction, currentBytes, currentBytes, totalBytes);
-    }
-
     public ProgressInfo(InetAddressAndPort peer, int sessionIndex, String fileName, Direction direction,
                         long currentBytes,  long deltaBytes, long totalBytes)
     {
