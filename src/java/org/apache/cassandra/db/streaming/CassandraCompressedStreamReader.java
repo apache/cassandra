@@ -78,6 +78,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
             deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
             String filename = writer.getFilename();
+            String sectionName = filename + '-' + fileSeqNum;
             int sectionIdx = 0;
             for (SSTableReader.PartitionPositionBounds section : sections)
             {
@@ -97,7 +98,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
                     long bytesRead = cis.chunkBytesRead();
                     long bytesDelta = bytesRead - lastBytesRead;
                     lastBytesRead = bytesRead;
-                    session.progress(filename + '-' + fileSeqNum, ProgressInfo.Direction.IN, bytesRead, bytesDelta, totalSize);
+                    session.progress(sectionName, ProgressInfo.Direction.IN, bytesRead, bytesDelta, totalSize);
                 }
                 assert in.getBytesRead() == sectionLength;
             }
