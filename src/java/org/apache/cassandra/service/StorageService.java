@@ -3850,9 +3850,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new RuntimeException("Cleanup of the system keyspace is neither necessary nor wise");
 
         InetAddressAndPort localAddress = FBUtilities.getBroadcastAddressAndPort();
-        Integer pendingRangesCount = tokenMetadata.getPendingRanges(keyspaceName, localAddress).size();
-
-        if (pendingRangesCount > 0)
+        if (tokenMetadata.getPendingRanges(keyspaceName, localAddress).size() > 0)
         {
             throw new RuntimeException("Node is involved in cluster membership changes. Not safe to run cleanup.");
         }
