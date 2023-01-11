@@ -53,7 +53,7 @@ using the provided 'sstableupgrade' tool.
 
 
 4.1.1
-===
+=====
 
 G1GC Recommended
 ----------------
@@ -62,6 +62,13 @@ G1GC Recommended
       to G1 for performance and for simpler GC tuning. CMS is already deprecated in JDK9, and the next major
       release of Cassandra makes G1 the default configuration.
 
+Upgrading
+---------
+    - All previous versions of 4.x contained a mistake on the implementation of the old CQL native protocol v3. That
+     mistake produced issues when paging over tables with compact storage and a single clustering column during rolling
+     upgrades involving 3.x and 4.x nodes. The fix for that issue makes it can now appear during rolling upgrades from
+     4.1.0 or 4.0.0-4.0.7. If that is your case, please use protocol v4 or higher in your driver. See CASSANDRA-17507
+     for further details.
 
 4.1
 ===
