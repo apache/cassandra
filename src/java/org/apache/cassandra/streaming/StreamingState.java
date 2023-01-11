@@ -39,7 +39,6 @@ import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -262,8 +261,8 @@ public class StreamingState implements StreamEventHandler
         if (delta < 0)
         {
             NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES,
-                             "[id={}, key={}] Stream event reported a negative delta ({})",
-                             this.id, Pair.create(info.peer, info.fileName), delta);
+                             "[id={}, key={{}, {}, {})] Stream event reported a negative delta ({})",
+                             this.id, info.peer, info.fileName, info.direction, delta);
         }
         if (info.direction == ProgressInfo.Direction.IN)
         {
