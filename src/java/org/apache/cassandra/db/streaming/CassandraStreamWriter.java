@@ -94,6 +94,7 @@ public class CassandraStreamWriter
             long progress = 0L;
 
             // stream each of the required sections of the file
+            String filename = sstable.descriptor.filenameFor(Component.DATA);
             for (SSTableReader.PartitionPositionBounds section : sections)
             {
                 long start = validator == null ? section.lowerPosition : validator.chunkStart(section.lowerPosition);
@@ -114,7 +115,7 @@ public class CassandraStreamWriter
                     bytesRead += lastBytesRead;
                     long delta = lastBytesRead - transferOffset;
                     progress += delta;
-                    session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, delta, totalSize);
+                    session.progress(filename, ProgressInfo.Direction.OUT, progress, delta, totalSize);
                     transferOffset = 0;
                 }
 
