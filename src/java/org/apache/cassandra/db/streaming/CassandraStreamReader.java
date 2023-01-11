@@ -126,11 +126,16 @@ public class CassandraStreamReader implements IStreamReader
             TrackedDataInputPlus in = new TrackedDataInputPlus(streamCompressionInputStream);
             deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
             writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
+            String sequenceName = writer.getFilename() + '-' + fileSeqNum;
+            long lastBytesRead = 0;
             while (in.getBytesRead() < totalSize)
             {
                 writePartition(deserializer, writer);
                 // TODO move this to BytesReadTracker
-                session.progress(writer.getFilename() + '-' + fileSeqNum, ProgressInfo.Direction.IN, in.getBytesRead(), totalSize);
+                long bytesRead = in.getBytesRead();
+                long bytesDelta = bytesRead - lastBytesRead;
+                lastBytesRead = bytesRead;
+                session.progress(sequenceName, ProgressInfo.Direction.IN, bytesRead, bytesDelta, totalSize);
             }
             logger.debug("[Stream #{}] Finished receiving file #{} from {} readBytes = {}, totalSize = {}",
                          session.planId(), fileSeqNum, session.peer, FBUtilities.prettyPrintMemory(in.getBytesRead()), FBUtilities.prettyPrintMemory(totalSize));
