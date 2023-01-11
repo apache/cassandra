@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.cql3;
 
-import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
-
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +44,10 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
+
 /**
  * Static helper methods and classes for lists.
  */
@@ -72,7 +72,7 @@ public abstract class Lists
 
     private static AbstractType<?> elementsType(AbstractType<?> type)
     {
-        return ((ListType) unwrap(type)).getElementsType();
+        return ((ListType<?>) unwrap(type)).getElementsType();
     }
 
     /**
@@ -117,7 +117,7 @@ public abstract class Lists
     public static <T> String listToString(Iterable<T> items, java.util.function.Function<T, String> mapper)
     {
         return StreamSupport.stream(items.spliterator(), false)
-                            .map(e -> mapper.apply(e))
+                            .map(mapper)
                             .collect(Collectors.joining(", ", "[", "]"));
     }
 
@@ -222,15 +222,15 @@ public abstract class Lists
             this.elements = elements;
         }
 
-        public static Value fromSerialized(ByteBuffer value, ListType type, ProtocolVersion version) throws InvalidRequestException
+        public static <T> Value fromSerialized(ByteBuffer value, ListType<T> type) throws InvalidRequestException
         {
             try
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
-                List<?> l = type.getSerializer().deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
+                List<T> l = type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
                 List<ByteBuffer> elements = new ArrayList<>(l.size());
-                for (Object element : l)
+                for (T element : l)
                     // elements can be null in lists that represent a set of IN values
                     elements.add(element == null ? null : type.getElementsType().decompose(element));
                 return new Value(elements);
@@ -241,12 +241,12 @@ public abstract class Lists
             }
         }
 
-        public ByteBuffer get(ProtocolVersion protocolVersion)
+        public ByteBuffer get(ProtocolVersion version)
         {
-            return CollectionSerializer.pack(elements, elements.size(), protocolVersion);
+            return CollectionSerializer.pack(elements, elements.size());
         }
 
-        public boolean equals(ListType lt, Value v)
+        public boolean equals(ListType<?> lt, Value v)
         {
             if (elements.size() != v.elements.size())
                 return false;
@@ -333,7 +333,7 @@ public abstract class Lists
                 return null;
             if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 return UNSET_VALUE;
-            return Value.fromSerialized(value, (ListType)receiver.type, options.getProtocolVersion());
+            return Value.fromSerialized(value, (ListType<?>) receiver.type);
         }
     }
 

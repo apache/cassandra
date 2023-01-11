@@ -220,7 +220,7 @@ public abstract class UserTypes
             return new Value(type, type.split(ByteBufferAccessor.instance, bytes));
         }
 
-        public ByteBuffer get(ProtocolVersion protocolVersion)
+        public ByteBuffer get(ProtocolVersion version)
         {
             return TupleType.buildValue(elements);
         }

@@ -107,14 +107,14 @@ public class FunctionCall extends Term.NonTerminal
             return null;
         if (fun.returnType().isCollection())
         {
-            switch (((CollectionType) fun.returnType()).kind)
+            switch (((CollectionType<?>) fun.returnType()).kind)
             {
                 case LIST:
-                    return Lists.Value.fromSerialized(result, (ListType) fun.returnType(), version);
+                    return Lists.Value.fromSerialized(result, (ListType<?>) fun.returnType());
                 case SET:
-                    return Sets.Value.fromSerialized(result, (SetType) fun.returnType(), version);
+                    return Sets.Value.fromSerialized(result, (SetType<?>) fun.returnType());
                 case MAP:
-                    return Maps.Value.fromSerialized(result, (MapType) fun.returnType(), version);
+                    return Maps.Value.fromSerialized(result, (MapType<?, ?>) fun.returnType());
             }
         }
         else if (fun.returnType().isUDT())

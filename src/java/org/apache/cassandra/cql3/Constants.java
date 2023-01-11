@@ -420,7 +420,7 @@ public abstract class Constants
             this.bytes = bytes;
         }
 
-        public ByteBuffer get(ProtocolVersion protocolVersion)
+        public ByteBuffer get(ProtocolVersion version)
         {
             return bytes;
         }
