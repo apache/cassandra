@@ -187,9 +187,8 @@ public interface Term
 
         /**
          * @return the serialized value of this terminal.
-         * @param protocolVersion
          */
-        public abstract ByteBuffer get(ProtocolVersion protocolVersion) throws InvalidRequestException;
+        public abstract ByteBuffer get(ProtocolVersion version) throws InvalidRequestException;
 
         public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {

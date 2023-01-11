@@ -102,7 +102,7 @@ final class ListSelector extends Selector
         {
             buffers.add(elements.get(i).getOutput(protocolVersion));
         }
-        return CollectionSerializer.pack(buffers, buffers.size(), protocolVersion);
+        return CollectionSerializer.pack(buffers, buffers.size());
     }
 
     public void reset()

@@ -18,12 +18,22 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.serializers.ListSerializer;
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.cql3.*;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
+import org.apache.cassandra.cql3.AbstractMarker;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.Terms;
+import org.apache.cassandra.cql3.Tuples;
 import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -31,8 +41,8 @@ import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.serializers.ListSerializer;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
@@ -258,7 +268,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
                 for (List<ByteBuffer> splitValue : splitValues)
                     values.add(splitValue.get(0));
 
-                ByteBuffer buffer = ListSerializer.pack(values, values.size(), ProtocolVersion.V3);
+                ByteBuffer buffer = ListSerializer.pack(values, values.size());
                 filter.add(getFirstColumn(), Operator.IN, buffer);
             }
             else
@@ -376,7 +386,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         {
             boolean reversed = getFirstColumn().isReversedType();
 
-            EnumMap<Bound, List<ByteBuffer>> componentBounds = new EnumMap<Bound, List<ByteBuffer>>(Bound.class);
+            EnumMap<Bound, List<ByteBuffer>> componentBounds = new EnumMap<>(Bound.class);
             componentBounds.put(Bound.START, componentBounds(Bound.START, options));
             componentBounds.put(Bound.END, componentBounds(Bound.END, options));
 

@@ -145,7 +145,7 @@ public class SetType<T> extends CollectionType<Set<T>>
     public boolean isCompatibleWithFrozen(CollectionType<?> previous)
     {
         assert !isMultiCell;
-        return this.elements.isCompatibleWith(((SetType) previous).elements);
+        return this.elements.isCompatibleWith(((SetType<?>) previous).elements);
     }
 
     @Override
@@ -194,7 +194,7 @@ public class SetType<T> extends CollectionType<Set<T>>
 
     public List<ByteBuffer> serializedValues(Iterator<Cell<?>> cells)
     {
-        List<ByteBuffer> bbs = new ArrayList<ByteBuffer>();
+        List<ByteBuffer> bbs = new ArrayList<>();
         while (cells.hasNext())
             bbs.add(cells.next().path().get(0));
         return bbs;
@@ -210,7 +210,7 @@ public class SetType<T> extends CollectionType<Set<T>>
             throw new MarshalException(String.format(
                     "Expected a list (representing a set), but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
 
-        List list = (List) parsed;
+        List<?> list = (List<?>) parsed;
         Set<Term> terms = new HashSet<>(list.size());
         for (Object element : list)
         {
@@ -229,8 +229,8 @@ public class SetType<T> extends CollectionType<Set<T>>
     }
 
     @Override
-    public void forEach(ByteBuffer input, ProtocolVersion version, Consumer<ByteBuffer> action)
+    public void forEach(ByteBuffer input, Consumer<ByteBuffer> action)
     {
-        serializer.forEach(input, version, action);
+        serializer.forEach(input, action);
     }
 }

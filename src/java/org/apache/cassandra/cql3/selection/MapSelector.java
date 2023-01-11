@@ -218,7 +218,7 @@ final class MapSelector extends Selector
             buffers.add(entry.getKey());
             buffers.add(entry.getValue());
         }
-        return CollectionSerializer.pack(buffers, elements.size(), protocolVersion);
+        return CollectionSerializer.pack(buffers, elements.size());
     }
 
     public void reset()
