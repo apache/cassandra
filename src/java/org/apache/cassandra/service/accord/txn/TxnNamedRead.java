@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.txn;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import accord.api.Data;
 import accord.local.SafeCommandStore;
@@ -116,8 +117,13 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
     public Future<Data> read(boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
     {
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) get();
-        AccordCommandsForKey cfk = ((SafeAccordCommandStore)safeStore).commandsForKey(key);
-        int nowInSeconds = cfk.nowInSecondsFor(executeAt, isForWriteTxn);
+        // TODO (required, safety): before release, double check reasoning that this is safe
+//        AccordCommandsForKey cfk = ((SafeAccordCommandStore)safeStore).commandsForKey(key);
+//        int nowInSeconds = cfk.nowInSecondsFor(executeAt, isForWriteTxn);
+        // It's fine for our nowInSeconds to lag slightly our insertion timestamp, as to the user
+        // this simply looks like the transaction witnessed TTL'd data and the data then expired
+        // immediately after the transaction executed, and this simplifies things a great deal
+        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
 
         return Stage.READ.submit(() ->
         {
