@@ -122,7 +122,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                              prettyPrintMemory(totalSize));
 
                 writer.writeComponent(component.type, in, length);
-                session.progress(writer.descriptor.filenameFor(component), ProgressInfo.Direction.IN, length, length);
+                session.progress(writer.descriptor.filenameFor(component), ProgressInfo.Direction.IN, length, length, length);
                 bytesRead += length;
 
                 logger.debug("[Stream #{}] Finished receiving {} component from {}, componentSize = {}, readBytes = {}, totalSize = {}",
