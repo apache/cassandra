@@ -1028,6 +1028,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public void progress(String filename, ProgressInfo.Direction direction, long bytes, long delta, long total)
     {
+        if (delta < 0)
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES,
+                             "[id={}, key={{}, {}, {})] Stream event reported a negative delta ({})",
+                             planId(), peer, filename, direction, delta);
         ProgressInfo progress = new ProgressInfo(peer, index, filename, direction, bytes, delta, total);
         streamResult.handleProgress(progress);
     }
