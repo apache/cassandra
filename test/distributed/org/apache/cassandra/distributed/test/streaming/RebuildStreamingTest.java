@@ -18,6 +18,7 @@
 package org.apache.cassandra.distributed.test.streaming;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 
 import org.junit.Test;
@@ -29,28 +30,49 @@ import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
+import org.assertj.core.api.Assertions;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class RebuildStreamingTest extends TestBaseImpl
 {
+    private static final ByteBuffer BLOB = ByteBuffer.wrap(new byte[1 << 16]);
+    // zero copy streaming sends all components, so the events will include non-Data files as well
+    private static final int NUM_COMPONENTS = 7;
+
     @Test
-    public void test() throws IOException
+    public void zeroCopy() throws IOException
+    {
+        test(true);
+    }
+
+    @Test
+    public void notZeroCopy() throws IOException
+    {
+        test(false);
+    }
+
+    private void test(boolean zeroCopyStreaming) throws IOException
     {
         try (Cluster cluster = init(Cluster.build(2)
-                                           .withConfig(c -> c.with(Feature.values()).set("stream_entire_sstables", false))
+                                           .withConfig(c -> c.with(Feature.values())
+                                                             .set("stream_entire_sstables", zeroCopyStreaming).set("streaming_slow_events_log_timeout", "0s"))
                                            .start()))
         {
-            cluster.schemaChange(withKeyspace("CREATE TABLE %s.users (user_id varchar PRIMARY KEY);"));
+            // streaming sends events every 65k, so need to make sure that the files are larger than this to hit
+            // all cases of the vtable
+            cluster.schemaChange(withKeyspace("CREATE TABLE %s.users (user_id varchar, spacing blob, PRIMARY KEY (user_id)) WITH compression = { 'enabled' : false };"));
             cluster.stream().forEach(i -> i.nodetoolResult("disableautocompaction", KEYSPACE).asserts().success());
             IInvokableInstance first = cluster.get(1);
             IInvokableInstance second = cluster.get(2);
             long expectedFiles = 10;
             for (int i = 0; i < expectedFiles; i++)
             {
-                first.executeInternal(withKeyspace("insert into %s.users(user_id) values (?)"), "dcapwell" + i);
+                first.executeInternal(withKeyspace("insert into %s.users(user_id, spacing) values (?, ? )"), "dcapwell" + i, BLOB);
                 first.flush(KEYSPACE);
             }
+            if (zeroCopyStreaming) // will include all components so need to account for
+                expectedFiles *= NUM_COMPONENTS;
 
             second.nodetoolResult("rebuild", "--keyspace", KEYSPACE).asserts().success();
 
@@ -91,6 +113,9 @@ public class RebuildStreamingTest extends TestBaseImpl
                            .columnsEqualTo("files_to_receive", "files_received").isEqualTo("files_received", expectedFiles)
                            .columnsEqualTo("bytes_to_receive", "bytes_received").isEqualTo("bytes_received", totalBytes)
                            .columnsEqualTo("files_sent", "files_to_send", "bytes_sent", "bytes_to_send").isEqualTo("files_sent", 0L);
+
+            // did we trigger slow event log?
+            cluster.forEach(i -> Assertions.assertThat(i.logs().grep("Handling streaming events took longer than").getResult()).describedAs("Unable to find slow log for node%d", i.config().num()).isNotEmpty());
         }
     }
 }

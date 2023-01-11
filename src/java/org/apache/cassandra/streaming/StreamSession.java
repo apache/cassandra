@@ -148,6 +148,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
 
+    public enum PrepareDirection { SEND, ACK }
+
     // for test purpose to record received message and state transition
     public volatile static MessageStateSink sink = MessageStateSink.NONE;
 
@@ -738,7 +740,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             for (StreamTransferTask task : transfers.values())
                 prepareSynAck.summaries.add(task.getSummary());
 
-        streamResult.handleSessionPrepared(this);
+        streamResult.handleSessionPrepared(this, PrepareDirection.SEND);
         // After sending the message the initiator can close the channel which will cause a ClosedChannelException
         // in buffer logic, this then gets sent to onError which validates the state isFinalState, if not fails
         // the session.  To avoid a race condition between sending and setting state, make sure to update the state
@@ -769,14 +771,14 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         if (isPreview())
             completePreview();
         else
-            startStreamingFiles(true);
+            startStreamingFiles(PrepareDirection.ACK);
     }
 
     private void prepareAck(PrepareAckMessage msg)
     {
         if (isPreview())
             throw new RuntimeException(String.format("[Stream #%s] Cannot receive PrepareAckMessage for preview session", planId()));
-        startStreamingFiles(true);
+        startStreamingFiles(PrepareDirection.ACK);
     }
 
     /**
@@ -845,9 +847,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
     }
 
-    public void progress(String filename, ProgressInfo.Direction direction, long bytes, long total)
+    public void progress(String filename, ProgressInfo.Direction direction, long bytes, long delta, long total)
     {
-        ProgressInfo progress = new ProgressInfo(peer, index, filename, direction, bytes, total);
+        if (delta < 0)
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES,
+                             "[id={}, key={{}, {}, {})] Stream event reported a negative delta ({})",
+                             planId(), peer, filename, direction, delta);
+        ProgressInfo progress = new ProgressInfo(peer, index, filename, direction, bytes, delta, total);
         streamResult.handleProgress(progress);
     }
 
@@ -1008,10 +1014,10 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             receivers.put(summary.tableId, new StreamReceiveTask(this, summary.tableId, summary.files, summary.totalSize));
     }
 
-    private void startStreamingFiles(boolean notifyPrepared)
+    private void startStreamingFiles(@Nullable PrepareDirection prepareDirection)
     {
-        if (notifyPrepared)
-            streamResult.handleSessionPrepared(this);
+        if (prepareDirection != null)
+            streamResult.handleSessionPrepared(this, prepareDirection);
 
         state(State.STREAMING);
 

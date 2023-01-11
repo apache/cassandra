@@ -87,11 +87,13 @@ public abstract class StreamEvent
     public static class SessionPreparedEvent extends StreamEvent
     {
         public final SessionInfo session;
+        public final StreamSession.PrepareDirection prepareDirection;
 
-        public SessionPreparedEvent(TimeUUID planId, SessionInfo session)
+        public SessionPreparedEvent(TimeUUID planId, SessionInfo session, StreamSession.PrepareDirection prepareDirection)
         {
             super(Type.STREAM_PREPARED, planId);
             this.session = session;
+            this.prepareDirection = prepareDirection;
         }
     }
 }

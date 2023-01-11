@@ -1161,6 +1161,16 @@ slow_query_log_timeout: 500ms
 # bound (for example a few nodes with big files).
 # streaming_connections_per_host: 1
 
+# Settings for stream stats tracking; used by system_views.streaming table
+# How long before a stream is evicted from tracking; this impacts both historic and currently running
+# streams.
+# streaming_state_expires: 3d
+# How much memory may be used for tracking before evicting session from tracking; once crossed
+# historic and currently running streams maybe impacted.
+# streaming_state_size: 40MiB
+# Enable/Disable tracking of streaming stats
+# streaming_stats_enabled: true
+
 # Allows denying configurable access (rw/rr) to operations on configured ks, table, and partitions, intended for use by
 # operators to manage cluster health vs application access. See CASSANDRA-12106 and CEP-13 for more details.
 # partition_denylist_enabled: false
