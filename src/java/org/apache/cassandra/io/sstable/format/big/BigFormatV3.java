@@ -117,7 +117,7 @@ public class BigFormatV3 implements SSTableFormat
         @Override
         public SSTableReader open(SSTableReaderBuilder builder)
         {
-            return new BigTableReader(builder);
+            return new BigTableReader  (builder);
         }
     }
 
@@ -130,7 +130,7 @@ public class BigFormatV3 implements SSTableFormat
     static class BigVersion extends Version
     {
         public static final String current_version = "me";
-        public static final String earliest_supported_version = "jb";
+        public static final String earliest_supported_version = "ma";
 
         // jb (2.0.1): switch from crc32 to adler32 for compression checksums
         //             checksum the compressed data

@@ -44,7 +44,7 @@ public interface SSTableFormat
     {
         //The original sstable format
         BIG("big", BigFormat.instance),
-        V3("bigv3", BigFormatV3.instance);
+        V3("big", BigFormatV3.instance);
 
         public final SSTableFormat info;
         public final String name;
