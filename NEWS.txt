@@ -124,6 +124,11 @@ Upgrading
       will stop to create ephemeral marker files as flag in a snapshot manifest was introduced instead.
     - There were new table properties introduced called 'allow_auto_snapshot' and 'incremental_backups' (see section 'New features'). Hence, upgraded
       node will be on a new schema version. Please do a rolling upgrade of nodes of a cluster to converge to one schema version.
+    - All previous versions of 4.x contained a mistake on the implementation of the old CQL native protocol v3. That
+     mistake produced issues when paging over tables with compact storage and a single clustering column during rolling
+     upgrades involving 3.x and 4.x nodes. The fix for that issue makes it can now appear during rolling upgrades from
+     4.1.0 or 4.0.0-4.0.7. If that is your case, please use protocol v4 or higher in your driver. See CASSANDRA-17507
+     for further details.
 
 Deprecation
 -----------
