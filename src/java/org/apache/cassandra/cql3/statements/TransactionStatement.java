@@ -178,6 +178,7 @@ public class TransactionStatement implements CQLStatement
 
         if (selectQuery.queries.size() != 1)
             throw new IllegalArgumentException("Within a transaction, SELECT statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
+
         return new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries));
     }
 
