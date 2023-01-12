@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.Predicate;
 
+import com.google.monitoring.runtime.instrumentation.common.collect.Iterators;
 import org.apache.cassandra.distributed.api.Row;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
@@ -175,6 +176,12 @@ public class QueryResultUtil
         {
             Assertions.assertThat(qr.toObjectArrays()).hasSizeGreaterThan(size);
             return this;
+        }
+
+        public void isEmpty()
+        {
+            int size = Iterators.size(qr);
+            Assertions.assertThat(size).describedAs("QueryResult is not empty").isEqualTo(0);
         }
     }
 }
