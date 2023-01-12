@@ -193,8 +193,7 @@ public class TransactionStatement implements CQLStatement
 
         if (selectQuery.queries.size() == 1)
             return Collections.singletonList(new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries)));
-
-        // multi partitions on the same table are only allowed for the returning clause
+        
         List<TxnNamedRead> list = new ArrayList<>(selectQuery.queries.size());
         for (int i = 0; i < selectQuery.queries.size(); i++)
             list.add(new TxnNamedRead(TxnDataName.returning(i), selectQuery.queries.get(i)));
