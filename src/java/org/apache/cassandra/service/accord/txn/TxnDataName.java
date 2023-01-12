@@ -90,6 +90,11 @@ public class TxnDataName implements Comparable<TxnDataName>
         return RETURNING;
     }
 
+    public static TxnDataName returning(int index)
+    {
+        return new TxnDataName(Kind.RETURNING, Integer.toString(index));
+    }
+
     public static TxnDataName partitionRead(TableMetadata metadata, DecoratedKey key, int index)
     {
         return new TxnDataName(Kind.AUTO_READ, metadata.keyspace, metadata.name, bytesToString(key.getKey()), String.valueOf(index));
