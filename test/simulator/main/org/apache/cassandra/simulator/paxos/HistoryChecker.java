@@ -127,13 +127,23 @@ class HistoryChecker
         return byId[id] = event;
     }
 
-    void witness(Observation witness, int[] witnessSequence, int start, int end)
+    private static int eventId(int[] witnessSequence, int eventPosition)
+    {
+        return eventPosition == 0 ? -1 : witnessSequence[eventPosition - 1];
+    }
+
+    void witness(Observation witness, int[] witnessSequence)
+    {
+        witness(witness.id, witnessSequence, witness.start, witness.end);
+    }
+
+    void witness(int id, int[] witnessSequence, int start, int end)
     {
         int eventPosition = witnessSequence.length;
-        int eventId = eventPosition == 0 ? -1 : witnessSequence[eventPosition - 1];
-        setById(witness.id, new Event(witness.id)).log.add(new VerboseWitness(witness.id, start, end, witnessSequence));
+        int eventId = eventId(witnessSequence, eventPosition);
+        setById(id, new Event(id)).log.add(new VerboseWitness(id, start, end, witnessSequence));
         Event event = get(eventPosition, eventId);
-        recordWitness(event, witness, witnessSequence);
+        recordWitness(event, id, start, end, witnessSequence);
         recordVisibleBy(event, end);
         recordVisibleUntil(event, start);
 
@@ -154,7 +164,7 @@ class HistoryChecker
                     }
                     else if (e.result)
                     {
-                        throw fail(primaryKey, "%d witnessed as absent by %d", e.eventId, witness.id);
+                        throw fail(primaryKey, "%d witnessed as absent by %d", e.eventId, id);
                     }
                 }
             }
@@ -181,16 +191,16 @@ class HistoryChecker
         }
     }
 
-    void recordWitness(Event event, Observation witness, int[] witnessSequence)
+    void recordWitness(Event event, int id, int start, int end, int[] witnessSequence)
     {
-        recordWitness(event, witness, witnessSequence.length, witnessSequence);
+        recordWitness(event, id, start, end, witnessSequence.length, witnessSequence);
     }
 
-    void recordWitness(Event event, Observation witness, int eventPosition, int[] witnessSequence)
+    void recordWitness(Event event, int id, int start, int end, int eventPosition, int[] witnessSequence)
     {
         while (true)
         {
-            event.log.add(new Witness(READ, witness.id, witness.start, witness.end));
+            event.log.add(new Witness(READ, id, start, end));
             if (event.witnessSequence != null)
             {
                 if (!Arrays.equals(event.witnessSequence, witnessSequence))
@@ -238,7 +248,7 @@ class HistoryChecker
             event.visibleUntil = visibleUntil;
             Event next = next(event);
             if (next != null && visibleUntil >= next.visibleBy)
-                throw fail(primaryKey, "%s %d not witnessed >= %d, but also witnessed <= %d", next.witnessSequence, next.eventId, event.visibleUntil, next.visibleBy);
+                throw fail(primaryKey, "%s+%d not witnessed >= %d, but also witnessed <= %d", next.witnessSequence, next.eventId, event.visibleUntil, next.visibleBy);
         }
     }
 
@@ -295,7 +305,7 @@ class HistoryChecker
             return null;
 
         // initialise the event, if necessary importing information from byId
-        return get(eventPosition, eventPosition == 0 ? -1 : event.witnessSequence[eventPosition - 1]);
+        return get(eventPosition, eventId(event.witnessSequence, eventPosition));
     }
 
     Event next(Event event)

@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.LongSupplier;
@@ -143,11 +144,16 @@ public class AccordTestUtils
         return createTxn(query, QueryOptions.DEFAULT);
     }
 
-    public static Txn createTxn(String cql, QueryOptions options)
+    public static Txn createTxn(String query, List<Object> binds)
     {
-        TransactionStatement.Parsed parsed = (TransactionStatement.Parsed) QueryProcessor.parseStatement(cql);
-        Assert.assertNotNull(parsed);
-        TransactionStatement statement = (TransactionStatement) parsed.prepare(ClientState.forInternalCalls());
+        TransactionStatement statement = parse(query);
+        QueryOptions options = QueryProcessor.makeInternalOptions(statement, binds.toArray(new Object[binds.size()]));
+        return statement.createTxn(ClientState.forInternalCalls(), options);
+    }
+
+    public static Txn createTxn(String query, QueryOptions options)
+    {
+        TransactionStatement statement = parse(query);
         return statement.createTxn(ClientState.forInternalCalls(), options);
     }
 
