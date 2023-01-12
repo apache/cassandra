@@ -18,9 +18,13 @@
 
 package org.apache.cassandra.simulator.paxos;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
@@ -29,9 +33,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.Row;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.impl.Query;
+import org.apache.cassandra.simulator.Action;
+import org.apache.cassandra.simulator.ActionListener;
+import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
-import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -40,6 +49,7 @@ import static java.lang.Boolean.TRUE;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
+import static org.apache.cassandra.simulator.Debug.EventType.PARTITION;
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.fail;
 
 @SuppressWarnings("unused")
@@ -49,7 +59,7 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
     private static final String UPDATE = "UPDATE " + KEYSPACE + ".tbl SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS";
     private static final String SELECT = "SELECT pk, count, seq1, seq2 FROM  " + KEYSPACE + ".tbl WHERE pk = ?";
 
-    class VerifyingOperation extends Operation
+    class VerifyingOperation extends PaxosOperation
     {
         final HistoryChecker historyChecker;
         public VerifyingOperation(int id, IInvokableInstance instance, ConsistencyLevel consistencyLevel, int primaryKey, HistoryChecker historyChecker)
@@ -60,23 +70,26 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
 
         void verify(Observation outcome)
         {
-            (outcome.result != null ? successfulReads : failedReads).incrementAndGet();
+            SimpleQueryResult result = outcome.result;
+            (result != null ? successfulReads : failedReads).incrementAndGet();
 
-            if (outcome.result == null)
+            if (result == null)
                 return;
 
-            if (outcome.result.length != 1)
-                throw fail(primaryKey, "#result (%s) != 1", Arrays.toString(outcome.result));
+            if (!result.hasNext())
+                throw fail(primaryKey, "#result: ([]) != 1");
 
-            Object[] row = outcome.result[0];
+            // pk, count, seq1, seq2
+            Row row = result.next();
+
             // first verify internally consistent
-            int count = row[1] == null ? 0 : (Integer) row[1];
-            int[] seq1 = Arrays.stream((row[2] == null ? "" : (String) row[2]).split(","))
+            int count = row.getInteger("count", 0);
+            int[] seq1 = Arrays.stream(row.getString("seq1", "").split(","))
                                .filter(s -> !s.isEmpty())
                                .mapToInt(Integer::parseInt)
                                .toArray();
-            int[] seq2 = ((List<Integer>) (row[3] == null ? emptyList() : row[3]))
-                         .stream().mapToInt(x -> x).toArray();
+
+            int[] seq2 = row.<Integer>getList("seq2", emptyList()).stream().mapToInt(x -> x).toArray();
 
             if (!Arrays.equals(seq1, seq2))
                 throw fail(primaryKey, "%s != %s", seq1, seq2);
@@ -84,11 +97,24 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
             if (seq1.length != count)
                 throw fail(primaryKey, "%d != #%s", count, seq1);
 
-            historyChecker.witness(outcome, seq1, outcome.start, outcome.end);
+            if (result.hasNext())
+                throw fail(primaryKey, "#result (%s) != 1", ArrayUtils.toString(result.toObjectArrays()));
+
+            historyChecker.witness(outcome, seq1);
         }
     }
 
-    class NonVerifyingOperation extends Operation
+    private abstract class PaxosOperation extends Operation
+    {
+        final int primaryKey;
+        PaxosOperation(int primaryKey, int id, IInvokableInstance instance, String idString, String query, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, Object... params)
+        {
+            super(new int[] {primaryKey}, id, instance, idString, new Query(query, -1, commitConsistency, serialConsistency, params));
+            this.primaryKey = primaryKey;
+        }
+    }
+
+    class NonVerifyingOperation extends PaxosOperation
     {
         public NonVerifyingOperation(int id, IInvokableInstance instance, ConsistencyLevel consistencyLevel, int primaryKey, HistoryChecker historyChecker)
         {
@@ -100,7 +126,7 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
         }
     }
 
-    public class ModifyingOperation extends Operation
+    public class ModifyingOperation extends PaxosOperation
     {
         final HistoryChecker historyChecker;
         public ModifyingOperation(int id, IInvokableInstance instance, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, int primaryKey, HistoryChecker historyChecker)
@@ -111,17 +137,22 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
 
         void verify(Observation outcome)
         {
-            (outcome.result != null ? successfulWrites : failedWrites).incrementAndGet();
-            if (outcome.result != null)
+            SimpleQueryResult result = outcome.result;
+            (result != null ? successfulWrites : failedWrites).incrementAndGet();
+            if (result != null)
             {
-                if (outcome.result.length != 1)
-                    throw fail(primaryKey, "Paxos Result: 1 != #%s", ArrayUtils.toString(outcome.result));
-                if (outcome.result[0][0] != TRUE)
+                if (!result.hasNext())
+                    throw fail(primaryKey, "Paxos Result: 1 != #[]");
+                if (result.next().getBoolean(0) != TRUE)
                     throw fail(primaryKey, "Result != TRUE");
+                if (result.hasNext())
+                    throw fail(primaryKey, "Paxos Result: 1 != #%s", ArrayUtils.toString(result.toObjectArrays()));
             }
-            historyChecker.applied(outcome.id, outcome.start, outcome.end, outcome.result != null);
+            historyChecker.applied(outcome.id, outcome.start, outcome.end, outcome.isSuccess());
         }
     }
+
+    final List<HistoryChecker> historyCheckers = new ArrayList<>();
 
     public PairOfSequencesPaxosSimulation(SimulatedSystems simulated,
                                           Cluster cluster,
@@ -141,6 +172,84 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
     }
 
     @Override
+    BiFunction<SimulatedSystems, int[], Supplier<Action>> actionFactory()
+    {
+        final int nodes = cluster.size();
+        for (int primaryKey : primaryKeys)
+            historyCheckers.add(new HistoryChecker(primaryKey));
+
+        List<Supplier<Action>> primaryKeyActions = new ArrayList<>();
+        for (int pki = 0 ; pki < primaryKeys.length ; ++pki)
+        {
+            int primaryKey = primaryKeys[pki];
+            HistoryChecker historyChecker = historyCheckers.get(pki);
+            Supplier<Action> supplier = new Supplier<Action>()
+            {
+                int i = 0;
+
+                @Override
+                public Action get()
+                {
+                    int node = simulated.random.uniform(1, nodes + 1);
+                    IInvokableInstance instance = cluster.get(node);
+                    switch (serialConsistency)
+                    {
+                        default: throw new AssertionError();
+                        case LOCAL_SERIAL:
+                            if (simulated.snitch.dcOf(node) > 0)
+                            {
+                                // perform some queries against these nodes but don't expect them to be linearizable
+                                return nonVerifying(i++, instance, primaryKey, historyChecker);
+                            }
+                        case SERIAL:
+                            return simulated.random.decide(readRatio)
+                                   ? verifying(i++, instance, primaryKey, historyChecker)
+                                   : modifying(i++, instance, primaryKey, historyChecker);
+                    }
+                }
+
+                @Override
+                public String toString()
+                {
+                    return Integer.toString(primaryKey);
+                }
+            };
+
+            final ActionListener listener = debug.debug(PARTITION, simulated.time, cluster, KEYSPACE, primaryKey);
+            if (listener != null)
+            {
+                Supplier<Action> wrap = supplier;
+                supplier = new Supplier<Action>()
+                {
+                    @Override
+                    public Action get()
+                    {
+                        Action action = wrap.get();
+                        action.register(listener);
+                        return action;
+                    }
+
+                    @Override
+                    public String toString()
+                    {
+                        return wrap.toString();
+                    }
+                };
+            }
+
+            primaryKeyActions.add(supplier);
+        }
+        return (ignore, primaryKeyIndex) -> primaryKeyActions.get(only(primaryKeyIndex));
+    }
+
+    private static int only(int[] array)
+    {
+        if (array.length != 1)
+            throw new AssertionError("Require only 1 element but found array " + Arrays.toString(array));
+        return array[0];
+    }
+
+    @Override
     protected String createTableStmt()
     {
         return "CREATE TABLE " + KEYSPACE + ".tbl (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))";
@@ -152,22 +261,26 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
         return "INSERT INTO " + KEYSPACE + ".tbl (pk, count, seq1, seq2) VALUES (?, 0, '', []) USING TIMESTAMP 0";
     }
 
-    @Override
-    Operation verifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker)
+    private Operation verifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker)
     {
         return new VerifyingOperation(operationId, instance, serialConsistency, primaryKey, historyChecker);
     }
 
-    @Override
-    Operation nonVerifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker)
+    private Operation nonVerifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker)
     {
         return new NonVerifyingOperation(operationId, instance, serialConsistency, primaryKey, historyChecker);
     }
 
-    @Override
-    Operation modifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker)
+    private Operation modifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker)
     {
         return new ModifyingOperation(operationId, instance, ANY, serialConsistency, primaryKey, historyChecker);
+    }
+
+    @Override
+    void log(@Nullable Integer primaryKey)
+    {
+        if (primaryKey == null) historyCheckers.forEach(HistoryChecker::print);
+        else historyCheckers.stream().filter(h -> h.primaryKey == primaryKey).forEach(HistoryChecker::print);
     }
 
     @Override

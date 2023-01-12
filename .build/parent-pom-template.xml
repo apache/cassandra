@@ -680,6 +680,27 @@
         <version>1.0-SNAPSHOT</version>
       </dependency>
       <dependency>
+        <groupId>accord</groupId>
+        <artifactId>accord</artifactId>
+        <version>1.0-SNAPSHOT</version>
+        <classifier>tests</classifier>
+        <scope>test</scope>
+        <exclusions>
+          <exclusion>
+            <artifactId>org.junit.jupiter</artifactId>
+            <groupId>junit-jupiter-api</groupId>
+          </exclusion>
+          <exclusion>
+            <artifactId>org.junit.jupiter</artifactId>
+            <groupId>junit-jupiter-engine</groupId>
+          </exclusion>
+          <exclusion>
+            <artifactId>ch.qos.logback</artifactId>
+            <groupId>logback-classic</groupId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
         <groupId>io.airlift</groupId>
         <artifactId>airline</artifactId>
         <version>0.8</version>

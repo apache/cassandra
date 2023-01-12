@@ -127,5 +127,10 @@
       <groupId>com.fasterxml.jackson.dataformat</groupId>
       <artifactId>jackson-dataformat-yaml</artifactId>
     </dependency>
+    <dependency>
+      <groupId>accord</groupId>
+      <artifactId>accord</artifactId>
+      <classifier>tests</classifier>
+    </dependency>
   </dependencies>
 </project>
