@@ -180,7 +180,7 @@ public class TransactionStatement implements CQLStatement
         if (selectQuery.queries.size() != 1)
         {
             if (!TxnDataName.returning().equals(namedSelect.name))
-                throw new IllegalArgumentException("Within a transaction, SELECT statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
+                throw new IllegalArgumentException("Within a transaction, implicit reads and reads within LET statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
             // multi partitions on the same table are only allowed for the returning clause
             return IntStream.range(0, selectQuery.queries.size())
                             .mapToObj(i -> new TxnNamedRead(TxnDataName.returning(i), selectQuery.queries.get(i)))
