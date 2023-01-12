@@ -195,7 +195,10 @@ public class CompactionController extends AbstractCompactionController
         }
 
         for (Memtable memtable : cfStore.getTracker().getView().getAllMemtables())
-            minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
+        {
+            if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
+                minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
+        }
 
         // At this point, minTimestamp denotes the lowest timestamp of any relevant
         // SSTable or Memtable that contains a constructive value. candidates contains all the
@@ -257,10 +260,13 @@ public class CompactionController extends AbstractCompactionController
 
         for (Memtable memtable : memtables)
         {
-            if (memtable.rowIterator(key) != null)
+            if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
             {
-                minTimestampSeen = Math.min(minTimestampSeen, memtable.getMinTimestamp());
-                hasTimestamp = true;
+                if (memtable.rowIterator(key) != null)
+                {
+                    minTimestampSeen = Math.min(minTimestampSeen, memtable.getMinTimestamp());
+                    hasTimestamp = true;
+                }
             }
         }
 
