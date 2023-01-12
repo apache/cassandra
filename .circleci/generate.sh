@@ -19,6 +19,7 @@
 
 BASEDIR=`dirname $0`
 BASE_BRANCH=cassandra-3.11
+set -e
 
 die ()
 {
