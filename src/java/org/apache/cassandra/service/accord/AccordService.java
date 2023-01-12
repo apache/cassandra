@@ -27,6 +27,7 @@ import java.util.concurrent.TimeoutException;
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Result;
+import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
 import accord.impl.SimpleProgressLog;
 import accord.impl.SizeOfIntersectionSorter;
@@ -40,6 +41,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.metrics.AccordClientRequestMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
@@ -53,9 +55,13 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentAccordOps;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordService implements Shutdownable
 {
+    public static final AccordClientRequestMetrics readMetrics = new AccordClientRequestMetrics("AccordRead");
+    public static final AccordClientRequestMetrics writeMetrics = new AccordClientRequestMetrics("AccordWrite");
+
     public final Node node;
     private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
@@ -122,8 +128,11 @@ public class AccordService implements Shutdownable
      */
     public TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel)
     {
+        AccordClientRequestMetrics metrics = txn.isWrite() ? writeMetrics : readMetrics;
+        final long startNanos = nanoTime();
         try
         {
+            metrics.keySize.update(txn.keys().size());
             Future<Result> future = node.coordinate(txn);
             Result result = future.get(DatabaseDescriptor.getTransactionTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
             return (TxnData) result;
@@ -132,16 +141,34 @@ public class AccordService implements Shutdownable
         {
             Throwable cause = e.getCause();
             if (cause instanceof Timeout)
+            {
+                metrics.timeouts.mark();
                 throw throwTimeout(txn, consistencyLevel);
+            }
+            if (cause instanceof Preempted)
+            {
+                metrics.preempts.mark();
+                //TODO need to improve
+                // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
+                // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
+                throw throwTimeout(txn, consistencyLevel);
+            }
+            metrics.failures.mark();
             throw new RuntimeException(cause);
         }
         catch (InterruptedException e)
         {
+            metrics.failures.mark();
             throw new UncheckedInterruptedException(e);
         }
         catch (TimeoutException e)
         {
+            metrics.timeouts.mark();
             throw throwTimeout(txn, consistencyLevel);
+        }
+        finally
+        {
+            metrics.addNano(nanoTime() - startNanos);
         }
     }
 

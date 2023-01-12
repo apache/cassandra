@@ -18,40 +18,35 @@
 
 package org.apache.cassandra.simulator.paxos;
 
-import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import javax.annotation.Nullable;
 
-class Observation implements Comparable<Observation>
+public interface HistoryValidator
 {
-    final int id;
-    final SimpleQueryResult result;
-    final int start;
-    final int end;
+    Checker witness(int start, int end);
 
-    Observation(int id, SimpleQueryResult result, int start, int end)
+    void print(@Nullable Integer pk);
+
+    interface Checker extends AutoCloseable
     {
-        this.id = id;
-        this.result = result;
-        this.start = start;
-        this.end = end;
+        void read(int pk, int id, int count, int[] seq);
+        void write(int pk, int id, boolean success);
+
+        default void writeSuccess(int pk, int id)
+        {
+            write(pk, id, true);
+        }
+
+        default void writeUnknownFailure(int pk, int id)
+        {
+            write(pk, id, false);
+        }
+
+        @Override
+        default void close() {}
     }
 
-    boolean isSuccess()
+    interface Factory
     {
-        return result != null;
-    }
-
-    boolean isUnknownFailure()
-    {
-        return result == null;
-    }
-
-    // computes a PARTIAL ORDER on when the outcome occurred, i.e. for many pair-wise comparisons the answer is 0
-    public int compareTo(Observation that)
-    {
-        if (this.end < that.start)
-            return -1;
-        if (that.end < this.start)
-            return 1;
-        return 0;
+        HistoryValidator create(int[] partitions);
     }
 }
