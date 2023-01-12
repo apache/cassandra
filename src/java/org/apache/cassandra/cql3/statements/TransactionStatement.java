@@ -182,6 +182,24 @@ public class TransactionStatement implements CQLStatement
         return new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries));
     }
 
+    List<TxnNamedRead> createNamedReads(NamedSelect namedSelect, QueryOptions options)
+    {
+        SelectStatement select = namedSelect.select;
+        ReadQuery readQuery = select.getQuery(options, 0);
+
+        // We reject reads from both LET and SELECT that do not specify a single row.
+        @SuppressWarnings("unchecked")
+        SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
+
+        if (selectQuery.queries.size() == 1)
+            return Collections.singletonList(new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries)));
+
+        List<TxnNamedRead> list = new ArrayList<>(selectQuery.queries.size());
+        for (int i = 0; i < selectQuery.queries.size(); i++)
+            list.add(new TxnNamedRead(TxnDataName.returning(i), selectQuery.queries.get(i)));
+        return list;
+    }
+
     private List<TxnNamedRead> createNamedReads(QueryOptions options, Consumer<Key> keyConsumer)
     {
         List<TxnNamedRead> reads = new ArrayList<>(assignments.size() + 1);
@@ -195,9 +213,11 @@ public class TransactionStatement implements CQLStatement
 
         if (returningSelect != null)
         {
-            TxnNamedRead read = createNamedRead(returningSelect, options);
-            keyConsumer.accept(read.key());
-            reads.add(read);
+            for (TxnNamedRead read : createNamedReads(returningSelect, options))
+            {
+                keyConsumer.accept(read.key());
+                reads.add(read);
+            }
         }
 
         for (NamedSelect select : autoReads.values())
@@ -314,10 +334,23 @@ public class TransactionStatement implements CQLStatement
 
             if (returningSelect != null)
             {
-                FilteredPartition partition = data.get(TxnDataName.returning());
+                SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) returningSelect.select.getQuery(options, 0);
                 Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
                 ResultSetBuilder result = new ResultSetBuilder(returningSelect.select.getResultMetadata(), selectors, null);
-                returningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
+                if (selectQuery.queries.size() == 1)
+                {
+                    FilteredPartition partition = data.get(TxnDataName.returning());
+                    returningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
+                }
+                else
+                {
+                    int nowInSec = FBUtilities.nowInSeconds();
+                    for (int i = 0; i < selectQuery.queries.size(); i++)
+                    {
+                        FilteredPartition partition = data.get(TxnDataName.returning(i));
+                        returningSelect.select.processPartition(partition.rowIterator(), options, result, nowInSec);
+                    }
+                }
                 return new ResultMessage.Rows(result.build());
             }
 
