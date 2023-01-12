@@ -19,6 +19,7 @@
 
 BASEDIR=`dirname $0`
 BASE_BRANCH=trunk
+set -e
 
 die ()
 {
