@@ -18,14 +18,15 @@
 
 package org.apache.cassandra.tools;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.TreeSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.db.Directories;
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -34,13 +35,12 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.sstable.LegacySSTableTest;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
-import org.assertj.core.util.Lists;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 /*
  * SStableUpdater should be run with the server shutdown, but we need to set up a certain env to be able to
@@ -138,22 +138,58 @@ public class StandaloneUpgraderOnSStablesTest
         Keyspace.open("legacy_tables").getColumnFamilyStore("legacy_" + legacyId + "_simple").loadNewSSTables();
     }
 
+    @Test
+    public void testUpgradeSequence() throws Throwable
+    {
+        int startGeneration = LegacySSTableTest.generateMultipleTables( legacyId );
+
+        String tableName = "legacy_" + legacyId + "_multiple";
+
+        List<String> origFiles = getSStableFiles("legacy_tables", tableName);
+        // verify that the files are not returned in the correct order.
+        Set<String> treeSet = new TreeSet<>();
+        treeSet.addAll( origFiles );
+        assertNotEquals( treeSet.toArray(), origFiles.toArray());
+
+        ToolResult tool = ToolRunner.invokeClass(StandaloneUpgrader.class,
+                                                 "legacy_tables",
+                                                 tableName);
+        System.out.println( tool.getStdout() );
+        Assertions.assertThat(tool.getStdout()).contains("Found 3 sstables that need upgrading.");
+        Assertions.assertThat(tool.getStdout()).contains("legacy_tables/" + tableName);
+        int[] loc = new int[3];
+        for (int i=0;i<3;i++) {
+            String fileName = String.format( "%s-%s-big-Data.db", legacyId, startGeneration+i);
+            Assertions.assertThat(tool.getStdout()).contains(fileName);
+            loc[i] = tool.getStdout().lastIndexOf(fileName);
+        }
+        Assert.assertTrue( "Files processed out of sequence", loc[0] < loc[1] );
+        Assert.assertTrue(  "Files processed out of sequence", loc[1] < loc[2] );
+        tool.assertOnCleanExit();
+
+        List<String> newFiles = getSStableFiles("legacy_tables", tableName);
+        int origSize = origFiles.size();
+        origFiles.removeAll(newFiles);
+        assertEquals(origSize, origFiles.size()); // check previous version files are gone
+        // need to make sure the new sstables are live, so that they get truncated later
+        Keyspace.open("legacy_tables").getColumnFamilyStore(tableName).loadNewSSTables();
+    }
+
+     /**
+     * Gets sstable names  for the keyspace in the order returned by Directories.SSTableLister
+     * @param ks the keyspace to read.
+     * @param table the name to read.
+     * @return a list of sstable names.
+     * @throws StartupException
+     */
     private List<String> getSStableFiles(String ks, String table) throws StartupException
     {
         ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(table);
         org.apache.cassandra.Util.flush(cfs);
         ColumnFamilyStore.scrubDataDirectories(cfs.metadata());
 
-        Set<SSTableReader> sstables = cfs.getLiveSSTables();
-        if (sstables.isEmpty())
-            return Lists.emptyList();
-
-        String sstableFileName = sstables.iterator().next().getFilename();
-        File sstablesDir = new File(sstableFileName).parent();
-        return Arrays.asList(sstablesDir.tryList())
-                     .stream()
-                     .filter(f -> f.isFile())
-                     .map(file -> file.toString())
-                     .collect(Collectors.toList());
+        Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW);
+        lister.includeBackups(false);
+        return lister.list().keySet().stream().map( s -> s.toString()).collect(Collectors.toList());
     }
 }

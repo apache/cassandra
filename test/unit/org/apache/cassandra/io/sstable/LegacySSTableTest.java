@@ -23,11 +23,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
@@ -685,5 +688,78 @@ public class LegacySSTableTest
                     os.write(buf, 0, rd);
                 }
         }
+    }
+
+    /**
+     * Finds the first point at which the HashSet inserts a generation before a previous
+     * generation in the set. This is used in testing to verfy the sequence of tables where
+     * the generation order is significant.
+     * @param legacyVersion the legacy version to work with.
+     * @return the generation that causes of the inversion.
+     */
+    public static int findInversion(String legacyVersion) {
+        String ksname = "legacy_tables";
+        String cfname = String.format("legacy_%s_multiple", legacyVersion);;
+        SSTableFormat.Type formatType = SSTableFormat.Type.BIG;
+        int generation = 0;
+        SequenceBasedSSTableId id = new SequenceBasedSSTableId(generation);
+        File directory = new File( System.getProperty("java.io.tmpdir"));
+        Version version = formatType.info.getVersion(legacyVersion);
+        Descriptor descriptor = new Descriptor( version,  directory,  ksname,  cfname, id, formatType);
+        HashSet<Descriptor> set = new HashSet<>();
+        set.add( descriptor );
+        Object[] arry = set.toArray();
+        do
+        {
+            id = new SequenceBasedSSTableId(++generation);
+            descriptor = new Descriptor(version , directory , ksname , cfname , id , formatType);
+            set.add(descriptor);
+            arry = set.toArray();
+        }  while( descriptor.equals(arry[arry.length-1]));
+        return generation;
+    }
+
+    /**
+     * Generates 3 sstables generations in legacy_x_multiple and adds it to the column store.
+     * Tables are guaranteed to not be returned in generation order when iterated via the
+     * {@code Directories.SSTableLister} class.
+     * @param legacyVersion the version to create tables for
+     * @throws IOException on IO error.
+     */
+    public static int generateMultipleTables(String legacyVersion) throws IOException {
+
+        int start = findInversion(legacyVersion) - 1;
+        String tableName = String.format( "legacy_%s_multiple", legacyVersion);
+
+        File sourceDir = getTableDir(legacyVersion, String.format( "legacy_%s_simple", legacyVersion));
+
+        logger.info("creating legacy table {}", tableName);
+
+        QueryProcessor.executeInternal(String.format("CREATE TABLE legacy_tables.%s (pk text PRIMARY KEY, val text)", tableName));
+        ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(tableName);
+
+        List<File> cfDirs = cfs.getDirectories().getCFDirectories();
+        File cfDir = cfDirs.get(0);
+
+        for (int i=0;i<3;i++) {
+            for (File file : sourceDir.tryList())
+            {
+                byte[] buf = new byte[65536];
+                if (file.isFile())
+                {
+                    String[] fileNameParts = file.name().split("-");
+                    String targetName = String.format( "%s-%s-%s-%s", legacyVersion, start+i, fileNameParts[2], fileNameParts[3]);
+                    logger.info("creating legacy sstable {}", targetName);
+                    File target = new File(cfDir, targetName);
+                    int rd;
+                    try (FileInputStreamPlus is = new FileInputStreamPlus(file);
+                         FileOutputStreamPlus os = new FileOutputStreamPlus(target);) {
+                        while ((rd = is.read(buf)) >= 0)
+                            os.write(buf, 0, rd);
+                    }
+                }
+            }
+        }
+        return start;
     }
 }
