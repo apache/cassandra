@@ -92,6 +92,15 @@ public class ColumnFamilyStoreTest
     }
 
     @Test
+    public void testMemtableTimestamp() throws Throwable
+    {
+        assertEquals(Memtable.NO_MIN_TIMESTAMP,
+                     (new Memtable(Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).metadata(),
+                                   EncodingStats.NO_STATS.minTimestamp))
+                     .getMinTimestamp());
+    }
+
+    @Test
     // create two sstables, and verify that we only deserialize data from the most recent one
     public void testTimeSortedQuery()
     {
