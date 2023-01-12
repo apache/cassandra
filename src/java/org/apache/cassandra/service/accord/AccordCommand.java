@@ -706,6 +706,8 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         if (listener instanceof AccordCommandsForKey)
             return new ListenerProxy.CommandsForKeyListenerProxy(((AccordCommandsForKey) listener).key());
 
+        //TODO - Support accord.messages.Defer
+
         throw new RuntimeException("Unhandled non-transient listener: " + listener);
     }
 

@@ -167,7 +167,40 @@
       <option name="MAIN_CLASS_NAME" value="" />
       <option name="METHOD_NAME" value="" />
       <option name="TEST_OBJECT" value="class" />
-      <option name="VM_PARAMETERS" value="-Dcassandra.config=file://$PROJECT_DIR$/test/conf/cassandra.yaml -Dlogback.configurationFile=file://$PROJECT_DIR$/test/conf/logback-test.xml -Dcassandra.logdir=$PROJECT_DIR$/build/test/logs -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables -Dcassandra.ring_delay_ms=1000 -Dcassandra.skip_sync=true -ea -XX:MaxMetaspaceSize=384M -XX:SoftRefLRUPolicyMSPerMB=0 -XX:HeapDumpPath=build/test -Dcassandra.strict.runtime.checks=true -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables -Dcassandra.ring_delay_ms=1000 -Dcassandra.tolerate_sstable_size=true -Dcassandra.skip_sync=true -Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" />
+      <option name="VM_PARAMETERS" value="
+        -ea 
+        -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin 
+        -Djava.security.egd=file:/dev/urandom
+        -XX:-BackgroundCompilation
+        -XX:-TieredCompilation
+        -XX:ActiveProcessorCount=4
+        -XX:CICompilerCount=1
+        -XX:HeapDumpPath=build/test 
+        -XX:MaxMetaspaceSize=384M 
+        -XX:ReservedCodeCacheSize=256M
+        -XX:SoftRefLRUPolicyMSPerMB=0 
+        -XX:Tier4CompileThreshold=1000
+        -Xbootclasspath/a:$PROJECT_DIR$/build/test/lib/jars/simulator-bootstrap.jar
+        -Xmx8G
+        -Xss384k
+        -javaagent:$PROJECT_DIR$/build/test/lib/jars/simulator-asm.jar
+
+        -Dcassandra.config=file://$PROJECT_DIR$/test/conf/cassandra.yaml 
+        -Dcassandra.debugrefcount=false
+        -Dcassandra.logdir=$PROJECT_DIR$/build/test/logs 
+        -Dcassandra.memtable_row_overhead_computation_step=100
+        -Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true
+        -Dcassandra.ring_delay_ms=10000
+        -Dcassandra.skip_sync=true 
+        -Dcassandra.strict.runtime.checks=true 
+        -Dcassandra.test.simulator.determinismcheck=strict
+        -Dcassandra.test.sstableformatdevelopment=true
+        -Dcassandra.tolerate_sstable_size=true 
+        -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables 
+        -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables 
+        -Dlogback.configurationFile=file://$PROJECT_DIR$/test/conf/logback-test.xml 
+        -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables 
+        " />
       <option name="PARAMETERS" value="" />
       <fork_mode value="class" />
       <option name="WORKING_DIRECTORY" value="" />

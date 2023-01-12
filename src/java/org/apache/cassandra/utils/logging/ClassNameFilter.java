@@ -16,42 +16,32 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.simulator.paxos;
+package org.apache.cassandra.utils.logging;
 
-import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.filter.AbstractMatcherFilter;
+import ch.qos.logback.core.spi.FilterReply;
 
-class Observation implements Comparable<Observation>
+public class ClassNameFilter extends AbstractMatcherFilter<ILoggingEvent>
 {
-    final int id;
-    final SimpleQueryResult result;
-    final int start;
-    final int end;
+    String loggerName;
 
-    Observation(int id, SimpleQueryResult result, int start, int end)
+    public void setLoggerName(String loggerName)
     {
-        this.id = id;
-        this.result = result;
-        this.start = start;
-        this.end = end;
+        this.loggerName = loggerName;
     }
 
-    boolean isSuccess()
+    @Override
+    public FilterReply decide(ILoggingEvent event)
     {
-        return result != null;
+        if (!isStarted()) return FilterReply.NEUTRAL;
+        if (event.getLoggerName().equals(loggerName)) return onMatch;
+        return onMismatch;
     }
 
-    boolean isUnknownFailure()
+    @Override
+    public void start()
     {
-        return result == null;
-    }
-
-    // computes a PARTIAL ORDER on when the outcome occurred, i.e. for many pair-wise comparisons the answer is 0
-    public int compareTo(Observation that)
-    {
-        if (this.end < that.start)
-            return -1;
-        if (that.end < this.start)
-            return 1;
-        return 0;
+        if (loggerName != null) super.start();
     }
 }

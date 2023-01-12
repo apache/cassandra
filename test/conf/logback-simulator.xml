@@ -24,6 +24,19 @@
   <!-- Shutdown hook ensures that async appender flushes -->
   <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
 
+  <appender name="HISTORYLOG" class="ch.qos.logback.core.FileAppender">
+    <file>./build/test/logs/simulator/${run_start}-${run_seed}/history.log</file>
+    <encoder>
+      <pattern>%msg%n</pattern>
+    </encoder>
+    <immediateFlush>true</immediateFlush>
+    <filter class="org.apache.cassandra.utils.logging.ClassNameFilter">
+      <loggerName>org.apache.cassandra.simulator.paxos.LoggingHistoryValidator</loggerName>
+      <onMatch>ACCEPT</onMatch>
+      <onMismatch>DENY</onMismatch>
+    </filter>
+  </appender>
+
   <appender name="INSTANCEFILE" class="ch.qos.logback.core.FileAppender">
     <file>./build/test/logs/simulator/${run_start}-${run_seed}/${instance_id}/system.log</file>
     <encoder>
@@ -56,6 +69,7 @@
   <root level="INFO">
     <appender-ref ref="INSTANCEFILE" />
     <appender-ref ref="STDOUT" />
+    <appender-ref ref="HISTORYLOG" />
   </root>
 </configuration>
 
