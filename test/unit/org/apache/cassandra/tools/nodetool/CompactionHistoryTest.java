@@ -65,7 +65,7 @@ public class CompactionHistoryTest extends CQLTester
         String cql = "select keyspace_name,columnfamily_name,compaction_properties  from system." + SystemKeyspace.COMPACTION_HISTORY +
                      " where keyspace_name = '" + keyspace() + "' AND columnfamily_name = '" + currentTable() + "' ALLOW FILTERING";
         
-        Object[] row = row(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], OperationType.MAJOR_COMPACTION.type));
+        Object[] row = row(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.MAJOR_COMPACTION.type));
         assertRows(execute(cql), row);
     }
     
@@ -84,7 +84,7 @@ public class CompactionHistoryTest extends CQLTester
         
         Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
         String[] cmds = { "compact", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], OperationType.MAJOR_COMPACTION.type), cmds);
+        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.MAJOR_COMPACTION.type), cmds);
     }
 
     @Test
@@ -103,7 +103,7 @@ public class CompactionHistoryTest extends CQLTester
         }
         Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(20);
         String[] cmds = { "garbagecollect", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], OperationType.GARBAGE_COLLECT.type), cmds);
+        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.GARBAGE_COLLECT.type), cmds);
     }
     
     @Test
@@ -120,7 +120,7 @@ public class CompactionHistoryTest extends CQLTester
         }
         Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
         String[] cmds = { "upgradesstables", " -a", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], OperationType.UPGRADE_SSTABLES.type), cmds);
+        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.UPGRADE_SSTABLES.type), cmds);
     }
     
     

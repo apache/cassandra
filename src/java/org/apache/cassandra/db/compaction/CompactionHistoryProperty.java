@@ -18,9 +18,8 @@
 
 package org.apache.cassandra.db.compaction;
 
-import com.google.common.collect.Maps;
+import com.google.common.collect.ImmutableMap;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -29,35 +28,34 @@ import java.util.TreeMap;
  * */
 public class CompactionHistoryProperty
 {
-    // define the map key for the compaction_properties column in system.compaction_history
-    public static final String[] COMPACTION_PROPERTIES_KEYS = { "compaction_type" };
-    // define the map value for the compaction_properties column in system.compaction_history
-    public static final String[] DEFAULT_COMPACTION_PROPERTIES_VALUES = { OperationType.UNKNOWN.type };
+    // compaction properties
+    public static final String COMPACTION_TYPE = "compaction_type";
+    
+    // define the default map for the compaction_properties column in system.compaction_history
+    public static final Map<String, String> DEFAULT_COMPACTION_PROPERTIES = ImmutableMap.of(COMPACTION_TYPE, OperationType.UNKNOWN.type );
     
     /**
      * get the compaction history properties , if none value exists  a default value will return
      * @param propertiesColumnValueInput input properties map
      * @return the properties
      * */
-    public static Map<String, String> getCompactionHistroyProperties(Map<String, String> propertiesColumnValueInput)
+    public static Map<String, String> getCompactionHistroyProperties(Map<String, String> propertiesColumnValueInput) 
     {
-        assert COMPACTION_PROPERTIES_KEYS.length == DEFAULT_COMPACTION_PROPERTIES_VALUES.length;
-        Map<String, String> propertiesColumnValueResult = new TreeMap<>();
-        for(int i = 0; i != COMPACTION_PROPERTIES_KEYS.length; ++i)
+        if (propertiesColumnValueInput == null)
         {
-            if(propertiesColumnValueInput == null)
-            {
-                propertiesColumnValueResult.put(COMPACTION_PROPERTIES_KEYS[i], DEFAULT_COMPACTION_PROPERTIES_VALUES[i]);
-                continue;
-            }
-            String value = propertiesColumnValueInput.get(COMPACTION_PROPERTIES_KEYS[i]);
-            if(value == null)
-            {
-                value = DEFAULT_COMPACTION_PROPERTIES_VALUES[i];
-            }
-            propertiesColumnValueResult.put(COMPACTION_PROPERTIES_KEYS[i], value);
+            return DEFAULT_COMPACTION_PROPERTIES;
         }
-        return propertiesColumnValueResult;
+
+        Map<String, String> result = new TreeMap<>();
+        for(String key : DEFAULT_COMPACTION_PROPERTIES.keySet()) 
+        {
+            String value = propertiesColumnValueInput.get(key);
+            if (value != null) 
+            {
+                result.put(key, value);
+            }
+        }
+        return result;
     }
     
 }

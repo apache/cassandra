@@ -54,9 +54,9 @@ public class CompactionHistoryHolder implements StatsHolder
         private final long bytesIn;
         private final long bytesOut;
         private final String rowMerged;
-        private final String compactionType;
+        private final String compactionProperties;
 
-        CompactionHistoryRow(String id, String ksName, String cfName, long compactedAt, long bytesIn, long bytesOut, String rowMerged, String compactionType)
+        CompactionHistoryRow(String id, String ksName, String cfName, long compactedAt, long bytesIn, long bytesOut, String rowMerged, String compactionProperties)
         {
             this.id = id;
             this.ksName = ksName;
@@ -65,7 +65,7 @@ public class CompactionHistoryHolder implements StatsHolder
             this.bytesIn = bytesIn;
             this.bytesOut = bytesOut;
             this.rowMerged = rowMerged;
-            this.compactionType = compactionType;
+            this.compactionProperties = compactionProperties;
         }
 
         public int compareTo(CompactionHistoryHolder.CompactionHistoryRow chr)
@@ -85,7 +85,7 @@ public class CompactionHistoryHolder implements StatsHolder
             compaction.put("bytes_in", this.bytesIn);
             compaction.put("bytes_out", this.bytesOut);
             compaction.put("rows_merged", this.rowMerged);
-            compaction.put("compaction_type", this.compactionType);
+            compaction.put("compaction_properties", this.compactionProperties);
             return compaction;
         }
     }

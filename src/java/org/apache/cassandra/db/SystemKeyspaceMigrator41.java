@@ -191,7 +191,9 @@ public class SystemKeyspaceMigrator41
 
     /**
      * Perform table migration by reading data from the old table, converting it, and adding to the new table.
-     * if oldName and newName are same, means refresh data in table 
+     * If oldName and newName are same, it means data in the table will be refreshed. And the new table is not empty
+     * and newName is not equal to oldName, no migration is performed
+     * 
      * @param truncateIfExists truncate the existing table if it exists before migration; if it is disabled
      *                         and the new table is not empty, no migration is performed
      * @param oldName          old table name

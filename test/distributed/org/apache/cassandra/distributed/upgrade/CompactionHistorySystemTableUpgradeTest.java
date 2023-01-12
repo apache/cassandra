@@ -50,7 +50,7 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
       return Lists.newArrayList(v30, v3X, v40, v41);
     }
 
-  @Test
+    @Test
     public void compactionHistorySystemTableTest() throws Throwable
     {
         new TestCase()
@@ -79,7 +79,7 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
           String stdout = toolHistory.getStdout();
           String[] resultArray = stdout.split("\n");
           assertTrue(Arrays.stream(resultArray)
-              .anyMatch(result -> result.contains('{' + FBUtilities.toString(ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], OperationType.UNKNOWN.type)) + '}')
+              .anyMatch(result -> result.contains('{' + FBUtilities.toString(ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.UNKNOWN.type)) + '}')
                   && result.contains(KEYSPACE)
                   && result.contains("tb")));
       })

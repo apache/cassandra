@@ -45,6 +45,7 @@ public class CompactionHistoryTabularData
     private static final CompositeType COMPOSITE_TYPE;
 
     private static final TabularType TABULAR_TYPE;
+    
     static 
     {
         try
@@ -77,8 +78,8 @@ public class CompactionHistoryTabularData
             Map<String, String> compactionProperties = row.getMap(ITEM_NAMES[7], UTF8Type.instance, UTF8Type.instance);
             result.put(new CompositeDataSupport(COMPOSITE_TYPE, ITEM_NAMES,
                        new Object[]{ id.toString(), ksName, cfName, compactedAt, bytesIn, bytesOut,
-                                     '{' + FBUtilities.toString(rowMerged) + '}' ,
-                                      '{' + FBUtilities.toString(compactionProperties) + '}' }));
+                                     '{' + FBUtilities.toString(rowMerged) + '}',
+                                     '{' + FBUtilities.toString(compactionProperties) + '}' }));
         }
         return result;
     }

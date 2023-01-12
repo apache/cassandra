@@ -26,6 +26,7 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
@@ -299,7 +300,7 @@ public class SystemKeyspaceMigrator41Test extends CQLTester
         SystemKeyspaceMigrator41.migrateCompactionHistory();
 
         int rowCount = 0;
-        Map<String, String> compactionProperties = ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], CompactionHistoryProperty.DEFAULT_COMPACTION_PROPERTIES_VALUES[0]);
+        Map<String, String> compactionProperties = ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.UNKNOWN.type);
         for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s where keyspace_name = 'keyspace' and columnfamily_name = 'table' allow filtering", tab)))
         {
             rowCount++;

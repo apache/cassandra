@@ -73,7 +73,7 @@ public class CompactionHistoryPrinter
                 obj[4] = value.get("bytes_in").toString();
                 obj[5] = value.get("bytes_out").toString();
                 obj[6] = (String)value.get("rows_merged");
-                obj[7] = (String)value.get("compaction_type");
+                obj[7] = (String)value.get("compaction_properties");
                 table.add(obj);
             }
             table.printTo(out);

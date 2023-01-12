@@ -248,7 +248,7 @@ public class CompactionTask extends AbstractCompactionTask
                 totalSourceRows += mergedRowCounts[i] * (i + 1);
 
             String mergeSummary = updateCompactionHistory(cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize,
-                ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], compactionType.type));
+                ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, compactionType.type));
 
             logger.info(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}. Time spent writing keys = %,dms",
                                        taskId,
