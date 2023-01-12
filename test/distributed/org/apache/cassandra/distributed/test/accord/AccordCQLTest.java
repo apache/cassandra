@@ -41,6 +41,7 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
@@ -55,6 +56,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.accord.AccordService;
 
+import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
@@ -75,6 +77,60 @@ public class AccordCQLTest extends AccordTestBase
     {
         AccordTestBase.setupClass();
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
+    }
+
+    @Test
+    public void testMultiPartitionReturn() throws Exception
+    {
+        test(cluster -> {
+            for (int i = 0; i < 10; i++)
+            {
+                for (int j = 0; j < 10; j++)
+                    cluster.coordinator(1).execute("INSERT INTO " + currentTable + "(k, c, v) VALUES (?, ?, ?);", ConsistencyLevel.ALL, i, j, i + j);
+            }
+            // multi row
+            String cql = "BEGIN TRANSACTION\n" +
+                         "  SELECT * FROM " + currentTable + " WHERE k=? AND c IN (?, ?);\n" +
+                         "COMMIT TRANSACTION";
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(cql, ConsistencyLevel.ANY, 0, 0, 1);
+            assertThat(result).isEqualTo(QueryResults.builder()
+                                                     .columns("k", "c", "v")
+                                                     .row(0, 0, 0)
+                                                     .row(0, 1, 1)
+                                                     .build());
+            // Results should be in Partiton/Clustering order, so make sure
+            // multi partition
+            cql = "BEGIN TRANSACTION\n" +
+                  "  SELECT * FROM " + currentTable + " WHERE k IN (?, ?) AND c = ?;\n" +
+                  "COMMIT TRANSACTION";
+            for (boolean asc : Arrays.asList(true, false))
+            {
+                Object[] binds = asc ? row(0, 1, 0) : row(1, 0, 0);
+                result = cluster.coordinator(1).executeWithResult(cql, ConsistencyLevel.ANY, binds);
+                assertThat(result).isEqualTo(QueryResults.builder()
+                                                         .columns("k", "c", "v")
+                                                         .row(0, 0, 0)
+                                                         .row(1, 0, 1)
+                                                         .build());
+            }
+
+            // multi-partition, multi-clustering
+            cql = "BEGIN TRANSACTION\n" +
+                  "  SELECT * FROM " + currentTable + " WHERE k IN (?, ?) AND c IN (?, ?);\n" +
+                  "COMMIT TRANSACTION";
+            for (boolean asc : Arrays.asList(true, false))
+            {
+                Object[] binds = asc ? row(0, 1, 0, 1) : row(1, 0, 1, 0);
+                result = cluster.coordinator(1).executeWithResult(cql, ConsistencyLevel.ANY, binds);
+                assertThat(result).isEqualTo(QueryResults.builder()
+                                                         .columns("k", "c", "v")
+                                                         .row(0, 0, 0)
+                                                         .row(0, 1, 1)
+                                                         .row(1, 0, 1)
+                                                         .row(1, 1, 2)
+                                                         .build());
+            }
+        });
     }
 
     @Test
