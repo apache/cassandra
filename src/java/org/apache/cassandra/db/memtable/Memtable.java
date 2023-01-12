@@ -55,6 +55,8 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  */
 public interface Memtable extends Comparable<Memtable>, UnfilteredSource
 {
+    public static final long NO_MIN_TIMESTAMP = -1;
+
     // Construction
 
     /**
