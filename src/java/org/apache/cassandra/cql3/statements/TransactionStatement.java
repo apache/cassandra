@@ -30,7 +30,6 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import javax.annotation.Nullable;
 
@@ -168,7 +167,7 @@ public class TransactionStatement implements CQLStatement
             statement.validate(state);
     }
 
-    List<TxnNamedRead> createNamedRead(NamedSelect namedSelect, QueryOptions options)
+    TxnNamedRead createNamedRead(NamedSelect namedSelect, QueryOptions options)
     {
         SelectStatement select = namedSelect.select;
         ReadQuery readQuery = select.getQuery(options, 0);
@@ -178,17 +177,27 @@ public class TransactionStatement implements CQLStatement
         SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
 
         if (selectQuery.queries.size() != 1)
-        {
-            if (!TxnDataName.returning().equals(namedSelect.name))
-                throw new IllegalArgumentException("Within a transaction, implicit reads and reads within LET statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
-            // multi partitions on the same table are only allowed for the returning clause
-            List<TxnNamedRead> list = new ArrayList<>(selectQuery.queries.size());
-            for (int i = 0; i < selectQuery.queries.size(); i++)
-                list.add(new TxnNamedRead(TxnDataName.returning(i), selectQuery.queries.get(i)));
-            return list;
-        }
+            throw new IllegalArgumentException("Within a transaction, SELECT statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
+        return new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries));
+    }
 
-        return Collections.singletonList(new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries)));
+    List<TxnNamedRead> createNamedReads(NamedSelect namedSelect, QueryOptions options)
+    {
+        SelectStatement select = namedSelect.select;
+        ReadQuery readQuery = select.getQuery(options, 0);
+
+        // We reject reads from both LET and SELECT that do not specify a single row.
+        @SuppressWarnings("unchecked")
+        SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
+
+        if (selectQuery.queries.size() == 1)
+            return Collections.singletonList(new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries)));
+
+        // multi partitions on the same table are only allowed for the returning clause
+        List<TxnNamedRead> list = new ArrayList<>(selectQuery.queries.size());
+        for (int i = 0; i < selectQuery.queries.size(); i++)
+            list.add(new TxnNamedRead(TxnDataName.returning(i), selectQuery.queries.get(i)));
+        return list;
     }
 
     private List<TxnNamedRead> createNamedReads(QueryOptions options, Consumer<Key> keyConsumer)
@@ -197,15 +206,14 @@ public class TransactionStatement implements CQLStatement
 
         for (NamedSelect select : assignments)
         {
-            for (TxnNamedRead read : createNamedRead(select, options)) {
-                keyConsumer.accept(read.key());
-                reads.add(read);
-            }
+            TxnNamedRead read = createNamedRead(select, options);
+            keyConsumer.accept(read.key());
+            reads.add(read);
         }
 
         if (returningSelect != null)
         {
-            for (TxnNamedRead read : createNamedRead(returningSelect, options)) {
+            for (TxnNamedRead read : createNamedReads(returningSelect, options)) {
                 keyConsumer.accept(read.key());
                 reads.add(read);
             }
@@ -213,7 +221,7 @@ public class TransactionStatement implements CQLStatement
 
         for (NamedSelect select : autoReads.values())
             // don't need keyConsumer as the keys are known to exist due to Modification
-            reads.addAll(createNamedRead(select, options));
+            reads.add(createNamedRead(select, options));
 
         return reads;
     }
