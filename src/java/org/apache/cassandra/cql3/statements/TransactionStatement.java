@@ -30,6 +30,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import javax.annotation.Nullable;
 
@@ -167,7 +168,7 @@ public class TransactionStatement implements CQLStatement
             statement.validate(state);
     }
 
-    TxnNamedRead createNamedRead(NamedSelect namedSelect, QueryOptions options)
+    List<TxnNamedRead> createNamedRead(NamedSelect namedSelect, QueryOptions options)
     {
         SelectStatement select = namedSelect.select;
         ReadQuery readQuery = select.getQuery(options, 0);
@@ -177,9 +178,16 @@ public class TransactionStatement implements CQLStatement
         SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
 
         if (selectQuery.queries.size() != 1)
-            throw new IllegalArgumentException("Within a transaction, SELECT statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
+        {
+            if (!TxnDataName.returning().equals(namedSelect.name))
+                throw new IllegalArgumentException("Within a transaction, SELECT statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
+            // multi partitions on the same table are only allowed for the returning clause
+            return IntStream.range(0, selectQuery.queries.size())
+                            .mapToObj(i -> new TxnNamedRead(TxnDataName.returning(i), selectQuery.queries.get(i)))
+                            .collect(Collectors.toList());
+        }
 
-        return new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries));
+        return Collections.singletonList(new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries)));
     }
 
     private List<TxnNamedRead> createNamedReads(QueryOptions options, Consumer<Key> keyConsumer)
@@ -188,21 +196,23 @@ public class TransactionStatement implements CQLStatement
 
         for (NamedSelect select : assignments)
         {
-            TxnNamedRead read = createNamedRead(select, options);
-            keyConsumer.accept(read.key());
-            reads.add(read);
+            for (TxnNamedRead read : createNamedRead(select, options)) {
+                keyConsumer.accept(read.key());
+                reads.add(read);
+            }
         }
 
         if (returningSelect != null)
         {
-            TxnNamedRead read = createNamedRead(returningSelect, options);
-            keyConsumer.accept(read.key());
-            reads.add(read);
+            for (TxnNamedRead read : createNamedRead(returningSelect, options)) {
+                keyConsumer.accept(read.key());
+                reads.add(read);
+            }
         }
 
         for (NamedSelect select : autoReads.values())
             // don't need keyConsumer as the keys are known to exist due to Modification
-            reads.add(createNamedRead(select, options));
+            reads.addAll(createNamedRead(select, options));
 
         return reads;
     }
@@ -314,10 +324,23 @@ public class TransactionStatement implements CQLStatement
 
             if (returningSelect != null)
             {
-                FilteredPartition partition = data.get(TxnDataName.returning());
+                SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) returningSelect.select.getQuery(options, 0);
                 Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
                 ResultSetBuilder result = new ResultSetBuilder(returningSelect.select.getResultMetadata(), selectors, null);
-                returningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
+                if (selectQuery.queries.size() == 1)
+                {
+                    FilteredPartition partition = data.get(TxnDataName.returning());
+                    returningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
+                }
+                else
+                {
+                    int nowInSec = FBUtilities.nowInSeconds();
+                    for (int i = 0; i < selectQuery.queries.size(); i++)
+                    {
+                        FilteredPartition partition = data.get(TxnDataName.returning(i));
+                        returningSelect.select.processPartition(partition.rowIterator(), options, result, nowInSec);
+                    }
+                }
                 return new ResultMessage.Rows(result.build());
             }
 
