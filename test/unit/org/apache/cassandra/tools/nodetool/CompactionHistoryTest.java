@@ -18,17 +18,21 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.compaction.CompactionHistoryProperty;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Map;
 
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.junit.Assert.assertTrue;
@@ -58,10 +62,10 @@ public class CompactionHistoryTest extends CQLTester
         Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
         ToolRunner.ToolResult toolCompact = invokeNodetool("compact", keyspace(), currentTable());
         toolCompact.assertOnCleanExit();
-        String cql = "select keyspace_name,columnfamily_name,compaction_type  from system." + SystemKeyspace.COMPACTION_HISTORY +
+        String cql = "select keyspace_name,columnfamily_name,compaction_properties  from system." + SystemKeyspace.COMPACTION_HISTORY +
                      " where keyspace_name = '" + keyspace() + "' AND columnfamily_name = '" + currentTable() + "' ALLOW FILTERING";
         
-        Object[] row = row(keyspace(), currentTable(), OperationType.MAJOR_COMPACTION.type);    
+        Object[] row = row(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], OperationType.MAJOR_COMPACTION.type));
         assertRows(execute(cql), row);
     }
     
@@ -80,7 +84,7 @@ public class CompactionHistoryTest extends CQLTester
         
         Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
         String[] cmds = { "compact", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), OperationType.MAJOR_COMPACTION.type, cmds);
+        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], OperationType.MAJOR_COMPACTION.type), cmds);
     }
 
     @Test
@@ -99,7 +103,7 @@ public class CompactionHistoryTest extends CQLTester
         }
         Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(20);
         String[] cmds = { "garbagecollect", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), OperationType.GARBAGE_COLLECT.type, cmds);
+        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], OperationType.GARBAGE_COLLECT.type), cmds);
     }
     
     @Test
@@ -116,11 +120,11 @@ public class CompactionHistoryTest extends CQLTester
         }
         Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
         String[] cmds = { "upgradesstables", " -a", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), OperationType.UPGRADE_SSTABLES.type, cmds);
+        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], OperationType.UPGRADE_SSTABLES.type), cmds);
     }
     
     
-    private void compactionHistoryResultVerify( String keyspace, String table, String operationType, String[] cmds)
+    private void compactionHistoryResultVerify( String keyspace, String table, Map<String, String> properties, String[] cmds)
     {
         ToolRunner.ToolResult toolCompact = invokeNodetool(cmds);
         toolCompact.assertOnCleanExit();
@@ -130,7 +134,7 @@ public class CompactionHistoryTest extends CQLTester
         String stdout = toolHistory.getStdout();
         String[] resultArray = stdout.split("\n");
         assertTrue(Arrays.stream(resultArray)
-            .anyMatch(result -> result.contains(operationType)
+            .anyMatch(result -> result.contains('{' + FBUtilities.toString(properties) + '}')
                 && result.contains(keyspace)
                 && result.contains(table)));
     }

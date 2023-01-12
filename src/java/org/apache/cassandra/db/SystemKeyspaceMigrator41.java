@@ -31,8 +31,10 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.compaction.CompactionHistoryProperty;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
@@ -62,6 +64,7 @@ public class SystemKeyspaceMigrator41
         migrateTransferredRanges();
         migrateAvailableRanges();
         migrateSSTableActivity();
+        migrateCompactionHistory();
     }
 
     @VisibleForTesting
@@ -159,10 +162,36 @@ public class SystemKeyspaceMigrator41
                      })
         );
     }
+    
+    @VisibleForTesting
+    static void migrateCompactionHistory()
+    {
+        migrateTable(false,
+                     SystemKeyspace.COMPACTION_HISTORY,
+                     SystemKeyspace.COMPACTION_HISTORY,
+                     new String[]{ "id",
+                                   "bytes_in",
+                                   "bytes_out",
+                                   "columnfamily_name",
+                                   "compacted_at",
+                                   "keyspace_name",
+                                   "rows_merged",
+                                   "compaction_properties" },
+                     row -> Collections.singletonList(new Object[]{ row.getTimeUUID("id") ,
+                                                                    row.has("bytes_in") ? row.getLong("bytes_in") : null,
+                                                                    row.has("bytes_out") ? row.getLong("bytes_out") : null,
+                                                                    row.has("columnfamily_name") ? row.getString("columnfamily_name") : null,
+                                                                    row.has("compacted_at") ? row.getTimestamp("compacted_at") : null,
+                                                                    row.has("keyspace_name") ? row.getString("keyspace_name") : null,
+                                                                    row.has("rows_merged") ? row.getMap("rows_merged", Int32Type.instance, LongType.instance) : null,
+                                                                    CompactionHistoryProperty.getCompactionHistroyProperties(row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance))
+                     })
+        );
+    }
 
     /**
      * Perform table migration by reading data from the old table, converting it, and adding to the new table.
-     *
+     * if oldName and newName are same, means refresh data in table 
      * @param truncateIfExists truncate the existing table if it exists before migration; if it is disabled
      *                         and the new table is not empty, no migration is performed
      * @param oldName          old table name
@@ -175,7 +204,7 @@ public class SystemKeyspaceMigrator41
     {
         ColumnFamilyStore newTable = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(newName);
 
-        if (!newTable.isEmpty() && !truncateIfExists)
+        if (!newTable.isEmpty() && !truncateIfExists && !oldName.equals(newName))
             return;
 
         if (truncateIfExists)

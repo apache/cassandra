@@ -18,11 +18,14 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.vdurmont.semver4j.Semver;
+import org.apache.cassandra.db.compaction.CompactionHistoryProperty;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.tools.ToolRunner;
+import org.apache.cassandra.utils.FBUtilities;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -71,19 +74,12 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
             // force compact
             cluster.stream().forEach(node -> node.forceCompact(KEYSPACE, "tb"));
         }).runAfterClusterUpgrade((cluster) -> {
-          String query = "SELECT compaction_type, keyspace_name, columnfamily_name FROM system.compaction_history where keyspace_name = '" + KEYSPACE + "' AND columnfamily_name = 'tb' LIMIT 1 ALLOW FILTERING";
-          Object[][] expectedResult = {
-              row(null, KEYSPACE, "tb")
-          };
-          assertRows(cluster.coordinator(1).execute(query, ConsistencyLevel.ALL), expectedResult);
-          assertRows(cluster.coordinator(2).execute(query, ConsistencyLevel.ALL), expectedResult);
-
           ToolRunner.ToolResult toolHistory = invokeNodetoolJvmDtest(cluster.get(1), "compactionhistory");
           toolHistory.assertOnCleanExit();
           String stdout = toolHistory.getStdout();
           String[] resultArray = stdout.split("\n");
           assertTrue(Arrays.stream(resultArray)
-              .anyMatch(result -> result.contains(OperationType.UNKNOWN.type)
+              .anyMatch(result -> result.contains('{' + FBUtilities.toString(ImmutableMap.of(CompactionHistoryProperty.COMPACTION_PROPERTIES_KEYS[0], OperationType.UNKNOWN.type)) + '}')
                   && result.contains(KEYSPACE)
                   && result.contains("tb")));
       })

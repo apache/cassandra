@@ -24,16 +24,17 @@ import java.util.UUID;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class CompactionHistoryTabularData
 {
     private static final String[] ITEM_NAMES = new String[]{ "id", "keyspace_name", "columnfamily_name", "compacted_at",
-                                                             "bytes_in", "bytes_out", "rows_merged", "compaction_type" };
+                                                             "bytes_in", "bytes_out", "rows_merged", "compaction_properties" };
 
     private static final String[] ITEM_DESCS = new String[]{ "time uuid", "keyspace name",
                                                              "column family name", "compaction finished at",
-                                                             "total bytes in", "total bytes out", "total rows merged", "compaction type" };
+                                                             "total bytes in", "total bytes out", "total rows merged", "compaction properties" };
 
     private static final String TYPE_NAME = "CompactionHistory";
 
@@ -44,7 +45,6 @@ public class CompactionHistoryTabularData
     private static final CompositeType COMPOSITE_TYPE;
 
     private static final TabularType TABULAR_TYPE;
-
     static 
     {
         try
@@ -74,14 +74,11 @@ public class CompactionHistoryTabularData
             long bytesIn = row.getLong(ITEM_NAMES[4]);
             long bytesOut = row.getLong(ITEM_NAMES[5]);
             Map<Integer, Long> rowMerged = row.getMap(ITEM_NAMES[6], Int32Type.instance, LongType.instance);
-            String compactionType = OperationType.UNKNOWN.type;
-            if (row.has(ITEM_NAMES[7]))
-            {
-                compactionType = row.getString(ITEM_NAMES[7]);
-            }
+            Map<String, String> compactionProperties = row.getMap(ITEM_NAMES[7], UTF8Type.instance, UTF8Type.instance);
             result.put(new CompositeDataSupport(COMPOSITE_TYPE, ITEM_NAMES,
                        new Object[]{ id.toString(), ksName, cfName, compactedAt, bytesIn, bytesOut,
-                                     '{' + FBUtilities.toString(rowMerged) + '}' , compactionType}));
+                                     '{' + FBUtilities.toString(rowMerged) + '}' ,
+                                      '{' + FBUtilities.toString(compactionProperties) + '}' }));
         }
         return result;
     }
