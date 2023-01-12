@@ -22,153 +22,51 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
-import org.apache.commons.lang3.ArrayUtils;
-import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.coordinate.Preempted;
-import accord.coordinate.Timeout;
-import accord.primitives.Txn;
+import com.carrotsearch.hppc.IntArrayList;
+import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.cursors.IntCursor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.QueryResults;
-import org.apache.cassandra.exceptions.RequestTimeoutException;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.impl.Query;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.AccordTestUtils;
-import org.apache.cassandra.service.accord.txn.TxnData;
-import org.apache.cassandra.service.accord.txn.TxnDataName;
+import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
 
-import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.fail;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.apache.cassandra.utils.AssertionUtils.hasCause;
+import static org.apache.cassandra.utils.AssertionUtils.isThrowableInstanceof;
 
 // TODO: the class hierarchy is a bit broken, but hard to untangle. Need to go Paxos->Consensus, probably.
 @SuppressWarnings("unused")
 public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxosSimulation
 {
     private static final Logger logger = LoggerFactory.getLogger(PairOfSequencesAccordSimulation.class);
-    private static final String SELECT = "SELECT pk, count, seq FROM  " + KEYSPACE + ".tbl WHERE pk = ?";
-
-    class VerifyingOperation extends Operation
-    {
-        final HistoryChecker historyChecker;
-        public VerifyingOperation(int id, IInvokableInstance instance, ConsistencyLevel consistencyLevel, int primaryKey, HistoryChecker historyChecker)
-        {
-            super(primaryKey, id, instance, "SELECT", read(primaryKey));
-            this.historyChecker = historyChecker;
-        }
-
-        void verify(Observation outcome)
-        {
-            (outcome.result != null ? successfulReads : failedReads).incrementAndGet();
-
-            if (outcome.result == null)
-                return;
-
-            if (outcome.result.length != 1)
-                throw fail(primaryKey, "#result (%s) != 1", Arrays.toString(outcome.result));
-
-            Object[] row = outcome.result[0];
-            // first verify internally consistent
-            int count = row[1] == null ? 0 : (Integer) row[1];
-            int[] seq = Arrays.stream((row[2] == null ? "" : (String) row[2]).split(","))
-                               .filter(s -> !s.isEmpty())
-                               .mapToInt(Integer::parseInt)
-                               .toArray();
-
-            if (seq.length != count)
-                throw fail(primaryKey, "%d != #%s", count, seq);
-
-            historyChecker.witness(outcome, seq, outcome.start, outcome.end);
-        }
-    }
-
-    private static IIsolatedExecutor.SerializableCallable<Object[][]> read(int primaryKey)
-    {
-        return () -> {
-            String cql = "BEGIN TRANSACTION\n" + SELECT + ";\n" + "COMMIT TRANSACTION";
-            List<ByteBuffer> values = ImmutableList.of(bytes(primaryKey));
-            Txn txn = AccordTestUtils.createTxn(cql, QueryOptions.forInternalCalls(values));
-            // TODO (now): support complex columns
-            return execute(txn, "pk", "count", "seq");
-        };
-    }
-
-    private static IIsolatedExecutor.SerializableCallable<Object[][]> write(int id, int primaryKey)
-    {
-        return () -> {
-            String cql = "BEGIN TRANSACTION\n" + 
-                         "    " + SELECT + ";\n" +
-                         "    UPDATE " + KEYSPACE + ".tbl SET seq += '" + id + ",' WHERE pk = ?;\n" +
-                         "    UPDATE " + KEYSPACE + ".tbl SET count += 1 WHERE pk = ?;\n" +
-                         "COMMIT TRANSACTION";
-            List<ByteBuffer> values = ImmutableList.of(bytes(primaryKey), bytes(primaryKey), bytes(primaryKey));
-            Txn txn = AccordTestUtils.createTxn(cql, QueryOptions.forInternalCalls(values));
-            return execute(txn, "pk", "count", "seq");
-        };
-    }
-
-    private static Object[][] execute(Txn txn, String ... columns)
-    {
-        try
-        {
-            TxnData result = (TxnData) AccordService.instance().node.coordinate(txn).get();
-            Assert.assertNotNull(result);
-            QueryResults.Builder builder = QueryResults.builder();
-            boolean addedHeader = false;
-
-            FilteredPartition partition = result.get(TxnDataName.returning());
-            TableMetadata metadata = partition.metadata();
-            builder.columns(columns);
-
-            ByteBuffer[] keyComponents = SelectStatement.getComponents(metadata, partition.partitionKey());
-
-            Row s = partition.staticRow();
-            if (!s.isEmpty())
-                append(metadata, keyComponents, s, builder, columns);
-
-            for (Row row : partition)
-                append(metadata, keyComponents, row, builder, columns);
-
-            return builder.build().toObjectArrays();
-        }
-        catch (InterruptedException e)
-        {
-            throw new AssertionError(e);
-        }
-        catch (ExecutionException e)
-        {
-            if (e.getCause() instanceof Preempted)
-                return null;
-            if (e.getCause() instanceof Timeout)
-                return null;
-            if (e.getCause() instanceof RequestTimeoutException)
-                return null;
-            throw new AssertionError(e);
-        }
-    }
+    private static final String SELECT = "SELECT pk, count, seq FROM  " + KEYSPACE + ".tbl WHERE pk IN (%s);";
+    private static final String UPDATE = "UPDATE " + KEYSPACE + ".tbl SET count += 1, seq = seq + ? WHERE pk = ?;";
 
     private static void append(TableMetadata metadata, ByteBuffer[] keyComponents, Row row, QueryResults.Builder builder, String[] columnNames)
     {
@@ -218,38 +116,14 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
         builder.row(buffer);
     }
 
-    class NonVerifyingOperation extends Operation
+    @Override
+    void log(@Nullable Integer pk)
     {
-        public NonVerifyingOperation(int id, IInvokableInstance instance, ConsistencyLevel consistencyLevel, int primaryKey, HistoryChecker historyChecker)
-        {
-            super(primaryKey, id, instance, "SELECT", read(primaryKey));
-        }
-
-        void verify(Observation outcome)
-        {
-        }
+        validator.print(pk);
     }
 
-    public class ModifyingOperation extends Operation
-    {
-        final HistoryChecker historyChecker;
-        public ModifyingOperation(int id, IInvokableInstance instance, ConsistencyLevel commitConsistency, ConsistencyLevel serialConsistency, int primaryKey, HistoryChecker historyChecker)
-        {
-            super(primaryKey, id, instance, "UPDATE", write(id, primaryKey));
-            this.historyChecker = historyChecker;
-        }
-
-        void verify(Observation outcome)
-        {
-            (outcome.result != null ? successfulWrites : failedWrites).incrementAndGet();
-            if (outcome.result != null)
-            {
-                if (outcome.result.length != 1)
-                    throw fail(primaryKey, "Accord Result: 1 != #%s", ArrayUtils.toString(outcome.result));
-            }
-            historyChecker.applied(outcome.id, outcome.start, outcome.end, outcome.result != null);
-        }
-    }
+    private final float writeRatio;
+    private final HistoryValidator validator;
 
     public PairOfSequencesAccordSimulation(SimulatedSystems simulated,
                                            Cluster cluster,
@@ -266,6 +140,8 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
               scheduler, debug,
               seed, primaryKeys,
               runForNanos, jitter);
+        this.writeRatio = 1F - readRatio;
+        validator = new LoggingHistoryValidator(new StrictSerializabilityValidator(primaryKeys));
     }
 
     @Override
@@ -281,21 +157,145 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
     }
 
     @Override
-    Operation verifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker)
-    {
-        return new VerifyingOperation(operationId, instance, serialConsistency, primaryKey, historyChecker);
-    }
+    boolean allowMultiplePartitions() { return true; }
 
     @Override
-    Operation nonVerifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker)
+    BiFunction<SimulatedSystems, int[], Supplier<Action>> actionFactory()
     {
-        return new NonVerifyingOperation(operationId, instance, serialConsistency, primaryKey, historyChecker);
+        AtomicInteger id = new AtomicInteger(0);
+
+        return (simulated, primaryKeyIndex) -> {
+            int[] primaryKeys = IntStream.of(primaryKeyIndex).map(i -> this.primaryKeys[i]).toArray();
+            return () -> accordAction(id.getAndIncrement(), simulated, primaryKeys);
+        };
     }
 
-    @Override
-    Operation modifying(int operationId, IInvokableInstance instance, int primaryKey, HistoryChecker historyChecker)
+    public class ReadWriteOperation extends Operation
     {
-        return new ModifyingOperation(operationId, instance, ANY, serialConsistency, primaryKey, historyChecker);
+        private final IntHashSet reads, writes;
+
+        public ReadWriteOperation(int id, int[] primaryKeys, IntHashSet reads, IntHashSet writes, IInvokableInstance instance)
+        {
+            super(primaryKeys, id, instance, "Accord", createQuery(id, reads, writes));
+            this.reads = reads;
+            this.writes = writes;
+        }
+
+        @Override
+        void verify(Observation outcome)
+        {
+            SimpleQueryResult result = outcome.result;
+            (result != null ? successfulWrites : failedWrites).incrementAndGet();
+            if (result != null)
+            {
+                IntHashSet seen = new IntHashSet();
+                //TODO if there isn't a value then we get empty read, which then doesn't make it into the QueryResult
+                // given the fact that we always run with the partitions defined this should be fine
+                try (HistoryValidator.Checker checker = validator.witness(outcome.start, outcome.end))
+                {
+                    while (result.hasNext())
+                    {
+                        org.apache.cassandra.distributed.api.Row row = result.next();
+
+                        int pk = row.getInteger("pk");
+                        int count = row.getInteger("count", 0);
+                        int[] seq = Arrays.stream(row.getString("seq", "").split(","))
+                                          .filter(s -> !s.isEmpty())
+                                          .mapToInt(Integer::parseInt)
+                                          .toArray();
+
+                        if (!seen.add(pk))
+                            throw new IllegalStateException("Duplicate partition key " + pk);
+                        // every partition was read, but not all were written to... need to verify each partition
+                        if (seq.length != count)
+                            throw fail(pk, "%d != #%s", count, seq);
+
+                        checker.read(pk, outcome.id, count, seq);
+                    }
+                    if (!seen.equals(reads))
+                        throw fail(0, "#result had %s partitions, but should have had %s", seen, reads);
+                    // handle writes
+                    for (IntCursor c : writes)
+                        checker.write(c.value, outcome.id, outcome.isSuccess());
+                }
+            }
+        }
+    }
+
+    private Action accordAction(int id, SimulatedSystems simulated, int[] partitions)
+    {
+        IntArrayList reads = new IntArrayList();
+        IntArrayList writes = new IntArrayList();
+        for (int partition : partitions)
+        {
+            boolean added = false;
+            if (simulated.random.decide(readRatio))
+            {
+                reads.add(partition);
+                added = true;
+            }
+            if (simulated.random.decide(writeRatio))
+            {
+                writes.add(partition);
+                added = true;
+            }
+            if (!added)
+            {
+                // when read ratio fails that implies write
+                // when write ratio fails that implies read
+                // so make that case a read/write
+                // Its possible that both cases were true leading to a read/write; which is fine
+                // this just makes sure every partition is consumed.
+                reads.add(partition);
+                writes.add(partition);
+            }
+        }
+
+        int node = simulated.random.uniform(1, cluster.size() + 1);
+        IInvokableInstance instance = cluster.get(node);
+        return new ReadWriteOperation(id, partitions, new IntHashSet(reads), new IntHashSet(writes), instance);
+    }
+
+    private int[] genReadOnly(SimulatedSystems simulated, int[] partitions)
+    {
+        IntArrayList readOnly = new IntArrayList();
+        for (int partition : partitions)
+        {
+            if (simulated.random.decide(readRatio))
+                readOnly.add(partition);
+        }
+        return readOnly.toArray();
+    }
+
+    private static Query createQuery(int id, IntHashSet reads, IntHashSet writes)
+    {
+        if (reads.isEmpty() && writes.isEmpty())
+            throw new IllegalArgumentException("Partitions are empty");
+        List<Object> binds = new ArrayList<>();
+        StringBuilder sb = new StringBuilder();
+        sb.append("BEGIN TRANSACTION\n");
+        if (!reads.isEmpty())
+        {
+
+            sb.append("\t")
+              .append(String.format(SELECT, String.join(", ", IntStream.of(reads.toArray())
+                                                                       .mapToObj(i -> {
+                                                                           binds.add(i);
+                                                                           return "?";
+                                                                       })
+                                                                       .collect(Collectors.joining(", ")))))
+              .append('\n');
+        }
+
+        for (IntCursor c : writes)
+        {
+            sb.append('\t').append(UPDATE).append("\n");
+            binds.add(id + ",");
+            binds.add(c.value);
+        }
+
+        sb.append("COMMIT TRANSACTION");
+        return new Query(sb.toString(), 0, ConsistencyLevel.ANY, ConsistencyLevel.ANY, binds.toArray(new Object[0]));
     }
 
     @Override

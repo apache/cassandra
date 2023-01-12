@@ -116,6 +116,7 @@ public class QueryResultUtil
     {
         StringBuilder sb = new StringBuilder();
         int rowNum = 1;
+        qr.mark();
         while (qr.hasNext())
         {
             sb.append("@ Row ").append(rowNum).append('\n');
@@ -128,6 +129,7 @@ public class QueryResultUtil
             }
             sb.append(table);
         }
+        qr.reset();
         return sb.toString();
     }
 
