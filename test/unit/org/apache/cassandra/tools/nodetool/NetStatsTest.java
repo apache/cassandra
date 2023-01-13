@@ -117,7 +117,8 @@ public class NetStatsTest extends CQLTester
                                            InetAddressAndPort.getLocalHost(),
                                            streamSummaries,
                                            streamSummaries,
-                                           State.COMPLETE);
+                                           State.COMPLETE,
+                                           null);
 
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream(); PrintStream out = new PrintStream(baos))
         {
