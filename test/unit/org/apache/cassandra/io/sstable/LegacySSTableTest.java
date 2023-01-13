@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Iterator;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Iterables;
@@ -64,6 +65,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OutgoingStream;
@@ -677,16 +679,10 @@ public class LegacySSTableTest
 
     private static void copyFile(File cfDir, File file) throws IOException
     {
-        byte[] buf = new byte[65536];
         if (file.isFile())
         {
             File target = new File(cfDir, file.name());
-            int rd;
-            try (FileInputStreamPlus is = new FileInputStreamPlus(file);
-                 FileOutputStreamPlus os = new FileOutputStreamPlus(target);) {
-                while ((rd = is.read(buf)) >= 0)
-                    os.write(buf, 0, rd);
-                }
+            FileUtils.copyWithConfirm( file, target );
         }
     }
 
@@ -708,14 +704,19 @@ public class LegacySSTableTest
         Descriptor descriptor = new Descriptor( version,  directory,  ksname,  cfname, id, formatType);
         HashSet<Descriptor> set = new HashSet<>();
         set.add( descriptor );
-        Object[] arry = set.toArray();
+        Iterator<Descriptor> iter;
         do
         {
             id = new SequenceBasedSSTableId(++generation);
             descriptor = new Descriptor(version , directory , ksname , cfname , id , formatType);
             set.add(descriptor);
-            arry = set.toArray();
-        }  while( descriptor.equals(arry[arry.length-1]));
+            // set has 2 elements and the order should be the old one then the new one.  This test
+            // removes the first one and then verifies the remaining one is the new one.
+            iter = set.iterator();
+            iter.next();
+            iter.remove();
+
+        }  while( descriptor.equals(iter.next()));
         return generation;
     }
 
@@ -744,19 +745,13 @@ public class LegacySSTableTest
         for (int i=0;i<3;i++) {
             for (File file : sourceDir.tryList())
             {
-                byte[] buf = new byte[65536];
                 if (file.isFile())
                 {
                     String[] fileNameParts = file.name().split("-");
                     String targetName = String.format( "%s-%s-%s-%s", legacyVersion, start+i, fileNameParts[2], fileNameParts[3]);
                     logger.info("creating legacy sstable {}", targetName);
                     File target = new File(cfDir, targetName);
-                    int rd;
-                    try (FileInputStreamPlus is = new FileInputStreamPlus(file);
-                         FileOutputStreamPlus os = new FileOutputStreamPlus(target);) {
-                        while ((rd = is.read(buf)) >= 0)
-                            os.write(buf, 0, rd);
-                    }
+                    FileUtils.copyWithConfirm(file , target);
                 }
             }
         }

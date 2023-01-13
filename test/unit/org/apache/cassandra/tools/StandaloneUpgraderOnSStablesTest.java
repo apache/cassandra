@@ -149,7 +149,7 @@ public class StandaloneUpgraderOnSStablesTest
         // verify that the files are not returned in the correct order.
         Set<String> treeSet = new TreeSet<>();
         treeSet.addAll( origFiles );
-        assertNotEquals( treeSet.toArray(), origFiles.toArray());
+        assertNotEquals( "Initial data was not in the incorret order", treeSet.toArray(), origFiles.toArray());
 
         ToolResult tool = ToolRunner.invokeClass(StandaloneUpgrader.class,
                                                  "legacy_tables",
@@ -163,8 +163,7 @@ public class StandaloneUpgraderOnSStablesTest
             Assertions.assertThat(tool.getStdout()).contains(fileName);
             loc[i] = tool.getStdout().lastIndexOf(fileName);
         }
-        Assert.assertTrue( "Files processed out of sequence", loc[0] < loc[1] );
-        Assert.assertTrue(  "Files processed out of sequence", loc[1] < loc[2] );
+        Assertions.assertThat( loc ).isSorted();
         tool.assertOnCleanExit();
 
         List<String> newFiles = getSStableFiles("legacy_tables", tableName);
