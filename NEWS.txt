@@ -51,6 +51,18 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+
+4.1.1
+===
+
+G1GC Recommended
+----------------
+    - The G1 settings in jvm8-server.options and jvm11-server.options are updated according to broad feedback
+      and testing. The G1 settings remain commented out by default in 4.1.x. It is recommended to switch
+      to G1 for performance and for simpler GC tuning. CMS is already deprecated in JDK9, and the next major
+      release of Cassandra makes G1 the default configuration.
+
+
 4.1
 ===
 
