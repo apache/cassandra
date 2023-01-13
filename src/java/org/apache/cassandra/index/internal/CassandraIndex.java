@@ -757,11 +757,11 @@ public abstract class CassandraIndex implements Index
         ColumnDefinition indexedColumn = target.left;
         AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
 
-        AbstractType<?> indexTableMokePkType =  baseCfsMetadata.partitioner.partitionOrdering();
-        if(indexTableMokePkType instanceof PartitionerDefinedOrder)
+        AbstractType<?> indexedTablePartitionKeyType =  baseCfsMetadata.partitioner.partitionOrdering();
+        if(indexedTablePartitionKeyType instanceof PartitionerDefinedOrder)
         {
-            PartitionerDefinedOrder tmp =  (PartitionerDefinedOrder)indexTableMokePkType;
-            indexTableMokePkType = tmp.withBaseType(baseCfsMetadata.getKeyValidator());
+            PartitionerDefinedOrder tmp =  (PartitionerDefinedOrder)indexedTablePartitionKeyType;
+            indexedTablePartitionKeyType = tmp.withBaseType(baseCfsMetadata.getKeyValidator());
         }
 
         // Tables for legacy KEYS indexes are non-compound and dense
@@ -775,7 +775,7 @@ public abstract class CassandraIndex implements Index
         builder =  builder.withId(baseCfsMetadata.cfId)
                           .withPartitioner(new LocalPartitioner(indexedValueType))
                           .addPartitionKey(indexedColumn.name, utils.getIndexedPartitionKeyType(indexedColumn))
-                          .addClusteringColumn("partition_key", indexTableMokePkType);
+                          .addClusteringColumn("partition_key", indexedTablePartitionKeyType);
 
         if (indexMetadata.isKeys())
         {

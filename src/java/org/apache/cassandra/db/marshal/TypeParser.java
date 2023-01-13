@@ -140,65 +140,52 @@ public class TypeParser
     {
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Iterator<String> argIterator = typeParser.getKeyValueParameters().keySet().iterator();
-        if (argIterator.hasNext()) {
+        if (argIterator.hasNext()) 
+        {
             partitioner = FBUtilities.newPartitioner(argIterator.next());
             assert !argIterator.hasNext();
         }
         return partitioner.partitionOrdering();
     }
 
-    //the format is (partitioner:type)
+    /**
+     * parse and return the real PartitionerDefinedOrder from the string variable str
+     * the str format can be like PartitionerDefinedOrder(<partitioner>) or
+     * PartitionerDefinedOrder(<partitioner>:<baseType>)
+     * */
     public AbstractType<?> getPartitionerDefinedOrder()
     {
+        int initIdx = idx;
+        skipBlank();
         if (isEOS())
             return defaultParsePartitionOrdering(this);
-        skipBlank();
         if (str.charAt(idx) != '(')
             throw new IllegalStateException();
-        Pair<Boolean, AbstractType<?>>  result = null;
-        ++idx; // skipping '('
 
-        if (str.charAt(idx) == ')')
-        {
-            ++idx;
-            return  defaultParsePartitionOrdering(this);
-        }
+        ++idx; // skipping '('
         skipBlank();
+
         String k = readNextIdentifier();
+        IPartitioner partitioner = FBUtilities.newPartitioner(k);
         skipBlank();
         if (str.charAt(idx) == ':')
         {
             ++idx;
             skipBlank();
+            // must be PartitionerDefinedOrder 
+            PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) partitioner.partitionOrdering();
+            return tmp.withBaseType(parse());
         }
-        else if (str.charAt(idx) != ',' && str.charAt(idx) != ')')
+        else if (str.charAt(idx) == ')')
         {
+            idx = initIdx;
+            // if PartitionerDefinedOrder(<partitioner>) then use the original way of parse partitioner Order
+            // for may exist some place we do not know ? or we can just return partitioner.partitionOrdering() here with not initIdx set 
             return defaultParsePartitionOrdering(this);
         }
-        IPartitioner partitioner = FBUtilities.newPartitioner(k);
-        AbstractType<?> type = partitioner.partitionOrdering();
-        if (partitioner.partitionOrdering() instanceof PartitionerDefinedOrder)
-        {
-            PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) partitioner.partitionOrdering();
-            ++idx;
-            try
-            {
-                type = tmp.withBaseType(parse());
-            }
-            catch (Throwable throwable)
-            {
-                Iterator<String> argIterator = this.getKeyValueParameters().keySet().iterator();
-                if (argIterator.hasNext())
-                {
-                    partitioner = FBUtilities.newPartitioner(argIterator.next());
-                    assert !argIterator.hasNext();
-                }
-                return partitioner.partitionOrdering();
-            }
-        }
-        return type;
+        throw new SyntaxException("Syntax error parsing '" + str + ": for msg unexpected character '" + str.charAt(idx) + "'");
     }
-    
+
     public Map<String, String> getKeyValueParameters() throws SyntaxException
     {
         if (isEOS())
@@ -643,10 +630,5 @@ public class TypeParser
         }
         sb.append(')');
         return sb.toString();
-    }
-
-    public TypeParser clone()
-    {
-        return new TypeParser(this.str, this.idx);
     }
 }

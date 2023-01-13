@@ -342,10 +342,6 @@ public final class JsonTransformer
                 else
                 {
                     AbstractType<?> type = column.cellValueType();
-                    if (type instanceof PartitionerDefinedOrder)
-                    {
-                        type = ((PartitionerDefinedOrder)type).getBaseType();
-                    }
                     json.writeRawValue(type.toJSONString(clustering.get(i), ProtocolVersion.CURRENT));
                 }
             }

@@ -18,9 +18,7 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -28,14 +26,12 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 /** for sorting columns representing row keys in the row ordering as determined by a partitioner.
  * Not intended for user-defined CFs, and will in fact error out if used with such. */
 public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
 {
     private final IPartitioner partitioner;
-    
     private final AbstractType<?> baseType;
     
     public PartitionerDefinedOrder(IPartitioner partitioner)
@@ -45,7 +41,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
         this.baseType = null;
     }
 
-    public PartitionerDefinedOrder(IPartitioner partitioner, AbstractType<?>  baseType)
+    public PartitionerDefinedOrder(IPartitioner partitioner, AbstractType<?> baseType)
     {
         super(ComparisonType.CUSTOM);
         this.partitioner = partitioner;
@@ -54,8 +50,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
 
     public static AbstractType<?> getInstance(TypeParser parser)
     {
-        TypeParser clone = parser.clone();
-        return clone.getPartitionerDefinedOrder();
+        return parser.getPartitionerDefinedOrder();
     }
 
     public AbstractType<?> withBaseType(AbstractType<?> baseType)
@@ -120,7 +115,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     {
         if(baseType != null)
         {
-            return String.format("%s(%s:(%s))", getClass().getName(),  partitioner.getClass().getName(), baseType.toString());
+            return String.format("%s(%s:%s)", getClass().getName(),  partitioner.getClass().getName(), baseType.toString());
         }
         return String.format("%s(%s)", getClass().getName(), partitioner.getClass().getName());
     }
@@ -129,7 +124,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     {
         return baseType;
     }
-    
+
     @Override
     public boolean equals(Object obj)
     {
@@ -137,11 +132,18 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
         {
             return true;
         }
-        
         if (obj instanceof PartitionerDefinedOrder)
         {
             PartitionerDefinedOrder other = (PartitionerDefinedOrder) obj;
-            return this.baseType == other.baseType && this.partitioner == other.partitioner;
+            if (baseType == null && other.baseType == null)
+            {
+                return this.partitioner.equals(other.partitioner);
+            }
+            else if (baseType != null && other.baseType != null)
+            {
+                return this.baseType.equals(other.baseType) && this.partitioner.equals(other.partitioner);
+            }
+            return false;
         }
         return false;
     }

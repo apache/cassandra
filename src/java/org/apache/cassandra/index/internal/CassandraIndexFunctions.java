@@ -49,7 +49,10 @@ public interface CassandraIndexFunctions
         return indexedColumn.type;
     }
 
-    public AbstractType<?> getIndexedPartitionKeyType(ColumnDefinition indexedColumn);
+    default AbstractType<?> getIndexedPartitionKeyType(ColumnDefinition indexedColumn)
+    {
+        return indexedColumn.type;
+    }
     
     /**
      * Add the clustering columns for a specific type of index table to the a CFMetaData.Builder (which is being
@@ -87,12 +90,6 @@ public interface CassandraIndexFunctions
         {
             return new KeysIndex(baseCfs, indexMetadata);
         }
-
-        @Override
-        public AbstractType<?> getIndexedPartitionKeyType(ColumnDefinition indexedColumn)
-        {
-            return indexedColumn.type;
-        }
     };
 
     static final CassandraIndexFunctions REGULAR_COLUMN_INDEX_FUNCTIONS = new CassandraIndexFunctions()
@@ -100,12 +97,6 @@ public interface CassandraIndexFunctions
         public CassandraIndex newIndexInstance(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
         {
             return new RegularColumnIndex(baseCfs, indexMetadata);
-        }
-
-        @Override
-        public AbstractType<?> getIndexedPartitionKeyType(ColumnDefinition indexedColumn)
-        {
-            return indexedColumn.type;
         }
     };
 
@@ -133,12 +124,6 @@ public interface CassandraIndexFunctions
             }
             return builder;
         }
-
-        @Override
-        public AbstractType<?> getIndexedPartitionKeyType(ColumnDefinition indexedColumn)
-        {
-            return indexedColumn.type;
-        }
     };
 
     static final CassandraIndexFunctions PARTITION_KEY_INDEX_FUNCTIONS = new CassandraIndexFunctions()
@@ -146,12 +131,6 @@ public interface CassandraIndexFunctions
         public CassandraIndex newIndexInstance(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
         {
             return new PartitionKeyIndex(baseCfs, indexMetadata);
-        }
-
-        @Override
-        public AbstractType<?> getIndexedPartitionKeyType(ColumnDefinition indexedColumn)
-        {
-            return indexedColumn.type;
         }
     };
 

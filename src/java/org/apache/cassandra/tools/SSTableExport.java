@@ -25,6 +25,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -116,6 +119,14 @@ public class SSTableExport
         for (int i = 0; i < header.getClusteringTypes().size(); i++)
         {
             builder.addClusteringColumn("clustering" + (i > 0 ? i : ""), header.getClusteringTypes().get(i));
+        }
+        
+        if (SecondaryIndexManager.isIndexColumnFamily(desc.cfname))
+        {
+            String index = SecondaryIndexManager.getIndexName(desc.cfname);
+            IndexMetadata indexMetadata =  IndexMetadata.fromSchemaMetadata(index, IndexMetadata.Kind.CUSTOM, null);
+            Indexes indexes = Indexes.builder().add(indexMetadata).build();
+            return builder.build().indexes(indexes);
         }
         return builder.build();
     }
