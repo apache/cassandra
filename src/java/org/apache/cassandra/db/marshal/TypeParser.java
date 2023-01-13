@@ -146,7 +146,8 @@ public class TypeParser
     {
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Iterator<String> argIterator = typeParser.getKeyValueParameters().keySet().iterator();
-        if (argIterator.hasNext()) {
+        if (argIterator.hasNext()) 
+        {
             partitioner = FBUtilities.newPartitioner(argIterator.next());
             assert !argIterator.hasNext();
         }

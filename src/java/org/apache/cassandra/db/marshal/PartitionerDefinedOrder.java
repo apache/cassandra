@@ -18,18 +18,13 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
-import java.util.List;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 /** for sorting columns representing row keys in the row ordering as determined by a partitioner.
  * Not intended for user-defined CFs, and will in fact error out if used with such. */
@@ -57,7 +52,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
         return parser.getPartitionerDefinedOrder();
     }
     
-    public AbstractType<?> withBaseType(AbstractType<?> baseType) 
+    public AbstractType<?> withBaseType(AbstractType<?> baseType)
     {
         return new PartitionerDefinedOrder(partitioner, baseType);
     }
