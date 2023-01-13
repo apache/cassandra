@@ -138,7 +138,6 @@ public class TypeParser
             return getAbstractType(name);
     }
 
-
     /**
      * parse PartitionOrdering from old version of PartitionOrdering' string format 
      * */
