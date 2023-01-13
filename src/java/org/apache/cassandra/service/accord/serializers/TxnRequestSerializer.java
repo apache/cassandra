@@ -28,7 +28,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public abstract class TxnRequestSerializer<T extends TxnRequest<?>> implements IVersionedSerializer<T>
+public abstract class TxnRequestSerializer<T extends TxnRequest> implements IVersionedSerializer<T>
 {
     void serializeHeader(T msg, DataOutputPlus out, int version) throws IOException
     {
@@ -73,7 +73,7 @@ public abstract class TxnRequestSerializer<T extends TxnRequest<?>> implements I
         return serializedHeaderSize(msg, version) + serializedBodySize(msg, version);
     }
 
-    public static abstract class WithUnsyncedSerializer<T extends TxnRequest.WithUnsynced<?>> extends TxnRequestSerializer<T>
+    public static abstract class WithUnsyncedSerializer<T extends TxnRequest.WithUnsynced> extends TxnRequestSerializer<T>
     {
         @Override
         void serializeHeader(T msg, DataOutputPlus out, int version) throws IOException

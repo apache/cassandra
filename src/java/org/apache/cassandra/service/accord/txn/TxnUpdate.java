@@ -146,7 +146,7 @@ public class TxnUpdate implements Update
     {
         // TODO: special method for linear merging keyed and non-keyed lists simultaneously
         TxnUpdate that = (TxnUpdate) update;
-        Keys mergedKeys = this.keys.union(that.keys);
+        Keys mergedKeys = this.keys.with(that.keys);
         ByteBuffer[] mergedFragments = merge(this.keys, that.keys, this.fragments, that.fragments, mergedKeys.size());
         return new TxnUpdate(mergedKeys, mergedFragments, condition);
     }

@@ -127,7 +127,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             if (!reads.contains(namedRead))
                 reads.add(namedRead);
 
-        return new TxnRead(reads, txnKeys.union((Keys)read.keys()));
+        return new TxnRead(reads, txnKeys.with((Keys)read.keys()));
     }
 
     @Override

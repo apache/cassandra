@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
@@ -62,8 +63,11 @@ import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static accord.local.PreLoadContext.contextFor;
+import static accord.local.SafeCommandStore.TestDep.ANY_DEPS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class AccordCommandStore extends CommandStore
@@ -216,9 +220,12 @@ public class AccordCommandStore extends CommandStore
         }
 
         @Override
-        public <T> T mapReduce(Seekables<?, ?> keysOrRanges, Ranges slice, TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp, TestDep testDep, @Nullable TxnId depId, @Nullable Status minStatus, @Nullable Status maxStatus, CommandFunction<T, T> map, T accumulate, T terminalValue)
+        public <T> Future<T> fold(Seekables<?, ?> keysOrRanges, Ranges slice, TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp, @Nullable Status minStatus, @Nullable Status maxStatus, SearchFunction<T, T> map, T accumulate, T terminalValue)
         {
-            accumulate = mapReduceForKey(keysOrRanges, slice, (forKey, prev) -> {
+            // TODO (expected): we duplicate work on PreAccept/BeginRecovery here as we already page these into memory and could execute immediately
+            //  we want an in-memory cache that we can visit easily with the current thread, only saving those we cannot visit immediately for fetching from disk
+            //  but also, we should not be bringing this state into memory for PreAccept or BeginRecovery
+            return submit(contextFor(keysOrRanges.slice(slice)), safeStore -> mapReduceForKey(keysOrRanges, slice, (forKey, prev) -> {
                 CommandsForKey.CommandTimeseries timeseries;
                 switch (testTimestamp)
                 {
@@ -243,10 +250,44 @@ public class AccordCommandStore extends CommandStore
                     case MAY_EXECUTE_BEFORE:
                         remapTestTimestamp = CommandsForKey.CommandTimeseries.TestTimestamp.BEFORE;
                 }
-                return timeseries.mapReduce(testKind, remapTestTimestamp, timestamp, testDep, depId, minStatus, maxStatus, map, prev, terminalValue);
-            }, accumulate, terminalValue);
+                return timeseries.mapReduce(testKind, remapTestTimestamp, timestamp, ANY_DEPS, null, minStatus, maxStatus, map, prev, terminalValue);
+            }, accumulate, terminalValue));
+        }
 
-            return accumulate;
+        @Override
+        public <T> Future<T> slowFold(Seekables<?, ?> keys, Ranges slice, SlowSearchFunction<T, T> fold, T accumulate, T terminalValue)
+        {
+            return submit(contextFor(keys.slice(slice)), safeStore -> mapReduceForKey(keys, slice, (forKey, acc) -> fold.apply(new SlowSearcher() {
+                @Override
+                public <T2> T2 fold(TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp, TestDep testDep, @Nullable TxnId depId, @Nullable Status minStatus, @Nullable Status maxStatus, SearchFunction<T2, T2> apply, T2 acc, T2 term)
+                {
+                    CommandsForKey.CommandTimeseries timeseries;
+                    switch (testTimestamp)
+                    {
+                        default: throw new AssertionError();
+                        case STARTED_AFTER:
+                        case STARTED_BEFORE:
+                            timeseries = forKey.byId();
+                            break;
+                        case EXECUTES_AFTER:
+                        case MAY_EXECUTE_BEFORE:
+                            timeseries = forKey.byExecuteAt();
+                    }
+                    CommandsForKey.CommandTimeseries.TestTimestamp remapTestTimestamp;
+                    switch (testTimestamp)
+                    {
+                        default: throw new AssertionError();
+                        case STARTED_AFTER:
+                        case EXECUTES_AFTER:
+                            remapTestTimestamp = CommandsForKey.CommandTimeseries.TestTimestamp.AFTER;
+                            break;
+                        case STARTED_BEFORE:
+                        case MAY_EXECUTE_BEFORE:
+                            remapTestTimestamp = CommandsForKey.CommandTimeseries.TestTimestamp.BEFORE;
+                    }
+                    return timeseries.mapReduce(testKind, remapTestTimestamp, timestamp, testDep, depId, minStatus, maxStatus, apply, acc, term);
+                }
+            }, forKey.key(), acc), accumulate, terminalValue));
         }
 
         @Override

@@ -33,8 +33,11 @@ import accord.local.Node;
 import accord.local.PreLoadContext;
 import accord.local.Status;
 import accord.messages.Accept;
+import accord.messages.Accept.AcceptReply;
+import accord.messages.Apply;
 import accord.messages.Commit;
 import accord.messages.PreAccept;
+import accord.messages.PreAccept.PreAcceptReply;
 import accord.primitives.Ballot;
 import accord.primitives.FullRoute;
 import accord.primitives.Keys;
@@ -52,7 +55,9 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.Future;
 
+import static accord.local.PreLoadContext.contextFor;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.*;
 
@@ -99,13 +104,13 @@ public class AccordCommandTest
         PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, false, 1, partialTxn, fullRoute);
 
         // Check preaccept
-        commandStore.execute(preAccept, instance -> {
-            PreAccept.PreAcceptReply reply = preAccept.apply(instance);
+        {
+            PreAcceptReply reply = commandStore.submit(preAccept, preAccept::apply).get().get();
             Assert.assertTrue(reply.isOk());
             PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
             Assert.assertEquals(txnId, ok.witnessedAt);
             Assert.assertTrue(ok.deps.isEmpty());
-        }).get();
+        }
 
         commandStore.execute(preAccept, instance -> {
             Command command = instance.command(txnId);
@@ -122,18 +127,18 @@ public class AccordCommandTest
         // check accept
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 1);
-        PartialDeps.OrderedBuilder builder = PartialDeps.orderedBuilder(route.covering(), false);
+        PartialDeps.Builder builder = PartialDeps.builder(route.covering());
         builder.add(key, txnId2);
         PartialDeps deps = builder.build();
         Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, false, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
 
-        commandStore.execute(accept, instance -> {
-            Accept.AcceptReply reply = accept.apply(instance);
+        {
+            AcceptReply reply = commandStore.submit(accept, accept::apply).get().get();
             Assert.assertTrue(reply.isOk());
             Assert.assertTrue(reply.deps.isEmpty());
-        }).get();
+        }
 
-        commandStore.execute(accept, instance -> {
+        commandStore.execute(contextFor(txnId, Keys.of(key)), instance -> {
             Command command = instance.command(txnId);
             Assert.assertEquals(executeAt, command.executeAt());
             Assert.assertEquals(Status.Accepted, command.status());
@@ -149,7 +154,7 @@ public class AccordCommandTest
         Commit commit = Commit.SerializerSupport.create(txnId, route, 1, executeAt, partialTxn, deps, fullRoute, null);
         commandStore.execute(commit, commit::apply).get();
 
-        commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key)), instance -> {
+        commandStore.execute(contextFor(txnId, Keys.of(key)), instance -> {
             Command command = instance.command(txnId);
             Assert.assertEquals(commit.executeAt, command.executeAt());
             Assert.assertTrue(command.hasBeen(Status.Committed));
@@ -181,11 +186,9 @@ public class AccordCommandTest
         // second preaccept should identify txnId1 as a dependency
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, false, 1, partialTxn, fullRoute);
-        commandStore.execute(preAccept2, instance -> {
-            PreAccept.PreAcceptReply reply = preAccept2.apply(instance);
-            Assert.assertTrue(reply.isOk());
-            PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
-            Assert.assertTrue(ok.deps.contains(txnId1));
-        }).get();
+        PreAcceptReply reply = commandStore.submit(preAccept2, instance -> preAccept2.apply(instance)).get().get();
+        Assert.assertTrue(reply.isOk());
+        PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
+        Assert.assertTrue(ok.deps.contains(txnId1));
     }
 }

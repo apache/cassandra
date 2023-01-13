@@ -132,9 +132,9 @@ public class AcceptSerializers
                 case 1:
                     return new AcceptReply(DepsSerializer.partialDeps.deserialize(in, version));
                 case 2:
-                    return AcceptReply.ACCEPT_INVALIDATE;
+                    return AcceptReply.ACCEPT_INVALIDATE.getNow();
                 case 3:
-                    return AcceptReply.REDUNDANT;
+                    return AcceptReply.REDUNDANT.getNow();
                 case 4:
                     return new AcceptReply(CommandSerializers.ballot.deserialize(in, version));
             }

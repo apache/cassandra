@@ -148,7 +148,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
         public <T> T mapReduce(TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp,
                         TestDep testDep, @Nullable TxnId depId,
                         @Nullable Status minStatus, @Nullable Status maxStatus,
-                        SafeCommandStore.CommandFunction<T, T> map, T initialValue, T terminalValue)
+                        SafeCommandStore.SearchFunction<T, T> fold, T initialValue, T terminalValue)
         {
             for (ByteBuffer buffer : (testTimestamp == TestTimestamp.BEFORE ? this.map.getView().headMap(timestamp, false) : this.map.getView().tailMap(timestamp, false)).values())
             {
@@ -161,7 +161,7 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
                     continue;
                 if (maxStatus != null && maxStatus.compareTo(cmd.status()) < 0)
                     continue;
-                initialValue = map.apply(key, cmd.txnId(), cmd.executeAt(), initialValue);
+                initialValue = fold.apply(key, cmd.txnId(), cmd.executeAt(), initialValue);
                 if (initialValue.equals(terminalValue))
                     break;
             }

@@ -324,7 +324,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
                 {
                     if (i == results.size())
                         results.add(Ranges.EMPTY);
-                    results.set(i, results.get(i).union(split));
+                    results.set(i, results.get(i).with(split));
                     ++i;
                 }
             }
