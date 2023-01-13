@@ -23,7 +23,6 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.compaction.CompactionHistoryProperty;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
@@ -34,6 +33,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Map;
 
+import static org.apache.cassandra.db.compaction.CompactionHistoryTabularData.COMPACTION_TYPE_PROPERTY;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
 import static org.junit.Assert.assertTrue;
 
@@ -65,7 +65,7 @@ public class CompactionHistoryTest extends CQLTester
         String cql = "select keyspace_name,columnfamily_name,compaction_properties  from system." + SystemKeyspace.COMPACTION_HISTORY +
                      " where keyspace_name = '" + keyspace() + "' AND columnfamily_name = '" + currentTable() + "' ALLOW FILTERING";
         
-        Object[] row = row(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.MAJOR_COMPACTION.type));
+        Object[] row = row(keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.MAJOR_COMPACTION.type));
         assertRows(execute(cql), row);
     }
     
@@ -84,7 +84,7 @@ public class CompactionHistoryTest extends CQLTester
         
         Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
         String[] cmds = { "compact", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.MAJOR_COMPACTION.type), cmds);
+        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.MAJOR_COMPACTION.type), cmds);
     }
 
     @Test
@@ -103,7 +103,7 @@ public class CompactionHistoryTest extends CQLTester
         }
         Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(20);
         String[] cmds = { "garbagecollect", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.GARBAGE_COLLECT.type), cmds);
+        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.GARBAGE_COLLECT.type), cmds);
     }
     
     @Test
@@ -120,7 +120,7 @@ public class CompactionHistoryTest extends CQLTester
         }
         Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
         String[] cmds = { "upgradesstables", " -a", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.UPGRADE_SSTABLES.type), cmds);
+        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.UPGRADE_SSTABLES.type), cmds);
     }
     
     

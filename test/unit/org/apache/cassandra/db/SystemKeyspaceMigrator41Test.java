@@ -26,14 +26,12 @@ import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.compaction.CompactionHistoryProperty;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
@@ -300,7 +298,6 @@ public class SystemKeyspaceMigrator41Test extends CQLTester
         SystemKeyspaceMigrator41.migrateCompactionHistory();
 
         int rowCount = 0;
-        Map<String, String> compactionProperties = ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.UNKNOWN.type);
         for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s where keyspace_name = 'keyspace' and columnfamily_name = 'table' allow filtering", tab)))
         {
             rowCount++;
@@ -311,7 +308,7 @@ public class SystemKeyspaceMigrator41Test extends CQLTester
             assertEquals(compactAt, row.getTimestamp("compacted_at"));
             assertEquals("keyspace", row.getString("keyspace_name"));
             assertEquals(rowsMerged, row.getMap("rows_merged", Int32Type.instance, LongType.instance));
-            assertEquals(compactionProperties, row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance));
+            assertEquals(ImmutableMap.of(), row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance));
         }
         assertEquals(1, rowCount);
 

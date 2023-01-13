@@ -46,6 +46,8 @@ public class CompactionHistoryTabularData
 
     private static final TabularType TABULAR_TYPE;
     
+    public static final String COMPACTION_TYPE_PROPERTY = "compaction_type";
+    
     static 
     {
         try

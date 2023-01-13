@@ -21,8 +21,6 @@ package org.apache.cassandra.distributed.upgrade;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.vdurmont.semver4j.Semver;
-import org.apache.cassandra.db.compaction.CompactionHistoryProperty;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
@@ -33,8 +31,6 @@ import org.junit.runners.Parameterized;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
-import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetoolJvmDtest;
 import static org.junit.Assert.assertTrue;
 
@@ -79,7 +75,7 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
           String stdout = toolHistory.getStdout();
           String[] resultArray = stdout.split("\n");
           assertTrue(Arrays.stream(resultArray)
-              .anyMatch(result -> result.contains('{' + FBUtilities.toString(ImmutableMap.of(CompactionHistoryProperty.COMPACTION_TYPE, OperationType.UNKNOWN.type)) + '}')
+              .anyMatch(result -> result.contains('{' + FBUtilities.toString(ImmutableMap.of()) + '}')
                   && result.contains(KEYSPACE)
                   && result.contains("tb")));
       })

@@ -24,6 +24,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +32,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.compaction.CompactionHistoryProperty;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
@@ -184,7 +184,7 @@ public class SystemKeyspaceMigrator41
                                                                     row.has("compacted_at") ? row.getTimestamp("compacted_at") : null,
                                                                     row.has("keyspace_name") ? row.getString("keyspace_name") : null,
                                                                     row.has("rows_merged") ? row.getMap("rows_merged", Int32Type.instance, LongType.instance) : null,
-                                                                    CompactionHistoryProperty.getCompactionHistroyProperties(row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance))
+                                                                    row.has("compaction_properties") ? row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance) : ImmutableMap.of()
                      })
         );
     }

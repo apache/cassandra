@@ -310,7 +310,7 @@ public final class SystemKeyspace
                 + "compacted_at timestamp,"
                 + "keyspace_name text,"
                 + "rows_merged map<int, bigint>,"
-                + "compaction_properties map<text, text>,"
+                + "compaction_properties frozen<map<text, text>>,"
                 + "PRIMARY KEY ((id)))")
                 .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(7))
                 .build();
