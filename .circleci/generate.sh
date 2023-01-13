@@ -198,7 +198,8 @@ if (!($all)); then
            | sed -e "s/\\.java//" \
            | sed -e "s,^${2},," \
            | tr  '/' '.' \
-           | grep ${3} )
+           | grep ${3} )\
+           || : # avoid execution interruptions due to grep return codes and set -e
     for test in $tests; do
       echo "  $test"
       has_env_vars=true
