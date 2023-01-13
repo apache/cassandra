@@ -141,29 +141,29 @@ public class StandaloneUpgraderOnSStablesTest
     @Test
     public void testUpgradeSequence() throws Throwable
     {
-        int startGeneration = LegacySSTableTest.generateMultipleTables( legacyId );
+        int startGeneration = LegacySSTableTest.generateMultipleTables(legacyId);
 
         String tableName = "legacy_" + legacyId + "_multiple";
 
         List<String> origFiles = getSStableFiles("legacy_tables", tableName);
         // verify that the files are not returned in the correct order.
         Set<String> treeSet = new TreeSet<>();
-        treeSet.addAll( origFiles );
-        assertNotEquals( "Initial data was not in the incorret order", treeSet.toArray(), origFiles.toArray());
+        treeSet.addAll(origFiles);
+        assertNotEquals("Initial data was not in the incorret order", treeSet.toArray(), origFiles.toArray());
 
         ToolResult tool = ToolRunner.invokeClass(StandaloneUpgrader.class,
                                                  "legacy_tables",
                                                  tableName);
-        System.out.println( tool.getStdout() );
         Assertions.assertThat(tool.getStdout()).contains("Found 3 sstables that need upgrading.");
         Assertions.assertThat(tool.getStdout()).contains("legacy_tables/" + tableName);
         int[] loc = new int[3];
-        for (int i=0;i<3;i++) {
-            String fileName = String.format( "%s-%s-big-Data.db", legacyId, startGeneration+i);
+        for (int i = 0; i < 3; i++)
+        {
+            String fileName = String.format("%s-%s-big-Data.db", legacyId, startGeneration + i);
             Assertions.assertThat(tool.getStdout()).contains(fileName);
             loc[i] = tool.getStdout().lastIndexOf(fileName);
         }
-        Assertions.assertThat( loc ).isSorted();
+        Assertions.assertThat(loc).isSorted();
         tool.assertOnCleanExit();
 
         List<String> newFiles = getSStableFiles("legacy_tables", tableName);

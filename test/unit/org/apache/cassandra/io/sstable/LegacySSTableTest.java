@@ -690,33 +690,35 @@ public class LegacySSTableTest
      * Finds the first point at which the HashSet inserts a generation before a previous
      * generation in the set. This is used in testing to verfy the sequence of tables where
      * the generation order is significant.
+     *
      * @param legacyVersion the legacy version to work with.
      * @return the generation that causes of the inversion.
      */
-    public static int findInversion(String legacyVersion) {
+    public static int findInversion(String legacyVersion)
+    {
         String ksname = "legacy_tables";
-        String cfname = String.format("legacy_%s_multiple", legacyVersion);;
+        String cfname = String.format("legacy_%s_multiple", legacyVersion);
+        ;
         SSTableFormat.Type formatType = SSTableFormat.Type.BIG;
         int generation = 0;
         SequenceBasedSSTableId id = new SequenceBasedSSTableId(generation);
-        File directory = new File( System.getProperty("java.io.tmpdir"));
+        File directory = new File(System.getProperty("java.io.tmpdir"));
         Version version = formatType.info.getVersion(legacyVersion);
-        Descriptor descriptor = new Descriptor( version,  directory,  ksname,  cfname, id, formatType);
+        Descriptor descriptor = new Descriptor(version, directory, ksname, cfname, id, formatType);
         HashSet<Descriptor> set = new HashSet<>();
-        set.add( descriptor );
+        set.add(descriptor);
         Iterator<Descriptor> iter;
         do
         {
             id = new SequenceBasedSSTableId(++generation);
-            descriptor = new Descriptor(version , directory , ksname , cfname , id , formatType);
+            descriptor = new Descriptor(version, directory, ksname, cfname, id, formatType);
             set.add(descriptor);
             // set has 2 elements and the order should be the old one then the new one.  This test
             // removes the first one and then verifies the remaining one is the new one.
             iter = set.iterator();
             iter.next();
             iter.remove();
-
-        }  while( descriptor.equals(iter.next()));
+        } while (descriptor.equals(iter.next()));
         return generation;
     }
 
@@ -724,15 +726,17 @@ public class LegacySSTableTest
      * Generates 3 sstables generations in legacy_x_multiple and adds it to the column store.
      * Tables are guaranteed to not be returned in generation order when iterated via the
      * {@code Directories.SSTableLister} class.
+     *
      * @param legacyVersion the version to create tables for
      * @throws IOException on IO error.
      */
-    public static int generateMultipleTables(String legacyVersion) throws IOException {
+    public static int generateMultipleTables(String legacyVersion) throws IOException
+    {
 
         int start = findInversion(legacyVersion) - 1;
-        String tableName = String.format( "legacy_%s_multiple", legacyVersion);
+        String tableName = String.format("legacy_%s_multiple", legacyVersion);
 
-        File sourceDir = getTableDir(legacyVersion, String.format( "legacy_%s_simple", legacyVersion));
+        File sourceDir = getTableDir(legacyVersion, String.format("legacy_%s_simple", legacyVersion));
 
         logger.info("creating legacy table {}", tableName);
 
@@ -742,16 +746,17 @@ public class LegacySSTableTest
         List<File> cfDirs = cfs.getDirectories().getCFDirectories();
         File cfDir = cfDirs.get(0);
 
-        for (int i=0;i<3;i++) {
+        for (int i = 0; i < 3; i++)
+        {
             for (File file : sourceDir.tryList())
             {
                 if (file.isFile())
                 {
                     String[] fileNameParts = file.name().split("-");
-                    String targetName = String.format( "%s-%s-%s-%s", legacyVersion, start+i, fileNameParts[2], fileNameParts[3]);
+                    String targetName = String.format("%s-%s-%s-%s", legacyVersion, start + i, fileNameParts[2], fileNameParts[3]);
                     logger.info("creating legacy sstable {}", targetName);
                     File target = new File(cfDir, targetName);
-                    FileUtils.copyWithConfirm(file , target);
+                    FileUtils.copyWithConfirm(file, target);
                 }
             }
         }
