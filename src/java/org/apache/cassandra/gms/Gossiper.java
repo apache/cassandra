@@ -1139,6 +1139,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return endpointStateMap.get(ep);
     }
 
+    public EndpointState copyEndpointStateForEndpoint(InetAddressAndPort ep)
+    {
+        EndpointState epState = endpointStateMap.get(ep);
+        if (epState == null)
+            return null;
+        return new EndpointState(epState);
+    }
+
     public ImmutableSet<InetAddressAndPort> getEndpoints()
     {
         return ImmutableSet.copyOf(endpointStateMap.keySet());
