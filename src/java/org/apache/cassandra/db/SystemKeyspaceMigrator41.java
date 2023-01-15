@@ -184,18 +184,16 @@ public class SystemKeyspaceMigrator41
                                                                     row.has("compacted_at") ? row.getTimestamp("compacted_at") : null,
                                                                     row.has("keyspace_name") ? row.getString("keyspace_name") : null,
                                                                     row.has("rows_merged") ? row.getMap("rows_merged", Int32Type.instance, LongType.instance) : null,
-                                                                    row.has("compaction_properties") ? row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance) : ImmutableMap.of()
-                     })
+                                                                    row.has("compaction_properties") ? row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance) : ImmutableMap.of() })
         );
     }
 
     /**
      * Perform table migration by reading data from the old table, converting it, and adding to the new table.
-     * If oldName and newName are same, it means data in the table will be refreshed. And the new table is not empty
-     * and newName is not equal to oldName, no migration is performed
+     * If oldName and newName are same, it means data in the table will be refreshed.
      * 
      * @param truncateIfExists truncate the existing table if it exists before migration; if it is disabled
-     *                         and the new table is not empty, no migration is performed
+     *                         and the new table is not empty and oldName is not equal to newName, no migration is performed
      * @param oldName          old table name
      * @param newName          new table name
      * @param columns          columns to fill in the new table in the same order as returned by the transformation
@@ -220,6 +218,9 @@ public class SystemKeyspaceMigrator41
                                       StringUtils.join(columns, ", "), StringUtils.repeat("?", ", ", columns.length));
 
         UntypedResultSet rows = QueryProcessor.executeInternal(query);
+
+        assert rows != null : String.format("Migrating rows from legacy %s to %s was not done as returned rows from %s are null!", oldName, newName, oldName);
+        
         int transferred = 0;
         logger.info("Migrating rows from legacy {} to {}", oldName, newName);
         for (UntypedResultSet.Row row : rows)

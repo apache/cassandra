@@ -18,7 +18,20 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -26,28 +39,43 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import java.util.Arrays;
-import java.util.Map;
 
 import static org.apache.cassandra.db.compaction.CompactionHistoryTabularData.COMPACTION_TYPE_PROPERTY;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetool;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class CompactionHistoryTest extends CQLTester
 {
+    @Parameterized.Parameter
+    public List<String> cmd;
+
+    @Parameterized.Parameter(1)
+    public String compactionType;
+    
+    @Parameterized.Parameter(2)
+    public int systemTableRecord;
+
+    @Parameterized.Parameters(name = "{index}: cmd={0} compactionType={1} systemTableRecord={2}")
+    public static Collection<Object[]> data()
+    {
+        List<Object[]> result = new ArrayList<>();
+        result.add(new Object[]{ Lists.newArrayList("compact"), OperationType.MAJOR_COMPACTION.type, 1 });
+        result.add(new Object[]{ Lists.newArrayList("garbagecollect"), OperationType.GARBAGE_COLLECT.type, 20 });
+        result.add(new Object[]{ Lists.newArrayList("upgradesstables", "-a" ), OperationType.UPGRADE_SSTABLES.type, 10 });
+        return result;
+    }
+    
     @BeforeClass
     public static void setup() throws Exception
     {
         requireNetwork();
         startJMXServer();
     }
-
+    
     @Test
-    public void testSystemCompactionHistoryTable() throws Throwable
+    public void testCompactionProperties() throws Throwable
     {
         createTable("CREATE TABLE %s (id text, value text, PRIMARY KEY ((id)))");
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
@@ -57,86 +85,49 @@ public class CompactionHistoryTest extends CQLTester
         {
             execute("INSERT INTO %s (id, value) VALUES (?, ?)", "key" + i, "value" + i);
             flush(keyspace());
+            if(compactionType.equals(OperationType.GARBAGE_COLLECT.type))
+            {
+                execute("DELETE FROM %s WHERE id = ? ", "key" + i);
+                flush(keyspace());
+            }
         }
         
-        Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
-        ToolRunner.ToolResult toolCompact = invokeNodetool("compact", keyspace(), currentTable());
-        toolCompact.assertOnCleanExit();
+        int sstableCount = compactionType.equals(OperationType.GARBAGE_COLLECT.type) ? 20 : 10;
+        assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(sstableCount);
+
+        ImmutableList.Builder<String> builder = ImmutableList.builder();
+        List<String> cmds = builder.addAll(cmd).add(keyspace()).add(currentTable()).build();
+        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, compactionType), cmds);
+
         String cql = "select keyspace_name,columnfamily_name,compaction_properties  from system." + SystemKeyspace.COMPACTION_HISTORY +
-                     " where keyspace_name = '" + keyspace() + "' AND columnfamily_name = '" + currentTable() + "' ALLOW FILTERING";
-        
-        Object[] row = row(keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.MAJOR_COMPACTION.type));
-        assertRows(execute(cql), row);
-    }
-    
-    @Test
-    public void testMajorCompaction() throws Throwable
-    {
-        createTable("CREATE TABLE %s (id text, value text, PRIMARY KEY ((id)))");
-        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
-        cfs.disableAutoCompaction();
-        // write SSTables for the specific key
-        for (int i = 0; i < 10; i++)
+            " where keyspace_name = '" + keyspace() + "' AND columnfamily_name = '" + currentTable() + "' ALLOW FILTERING";
+        Object[][] objects = new Object[systemTableRecord][];
+        for (int i = 0; i != systemTableRecord; ++i)
         {
-            execute("INSERT INTO %s (id, value) VALUES (?, ?)", "key" + i, "value" + i);
-            flush(keyspace());
+            objects[i] = row(keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, compactionType));
         }
-        
-        Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
-        String[] cmds = { "compact", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.MAJOR_COMPACTION.type), cmds);
-    }
-
-    @Test
-    public void testGarbageCollect() throws Throwable
-    {
-        createTable("CREATE TABLE %s (id text, value text, PRIMARY KEY ((id)))");
-        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
-        cfs.disableAutoCompaction();
-        // write SSTables for the specific key
-        for (int i = 0; i < 10; i++)
-        {
-            execute("INSERT INTO %s (id, value) VALUES (?, ?)", "key" + i, "value" + i);
-            flush(keyspace());
-            execute("DELETE FROM %s WHERE id = ? ", "key" + i);
-            flush(keyspace());
-        }
-        Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(20);
-        String[] cmds = { "garbagecollect", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.GARBAGE_COLLECT.type), cmds);
-    }
-    
-    @Test
-    public void testUpgradeSSTable() throws Throwable
-    {
-        createTable("CREATE TABLE %s (id text, value text, PRIMARY KEY ((id)))");
-        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
-        cfs.disableAutoCompaction();
-        // write SSTables for the specific key
-        for (int i = 0; i < 10; i++)
-        {
-            execute("INSERT INTO %s (id, value) VALUES (?, ?)", "key" + i, "value" + i);
-            flush(keyspace());
-        }
-        Assertions.assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
-        String[] cmds = { "upgradesstables", " -a", keyspace(), currentTable() };
-        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.UPGRADE_SSTABLES.type), cmds);
+        assertRows(execute(cql), objects);
     }
     
     
-    private void compactionHistoryResultVerify( String keyspace, String table, Map<String, String> properties, String[] cmds)
+    private void compactionHistoryResultVerify( String keyspace, String table, Map<String, String> properties, List<String> cmds)
     {
         ToolRunner.ToolResult toolCompact = invokeNodetool(cmds);
         toolCompact.assertOnCleanExit();
 
         ToolRunner.ToolResult toolHistory = invokeNodetool("compactionhistory");
         toolHistory.assertOnCleanExit();
+        assertCompactionHistoryOutPut(toolHistory, keyspace, table, properties);
+    }
+    
+    public static void assertCompactionHistoryOutPut(ToolRunner.ToolResult toolHistory, String keyspace, String table, Map<String, String> properties)
+    {
         String stdout = toolHistory.getStdout();
-        String[] resultArray = stdout.split("\n");
+        String[] resultArray = stdout.split(System.lineSeparator());
         assertTrue(Arrays.stream(resultArray)
-            .anyMatch(result -> result.contains('{' + FBUtilities.toString(properties) + '}')
-                && result.contains(keyspace)
-                && result.contains(table)));
+                         .anyMatch(result -> result.contains('{' + FBUtilities.toString(properties) + '}')
+                                             && result.contains(keyspace)
+                                             && result.contains(table)));
     }
     
 }

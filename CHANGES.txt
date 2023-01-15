@@ -1,4 +1,5 @@
 4.2
+ * Add compaction type property for nodetool compactionhistory (CASSANDRA-18061)
  * Set the major compaction type correctly for compactionstats (CASSANDRA-18055)
  * Print exception message without stacktrace when nodetool commands fail on probe.getOwnershipWithPort() (CASSANDRA-18079)
  * Add option to print level in nodetool getsstables output (CASSANDRA-18023)
