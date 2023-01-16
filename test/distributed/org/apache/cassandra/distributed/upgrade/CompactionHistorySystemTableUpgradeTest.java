@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.upgrade;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.vdurmont.semver4j.Semver;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.tools.ToolRunner;
 import org.junit.Test;
@@ -29,6 +30,7 @@ import org.junit.runners.Parameterized;
 
 import java.util.ArrayList;
 
+import static org.apache.cassandra.db.compaction.CompactionHistoryTabularData.COMPACTION_TYPE_PROPERTY;
 import static org.apache.cassandra.tools.ToolRunner.invokeNodetoolJvmDtest;
 import static org.apache.cassandra.tools.nodetool.CompactionHistoryTest.assertCompactionHistoryOutPut;
 
@@ -48,8 +50,8 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
     public void compactionHistorySystemTableTest() throws Throwable
     {
         new TestCase()
-        .nodes(2)
-        .nodesToUpgrade(1, 2)
+        .nodes(1)
+        .nodesToUpgrade(1)
         .upgradesToCurrentFrom(version)
         .setup((cluster) -> {
             //create table
@@ -69,9 +71,18 @@ public class CompactionHistorySystemTableUpgradeTest extends UpgradeTestBase
             // force compact
             cluster.stream().forEach(node -> node.forceCompact(KEYSPACE, "tb"));
         }).runAfterClusterUpgrade((cluster) -> {
+            // disable auto compaction at start up
+            cluster.stream().forEach(node -> node.nodetool("disableautocompaction"));
             ToolRunner.ToolResult toolHistory = invokeNodetoolJvmDtest(cluster.get(1), "compactionhistory");
             toolHistory.assertOnCleanExit();
+            // upgraded system.compaction_history data verify
             assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb", ImmutableMap.of());
+            
+            // force compact
+            cluster.stream().forEach(node -> node.nodetool("compact"));
+            toolHistory = invokeNodetoolJvmDtest(cluster.get(1), "compactionhistory");
+            toolHistory.assertOnCleanExit();
+            assertCompactionHistoryOutPut(toolHistory, KEYSPACE, "tb", ImmutableMap.of(COMPACTION_TYPE_PROPERTY, OperationType.MAJOR_COMPACTION.type));
         })
             .run();
     }
