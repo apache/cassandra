@@ -110,6 +110,7 @@ New features
     - Added new CQL native scalar functions for collections. The new functions are mostly analogous to the existing
       aggregation functions, but they operate on the elements of collection columns. The new functions are `map_keys`,
       `map_values`, `collection_count`, `collection_min`, `collection_max`, `collection_sum` and `collection_avg`.
+    - Added compaction_properties column to system.compaction_history table and nodetool compactionhistory command
 
 Upgrading
 ---------

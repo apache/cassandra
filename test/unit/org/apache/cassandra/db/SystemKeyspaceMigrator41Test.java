@@ -20,6 +20,8 @@ package org.apache.cassandra.db;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.Date;
+import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
@@ -32,6 +34,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Range;
@@ -42,6 +45,8 @@ import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 
@@ -263,5 +268,56 @@ public class SystemKeyspaceMigrator41Test extends CQLTester
             assertEquals(345.456d, row.getDouble("rate_15m"), 0.001d);
         }
         assertEquals(1, rowCount);
+    }
+    
+    @Test
+    public void testMigrateCompactionHistory() throws Throwable
+    {
+        String table = String.format("%s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.COMPACTION_HISTORY);
+        String insert = String.format("INSERT INTO %s ("
+                                      + "id, "
+                                      + "bytes_in, "
+                                      + "bytes_out, "
+                                      + "columnfamily_name, "
+                                      + "compacted_at, "
+                                      + "keyspace_name, "
+                                      + "rows_merged) "
+                                      + " values ( ?, ?, ?, ?, ?, ?, ? )",
+                                      table);
+        TimeUUID compactionId = TimeUUID.Generator.atUnixMillis(currentTimeMillis());
+        Date compactAt  = Date.from(now());
+        Map<Integer, Long> rowsMerged = ImmutableMap.of(6, 1L);
+        execute(insert,
+                compactionId,
+                10L,
+                5L,
+                "table",
+                compactAt,
+                "keyspace",
+                rowsMerged);
+        SystemKeyspaceMigrator41.migrateCompactionHistory();
+
+        int rowCount = 0;
+        for (UntypedResultSet.Row row : execute(String.format("SELECT * FROM %s where keyspace_name = 'keyspace' and columnfamily_name = 'table' allow filtering", table)))
+        {
+            rowCount++;
+            assertEquals(compactionId, row.getTimeUUID("id"));
+            assertEquals(10L, row.getLong("bytes_in"));
+            assertEquals(5L, row.getLong("bytes_out"));
+            assertEquals("table", row.getString("columnfamily_name"));
+            assertEquals(compactAt, row.getTimestamp("compacted_at"));
+            assertEquals("keyspace", row.getString("keyspace_name"));
+            assertEquals(rowsMerged, row.getMap("rows_merged", Int32Type.instance, LongType.instance));
+            assertEquals(ImmutableMap.of(), row.getMap("compaction_properties", UTF8Type.instance, UTF8Type.instance));
+        }
+        assertEquals(1, rowCount);
+
+        //Test nulls/missing don't prevent the row from propagating
+        execute(String.format("TRUNCATE %s", table));
+        
+        execute(String.format("INSERT INTO %s (id) VALUES (?)", table), compactionId);
+        SystemKeyspaceMigrator41.migrateCompactionHistory();
+
+        assertEquals(1, execute(String.format("SELECT * FROM %s", table)).size());
     }
 }
