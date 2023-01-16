@@ -932,9 +932,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     public NodeToolResult nodetoolResult(boolean withNotifications, String... commandAndArgs)
     {
         return sync(() -> {
-            try (CapturingOutput output = new CapturingOutput())
+            try (CapturingOutput output = new CapturingOutput();
+                 DTestNodeTool nodetool = new DTestNodeTool(withNotifications, output.delegate))
             {
-                DTestNodeTool nodetool = new DTestNodeTool(withNotifications, output.delegate);
                 // install security manager to get informed about the exit-code
                 System.setSecurityManager(new SecurityManager()
                 {
@@ -1018,15 +1018,18 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         }
     }
 
-    public static class DTestNodeTool extends NodeTool {
+    public static class DTestNodeTool extends NodeTool implements AutoCloseable
+    {
         private final StorageServiceMBean storageProxy;
         private final CollectingNotificationListener notifications = new CollectingNotificationListener();
-
+        private final InternalNodeProbe internalNodeProbe;
         private Throwable latestError;
 
-        public DTestNodeTool(boolean withNotifications, Output output) {
+        public DTestNodeTool(boolean withNotifications, Output output)
+        {
             super(new InternalNodeProbeFactory(withNotifications), output);
-            storageProxy = new InternalNodeProbe(withNotifications).getStorageService();
+            internalNodeProbe = new InternalNodeProbe(withNotifications);
+            storageProxy = internalNodeProbe.getStorageService();
             storageProxy.addNotificationListener(notifications, null, null);
         }
 
@@ -1071,6 +1074,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 return;
             super.err(e);
             latestError = e;
+        }
+
+        @Override
+        public void close()
+        {
+            internalNodeProbe.close();
         }
     }
 

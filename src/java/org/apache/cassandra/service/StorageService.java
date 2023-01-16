@@ -231,6 +231,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private final SamplingManager samplingManager = new SamplingManager();
 
+    @VisibleForTesting // this is used for dtests only, see CASSANDRA-18152
+    public volatile boolean skipNotificationListeners = false;
+
     @Deprecated
     public boolean isInShutdownHook()
     {
@@ -7133,5 +7136,28 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean getSkipStreamDiskSpaceCheck()
     {
         return DatabaseDescriptor.getSkipStreamDiskSpaceCheck();
+    }
+
+    @Override
+    public void removeNotificationListener(NotificationListener listener) throws ListenerNotFoundException
+    {
+        if (!skipNotificationListeners)
+            super.removeNotificationListener(listener);
+    }
+
+    @Override
+    public void removeNotificationListener(NotificationListener listener, NotificationFilter filter, Object handback) throws ListenerNotFoundException
+    {
+        if (!skipNotificationListeners)
+            super.removeNotificationListener(listener, filter, handback);
+    }
+
+    @Override
+    public void addNotificationListener(NotificationListener listener,
+                                        NotificationFilter filter,
+                                        Object handback) throws java.lang.IllegalArgumentException
+    {
+        if (!skipNotificationListeners)
+            super.addNotificationListener(listener, filter, handback);
     }
 }
