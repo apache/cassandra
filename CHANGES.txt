@@ -1,4 +1,5 @@
 4.2
+ * Add compaction_properties column to system.compaction_history table and nodetool compactionhistory command (CASSANDRA-18061)
  * Remove ProtocolVersion entirely from the CollectionSerializer ecosystem (CASSANDRA-18114)
  * Fix serialization error in new getsstables --show-levels option (CASSANDRA-18140)
  * Use checked casts when reading vints as ints (CASSANDRA-18099)
