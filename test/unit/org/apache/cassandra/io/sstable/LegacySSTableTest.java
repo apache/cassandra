@@ -23,18 +23,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Iterator;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -71,6 +67,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
@@ -698,28 +695,18 @@ public class LegacySSTableTest
     {
         String ksname = "legacy_tables";
         String cfname = String.format("legacy_%s_multiple", legacyVersion);
-        ;
+
         SSTableFormat.Type formatType = SSTableFormat.Type.BIG;
-        int generation = 0;
-        SequenceBasedSSTableId id = new SequenceBasedSSTableId(generation);
+        final int[] generation = {-1};
+        final SequenceBasedSSTableId id[] = { null };//new SequenceBasedSSTableId(generation);
         File directory = new File(System.getProperty("java.io.tmpdir"));
         Version version = formatType.info.getVersion(legacyVersion);
-        Descriptor descriptor = new Descriptor(version, directory, ksname, cfname, id, formatType);
-        HashSet<Descriptor> set = new HashSet<>();
-        set.add(descriptor);
-        Iterator<Descriptor> iter;
-        do
-        {
-            id = new SequenceBasedSSTableId(++generation);
-            descriptor = new Descriptor(version, directory, ksname, cfname, id, formatType);
-            set.add(descriptor);
-            // set has 2 elements and the order should be the old one then the new one.  This test
-            // removes the first one and then verifies the remaining one is the new one.
-            iter = set.iterator();
-            iter.next();
-            iter.remove();
-        } while (descriptor.equals(iter.next()));
-        return generation;
+
+        Util.findFirstUnordered(() -> {
+            id[0] = new SequenceBasedSSTableId(++(generation[0]));
+            return new Descriptor(version, directory, ksname, cfname, id[0], formatType);
+        } );
+        return generation[0];
     }
 
     /**
