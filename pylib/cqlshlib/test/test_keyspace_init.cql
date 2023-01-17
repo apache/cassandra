@@ -25,6 +25,7 @@ CREATE TABLE has_all_types (
     booleancol boolean,
     decimalcol decimal,
     doublecol double,
+    durationcol duration,
     floatcol float,
     smallintcol smallint,
     textcol text,
@@ -36,32 +37,32 @@ CREATE TABLE has_all_types (
 ) WITH compression = {'sstable_compression':'LZ4Compressor'};
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
-                           decimalcol, doublecol, floatcol, smallintcol, textcol,
+                           decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
                            timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
 VALUES (0, -12, 'abcdefg', 1234567890123456789, 0x000102030405fffefd, true,
-        19952.11882, 1.0, -2.1, 32767, 'Voilá!',
+        19952.11882, 1.0, 12h, -2.1, 32767, 'Voilá!',
         '2012-05-14 12:53:20+0000', 127, bd1924e1-6af8-44ae-b5e1-f24131dbd460, '"', 10000000000000000000000000);
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
-                           decimalcol, doublecol, floatcol, smallintcol, textcol,
+                           decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
                            timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
 VALUES (1, 2147483647, '__!''$#@!~"', 9223372036854775807, 0xffffffffffffffffff, true,
-        0.00000000000001, 9999999.999, 99999.999, 32767, '∭Ƕ⑮ฑ➳❏''',
+        0.00000000000001, 9999999.999, 12h30m, 99999.999, 32767, '∭Ƕ⑮ฑ➳❏''',
         '1950-01-01+0000', 127, ffffffff-ffff-ffff-ffff-ffffffffffff, 'newline->
 <-', 9);
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
-                           decimalcol, doublecol, floatcol, smallintcol, textcol,
+                           decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
                            timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
 VALUES (2, 0, '', 0, 0x, false,
-        0.0, 0.0, 0.0, 0, '',
+        0.0, 0.0, 12h30m30s, 0.0, 0, '',
         0, 0, 00000000-0000-0000-0000-000000000000, '', 0);
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
-                           decimalcol, doublecol, floatcol, smallintcol, textcol,
+                           decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
                            timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
 VALUES (3, -2147483648, '''''''', -9223372036854775808, 0x80, false,
-        10.0000000000000, -1004.10, 100000000.9, 32767, '龍馭鬱',
+        10.0000000000000, -1004.10, 12h30m30s250ms, 100000000.9, 32767, '龍馭鬱',
         '2038-01-19T03:14-1200', 127, ffffffff-ffff-1fff-8fff-ffffffffffff,
 	    '''', -10000000000000000000000000);
 

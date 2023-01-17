@@ -440,7 +440,7 @@ def append(builder, dividend, divisor, unit):
     if dividend == 0 or dividend < divisor:
         return dividend
 
-    builder.append(str(dividend / divisor))
+    builder.append(str(dividend // divisor))
     builder.append(unit)
     return dividend % divisor
 
