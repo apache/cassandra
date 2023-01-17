@@ -515,3 +515,28 @@ Options that are common to both `COPY TO` and `COPY FROM`.
 `RATEFILE`::
   An optional file to output rate statistics to. By default, statistics
   are not output to a file.
+
+== Escaping Quotes
+
+Dates, IP addresses, and strings need to be enclosed in single quotation marks. To use a single quotation mark itself in a string literal, escape it using a single quotation mark.
+
+When fetching simple text data, `cqlsh` will return an unquoted string. However, when fetching text data from complex types (collections, user-defined types, etc.) `cqlsh` will return a quoted string containing the escaped characters. For example:
+
+Simple data
+[source,none]
+----
+cqlsh> CREATE TABLE test.simple_data (id int, data text, PRIMARY KEY (id));
+cqlsh> INSERT INTO test.simple_data (id, data) values(1, 'I''m fine');
+cqlsh> SELECT data from test.simple_data; data
+----------
+ I'm fine
+----
+Complex data
+[source,none]
+----
+cqlsh> CREATE TABLE test.complex_data (id int, data map<int, text>, PRIMARY KEY (id));
+cqlsh> INSERT INTO test.complex_data (id, data) values(1, {1:'I''m fine'});
+cqlsh> SELECT data from test.complex_data; data
+------------------
+ {1: 'I''m fine'}
+----
