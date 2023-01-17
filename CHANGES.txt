@@ -133,6 +133,7 @@ Merged from 4.1:
  * Revert removal of withBufferSizeInMB(int size) in CQLSSTableWriter.Builder class and deprecate it in favor of withBufferSizeInMiB(int size) (CASSANDRA-17675)
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619)
 Merged from 4.0:
+ * Fix sstable loading of keyspaces named snapshots or backups (CASSANDRA-14013)
  * Restore internode custom tracing on 4.0's new messaging system (CASSANDRA-17981)
  * Harden parsing of boolean values in CQL in PropertyDefinitions (CASSANDRA-17878)
  * Fix possible race condition on repair snapshots (CASSANDRA-17955)
