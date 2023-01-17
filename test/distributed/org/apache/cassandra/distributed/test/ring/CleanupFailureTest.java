@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.test.ring;
 
-import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
