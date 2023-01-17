@@ -648,4 +648,22 @@ public class Util
         }
         return () -> DisallowedDirectories.clearUnwritableUnsafe();
     }
+
+    public static <T> T findFirstUnordered(java.util.function.Supplier<T> supplier)
+    {
+        HashSet<T> set = new HashSet<>(2);
+        T first = supplier.get();
+        while (true)
+        {
+            set.clear();
+            T second = supplier.get();
+            set.add(first);
+            set.add(second);
+            if (set.iterator().next() != first)
+                return second;
+
+            first = second;
+        }
+    }
+
 }
