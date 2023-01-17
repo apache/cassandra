@@ -99,29 +99,6 @@ public class SSTableLoader implements StreamEventHandler
                                           }
 
                                           TableMetadataRef metadata = client.getTableMetadata(desc.cfname);
-
-                                          if (metadata == null && // we did not find metadata
-                                              directory.name().equals(Directories.BACKUPS_SUBDIR)) // and it's likely we hit CASSANDRA-16235
-                                          {
-                                              File parentDirectory = directory.parent();
-                                              File parentParentDirectory = parentDirectory != null ? parentDirectory.parent() : null;
-                                              // check that descriptor's cfname and ksname are 1 directory closer to root than they should be
-                                              if (parentDirectory != null &&
-                                                  parentParentDirectory != null &&
-                                                  desc.cfname.equals(parentDirectory.name()) &&
-                                                  desc.ksname.equals(parentParentDirectory.name()))
-                                              {
-                                                  Descriptor newDesc = new Descriptor(desc.directory,
-                                                                                      desc.ksname,
-                                                                                      Directories.BACKUPS_SUBDIR,
-                                                                                      desc.id,
-                                                                                      desc.formatType);
-                                                  metadata = client.getTableMetadata(newDesc.cfname);
-                                                  if (metadata != null)
-                                                      desc = newDesc;
-                                              }
-                                          }
-
                                           if (metadata == null)
                                           {
                                               outputHandler.output(String.format("Skipping file %s: table %s.%s doesn't exist", name, keyspace, desc.cfname));

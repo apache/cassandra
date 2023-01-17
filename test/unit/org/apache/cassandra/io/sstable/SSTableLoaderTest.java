@@ -60,6 +60,7 @@ public class SSTableLoaderTest
     public static final String CF_STANDARD1 = "Standard1";
     public static final String CF_STANDARD2 = "Standard2";
     public static final String CF_BACKUPS = Directories.BACKUPS_SUBDIR;
+    public static final String CF_SNAPSHOTS = Directories.SNAPSHOT_SUBDIR;
 
     private static final String schema = "CREATE TABLE %s.%s (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name))";
     private static final String query = "INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)";
@@ -74,7 +75,8 @@ public class SSTableLoaderTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_BACKUPS));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_BACKUPS),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_SNAPSHOTS));
 
         SchemaLoader.createKeyspace(KEYSPACE2,
                 KeyspaceParams.simple(1),
@@ -254,19 +256,30 @@ public class SSTableLoaderTest
     @Test
     public void testLoadingBackupsTable() throws Exception
     {
-        File dataDir = dataDir(CF_BACKUPS);
-        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, CF_BACKUPS);
+        testLoadingTable(CF_BACKUPS);
+    }
+
+    @Test
+    public void testLoadingSnapshotsTable() throws Exception
+    {
+        testLoadingTable(CF_SNAPSHOTS);
+    }
+
+    private void testLoadingTable(String tableName) throws Exception
+    {
+        File dataDir = dataDir(tableName);
+        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, tableName);
 
         try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                        .inDirectory(dataDir)
-                                                       .forTable(String.format(schema, KEYSPACE1, CF_BACKUPS))
-                                                       .using(String.format(query, KEYSPACE1, CF_BACKUPS))
+                                                       .forTable(String.format(schema, KEYSPACE1, tableName))
+                                                       .using(String.format(query, KEYSPACE1, tableName))
                                                        .build())
         {
             writer.addRow("key", "col1", "100");
         }
 
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_BACKUPS);
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(tableName);
         Util.flush(cfs); // wait for sstables to be on disk else we won't be able to stream them
 
         final CountDownLatch latch = new CountDownLatch(1);

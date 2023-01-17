@@ -33,10 +33,12 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.regex.Pattern;
 
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.awaitility.Awaitility.await;
 import static org.junit.Assert.assertEquals;
@@ -48,6 +50,9 @@ public class SnapshotsTest extends TestBaseImpl
     public static final Integer TEN_SECONDS = 10;
     private static final WithProperties properties = new WithProperties();
     private static Cluster cluster;
+
+    private final String[] exoticSnapshotNames = new String[] { "snapshot", "snapshots", "backup", "backups",
+                                                                "Snapshot", "Snapshots", "Backups", "Backup"};
 
     @BeforeClass
     public static void before() throws IOException
@@ -65,6 +70,8 @@ public class SnapshotsTest extends TestBaseImpl
         cluster.get(1).nodetoolResult("clearsnapshot", "--all").asserts().success();
         for (String tag : new String[] {"basic", "first", "second", "tag1"})
             waitForSnapshotCleared(tag);
+        for (String tag : exoticSnapshotNames)
+            waitForSnapshot(tag, false, true);
     }
 
     @AfterClass
@@ -281,6 +288,23 @@ public class SnapshotsTest extends TestBaseImpl
     }
 
     @Test
+    public void testExoticSnapshotNames()
+    {
+        IInvokableInstance instance = cluster.get(1);
+        cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (key int, value text, PRIMARY KEY (key))"));
+        populate(cluster);
+
+        for (String tag : exoticSnapshotNames)
+        {
+            instance.nodetoolResult("snapshot",
+                                    "-t", tag,
+                                    "-kt", withKeyspace("%s.tbl")).asserts().success();
+
+            waitForSnapshot(tag, true, true);
+        }
+    }
+
+    @Test
     public void testSameTimestampOnEachTableOfSnaphot()
     {
         cluster.get(1).nodetoolResult("snapshot", "-t", "sametimestamp").asserts().success();
@@ -325,7 +349,13 @@ public class SnapshotsTest extends TestBaseImpl
                     else
                         listsnapshots = cluster.get(1).nodetoolResult("listsnapshots");
 
-                    return expectPresent == listsnapshots.getStdout().contains(snapshotName);
+                   List<String> lines = Arrays.stream(listsnapshots.getStdout().split("\n"))
+                                              .filter(line -> !line.isEmpty())
+                                              .filter(line -> !line.startsWith("Snapshot Details:") && !line.startsWith("There are no snapshots"))
+                                              .filter(line -> !line.startsWith("Snapshot name") && !line.startsWith("Total TrueDiskSpaceUsed"))
+                                              .collect(toList());
+
+                   return expectPresent == lines.stream().anyMatch(line -> line.startsWith(snapshotName));
                 });
     }
 }
