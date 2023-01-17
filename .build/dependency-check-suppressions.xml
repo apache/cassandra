@@ -49,6 +49,23 @@
         <packageUrl regex="true">^pkg:maven/com\.google\.guava/guava@.*$</packageUrl>
         <cve>CVE-2020-8908</cve>
     </suppress>
+    <!-- https://issues.apache.org/jira/browse/CASSANDRA-18146 -->
+    <suppress>
+        <packageUrl regex="true">^pkg:maven/org\.apache\.commons.*$</packageUrl>
+        <cve>CVE-2021-37533</cve>
+    </suppress>
+    <suppress>
+        <packageUrl regex="true">^pkg:maven/commons-io/.*$</packageUrl>
+        <cve>CVE-2021-37533</cve>
+    </suppress>
+    <suppress>
+        <packageUrl regex="true">^pkg:maven/commons-cli/.*$</packageUrl>
+        <cve>CVE-2021-37533</cve>
+    </suppress>
+    <suppress>
+        <packageUrl regex="true">^pkg:maven/commons-codec/.*$</packageUrl>
+        <cve>CVE-2021-37533</cve>
+    </suppress>
     <!-- netty's http stuff is not applicable here -->
     <suppress>
         <packageUrl regex="true">^pkg:maven/io\.netty/netty\-all@.*$</packageUrl>
