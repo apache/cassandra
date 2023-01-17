@@ -663,6 +663,48 @@ public class ImportTest extends CQLTester
         assertEquals(0, getCurrentColumnFamilyStore().getLiveSSTables().size());
     }
 
+    @Test
+    public void importExoticTableNamesTest() throws Throwable
+    {
+        for (String table : new String[] { "snapshot", "snapshots", "backup", "backups",
+                                           "\"Snapshot\"", "\"Snapshots\"", "\"Backups\"", "\"Backup\""})
+        {
+            try
+            {
+                String unquotedTableName = table.replaceAll("\"", "");
+                schemaChange(String.format("CREATE TABLE %s.%s (id int primary key, d int)", KEYSPACE, table));
+                for (int i = 0; i < 10; i++)
+                    execute(String.format("INSERT INTO %s.%s (id, d) values (?, ?)", KEYSPACE, table), i, i);
+
+                ColumnFamilyStore cfs = getColumnFamilyStore(KEYSPACE, unquotedTableName);
+
+                Util.flush(cfs);
+
+                Set<SSTableReader> sstables = cfs.getLiveSSTables();
+                cfs.clearUnsafe();
+
+                File backupDir = moveToBackupDir(sstables);
+
+                assertEquals(0, execute(String.format("SELECT * FROM %s.%s", KEYSPACE, table)).size());
+
+                // copy is true - so importing will be done by copying
+
+                SSTableImporter importer = new SSTableImporter(cfs);
+                SSTableImporter.Options options = SSTableImporter.Options.options(backupDir.toString()).copyData(true).build();
+                List<String> failedDirectories = importer.importNewSSTables(options);
+                assertTrue(failedDirectories.isEmpty());
+                assertEquals(10, execute(String.format("select * from %s.%s", KEYSPACE, table)).size());
+
+                // files are left there as they were just copied
+                Assert.assertNotEquals(0, countFiles(backupDir));
+            }
+            finally
+            {
+                execute(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, table));
+            }
+        }
+    }
+
     private static class MockCFS extends ColumnFamilyStore
     {
         public MockCFS(ColumnFamilyStore cfs, Directories dirs)
