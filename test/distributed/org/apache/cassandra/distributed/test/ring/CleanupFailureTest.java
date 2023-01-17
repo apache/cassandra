@@ -26,16 +26,17 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
-import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
+import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToBootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToDecommission;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.apache.cassandra.distributed.test.ring.BootstrapTest.populate;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistributedTokens;
 
 public class CleanupFailureTest extends TestBaseImpl
 {
@@ -43,7 +44,7 @@ public class CleanupFailureTest extends TestBaseImpl
     public void cleanupDuringDecommissionTest() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(2)
-                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(2))
+                                        .withTokenSupplier(evenlyDistributedTokens(2))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
                                         .withConfig(config -> config.with(NETWORK, GOSSIP))
                                         .start())
@@ -60,7 +61,7 @@ public class CleanupFailureTest extends TestBaseImpl
             cluster.forEach(c -> c.flush(KEYSPACE));
 
             // Check data before cleanup on nodeToRemainInCluster
-            Assert.assertEquals(100, nodeToRemainInCluster.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            assertEquals(100, nodeToRemainInCluster.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
 
             // Run cleanup on nodeToRemainInCluster
             NodeToolResult result = nodeToRemainInCluster.nodetoolResult("cleanup");
@@ -68,7 +69,7 @@ public class CleanupFailureTest extends TestBaseImpl
             result.asserts().stderrContains("Node is involved in cluster membership changes. Not safe to run cleanup.");
 
             // Check data after cleanup on nodeToRemainInCluster
-            Assert.assertEquals(100, nodeToRemainInCluster.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            assertEquals(100, nodeToRemainInCluster.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
         }
     }
 
@@ -79,7 +80,7 @@ public class CleanupFailureTest extends TestBaseImpl
         int expandedNodeCount = originalNodeCount + 1;
 
         try (Cluster cluster = builder().withNodes(originalNodeCount)
-                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
+                                        .withTokenSupplier(evenlyDistributedTokens(expandedNodeCount))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
                                         .withConfig(config -> config.with(NETWORK, GOSSIP))
                                         .start())
@@ -98,14 +99,14 @@ public class CleanupFailureTest extends TestBaseImpl
             cluster.forEach(c -> c.flush(KEYSPACE));
 
             // Check data before cleanup on bootstrappingNode
-            Assert.assertEquals(NUM_ROWS, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            assertEquals(NUM_ROWS, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
 
             // Run cleanup on bootstrappingNode
             NodeToolResult result = bootstrappingNode.nodetoolResult("cleanup");
             result.asserts().stderrContains("Node is involved in cluster membership changes. Not safe to run cleanup.");
 
             // Check data after cleanup on bootstrappingNode
-            Assert.assertEquals(NUM_ROWS, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
+            assertEquals(NUM_ROWS, bootstrappingNode.executeInternal("SELECT * FROM " + KEYSPACE + ".tbl").length);
         }
     }
 }
