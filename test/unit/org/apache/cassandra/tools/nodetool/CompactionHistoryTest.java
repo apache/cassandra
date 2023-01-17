@@ -62,7 +62,7 @@ public class CompactionHistoryTest extends CQLTester
     {
         List<Object[]> result = new ArrayList<>();
         result.add(new Object[]{ Lists.newArrayList("compact"), OperationType.MAJOR_COMPACTION.type, 1 });
-        result.add(new Object[]{ Lists.newArrayList("garbagecollect"), OperationType.GARBAGE_COLLECT.type, 20 });
+        result.add(new Object[]{ Lists.newArrayList("garbagecollect"), OperationType.GARBAGE_COLLECT.type, 10 });
         result.add(new Object[]{ Lists.newArrayList("upgradesstables", "-a" ), OperationType.UPGRADE_SSTABLES.type, 10 });
         return result;
     }
@@ -85,19 +85,13 @@ public class CompactionHistoryTest extends CQLTester
         {
             execute("INSERT INTO %s (id, value) VALUES (?, ?)", "key" + i, "value" + i);
             flush(keyspace());
-            if(compactionType.equals(OperationType.GARBAGE_COLLECT.type))
-            {
-                execute("DELETE FROM %s WHERE id = ? ", "key" + i);
-                flush(keyspace());
-            }
         }
         
-        int sstableCount = compactionType.equals(OperationType.GARBAGE_COLLECT.type) ? 20 : 10;
-        assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(sstableCount);
+        assertThat(cfs.getTracker().getView().liveSSTables()).hasSize(10);
 
         ImmutableList.Builder<String> builder = ImmutableList.builder();
         List<String> cmds = builder.addAll(cmd).add(keyspace()).add(currentTable()).build();
-        compactionHistoryResultVerify(keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, compactionType), cmds);
+        compactionHistoryResultVerify(cmds, keyspace(), currentTable(), ImmutableMap.of(COMPACTION_TYPE_PROPERTY, compactionType));
 
         String cql = "select keyspace_name,columnfamily_name,compaction_properties  from system." + SystemKeyspace.COMPACTION_HISTORY +
             " where keyspace_name = '" + keyspace() + "' AND columnfamily_name = '" + currentTable() + "' ALLOW FILTERING";
@@ -110,7 +104,7 @@ public class CompactionHistoryTest extends CQLTester
     }
     
     
-    private void compactionHistoryResultVerify( String keyspace, String table, Map<String, String> properties, List<String> cmds)
+    private void compactionHistoryResultVerify(  List<String> cmds, String keyspace, String table, Map<String, String> properties )
     {
         ToolRunner.ToolResult toolCompact = invokeNodetool(cmds);
         toolCompact.assertOnCleanExit();
