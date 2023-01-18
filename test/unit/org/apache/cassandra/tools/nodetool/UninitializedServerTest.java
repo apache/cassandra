@@ -34,11 +34,6 @@ public class UninitializedServerTest extends CQLTester
         startJMXServer();
     }
 
-    private void initializeCassandra()
-    {
-        requireNetwork();
-    }
-
     @Test
     public void testUnintializedServer()
     {
