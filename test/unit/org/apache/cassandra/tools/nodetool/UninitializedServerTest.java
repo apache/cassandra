@@ -24,7 +24,6 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
 
-import static org.apache.cassandra.cql3.CQLTester.startJMXServer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class UninitializedServerTest extends CQLTester
@@ -32,26 +31,21 @@ public class UninitializedServerTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        // Ensure StorageProxy is initialized on start-up; see CASSANDRA-3797.
-        Class.forName("org.apache.cassandra.service.StorageProxy");
         startJMXServer();
     }
 
-    public static void startCassandraNode() {
+    private void initializeCassandra()
+    {
         requireNetwork();
     }
 
     @Test
     public void testUnintializedServer()
     {
-        // fails, not finished initializing node
-        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("ring", "system_schema");
-        assertThat(tool.getStdout()).contains("nodetool: Node is not initialized yet.");
-
-        // succeeds, node is initialized
-        startCassandraNode();
-        tool = ToolRunner.invokeNodetool("ring", "system_schema");
-        tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Datacenter: datacenter1");
+        // CASSANDRA-11537
+        // fails, not finished initializing node because test never calls requireNetwork()
+        ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("status");
+        assertThat(tool.getException() instanceof IllegalArgumentException);
+        assertThat(tool.getStderr().contains("Server is not initialized yet, cannot run nodetool."));
     }
 }

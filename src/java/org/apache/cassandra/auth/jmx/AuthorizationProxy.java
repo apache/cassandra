@@ -176,7 +176,7 @@ public class AuthorizationProxy implements InvocationHandler
         if (authorize(subject, methodName, args))
             return invoke(method, args);
 
-        throw new SecurityException("Access Denied");
+        throw new SecurityException(String.format("Access denied to method %s of object %s.", methodName, args[0]));
     }
 
     /**
