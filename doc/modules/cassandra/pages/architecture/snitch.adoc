@@ -2,9 +2,9 @@
 
 In cassandra, the snitch has two functions:
 
-* it teaches Cassandra enough about your network topology to route
+* It teaches Cassandra enough about your network topology to route
 requests efficiently.
-* it allows Cassandra to spread replicas around your cluster to avoid
+* It allows Cassandra to spread replicas around your cluster to avoid
 correlated failures. It does this by grouping machines into
 "datacenters" and "racks." Cassandra will do its best not to have more
 than one replica on the same "rack" (which may not actually be a
@@ -12,7 +12,7 @@ physical location).
 
 == Dynamic snitching
 
-The dynamic snitch monitor read latencies to avoid reading from hosts
+The dynamic snitch monitors read latencies to avoid reading from hosts
 that have slowed down. The dynamic snitch is configured with the
 following properties on `cassandra.yaml`:
 

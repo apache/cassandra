@@ -1501,7 +1501,7 @@
       <executiondata>
         <file file="${jacoco.finalexecfile}" />
       </executiondata>
-      <structure name="JaCoCo Cassandara Coverage Report">
+      <structure name="JaCoCo Cassandra Coverage Report">
         <classfiles>
           <fileset dir="${build.classes.main}">
             <include name="**/*.class"/>

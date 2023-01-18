@@ -226,7 +226,7 @@ public class StartupChecks
     public static final StartupCheck checkValidLaunchDate = new StartupCheck()
     {
         /**
-         * The earliest legit timestamp a casandra instance could have ever launched.
+         * The earliest legit timestamp a Cassandra instance could have ever launched.
          * Date roughly taken from http://perspectives.mvdirona.com/2008/07/12/FacebookReleasesCassandraAsOpenSource.aspx
          * We use this to ensure the system clock is at least somewhat correct at startup.
          */

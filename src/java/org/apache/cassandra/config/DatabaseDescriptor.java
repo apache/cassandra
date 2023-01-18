@@ -623,7 +623,7 @@ public class DatabaseDescriptor
                 conf.cdc_total_space = new DataStorageSpec.IntMebibytesBound(defaultSpaceInMiB);
             }
 
-            logger.info("cdc_enabled is true. Starting casssandra node with Change-Data-Capture enabled.");
+            logger.info("cdc_enabled is true. Starting cassandra node with Change-Data-Capture enabled.");
         }
 
         if (conf.saved_caches_directory == null)

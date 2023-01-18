@@ -91,7 +91,7 @@ New features
       have something in hbState() you don't expect. See CASSANDRA-17842 for further details.
     - Added new CQL table property 'allow_auto_snapshot' which is by default true. When set to false and 'auto_snapshot: true'
       in cassandra.yaml, there will be no snapshot taken when a table is truncated or dropped. When auto_snapshot in
-      casandra.yaml is set to false, the newly added table property does not have any effect.
+      cassandra.yaml is set to false, the newly added table property does not have any effect.
     - Changed default on resumable bootstrap to be disabled. Resumable bootstrap has edge cases with potential correctness
       violations or data loss scenarios if nodes go down during bootstrap, tombstones are written, and operations race with
       repair. As streaming is considerably faster in the 4.0+ era (as well as with zero copy streaming), the risks of
@@ -105,7 +105,7 @@ New features
       Please uncomment the respective appender in logback.xml file to make logs flow into this table. This feature is turned off by default.
     - Added new CQL table property 'incremental_backups' which is by default true. When 'incremental_backups' property in cassandra.yaml
       is set to true and table property is set to false, incremental backups for that specific table will not be done.
-      When 'incremental_backups' in casandra.yaml is set to false, the newly added table property does not have any effect.
+      When 'incremental_backups' in cassandra.yaml is set to false, the newly added table property does not have any effect.
       Both properties have to be set to true (cassandra.yaml and table property) in order to make incremental backups.
     - Added new CQL native scalar functions for collections. The new functions are mostly analogous to the existing
       aggregation functions, but they operate on the elements of collection columns. The new functions are `map_keys`,
@@ -1826,7 +1826,7 @@ Upgrading
     - index_interval is now moved to ColumnFamily property. You can change value
       with ALTER TABLE ... WITH statement and SSTables written after that will
       have new value. When upgrading, Cassandra will pick up the value defined in
-      cassanda.yaml as the default for existing ColumnFamilies, until you explicitly
+      cassandra.yaml as the default for existing ColumnFamilies, until you explicitly
       set the value for those.
     - The deprecated native_transport_min_threads option has been removed in
       Cassandra.yaml.

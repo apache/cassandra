@@ -10,7 +10,7 @@ functionality supported by a specific driver.
 * https://github.com/Netflix/astyanax/wiki/Getting-Started[Astyanax]
 * https://github.com/noorq/casser[Casser]
 * https://github.com/datastax/java-driver[Datastax Java driver]
-* https://github.com/impetus-opensource/Kundera[Kundera]
+* https://github.com/Impetus/kundera[Kundera]
 * https://github.com/deanhiller/playorm[PlayORM]
 
 == Python

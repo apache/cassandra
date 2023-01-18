@@ -38,7 +38,7 @@ modules that are central to the performance of `COPY`.
 == cqlshrc
 
 The `cqlshrc` file holds configuration options for `cqlsh`. 
-By default, the file is locagted the user's home directory at `~/.cassandra/cqlsh`, but a
+By default, the file is located the user's home directory at `~/.cassandra/cqlshrc`, but a
 custom location can be specified with the `--cqlshrc` option.
 
 Example config values and documentation can be found in the
@@ -452,7 +452,7 @@ representing a path to the source file. This can also the special value
 See `shared-copy-options` for options that apply to both `COPY TO` and
 `COPY FROM`.
 
-==== Options for `COPY TO`
+==== Options for `COPY FROM`
 
 `INGESTRATE`::
   The maximum number of rows to process per second. Defaults to 100000.
@@ -477,10 +477,10 @@ See `shared-copy-options` for options that apply to both `COPY TO` and
 `MAXBATCHSIZE`::
   The max number of rows inserted in a single batch. Defaults to 20.
 `MINBATCHSIZE`::
-  The min number of rows inserted in a single batch. Defaults to 2.
+  The min number of rows inserted in a single batch. Defaults to 10.
 `CHUNKSIZE`::
   The number of rows that are passed to child worker processes from the
-  main process at a time. Defaults to 1000.
+  main process at a time. Defaults to 5000.
 
 ==== Shared COPY Options
 
@@ -504,8 +504,8 @@ Options that are common to both `COPY TO` and `COPY FROM`.
   `True,False`.
 `NUMPROCESSES`::
   The number of child worker processes to create for `COPY` tasks.
-  Defaults to a max of 4 for `COPY FROM` and 16 for `COPY TO`. However,
-  at most (num_cores - 1) processes will be created.
+  Defaults to 16 for `COPY` tasks. However, at most (num_cores - 1)
+  processes will be created.
 `MAXATTEMPTS`::
   The maximum number of failed attempts to fetch a range of data (when
   using `COPY TO`) or insert a chunk of data (when using `COPY FROM`)
@@ -515,3 +515,28 @@ Options that are common to both `COPY TO` and `COPY FROM`.
 `RATEFILE`::
   An optional file to output rate statistics to. By default, statistics
   are not output to a file.
+
+== Escaping Quotes
+
+Dates, IP addresses, and strings need to be enclosed in single quotation marks. To use a single quotation mark itself in a string literal, escape it using a single quotation mark.
+
+When fetching simple text data, `cqlsh` will return an unquoted string. However, when fetching text data from complex types (collections, user-defined types, etc.) `cqlsh` will return a quoted string containing the escaped characters. For example:
+
+Simple data
+[source,none]
+----
+cqlsh> CREATE TABLE test.simple_data (id int, data text, PRIMARY KEY (id));
+cqlsh> INSERT INTO test.simple_data (id, data) values(1, 'I''m fine');
+cqlsh> SELECT data from test.simple_data; data
+----------
+ I'm fine
+----
+Complex data
+[source,none]
+----
+cqlsh> CREATE TABLE test.complex_data (id int, data map<int, text>, PRIMARY KEY (id));
+cqlsh> INSERT INTO test.complex_data (id, data) values(1, {1:'I''m fine'});
+cqlsh> SELECT data from test.complex_data; data
+------------------
+ {1: 'I''m fine'}
+----

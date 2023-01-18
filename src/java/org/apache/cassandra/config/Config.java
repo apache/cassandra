@@ -643,7 +643,7 @@ public class Config
      * When a node first starts up it intially considers all other peers as DOWN and is disconnected from all of them.
      * To be useful as a coordinator (and not introduce latency penalties on restart) this node must have successfully
      * opened all three internode TCP connections (gossip, small, and large messages) before advertising to clients.
-     * Due to this, by default, Casssandra will prime these internode TCP connections and wait for all but a single
+     * Due to this, by default, Cassandra will prime these internode TCP connections and wait for all but a single
      * node to be DOWN/disconnected in the local datacenter before offering itself as a coordinator, subject to a
      * timeout. See CASSANDRA-13993 and CASSANDRA-14297 for more details.
      *
