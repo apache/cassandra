@@ -126,7 +126,7 @@ public class SSTableExport
         if (SecondaryIndexManager.isIndexColumnFamily(desc.cfname))
         {
             String index = SecondaryIndexManager.getIndexName(desc.cfname);
-            IndexMetadata indexMetadata =  IndexMetadata.fromSchemaMetadata(index, IndexMetadata.Kind.CUSTOM, null);
+            IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata(index, IndexMetadata.Kind.CUSTOM, null);
             Indexes indexes = Indexes.builder().add(indexMetadata).build();
             return builder.build().indexes(indexes);
         }
