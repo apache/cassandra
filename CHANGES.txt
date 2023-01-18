@@ -106,6 +106,7 @@ Merged from 4.0:
  * Restore internode custom tracing on 4.0's new messaging system (CASSANDRA-17981)
 Merged from 3.11:
 Merged from 3.0:
+ * Default role is created with zero timestamp (CASSANDRA-12525)
  * Suppress CVE-2021-37533 (CASSANDRA-18146)
  * Add to the IntelliJ Git Window issue navigation links to Cassandra's Jira (CASSANDRA-18126)
  * Avoid anticompaction mixing data from two different time windows with TWCS (CASSANDRA-17970)
