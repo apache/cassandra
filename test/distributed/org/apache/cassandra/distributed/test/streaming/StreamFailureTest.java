@@ -20,8 +20,10 @@ package org.apache.cassandra.distributed.test.streaming;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ForkJoinPool;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.junit.Test;
@@ -37,8 +39,10 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.LogResult;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.io.sstable.format.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigTableZeroCopyWriter;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -152,14 +156,21 @@ public class StreamFailureTest extends TestBaseImpl
         LogResult<List<String>> result = failingNode.logs().grepForErrors(-1, Pattern.compile("Stream failed:"));
         // grepForErrors will include all ERROR logs even if they don't match the pattern; for this reason need to filter after the fact
         List<String> matches = result.getResult();
-        System.out.println("HEYYYY\n" + matches);
-        System.out.println("DONEEE\n" + matches);
+
         matches = matches.stream().filter(s -> s.startsWith("WARN") && s.contains("Stream failed")).collect(Collectors.toList());
         logger.info("Stream failed logs found: {}", String.join("\n", matches));
 
         Assertions.assertThat(matches)
                   .describedAs("node%d expected 1 element but was not true", failingNode.config().num()).hasSize(1);
-        Assertions.assertThat(matches.get(0)).contains(reason);
+        String logLine = matches.get(0);
+        Assertions.assertThat(logLine).contains(reason);
+
+        Matcher match = Pattern.compile(".*\\[Stream #(.*)\\]").matcher(logLine);
+        if (!match.find()) throw new AssertionError("Unable to parse: " + logLine);
+        UUID planId = UUID.fromString(match.group(1));
+        SimpleQueryResult qr = failingNode.executeInternalWithResult("SELECT * FROM system_views.streaming WHERE id=?", planId);
+        Assertions.assertThat(qr.hasNext()).isTrue();
+        Assertions.assertThat(qr.next().getString("failure_cause")).contains(reason);
     }
 
     @Shared
