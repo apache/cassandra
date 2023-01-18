@@ -42,7 +42,6 @@ import org.apache.cassandra.distributed.api.LogResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.io.sstable.format.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigTableZeroCopyWriter;
 import org.apache.cassandra.io.util.SequentialWriter;
