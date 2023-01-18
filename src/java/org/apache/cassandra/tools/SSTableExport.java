@@ -126,6 +126,7 @@ public class SSTableExport
         if (SecondaryIndexManager.isIndexColumnFamily(desc.cfname))
         {
             String index = SecondaryIndexManager.getIndexName(desc.cfname);
+            // Just set the Kind of index to CUSTOM, which is a irrelevant parameter that does't make any effect on the result
             IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata(index, IndexMetadata.Kind.CUSTOM, null);
             Indexes indexes = Indexes.builder().add(indexMetadata).build();
             return builder.build().indexes(indexes);

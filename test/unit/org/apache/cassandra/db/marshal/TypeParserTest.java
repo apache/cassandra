@@ -170,7 +170,6 @@ public class TypeParserTest
                 }
                 catch (Throwable t)
                 {
-                    String tmp = t.getCause().getMessage();
                     assertTrue(t.getCause().getMessage().contains("Syntax error parsing 'org.apache.cassandra.db.marshal.PartitionerDefinedOrder(org.apache.cassandra.dht." + msgPartitioner + ",: for msg unexpected character ','"));
                 }
 
@@ -183,8 +182,6 @@ public class TypeParserTest
                 }
                 catch (Throwable t)
                 {
-                    String tmp = t.getCause().getMessage();
-                    System.out.println(tmp);
                     assertTrue(t.getCause().getMessage().contains("Syntax error parsing 'org.apache.cassandra.db.marshal.PartitionerDefinedOrder(org.apache.cassandra.dht." + msgPartitioner + ">: for msg unexpected character '>'"));
                 }
 
@@ -197,8 +194,6 @@ public class TypeParserTest
                 }
                 catch (Throwable t)
                 {
-                    String tmp = t.getCause().getMessage();
-                    System.out.println(tmp);
                     assertTrue(t.getCause().getMessage().contains("Unable to find abstract-type class 'org.apache.cassandra.db.marshal.'"));
                 }
             }
@@ -219,7 +214,6 @@ public class TypeParserTest
                 PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) type;
                 type = tmp.withBaseType(baseType);
             }
-            System.out.println(type.toString());
             assertEquals(type, TypeParser.parse(type.toString()));
         }
     }

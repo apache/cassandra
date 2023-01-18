@@ -88,7 +88,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, int protocolVersion)
     {
-        assert baseType != null && !baseType.equals(this) : "The base type is null";
+        assert baseType != null && !baseType.equals(this) : "PartitionerDefinedOrder's toJSONString method need a baseType but now is null or with a not euqal type.";
         return baseType.toJSONString(buffer, protocolVersion);   
     }
 

@@ -25,16 +25,15 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.assertj.core.api.Assertions;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class PartitionerDefinedOrderTest
 {
-    private String key = "key";
-    private AbstractType type = UTF8Type.instance;
+    private static final String key = "key";
+    private static final AbstractType<?> type = UTF8Type.instance;
     
     @Test
     public void testToJsonStringWithBaseType()
@@ -44,10 +43,10 @@ public class PartitionerDefinedOrderTest
                                                             RandomPartitioner.instance,
                                                             OrderPreservingPartitioner.instance })
         {
-            if(partitioner.partitionOrdering() instanceof PartitionerDefinedOrder)
+            if (partitioner.partitionOrdering() instanceof PartitionerDefinedOrder)
             {
                 PartitionerDefinedOrder partitionerDefinedOrder = (PartitionerDefinedOrder) partitioner.partitionOrdering();
-                String jsonString = partitionerDefinedOrder.withBaseType(type).toJSONString(ByteBufferUtil.bytes(key), 4);
+                String jsonString = partitionerDefinedOrder.withBaseType(type).toJSONString(UTF8Type.instance.decompose(key), 4);
                 assertTrue(jsonString.contains(key));
             }
         }
@@ -61,19 +60,12 @@ public class PartitionerDefinedOrderTest
                                                             RandomPartitioner.instance,
                                                             OrderPreservingPartitioner.instance })
         {
-            if(partitioner.partitionOrdering() instanceof PartitionerDefinedOrder)
+            if (partitioner.partitionOrdering() instanceof PartitionerDefinedOrder)
             {
                 PartitionerDefinedOrder partitionerDefinedOrder = (PartitionerDefinedOrder) partitioner.partitionOrdering();
-                assertEquals(null, partitionerDefinedOrder.getBaseType());
-                try
-                {
-                    partitionerDefinedOrder.toJSONString(ByteBufferUtil.bytes(key), 4);
-                    fail();
-                }
-                catch (Throwable throwable)
-                {
-                    assertTrue(throwable.getMessage().contains("The base type is null"));
-                }
+                assertNull(partitionerDefinedOrder.getBaseType());
+                Assertions.assertThatThrownBy(() -> partitionerDefinedOrder.toJSONString(UTF8Type.instance.decompose(key), 4))
+                          .hasMessageContaining("PartitionerDefinedOrder's toJSONString method need a baseType but now is null or with a not euqal type.");
             }
         }
     }
