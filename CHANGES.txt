@@ -1,6 +1,7 @@
 3.11.15
  * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
 Merged from 3.0:
+ * Default role is created with zero timestamp (CASSANDRA-12525)
  * Suppress CVE-2021-37533 (CASSANDRA-18146)
  * Add to the IntelliJ Git Window issue navigation links to Cassandra's Jira (CASSANDRA-18126)
  * Avoid anticompaction mixing data from two different time windows with TWCS (CASSANDRA-17970)
