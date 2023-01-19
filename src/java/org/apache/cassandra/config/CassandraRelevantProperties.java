@@ -415,10 +415,16 @@ public enum CassandraRelevantProperties
      */
     RESET_BOOTSTRAP_PROGRESS("cassandra.reset_bootstrap_progress"),
     RING_DELAY("cassandra.ring_delay_ms"),
+
+    // SAI specific properties
+    /** Controls the maximum number of index query intersections that will take part in a query */
+    SAI_INTERSECTION_CLAUSE_LIMIT("cassandra.sai.intersection.clause.limit", "2"),
+
     /** Defines how often schema definitions are pulled from the other nodes */
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),
     SEARCH_CONCURRENCY_FACTOR("cassandra.search_concurrency_factor", "1"),
+
     /**
      * The maximum number of seeds returned by a seed provider before emmitting a warning.
      * A large seed list may impact effectiveness of the third gossip round.

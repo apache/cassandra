@@ -50,7 +50,6 @@ import static org.junit.Assert.fail;
 
 public class SecondaryIndexManagerTest extends CQLTester
 {
-
     @After
     public void after()
     {
