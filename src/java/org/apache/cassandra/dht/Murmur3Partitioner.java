@@ -204,6 +204,12 @@ public class Murmur3Partitioner implements IPartitioner
         }
 
         @Override
+        public long getLongValue()
+        {
+            return token;
+        }
+
+        @Override
         public double size(Token next)
         {
             LongToken n = (LongToken) next;

@@ -74,7 +74,7 @@ public interface SinglePartitionReadQuery extends ReadQuery
                                                   ColumnFilter columnFilter,
                                                   ClusteringIndexFilter filter)
     {
-        return create(metadata, nowInSec, columnFilter, RowFilter.NONE, DataLimits.NONE, key, filter);
+        return create(metadata, nowInSec, columnFilter, RowFilter.none(), DataLimits.NONE, key, filter);
     }
 
     /**
