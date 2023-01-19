@@ -77,7 +77,7 @@ public class GossipInfoTableTest extends CQLTester
 
             assertThat(resultSet.size()).isEqualTo(1);
             UntypedResultSet.Row row = resultSet.one();
-            assertThat(row.getColumns().size()).isEqualTo(64);
+            assertThat(row.getColumns().size()).isEqualTo(66);
 
             assertThat(endpoint).isNotNull();
             assertThat(localState).isNotNull();

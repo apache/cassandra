@@ -345,7 +345,7 @@ public class CompactionsTest
         for (FilteredPartition p : Util.getAll(Util.cmd(cfs).build()))
         {
             k.add(p.partitionKey());
-            final SinglePartitionReadCommand command = SinglePartitionReadCommand.create(cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.NONE, p.partitionKey(), new ClusteringIndexSliceFilter(Slices.ALL, false));
+            final SinglePartitionReadCommand command = SinglePartitionReadCommand.create(cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.none(), DataLimits.NONE, p.partitionKey(), new ClusteringIndexSliceFilter(Slices.ALL, false));
             try (ReadExecutionController executionController = command.executionController();
                  PartitionIterator iterator = command.executeInternal(executionController))
             {

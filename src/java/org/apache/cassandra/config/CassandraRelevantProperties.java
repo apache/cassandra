@@ -333,6 +333,10 @@ public enum CassandraRelevantProperties
      * */
     COMMIT_LOG_REPLAY_LIST("cassandra.replayList", null),
 
+    // SAI specific properties
+    /** Controls the maximum number of index query intersections that will take part in a query */
+    SAI_INTERSECTION_CLAUSE_LIMIT("cassandra.sai.intersection.clause.limit", "2"),
+
     /**
      * The maximum number of seeds returned by a seed provider before emmitting a warning.
      * A large seed list may impact effectiveness of the third gossip round.

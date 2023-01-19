@@ -432,7 +432,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             commands.add(SinglePartitionReadCommand.create(metadata(),
                                                            nowInSeconds,
                                                            ColumnFilter.selection(this.requiresRead),
-                                                           RowFilter.NONE,
+                                                           RowFilter.none(),
                                                            limits,
                                                            metadata().partitioner.decorateKey(key),
                                                            filter));

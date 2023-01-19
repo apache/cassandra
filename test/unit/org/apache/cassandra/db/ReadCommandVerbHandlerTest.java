@@ -166,7 +166,7 @@ public class ReadCommandVerbHandlerTest
                   metadata,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(metadata),
-                  RowFilter.NONE,
+                  RowFilter.none(),
                   DataLimits.NONE,
                   KEY,
                   new ClusteringIndexSliceFilter(Slices.ALL, false),

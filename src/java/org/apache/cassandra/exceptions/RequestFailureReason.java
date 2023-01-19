@@ -35,7 +35,8 @@ public enum RequestFailureReason
     TIMEOUT                  (2),
     INCOMPATIBLE_SCHEMA      (3),
     READ_SIZE                (4),
-    NODE_DOWN                (5);
+    NODE_DOWN                (5),
+    INDEX_NOT_AVAILABLE      (6);
 
     public static final Serializer serializer = new Serializer();
 
