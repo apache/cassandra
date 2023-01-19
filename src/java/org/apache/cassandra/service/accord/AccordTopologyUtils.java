@@ -97,11 +97,12 @@ public class AccordTopologyUtils
     public static Topology createTopology(long epoch)
     {
         TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
+        List<String> keyspaces = new ArrayList<>(Schema.instance.distributedKeyspaces().names());
+        keyspaces.sort(String::compareTo);
+
         List<Shard> shards = new ArrayList<>();
-        for (String keyspace : Schema.instance.distributedKeyspaces().names())
-        {
+        for (String keyspace : keyspaces)
             shards.addAll(createShards(keyspace, tokenMetadata));
-        }
 
         return new Topology(epoch, shards.toArray(new Shard[0]));
     }
