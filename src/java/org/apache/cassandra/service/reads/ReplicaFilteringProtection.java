@@ -523,7 +523,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
             SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(command.metadata(),
                                                                                command.nowInSec(),
                                                                                command.columnFilter(),
-                                                                               RowFilter.NONE,
+                                                                               RowFilter.none(),
                                                                                limits,
                                                                                key,
                                                                                filter);
