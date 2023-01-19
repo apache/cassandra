@@ -71,6 +71,7 @@ if [ "x$MAX_HEAP_SIZE" = "x" ]; then
     MAX_HEAP_SIZE="128m"
 fi
 
+# validate the environment, print the JMX_PORT value if we are CASSANDRA_ENV_DEBUG is set
 validate_env JMX_PORT
 
 CMD=$(echo "$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \

@@ -19,14 +19,14 @@
 # A script to include the cassandra.in.sh file, set NUMACTL, and load 
 #          $CASSANDRA_CONF/cassandra-env.sh"
 #
-# Creates a validate_env() function to verify criticla environment vars are set
+# Defines a validate_env() function to verify critical environment vars are set
 # and display them if desired
 
 ## Environment variables:
-# ENV_DEBUG: Show all var settings during the validate_env() call.
-# ENV_PRESERVE: A list of environment variables to preserve from being set 
+# CASSANDRA_ENV_DEBUG: Show all var settings during the validate_env() call.
+# CASSANDRA_ENV_PRESERVE: A list of environment variables to preserve from being set
 #       by $CASSANDRA_CONF/cassandra-env.sh"
-# ENV_SHOW: A list of additional environment variables to display during validate_env.
+# CASSANDRA_ENV_SHOW: A list of additional environment variables to display during validate_env.
 
 ## validate_env
 ## Args:  Arguments are additional environment variables to show.
@@ -38,12 +38,12 @@
 ##      CASSANDRA_LOG_DIR
 ## 
 ## Environment Vars:
-##      ENV_DEBUG   Enables display of variables.
-##      ENV_SHOW    List of additional variables to display.
+##      CASSANDRA_ENV_DEBUG   Enables display of variables if this var is set.
+##      CASSANDRA_ENV_SHOW    List of additional variables to display.
 ##
 validate_env() {
     retval=0
-    if [ -n "$ENV_DEBUG" ] ; then
+    if [ -n "$CASSANDRA_ENV_DEBUG" ] ; then
         echo ""
         echo "ENVIRONMENT"
         echo "-----------"
@@ -55,7 +55,7 @@ validate_env() {
         echo ">>> cassandra.in.sh not found or CASSANDRA_INCLUDE not set" >&2
         retval=1
     else
-        if [ -n "$ENV_DEBUG" ] ; then
+        if [ -n "$CASSANDRA_ENV_DEBUG" ] ; then
             echo "CASSANDRA_INCLUDE=$CASSANDRA_INCLUDE"
         fi
     fi
@@ -64,7 +64,7 @@ validate_env() {
         echo ">>> CASSANDRA_HOME not set" >&2
         retval=1
     else
-        if [ -n "$ENV_DEBUG" ] ; then
+        if [ -n "$CASSANDRA_ENV_DEBUG" ] ; then
             echo "CASSANDRA_HOME=$CASSANDRA_HOME"
         fi
     fi
@@ -73,12 +73,12 @@ validate_env() {
         echo ">>> CASSANDRA_LOG_DIR not set" >&2
         retval=1
     else
-        if [ -n "$ENV_DEBUG" ] ; then
+        if [ -n "$CASSANDRA_ENV_DEBUG" ] ; then
             echo "CASSANDRA_LOG_DIR=$CASSANDRA_LOG_DIR"
         fi
     fi
 
-    if [ -n "$ENV_DEBUG" ] ; then
+    if [ -n "$CASSANDRA_ENV_DEBUG" ] ; then
         if [ -z $NUMACTL ]; then
             echo "numactl not found"
         fi
@@ -88,9 +88,8 @@ validate_env() {
             shift
         done
         
-        if [ -n "$ENV_SHOW" ]
-        then
-            for n in $ENV_SHOW 
+        if [ -n "$CASSANDRA_ENV_SHOW" ] ; then
+            for n in $CASSANDRA_ENV_SHOW
             do
                 eval echo "${n}=\$${n}"
             done
@@ -141,9 +140,9 @@ if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
 fi
 
 # preserve vars that we may need from before cassandra-env
-if [ -n "$ENV_PRESERVE" ]
+if [ -n "$CASSANDRA_ENV_PRESERVE" ]
 then
-    for n in $ENV_PRESERVE 
+    for n in $CASSANDRA_ENV_PRESERVE
     do
         eval "${n}_SAVE=\$$n"
     done
@@ -154,9 +153,9 @@ if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
 fi
 
 # restore vars that we may need from before cassandra-env
-if [ -n "$ENV_PRESERVE" ]
+if [ -n "$CASSANDRA_ENV_PRESERVE" ]
 then
-    for n in $ENV_PRESERVE 
+    for n in $CASSANDRA_ENV_PRESERVE
     do
         eval "${n}=\$${n}_SAVE"
     done
