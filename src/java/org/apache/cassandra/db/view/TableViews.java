@@ -462,7 +462,7 @@ public class TableViews extends AbstractCollection<View>
         // TODO: we could still make sense to special case for when there is a single view and a small number of updates (and
         // no deletions). Indeed, in that case we could check whether any of the update modify any of the restricted regular
         // column, and if that's not the case we could use view filter. We keep it simple for now though.
-        RowFilter rowFilter = RowFilter.NONE;
+        RowFilter rowFilter = RowFilter.none();
         return SinglePartitionReadCommand.create(metadata, nowInSec, queriedColumns, rowFilter, DataLimits.NONE, key, clusteringFilter);
     }
 

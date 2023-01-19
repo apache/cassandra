@@ -245,7 +245,7 @@ public class UnfilteredRowIteratorWithLowerBoundTest
         SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(metadata,
                                                                            FBUtilities.nowInSeconds(),
                                                                            ColumnFilter.all(metadata),
-                                                                           RowFilter.NONE,
+                                                                           RowFilter.none(),
                                                                            DataLimits.NONE,
                                                                            key,
                                                                            filter);

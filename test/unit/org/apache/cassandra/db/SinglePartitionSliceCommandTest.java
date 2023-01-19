@@ -186,7 +186,7 @@ public class SinglePartitionSliceCommandTest
         ReadCommand cmd = SinglePartitionReadCommand.create(CFM_SLICES,
                                                             FBUtilities.nowInSeconds(),
                                                             ColumnFilter.all(CFM_SLICES),
-                                                            RowFilter.NONE,
+                                                            RowFilter.none(),
                                                             DataLimits.NONE,
                                                             key,
                                                             clusteringFilter);
@@ -247,7 +247,7 @@ public class SinglePartitionSliceCommandTest
         ReadCommand cmd = SinglePartitionReadCommand.create(metadata,
                                                             FBUtilities.nowInSeconds(),
                                                             columnFilter,
-                                                            RowFilter.NONE,
+                                                            RowFilter.none(),
                                                             DataLimits.NONE,
                                                             key,
                                                             sliceFilter);
@@ -475,7 +475,7 @@ public class SinglePartitionSliceCommandTest
         ReadCommand cmd = SinglePartitionReadCommand.create(metadata,
                                                             FBUtilities.nowInSeconds(),
                                                             columnFilter,
-                                                            RowFilter.NONE,
+                                                            RowFilter.none(),
                                                             DataLimits.NONE,
                                                             key,
                                                             sliceFilter);

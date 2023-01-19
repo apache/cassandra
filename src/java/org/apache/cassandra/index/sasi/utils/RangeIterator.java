@@ -24,7 +24,9 @@ import java.util.PriorityQueue;
 
 import com.google.common.annotations.VisibleForTesting;
 
-public abstract class RangeIterator<K extends Comparable<K>, T extends CombinedValue<K>> extends AbstractIterator<T> implements Closeable
+import org.apache.cassandra.utils.AbstractGuavaIterator;
+
+public abstract class RangeIterator<K extends Comparable<K>, T extends CombinedValue<K>> extends AbstractGuavaIterator<T> implements Closeable
 {
     private final K min, max;
     private final long count;

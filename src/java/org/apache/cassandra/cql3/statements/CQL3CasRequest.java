@@ -194,7 +194,7 @@ public class CQL3CasRequest implements CASRequest
             return SinglePartitionReadCommand.create(metadata,
                                                    nowInSec,
                                                    columnFilter,
-                                                   RowFilter.NONE,
+                                                   RowFilter.none(),
                                                    DataLimits.cqlLimits(1),
                                                    key,
                                                    new ClusteringIndexSliceFilter(Slices.ALL, false));

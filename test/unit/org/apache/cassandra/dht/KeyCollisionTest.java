@@ -129,6 +129,12 @@ public class KeyCollisionTest
         }
 
         @Override
+        public long getLongValue()
+        {
+            return token.longValue();
+        }
+
+        @Override
         public ByteSource asComparableBytes(ByteComparable.Version version)
         {
             return IntegerType.instance.asComparableBytes(IntegerType.instance.decompose(token), version);
