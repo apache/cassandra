@@ -66,11 +66,11 @@ import com.google.common.base.Preconditions;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import org.apache.commons.lang3.StringUtils;
+import com.vdurmont.semver4j.Semver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.audit.IAuditLogger;
+
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
@@ -83,6 +83,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.diag.IDiagnosticLogger;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -754,6 +755,22 @@ public class FBUtilities
                 throw (ConfigurationException) e;
             else
                 throw new ConfigurationException(String.format("Unable to create an instance of crypto provider for %s", className), e);
+        }
+    }
+
+    public static IDiagnosticLogger newDiagnosticLogger(String className, Map<String, String> options) throws ConfigurationException
+    {
+        if (!className.contains("."))
+            className = "org.apache.cassandra.diag." + className;
+
+        try
+        {
+            Class<?> diagnosticLoggerClass = FBUtilities.classForName(className, "Diagnostic logger");
+            return (IDiagnosticLogger) diagnosticLoggerClass.getConstructor(Map.class).newInstance(options);
+        }
+        catch (Exception ex)
+        {
+            throw new ConfigurationException("Unable to create instance of IDiagnosticLogger.", ex);
         }
     }
 

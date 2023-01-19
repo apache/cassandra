@@ -215,6 +215,7 @@ import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.binlog.BinLogOptions;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -4915,7 +4916,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (archiveCommand != null && !auditOptions.allow_nodetool_archive_command)
             throw new ConfigurationException("Can't enable audit log archiving via nodetool unless audit_logging_options.allow_nodetool_archive_command is set to true");
 
-        final AuditLogOptions options = new AuditLogOptions.Builder(auditOptions)
+        BinLogOptions binLogOptions = new BinLogOptions.Builder()
+                                                       .withMaxArchiveRetries(maxArchiveRetries)
+                                                       .withBlock(block)
+                                                       .withRollCycle(rollCycle)
+                                                       .withMaxLogSize(maxLogSize)
+                                                       .withMaxQueueWeight(maxQueueWeight)
+                                                       .withArchiveCommand(archiveCommand == null ? auditOptions.archive_command : archiveCommand)
+                                                       .build();
+
+        final AuditLogOptions options = new AuditLogOptions.Builder(binLogOptions, auditOptions)
                                         .withEnabled(true)
                                         .withLogger(loggerName, parameters)
                                         .withIncludedKeyspaces(includedKeyspaces)
@@ -4924,12 +4934,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                         .withExcludedCategories(excludedCategories)
                                         .withIncludedUsers(includedUsers)
                                         .withExcludedUsers(excludedUsers)
-                                        .withMaxArchiveRetries(maxArchiveRetries)
-                                        .withBlock(block)
-                                        .withRollCycle(rollCycle)
-                                        .withMaxLogSize(maxLogSize)
-                                        .withMaxQueueWeight(maxQueueWeight)
-                                        .withArchiveCommand(archiveCommand)
                                         .build();
 
         AuditLogManager.instance.enable(options);

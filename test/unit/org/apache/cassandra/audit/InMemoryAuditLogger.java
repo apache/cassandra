@@ -26,7 +26,7 @@ public class InMemoryAuditLogger implements IAuditLogger
     final Queue<AuditLogEntry> inMemQueue = new LinkedList<>();
     private boolean enabled = true;
 
-    public InMemoryAuditLogger(Map<String, String> params)
+    public InMemoryAuditLogger(Map<String, String> options)
     {
 
     }

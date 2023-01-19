@@ -24,8 +24,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Consumer;
-
 import javax.annotation.Nullable;
+import javax.management.openmbean.CompositeData;
 
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
@@ -33,12 +33,12 @@ import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Iterables;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.binlog.BinLogOptions;
 
 /**
  * Service for publishing and consuming {@link DiagnosticEvent}s.
@@ -58,12 +58,26 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
 
     private static final DiagnosticEventService instance = new DiagnosticEventService();
 
+    private boolean initialized = false;
+
     private DiagnosticEventService()
     {
-        MBeanWrapper.instance.registerMBean(this,"org.apache.cassandra.diag:type=DiagnosticEventService");
+        if (!MBeanWrapper.instance.isRegistered(MBEAN_NAME))
+            MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
 
         // register broadcasters for JMX events
         DiagnosticEventPersistence.start();
+    }
+
+    public synchronized void initialize()
+    {
+        // we can not initialize in static methods because DatabaseDescriptor
+        // which is called in these below is not populated yet
+        if (!initialized)
+        {
+            DiagnosticEventPersistence.instance().initialize();
+            initialized = true;
+        }
     }
 
     /**
@@ -103,17 +117,30 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
 
     /**
      * Registers event handler for specified class of events.
-     * @param event DiagnosticEvent class implementation
+     *
+     * @param event     DiagnosticEvent class implementation
+     * @param consumers Consumers for received events
+     */
+    public synchronized <E extends DiagnosticEvent> void subscribe(Class<E> event, Collection<Consumer<E>> consumers)
+    {
+        for (Consumer<E> consumer : consumers)
+            subscribe(event, consumer);
+    }
+
+    /**
+     * Registers event handler for specified class of events.
+     *
+     * @param event    DiagnosticEvent class implementation
      * @param consumer Consumer for received events
      */
     public synchronized <E extends DiagnosticEvent> void subscribe(Class<E> event, Consumer<E> consumer)
     {
-        logger.debug("Adding subscriber: {}", consumer);
+        logger.info("Adding subscriber: {}", consumer.getClass().getName());
         subscribersByClass = ImmutableSetMultimap.<Class<? extends DiagnosticEvent>, Consumer<DiagnosticEvent>>builder()
                               .putAll(subscribersByClass)
                               .put(event, new TypedConsumerWrapper<>(consumer))
                               .build();
-        logger.debug("Total subscribers: {}", subscribersByClass.values().size());
+        logger.info("Total subscribers: {}", subscribersByClass.values().size());
     }
 
     /**
@@ -156,6 +183,18 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
 
     /**
      * De-registers event handler from receiving any further events.
+     *
+     * @param consumers Consumers registered for receiving events
+     */
+    public synchronized <E extends DiagnosticEvent> void unsubscribe(@Nullable Class<E> event, Collection<Consumer<E>> consumers)
+    {
+        for (Consumer<E> consumer : consumers)
+            unsubscribe(event, consumer);
+    }
+
+    /**
+     * De-registers event handler from receiving any further events.
+     *
      * @param consumer Consumer registered for receiving events
      */
     public synchronized <E extends DiagnosticEvent> void unsubscribe(Consumer<E> consumer)
@@ -265,6 +304,11 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
         return DatabaseDescriptor.diagnosticEventsEnabled() && hasSubscribers(event, eventType);
     }
 
+    public ImmutableSet<Class<? extends DiagnosticEvent>> getAllEventClassesWithSubscribers()
+    {
+        return subscribersByClass.keySet();
+    }
+
     public static DiagnosticEventService instance()
     {
         return instance;
@@ -287,7 +331,16 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
 
     public void disableDiagnostics()
     {
+        // killswitch will disable logger too
+        disableDiagnosticLog();
         DatabaseDescriptor.setDiagnosticEventsEnabled(false);
+    }
+
+    public void enableDiagnostics()
+    {
+        // we have to explicitly start enable diagnostic logging
+        // this enablement will pour events into memory only
+        DatabaseDescriptor.setDiagnosticEventsEnabled(true);
     }
 
     public SortedMap<Long, Map<String, Serializable>> readEvents(String eventClazz, Long lastKey, int limit)
@@ -305,6 +358,65 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
         DiagnosticEventPersistence.instance().disableEventPersistence(eventClazz);
     }
 
+    public boolean isDiagnosticLogEnabled()
+    {
+        return DiagnosticEventPersistence.instance().isDiagnosticLogEnabled();
+    }
+
+    @Override
+    public CompositeData getDiagnosticLogOptionsData()
+    {
+        return DiagnosticLogOptionsCompositeData.toCompositeData(DiagnosticEventPersistence.instance().getDiagnosticLogOptions());
+    }
+
+    public void enableDiagnosticLog()
+    {
+        DiagnosticLogOptions options = DatabaseDescriptor.getDiagnosticLoggingOptions();
+        enableDiagnosticLog(options.logger.class_name, options.logger.parameters, options.max_archive_retries, options.block,
+                            options.roll_cycle, options.max_log_size, options.max_queue_weight,
+                            options.archive_command);
+    }
+
+    public void enableDiagnosticLog(String loggerName, Map<String, String> parameters, Integer maxArchiveRetries, Boolean block, String rollCycle,
+                                    Long maxLogSize, Integer maxQueueWeight, String archiveCommand)
+    {
+        if (!DatabaseDescriptor.diagnosticEventsEnabled())
+        {
+            logger.info("Diagnostic events are disabled in cassandra.yaml. You have to enable this feature " +
+                        "in order to enable diagnostic logging.");
+            return;
+        }
+
+        BinLogOptions binLogOptions = new BinLogOptions.Builder()
+        .withMaxArchiveRetries(maxArchiveRetries)
+        .withBlock(block)
+        .withRollCycle(rollCycle)
+        .withMaxLogSize(maxLogSize)
+        .withMaxQueueWeight(maxQueueWeight)
+        .withArchiveCommand(archiveCommand)
+        .build();
+
+        final DiagnosticLogOptions options = new DiagnosticLogOptions.Builder(binLogOptions, DatabaseDescriptor.getDiagnosticLoggingOptions())
+        .withEnabled(true)
+        .withLogger(loggerName, parameters)
+        .build();
+
+        DiagnosticEventService.instance().initialize();
+        DiagnosticEventPersistence.instance().enableDiagnosticLogging(options);
+        logger.info("Diagnostic logger is enabled with configuration: {}", options);
+    }
+
+    public void disableDiagnosticLog()
+    {
+        if (!DiagnosticEventPersistence.instance().isDiagnosticLogEnabled())
+            logger.info("Diagnostic logger is already disabled.");
+        else
+        {
+            DiagnosticEventPersistence.instance().disableDiagnosticLogging();
+            logger.info("Diagnostic logger is disabled.");
+        }
+    }
+
     /**
      * Wrapper class for supporting typed event handling for consumers.
      */
@@ -319,7 +431,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
 
         public void accept(DiagnosticEvent e)
         {
-            wrapped.accept((E)e);
+            wrapped.accept((E) e);
         }
 
         public boolean equals(Object o)

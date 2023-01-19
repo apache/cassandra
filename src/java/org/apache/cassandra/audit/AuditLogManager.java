@@ -35,7 +35,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.PasswordObfuscator;
 import org.apache.cassandra.cql3.QueryEvents;
@@ -97,14 +96,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     private IAuditLogger getAuditLogger(AuditLogOptions options) throws ConfigurationException
     {
-        final ParameterizedClass logger = options.logger;
-
-        if (logger != null && logger.class_name != null)
-        {
-            return FBUtilities.newAuditLogger(logger.class_name, logger.parameters == null ? Collections.emptyMap() : logger.parameters);
-        }
-
-        return new BinAuditLogger(options);
+        return FBUtilities.newAuditLogger(options.logger.class_name, options.toMap());
     }
 
     @VisibleForTesting
