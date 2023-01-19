@@ -48,7 +48,6 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
@@ -214,7 +213,6 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                : blockingExecutor.submit(reloadTask);
     }
 
-    @SuppressWarnings("unchecked")
     private synchronized Future<Void> createIndex(IndexMetadata indexDef, boolean isNewCF)
     {
         final Index index = createInstance(indexDef);
@@ -654,7 +652,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * @param isNewCF {@code true} if this method is invoked when initializing a new table/columnfamily (i.e. loading a CF at startup),
      * {@code false} for all other cases (i.e. newly added index)
      */
-    private synchronized void markIndexesBuilding(Set<Index> indexes, boolean isFullRebuild, boolean isNewCF)
+    @VisibleForTesting
+    public synchronized void markIndexesBuilding(Set<Index> indexes, boolean isFullRebuild, boolean isNewCF)
     {
         String keyspaceName = baseCfs.getKeyspaceName();
 
@@ -766,6 +765,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         writableIndexes.remove(indexName);
         needsFullRebuild.remove(indexName);
         inProgressBuilds.remove(indexName);
+        // remove existing indexing status
+        IndexStatusManager.instance.propagateLocalIndexStatus(keyspace.getName(), indexName, Index.Status.DROPPED);
     }
 
     public Index getIndexByName(String indexName)
@@ -779,8 +780,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         if (indexDef.isCustom())
         {
             assert indexDef.options != null;
-            // Find any aliases to the fully qualified index class name:
-            String className = IndexMetadata.expandAliases(indexDef.options.get(IndexTarget.CUSTOM_INDEX_OPTION_NAME));
+            // Get the fully qualified index class name from the index metadata
+            String className = indexDef.getIndexClassName();
             assert !Strings.isNullOrEmpty(className);
 
             try
@@ -943,7 +944,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(baseCfs.metadata(),
                                                                                FBUtilities.nowInSeconds(),
                                                                                ColumnFilter.selection(columns),
-                                                                               RowFilter.NONE,
+                                                                               RowFilter.none(),
                                                                                DataLimits.NONE,
                                                                                key,
                                                                                new ClusteringIndexSliceFilter(Slices.ALL, false));
@@ -1180,10 +1181,18 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         return indexes.stream().map(i -> i.getIndexMetadata().name).collect(Collectors.joining(","));
     }
 
-
     public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
     {
         return indexes.values().stream().filter((i) -> i.supportsExpression(expression.column(), expression.operator())).findFirst();
+    }
+
+    public <T extends Index> Set<T> getBestIndexFor(RowFilter.Expression expression, Class<T> indexType)
+    {
+        return indexes.values()
+                      .stream()
+                      .filter(i -> indexType.isInstance(i) && i.supportsExpression(expression.column(), expression.operator()))
+                      .map(indexType::cast)
+                      .collect(Collectors.toSet());
     }
 
     /**
@@ -1711,9 +1720,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     public void makeIndexNonQueryable(Index index, Index.Status status)
     {
+        if (status == Index.Status.BUILD_SUCCEEDED)
+            throw new IllegalStateException("Index cannot be marked non-queryable with status " + status);
+
         String name = index.getIndexMetadata().name;
         if (indexes.get(name) == index)
         {
+            IndexStatusManager.instance.propagateLocalIndexStatus(keyspace.getName(), name, status);
             if (!index.isQueryable(status))
                 queryableIndexes.remove(name);
         }
@@ -1721,9 +1734,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
     public void makeIndexQueryable(Index index, Index.Status status)
     {
+        if (status != Index.Status.BUILD_SUCCEEDED)
+            throw new IllegalStateException("Index cannot be marked queryable with status " + status);
+
         String name = index.getIndexMetadata().name;
         if (indexes.get(name) == index)
         {
+            IndexStatusManager.instance.propagateLocalIndexStatus(keyspace.getName(), name, status);
             if (index.isQueryable(status))
             {
                 if (queryableIndexes.add(name))

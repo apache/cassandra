@@ -21,10 +21,10 @@ import java.io.IOException;
 import java.util.*;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.index.sasi.utils.AbstractIterator;
 import org.apache.cassandra.index.sasi.utils.CombinedValue;
 import org.apache.cassandra.index.sasi.utils.MappedBuffer;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
+import org.apache.cassandra.utils.AbstractGuavaIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
 import com.carrotsearch.hppc.LongHashSet;
@@ -503,7 +503,7 @@ public class TokenTree
         }
     }
 
-    private static class KeyIterator extends AbstractIterator<DecoratedKey>
+    private static class KeyIterator extends AbstractGuavaIterator<DecoratedKey>
     {
         private final Function<Long, DecoratedKey> keyFetcher;
         private final long[] offsets;

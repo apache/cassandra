@@ -678,7 +678,7 @@ public final class StatementRestrictions
     public RowFilter getRowFilter(IndexRegistry indexRegistry, QueryOptions options)
     {
         if (filterRestrictions.isEmpty())
-            return RowFilter.NONE;
+            return RowFilter.none();
 
         RowFilter filter = RowFilter.create();
         for (Restrictions restrictions : filterRestrictions.getRestrictions())

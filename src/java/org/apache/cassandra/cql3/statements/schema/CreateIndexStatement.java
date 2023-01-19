@@ -48,6 +48,9 @@ import static com.google.common.collect.Iterables.tryFind;
 
 public final class CreateIndexStatement extends AlterSchemaStatement
 {
+    public static final String INVALID_CUSTOM_INDEX_TARGET = "Column '%s' is longer than the permissible name length of %d characters or" +
+                                                             " contains non-alphanumeric-underscore characters";
+
     private final String indexName;
     private final String tableName;
     private final List<IndexTarget.Raw> rawIndexTargets;
@@ -138,11 +141,11 @@ public final class CreateIndexStatement extends AlterSchemaStatement
                     throw ire("Duplicate column '%s' in index target list", target.column);
         }
 
-        indexTargets.forEach(t -> validateIndexTarget(table, t));
+        IndexMetadata.Kind kind = attrs.isCustom ? IndexMetadata.Kind.CUSTOM : IndexMetadata.Kind.COMPOSITES;
+
+        indexTargets.forEach(t -> validateIndexTarget(table, kind, t));
 
         String name = null == indexName ? generateIndexName(keyspace, indexTargets) : indexName;
-
-        IndexMetadata.Kind kind = attrs.isCustom ? IndexMetadata.Kind.CUSTOM : IndexMetadata.Kind.COMPOSITES;
 
         Map<String, String> options = attrs.isCustom ? attrs.getOptions() : Collections.emptyMap();
 
@@ -173,12 +176,15 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         return ImmutableSet.of();
     }
 
-    private void validateIndexTarget(TableMetadata table, IndexTarget target)
+    private void validateIndexTarget(TableMetadata table, IndexMetadata.Kind kind, IndexTarget target)
     {
         ColumnMetadata column = table.getColumn(target.column);
 
         if (null == column)
             throw ire("Column '%s' doesn't exist", target.column);
+
+        if ((kind == IndexMetadata.Kind.CUSTOM) && !SchemaConstants.isValidName(target.column.toString()))
+            throw ire(INVALID_CUSTOM_INDEX_TARGET, target.column, SchemaConstants.NAME_LENGTH);
 
         if (column.type.referencesDuration())
         {

@@ -512,19 +512,19 @@ public interface Index
          * Notification of the start of a partition update.
          * This event always occurs before any other during the update.
          */
-        public void begin();
+        default void begin() {}
 
         /**
          * Notification of a top level partition delete.
          */
-        public void partitionDelete(DeletionTime deletionTime);
+        default void partitionDelete(DeletionTime deletionTime) {}
 
         /**
          * Notification of a RangeTombstone.
          * An update of a single partition may contain multiple RangeTombstones,
          * and a notification will be passed for each of them.
          */
-        public void rangeTombstone(RangeTombstone tombstone);
+        default void rangeTombstone(RangeTombstone tombstone) {}
 
         /**
          * Notification that a new row was inserted into the Memtable holding the partition.
@@ -534,7 +534,7 @@ public interface Index
          *
          * @param row the Row being inserted into the base table's Memtable.
          */
-        public void insertRow(Row row);
+        default void insertRow(Row row) {}
 
         /**
          * Notification of a modification to a row in the base table's Memtable.
@@ -555,7 +555,7 @@ public interface Index
          * @param newRowData data that was not present in the existing row and is being inserted
          *                   into the base table's Memtable
          */
-        public void updateRow(Row oldRowData, Row newRowData);
+        default void updateRow(Row oldRowData, Row newRowData) {}
 
         /**
          * Notification that a row was removed from the partition.
@@ -573,13 +573,13 @@ public interface Index
          *
          * @param row data being removed from the base table
          */
-        public void removeRow(Row row);
+        default void removeRow(Row row) {}
 
         /**
          * Notification of the end of the partition update.
          * This event always occurs after all others for the particular update.
          */
-        public void finish();
+        default void finish() {}
     }
 
     /*

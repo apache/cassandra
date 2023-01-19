@@ -158,7 +158,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                       metadata,
                       nowInSec,
                       ColumnFilter.all(metadata),
-                      RowFilter.NONE,
+                      RowFilter.none(),
                       DataLimits.NONE,
                       DataRange.allData(metadata.partitioner),
                       null,

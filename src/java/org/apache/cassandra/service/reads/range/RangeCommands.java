@@ -74,7 +74,10 @@ public class RangeCommands
         Tracing.trace("Computing ranges to query");
 
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
-        ReplicaPlanIterator replicaPlans = new ReplicaPlanIterator(command.dataRange().keyRange(), keyspace, consistencyLevel);
+        ReplicaPlanIterator replicaPlans = new ReplicaPlanIterator(command.dataRange().keyRange(),
+                                                                   command.indexQueryPlan(),
+                                                                   keyspace,
+                                                                   consistencyLevel);
 
         // our estimate of how many result rows there will be per-range
         float resultsPerRange = estimateResultsPerRange(command, keyspace);
@@ -128,11 +131,13 @@ public class RangeCommands
         {
             Keyspace keyspace = Keyspace.open(metadata.keyspace);
             ReplicaPlanIterator rangeIterator = new ReplicaPlanIterator(DataRange.allData(metadata.partitioner).keyRange(),
-                                                                        keyspace, consistency);
+                                                                        null,
+                                                                        keyspace,
+                                                                        consistency);
 
             // Called for the side effect of running assureSufficientLiveReplicasForRead.
             // Deliberately called with an invalid vnode count in case it is used elsewhere in the future..
-            rangeIterator.forEachRemaining(r ->  ReplicaPlans.forRangeRead(keyspace, consistency, r.range(), -1));
+            rangeIterator.forEachRemaining(r ->  ReplicaPlans.forRangeRead(keyspace, null, consistency, r.range(), -1));
             return true;
         }
         catch (UnavailableException e)

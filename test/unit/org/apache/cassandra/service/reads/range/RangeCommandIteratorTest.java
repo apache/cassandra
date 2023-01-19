@@ -70,7 +70,7 @@ public class RangeCommandIteratorTest
         for (int i = 0; i + 1 < tokens.size(); i++)
         {
             Range<PartitionPosition> range = Range.makeRowRange(tokens.get(i), tokens.get(i + 1));
-            ranges.add(ReplicaPlans.forRangeRead(keyspace, ConsistencyLevel.ONE, range, 1));
+            ranges.add(ReplicaPlans.forRangeRead(keyspace, null, ConsistencyLevel.ONE, range, 1));
             vnodeCount++;
         }
 
@@ -164,7 +164,7 @@ public class RangeCommandIteratorTest
                                                                                    Keyspace keyspace,
                                                                                    boolean withRangeMerger)
     {
-        CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans = new ReplicaPlanIterator(keyRange, keyspace, ConsistencyLevel.ONE);
+        CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans = new ReplicaPlanIterator(keyRange, null, keyspace, ConsistencyLevel.ONE);
         if (withRangeMerger)
             replicaPlans = new ReplicaPlanMerger(replicaPlans, keyspace, ConsistencyLevel.ONE);
 

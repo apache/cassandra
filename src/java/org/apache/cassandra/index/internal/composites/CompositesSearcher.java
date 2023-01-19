@@ -118,7 +118,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                         dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata(),
                                                                     command.nowInSec(),
                                                                     command.columnFilter(),
-                                                                    RowFilter.NONE,
+                                                                    RowFilter.none(),
                                                                     DataLimits.NONE,
                                                                     partitionKey,
                                                                     command.clusteringIndexFilter(partitionKey));

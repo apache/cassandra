@@ -258,7 +258,7 @@ public class ReadResponseTest
                   metadata,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(metadata),
-                  RowFilter.NONE,
+                  RowFilter.none(),
                   DataLimits.NONE,
                   metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key)),
                   null,
