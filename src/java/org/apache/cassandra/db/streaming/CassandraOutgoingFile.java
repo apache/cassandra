@@ -170,6 +170,7 @@ public class CassandraOutgoingFile implements OutgoingStream
             // legacy streaming is not affected by stats metadata mutation and index sumary redistribution
             CassandraStreamHeader.serializer.serialize(header, out, version);
             out.flush();
+            
             CassandraStreamWriter writer = header.isCompressed() ?
                                            new CassandraCompressedStreamWriter(sstable, header, session) :
                                            new CassandraStreamWriter(sstable, header, session);
