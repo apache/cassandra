@@ -119,4 +119,5 @@ public class ByteBuddyExamples extends TestBaseImpl
             return r.call();
         }
     }
+
 }
