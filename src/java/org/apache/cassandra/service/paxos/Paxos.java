@@ -1156,8 +1156,8 @@ public class Paxos
             return emptyMap();
 
         Map<InetAddressAndPort, EndpointState> endpoints = Maps.newHashMapWithExpectedSize(remoteElectorate.size() + localElectorate.size());
-        remoteElectorate.forEach(host -> endpoints.put(host, Gossiper.instance.getEndpointStateForEndpoint(host)));
-        localElectorate.forEach(host -> endpoints.putIfAbsent(host, Gossiper.instance.getEndpointStateForEndpoint(host)));
+        remoteElectorate.forEach(host -> endpoints.put(host, Gossiper.instance.copyEndpointStateForEndpoint(host)));
+        localElectorate.forEach(host -> endpoints.putIfAbsent(host, Gossiper.instance.copyEndpointStateForEndpoint(host)));
 
         return endpoints;
     }
