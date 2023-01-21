@@ -41,18 +41,9 @@ export CCM_HEAP_NEWSIZE="200M"
 export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
 export NUM_TOKENS="16"
 export CASSANDRA_DIR=${WORKSPACE}
-export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}"
 
-if [ -z "$CASSANDRA_USE_JDK11" ]; then
-    export CASSANDRA_USE_JDK11=false
-fi
-
-if [ "$CASSANDRA_USE_JDK11" = true ] ; then
-    TESTSUITE_NAME="${TESTSUITE_NAME}.jdk11"
-else
-    TESTSUITE_NAME="${TESTSUITE_NAME}.jdk8"
-    unset JAVA11_HOME
-fi
+java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
+export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}.jdk${java_version}"
 
 ant -buildfile ${CASSANDRA_DIR}/build.xml realclean
 # Loop to prevent failure due to maven-ant-tasks not downloading a jar..

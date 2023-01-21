@@ -37,6 +37,15 @@
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
 
+    <!-- JDKs supported.
+        All releases are built with the default JDK.
+        Builds with non-default JDKs are considered experimental and for development and testing purposes.
+        When building, javac's source and target flags are set to the jdk used, so lower JDKs are not supported at runtime.
+        The use of both CASSANDRA_USE_JDK11 and use-jdk11 is deprecated.
+    -->
+    <property name="java.default" value="1.8" />
+    <property name="java.supported" value="1.8,11,17" />
+
     <!-- directory details -->
     <property name="basedir" value="."/>
     <property name="build.src" value="${basedir}/src"/>
@@ -156,21 +165,16 @@
                 <javac srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true"/>
                 <taskdef name="KeepBriefBrief" classname="org.apache.cassandra.anttasks.KeepBriefBrief" classpath="${test.classes}"/>
                 <KeepBriefBrief property="cassandra.keepBriefBrief"/>
+                <taskdef name="JdkProperties" classname="org.apache.cassandra.anttasks.JdkProperties" classpath="${test.classes}"/>
+                <JdkProperties/>
         </sequential>
     </macrodef>
 
-    <condition property="java.version.8">
-        <equals arg1="${ant.java.version}" arg2="1.8"/>
-    </condition>
-    <condition property="java.version.11">
-      <!-- This includes every JDK other than 8; so JDK 9 is flagged as JDK 11, and JDK 17 is as well... at the moment this is desired behavior
-      and may be relooked at once JDK 8 support is dropped -->
-        <not><isset property="java.version.8"/></not>
-    </condition>
-    <fail message="Unsupported JDK version used: ${ant.java.version}"><condition><not><or>
-        <isset property="java.version.8"/>
-        <isset property="java.version.11"/>
-    </or></not></condition></fail>
+    <fail message="Unsupported JDK version used: ${ant.java.version}">
+        <condition><not><contains string="${java.supported}" substring="${ant.java.version}"/></not></condition>
+    </fail>
+    <condition property="is.java.default"><equals arg1="${ant.java.version}" arg2="${java.default}"/></condition>
+    <echo unless:true="${is.java.default}" message="Non default JDK version used: ${ant.java.version}"/>
 
     <condition property="arch_x86">
       <equals arg1="${os.arch}" arg2="x86" />
@@ -262,17 +266,6 @@
         </not>
     </condition>
 
-    <condition property="build.java.11">
-        <istrue value="${use.jdk11}"/>
-    </condition>
-
-    <condition property="source.version" value="8" else="11">
-        <equals arg1="${java.version.8}" arg2="true"/>
-    </condition>
-    <condition property="target.version" value="8" else="11">
-        <equals arg1="${java.version.8}" arg2="true"/>
-    </condition>
-
     <!--
          Add all the dependencies.
     -->
@@ -314,57 +307,10 @@
     </sequential>
   </macrodef>
 
-    <target name="validate-build-conf">
-        <condition property="use-jdk11">
-            <or>
-                <isset property="build.java.11"/>
-                <istrue value="${env.CASSANDRA_USE_JDK11}"/>
-            </or>
-        </condition>
-        <fail message="Inconsistent JDK11 options set">
-            <condition>
-                    <and>
-                        <istrue value="${env.CASSANDRA_USE_JDK11}"/>
-                        <isset property="use.jdk11"/>
-                        <not>
-                            <istrue value="${use.jdk11}"/>
-                        </not>
-                    </and>
-            </condition>
-                </fail>
-        <fail message="Inconsistent JDK11 options set">
-            <condition>
-                    <and>
-                        <isset property="env.CASSANDRA_USE_JDK11"/>
-                        <not>
-                            <istrue value="${env.CASSANDRA_USE_JDK11}"/>
-                        </not>
-                        <istrue value="${use.jdk11}"/>
-                    </and>
-            </condition>
-        </fail>
-        <fail message="-Duse.jdk11=true or $CASSANDRA_USE_JDK11=true cannot be set when building from java 8">
-            <condition>
-                <not><or>
-                    <not><isset property="java.version.8"/></not>
-                    <not><isset property="use-jdk11"/></not>
-                </or></not>
-            </condition>
-        </fail>
-        <fail message="-Duse.jdk11=true or $CASSANDRA_USE_JDK11=true must be set when building from java 11">
-            <condition>
-                <not><or>
-                    <isset property="java.version.8"/>
-                    <isset property="use-jdk11"/>
-                </or></not>
-            </condition>
-        </fail>
-    </target>
-
     <!--
         Setup the output directories.
     -->
-    <target name="init" depends="validate-build-conf">
+    <target name="init" >
         <fail unless="is.source.artifact"
             message="Not a source artifact, stopping here." />
         <mkdir dir="${build.classes.main}"/>
@@ -492,11 +438,11 @@
 
     <target name="_build_java">
         <!-- Note: we cannot use javac's 'release' option, as that does not allow accessing sun.misc.Unsafe nor
-        Nashorn's ClassFilter class as any javac modules option is invalid for relase 8. -->
-        <echo message="Compiling for Java ${target.version}..."/>
+        Nashorn's ClassFilter class as any javac modules option is invalid for release 8. -->
+        <echo message="Compiling for Java ${ant.java.version}..."/>
         <javac
                debug="true" debuglevel="${debuglevel}" encoding="utf-8"
-               destdir="${build.classes.main}" includeantruntime="false" source="${source.version}" target="${target.version}">
+               destdir="${build.classes.main}" includeantruntime="false" source="${ant.java.version}" target="${ant.java.version}">
             <src path="${build.src.java}"/>
             <src path="${build.src.gen-java}"/>
             <compilerarg value="-XDignore.symbol.file"/>
@@ -528,7 +474,7 @@
 
     <target name="stress-build-test" depends="stress-build" description="Compile stress tests">
         <javac debug="true" debuglevel="${debuglevel}" destdir="${stress.test.classes}"
-               source="${source.version}" target="${target.version}"
+               source="${ant.java.version}" target="${ant.java.version}"
                includeantruntime="false" encoding="utf-8">
             <classpath>
                 <path refid="cassandra.classpath.test"/>
@@ -545,7 +491,7 @@
     <target name="_stress_build">
     	<mkdir dir="${stress.build.classes}" />
         <javac compiler="modern" debug="true" debuglevel="${debuglevel}"
-               source="${source.version}" target="${target.version}"
+               source="${ant.java.version}" target="${ant.java.version}"
                encoding="utf-8" destdir="${stress.build.classes}" includeantruntime="true">
             <src path="${stress.build.src}" />
             <classpath>
@@ -586,7 +532,7 @@
 
     <target name="fqltool-build-test" depends="fqltool-build" description="Compile fqltool tests">
         <javac debug="true" debuglevel="${debuglevel}" destdir="${fqltool.test.classes}"
-               source="${source.version}" target="${target.version}"
+               source="${ant.java.version}" target="${ant.java.version}"
                includeantruntime="false" encoding="utf-8">
             <classpath>
                 <path refid="cassandra.classpath.test"/>
@@ -603,7 +549,7 @@
     <target name="_fqltool_build">
     	<mkdir dir="${fqltool.build.classes}" />
         <javac compiler="modern" debug="true" debuglevel="${debuglevel}"
-               source="${source.version}" target="${target.version}"
+               source="${ant.java.version}" target="${ant.java.version}"
                encoding="utf-8" destdir="${fqltool.build.classes}" includeantruntime="true">
             <src path="${fqltool.build.src}" />
             <classpath>
@@ -640,7 +586,7 @@
     <target name="_simulator-asm_build">
     	<mkdir dir="${simulator-asm.build.classes}" />
         <javac compiler="modern" debug="true" debuglevel="${debuglevel}"
-               source="${source.version}" target="${target.version}"
+               source="${ant.java.version}" target="${ant.java.version}"
                encoding="utf-8" destdir="${simulator-asm.build.classes}" includeantruntime="true">
             <src path="${simulator-asm.build.src}" />
             <classpath>
@@ -657,7 +603,7 @@
     <target name="_simulator-bootstrap_build">
     	<mkdir dir="${simulator-bootstrap.build.classes}" />
         <javac compiler="modern" debug="true" debuglevel="${debuglevel}"
-               source="${source.version}" target="${target.version}"
+               source="${ant.java.version}" target="${ant.java.version}"
                encoding="utf-8" destdir="${simulator-bootstrap.build.classes}" includeantruntime="true">
             <src path="${simulator-bootstrap.build.src}" />
             <classpath>
@@ -1011,8 +957,8 @@
      debuglevel="${debuglevel}"
      destdir="${test.classes}"
      includeantruntime="true"
-     source="${source.version}"
-     target="${target.version}"
+     source="${ant.java.version}"
+     target="${ant.java.version}"
      encoding="utf-8">
      <classpath>
         <path refid="cassandra.classpath.test"/>
@@ -1129,7 +1075,7 @@
         <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
         <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
-        <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
+        <jvmarg value="-Dcassandra.testtag=@{testtag}.jdk${ant.java.version}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
@@ -1923,9 +1869,9 @@
 	    failonerror="true"
             maxmemory="512m">
             <arg value="-source"/>
-	    <arg value="${source.version}" />
+	    <arg value="${java.default}" />
 	    <arg value="-target"/>
-	    <arg value="${target.version}" />
+	    <arg value="${ant.java.version}" />
 	    <arg value="-d" />
             <arg value="none" />
 	    <arg value="-proc:none" />
