@@ -26,11 +26,15 @@ Table 1 : Support Matrix for Java
 |===
 | |Java 8 (Run) |Java 11 (Run)
 |Java 8 (Build) |Supported |Supported
-|Java 11(Build) |Not Supported |Supported
+|Java 11(Build) |Not Supported |Experimental
 |===
 
-Essentially Apache 4.0 source code built with Java 11 cannot be run with
-Java 8. Next, we shall discuss using each of Java 8 and 11 to build and
+Apache 4.0 source code built with Java 11 cannot be run with
+Java 8.
+
+All binary releases are built with Java 8.
+
+Next, we shall discuss using each of Java 8 and 11 to build and
 run Apache Cassandra 4.0.
 
 == Using Java 8 to Build
@@ -42,18 +46,10 @@ RedHat Linux the command is as follows:
 $ sudo yum install java-1.8.0-openjdk-devel
 ....
 
-Set `JAVA_HOME` and `JRE_HOME` environment variables in the shell bash
-script. First, open the bash script:
-
-....
-$ sudo vi ~/.bashrc
-....
-
-Set the environment variables including the `PATH`.
+Set the environment variables `JAVA_HOME` and `PATH`.
 
 ....
 $ export JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk
-$ export JRE_HOME=/usr/lib/jvm/java-1.8.0-openjdk/jre
 $ export PATH=$PATH:$JAVA_HOME/bin:$JRE_HOME/bin
 ....
 
@@ -68,7 +64,7 @@ If Cassandra is already running stop Cassandra with the following
 command.
 
 ....
-[ec2-user@ip-172-30-3-146 bin]$ ./nodetool stopdaemon
+$ ./nodetool stopdaemon
 ....
 
 Build the source code from the `cassandra` directory, which has the
@@ -143,53 +139,19 @@ and install Java 11 on RedHat Linux run the following command.
 $ yum install java-11-openjdk-devel
 ....
 
-Set the environment variables in the bash script for Java 11. The first
-command is to open the bash script.
+Set the environment variables `JAVA_HOME` and `PATH`.
 
 ....
-$ sudo vi ~/.bashrc 
 $ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk
-$ export JRE_HOME=/usr/lib/jvm/java-11-openjdk/jre
 $ export PATH=$PATH:$JAVA_HOME/bin:$JRE_HOME/bin
 ....
 
-To build source code with Java 11 one of the following two options must
-be used.
-
-____
-[arabic]
-. {blank}
-+
-Include Apache Ant command-line option `-Duse.jdk=11` as follows:::
-....
-$ ant -Duse.jdk=11
-....
-. {blank}
-+
-Set environment variable `CASSANDRA_USE_JDK11` to `true`:::
-....
-$ export CASSANDRA_USE_JDK11=true
-....
-____
-
-As an example, set the environment variable `CASSANDRA_USE_JDK11` to
-`true`.
+The build output should now include the following.
 
 ....
-[ec2-user@ip-172-30-3-146 cassandra]$ export CASSANDRA_USE_JDK11=true
-[ec2-user@ip-172-30-3-146 cassandra]$ ant
-Buildfile: /home/ec2-user/cassandra/build.xml
-....
-
-Or, set the command-line option.
-
-....
-[ec2-user@ip-172-30-3-146 cassandra]$ ant -Duse.jdk11=true
-....
-
-The build output should include the following.
-
-....
+[echo] Non default JDK version used: 11
+...
+...
 _build_java:
     [echo] Compiling for Java 11
 ...
@@ -215,36 +177,20 @@ jar:
 
 BUILD SUCCESSFUL
 Total time: 1 minute 3 seconds
-[ec2-user@ip-172-30-3-146 cassandra]$ 
 ....
 
 == Common Issues
-
-One of the two options mentioned must be used to compile with JDK 11 or
-the build fails and the following error message is output.
-
-....
-[ec2-user@ip-172-30-3-146 cassandra]$ ant
-Buildfile: /home/ec2-user/cassandra/build.xml
-validate-build-conf:
-
-BUILD FAILED
-/home/ec2-user/cassandra/build.xml:293: -Duse.jdk11=true or $CASSANDRA_USE_JDK11=true must 
-be set when building from java 11
-Total time: 1 second
-[ec2-user@ip-172-30-3-146 cassandra]$ 
-....
 
 The Java 11 built Apache Cassandra 4.0 source code may be run with Java
 11 only. If a Java 11 built code is run with Java 8 the following error
 message gets output.
 
 ....
-[root@localhost ~]# ssh -i cassandra.pem ec2-user@ec2-3-85-85-75.compute-1.amazonaws.com
+# ssh -i cassandra.pem ec2-user@ec2-3-85-85-75.compute-1.amazonaws.com
 Last login: Wed Jul 31 20:47:26 2019 from 75.155.255.51
-[ec2-user@ip-172-30-3-146 ~]$ echo $JAVA_HOME
+$ echo $JAVA_HOME
 /usr/lib/jvm/java-1.8.0-openjdk
-[ec2-user@ip-172-30-3-146 ~]$ cassandra 
+$ cassandra 
 ...
 ...
 Error: A JNI error has occurred, please check your installation and try again
@@ -258,33 +204,3 @@ class file versions up to 52.0
 ...
 ....
 
-The `CASSANDRA_USE_JDK11` variable or the command-line option
-`-Duse.jdk11` cannot be used to build with Java 8. To demonstrate set
-`JAVA_HOME` to version 8.
-
-....
-[root@localhost ~]# ssh -i cassandra.pem ec2-user@ec2-3-85-85-75.compute-1.amazonaws.com
-Last login: Wed Jul 31 21:41:50 2019 from 75.155.255.51
-[ec2-user@ip-172-30-3-146 ~]$ echo $JAVA_HOME
-/usr/lib/jvm/java-1.8.0-openjdk
-....
-
-Set the `CASSANDRA_USE_JDK11=true` or command-line option
-`-Duse.jdk11=true`. Subsequently, run Apache Ant to start the build. The
-build fails with error message listed.
-
-....
-[ec2-user@ip-172-30-3-146 ~]$ cd 
-cassandra
-[ec2-user@ip-172-30-3-146 cassandra]$ export CASSANDRA_USE_JDK11=true
-[ec2-user@ip-172-30-3-146 cassandra]$ ant 
-Buildfile: /home/ec2-user/cassandra/build.xml
-
-validate-build-conf:
-
-BUILD FAILED
-/home/ec2-user/cassandra/build.xml:285: -Duse.jdk11=true or $CASSANDRA_USE_JDK11=true cannot 
-be set when building from java 8
-
-Total time: 0 seconds
-....
