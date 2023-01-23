@@ -67,7 +67,21 @@ public class RangesSerializer implements IVersionedSerializer<Collection<Range<T
     {
         int size = TypeSizes.sizeof(ranges.size());
         if (ranges.size() > 0)
-            size += ranges.size() * 2 * Token.serializer.serializedSize(ranges.iterator().next().left, version);
+        {
+            Range<Token> firstRange = ranges.iterator().next();
+            if (firstRange.left.getPartitioner().isFixedLength())
+            {
+                size += ranges.size() * 2 * Token.serializer.serializedSize(ranges.iterator().next().left, version);
+            }
+            else
+            {
+                for (Range<Token> range : ranges)
+                {
+                    size += Token.serializer.serializedSize(range.left, version);
+                    size += Token.serializer.serializedSize(range.right, version);
+                }
+            }
+        }
         return size;
     }
 }

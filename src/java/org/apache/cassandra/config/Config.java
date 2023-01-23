@@ -183,6 +183,7 @@ public class Config
 
     public int concurrent_reads = 32;
     public int concurrent_writes = 32;
+    public int concurrent_accord_operations = 32;
     public int concurrent_counter_writes = 32;
     public int concurrent_materialized_view_writes = 32;
     public OptionaldPositiveInt available_processors = new OptionaldPositiveInt(CASSANDRA_AVAILABLE_PROCESSORS.getInt(OptionaldPositiveInt.UNDEFINED_VALUE));
@@ -477,6 +478,8 @@ public class Config
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
+
+    public DataStorageSpec.LongMebibytesBound consensus_migration_cache_size = null;
 
     @Replaces(oldName = "cache_load_timeout_seconds", converter = Converters.NEGATIVE_SECONDS_DURATION, deprecated = true)
     public DurationSpec.IntSecondsBound cache_load_timeout = new DurationSpec.IntSecondsBound("30s");
@@ -1108,7 +1111,22 @@ public class Config
 
     public volatile boolean client_request_size_metrics_enabled = true;
 
-    public LegacyPaxosStrategy legacy_paxos_strategy = LegacyPaxosStrategy.migration;
+    public LWTStrategy lwt_strategy = LWTStrategy.migration;
+
+    /**
+     * When a barrier transaction is requested how many times to repeat attempting the barrier before giving up
+     */
+    public int accord_barrier_retry_attempts = 5;
+
+    /**
+     * When a barrier transaction fails how long the initial backoff should be before being increased
+     * as part of exponential backoff on each attempt
+     */
+    public DurationSpec.IntMillisecondsBound accord_barrier_retry_inital_backoff_millis = new DurationSpec.IntMillisecondsBound("1s");
+
+    public DurationSpec.IntMillisecondsBound accord_barrier_max_backoff = new DurationSpec.IntMillisecondsBound("10m");
+
+    public DurationSpec.IntMillisecondsBound accord_range_barrier_timeout = new DurationSpec.IntMillisecondsBound("2m");
 
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
@@ -1221,7 +1239,7 @@ public class Config
      * and serial read operations. Transaction statements
      * will always run on Accord. Legacy in this context includes PaxosV2.
      */
-    public enum LegacyPaxosStrategy
+    public enum LWTStrategy
     {
         /*
          * Allow both Accord and PaxosV1/V2 to run on the same cluster

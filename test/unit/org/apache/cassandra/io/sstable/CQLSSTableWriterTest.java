@@ -20,7 +20,14 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,20 +49,31 @@ import org.junit.rules.TemporaryFolder;
 
 import com.datastax.driver.core.utils.UUIDs;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.functions.types.*;
+import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.functions.types.DataType;
+import org.apache.cassandra.cql3.functions.types.LocalDate;
+import org.apache.cassandra.cql3.functions.types.TypeCodec;
+import org.apache.cassandra.cql3.functions.types.UDTValue;
+import org.apache.cassandra.cql3.functions.types.UserType;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.dht.*;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JavaDriverUtils;
+import org.apache.cassandra.utils.OutputHandler;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertEquals;
@@ -103,55 +121,52 @@ public class CQLSSTableWriterTest
     @Test
     public void testUnsortedWriter() throws Exception
     {
-        try (AutoCloseable switcher = Util.switchPartitioner(ByteOrderedPartitioner.instance))
-        {
-            String schema = "CREATE TABLE " + qualifiedTable + " ("
-                          + "  k int PRIMARY KEY,"
-                          + "  v1 text,"
-                          + "  v2 int"
-                          + ")";
-            String insert = "INSERT INTO " + qualifiedTable + " (k, v1, v2) VALUES (?, ?, ?)";
-            CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                                                      .inDirectory(dataDir)
-                                                      .forTable(schema)
-                                                      .using(insert).build();
+        String schema = "CREATE TABLE " + qualifiedTable + " ("
+                      + "  k int PRIMARY KEY,"
+                      + "  v1 text,"
+                      + "  v2 int"
+                      + ")";
+        String insert = "INSERT INTO " + qualifiedTable + " (k, v1, v2) VALUES (?, ?, ?)";
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using(insert).build();
 
-            writer.addRow(0, "test1", 24);
-            writer.addRow(1, "test2", 44);
-            writer.addRow(2, "test3", 42);
-            writer.addRow(ImmutableMap.<String, Object>of("k", 3, "v2", 12));
+        writer.addRow(0, "test1", 24);
+        writer.addRow(1, "test2", 44);
+        writer.addRow(2, "test3", 42);
+        writer.addRow(ImmutableMap.<String, Object>of("k", 3, "v2", 12));
 
-            writer.close();
+        writer.close();
 
-            loadSSTables(dataDir, keyspace);
+        loadSSTables(dataDir, keyspace);
 
-            UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
-            assertEquals(4, rs.size());
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        assertEquals(4, rs.size());
 
-            Iterator<UntypedResultSet.Row> iter = rs.iterator();
-            UntypedResultSet.Row row;
+        Iterator<UntypedResultSet.Row> iter = rs.iterator();
+        UntypedResultSet.Row row;
 
-            row = iter.next();
-            assertEquals(0, row.getInt("k"));
-            assertEquals("test1", row.getString("v1"));
-            assertEquals(24, row.getInt("v2"));
+        row = iter.next();
+        assertEquals(0, row.getInt("k"));
+        assertEquals("test1", row.getString("v1"));
+        assertEquals(24, row.getInt("v2"));
 
-            row = iter.next();
-            assertEquals(1, row.getInt("k"));
-            assertEquals("test2", row.getString("v1"));
-            //assertFalse(row.has("v2"));
-            assertEquals(44, row.getInt("v2"));
+        row = iter.next();
+        assertEquals(1, row.getInt("k"));
+        assertEquals("test2", row.getString("v1"));
+        //assertFalse(row.has("v2"));
+        assertEquals(44, row.getInt("v2"));
 
-            row = iter.next();
-            assertEquals(2, row.getInt("k"));
-            assertEquals("test3", row.getString("v1"));
-            assertEquals(42, row.getInt("v2"));
+        row = iter.next();
+        assertEquals(2, row.getInt("k"));
+        assertEquals("test3", row.getString("v1"));
+        assertEquals(42, row.getInt("v2"));
 
-            row = iter.next();
-            assertEquals(3, row.getInt("k"));
-            assertEquals(null, row.getBytes("v1")); // Using getBytes because we know it won't NPE
-            assertEquals(12, row.getInt("v2"));
-        }
+        row = iter.next();
+        assertEquals(3, row.getInt("k"));
+        assertEquals(null, row.getBytes("v1")); // Using getBytes because we know it won't NPE
+        assertEquals(12, row.getInt("v2"));
     }
 
     @Test

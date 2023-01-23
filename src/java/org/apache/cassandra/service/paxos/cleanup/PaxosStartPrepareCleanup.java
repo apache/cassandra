@@ -53,6 +53,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_START_PREPARE_REQ;
@@ -190,6 +191,7 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
     }
 
     public static final IVerbHandler<Request> verbHandler = in -> {
+        ClusterMetadataService.instance().fetchLogFromCMS(in.epoch());
         ColumnFamilyStore table = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
         maybeUpdateTopology(in.from(), in.payload.epState);
         Ballot highBound = newBallot(ballotTracker().getHighBound(), ConsistencyLevel.SERIAL);

@@ -18,10 +18,18 @@
 
 package org.apache.cassandra.db.streaming;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
@@ -44,13 +52,6 @@ import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.Refs;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
 
 /**
  * Implements the streaming interface for the native cassandra storage engine.
@@ -77,9 +78,9 @@ public class CassandraStreamManager implements TableStreamManager
     }
 
     @Override
-    public StreamReceiver createStreamReceiver(StreamSession session, int totalStreams)
+    public StreamReceiver createStreamReceiver(StreamSession session, List<Range<Token>> ranges, int totalStreams)
     {
-        return new CassandraStreamReceiver(cfs, session, totalStreams);
+        return new CassandraStreamReceiver(cfs, session, ranges, totalStreams);
     }
 
     @Override
