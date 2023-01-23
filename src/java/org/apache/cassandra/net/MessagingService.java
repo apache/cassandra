@@ -500,9 +500,9 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
                                                          }
 
                                                          @Override
-                                                         public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
+                                                         public void onFailure(InetAddressAndPort from, RequestFailure failure)
                                                          {
-                                                             future.setFailure(new RuntimeException(failureReason.toString()));
+                                                             future.setFailure(new RuntimeException(failure.toString()));
                                                          }
                                                      });
 

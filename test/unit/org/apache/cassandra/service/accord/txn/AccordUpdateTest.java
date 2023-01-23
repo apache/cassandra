@@ -18,18 +18,18 @@
 
 package org.apache.cassandra.service.accord.txn;
 
-import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.primitives.Txn;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.accord.AccordTestUtils;
 
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.utils.SerializerTestUtils.assertSerializerIOEquality;
 
-public class TxnUpdateTest
+public class AccordUpdateTest
 {
     @BeforeClass
     public static void setupClass()
@@ -44,7 +44,7 @@ public class TxnUpdateTest
     public void predicateSerializer()
     {
         Txn txn = AccordTestUtils.createTxn(0, 0);
-        TxnUpdate update = (TxnUpdate) txn.update();
-        assertSerializerIOEquality(update, TxnUpdate.serializer);
+        AccordUpdate update = (AccordUpdate) txn.update();
+        assertSerializerIOEquality(update, AccordUpdate.serializer);
     }
 }

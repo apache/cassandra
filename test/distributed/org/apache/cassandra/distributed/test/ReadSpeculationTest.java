@@ -25,6 +25,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -86,7 +87,8 @@ public class ReadSpeculationTest extends TestBaseImpl
                 ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(TABLE);
                 DecoratedKey dk = cfs.decorateKey(bytes(PK_VALUE));
                 ReplicaPlan.ForTokenRead plan = ReplicaPlans.forRead(keyspace, dk.getToken(), null,
-                                                                     QUORUM, cfs.metadata().params.speculativeRetry);
+                                                                     QUORUM, cfs.metadata().params.speculativeRetry,
+                                                                     ReadCoordinator.DEFAULT);
                 return plan.contacts().endpointList().stream().map(InetSocketAddress::getAddress).collect(Collectors.toList());
             }, null);
             logger.info("Replicas provided in a read plan contacts: {}", readPlanEndpoints);

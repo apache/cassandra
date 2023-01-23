@@ -23,8 +23,10 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.Data;
-import accord.local.SafeCommandStore;
 import accord.primitives.Timestamp;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
@@ -49,6 +51,9 @@ import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
 
 public class TxnNamedRead extends AbstractSerialized<ReadCommand>
 {
+    @SuppressWarnings("unused")
+    private static final Logger logger = LoggerFactory.getLogger(TxnNamedRead.class);
+
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnNamedRead(null, null, null));
 
     private final TxnDataName name;
@@ -111,7 +116,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         return key;
     }
 
-    public AsyncChain<Data> read(boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
+    public AsyncChain<Data> read(Timestamp executeAt)
     {
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) get();
         // TODO (required, safety): before release, double check reasoning that this is safe
@@ -121,7 +126,16 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         // this simply looks like the transaction witnessed TTL'd data and the data then expired
         // immediately after the transaction executed, and this simplifies things a great deal
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
+        return performLocalRead(command, nowInSeconds);
+    }
 
+    public ReadCommand command()
+    {
+        return get();
+    }
+
+    private AsyncChain<Data> performLocalRead(SinglePartitionReadCommand command, int nowInSeconds)
+    {
         return AsyncChains.ofCallable(Stage.READ.executor(), () ->
         {
             SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);

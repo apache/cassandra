@@ -22,19 +22,25 @@ import java.io.IOException;
 
 import accord.api.Result;
 import accord.messages.Apply;
+import accord.primitives.PartialDeps;
 import accord.primitives.PartialRoute;
+import accord.primitives.PartialTxn;
+import accord.primitives.Seekables;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.primitives.Writes;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
+
 public class ApplySerializers
 {
-    public static final IVersionedSerializer<Apply> request = new TxnRequestSerializer<Apply>()
+    public abstract static class ApplySerializer<A extends Apply> extends TxnRequestSerializer<A>
     {
         @Override
-        public void serializeBody(Apply apply, DataOutputPlus out, int version) throws IOException
+        public void serializeBody(A apply, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(apply.kind == Apply.Kind.Maximal);
             KeySerializers.seekables.serialize(apply.keys(), out, version);
@@ -44,21 +50,24 @@ public class ApplySerializers
             CommandSerializers.writes.serialize(apply.writes, out, version);
         }
 
+        protected abstract A deserializeApply(TxnId txnId, PartialRoute<?> scope, long waitForEpoch, Apply.Kind kind, Seekables<?, ?> keys,
+                                              Timestamp executeAt, PartialDeps deps, PartialTxn txn, Writes writes, Result result);
+
         @Override
-        public Apply deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch) throws IOException
+        public A deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch) throws IOException
         {
-            return Apply.SerializationSupport.create(txnId, scope, waitForEpoch,
-                                                     in.readBoolean() ? Apply.Kind.Maximal : Apply.Kind.Minimal,
-                                                     KeySerializers.seekables.deserialize(in, version),
-                                                     CommandSerializers.timestamp.deserialize(in, version),
-                                                     DepsSerializer.partialDeps.deserialize(in, version),
-                                                     CommandSerializers.nullablePartialTxn.deserialize(in, version),
-                                                     CommandSerializers.writes.deserialize(in, version),
-                                                     Result.APPLIED);
+            return deserializeApply(txnId, scope, waitForEpoch,
+                                    in.readBoolean() ? Apply.Kind.Maximal : Apply.Kind.Minimal,
+                                    KeySerializers.seekables.deserialize(in, version),
+                                    CommandSerializers.timestamp.deserialize(in, version),
+                                    DepsSerializer.partialDeps.deserialize(in, version),
+                                    CommandSerializers.nullablePartialTxn.deserialize(in, version),
+                                    CommandSerializers.writes.deserialize(in, version),
+                                    Result.APPLIED);
         }
 
         @Override
-        public long serializedBodySize(Apply apply, int version)
+        public long serializedBodySize(A apply, int version)
         {
             return TypeSizes.BOOL_SIZE
                    + KeySerializers.seekables.serializedSize(apply.keys(), version)
@@ -66,6 +75,16 @@ public class ApplySerializers
                    + DepsSerializer.partialDeps.serializedSize(apply.deps, version)
                    + CommandSerializers.nullablePartialTxn.serializedSize(apply.txn, version)
                    + CommandSerializers.writes.serializedSize(apply.writes, version);
+        }
+    }
+
+    public static final IVersionedSerializer<Apply> request = new ApplySerializer<Apply>()
+    {
+        @Override
+        protected Apply deserializeApply(TxnId txnId, PartialRoute<?> scope, long waitForEpoch, Apply.Kind kind, Seekables<?, ?> keys,
+                               Timestamp executeAt, PartialDeps deps, PartialTxn txn, Writes writes, Result result)
+        {
+            return Apply.SerializationSupport.create(txnId, scope, waitForEpoch, kind, keys, executeAt, deps, txn, writes, result);
         }
     };
 

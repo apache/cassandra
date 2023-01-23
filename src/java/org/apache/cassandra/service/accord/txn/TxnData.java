@@ -24,11 +24,15 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.Maps;
+
 import accord.api.Data;
-import accord.api.Result;
+import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -43,7 +47,9 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.NullableSerializer;
 import org.apache.cassandra.utils.ObjectSizes;
 
-public class TxnData implements Data, Result, Iterable<FilteredPartition>
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
+
+public class TxnData extends TxnResult implements Data, Iterable<FilteredPartition>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnData());
 
@@ -74,8 +80,13 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         return data.entrySet();
     }
 
+    public boolean isEmpty()
+    {
+        return data.isEmpty();
+    }
+
     @Override
-    public Data merge(Data data)
+    public TxnData merge(Data data)
     {
         TxnData that = (TxnData) data;
         TxnData merged = new TxnData();
@@ -94,6 +105,7 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         return left.merge(right);
     }
 
+    @Override
     public long estimatedSizeOnHeap()
     {
         long size = EMPTY_SIZE;
@@ -122,6 +134,14 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         if (o == null || getClass() != o.getClass()) return false;
         TxnData that = (TxnData) o;
         return data.equals(that.data);
+    }
+
+    public static TxnData emptyPartition(TxnDataName name, SinglePartitionReadCommand command)
+    {
+        TxnData result = new TxnData();
+        FilteredPartition empty = FilteredPartition.create(PartitionIterators.getOnlyElement(EmptyIterators.partition(), command));
+        result.put(name, empty);
+        return result;
     }
 
     private static final IVersionedSerializer<FilteredPartition> partitionSerializer = new IVersionedSerializer<FilteredPartition>()
@@ -158,7 +178,13 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         }
     };
 
-    public static final IVersionedSerializer<TxnData> serializer = new IVersionedSerializer<TxnData>()
+    @Override
+    public Kind kind()
+    {
+        return txn_data;
+    }
+
+    public static final TxnResultSerializer<TxnData> serializer = new TxnResultSerializer<TxnData>()
     {
         @Override
         public void serialize(TxnData data, DataOutputPlus out, int version) throws IOException
@@ -174,8 +200,8 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         @Override
         public TxnData deserialize(DataInputPlus in, int version) throws IOException
         {
-            Map<TxnDataName, FilteredPartition> data = new HashMap<>();
-            long size = in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
+            Map<TxnDataName, FilteredPartition> data = Maps.newHashMapWithExpectedSize(size);
             for (int i=0; i<size; i++)
             {
                 TxnDataName name = TxnDataName.serializer.deserialize(in, version);

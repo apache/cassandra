@@ -19,6 +19,7 @@
 package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -26,11 +27,27 @@ public class AccordClientRequestMetrics extends ClientRequestMetrics
 {
     public final Histogram keySize;
 
+    // During migration back to Paxos it's possible a transaction runs
+    // in an Epoch where Accord is no longer accepting transactions
+    // and we still run it to completion, but we do skip the read from Cassandra
+    // although it would be harmless. This should only occur briefly when coordinators
+    // start transactions on the wrong protocol due to temporarily out of data cluster metadata.
+    public final Meter migrationSkippedReads;
+
+    // Number of times a key had to be run through PaxosRepair for migration to Accord
+    public final Meter paxosKeyMigrations;
+
+    // Number of times a query was rejected by Accord in TxnQuery due to a migration back to Paxos
+    public final Meter accordMigrationRejects;
+
     public AccordClientRequestMetrics(String scope)
     {
         super(scope);
 
         keySize = Metrics.histogram(factory.createMetricName("KeySizeHistogram"), false);
+        migrationSkippedReads = Metrics.meter(factory.createMetricName("MigrationSkippedReads"));
+        paxosKeyMigrations = Metrics.meter(factory.createMetricName("PaxosKeyMigrations"));
+        accordMigrationRejects = Metrics.meter(factory.createMetricName("AccordMigrationRejects"));
     }
 
     @Override
@@ -38,5 +55,8 @@ public class AccordClientRequestMetrics extends ClientRequestMetrics
     {
         super.release();
         Metrics.remove(factory.createMetricName("KeySizeHistogram"));
+        Metrics.remove(factory.createMetricName("MigrationSkippedReads"));
+        Metrics.remove(factory.createMetricName("PaxosKeyMigrations"));
+        Metrics.remove(factory.createMetricName("AccordMigrationRejects"));
     }
 }

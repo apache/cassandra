@@ -303,6 +303,7 @@ public class Message<T> implements ReplyContext
      * Used by the {@code MultiRangeReadCommand} to split multi-range responses from a replica
      * into single-range responses.
      */
+    @VisibleForTesting
     public static <T> Message<T> remoteResponse(InetAddressAndPort from, Verb verb, T payload)
     {
         assert verb.isResponse();
@@ -572,6 +573,11 @@ public class Message<T> implements ReplyContext
         boolean trackWarnings()
         {
             return MessageFlag.TRACK_WARNINGS.isIn(flags);
+        }
+
+        boolean isFinal()
+        {
+            return !MessageFlag.NOT_FINAL.isIn(flags);
         }
 
         @Nullable

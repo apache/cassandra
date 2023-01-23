@@ -18,12 +18,13 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Collection;
 import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.local.Command;
+import accord.local.Command.TransientListener;
+import accord.local.Listeners;
 import accord.local.SafeCommand;
 import accord.primitives.TxnId;
 
@@ -138,7 +139,7 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     }
 
     @Override
-    public Collection<Command.TransientListener> transientListeners()
+    public Listeners<TransientListener> transientListeners()
     {
         checkNotInvalidated();
         return global.listeners();

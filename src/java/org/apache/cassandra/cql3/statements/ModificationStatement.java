@@ -57,19 +57,10 @@ import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.Validation;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.WhereClause;
-import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
-import org.apache.cassandra.db.guardrails.Guardrails;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaLayout;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.cql3.conditions.ColumnConditions;
 import org.apache.cassandra.cql3.conditions.Conditions;
+import org.apache.cassandra.cql3.constraints.ConstraintViolationException;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.selection.ResultSetBuilder;
@@ -94,6 +85,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.Partition;
@@ -102,11 +94,19 @@ import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
@@ -641,7 +641,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                          false,
                          options.getTimestamp(queryState),
                          options.getNowInSeconds(queryState),
-                         requestTime);
+                         requestTime,
+                         false);
         if (!mutations.isEmpty())
         {
             StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime);
@@ -806,7 +807,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     {
         long timestamp = options.getTimestamp(queryState);
         long nowInSeconds = options.getNowInSeconds(queryState);
-        for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime))
+        for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime, false))
             mutation.apply();
         return null;
     }
@@ -834,7 +835,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
 
         if (!request.appliesTo(current))
-            return current.rowIterator();
+            return current.rowIterator(false);
 
         PartitionUpdate updates = request.makeUpdates(current, state, ballot);
         updates = TriggerExecutor.instance.execute(updates);
@@ -859,19 +860,22 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                    boolean local,
                                                    long timestamp,
                                                    long nowInSeconds,
-                                                   Dispatcher.RequestTime requestTime)
+                                                   Dispatcher.RequestTime requestTime,
+                                                   boolean constructingAccordBaseUpdate)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
-        if(keys.size() == 1)
+
+        if (keys.size() == 1)
         {
             SingleTableSinglePartitionUpdatesCollector collector = new SingleTableSinglePartitionUpdatesCollector(metadata, updatedColumns);
-            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime, constructingAccordBaseUpdate);
             return collector.toMutations(state);
-        } else
+        }
+        else
         {
             HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
             SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
-            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
+            addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime, constructingAccordBaseUpdate);
             return collector.toMutations(state);
         }
     }
@@ -879,7 +883,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     @VisibleForTesting
     public PartitionUpdate getTxnUpdate(ClientState state, QueryOptions options)
     {
-        List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, new Dispatcher.RequestTime(0, 0));
+        List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, new Dispatcher.RequestTime(0, 0), true);
         if (mutations.size() != 1)
             throw new IllegalArgumentException("When running withing a transaction, modification statements may only mutate a single partition");
         return Iterables.getOnlyElement(mutations.get(0).getPartitionUpdates());
@@ -942,7 +946,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                           boolean local,
                           long timestamp,
                           long nowInSeconds,
-                          Dispatcher.RequestTime requestTime)
+                          Dispatcher.RequestTime requestTime,
+                          boolean constructingAccordBaseUpdate)
     {
         if (hasSlices())
         {
@@ -960,7 +965,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                            local,
                                                            timestamp,
                                                            nowInSeconds,
-                                                           requestTime);
+                                                           requestTime,
+                                                           constructingAccordBaseUpdate);
             for (ByteBuffer key : keys)
             {
                 Validation.validateKey(metadata(), key);
@@ -984,7 +990,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime);
+            UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime, constructingAccordBaseUpdate);
 
             for (ByteBuffer key : keys)
             {
@@ -1042,7 +1048,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   boolean local,
                                                   long timestamp,
                                                   long nowInSeconds,
-                                                  Dispatcher.RequestTime requestTime)
+                                                  Dispatcher.RequestTime requestTime,
+                                                  boolean constructingAccordBaseUpdate)
     {
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
             return makeUpdateParameters(keys,
@@ -1053,7 +1060,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                         local,
                                         timestamp,
                                         nowInSeconds,
-                                        requestTime);
+                                        requestTime,
+                                        constructingAccordBaseUpdate);
 
         return makeUpdateParameters(keys,
                                     new ClusteringIndexNamesFilter(clusterings, false),
@@ -1063,7 +1071,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                     local,
                                     timestamp,
                                     nowInSeconds,
-                                    requestTime);
+                                    requestTime,
+                                    constructingAccordBaseUpdate);
     }
 
     private UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
@@ -1074,7 +1083,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   boolean local,
                                                   long timestamp,
                                                   long nowInSeconds,
-                                                  Dispatcher.RequestTime requestTime)
+                                                  Dispatcher.RequestTime requestTime,
+                                                  boolean constructingAccordBaseUpdate)
     {
         // Some lists operation requires reading
         Map<DecoratedKey, Partition> lists =
@@ -1092,7 +1102,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                     getTimestamp(timestamp, options),
                                     nowInSeconds,
                                     getTimeToLive(options),
-                                    lists);
+                                    lists,
+                                    constructingAccordBaseUpdate);
     }
 
     public static abstract class Parsed extends QualifiedStatement

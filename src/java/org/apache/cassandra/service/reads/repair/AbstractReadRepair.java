@@ -39,11 +39,11 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 
@@ -54,6 +54,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractReadRepair.class);
 
+    protected final ReadCoordinator coordinator;
     protected final ReadCommand command;
     protected final Dispatcher.RequestTime requestTime;
     protected final ReplicaPlan.Shared<E, P> replicaPlan;
@@ -75,10 +76,11 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         }
     }
 
-    public AbstractReadRepair(ReadCommand command,
+    public AbstractReadRepair(ReadCoordinator coordinator, ReadCommand command,
                               ReplicaPlan.Shared<E, P> replicaPlan,
                               Dispatcher.RequestTime requestTime)
     {
+        this.coordinator = coordinator;
         this.command = command;
         this.requestTime = requestTime;
         this.replicaPlan = replicaPlan;
@@ -92,9 +94,9 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 
     void sendReadCommand(Replica to, ReadCallback<E, P> readCallback, boolean speculative, boolean trackRepairedStatus)
     {
-        ReadCommand command = this.command;
-        
-        if (to.isSelf())
+        ReadCommand command = coordinator.maybeAllowOutOfRangeReads(this.command);
+
+        if (to.isSelf() && coordinator.localReadSupported())
         {
             Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(command, readCallback, requestTime, trackRepairedStatus));
             return;
@@ -117,7 +119,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         }
 
         Message<ReadCommand> message = command.createMessage(trackRepairedStatus && to.isFull(), requestTime);
-        MessagingService.instance().sendWithCallback(message, to.endpoint(), readCallback);
+        coordinator.sendReadCommand(message, to.endpoint(), readCallback);
     }
 
     abstract Meter getRepairMeter();
@@ -139,7 +141,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled();
 
         // Do a full data read to resolve the correct response (and repair node that need be)
-        DataResolver<E, P> resolver = new DataResolver<>(command, replicaPlan, this, requestTime, trackRepairedStatus);
+        DataResolver<E, P> resolver = new DataResolver<>(coordinator, command, replicaPlan, this, requestTime, trackRepairedStatus);
         ReadCallback<E, P> readCallback = new ReadCallback<>(resolver, command, replicaPlan, requestTime);
 
         digestRepair = new DigestRepair<>(resolver, readCallback, resultConsumer);

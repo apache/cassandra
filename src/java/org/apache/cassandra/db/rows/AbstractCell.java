@@ -19,9 +19,12 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.util.Objects;
+import javax.annotation.Nonnull;
 
-import org.apache.cassandra.db.Digest;
+import com.google.common.base.Function;
+
 import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -118,10 +121,17 @@ public abstract class AbstractCell<V> extends Cell<V>
     }
 
     @Override
-    public ColumnData updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    public ColumnData updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime)
     {
         long localDeletionTime = localDeletionTime() != NO_DELETION_TIME ? newLocalDeletionTime : NO_DELETION_TIME;
         return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime, buffer(), path());
+    }
+
+    @Override
+    public Cell<?> updateAllTimesWithNewCellPathForComplexColumnData(@Nonnull CellPath maybeNewPath, long newTimestamp, int newLocalDeletionTime)
+    {
+        long localDeletionTime = localDeletionTime() != NO_DELETION_TIME ? newLocalDeletionTime : NO_DELETION_TIME;
+        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime, buffer(), maybeNewPath);
     }
 
     public int dataSize()

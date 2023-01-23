@@ -25,7 +25,6 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -74,7 +73,7 @@ public abstract class RepairMessage
         }
 
         @Override
-        public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
+        public void onFailure(InetAddressAndPort from, RequestFailure failure)
         {
         }
     };

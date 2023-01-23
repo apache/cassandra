@@ -60,10 +60,10 @@ import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
-import org.apache.cassandra.service.accord.txn.TxnUpdate;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -197,7 +197,7 @@ public class AccordObjectSizes
         size += seekables(txn.keys());
         size += ((TxnRead) txn.read()).estimatedSizeOnHeap();
         if (txn.update() != null)
-            size += ((TxnUpdate) txn.update()).estimatedSizeOnHeap();
+            size += ((AccordUpdate) txn.update()).estimatedSizeOnHeap();
         if (txn.query() != null)
             size += ((TxnQuery) txn.query()).estimatedSizeOnHeap();
         return size;
@@ -250,7 +250,7 @@ public class AccordObjectSizes
 
     public static long results(Result result)
     {
-        return ((TxnData) result).estimatedSizeOnHeap();
+        return ((TxnResult) result).estimatedSizeOnHeap();
     }
 
     private static final long EMPTY_COMMAND_LISTENER = measure(new Command.ProxyListener(null));
@@ -331,7 +331,7 @@ public class AccordObjectSizes
         size += sizeNullable(command.accepted(), AccordObjectSizes::timestamp);
         size += sizeNullable(command.writes(), AccordObjectSizes::writes);
 
-        if (command.result() instanceof TxnData)
+        if (command.result() instanceof TxnResult)
             size += sizeNullable(command.result(), AccordObjectSizes::results);
 
         if (!(command instanceof Command.Committed))

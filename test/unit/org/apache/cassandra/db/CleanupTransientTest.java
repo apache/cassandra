@@ -26,8 +26,10 @@ import java.util.UUID;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.PrepareServerNoRegister;
+import org.apache.cassandra.CassandraTestBase.UseRandomPartitioner;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -45,10 +47,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
 
-public class CleanupTransientTest
+@PrepareServerNoRegister
+@UseRandomPartitioner
+public class CleanupTransientTest extends CassandraTestBase
 {
     private static final IPartitioner partitioner = RandomPartitioner.instance;
-    private static IPartitioner oldPartitioner;
 
     public static final int LOOPS = 200;
     public static final String KEYSPACE1 = "CleanupTest1";
@@ -70,10 +73,7 @@ public class CleanupTransientTest
     @BeforeClass
     public static void setup() throws Exception
     {
-        DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
-        oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
-        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple("2/1"),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),

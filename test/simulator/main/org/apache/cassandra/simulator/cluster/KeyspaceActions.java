@@ -44,6 +44,7 @@ import org.apache.cassandra.simulator.OrderOn.StrictSequential;
 import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
+import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 
 import static java.util.Collections.singletonList;
@@ -62,7 +63,8 @@ public class KeyspaceActions extends ClusterActions
     final ConsistencyLevel serialConsistency;
     final int[] primaryKeys;
 
-    final EnumSet<TopologyChange> ops = EnumSet.noneOf(TopologyChange.class);
+    final EnumSet<TopologyChange> topologyOps = EnumSet.noneOf(TopologyChange.class);
+    final EnumSet<ConsensusChange> consensusOps = EnumSet.noneOf(ConsensusChange.class);
     final NodeLookup nodeLookup;
     final TokenPlacementModel.NodeFactory factory;
     final int[] minRf, initialRf, maxRf;
@@ -77,7 +79,9 @@ public class KeyspaceActions extends ClusterActions
     final int[] currentRf;
     Topology topology;
     boolean haveChangedVariant;
+    boolean haveConsensusMigrated;
     int topologyChangeCount = 0;
+    int consensusChangeCount = 0;
 
     public KeyspaceActions(SimulatedSystems simulated,
                            String keyspace, String table, String createTableCql,
@@ -118,7 +122,8 @@ public class KeyspaceActions extends ClusterActions
         maxRf = options.maxRf;
         currentRf = initialRf.clone();
         membersOfQuorumDcs = serialConsistency == LOCAL_SERIAL ? all.dcs[0] : all.toArray();
-        ops.addAll(Arrays.asList(options.allChoices.options));
+        topologyOps.addAll(Arrays.asList(options.allChoices.options));
+        consensusOps.addAll(Arrays.asList(options.consensusChoices.options));
     }
 
     public ActionPlan plan(boolean joinAll)
@@ -214,7 +219,7 @@ public class KeyspaceActions extends ClusterActions
         for (int i = 0 ; i < primaryKeys.length ; ++i)
         {
             int primaryKey = primaryKeys[i];
-            LongToken token = new Murmur3Partitioner().getToken(Int32Type.instance.decompose(primaryKey));
+            LongToken token = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(primaryKey));
             List<TokenPlacementModel.Replica> readReplicas = readPlacements.replicasFor(token.token);
             List<TokenPlacementModel.Replica> writeReplicas = writePlacements.replicasFor(token.token);
 
@@ -234,15 +239,53 @@ public class KeyspaceActions extends ClusterActions
 
     private Action next()
     {
-        if (options.topologyChangeLimit >= 0 && topologyChangeCount++ > options.topologyChangeLimit)
+        Action nextTopologyChangeAction = nextTopologyChangeAction();
+        if (nextTopologyChangeAction != null)
+            return nextTopologyChangeAction;
+
+        Action nextConsensusChangeAction = nextConsensusChangeAction();
+        if (nextConsensusChangeAction != null)
+            return nextConsensusChangeAction;
+
+        if (options.changePaxosVariantTo != null && !haveChangedVariant)
+        {
+            haveChangedVariant = true;
+            return schedule(new OnClusterSetPaxosVariant(KeyspaceActions.this, options.changePaxosVariantTo), options.topologyChangeInterval);
+        }
+
+        return null;
+    }
+
+    private Action nextConsensusChangeAction()
+    {
+        if (options.consensusChangeLimit >= 0 && ++consensusChangeCount > options.consensusChangeLimit)
             return null;
 
-        while (!ops.isEmpty() && (!registered.isEmpty() || joined.size() > sum(minRf)))
+        while (!consensusOps.isEmpty() && !haveConsensusMigrated)
+        {
+            ConsensusChange nextChange = options.consensusChoices.choose(random);
+            switch (nextChange)
+            {
+                case ACCORD_MIGRATE:
+                    haveConsensusMigrated = true;
+                    return schedule(new OnClusterMigrateConsensus(this), options.topologyChangeInterval);
+            }
+       }
+
+        return null;
+    }
+
+    private Action nextTopologyChangeAction()
+    {
+        if (options.topologyChangeLimit >= 0 && ++topologyChangeCount > options.topologyChangeLimit)
+            return null;
+
+        while (!topologyOps.isEmpty() && (!registered.isEmpty() || joined.size() > sum(minRf)))
         {
             if (options.changePaxosVariantTo != null && !haveChangedVariant && random.decide(1f / (1 + registered.size())))
             {
                 haveChangedVariant = true;
-                return schedule(new OnClusterSetPaxosVariant(KeyspaceActions.this, options.changePaxosVariantTo));
+                return schedule(new OnClusterSetPaxosVariant(KeyspaceActions.this, options.changePaxosVariantTo), options.topologyChangeInterval);
             }
 
             // pick a dc
@@ -251,8 +294,8 @@ public class KeyspaceActions extends ClusterActions
             // try to pick an action (and simply loop again if we cannot for this dc)
             TopologyChange next;
             if (registered.size(dc) > 0 && joined.size(dc) > currentRf[dc]) next = options.allChoices.choose(random);
-            else if (registered.size(dc) > 0 && ops.contains(JOIN)) next = options.choicesNoLeave.choose(random);
-            else if (joined.size(dc) > currentRf[dc] && ops.contains(LEAVE)) next = options.choicesNoJoin.choose(random);
+            else if (registered.size(dc) > 0 && topologyOps.contains(JOIN)) next = options.choicesNoLeave.choose(random);
+            else if (joined.size(dc) > currentRf[dc] && topologyOps.contains(LEAVE)) next = options.choicesNoJoin.choose(random);
             else if (joined.size(dc) > minRf[dc]) next = CHANGE_RF;
             else continue;
 
@@ -330,19 +373,12 @@ public class KeyspaceActions extends ClusterActions
                     }
             }
         }
-
-        if (options.changePaxosVariantTo != null && !haveChangedVariant)
-        {
-            haveChangedVariant = true;
-            return schedule(new OnClusterSetPaxosVariant(KeyspaceActions.this, options.changePaxosVariantTo));
-        }
-
         return null;
     }
 
-    private Action schedule(Action action)
+    private Action schedule(Action action, KindOfSequence.Period period)
     {
-        action.setDeadline(time, time.nanoTime() + options.topologyChangeInterval.get(random));
+        action.setDeadline(time, time.nanoTime() + period.get(random));
         return action;
     }
 
@@ -364,7 +400,7 @@ public class KeyspaceActions extends ClusterActions
                 time.permitDiscontinuities();
             }
         });
-        return schedule(action);
+        return schedule(action, options.topologyChangeInterval);
     }
 
     void updateTopology(Topology newTopology)

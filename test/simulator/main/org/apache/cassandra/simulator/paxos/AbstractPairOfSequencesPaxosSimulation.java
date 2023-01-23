@@ -42,6 +42,7 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.LogResult;
 import org.apache.cassandra.distributed.impl.FileLogAction;
 import org.apache.cassandra.distributed.impl.Instance;
+import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
@@ -99,7 +100,7 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
                                                   long seed, int[] primaryKeys,
                                                   long runForNanos, LongSupplier jitter)
     {
-        super(runForNanos < 0 ? STREAM_LIMITED : clusterOptions.topologyChangeLimit < 0 ? TIME_LIMITED : TIME_AND_STREAM_LIMITED,
+        super(runForNanos < 0 ? STREAM_LIMITED : (clusterOptions.topologyChangeLimit <= 0 && clusterOptions.consensusChangeLimit <= 0) ? TIME_LIMITED : TIME_AND_STREAM_LIMITED,
               simulated, cluster, scheduler, runForNanos, jitter);
         this.readRatio = readRatio;
         this.concurrency = concurrency;
@@ -181,6 +182,11 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
                 return ActionList.empty();
             }
         };
+    }
+
+    protected Metrics getMetrics(int coordinatorIndex)
+    {
+        return cluster.get(coordinatorIndex).metrics();
     }
 
     public ActionPlan plan()

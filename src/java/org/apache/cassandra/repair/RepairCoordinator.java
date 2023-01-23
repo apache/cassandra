@@ -478,7 +478,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         RepairTask task;
         if (state.options.isPreview())
         {
-            task = new PreviewRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            task = new PreviewRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), neighborsAndRanges.shouldExcludeDeadParticipants, cfnames);
         }
         else if (state.options.isIncremental())
         {
@@ -486,7 +486,7 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         }
         else
         {
-            task = new NormalRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            task = new NormalRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), neighborsAndRanges.shouldExcludeDeadParticipants, cfnames);
         }
 
         ExecutorPlus executor = createExecutor();

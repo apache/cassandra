@@ -18,11 +18,17 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
+import java.io.IOException;
+import java.util.function.Function;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.SimpleProgressLog;
 import accord.messages.Commit;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.net.Message;
@@ -38,9 +44,16 @@ public class AccordIntegrationTest extends AccordTestBase
         return logger;
     }
 
+    @BeforeClass
+    public static void setUp() throws IOException
+    {
+        AccordTestBase.setupCluster(Function.identity(), 2);
+    }
+    
     @Test
     public void testRecovery() throws Exception
     {
+        pauseSimpleProgressLog();
         test(cluster -> {
             IMessageFilters.Filter lostApply = cluster.filters().verbs(Verb.ACCORD_APPLY_REQ.id).drop();
             IMessageFilters.Filter lostCommit = cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).to(2).drop();
@@ -89,12 +102,13 @@ public class AccordIntegrationTest extends AccordTestBase
     @Test
     public void testLostCommitReadTriggersFallbackRead() throws Exception
     {
+        pauseSimpleProgressLog();
         test(cluster -> {
             // It's expected that the required Read will happen regardless of whether this fails to return a read
             cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).messagesMatching((from, to, iMessage) -> cluster.get(from).callOnInstance(() -> {
                 Message<?> msg = Instance.deserializeMessage(iMessage);
                 if (msg.payload instanceof Commit)
-                    return ((Commit) msg.payload).read != null;
+                    return ((Commit) msg.payload).readData != null;
                 return false;
             })).drop();
 
@@ -112,5 +126,11 @@ public class AccordIntegrationTest extends AccordTestBase
                            "COMMIT TRANSACTION";
             assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, 0, 1 }, check, 0, 0);
         });
+    }
+
+    private void pauseSimpleProgressLog()
+    {
+        for (IInvokableInstance instance : SHARED_CLUSTER)
+            instance.runOnInstance(() -> SimpleProgressLog.PAUSE_FOR_TEST = true);
     }
 }

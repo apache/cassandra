@@ -21,28 +21,33 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.primitives.Longs;
 
 import accord.primitives.Ranges;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PreHashedDecoratedKey;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.MurmurHash;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-import org.apache.cassandra.utils.MurmurHash;
-import org.apache.cassandra.utils.ObjectSizes;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.primitives.Longs;
 
 /**
  * This class generates a BigIntegerToken using a Murmur3 hash.
@@ -84,6 +89,8 @@ public class Murmur3Partitioner implements IPartitioner
             return MAX;
         }
     };
+
+    protected Murmur3Partitioner() {}
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {

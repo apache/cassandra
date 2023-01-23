@@ -37,13 +37,11 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
@@ -120,17 +118,17 @@ public class AccordTopologyUtils
         return shards;
     }
 
-    public static Topology createAccordTopology(Epoch epoch, DistributedSchema schema, DataPlacements placements, Directory directory, Predicate<String> keyspacePredicate)
+    public static Topology createAccordTopology(ClusterMetadata cm, Predicate<String> keyspacePredicate)
     {
         List<Shard> shards = new ArrayList<>();
-        for (KeyspaceMetadata keyspace : schema.getKeyspaces())
+        for (KeyspaceMetadata keyspace : cm.schema.getKeyspaces())
         {
             if (!keyspacePredicate.test(keyspace.name))
                 continue;
-            shards.addAll(createShards(keyspace, placements, directory));
+            shards.addAll(createShards(keyspace, cm.placements, cm.directory));
         }
         shards.sort((a, b) -> a.range.compare(b.range));
-        return new Topology(epoch.getEpoch(), shards.toArray(new Shard[0]));
+        return new Topology(cm.epoch.getEpoch(), shards.toArray(new Shard[0]));
     }
 
     public static EndpointMapping directoryToMapping(EndpointMapping mapping, long epoch, Directory directory)
@@ -144,11 +142,6 @@ public class AccordTopologyUtils
         for (Node.Id id : mapping.differenceIds(builder))
             builder.add(mapping.mappedEndpoint(id), id);
         return builder.build();
-    }
-
-    public static Topology createAccordTopology(ClusterMetadata metadata, Predicate<String> keyspacePredicate)
-    {
-        return createAccordTopology(metadata.epoch, metadata.schema, metadata.placements, metadata.directory, keyspacePredicate);
     }
 
     public static Topology createAccordTopology(ClusterMetadata metadata)

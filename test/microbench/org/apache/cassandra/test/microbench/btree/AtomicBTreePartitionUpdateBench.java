@@ -68,11 +68,11 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.utils.BulkIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.BulkIterator;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 import org.apache.cassandra.utils.memory.Cloner;
 import org.apache.cassandra.utils.memory.HeapPool;
@@ -107,7 +107,7 @@ public class AtomicBTreePartitionUpdateBench
     private static final MutableDeletionInfo NO_DELETION_INFO = new MutableDeletionInfo(DeletionTime.LIVE);
     private static final HeapPool POOL = new HeapPool(Long.MAX_VALUE, 1.0f, () -> ImmediateFuture.success(Boolean.TRUE));
     private static final ByteBuffer zero = Int32Type.instance.decompose(0);
-    private static final DecoratedKey decoratedKey = new BufferDecoratedKey(new ByteOrderedPartitioner().getToken(zero), zero);
+    private static final DecoratedKey decoratedKey = new BufferDecoratedKey(ByteOrderedPartitioner.instance.getToken(zero), zero);
 
     static
     {

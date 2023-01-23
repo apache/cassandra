@@ -44,7 +44,6 @@ import org.slf4j.LoggerFactory;
 import accord.api.Key;
 import accord.primitives.Keys;
 import accord.primitives.Txn;
-import accord.utils.Invariants;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -63,12 +62,11 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
-import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.api.AccordRoutableKey;
+import org.apache.cassandra.service.accord.txn.AccordUpdate;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataName;
@@ -76,18 +74,18 @@ import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.transport.Dispatcher;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.transformations.AddAccordKeyspace;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.service.accord.txn.TxnRead.createTxnRead;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 
 public class TransactionStatement implements CQLStatement.CompositeCQLStatement, CQLStatement.ReturningCQLStatement
 {
@@ -302,9 +300,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return fragments;
     }
 
-    TxnUpdate createUpdate(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
+    AccordUpdate createUpdate(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
     {
-        return new TxnUpdate(createWriteFragments(state, options, autoReads, keyConsumer), createCondition(options));
+        return new TxnUpdate(createWriteFragments(state, options, autoReads, keyConsumer), createCondition(options), null);
     }
 
     Keys toKeys(SortedSet<Key> keySet)
@@ -323,16 +321,16 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
             List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = new TxnRead(reads, txnKeys);
+            TxnRead read = createTxnRead(reads, txnKeys, null);
             return new Txn.InMemory(txnKeys, read, TxnQuery.ALL);
         }
         else
         {
             Map<TxnDataName, NamedSelect> autoReads = new HashMap<>();
-            TxnUpdate update = createUpdate(state, options, autoReads, keySet::add);
+            AccordUpdate update = createUpdate(state, options, autoReads, keySet::add);
             List<TxnNamedRead> reads = createNamedReads(options, state, autoReads, keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = new TxnRead(reads, txnKeys);
+            TxnRead read = createTxnRead(reads, txnKeys, null);
             return new Txn.InMemory(txnKeys, read, TxnQuery.ALL, update);
         }
     }
@@ -357,40 +355,6 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return select.getLimit(options) != 1;
     }
 
-    private void maybeConvertTablesToAccord(Txn txn)
-    {
-        Set<String> allKeyspaces = new HashSet<>();
-        Set<String> newKeyspaces = new HashSet<>();
-        txn.keys().forEach(key -> {
-            String keyspace = ((AccordRoutableKey) key).keyspace();
-            if (allKeyspaces.add(keyspace) && !AccordService.instance().isAccordManagedKeyspace(keyspace))
-                newKeyspaces.add(keyspace);
-        });
-
-        if (newKeyspaces.isEmpty())
-            return;
-
-        for (String keyspace : newKeyspaces)
-        {
-            ClusterMetadataService.instance().commit(new AddAccordKeyspace(keyspace),
-                                                     metadata -> null,
-                                                     (code, message) -> {
-                                                         Invariants.checkState(code == ExceptionCode.ALREADY_EXISTS,
-                                                                               "Expected %s, got %s", ExceptionCode.ALREADY_EXISTS, code);
-                                                         return null;
-                                                     });
-        }
-
-        // we need to avoid creating a txnId in an epoch when no one has any ranges
-        FBUtilities.waitOnFuture(AccordService.instance().epochReady(ClusterMetadata.current().epoch));
-
-        for (String keyspace : allKeyspaces)
-        {
-            if (!AccordService.instance().isAccordManagedKeyspace(keyspace))
-                throw new IllegalStateException(keyspace + " is not an accord managed keyspace");
-        }
-    }
-
     @Override
     public ResultMessage execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime)
     {
@@ -407,9 +371,12 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
             Txn txn = createTxn(state.getClientState(), options);
 
-            maybeConvertTablesToAccord(txn);
+            AccordService.instance().maybeConvertKeyspacesToAccord(txn);
 
-            TxnData data = AccordService.instance().coordinate(txn, options.getConsistency());
+            TxnResult txnResult = AccordService.instance().coordinate(txn, options.getConsistency(), requestTime);
+            if (txnResult.kind() == retry_new_protocol)
+                throw new IllegalStateException("Transaction statement should never be required to switch consensus protocols");
+            TxnData data = (TxnData)txnResult;
 
             if (returningSelect != null)
             {
@@ -420,8 +387,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 if (selectQuery.queries.size() == 1)
                 {
                     FilteredPartition partition = data.get(TxnDataName.returning());
+                    boolean reversed = selectQuery.queries.get(0).isReversed();
                     if (partition != null)
-                        returningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
+                        returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, FBUtilities.nowInSeconds());
                 }
                 else
                 {
@@ -429,8 +397,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     for (int i = 0; i < selectQuery.queries.size(); i++)
                     {
                         FilteredPartition partition = data.get(TxnDataName.returning(i));
+                        boolean reversed = selectQuery.queries.get(i).isReversed();
                         if (partition != null)
-                            returningSelect.select.processPartition(partition.rowIterator(), options, result, nowInSec);
+                            returningSelect.select.processPartition(partition.rowIterator(reversed), options, result, nowInSec);
                     }
                 }
                 return new ResultMessage.Rows(result.build());

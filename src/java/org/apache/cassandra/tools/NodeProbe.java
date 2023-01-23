@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-
 import javax.annotation.Nullable;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
@@ -55,12 +54,20 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 
+import com.google.common.base.Function;
+import com.google.common.base.Strings;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogManagerMBean;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.audit.AuditLogOptionsCompositeData;
-
-import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.auth.AuthCache;
 import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.auth.CIDRGroupsMappingManager;
@@ -116,19 +123,9 @@ import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamManagerMBean;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
-import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
-
-import com.google.common.base.Function;
-import com.google.common.base.Strings;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.apache.cassandra.tcm.CMSOperations;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.NativeLibrary;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
@@ -523,7 +520,12 @@ public class NodeProbe implements AutoCloseable
 
     public void repairAsync(final PrintStream out, final String keyspace, Map<String, String> options) throws IOException
     {
-        RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, options);
+        blockOnAsyncRepair(out, keyspace, ssProxy.repairAsync(keyspace, options));
+    }
+
+    public void blockOnAsyncRepair(final PrintStream out, final String keyspace, Integer cmd) throws IOException
+    {
+        RepairRunner runner = new RepairRunner(out, ssProxy, keyspace, cmd);
         try
         {
             if (jmxc != null)
@@ -1328,6 +1330,12 @@ public class NodeProbe implements AutoCloseable
     public List<String> getNonLocalStrategyKeyspaces()
     {
         return ssProxy.getNonLocalStrategyKeyspaces();
+    }
+
+
+    public List<String> getAccordManagedKeyspace()
+    {
+        return ssProxy.getAccordManagedKeyspaces();
     }
 
     public String getClusterName()

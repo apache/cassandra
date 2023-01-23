@@ -122,6 +122,8 @@ public class LengthPartitioner extends AccordSplitter implements IPartitioner
         public void validate(String token) {}
     };
 
+    private LengthPartitioner() {}
+
     public Token.TokenFactory getTokenFactory()
     {
         return tokenFactory;

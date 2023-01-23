@@ -73,7 +73,7 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedMapSize
 
 public class AccordFetchCoordinator extends AbstractFetchCoordinator implements StreamManager.StreamListener
 {
-    private static final Query noopQuery = (txnId, executeAt, data, read, update) -> null;
+    private static final Query noopQuery = (txnId, executeAt, keys, data, read, update) -> null;
 
     public static class StreamData implements Data
     {
@@ -145,7 +145,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         }
 
         @Override
-        public Data merge(Data data)
+        public StreamData merge(Data data)
         {
             StreamData that = (StreamData) data;
             if (that.streams.keySet().stream().anyMatch(this.streams::containsKey))
@@ -258,7 +258,7 @@ public class AccordFetchCoordinator extends AbstractFetchCoordinator implements 
         }
 
         @Override
-        public AsyncChain<Data> read(Seekable key, Txn.Kind kind, SafeCommandStore commandStore, Timestamp executeAt, DataStore store)
+        public AsyncChain<Data> read(Seekable key, SafeCommandStore commandStore, Timestamp executeAt, DataStore store)
         {
             try
             {

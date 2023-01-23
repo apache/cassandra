@@ -78,6 +78,8 @@ import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.DiskAccessMode;
+import org.apache.cassandra.config.Config.LWTStrategy;
+import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -167,7 +169,7 @@ import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
 public class DatabaseDescriptor
 {
     public static final String NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE = 
-            "Cannot use legacy_paxos_strategy \"accord\" while Accord transactions are disabled.";
+            "Cannot use lwt_strategy \"accord\" while Accord transactions are disabled.";
 
     static
     {
@@ -226,6 +228,7 @@ public class DatabaseDescriptor
 
     private static long keyCacheSizeInMiB;
     private static long paxosCacheSizeInMiB;
+    private static long consensusMigrationCacheSizeInMiB;
     private static long counterCacheSizeInMiB;
     private static long indexSummaryCapacityInMiB;
 
@@ -651,6 +654,9 @@ public class DatabaseDescriptor
         if (conf.concurrent_counter_writes < 2)
             throw new ConfigurationException("concurrent_counter_writes must be at least 2, but was " + conf.concurrent_counter_writes, false);
 
+        if (conf.concurrent_accord_operations < 1)
+            throw new ConfigurationException("concurrent_accord_operations must be at least 1, but was " + conf.concurrent_accord_operations, false);
+
         if (conf.networking_cache_size == null)
             conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
 
@@ -718,7 +724,6 @@ public class DatabaseDescriptor
             conf.commitlog_directory = storagedirFor("commitlog");
         }
 
-        if (conf.accord.journal_directory == null)
         initializeCommitLogDiskAccessMode();
         if (commitLogWriteDiskAccessMode != conf.commitlog_disk_access_mode)
             logger.info("commitlog_disk_access_mode resolved to: {}", commitLogWriteDiskAccessMode);
@@ -959,6 +964,22 @@ public class DatabaseDescriptor
                                              + conf.paxos_cache_size + "', supported values are <integer> >= 0.", false);
         }
 
+        try
+        {
+            // if consensusMigrationCacheSizeInMiB option was set to "auto" then size of the cache should be "min(1% of Heap (in MB), 50MB)
+            consensusMigrationCacheSizeInMiB = (conf.consensus_migration_cache_size == null)
+                                  ? Math.min(Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.01 / 1024 / 1024)), 50)
+                                  : conf.consensus_migration_cache_size.toMebibytes();
+
+            if (consensusMigrationCacheSizeInMiB < 0)
+                throw new NumberFormatException(); // to escape duplicating error message
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException("consensus_migration_cache_size option was set incorrectly to '"
+                                             + conf.consensus_migration_cache_size + "', supported values are <integer> >= 0.", false);
+        }
+
         // we need this assignment for the Settings virtual table - CASSANDRA-17735
         conf.counter_cache_size = new DataStorageSpec.LongMebibytesBound(counterCacheSizeInMiB);
 
@@ -1146,8 +1167,13 @@ public class DatabaseDescriptor
         if (conf.audit_logging_options != null)
             setAuditLoggingOptions(conf.audit_logging_options);
 
-        if (conf.legacy_paxos_strategy == Config.LegacyPaxosStrategy.accord && !conf.accord.enabled)
-            throw new ConfigurationException(NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE);
+        if (conf.lwt_strategy == LWTStrategy.accord)
+        {
+            if (!conf.accord.enabled)
+                throw new ConfigurationException(NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE);
+            if (conf.non_serial_write_strategy == Config.NonSerialWriteStrategy.normal)
+                throw new ConfigurationException("If Accord is used for LWTs then regular writes needs to be routed through Accord for interoperability by setting non_serial_write_strategy to \"accord\" or \"migration\"");
+        }
     }
 
     @VisibleForTesting
@@ -2697,6 +2723,20 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_writes = concurrent_materialized_view_writes;
     }
 
+    public static int getConcurrentAccordOps()
+    {
+        return conf.concurrent_accord_operations;
+    }
+
+    public static void setConcurrentAccordOps(int concurrent_operations)
+    {
+        if (concurrent_operations < 0)
+        {
+            throw new IllegalArgumentException("Concurrent accord operations must be non-negative");
+        }
+        conf.concurrent_accord_operations = concurrent_operations;
+    }
+
     public static int getFlushWriters()
     {
         return conf.memtable_flush_writers;
@@ -3613,9 +3653,45 @@ public class DatabaseDescriptor
         return conf.paxos_topology_repair_strict_each_quorum;
     }
 
-    public static Config.LegacyPaxosStrategy getLegacyPaxosStrategy()
+    // TODO (desired): This configuration should come out of TrM to force the cluster to agree on it
+    public static LWTStrategy getLWTStrategy()
     {
-        return conf.legacy_paxos_strategy;
+        return conf.lwt_strategy;
+    }
+
+    public static void setLWTStrategy(LWTStrategy lwtStrategy)
+    {
+        conf.lwt_strategy = lwtStrategy;
+    }
+
+    public static Config.NonSerialWriteStrategy getNonSerialWriteStrategy()
+    {
+        return conf.non_serial_write_strategy;
+    }
+
+    public static void setNonSerialWriteStrategy(NonSerialWriteStrategy nonSerialWriteStrategy)
+    {
+        conf.non_serial_write_strategy = nonSerialWriteStrategy;
+    }
+
+    public static int getAccordBarrierRetryAttempts()
+    {
+        return conf.accord_barrier_retry_attempts;
+    }
+
+    public static long getAccordBarrierRetryInitialBackoffMillis()
+    {
+        return conf.accord_barrier_retry_inital_backoff_millis.toMilliseconds();
+    }
+
+    public static long getAccordBarrierRetryMaxBackoffMillis()
+    {
+        return conf.accord_barrier_max_backoff.toMilliseconds();
+    }
+
+    public static long getAccordRangeBarrierTimeoutNanos()
+    {
+        return conf.accord_range_barrier_timeout.to(TimeUnit.NANOSECONDS);
     }
 
     public static void setNativeTransportMaxRequestDataInFlightPerIpInBytes(long maxRequestDataInFlightInBytes)
@@ -4203,6 +4279,11 @@ public class DatabaseDescriptor
     public static long getPaxosCacheSizeInMiB()
     {
         return paxosCacheSizeInMiB;
+    }
+
+    public static long getConsensusMigrationCacheSizeInMiB()
+    {
+        return consensusMigrationCacheSizeInMiB;
     }
 
     public static long getCounterCacheSizeInMiB()

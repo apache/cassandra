@@ -31,10 +31,11 @@ import java.util.stream.Collectors;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseRandomPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
@@ -48,17 +49,13 @@ import static org.junit.Assert.fail;
 /**
  * Unit tests for {@link PropertyFileSnitch}.
  */
-public class PropertyFileSnitchTest
+@DDDaemonInitialization
+@UseRandomPartitioner
+public class PropertyFileSnitchTest extends CassandraTestBase
 {
     private Path effectiveFile;
     private Path backupFile;
     private InetAddressAndPort localAddress;
-
-    @BeforeClass
-    public static void setupDD()
-    {
-        DatabaseDescriptor.daemonInitialization();
-    }
 
     @Before
     public void setup() throws ConfigurationException, IOException

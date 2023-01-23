@@ -36,17 +36,23 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.config.Config.LWTStrategy;
+import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.AssertUtils;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterators.toArray;
 import static java.lang.String.format;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
+import static org.apache.cassandra.distributed.api.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
 
 /**
@@ -81,24 +87,31 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Parameterized.Parameter(2)
     public boolean paging;
 
-    @Parameterized.Parameters(name = "{index}: read_cl={0} flush={1} paging={2}")
+    @Parameterized.Parameter(3)
+    public Pair<LWTStrategy, NonSerialWriteStrategy> transactionStrategies;
+
+    @Parameterized.Parameters(name = "{index}: read_cl={0} flush={1} paging={2}, transactionStrategies={3}")
     public static Collection<Object[]> data()
     {
         List<Object[]> result = new ArrayList<>();
-        for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM))
-            for (boolean flush : BOOLEANS)
-                for (boolean paging : BOOLEANS)
-                    result.add(new Object[]{ readConsistencyLevel, flush, paging });
+        for (Pair<LWTStrategy, NonSerialWriteStrategy> transactionStrategies : Arrays.asList(Pair.create(LWTStrategy.accord, NonSerialWriteStrategy.migration), Pair.create(LWTStrategy.migration, NonSerialWriteStrategy.normal)))
+            for (ConsistencyLevel readConsistencyLevel : Arrays.asList(ALL, QUORUM, SERIAL))
+                for (boolean flush : BOOLEANS)
+                        for (boolean paging : BOOLEANS)
+                            result.add(new Object[]{ readConsistencyLevel, flush, paging, transactionStrategies});
         return result;
     }
 
     @BeforeClass
     public static void setupCluster() throws IOException
     {
+        // TODO this blocks some of the original testing of SRP invoking BRR since it is BRRing through Accord
+        // but maybe that is out of scope and is covered by the dedicated BRR tests?
         cluster = init(Cluster.build()
                               .withNodes(NUM_NODES)
                               .withConfig(config -> config.set("hinted_handoff_enabled", false))
                               .start());
+        cluster.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged(KEYSPACE));
     }
 
     @AfterClass
@@ -111,6 +124,14 @@ public class ShortReadProtectionTest extends TestBaseImpl
     @Before
     public void setupTester()
     {
+        String lwtStrategy = transactionStrategies.left.toString();
+        String nonSerialWriteStrategy = transactionStrategies.right.toString();
+        cluster.forEach(node -> {
+            node.runOnInstance(() -> {
+                DatabaseDescriptor.setLWTStrategy(LWTStrategy.valueOf(lwtStrategy));
+                DatabaseDescriptor.setNonSerialWriteStrategy(NonSerialWriteStrategy.valueOf(nonSerialWriteStrategy));
+            });
+        });
         tester = new Tester(readConsistencyLevel, flush, paging);
     }
 
@@ -427,7 +448,7 @@ public class ShortReadProtectionTest extends TestBaseImpl
             this.paging = paging;
             qualifiedTableName = KEYSPACE + ".t_" + seqNumber.getAndIncrement();
 
-            assert readConsistencyLevel == ALL || readConsistencyLevel == QUORUM
+            assert readConsistencyLevel == ALL || readConsistencyLevel == QUORUM || readConsistencyLevel == SERIAL
             : "Only ALL and QUORUM consistency levels are supported";
         }
 
@@ -485,12 +506,12 @@ public class ShortReadProtectionTest extends TestBaseImpl
 
         /**
          * Internally runs the specified write queries in the specified node. If the {@link #readConsistencyLevel} is
-         * QUORUM the write will also be internally done in the next replica in the ring, to simulate a QUORUM write.
+         * QUORUM/SERIAL the write will also be internally done in the next replica in the ring, to simulate a QUORUM/SERIAL write.
          */
         private Tester toNode(int node, String... queries)
         {
             IInvokableInstance replica = cluster.get(node);
-            IInvokableInstance nextReplica = readConsistencyLevel == QUORUM
+            IInvokableInstance nextReplica = (readConsistencyLevel == QUORUM || readConsistencyLevel == SERIAL)
                                              ? cluster.get(node == NUM_NODES ? 1 : node + 1)
                                              : null;
 

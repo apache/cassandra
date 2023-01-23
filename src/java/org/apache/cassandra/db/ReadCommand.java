@@ -18,44 +18,62 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
-import java.util.function.LongPredicate;
 import java.util.function.Function;
+import java.util.function.LongPredicate;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.LocalReadSizeTooLargeException;
+import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
+import org.apache.cassandra.db.partitions.PurgeFunction;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.transform.BasePartitions;
 import org.apache.cassandra.db.transform.BaseRows;
+import org.apache.cassandra.db.transform.RTBoundCloser;
+import org.apache.cassandra.db.transform.RTBoundValidator;
+import org.apache.cassandra.db.transform.RTBoundValidator.Stage;
+import org.apache.cassandra.db.transform.StoppingTransformation;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.QueryCancelledException;
+import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.transform.RTBoundCloser;
-import org.apache.cassandra.db.transform.RTBoundValidator;
-import org.apache.cassandra.db.transform.RTBoundValidator.Stage;
-import org.apache.cassandra.db.transform.StoppingTransformation;
-import org.apache.cassandra.db.transform.Transformation;
-import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -67,16 +85,16 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -84,8 +102,8 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.MergeListener.NOOP;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**
@@ -110,6 +128,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     private final boolean isDigestQuery;
     private final boolean acceptsTransient;
     private final Epoch serializedAtEpoch;
+    private boolean allowsOutOfRangeReads;
     // if a digest query, the version for which the digest is expected. Ignored if not a digest.
     private int digestVersion;
 
@@ -128,6 +147,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 boolean isDigest,
                                                 int digestVersion,
                                                 boolean acceptsTransient,
+                                                boolean allowsOutOfRangeReads,
                                                 TableMetadata metadata,
                                                 long nowInSec,
                                                 ColumnFilter columnFilter,
@@ -154,6 +174,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                           boolean isDigestQuery,
                           int digestVersion,
                           boolean acceptsTransient,
+                          boolean allowsOutOfRangeReads,
                           TableMetadata metadata,
                           long nowInSec,
                           ColumnFilter columnFilter,
@@ -172,6 +193,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.digestVersion = digestVersion;
         this.acceptsTransient = acceptsTransient;
         this.indexQueryPlan = indexQueryPlan;
+        this.allowsOutOfRangeReads = allowsOutOfRangeReads;
         this.trackWarnings = trackWarnings;
         this.serializedAtEpoch = serializedAtEpoch;
         this.dataRange = dataRange;
@@ -528,6 +550,17 @@ public abstract class ReadCommand extends AbstractReadQuery
         return ReadExecutionController.forCommand(this, false);
     }
 
+    public ReadCommand allowOutOfRangeReads()
+    {
+        allowsOutOfRangeReads = true;
+        return this;
+    }
+
+    public boolean allowsOutOfRangeReads()
+    {
+        return allowsOutOfRangeReads;
+    }
+
     /**
      * Wraps the provided iterator so that metrics on what is scanned by the command are recorded.
      * This also log warning/trow TombstoneOverwhelmingException if appropriate.
@@ -874,7 +907,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     // Skip purgeable tombstones. We do this because it's safe to do (post-merge of the memtable and sstable at least), it
     // can save us some bandwith, and avoid making us throw a TombstoneOverwhelmingException for purgeable tombstones (which
     // are to some extend an artefact of compaction lagging behind and hence counting them is somewhat unintuitive).
-    protected UnfilteredPartitionIterator withoutPurgeableTombstones(UnfilteredPartitionIterator iterator, 
+    protected UnfilteredPartitionIterator withoutPurgeableTombstones(UnfilteredPartitionIterator iterator,
                                                                      ColumnFamilyStore cfs,
                                                                      ReadExecutionController controller)
     {
@@ -1217,6 +1250,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         private static final int HAS_INDEX = 0x04;
         private static final int ACCEPTS_TRANSIENT = 0x08;
         private static final int NEEDS_RECONCILIATION = 0x10;
+        private static final int ALLOWS_OUT_OF_RANGE_READS = 0x20;
 
         private final SchemaProvider schema;
 
@@ -1281,6 +1315,16 @@ public abstract class ReadCommand extends AbstractReadQuery
             return (flags & NEEDS_RECONCILIATION) != 0;
         }
 
+        private static int allowsOutOfRangeReadsFlag(boolean allowsOutOfRangeReads)
+        {
+            return allowsOutOfRangeReads ? ALLOWS_OUT_OF_RANGE_READS: 0;
+        }
+
+        private static boolean allowsOutOfRangeReads(int flags)
+        {
+            return (flags & ALLOWS_OUT_OF_RANGE_READS) != 0;
+        }
+
         public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
         {
             out.writeByte(command.kind.ordinal());
@@ -1289,6 +1333,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     | indexFlag(null != command.indexQueryPlan())
                     | acceptsTransientFlag(command.acceptsTransient())
                     | needsReconciliationFlag(command.rowFilter().needsReconciliation())
+                    | allowsOutOfRangeReadsFlag(command.allowsOutOfRangeReads)
             );
             if (command.isDigestQuery())
                 out.writeUnsignedVInt32(command.digestVersion());
@@ -1314,6 +1359,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             int flags = in.readByte();
             boolean isDigest = isDigest(flags);
             boolean acceptsTransient = acceptsTransient(flags);
+            boolean allowsOutOfRangeReads = allowsOutOfRangeReads(flags);
             // Shouldn't happen or it's a user error (see comment above) but
             // better complain loudly than doing the wrong thing.
             if (isForThrift(flags))
@@ -1359,7 +1405,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
             }
 
-            return kind.selectionDeserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
+            return kind.selectionDeserializer.deserialize(in, version, schemaVersion, isDigest, digestVersion, acceptsTransient, allowsOutOfRangeReads, tableMetadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         }
 
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException

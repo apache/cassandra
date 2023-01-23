@@ -26,6 +26,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -356,11 +357,11 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
      * @return the read layout for a token - this includes natural replicas, i.e. those that are not pending.
      * They are reverse sorted by the badness score of the configured snitch
      */
-    static ReplicaLayout.ForTokenRead forTokenReadSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, Token token)
+    static ReplicaLayout.ForTokenRead forTokenReadSorted(ClusterMetadata metadata, Keyspace keyspace, AbstractReplicationStrategy replicationStrategy, Token token, ReadCoordinator coordinator)
     {
         EndpointsForToken replicas = keyspace.getMetadata().params.replication.isLocal()
                                      ? forLocalStrategyToken(metadata, replicationStrategy, token)
-                                     : forNonLocalStrategyTokenRead(metadata, keyspace.getMetadata(), token);
+                                     : coordinator.forNonLocalStrategyTokenRead(metadata, keyspace.getMetadata(), token);
 
         replicas = DatabaseDescriptor.getNodeProximity().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
 
@@ -386,7 +387,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         return metadata.placements.get(keyspace.params.replication).reads.forRange(range.right.getToken()).get();
     }
 
-    static EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
+    public static EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
     {
         return metadata.placements.get(keyspace.params.replication).reads.forToken(token).get();
     }

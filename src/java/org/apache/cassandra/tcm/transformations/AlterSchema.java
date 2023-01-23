@@ -26,6 +26,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,14 +41,19 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaTransformation;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata.Transformer;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
@@ -58,11 +66,13 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement.NO_EXECUTION_TIMESTAMP;
+import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static org.apache.cassandra.exceptions.ExceptionCode.ALREADY_EXISTS;
 import static org.apache.cassandra.exceptions.ExceptionCode.CONFIG_ERROR;
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 import static org.apache.cassandra.exceptions.ExceptionCode.SERVER_ERROR;
 import static org.apache.cassandra.exceptions.ExceptionCode.SYNTAX_ERROR;
+import static org.apache.cassandra.utils.Collectors3.toImmutableMap;
 
 public class AlterSchema implements Transformation
 {
@@ -231,7 +241,7 @@ public class AlterSchema implements Transformation
             });
             next = next.with(newPlacementsBuilder.build());
         }
-
+        next = maybeUpdateConsensusTableMigrationStateForDroppedTables(prev.consensusMigrationState, next, diff.altered, diff.dropped);
         return Transformation.success(next, LockedRanges.AffectedRanges.EMPTY);
     }
 
@@ -245,6 +255,24 @@ public class AlterSchema implements Transformation
             forReplication.add(ksm);
         }
         return byReplication;
+    }
+
+    private Transformer maybeUpdateConsensusTableMigrationStateForDroppedTables(ConsensusMigrationState prev, Transformer next, ImmutableList<KeyspaceDiff> altered, Keyspaces dropped)
+    {
+        Set<TableId> tableIds = Streams.concat(
+                        altered.stream().flatMap(diff -> diff.tables.dropped.stream().map(TableMetadata::id)),
+                        dropped.stream().flatMap(ks -> ks.tables.stream().map(TableMetadata::id)))
+                .collect(toImmutableSet());
+        if (tableIds.stream().anyMatch(prev.tableStates.keySet()::contains))
+        {
+            ImmutableMap<TableId, TableMigrationState> newTableStates =
+                    prev.tableStates.entrySet().stream().filter(e -> !tableIds.contains(e.getKey())).collect(toImmutableMap());
+            return next.with(newTableStates);
+        }
+        else
+        {
+            return next;
+        }
     }
 
     private static Iterable<TableMetadata> normaliseTableEpochs(Epoch nextEpoch, Stream<TableMetadata> tables)

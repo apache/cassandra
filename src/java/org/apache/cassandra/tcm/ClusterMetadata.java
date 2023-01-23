@@ -54,6 +54,9 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -97,6 +100,7 @@ public class ClusterMetadata
     public final AccordKeyspaces accordKeyspaces;
     public final LockedRanges lockedRanges;
     public final InProgressSequences inProgressSequences;
+    public final ConsensusMigrationState consensusMigrationState;
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
 
     // This isn't serialized as part of ClusterMetadata it's really just a view over the Directory.
@@ -132,6 +136,7 @@ public class ClusterMetadata
              AccordKeyspaces.EMPTY,
              LockedRanges.EMPTY,
              InProgressSequences.EMPTY,
+             ConsensusMigrationState.EMPTY,
              ImmutableMap.of());
     }
 
@@ -144,6 +149,7 @@ public class ClusterMetadata
                            AccordKeyspaces accordKeyspaces,
                            LockedRanges lockedRanges,
                            InProgressSequences inProgressSequences,
+                           ConsensusMigrationState consensusMigrationState,
                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions)
     {
         this(EMPTY_METADATA_IDENTIFIER,
@@ -156,6 +162,7 @@ public class ClusterMetadata
              accordKeyspaces,
              lockedRanges,
              inProgressSequences,
+             consensusMigrationState,
              extensions);
     }
 
@@ -169,6 +176,7 @@ public class ClusterMetadata
                            AccordKeyspaces accordKeyspaces,
                            LockedRanges lockedRanges,
                            InProgressSequences inProgressSequences,
+                           ConsensusMigrationState consensusMigrationState,
                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions)
     {
         // TODO: token map is a feature of the specific placement strategy, and so may not be a relevant component of
@@ -185,6 +193,7 @@ public class ClusterMetadata
         this.accordKeyspaces = accordKeyspaces;
         this.lockedRanges = lockedRanges;
         this.inProgressSequences = inProgressSequences;
+        this.consensusMigrationState = consensusMigrationState;
         this.extensions = ImmutableMap.copyOf(extensions);
         this.locator = Locator.usingDirectory(directory);
     }
@@ -241,6 +250,7 @@ public class ClusterMetadata
                                    capLastModified(accordKeyspaces, epoch),
                                    capLastModified(lockedRanges, epoch),
                                    capLastModified(inProgressSequences, epoch),
+                                   capLastModified(consensusMigrationState, epoch),
                                    capLastModified(extensions, epoch));
     }
 
@@ -262,6 +272,7 @@ public class ClusterMetadata
                                    accordKeyspaces,
                                    lockedRanges,
                                    inProgressSequences,
+                                   consensusMigrationState,
                                    extensions);
     }
 
@@ -388,6 +399,7 @@ public class ClusterMetadata
         private AccordKeyspaces accordKeyspaces;
         private LockedRanges lockedRanges;
         private InProgressSequences inProgressSequences;
+        private ConsensusMigrationState consensusMigrationState;
         private final Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions;
         private final Set<MetadataKey> modifiedKeys;
 
@@ -403,6 +415,7 @@ public class ClusterMetadata
             this.accordKeyspaces = metadata.accordKeyspaces;
             this.lockedRanges = metadata.lockedRanges;
             this.inProgressSequences = metadata.inProgressSequences;
+            this.consensusMigrationState = metadata.consensusMigrationState;
             extensions = new HashMap<>(metadata.extensions);
             modifiedKeys = new HashSet<>();
         }
@@ -538,6 +551,31 @@ public class ClusterMetadata
             return this;
         }
 
+        public Transformer with(Map<TableId, TableMigrationState> newTableMigrationStates)
+        {
+            return with(newTableMigrationStates, true);
+        }
+
+        public Transformer with(Map<TableId, TableMigrationState> newTableMigrationStates,
+                                boolean addRemaining)
+        {
+            if (addRemaining)
+            {
+                ImmutableMap.Builder<TableId, TableMigrationState> tableMigrationStatesBuilder = ImmutableMap.builder();
+                consensusMigrationState.tableStates.entrySet()
+                                                   .stream()
+                                                   .filter(existingTMS -> !newTableMigrationStates.containsKey(existingTMS.getKey()))
+                                                   .forEach(tableMigrationStatesBuilder::put);
+                tableMigrationStatesBuilder.putAll(newTableMigrationStates.entrySet());
+                consensusMigrationState = new ConsensusMigrationState(Epoch.EMPTY, tableMigrationStatesBuilder.build());
+            }
+            else
+            {
+                consensusMigrationState = new ConsensusMigrationState(Epoch.EMPTY, newTableMigrationStates);
+            }
+            return this;
+        }
+
         public Transformer with(ExtensionKey<?, ?> key, ExtensionValue<?> obj)
         {
             if (MetadataKeys.CORE_METADATA.contains(key))
@@ -630,6 +668,12 @@ public class ClusterMetadata
                 inProgressSequences = inProgressSequences.withLastModified(epoch);
             }
 
+            if (consensusMigrationState != base.consensusMigrationState)
+            {
+                modifiedKeys.add(MetadataKeys.CONSENSUS_MIGRATION_STATE);
+                consensusMigrationState = consensusMigrationState.withLastModified(epoch);
+            }
+
             return new Transformed(new ClusterMetadata(base.metadataIdentifier,
                                                        epoch,
                                                        partitioner,
@@ -640,6 +684,7 @@ public class ClusterMetadata
                                                        accordKeyspaces,
                                                        lockedRanges,
                                                        inProgressSequences,
+                                                       consensusMigrationState,
                                                        extensions),
                                    ImmutableSet.copyOf(modifiedKeys));
         }
@@ -656,6 +701,7 @@ public class ClusterMetadata
                                        accordKeyspaces,
                                        lockedRanges,
                                        inProgressSequences,
+                                       consensusMigrationState,
                                        extensions);
         }
 
@@ -672,6 +718,7 @@ public class ClusterMetadata
                    ", placement=" + placements +
                    ", lockedRanges=" + lockedRanges +
                    ", inProgressSequences=" + inProgressSequences +
+                   ", consensusMigrationState=" + consensusMigrationState +
                    ", extensions=" + extensions +
                    ", modifiedKeys=" + modifiedKeys +
                    '}';
@@ -759,6 +806,7 @@ public class ClusterMetadata
     @Override
     public String toString()
     {
+        // TODO is this supposed to be missing fields?
         return "ClusterMetadata{" +
                "epoch=" + epoch +
                ", schema=" + schema +
@@ -766,6 +814,7 @@ public class ClusterMetadata
                ", tokenMap=" + tokenMap +
                ", placements=" + placements +
                ", lockedRanges=" + lockedRanges +
+               ", consensusMigrationState=" + lockedRanges +
                '}';
     }
 
@@ -780,8 +829,10 @@ public class ClusterMetadata
                directory.equals(that.directory) &&
                tokenMap.equals(that.tokenMap) &&
                placements.equals(that.placements) &&
+               accordKeyspaces.equals(that.accordKeyspaces) &&
                lockedRanges.equals(that.lockedRanges) &&
                inProgressSequences.equals(that.inProgressSequences) &&
+               consensusMigrationState.equals(that.consensusMigrationState) &&
                extensions.equals(that.extensions);
     }
 
@@ -830,7 +881,7 @@ public class ClusterMetadata
     @Override
     public int hashCode()
     {
-        return Objects.hash(epoch, schema, directory, tokenMap, placements, lockedRanges, inProgressSequences, extensions);
+        return Objects.hash(epoch, schema, directory, tokenMap, placements, accordKeyspaces, lockedRanges, inProgressSequences, consensusMigrationState, extensions);
     }
 
     public static ClusterMetadata current()
@@ -910,6 +961,7 @@ public class ClusterMetadata
             AccordKeyspaces.serializer.serialize(metadata.accordKeyspaces, out, version);
             LockedRanges.serializer.serialize(metadata.lockedRanges, out, version);
             InProgressSequences.serializer.serialize(metadata.inProgressSequences, out, version);
+            ConsensusMigrationState.serializer.serialize(metadata.consensusMigrationState, out, version);
             out.writeInt(metadata.extensions.size());
             for (Map.Entry<ExtensionKey<?, ?>, ExtensionValue<?>> entry : metadata.extensions.entrySet())
             {
@@ -947,6 +999,7 @@ public class ClusterMetadata
             AccordKeyspaces accordKeyspaces = AccordKeyspaces.serializer.deserialize(in, version);
             LockedRanges lockedRanges = LockedRanges.serializer.deserialize(in, version);
             InProgressSequences ips = InProgressSequences.serializer.deserialize(in, version);
+            ConsensusMigrationState consensusMigrationState = ConsensusMigrationState.serializer.deserialize(in, version);
             int items = in.readInt();
             Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions = new HashMap<>(items);
             for (int i = 0; i < items; i++)
@@ -966,6 +1019,7 @@ public class ClusterMetadata
                                        accordKeyspaces,
                                        lockedRanges,
                                        ips,
+                                       consensusMigrationState,
                                        extensions);
         }
 
@@ -988,7 +1042,8 @@ public class ClusterMetadata
                     DataPlacements.serializer.serializedSize(metadata.placements, version) +
                     AccordKeyspaces.serializer.serializedSize(metadata.accordKeyspaces, version) +
                     LockedRanges.serializer.serializedSize(metadata.lockedRanges, version) +
-                    InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version);
+                    InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version) +
+                    ConsensusMigrationState.serializer.serializedSize(metadata.consensusMigrationState, version);
 
             return size;
         }

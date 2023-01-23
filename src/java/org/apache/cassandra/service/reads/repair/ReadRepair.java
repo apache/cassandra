@@ -19,32 +19,33 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.Map;
 import java.util.function.Consumer;
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.locator.Endpoints;
-
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 
 public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
 {
     public interface Factory
     {
         <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime);
+        ReadRepair<E, P> create(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime);
     }
 
     static <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-    ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+    ReadRepair<E, P> create(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
     {
-        return command.metadata().params.readRepair.create(command, replicaPlan, requestTime);
+        return command.metadata().params.readRepair.create(coordinator, command, replicaPlan, requestTime);
     }
 
     /**
@@ -58,7 +59,7 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      * @param digestResolver supplied so we can get the original data response
      * @param resultConsumer hook for the repair to set it's result on completion
      */
-    public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer);
+    public void startRepair(DigestResolver<E, P> digestResolver, @Nullable Consumer<PartitionIterator> resultConsumer);
 
     /**
      * Block on the reads (or timeout) sent out in {@link ReadRepair#startRepair}
@@ -94,4 +95,9 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      * we will block repair only on the replicas that have responded.
      */
     void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan);
+
+    /**
+     * Repairs a partition using the provided read coordinator
+     */
+    void repairPartitionDirectly(ReadCoordinator coordinator, DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan);
 }
