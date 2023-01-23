@@ -27,7 +27,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 
 public class ApplySerializers
 {
@@ -40,7 +40,7 @@ public class ApplySerializers
             CommandSerializers.timestamp.serialize(apply.executeAt, out, version);
             DepsSerializer.partialDeps.serialize(apply.deps, out, version);
             CommandSerializers.writes.serialize(apply.writes, out, version);
-            TxnData.serializer.serialize((TxnData) apply.result, out, version);
+            TxnResult.serializer.serialize((TxnResult) apply.result, out, version);
         }
 
         @Override
@@ -50,7 +50,7 @@ public class ApplySerializers
                                                      CommandSerializers.timestamp.deserialize(in, version),
                                                      DepsSerializer.partialDeps.deserialize(in, version),
                                                      CommandSerializers.writes.deserialize(in, version),
-                                                     TxnData.serializer.deserialize(in, version));
+                                                     TxnResult.serializer.deserialize(in, version));
         }
 
         @Override
@@ -60,7 +60,7 @@ public class ApplySerializers
                    + CommandSerializers.timestamp.serializedSize(apply.executeAt, version)
                    + DepsSerializer.partialDeps.serializedSize(apply.deps, version)
                    + CommandSerializers.writes.serializedSize(apply.writes, version)
-                   + TxnData.serializer.serializedSize((TxnData) apply.result, version);
+                   + TxnResult.serializer.serializedSize((TxnResult) apply.result, version);
         }
     };
 

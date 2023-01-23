@@ -27,6 +27,8 @@ import accord.api.Data;
 import accord.local.SafeCommandStore;
 import accord.primitives.Timestamp;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -35,17 +37,28 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.metrics.AccordClientRequestMetrics;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.ConsensusMigrationStateStore.TableMigrationState;
+import org.apache.cassandra.service.ConsensusRequestRouter;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class TxnNamedRead extends AbstractSerialized<ReadCommand>
 {
@@ -111,9 +124,24 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         return key;
     }
 
-    public Future<Data> read(boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
+    public Future<Data> read(ConsistencyLevel consistencyLevel, boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
     {
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) get();
+        DecoratedKey key = command.partitionKey();
+        TableId tableId = command.metadata().id;
+        AccordClientRequestMetrics metrics = isForWriteTxn ? accordWriteMetrics : accordReadMetrics;
+        TableMigrationState tms = ConsensusRequestRouter.instance.getTableMigrationState(executeAt.epoch(), tableId);
+
+        // This should only rarely occur when coordinators start a transaction in a migrating range
+        // because they haven't yet updated their cluster metadata.
+        // It would be harmless to do the read, but we can respond faster skipping it
+        // and get the transaction on the correct protocol
+        if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(tms, key))
+        {
+            metrics.migrationSkippedReads.mark();
+            return ImmediateFuture.success(TxnData.emptyPartition(name, command));
+        }
+
         // TODO (required, safety): before release, double check reasoning that this is safe
 //        AccordCommandsForKey cfk = ((SafeAccordCommandStore)safeStore).commandsForKey(key);
 //        int nowInSeconds = cfk.nowInSecondsFor(executeAt, isForWriteTxn);
@@ -122,23 +150,64 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         // immediately after the transaction executed, and this simplifies things a great deal
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
 
-        return Stage.READ.submit(() ->
+        if (ConsensusRequestRouter.instance.isKeyInMigratingRangeFromPaxos(tms, key))
         {
-            SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
-
-            try (ReadExecutionController controller = read.executionController();
-                 UnfilteredPartitionIterator partition = read.executeLocally(controller);
-                 PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec()))
-            {
-                FilteredPartition filtered = FilteredPartition.create(PartitionIterators.getOnlyElement(iterator, read));
-                TxnData result = new TxnData();
-                result.put(name, filtered);
-                return result;
-            }
-        });
+            return performCoordinatedRead(consistencyLevel, command, nowInSeconds, metrics);
+        }
+        else
+        {
+            return performLocalRead(command, nowInSeconds);
+        }
     }
 
-    static final IVersionedSerializer<TxnNamedRead> serializer = new IVersionedSerializer<TxnNamedRead>()
+    private Future<Data> performCoordinatedRead(ConsistencyLevel consistencyLevel, SinglePartitionReadCommand command, int nowInSeconds, AccordClientRequestMetrics metrics)
+    {
+        long start = nanoTime();
+        return Stage.ACCORD_MIGRATION.submit(() ->
+                     {
+                         checkArgument(consistencyLevel.isSerialConsistency(), "Should be a serial consistency level");
+                         ConsistencyLevel readConsistencyLevel;
+                         switch (consistencyLevel)
+                         {
+                             case SERIAL:
+                                 readConsistencyLevel = ConsistencyLevel.QUORUM;
+                                 break;
+                             default:
+                                 throw new IllegalArgumentException("Only serial consistency levels are supported: " + consistencyLevel);
+                         }
+                         SinglePartitionReadCommand.Group group = SinglePartitionReadCommand.Group.one(command.withNowInSec(nowInSeconds));
+                         // Transaction timeout should be higher, starting a new read with a new timeout is
+                         // probably "good enough"
+                         long queryStartNanos = nanoTime();
+                         PartitionIterator partitionIterator = StorageProxy.read(group, readConsistencyLevel, queryStartNanos);
+                         RowIterator row = PartitionIterators.getOnlyElement(partitionIterator, command);
+                         FilteredPartition filtered = FilteredPartition.create(row);
+                         TxnData result = new TxnData();
+                         result.put(name, filtered);
+                         metrics.migrationReadLatency.addNano(nanoTime() - start);
+                         return result;
+                     });
+    }
+
+    private Future<Data> performLocalRead(SinglePartitionReadCommand command, int nowInSeconds)
+    {
+        return Stage.READ.submit(() ->
+                     {
+                         SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
+
+                         try (ReadExecutionController controller = read.executionController();
+                              UnfilteredPartitionIterator partition = read.executeLocally(controller);
+                              PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec()))
+                         {
+                             FilteredPartition filtered = FilteredPartition.create(PartitionIterators.getOnlyElement(iterator, read));
+                             TxnData result = new TxnData();
+                             result.put(name, filtered);
+                             return result;
+                         }
+                     });
+    }
+
+    static final IVersionedSerializer<TxnNamedRead> serializer = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(TxnNamedRead read, DataOutputPlus out, int version) throws IOException

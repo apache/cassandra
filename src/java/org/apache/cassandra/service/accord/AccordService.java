@@ -47,7 +47,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -56,20 +56,19 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentAccordOps;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordService implements IAccordService, Shutdownable
 {
-    public static final AccordClientRequestMetrics readMetrics = new AccordClientRequestMetrics("AccordRead");
-    public static final AccordClientRequestMetrics writeMetrics = new AccordClientRequestMetrics("AccordWrite");
-
-    private final Node node;
+    public final Node node;
     private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
     private final AccordConfigurationService configService;
     private final AccordScheduler scheduler;
     private final AccordVerbHandler<? extends Request> verbHandler;
-    
+
     private static final IAccordService NOOP_SERVICE = new IAccordService()
     {
         @Override
@@ -82,7 +81,7 @@ public class AccordService implements IAccordService, Shutdownable
         public void createEpochFromConfigUnsafe() { }
 
         @Override
-        public TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel)
+        public TxnResult coordinate(Txn txn, ConsistencyLevel consistencyLevel, long queryStartNanos)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord_transactions_enabled = false in cassandra.yaml");
         }
@@ -166,28 +165,28 @@ public class AccordService implements IAccordService, Shutdownable
     {
         return configService.currentEpoch();
     }
-    
+
     @Override
     public TopologyManager topology()
     {
         return node.topology();
     }
-    
+
     /**
      * Consistency level is just echoed back in timeouts, in the future it may be used for interoperability
      * with non-Accord operations.
      */
     @Override
-    public TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel)
+    public TxnResult coordinate(Txn txn, ConsistencyLevel consistencyLevel, long queryStartNanos)
     {
-        AccordClientRequestMetrics metrics = txn.isWrite() ? writeMetrics : readMetrics;
-        final long startNanos = nanoTime();
+        AccordClientRequestMetrics metrics = txn.isWrite() ? accordWriteMetrics : accordReadMetrics;
         try
         {
             metrics.keySize.update(txn.keys().size());
             Future<Result> future = node.coordinate(txn);
-            Result result = future.get(DatabaseDescriptor.getTransactionTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-            return (TxnData) result;
+            long deadlineNanos = queryStartNanos + DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS);
+            Result result = future.get(deadlineNanos - nanoTime(), TimeUnit.NANOSECONDS);
+            return (TxnResult)result;
         }
         catch (ExecutionException e)
         {
@@ -220,7 +219,7 @@ public class AccordService implements IAccordService, Shutdownable
         }
         finally
         {
-            metrics.addNano(nanoTime() - startNanos);
+            metrics.addNano(nanoTime() - queryStartNanos);
         }
     }
 

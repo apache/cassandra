@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
@@ -35,6 +36,7 @@ import accord.primitives.Ranges;
 import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -50,6 +52,9 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
+import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
 import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
 public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
@@ -57,26 +62,44 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     // There is only potentially one partition in a CAS and SERIAL/LOCAL_SERIAL read
     public static final String SERIAL_READ_NAME = "SERIAL_READ";
     public static final TxnDataName SERIAL_READ = TxnDataName.user(SERIAL_READ_NAME);
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnRead(new TxnNamedRead[0], null));
 
+    public static final String BARRIER_ALL_READ_NAME = "BARRIER_ALL_READ";
+    public static final TxnDataName BARRIER_ALL_READ = TxnDataName.user(BARRIER_ALL_READ_NAME);
+
+    public static final TxnRead EMPTY_READ = new TxnRead(new TxnNamedRead[0], Keys.EMPTY, ConsistencyLevel.ANY);
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnRead(new TxnNamedRead[0], null, null));
+
+    @Nonnull
     private final Keys txnKeys;
-    
-    public TxnRead(TxnNamedRead[] items, Keys txnKeys)
+
+    // Used if the read is in a migrating range to do a coordinated C* read
+    // Not clear this should be nullable if you only ever read/write using Accord
+    @Nonnull
+    private final ConsistencyLevel consistencyLevel;
+
+    public TxnRead(@Nonnull TxnNamedRead[] items, @Nonnull Keys txnKeys, @Nonnull ConsistencyLevel consistencyLevel)
     {
         super(items);
         this.txnKeys = txnKeys;
+        this.consistencyLevel = consistencyLevel;
     }
 
-    public TxnRead(List<TxnNamedRead> items, Keys txnKeys)
+    public TxnRead(@Nonnull List<TxnNamedRead> items, @Nonnull Keys txnKeys, @Nonnull ConsistencyLevel consistencyLevel)
     {
         super(items);
         this.txnKeys = txnKeys;
+        this.consistencyLevel = consistencyLevel;
     }
 
-    public static TxnRead createSerialRead(SinglePartitionReadCommand readCommand)
+    public static TxnRead createTxnRead(@Nonnull List<TxnNamedRead> items, @Nonnull Keys txnKeys, @Nonnull ConsistencyLevel consistencyLevel)
+    {
+        return new TxnRead(items, txnKeys, consistencyLevel);
+    }
+
+    public static TxnRead createSerialRead(SinglePartitionReadCommand readCommand, ConsistencyLevel consistencyLevel)
     {
         TxnNamedRead read = new TxnNamedRead(SERIAL_READ, readCommand);
-        return new TxnRead(ImmutableList.of(read), Keys.of(read.key()));
+        return new TxnRead(ImmutableList.of(read), Keys.of(read.key()), consistencyLevel);
     }
 
     public long estimatedSizeOnHeap()
@@ -126,7 +149,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             if (keys.contains(read.key()))
                 reads.add(read);
 
-        return new TxnRead(reads, txnKeys.slice(ranges));
+        return createTxnRead(reads, txnKeys.slice(ranges), consistencyLevel);
     }
 
     @Override
@@ -139,14 +162,14 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             if (!reads.contains(namedRead))
                 reads.add(namedRead);
 
-        return new TxnRead(reads, txnKeys.with((Keys)read.keys()));
+        return createTxnRead(reads, txnKeys.with((Keys)read.keys()), consistencyLevel);
     }
 
     @Override
     public Future<Data> read(Seekable key, Txn.Kind kind, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
     {
         List<Future<Data>> futures = new ArrayList<>();
-        forEachWithKey((PartitionKey) key, read -> futures.add(read.read(kind.isWrite(), safeStore, executeAt)));
+        forEachWithKey((PartitionKey) key, read -> futures.add(read.read(consistencyLevel, kind.isWrite(), safeStore, executeAt)));
 
         if (futures.isEmpty())
             return ImmediateFuture.success(new TxnData());
@@ -197,13 +220,16 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         {
             KeySerializers.keys.serialize(read.txnKeys, out, version);
             serializeArray(read.items, out, version, TxnNamedRead.serializer);
+            serializeNullable(read.consistencyLevel, out, version, ConsistencyLevel.serializer);
         }
 
         @Override
         public TxnRead deserialize(DataInputPlus in, int version) throws IOException
         {
             Keys keys = KeySerializers.keys.deserialize(in, version);
-            return new TxnRead(deserializeArray(in, version, TxnNamedRead.serializer, TxnNamedRead[]::new), keys);
+            TxnNamedRead[] items = deserializeArray(in, version, TxnNamedRead.serializer, TxnNamedRead[]::new);
+            ConsistencyLevel consistencyLevel = deserializeNullable(in, version, ConsistencyLevel.serializer);
+            return new TxnRead(items, keys, consistencyLevel);
         }
 
         @Override
@@ -211,6 +237,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         {
             long size = KeySerializers.keys.serializedSize(read.txnKeys, version);
             size += serializedArraySize(read.items, version, TxnNamedRead.serializer);
+            size += serializedNullableSize(read.consistencyLevel, version, ConsistencyLevel.serializer);
             return size;
         }
     };

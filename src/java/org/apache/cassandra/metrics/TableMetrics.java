@@ -17,31 +17,36 @@
  */
 package org.apache.cassandra.metrics;
 
-import static java.util.concurrent.TimeUnit.MICROSECONDS;
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.codahale.metrics.Timer;
-
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.commons.lang3.ArrayUtils;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.RatioGauge;
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -52,12 +57,9 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.Pair;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.RatioGauge;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * Metrics for {@link ColumnFamilyStore}.
@@ -75,6 +77,12 @@ public class TableMetrics
     public final static LatencyMetrics GLOBAL_READ_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Read");
     public final static LatencyMetrics GLOBAL_WRITE_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Write");
     public final static LatencyMetrics GLOBAL_RANGE_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Range");
+
+    // TODO is the overhead of tracking latency of key and range migration too at the leel of detail of reads and writes too much?
+    public final static LatencyMetrics GLOBAL_KEY_MIGRATION_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "KeyMigration");
+
+    public final static LatencyMetrics GLOBAL_RANGE_MIGRATION_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "RangeMigration");
+
 
     /** Total amount of data stored in the memtable that resides on-heap, including column related overhead and partitions overwritten. */
     public final Gauge<Long> memtableOnHeapDataSize;
@@ -182,6 +190,12 @@ public class TableMetrics
     public final LatencyMetrics casPropose;
     /** CAS Commit metrics */
     public final LatencyMetrics casCommit;
+    /** Latency for locally run key migrations **/
+    public final LatencyMetrics keyMigration;
+    /** Latency for range migrations run by locally coordinated Accord repairs **/
+    public final LatencyMetrics rangeMigration;
+    public final TableMeter rangeMigrationUnexpectedFailures;
+    public final TableMeter rangeMigrationDependencyLimitFailures;
     /** percent of the data that is repaired */
     public final Gauge<Double> percentRepaired;
     /** Reports the size of sstables in repaired, unrepaired, and any ongoing repair buckets */
@@ -589,6 +603,7 @@ public class TableMetrics
         readLatency = createLatencyMetrics("Read", cfs.keyspace.metric.readLatency, GLOBAL_READ_LATENCY);
         writeLatency = createLatencyMetrics("Write", cfs.keyspace.metric.writeLatency, GLOBAL_WRITE_LATENCY);
         rangeLatency = createLatencyMetrics("Range", cfs.keyspace.metric.rangeLatency, GLOBAL_RANGE_LATENCY);
+
         pendingFlushes = createTableCounter("PendingFlushes");
         bytesFlushed = createTableCounter("BytesFlushed");
 
@@ -891,6 +906,11 @@ public class TableMetrics
         casPrepare = createLatencyMetrics("CasPrepare", cfs.keyspace.metric.casPrepare);
         casPropose = createLatencyMetrics("CasPropose", cfs.keyspace.metric.casPropose);
         casCommit = createLatencyMetrics("CasCommit", cfs.keyspace.metric.casCommit);
+        keyMigration = createLatencyMetrics("KeyMigration", cfs.keyspace.metric.keyMigration, GLOBAL_KEY_MIGRATION_LATENCY);
+        rangeMigration = createLatencyMetrics("RangeMigration", cfs.keyspace.metric.rangeMigration, GLOBAL_RANGE_MIGRATION_LATENCY);
+        rangeMigrationUnexpectedFailures = createTableMeter("RangeMigrationUnexpectedFailures", cfs.keyspace.metric.rangeMigrationUnexpectedFailures);
+        rangeMigrationDependencyLimitFailures = createTableMeter("RangeMigrationDependencyLimitFaiures", cfs.keyspace.metric.rangeMigrationDependencyLimitFailures);
+
 
         repairsStarted = createTableCounter("RepairJobsStarted");
         repairsCompleted = createTableCounter("RepairJobsCompleted");

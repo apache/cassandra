@@ -88,7 +88,6 @@ import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -97,6 +96,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Ballot;
@@ -109,6 +109,7 @@ import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedIndex;
 import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -126,6 +127,8 @@ import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternalWithNowInSec;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
+import static org.apache.cassandra.service.ConsensusMigrationStateStore.ConsensusMigratedAt;
+import static org.apache.cassandra.service.ConsensusMigrationStateStore.ConsensusMigrationTarget;
 import static org.apache.cassandra.service.paxos.Commit.latest;
 import static org.apache.cassandra.utils.CassandraVersion.NULL_VERSION;
 import static org.apache.cassandra.utils.CassandraVersion.UNREADABLE_VERSION;
@@ -145,6 +148,7 @@ public final class SystemKeyspace
 
     public static final String BATCHES = "batches";
     public static final String PAXOS = "paxos";
+    public static final String CONSENSUS_MIGRATION_STATE = "consensus_migration_state";
     public static final String PAXOS_REPAIR_HISTORY = "paxos_repair_history";
     public static final String PAXOS_REPAIR_STATE = "_paxos_repair_state";
     public static final String BUILT_INDEXES = "IndexInfo";
@@ -171,6 +175,7 @@ public final class SystemKeyspace
      */
     public static final Set<String> TABLES_SPLIT_ACROSS_MULTIPLE_DISKS = ImmutableSet.of(BATCHES,
                                                                                          PAXOS,
+                                                                                         CONSENSUS_MIGRATION_STATE,
                                                                                          COMPACTION_HISTORY,
                                                                                          PREPARED_STATEMENTS,
                                                                                          REPAIRS);
@@ -189,7 +194,8 @@ public final class SystemKeyspace
         COMPACTION_HISTORY, SSTABLE_ACTIVITY_V2, TABLE_ESTIMATES, TABLE_ESTIMATES_TYPE_PRIMARY,
         TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY, AVAILABLE_RANGES_V2, TRANSFERRED_RANGES_V2, VIEW_BUILDS_IN_PROGRESS,
         BUILT_VIEWS, PREPARED_STATEMENTS, REPAIRS, TOP_PARTITIONS, LEGACY_PEERS, LEGACY_PEER_EVENTS,
-        LEGACY_TRANSFERRED_RANGES, LEGACY_AVAILABLE_RANGES, LEGACY_SIZE_ESTIMATES, LEGACY_SSTABLE_ACTIVITY);
+        LEGACY_TRANSFERRED_RANGES, LEGACY_AVAILABLE_RANGES, LEGACY_SIZE_ESTIMATES, LEGACY_SSTABLE_ACTIVITY,
+        CONSENSUS_MIGRATION_STATE);
 
     public static final TableMetadata Batches =
         parse(BATCHES,
@@ -217,10 +223,31 @@ public final class SystemKeyspace
                 + "proposal blob,"
                 + "proposal_ballot timeuuid,"
                 + "proposal_version int,"
+                + "consensus_migrated_at_epoch blob,"
                 + "PRIMARY KEY ((row_key), cf_id))")
                 .compaction(CompactionParams.lcs(emptyMap()))
                 .indexes(PaxosUncommittedIndex.indexes())
                 .build();
+
+    private static final TableMetadata ConsensusMigrationState =
+        parse(CONSENSUS_MIGRATION_STATE,
+                  "Keys that have been migrated to another consensus protocol",
+                  "CREATE TABLE %s ("
+                  + "row_key blob, "
+                  + "cf_id UUID, "
+                  + "consensus_migrated_at_epoch_period bigint, "
+                  + "consensus_migrated_at_epoch_epoch bigint, "
+                  + "consensus_target tinyint, "
+                  + "PRIMARY KEY ((row_key), cf_id, consensus_migrated_at_epoch_period, consensus_migrated_at_epoch_epoch)) "
+                  + "WITH CLUSTERING ORDER BY (cf_id ASC, consensus_migrated_at_epoch_period DESC, consensus_migrated_at_epoch_epoch DESC)")
+            .compaction(CompactionParams.twcs(
+                ImmutableMap.of(
+                "compaction_window_unit", "MINUTES",
+                "compaction_window_size",
+                // 7 days divided into 30 windows
+                String.valueOf((7 * 24 * 60) / 30))))
+            .defaultTimeToLive((int)TimeUnit.DAYS.toSeconds(7))
+            .build();
 
     private static final TableMetadata BuiltIndexes =
         parse(BUILT_INDEXES,
@@ -540,7 +567,8 @@ public final class SystemKeyspace
                          BuiltViews,
                          PreparedStatements,
                          Repairs,
-                         TopPartitions);
+                         TopPartitions,
+                         ConsensusMigrationState);
     }
 
     private static volatile Map<TableId, Pair<CommitLogPosition, Long>> truncationRecords;
@@ -1423,6 +1451,38 @@ public final class SystemKeyspace
         }
     }
 
+    /**
+     * After commit is done everywhere record that key was migrated for consensus
+     * This avoids having to do the first round of Paxos to find out if the migration occurred
+     * assuming token aware routing
+     */
+    public static void savePaxosConsensusMigratedAtEpoch(Committed lastCommitted, Epoch epoch)
+    {
+        if (lastCommitted instanceof Commit.CommittedWithTTL)
+        {
+            int localDeletionTime = ((Commit.CommittedWithTTL) lastCommitted).localDeletionTime;
+            int ttlInSec = legacyPaxosTtlSec(lastCommitted.update.metadata());
+            int nowInSec = localDeletionTime - ttlInSec;
+            String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? AND TTL ? SET consensus_migrated_at_epoch = ? WHERE row_key = ? AND cf_id = ?";
+            executeInternalWithNowInSec(cql,
+                                        nowInSec,
+                                        lastCommitted.ballot.unixMicros(),
+                                        ttlInSec,
+                                        epoch.toVersionedBytes(),
+                                        lastCommitted.update.partitionKey().getKey(),
+                                        lastCommitted.update.metadata().id.asUUID());
+        }
+        else
+        {
+            String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? SET consensus_migrated_at_epoch = ? WHERE row_key = ? AND cf_id = ?";
+            executeInternal(cql,
+                            lastCommitted.ballot.unixMicros(),
+                            epoch.toVersionedBytes(),
+                            lastCommitted.update.partitionKey().getKey(),
+                            lastCommitted.update.metadata().id.asUUID());
+        }
+    }
+
     @VisibleForTesting
     public static void savePaxosRepairHistory(String keyspace, String table, PaxosRepairHistory history, boolean flush)
     {
@@ -1451,6 +1511,26 @@ public final class SystemKeyspace
         List<ByteBuffer> points = row.getList("points", BytesType.instance);
 
         return PaxosRepairHistory.fromTupleBufferList(points);
+    }
+
+    public static void saveConsensusKeyMigrationState(ByteBuffer partitionKey, UUID cfId, ConsensusMigratedAt consensusMigratedAt)
+    {
+        String cql = "UPDATE system." + CONSENSUS_MIGRATION_STATE + " SET consensus_target = ? WHERE row_key = ? AND cf_id = ? AND consensus_migrated_at_epoch_period = ? AND consensus_migrated_at_epoch_epoch = ?";
+        executeInternal(cql, consensusMigratedAt.migratedAtTarget.value, partitionKey, cfId, consensusMigratedAt.migratedAtEpoch.getPeriod(), consensusMigratedAt.migratedAtEpoch.getEpoch());
+    }
+
+    public static ConsensusMigratedAt loadConsensusKeyMigrationState(ByteBuffer partitionKey, UUID cfId)
+    {
+        String cql = "SELECT consensus_migrated_at_epoch_period, consensus_migrated_at_epoch_epoch, consensus_target FROM system." + CONSENSUS_MIGRATION_STATE + " WHERE row_key = ? AND cf_id = ? LIMIT 1";
+        UntypedResultSet results = executeInternal(cql, partitionKey, cfId);
+
+        if (results.isEmpty())
+            return null;
+
+        UntypedResultSet.Row row = results.one();
+        Epoch migratedAtEpoch = Epoch.create(row.getLong("consensus_migrated_at_epoch_period"), row.getLong("consensus_migrated_at_epoch_target"));
+        ConsensusMigrationTarget target = ConsensusMigrationTarget.fromValue(row.getByte("consensus_target"));
+        return new ConsensusMigratedAt(migratedAtEpoch, target);
     }
 
     /**

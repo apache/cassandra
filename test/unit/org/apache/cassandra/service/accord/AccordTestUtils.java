@@ -23,12 +23,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.LongSupplier;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.junit.Assert;
 
 import accord.api.Data;
@@ -44,9 +42,9 @@ import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.Status.Known;
 import accord.primitives.Ballot;
-import accord.primitives.Ranges;
 import accord.primitives.Keys;
 import accord.primitives.PartialTxn;
+import accord.primitives.Ranges;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -135,7 +133,7 @@ public class AccordTestUtils
                                 .reduce(null, TxnData::merge);
             Write write = txn.update().apply(readData);
             ((AccordCommand)command).setWrites(new Writes(command.executeAt(), (Keys)txn.keys(), write));
-            ((AccordCommand)command).setResult(txn.query().compute(command.txnId(), readData, txn.read(), txn.update()));
+            ((AccordCommand)command).setResult(txn.query().compute(command.txnId(), command.executeAt(), command.keys(), readData, txn.read(), txn.update()));
         }).get();
     }
 

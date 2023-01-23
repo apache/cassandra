@@ -27,7 +27,6 @@ import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
 import javax.annotation.Nullable;
 
 import accord.api.Agent;
@@ -44,13 +43,13 @@ import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.local.Status;
+import accord.primitives.AbstractKeys;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Routables;
 import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
-import accord.primitives.AbstractKeys;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.service.accord.api.PartitionKey;
@@ -254,23 +253,6 @@ public class AccordCommandStore extends CommandStore
         }
 
         @Override
-        public long latestEpoch()
-        {
-            return time.epoch();
-        }
-
-        @Override
-        public Timestamp preaccept(TxnId txnId, Seekables<?, ?> keys)
-        {
-            Timestamp max = maxConflict(keys);
-            long epoch = latestEpoch();
-            if (txnId.compareTo(max) > 0 && txnId.epoch() >= epoch && !agent.isExpired(txnId, time.now()))
-                return txnId;
-
-            return time.uniqueNow(max);
-        }
-
-        @Override
         public Future<Void> execute(PreLoadContext context, Consumer<? super SafeCommandStore> consumer)
         {
             return AccordCommandStore.this.execute(context, consumer);
@@ -286,6 +268,13 @@ public class AccordCommandStore extends CommandStore
         public NodeTimeService time()
         {
             return time;
+        }
+
+        @Override
+        public Timestamp maxConflict(Seekables<?, ?> keysOrRanges, Ranges slice)
+        {
+            Timestamp timestamp = mapReduceForKey(keysOrRanges, slice, (forKey, prev) -> Timestamp.max(forKey.max(), prev), Timestamp.NONE, null);
+            return timestamp;
         }
 
         public Timestamp maxConflict(Seekables<?, ?> keys)

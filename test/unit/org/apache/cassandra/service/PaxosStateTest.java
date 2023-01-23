@@ -18,14 +18,6 @@
 package org.apache.cassandra.service;
 
 import java.nio.ByteBuffer;
-
-import com.google.common.collect.Iterables;
-
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.paxos.Ballot;
-import org.apache.cassandra.service.paxos.v1.PrepareVerbHandler;
-import org.apache.cassandra.service.paxos.v1.ProposeVerbHandler;
-
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -33,9 +25,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.service.paxos.PaxosOperationLock;
+import com.google.common.collect.Iterables;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -43,19 +33,33 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.paxos.PaxosOperationLock;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.service.paxos.v1.PrepareVerbHandler;
+import org.apache.cassandra.service.paxos.v1.ProposeVerbHandler;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.atUnixMicros;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class PaxosStateTest
 {

@@ -18,15 +18,15 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import accord.messages.Request;
 import accord.primitives.Txn;
 import accord.topology.TopologyManager;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.service.accord.txn.TxnData;
-
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 
 public interface IAccordService
 {
@@ -34,7 +34,7 @@ public interface IAccordService
 
     void createEpochFromConfigUnsafe();
 
-    TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel);
+    TxnResult coordinate(Txn txn, ConsistencyLevel consistencyLevel, long queryStartNanos);
 
     long currentEpoch();
 

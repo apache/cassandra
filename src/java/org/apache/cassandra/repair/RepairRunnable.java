@@ -37,9 +37,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,7 +73,9 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifier;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -555,12 +554,17 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
 
     private ProgressEvent jmxEvent(ProgressEventType type, String msg)
     {
+        return jmxEvent(type, msg, null);
+    }
+
+    private ProgressEvent jmxEvent(ProgressEventType type, String msg, Object eventDetails)
+    {
         int length = CoordinatorState.State.values().length + 1; // +1 to include completed state
         int currentState = state.getCurrentState();
         return new ProgressEvent(type, currentState == INIT ? 0 : currentState == COMPLETE ? length : currentState, length, msg);
     }
 
-    private static final class SkipRepairException extends RuntimeException
+    protected static final class SkipRepairException extends RuntimeException
     {
         SkipRepairException(String message)
         {

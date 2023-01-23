@@ -74,7 +74,8 @@ public class AccordCQLTest extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws IOException
     {
-        AccordTestBase.setupClass();
+//        AccordTestBase.setupCluster(builder -> builder);
+        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("legacy_paxos_strategy", "accord")));
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }
 
@@ -2368,6 +2369,8 @@ public class AccordCQLTest extends AccordTestBase
             cluster -> {
                 ICoordinator coordinator = cluster.coordinator(1);
                 int startingAccordCoordinateCount = getAccordCoordinateCount();
+                assertRowEquals(cluster, new Object[]{false}, "UPDATE " + currentTable + " SET v = 4 WHERE id = 1 AND c = 2 IF EXISTS");
+                assertRowEquals(cluster, new Object[]{false}, "UPDATE " + currentTable + " SET v = 4 WHERE id = 1 AND c = 2 IF v = 3");
                 coordinator.execute("INSERT INTO " + currentTable + " (id, c, v, s) VALUES (1, 2, 3, 5);", ConsistencyLevel.ALL);
                 assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 3, 5);
                 assertRowEquals(cluster, new Object[]{true}, "UPDATE " + currentTable + " SET v = 4 WHERE id = 1 AND c = 2 IF v = 3");
@@ -2383,7 +2386,7 @@ public class AccordCQLTest extends AccordTestBase
                 assertRowEquals(cluster, new Object[]{true}, "UPDATE " + currentTable + " SET s = 6 WHERE id = 1 IF s = 5");
                 assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 5, 6);
                 // Make sure all the consensus using queries actually were run on Accord
-                assertEquals( 11, getAccordCoordinateCount() - startingAccordCoordinateCount);
+                assertEquals( 13, getAccordCoordinateCount() - startingAccordCoordinateCount);
         });
     }
 }

@@ -25,8 +25,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.regex.Pattern;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -38,6 +38,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FastByteOperations;
@@ -109,7 +110,6 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
     }
 
     private static final Pattern JMX_INCOMPATIBLE_CHARS = Pattern.compile("[\\[\\]:]");
-
 
     /**
      * Return a version of getHostAddressAndPort suitable for use in JMX object names without
@@ -315,6 +315,27 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
     static int getDefaultPort()
     {
         return defaultPort;
+    }
+
+    public static final class MetadataSerializer
+    {
+        public static final MetadataSerializer serializer = new MetadataSerializer();
+        private static final int SERDE_VERSION = MessagingService.Version.VERSION_40.value;
+
+        public void serialize(InetAddressAndPort t, DataOutputPlus out, Version version) throws IOException
+        {
+            Serializer.inetAddressAndPortSerializer.serialize(t, out, SERDE_VERSION);
+        }
+
+        public InetAddressAndPort deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            return Serializer.inetAddressAndPortSerializer.deserialize(in, SERDE_VERSION);
+        }
+
+        public long serializedSize(InetAddressAndPort t, Version version)
+        {
+            return Serializer.inetAddressAndPortSerializer.serializedSize(t, SERDE_VERSION);
+        }
     }
 
     /**

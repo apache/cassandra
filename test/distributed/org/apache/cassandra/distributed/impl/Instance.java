@@ -44,7 +44,6 @@ import javax.management.Notification;
 import javax.management.NotificationListener;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -123,13 +122,13 @@ import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.paxos.PaxosRepair;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.snapshot.SnapshotManager;
 import org.apache.cassandra.streaming.StreamManager;
-import org.apache.cassandra.service.paxos.uncommitted.UncommittedTableData;
 import org.apache.cassandra.streaming.StreamReceiveTask;
 import org.apache.cassandra.streaming.StreamTransferTask;
 import org.apache.cassandra.streaming.async.NettyStreamingChannel;
@@ -399,6 +398,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             // be serialized and sent to a remote node, where they are deserialized and written to the batch commitlog
             // without first being converted into mutation objects. Batch serialization is therfore not symmetric, and
             // we use a special procedure here that "re-serializes" a "remote" batch to build the message.
+            if (messageOut == null || messageOut.verb() == null)
+                System.out.println("oops");
             if (fromVersion >= MessagingService.VERSION_40 && messageOut.verb().id == BATCH_STORE_REQ.id)
             {
                 Object maybeBatch = messageOut.payload;

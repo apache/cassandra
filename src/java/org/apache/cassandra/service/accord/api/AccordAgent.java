@@ -18,13 +18,24 @@
 
 package org.apache.cassandra.service.accord.api;
 
+import javax.annotation.Nonnull;
+
 import accord.api.Agent;
 import accord.api.Result;
 import accord.local.Command;
 import accord.local.Node;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
+import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
+import org.apache.cassandra.service.ConsensusRequestRouter;
+import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.tcm.Epoch;
 
+import static accord.primitives.Routable.Domain.Key;
+import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
 
@@ -43,14 +54,27 @@ public class AccordAgent implements Agent
     }
 
     @Override
+    public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges,@Nonnull TxnId executeAt)
+    {
+        checkArgument(keysOrRanges.size() == 1, "Expect only ask for single key/range barriers");
+        if (keysOrRanges.domain() == Key)
+        {
+            PartitionKey key = (PartitionKey)keysOrRanges.get(0);
+            ConsensusRequestRouter.instance.maybeSaveAccordKeyMigrationLocally(key, Epoch.create(0, executeAt.epoch()));
+        }
+    }
+
+    @Override
     public void onUncaughtException(Throwable t)
     {
+        t.printStackTrace();
         // TODO: this
     }
 
     @Override
     public void onHandledException(Throwable throwable)
     {
+        throwable.printStackTrace();
         // TODO: this
     }
 
@@ -59,5 +83,11 @@ public class AccordAgent implements Agent
     {
         // TODO: should distinguish between reads and writes
         return now - initiated.hlc() > getReadRpcTimeout(MICROSECONDS);
+    }
+
+    @Override
+    public Txn emptyTxn(Kind kind, Seekables<?, ?> seekables)
+    {
+        return new Txn.InMemory(kind, seekables, TxnRead.EMPTY_READ, TxnQuery.EMPTY, null);
     }
 }

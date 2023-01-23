@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,12 +27,21 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 public final class ReplicationParams
 {
+
+    public static final Serializer serializer = new Serializer();
     public static final String CLASS = "class";
 
     public final Class<? extends AbstractReplicationStrategy> klass;
@@ -146,5 +156,41 @@ public final class ReplicationParams
         });
 
         builder.append('}');
+    }
+
+    public static class Serializer
+    {
+        public void serialize(ReplicationParams t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUTF(t.klass.getCanonicalName());
+            out.writeInt(t.options.size());
+            for (Map.Entry<String, String> option : t.options.entrySet())
+            {
+                out.writeUTF(option.getKey());
+                out.writeUTF(option.getValue());
+            }
+        }
+
+        public ReplicationParams deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            String klassName = in.readUTF();
+            int size = in.readInt();
+            Map<String, String> options = new HashMap<>(size);
+            for (int i=0; i<size; i++)
+                options.put(in.readUTF(), in.readUTF());
+            return new ReplicationParams(FBUtilities.classForName(klassName, "ReplicationStrategy"), options);
+        }
+
+        public long serializedSize(ReplicationParams t, Version version)
+        {
+            long size = sizeof(t.klass.getCanonicalName());
+            size += TypeSizes.INT_SIZE;
+            for (Map.Entry<String, String> option : t.options.entrySet())
+            {
+                size += sizeof(option.getKey());
+                size += sizeof(option.getValue());
+            }
+            return size;
+        }
     }
 }

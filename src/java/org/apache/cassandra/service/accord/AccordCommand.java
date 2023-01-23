@@ -24,11 +24,9 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,8 +34,8 @@ import accord.api.Data;
 import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.local.Command;
-import accord.local.CommandStore;
 import accord.local.CommandListener;
+import accord.local.CommandStore;
 import accord.local.Listeners;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
@@ -62,7 +60,7 @@ import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
 import org.apache.cassandra.service.accord.store.StoredValue;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -428,7 +426,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         size += executeAt.estimatedSizeOnHeap(AccordObjectSizes::timestamp);
         size += partialDeps.estimatedSizeOnHeap(AccordObjectSizes::dependencies);
         size += writes.estimatedSizeOnHeap(AccordObjectSizes::writes);
-        size += result.estimatedSizeOnHeap(r -> ((TxnData) r).estimatedSizeOnHeap());
+        size += result.estimatedSizeOnHeap(r -> ((TxnResult) r).estimatedSizeOnHeap());
         size += status.estimatedSizeOnHeap(s -> 0);
         size += durability.estimatedSizeOnHeap(s -> 0);
         size += waitingOnCommit.estimatedSizeOnHeap(AccordObjectSizes::timestamp);

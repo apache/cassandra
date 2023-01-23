@@ -45,7 +45,7 @@ public abstract class AccordSplitter implements ShardDistributor.EvenSplit.Split
     }
 
     @Override
-    public accord.primitives.Range subRange(accord.primitives.Range range, BigInteger startOffset, BigInteger endOffset)
+    public TokenRange subRange(accord.primitives.Range range, BigInteger startOffset, BigInteger endOffset)
     {
         AccordRoutingKey startBound = (AccordRoutingKey)range.start();
         AccordRoutingKey endBound = (AccordRoutingKey)range.end();
@@ -55,6 +55,11 @@ public abstract class AccordSplitter implements ShardDistributor.EvenSplit.Split
         BigInteger sizeOfRange = end.subtract(start);
 
         String keyspace = startBound.keyspace();
+        AccordRoutingKey startTokenKey = startOffset.equals(ZERO) ? startBound : new TokenKey(keyspace, tokenForValue(start.add(startOffset)));
+        AccordRoutingKey endTokenKey = endOffset.equals(sizeOfRange) ? endBound : new TokenKey(keyspace, tokenForValue(start.add(endOffset)));
+        if (startTokenKey.compareTo(endTokenKey) >= 0)
+            System.out.println("oops");
+
         return new TokenRange(startOffset.equals(ZERO) ? startBound : new TokenKey(keyspace, tokenForValue(start.add(startOffset))),
                               endOffset.equals(sizeOfRange) ? endBound : new TokenKey(keyspace, tokenForValue(start.add(endOffset))));
     }

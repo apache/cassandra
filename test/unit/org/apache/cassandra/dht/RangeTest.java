@@ -18,8 +18,8 @@
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -27,6 +27,8 @@ import java.util.Random;
 import java.util.Set;
 
 import com.google.common.base.Joiner;
+import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
@@ -35,11 +37,22 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
+import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 
 import static java.util.Arrays.asList;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.Util.range;
-import static org.junit.Assert.*;
+import static org.apache.cassandra.dht.Range.intersectionOfNormalizedRanges;
+import static org.apache.cassandra.dht.Range.invertNormalizedRanges;
+import static org.apache.cassandra.dht.Range.isInNormalizedRanges;
+import static org.apache.cassandra.dht.Range.normalize;
+import static org.apache.cassandra.dht.Range.subtractNormalizedRanges;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 
 public class RangeTest
@@ -47,6 +60,8 @@ public class RangeTest
     @BeforeClass
     public static void setupDD()
     {
+        System.setProperty("org.apache.cassandra.dht.Range.expensive_checks", "true");
+        assertTrue(Range.EXPENSIVE_CHECKS);
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -578,7 +593,7 @@ public class RangeTest
 
     private <T extends RingPosition<T>> void assertNormalize(List<Range<T>> input, List<Range<T>> expected)
     {
-        List<Range<T>> result = Range.normalize(input);
+        List<Range<T>> result = normalize(input);
         assert result.equals(expected) : "Expecting " + expected + " but got " + result;
     }
 
@@ -735,5 +750,52 @@ public class RangeTest
         Collection<Range<Token>> ranges = Sets.newHashSet(r(1, 5), r(10, 15));
         assertEquals(ranges, Range.subtract(ranges, asList(r(6, 7), r(20, 25))));
         assertEquals(Sets.newHashSet(r(1, 4), r(11, 15)), Range.subtract(ranges, asList(r(4, 7), r(8, 11))));
+    }
+
+    @Test
+    public void testExpensiveChecksBurn() throws Exception
+    {
+        long seed = System.nanoTime();
+//        seed = 88435571424041L;
+        System.out.println(seed);
+        Random r = new java.util.Random(seed);
+
+        Stopwatch elapsed = Stopwatch.createStarted();
+        int iteration = 0;
+        while (elapsed.elapsed(SECONDS) != 30)
+        {
+            int numRanges = 3;
+            List<Range<Token>> a = new ArrayList();
+            for (int ii = 0; ii < numRanges; ii++)
+            {
+                a.add(new Range<>(new LongToken(r.nextLong()), new LongToken(r.nextLong())));
+            }
+            a = ImmutableList.copyOf(normalize(a));
+            List<Range<Token>> b = new ArrayList();
+            for (int ii = 0; ii < numRanges; ii++)
+            {
+                b.add(new Range<>(new LongToken(r.nextLong()), new LongToken(r.nextLong())));
+            }
+            b = ImmutableList.copyOf(normalize(b));
+
+//            List<Range<Token>> a = ImmutableList.of(fromString("(-9223372036854775808,-868105389193617348]"), fromString(("(647608745828733177,-9223372036854775808]")));
+//            List<Range<Token>> a = ImmutableList.of(new Range<>(new LongToken(-9223372036854775808L), new LongToken(-9223372036854775808L)));
+//            List<Range<Token>> b = ImmutableList.of(fromString("(-9223372036854775808,918437373136905464]"), fromString("(2012172029300276096,-9223372036854775808]"));
+//            List<Range<Token>> b = ImmutableList.of(new Range<>(new LongToken(-9223372036854775808L), new LongToken(-8236902150162777104L)), new Range<>(new LongToken(40772772925507270L), new LongToken(959100132617257188L)), new Range<>(new LongToken(1579374374987539055L), new LongToken( -9223372036854775808L)));
+
+            for (int ii = 0; ii < 1000; ii++)
+            {
+                Token t = new LongToken(r.nextLong());
+                isInNormalizedRanges(t, a);
+                isInNormalizedRanges(t, b);
+            }
+
+            intersectionOfNormalizedRanges(a, b);
+            intersectionOfNormalizedRanges(b, a);
+            subtractNormalizedRanges(a, b);
+            subtractNormalizedRanges(b, a);
+            invertNormalizedRanges(a);
+            invertNormalizedRanges(b);
+        }
     }
 }

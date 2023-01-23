@@ -25,7 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -42,6 +42,8 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
 import org.apache.cassandra.utils.MonotonicClockTranslation;
@@ -53,10 +55,17 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
-import static org.apache.cassandra.net.MessagingService.*;
+import static org.apache.cassandra.net.MessagingService.VERSION_30;
+import static org.apache.cassandra.net.MessagingService.VERSION_3014;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.VERSION_42;
+import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
-import static org.apache.cassandra.utils.vint.VIntCoding.*;
+import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
+import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt;
+import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt32;
+import static org.apache.cassandra.utils.vint.VIntCoding.skipUnsignedVInt;
 
 /**
  * Immutable main unit of internode communication - what used to be {@code MessageIn} and {@code MessageOut} fused
@@ -68,6 +77,8 @@ public class Message<T> implements ReplyContext
 {
     private static final Logger logger = LoggerFactory.getLogger(Message.class);
     private static final NoSpamLogger noSpam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
+    private static final Supplier<Epoch> epochSupplier = () -> ClusterMetadata.current().epoch;
 
     public final Header header;
     public final T payload;
@@ -97,6 +108,11 @@ public class Message<T> implements ReplyContext
     public long id()
     {
         return header.id;
+    }
+
+    public Epoch epoch()
+    {
+        return header.epoch;
     }
 
     public Verb verb()
@@ -418,6 +434,7 @@ public class Message<T> implements ReplyContext
     public static class Header
     {
         public final long id;
+        public final Epoch epoch = ClusterMetadata.current().epoch;
         public final Verb verb;
         public final InetAddressAndPort from;
         public final long createdAtNanos;
@@ -1427,6 +1444,7 @@ public class Message<T> implements ReplyContext
     private int serializedSize30;
     private int serializedSize3014;
     private int serializedSize40;
+    private int serializedSize42;
 
     /**
      * Serialized size of the entire message, for the provided messaging version. Caches the calculated value.
@@ -1447,6 +1465,10 @@ public class Message<T> implements ReplyContext
                 if (serializedSize40 == 0)
                     serializedSize40 = serializer.serializedSize(this, VERSION_40);
                 return serializedSize40;
+            case VERSION_42:
+                if (serializedSize42 == 0)
+                    serializedSize42 = serializer.serializedSize(this, VERSION_42);
+                return serializedSize42;
             default:
                 throw new IllegalStateException();
         }
@@ -1455,6 +1477,7 @@ public class Message<T> implements ReplyContext
     private int payloadSize30   = -1;
     private int payloadSize3014 = -1;
     private int payloadSize40   = -1;
+    private int payloadSize42   = -1;
 
     private int payloadSize(int version)
     {
@@ -1472,6 +1495,10 @@ public class Message<T> implements ReplyContext
                 if (payloadSize40 < 0)
                     payloadSize40 = serializer.payloadSize(this, VERSION_40);
                 return payloadSize40;
+            case VERSION_42:
+                if (payloadSize42 < 0)
+                    payloadSize42 = serializer.payloadSize(this, VERSION_42);
+                return payloadSize42;
             default:
                 throw new IllegalStateException();
         }

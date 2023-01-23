@@ -42,9 +42,9 @@ import org.apache.cassandra.db.ReadCommandVerbHandler;
 import org.apache.cassandra.db.ReadRepairVerbHandler;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SnapshotCommand;
+import org.apache.cassandra.db.TruncateRequest;
 import org.apache.cassandra.db.TruncateResponse;
 import org.apache.cassandra.db.TruncateVerbHandler;
-import org.apache.cassandra.db.TruncateRequest;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAck2;
@@ -68,59 +68,89 @@ import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.SnapshotMessage;
 import org.apache.cassandra.repair.messages.StatusRequest;
 import org.apache.cassandra.repair.messages.StatusResponse;
-import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.SyncRequest;
-import org.apache.cassandra.repair.messages.ValidationResponse;
+import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.schema.SchemaMutationsSerializer;
 import org.apache.cassandra.schema.SchemaPullVerbHandler;
 import org.apache.cassandra.schema.SchemaPushVerbHandler;
 import org.apache.cassandra.schema.SchemaVersionVerbHandler;
+import org.apache.cassandra.service.ConsensusMigrationStateStore.MigrationStateSnapshot;
+import org.apache.cassandra.service.ConsensusRequestRouter;
+import org.apache.cassandra.service.ConsensusRequestRouter.ConsensusKeyMigrationFinished;
+import org.apache.cassandra.service.EchoVerbHandler;
+import org.apache.cassandra.service.SnapshotVerbHandler;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.serializers.AcceptSerializers;
+import org.apache.cassandra.service.accord.serializers.ApplySerializers;
 import org.apache.cassandra.service.accord.serializers.BeginInvalidationSerializers;
 import org.apache.cassandra.service.accord.serializers.CheckStatusSerializers;
+import org.apache.cassandra.service.accord.serializers.CommitSerializers;
 import org.apache.cassandra.service.accord.serializers.EnumSerializer;
 import org.apache.cassandra.service.accord.serializers.GetDepsSerializers;
 import org.apache.cassandra.service.accord.serializers.InformDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.InformHomeDurableSerializers;
 import org.apache.cassandra.service.accord.serializers.InformOfTxnIdSerializers;
+import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
+import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
+import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
+import org.apache.cassandra.service.accord.serializers.WaitOnCommitSerializer;
+import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.PaxosCommit;
 import org.apache.cassandra.service.paxos.PaxosCommitAndPrepare;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.service.paxos.PaxosPrepareRefresh;
 import org.apache.cassandra.service.paxos.PaxosPropose;
 import org.apache.cassandra.service.paxos.PaxosRepair;
+import org.apache.cassandra.service.paxos.PrepareResponse;
+import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupComplete;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupHistory;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupRequest;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
-import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupComplete;
-import org.apache.cassandra.service.paxos.cleanup.PaxosStartPrepareCleanup;
 import org.apache.cassandra.service.paxos.cleanup.PaxosFinishPrepareCleanup;
-import org.apache.cassandra.service.accord.AccordService;
-import org.apache.cassandra.service.accord.serializers.AcceptSerializers;
-import org.apache.cassandra.service.accord.serializers.ApplySerializers;
-import org.apache.cassandra.service.accord.serializers.CommitSerializers;
-import org.apache.cassandra.service.accord.serializers.PreacceptSerializers;
-import org.apache.cassandra.service.accord.serializers.ReadDataSerializers;
-import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
-import org.apache.cassandra.service.accord.serializers.WaitOnCommitSerializer;
-import org.apache.cassandra.utils.BooleanSerializer;
-import org.apache.cassandra.service.EchoVerbHandler;
-import org.apache.cassandra.service.SnapshotVerbHandler;
-import org.apache.cassandra.service.paxos.Commit;
-import org.apache.cassandra.service.paxos.Commit.Agreed;
-import org.apache.cassandra.service.paxos.PrepareResponse;
+import org.apache.cassandra.service.paxos.cleanup.PaxosStartPrepareCleanup;
 import org.apache.cassandra.service.paxos.v1.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.v1.ProposeVerbHandler;
 import org.apache.cassandra.streaming.ReplicationDoneVerbHandler;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.apache.cassandra.concurrent.Stage.*;
-import static org.apache.cassandra.net.VerbTimeouts.*;
-import static org.apache.cassandra.net.Verb.Kind.*;
-import static org.apache.cassandra.net.Verb.Priority.*;
+import static org.apache.cassandra.concurrent.Stage.ACCORD;
+import static org.apache.cassandra.concurrent.Stage.ANTI_ENTROPY;
+import static org.apache.cassandra.concurrent.Stage.COUNTER_MUTATION;
+import static org.apache.cassandra.concurrent.Stage.GOSSIP;
+import static org.apache.cassandra.concurrent.Stage.IMMEDIATE;
+import static org.apache.cassandra.concurrent.Stage.INTERNAL_RESPONSE;
+import static org.apache.cassandra.concurrent.Stage.MIGRATION;
+import static org.apache.cassandra.concurrent.Stage.MISC;
+import static org.apache.cassandra.concurrent.Stage.MUTATION;
+import static org.apache.cassandra.concurrent.Stage.PAXOS_REPAIR;
+import static org.apache.cassandra.concurrent.Stage.READ;
+import static org.apache.cassandra.concurrent.Stage.REQUEST_RESPONSE;
+import static org.apache.cassandra.concurrent.Stage.TRACING;
 import static org.apache.cassandra.net.ResponseHandlerSupplier.RESPONSE_HANDLER;
+import static org.apache.cassandra.net.Verb.Kind.CUSTOM;
+import static org.apache.cassandra.net.Verb.Kind.NORMAL;
+import static org.apache.cassandra.net.Verb.Priority.P0;
+import static org.apache.cassandra.net.Verb.Priority.P1;
+import static org.apache.cassandra.net.Verb.Priority.P2;
+import static org.apache.cassandra.net.Verb.Priority.P3;
+import static org.apache.cassandra.net.Verb.Priority.P4;
+import static org.apache.cassandra.net.VerbTimeouts.counterTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.longTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.noTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.pingTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.rangeTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.readTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.repairTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.rpcTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.truncateTimeout;
+import static org.apache.cassandra.net.VerbTimeouts.writeTimeout;
 
 /**
  * Note that priorities except P0 are presently unused.  P0 corresponds to urgent, i.e. what used to be the "Gossip" connection.
@@ -204,7 +234,7 @@ public enum Verb
     PAXOS2_PREPARE_REQ               (40, P2, writeTimeout,  MUTATION,          () -> PaxosPrepare.requestSerializer,          () -> PaxosPrepare.requestHandler,                           PAXOS2_PREPARE_RSP               ),
     PAXOS2_PREPARE_REFRESH_RSP       (51, P2, writeTimeout,  REQUEST_RESPONSE,  () -> PaxosPrepareRefresh.responseSerializer,  RESPONSE_HANDLER                                                            ),
     PAXOS2_PREPARE_REFRESH_REQ       (41, P2, writeTimeout,  MUTATION,          () -> PaxosPrepareRefresh.requestSerializer,   () -> PaxosPrepareRefresh.requestHandler,                    PAXOS2_PREPARE_REFRESH_RSP       ),
-    PAXOS2_PROPOSE_RSP               (52, P2, writeTimeout,  REQUEST_RESPONSE,  () -> PaxosPropose.responseSerializer,         RESPONSE_HANDLER                                                            ),
+    PAXOS2_PROPOSE_RSP               (52, P2, writeTimeout, REQUEST_RESPONSE, () -> PaxosPropose.ACCEPT_RESULT_SERIALIZER, RESPONSE_HANDLER                                                            ),
     PAXOS2_PROPOSE_REQ               (42, P2, writeTimeout,  MUTATION,          () -> PaxosPropose.requestSerializer,          () -> PaxosPropose.requestHandler,                           PAXOS2_PROPOSE_RSP               ),
     PAXOS2_COMMIT_AND_PREPARE_RSP    (53, P2, writeTimeout,  REQUEST_RESPONSE,  () -> PaxosPrepare.responseSerializer,         RESPONSE_HANDLER                                                            ),
     PAXOS2_COMMIT_AND_PREPARE_REQ    (43, P2, writeTimeout,  MUTATION,          () -> PaxosCommitAndPrepare.requestSerializer, () -> PaxosCommitAndPrepare.requestHandler,                  PAXOS2_COMMIT_AND_PREPARE_RSP    ),
@@ -258,6 +288,13 @@ public enum Verb
     ACCORD_GET_DEPS_RSP         (148, P2, writeTimeout, REQUEST_RESPONSE, () -> GetDepsSerializers.reply, RESPONSE_HANDLER),
     ACCORD_GET_DEPS_REQ         (147, P2, writeTimeout, ACCORD,               () -> GetDepsSerializers.request,       () -> AccordService.instance().verbHandler(), ACCORD_GET_DEPS_RSP),
 
+    CONSENSUS_KEY_MIGRATION_FINISHED(149, P1, writeTimeout, MUTATION, () -> ConsensusKeyMigrationFinished.serializer, () -> ConsensusRequestRouter.consensusKeyMigrationFinishedHandler),
+
+    UPDATE_CM_RSP(151, P1, writeTimeout, REQUEST_RESPONSE, () -> NoPayload.serializer, () -> ResponseVerbHandler.instance),
+    UPDATE_CM(150, P1, writeTimeout, GOSSIP, () -> MigrationStateSnapshot.messagingSerializer, () -> ClusterMetadataService.updateHandler, UPDATE_CM_RSP),
+
+    REQUEST_CM_RSP(152, P1, writeTimeout, REQUEST_RESPONSE, () -> MigrationStateSnapshot.messagingSerializer, () -> ResponseVerbHandler.instance),
+    REQUEST_CM(153, P1, writeTimeout, GOSSIP, () -> NoPayload.serializer, () -> ClusterMetadataService.catchupHandler, REQUEST_CM_RSP),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailureReason.serializer,      RESPONSE_HANDLER                             ),

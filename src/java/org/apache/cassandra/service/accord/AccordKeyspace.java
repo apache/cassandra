@@ -33,7 +33,6 @@ import java.util.function.Supplier;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -97,20 +96,21 @@ import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.service.accord.AccordCommandsForKey.SeriesKind;
-import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.DepsSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
-import static org.apache.cassandra.db.rows.BufferCell.*;
+import static org.apache.cassandra.db.rows.BufferCell.live;
+import static org.apache.cassandra.db.rows.BufferCell.tombstone;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -164,7 +164,7 @@ public class AccordKeyspace
         static final LocalVersionedSerializer<PartialTxn> partialTxn = localSerializer(CommandSerializers.partialTxn);
         static final LocalVersionedSerializer<PartialDeps> partialDeps = localSerializer(DepsSerializer.partialDeps);
         static final LocalVersionedSerializer<Writes> writes = localSerializer(CommandSerializers.writes);
-        static final LocalVersionedSerializer<TxnData> result = localSerializer(TxnData.serializer);
+        static final LocalVersionedSerializer<TxnResult> result = localSerializer(TxnResult.serializer);
 
         private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
         {
@@ -465,7 +465,7 @@ public class AccordKeyspace
                 builder.addCell(live(CommandsColumns.writes, timestampMicros, serialize(command.writes.get(), CommandsSerializers.writes)));
 
             if (command.result.hasModifications())
-                builder.addCell(live(CommandsColumns.result, timestampMicros, serialize((TxnData) command.result.get(), CommandsSerializers.result)));
+                builder.addCell(live(CommandsColumns.result, timestampMicros, serialize((TxnResult) command.result.get(), CommandsSerializers.result)));
 
             if (command.waitingOnCommit.hasModifications())
             {

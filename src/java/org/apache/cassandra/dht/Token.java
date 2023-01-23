@@ -26,6 +26,8 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
@@ -35,6 +37,8 @@ public abstract class Token implements RingPosition<Token>, Serializable
 
     public static final TokenSerializer serializer = new TokenSerializer();
     public static final CompactTokenSerializer compactSerializer = new CompactTokenSerializer();
+
+    public static final MetadataSerializer metadataSerializer = new MetadataSerializer();
 
     public static abstract class TokenFactory
     {
@@ -67,6 +71,7 @@ public abstract class Token implements RingPosition<Token>, Serializable
 
         public abstract void validate(String token) throws ConfigurationException;
 
+        // How does this handle variable size tokens correctly?
         public void serialize(Token token, DataOutputPlus out) throws IOException
         {
             out.write(toByteArray(token));
@@ -96,6 +101,26 @@ public abstract class Token implements RingPosition<Token>, Serializable
         public int byteSize(Token token)
         {
             return toByteArray(token).remaining();
+        }
+    }
+
+    public static class MetadataSerializer
+    {
+        private static final int SERDE_VERSION = MessagingService.VERSION_40;
+
+        public void serialize(Token t, DataOutputPlus out, Version version) throws IOException
+        {
+            serializer.serialize(t, out, SERDE_VERSION);
+        }
+
+        public Token deserialize(DataInputPlus in, IPartitioner partitioner, Version version) throws IOException
+        {
+            return serializer.deserialize(in, partitioner, SERDE_VERSION);
+        }
+
+        public long serializedSize(Token t, Version version)
+        {
+            return serializer.serializedSize(t, SERDE_VERSION);
         }
     }
 

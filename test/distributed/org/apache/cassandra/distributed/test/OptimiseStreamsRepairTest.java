@@ -19,7 +19,6 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
-
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,10 +28,10 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import java.util.concurrent.TimeoutException;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
@@ -45,9 +44,9 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.AbstractRepairJob;
 import org.apache.cassandra.repair.AsymmetricRemoteSyncTask;
 import org.apache.cassandra.repair.LocalSyncTask;
-import org.apache.cassandra.repair.RepairJob;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.SyncTask;
 import org.apache.cassandra.repair.TreeResponse;
@@ -107,7 +106,7 @@ public class OptimiseStreamsRepairTest extends TestBaseImpl
     {
         public static void install(ClassLoader cl, int id)
         {
-            new ByteBuddy().rebase(RepairJob.class)
+            new ByteBuddy().rebase(AbstractRepairJob.class)
                            .method(named("createOptimisedSyncingSyncTasks"))
                            .intercept(MethodDelegation.to(BBHelper.class))
                            .make()

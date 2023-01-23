@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ListenableFuture;
-import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -76,8 +75,11 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.asserts.SyncTaskListAssert;
+import org.assertj.core.api.Assertions;
 
 import static java.util.Collections.emptySet;
+import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_REQ;
+import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_START_PREPARE_REQ;
 import static org.apache.cassandra.repair.RepairParallelism.SEQUENTIAL;
 import static org.apache.cassandra.streaming.PreviewKind.NONE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -86,8 +88,6 @@ import static org.apache.cassandra.utils.asserts.SyncTaskListAssert.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_START_PREPARE_REQ;
-import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_REQ;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -113,7 +113,7 @@ public class RepairJobTest
     private static InetAddressAndPort addr4;
     private static InetAddressAndPort addr5;
     private MeasureableRepairSession session;
-    private RepairJob job;
+    private CassandraRepairJob job;
     private RepairJobDesc sessionJobDesc;
 
     // So that threads actually get recycled and we can have accurate memory accounting while testing
@@ -125,10 +125,10 @@ public class RepairJobTest
         public MeasureableRepairSession(TimeUUID parentRepairSession, CommonRange commonRange, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
                                         PreviewKind previewKind, boolean optimiseStreams, boolean repairPaxos, boolean paxosOnly,
-                                        String... cfnames)
+                                        boolean accordRepair, String... cfnames)
         {
             super(parentRepairSession, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair,
-                  previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
+                  previewKind, optimiseStreams, repairPaxos, paxosOnly, accordRepair, cfnames);
         }
 
         protected ExecutorPlus createExecutor()
@@ -190,9 +190,9 @@ public class RepairJobTest
         this.session = new MeasureableRepairSession(parentRepairSession,
                                                     new CommonRange(neighbors, emptySet(), FULL_RANGE),
                                                     KEYSPACE, SEQUENTIAL, false, false,
-                                                    NONE, false, true, false, CF);
+                                                    NONE, false, true, false, false, CF);
 
-        this.job = new RepairJob(session, CF);
+        this.job = new CassandraRepairJob(session, CF);
         this.sessionJobDesc = new RepairJobDesc(session.state.parentRepairSession, session.getId(),
                                                 session.state.keyspace, CF, session.ranges());
 
@@ -262,12 +262,12 @@ public class RepairJobTest
 
         // Use addr4 instead of one of the provided trees to force everything to be remote sync tasks as
         // LocalSyncTasks try to reach over the network.
-        List<SyncTask> syncTasks = RepairJob.createStandardSyncTasks(sessionJobDesc, mockTreeResponses,
-                                                                     addr4, // local
-                                                                     noTransient(),
-                                                                     session.isIncremental,
-                                                                     session.pullRepair,
-                                                                     session.previewKind);
+        List<SyncTask> syncTasks = CassandraRepairJob.createStandardSyncTasks(sessionJobDesc, mockTreeResponses,
+                                                                             addr4, // local
+                                                                             noTransient(),
+                                                                             session.isIncremental,
+                                                                             session.pullRepair,
+                                                                             session.previewKind);
 
         // SyncTasks themselves should not contain significant memory
         SyncTaskListAssert.assertThat(syncTasks).hasSizeLessThan(0.2 * singleTreeSize);
@@ -360,13 +360,13 @@ public class RepairJobTest
                                                          treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"),
                                                          treeResponse(addr3, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"));
 
-        Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(JOB_DESC,
-                                                                                    treeResponses,
-                                                                                    addr1, // local
-                                                                                    noTransient(), // transient
-                                                                                    false,
-                                                                                    pullRepair,
-                                                                                    PreviewKind.ALL));
+        Map<SyncNodePair, SyncTask> tasks = toMap(CassandraRepairJob.createStandardSyncTasks(JOB_DESC,
+                                                                                            treeResponses,
+                                                                                            addr1, // local
+                                                                                            noTransient(), // transient
+                                                                                            false,
+                                                                                            pullRepair,
+                                                                                            PreviewKind.ALL));
         assertThat(tasks).hasSize(2);
 
         assertThat(tasks.get(pair(addr1, addr2)))
@@ -396,13 +396,13 @@ public class RepairJobTest
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"));
 
-        Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(JOB_DESC,
-                                                                                    treeResponses,
-                                                                                    addr1, // local
-                                                                                    transientPredicate(addr2),
-                                                                                    false,
-                                                                                    pullRepair,
-                                                                                    PreviewKind.ALL));
+        Map<SyncNodePair, SyncTask> tasks = toMap(CassandraRepairJob.createStandardSyncTasks(JOB_DESC,
+                                                                                            treeResponses,
+                                                                                            addr1, // local
+                                                                                            transientPredicate(addr2),
+                                                                                            false,
+                                                                                            pullRepair,
+                                                                                            PreviewKind.ALL));
 
         assertThat(tasks).hasSize(1);
 
@@ -426,13 +426,13 @@ public class RepairJobTest
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "different", RANGE_2, "same", RANGE_3, "different"));
 
-        Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(JOB_DESC,
-                                                                                    treeResponses,
-                                                                                    addr1, // local
-                                                                                    transientPredicate(addr1),
-                                                                                    false,
-                                                                                    pullRepair,
-                                                                                    PreviewKind.ALL));
+        Map<SyncNodePair, SyncTask> tasks = toMap(CassandraRepairJob.createStandardSyncTasks(JOB_DESC,
+                                                                                            treeResponses,
+                                                                                            addr1, // local
+                                                                                            transientPredicate(addr1),
+                                                                                            false,
+                                                                                            pullRepair,
+                                                                                            PreviewKind.ALL));
 
         if (pullRepair)
         {
@@ -486,13 +486,13 @@ public class RepairJobTest
         List<TreeResponse> treeResponses = Arrays.asList(treeResponse(addr1, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"),
                                                          treeResponse(addr2, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"));
 
-        Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(JOB_DESC,
-                                                                                    treeResponses,
-                                                                                    local, // local
-                                                                                    isTransient,
-                                                                                    false,
-                                                                                    pullRepair,
-                                                                                    PreviewKind.ALL));
+        Map<SyncNodePair, SyncTask> tasks = toMap(CassandraRepairJob.createStandardSyncTasks(JOB_DESC,
+                                                                                            treeResponses,
+                                                                                            local, // local
+                                                                                            isTransient,
+                                                                                            false,
+                                                                                            pullRepair,
+                                                                                            PreviewKind.ALL));
 
         assertThat(tasks).isEmpty();
     }
@@ -504,13 +504,13 @@ public class RepairJobTest
                                                          treeResponse(addr2, RANGE_1, "two", RANGE_2, "two", RANGE_3, "two"),
                                                          treeResponse(addr3, RANGE_1, "three", RANGE_2, "three", RANGE_3, "three"));
 
-        Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(JOB_DESC,
-                                                                                    treeResponses,
-                                                                                    addr1, // local
+        Map<SyncNodePair, SyncTask> tasks = toMap(CassandraRepairJob.createStandardSyncTasks(JOB_DESC,
+                                                                                            treeResponses,
+                                                                                            addr1, // local
                                                                                     ep -> ep.equals(addr3), // transient
-                                                                                    false,
-                                                                                    true,
-                                                                                    PreviewKind.ALL));
+                                                                                            false,
+                                                                                            true,
+                                                                                            PreviewKind.ALL));
 
         assertThat(tasks).hasSize(3);
 
@@ -535,13 +535,13 @@ public class RepairJobTest
                                                          treeResponse(addr5, RANGE_1, "five", RANGE_2, "five", RANGE_3, "five"));
 
         Predicate<InetAddressAndPort> isTransient = ep -> ep.equals(addr4) || ep.equals(addr5);
-        Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(JOB_DESC,
-                                                                                    treeResponses,
-                                                                                    addr1, // local
-                                                                                    isTransient, // transient
-                                                                                    false,
-                                                                                    true,
-                                                                                    PreviewKind.ALL));
+        Map<SyncNodePair, SyncTask> tasks = toMap(CassandraRepairJob.createStandardSyncTasks(JOB_DESC,
+                                                                                            treeResponses,
+                                                                                            addr1, // local
+                                                                                            isTransient, // transient
+                                                                                            false,
+                                                                                            true,
+                                                                                            PreviewKind.ALL));
 
         SyncNodePair[] pairs = new SyncNodePair[] {pair(addr1, addr2),
                                                    pair(addr1, addr3),
@@ -602,13 +602,13 @@ public class RepairJobTest
                                                          treeResponse(addr5, RANGE_1, "five", RANGE_2, "five", RANGE_3, "five"));
 
         Predicate<InetAddressAndPort> isTransient = ep -> ep.equals(addr4) || ep.equals(addr5);
-        Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(JOB_DESC,
-                                                                                    treeResponses,
-                                                                                    local, // local
-                                                                                    isTransient, // transient
-                                                                                    false,
-                                                                                    pullRepair,
-                                                                                    PreviewKind.ALL));
+        Map<SyncNodePair, SyncTask> tasks = toMap(CassandraRepairJob.createStandardSyncTasks(JOB_DESC,
+                                                                                            treeResponses,
+                                                                                            local, // local
+                                                                                            isTransient, // transient
+                                                                                            false,
+                                                                                            pullRepair,
+                                                                                            PreviewKind.ALL));
 
         assertThat(tasks).hasSize(9);
         for (InetAddressAndPort addr : new InetAddressAndPort[]{ addr1, addr2, addr3 })
@@ -651,13 +651,13 @@ public class RepairJobTest
                                                          treeResponse(addr4, RANGE_1, "four", RANGE_2, "four", RANGE_3, "four"),
                                                          treeResponse(addr5, RANGE_1, "five", RANGE_2, "five", RANGE_3, "five"));
 
-        Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createStandardSyncTasks(JOB_DESC,
-                                                                                    treeResponses,
-                                                                                    addr4, // local
+        Map<SyncNodePair, SyncTask> tasks = toMap(CassandraRepairJob.createStandardSyncTasks(JOB_DESC,
+                                                                                            treeResponses,
+                                                                                            addr4, // local
                                                                                     ep -> ep.equals(addr4) || ep.equals(addr5), // transient
-                                                                                    false,
-                                                                                    pullRepair,
-                                                                                    PreviewKind.ALL));
+                                                                                            false,
+                                                                                            pullRepair,
+                                                                                            PreviewKind.ALL));
 
         assertThat(tasks.get(pair(addr4, addr5))).isNull();
     }
@@ -669,13 +669,13 @@ public class RepairJobTest
                                                          treeResponse(addr2, RANGE_1, "two", RANGE_2, "two", RANGE_3, "two"),
                                                          treeResponse(addr3, RANGE_1, "three", RANGE_2, "three", RANGE_3, "three"));
 
-        Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createOptimisedSyncingSyncTasks(JOB_DESC,
-                                                                                            treeResponses,
-                                                                                            addr1, // local
-                                                                                            noTransient(),
+        Map<SyncNodePair, SyncTask> tasks = toMap(CassandraRepairJob.createOptimisedSyncingSyncTasks(JOB_DESC,
+                                                                                                    treeResponses,
+                                                                                                    addr1, // local
+                                                                                                    noTransient(),
                                                                                             addr -> "DC1",
-                                                                                            false,
-                                                                                            PreviewKind.ALL));
+                                                                                                    false,
+                                                                                                    PreviewKind.ALL));
 
         for (SyncNodePair pair : new SyncNodePair[]{ pair(addr1, addr2),
                                                      pair(addr1, addr3),
@@ -704,13 +704,13 @@ public class RepairJobTest
                                                          treeResponse(addr2, RANGE_1, "one", RANGE_2, "two"),
                                                          treeResponse(addr3, RANGE_1, "three", RANGE_2, "two"));
 
-        Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createOptimisedSyncingSyncTasks(JOB_DESC,
-                                                                                            treeResponses,
-                                                                                            addr4, // local
-                                                                                            noTransient(),
+        Map<SyncNodePair, SyncTask> tasks = toMap(CassandraRepairJob.createOptimisedSyncingSyncTasks(JOB_DESC,
+                                                                                                    treeResponses,
+                                                                                                    addr4, // local
+                                                                                                    noTransient(),
                                                                                             addr -> "DC1",
-                                                                                            false,
-                                                                                            PreviewKind.ALL));
+                                                                                                    false,
+                                                                                                    PreviewKind.ALL));
 
         assertThat(tasks.values()).areAllInstanceOf(AsymmetricRemoteSyncTask.class);
 
@@ -737,13 +737,13 @@ public class RepairJobTest
                                                          treeResponse(addr3, RANGE_1, "same", RANGE_2, "same", RANGE_3, "same"));
 
         RepairJobDesc desc = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), "ks", "cf", Collections.emptyList());
-        Map<SyncNodePair, SyncTask> tasks = toMap(RepairJob.createOptimisedSyncingSyncTasks(desc,
-                                                                                            treeResponses,
-                                                                                            addr1, // local
+        Map<SyncNodePair, SyncTask> tasks = toMap(CassandraRepairJob.createOptimisedSyncingSyncTasks(desc,
+                                                                                                    treeResponses,
+                                                                                                    addr1, // local
                                                                                             ep -> ep.equals(addr3),
                                                                                             addr -> "DC1",
-                                                                                            false,
-                                                                                            PreviewKind.ALL));
+                                                                                                    false,
+                                                                                                    PreviewKind.ALL));
 
         SyncTask task = tasks.get(pair(addr1, addr2));
 

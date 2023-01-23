@@ -91,6 +91,7 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTracker.Up
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -98,8 +99,6 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.staleBallot;
-
-import org.apache.cassandra.utils.CloseableIterator;
 
 // quick workaround for metaspace ooms, will properly reuse clusters later
 public class PaxosRepair2Test extends TestBaseImpl

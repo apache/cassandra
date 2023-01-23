@@ -17,12 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.collect.Lists.newArrayList;
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,14 +24,20 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
+import org.apache.commons.lang3.StringUtils;
 
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.streaming.PreviewKind;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.commons.lang3.StringUtils;
+
+import static com.google.common.collect.Lists.newArrayList;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 @Command(name = "repair", description = "Repair one or more tables")
 public class Repair extends NodeToolCmd
@@ -126,6 +126,9 @@ public class Repair extends NodeToolCmd
         }
     }
 
+    @Option(title = "accord_repair", name = {"-accord", "--repair-accord"}, description = "Repair in flight Accord transactions so their results are guaranteed replicated to a quorum of nodes")
+    private boolean accordRepair;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -160,6 +163,7 @@ public class Repair extends NodeToolCmd
             options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(ignoreUnreplicatedKeyspaces));
             options.put(RepairOption.REPAIR_PAXOS_KEY, Boolean.toString(!skipPaxos && getPreviewKind() == PreviewKind.NONE));
             options.put(RepairOption.PAXOS_ONLY_KEY, Boolean.toString(paxosOnly && getPreviewKind() == PreviewKind.NONE));
+            options.put(RepairOption.ACCORD_REPAIR_KEY, Boolean.toString(accordRepair));
 
             if (!startToken.isEmpty() || !endToken.isEmpty())
             {

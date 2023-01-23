@@ -38,6 +38,7 @@ import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -53,7 +54,6 @@ import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.TableMetadata;
@@ -65,6 +65,7 @@ import org.apache.cassandra.service.accord.txn.TxnDataName;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.service.paxos.Ballot;
@@ -72,7 +73,10 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.base.Preconditions.checkState;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult;
 import static org.apache.cassandra.service.accord.txn.TxnDataName.Kind.USER;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
+
 
 /**
  * Processed CAS conditions and update on potentially multiple rows of the same partition.
@@ -463,14 +467,14 @@ public class CQL3CasRequest implements CASRequest
     }
 
     @Override
-    public Txn toAccordTxn(ClientState clientState, int nowInSecs)
+    public Txn toAccordTxn(ConsistencyLevel consistencyLevel, ClientState clientState, int nowInSecs)
     {
         SinglePartitionReadCommand readCommand = readCommand(nowInSecs);
         Update update = createUpdate(clientState);
         // In a CAS request only one key is supported and writes
         // can't be dependent on any data that is read (only conditions)
         // so the only relevant keys are the read key
-        TxnRead read = TxnRead.createSerialRead(readCommand);
+        TxnRead read = TxnRead.createSerialRead(readCommand, consistencyLevel);
         return new Txn.InMemory(read.keys(), read, TxnQuery.CONDITION, update);
     }
 
@@ -508,9 +512,12 @@ public class CQL3CasRequest implements CASRequest
     }
 
     @Override
-    public RowIterator toCasResult(TxnData txnData)
+    public ConsensusAttemptResult toCasResult(TxnResult txnResult)
     {
+        if (txnResult.kind() == retry_new_protocol)
+            return new ConsensusAttemptResult();
+        TxnData txnData = (TxnData)txnResult;
         FilteredPartition partition = txnData.get(TxnRead.SERIAL_READ);
-        return partition != null ? partition.rowIterator() : null;
+        return new ConsensusAttemptResult(partition != null ? partition.rowIterator() : null);
     }
 }

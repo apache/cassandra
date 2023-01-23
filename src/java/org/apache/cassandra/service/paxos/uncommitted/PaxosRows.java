@@ -21,7 +21,6 @@ package org.apache.cassandra.service.paxos.uncommitted;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
@@ -56,7 +55,7 @@ import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import static org.apache.cassandra.db.partitions.PartitionUpdate.PartitionUpdateSerializer.*;
+import static org.apache.cassandra.db.partitions.PartitionUpdate.PartitionUpdateSerializer.isEmpty;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
 import static org.apache.cassandra.service.paxos.Commit.latest;
 
@@ -133,6 +132,14 @@ public class PaxosRows
         if (cell == null)
             return ifNull;
         return Int32Type.instance.compose(cell.value(), cell.accessor());
+    }
+
+    private static ByteBuffer getBytes(Row row, ColumnMetadata cmeta, @SuppressWarnings("SameParameterValue") ByteBuffer ifNull)
+    {
+        Cell cell = row.getCell(cmeta);
+        if (cell == null)
+            return ifNull;
+        return BytesType.instance.compose(cell.value(), cell.accessor());
     }
 
     private static PartitionUpdate getUpdate(Row row, ColumnMetadata cmeta, int version)

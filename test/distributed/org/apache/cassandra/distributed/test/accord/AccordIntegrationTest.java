@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
+import java.io.IOException;
+import java.util.function.Function;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +43,12 @@ public class AccordIntegrationTest extends AccordTestBase
         return logger;
     }
 
+    @BeforeClass
+    public static void setUp() throws IOException
+    {
+        AccordTestBase.setupCluster(Function.identity());
+    }
+    
     @Test
     public void testRecovery() throws Exception
     {

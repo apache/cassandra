@@ -18,16 +18,20 @@
 package org.apache.cassandra.db;
 
 
+import java.io.IOException;
 import java.util.Locale;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.InOurDc;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.Endpoints;
+import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolException;
 
 import static org.apache.cassandra.locator.Replicas.addToCountPerDc;
@@ -64,6 +68,27 @@ public enum ConsistencyLevel
             codeIdx[cl.code] = cl;
         }
     }
+
+    public static final IVersionedSerializer<ConsistencyLevel> serializer = new IVersionedSerializer<ConsistencyLevel>()
+    {
+        @Override
+        public void serialize(ConsistencyLevel t, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeByte(t.code);
+        }
+
+        @Override
+        public ConsistencyLevel deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return fromCode(in.readByte());
+        }
+
+        @Override
+        public long serializedSize(ConsistencyLevel t, int version)
+        {
+            return 1;
+        }
+    };
 
     private ConsistencyLevel(int code)
     {

@@ -62,7 +62,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
 import javax.annotation.Nullable;
 import javax.management.ListenerNotFoundException;
 import javax.management.NotificationBroadcasterSupport;
@@ -108,10 +107,10 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -231,19 +230,18 @@ import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.Iterables.transform;
+import static com.google.common.collect.Iterables.tryFind;
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
-import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
-
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.collect.Iterables.transform;
-import static com.google.common.collect.Iterables.tryFind;
-
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DRAIN_EXECUTOR_TIMEOUT_MS;
@@ -252,11 +250,12 @@ import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
-import static org.apache.cassandra.service.ActiveRepairService.*;
+import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
+import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
+import static org.apache.cassandra.utils.FBUtilities.now;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -322,6 +321,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     @VisibleForTesting // this is used for dtests only, see CASSANDRA-18152
     public volatile boolean skipNotificationListeners = false;
+
+    public final ConsensusMigrationStateStore consensusMigrationState = new ConsensusMigrationStateStore();
 
     @Deprecated
     public boolean isInShutdownHook()
@@ -2215,6 +2216,27 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+    @Override
+    public void migrateConsensusProtocol(String targetProtocol, List<String> keyspaceNames, Optional<List<String>> maybeTableNames, Optional<String> maybeRangesStr)
+    {
+        checkNotNull(targetProtocol, "targetProtocol is null");
+        checkNotNull(keyspaceNames, "keyspaceNames is null");
+        checkNotNull(maybeTableNames, "maybeTableNames is null");
+        checkNotNull(maybeRangesStr, "maybeRangesStr is null");
+
+        consensusMigrationState.startMigrationToConsensusProtocol(targetProtocol, keyspaceNames, maybeTableNames, maybeRangesStr);
+    }
+
+    @Override
+    public void setConsensusMigrationTargetProtocol(String targetProtocol, List<String> keyspaceNames, Optional<List<String>> maybeTableNames)
+    {
+        checkNotNull(targetProtocol, "targetProtocol is null");
+        checkNotNull(keyspaceNames, "keyspaceNames is null");
+        checkNotNull(maybeTableNames, "maybeTableNames is null");
+
+        consensusMigrationState.setMigrationTargetProtocol(targetProtocol, keyspaceNames, maybeTableNames);
+    }
+
     public Map<String,List<Integer>> getConcurrency(List<String> stageNames)
     {
         Stream<Stage> stageStream = stageNames.isEmpty() ? stream(Stage.values()) : stageNames.stream().map(Stage::fromPoolName);
@@ -3460,8 +3482,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         public LeavingReplica(Replica leavingReplica, Replica ourReplica)
         {
-            Preconditions.checkNotNull(leavingReplica);
-            Preconditions.checkNotNull(ourReplica);
+            checkNotNull(leavingReplica);
+            checkNotNull(ourReplica);
             this.leavingReplica = leavingReplica;
             this.ourReplica = ourReplica;
         }
@@ -5228,7 +5250,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         Future<?> hintsSuccess = ImmediateFuture.success(null);
 
-        if (DatabaseDescriptor.getTransferHintsOnDecommission()) 
+        if (DatabaseDescriptor.getTransferHintsOnDecommission())
         {
             setMode(Mode.LEAVING, "streaming hints to other nodes", true);
             hintsSuccess = streamHints();
@@ -6796,7 +6818,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         archiveCommand = archiveCommand != null ? archiveCommand : fqlOptions.archive_command;
         maxArchiveRetries = maxArchiveRetries != Integer.MIN_VALUE ? maxArchiveRetries : fqlOptions.max_archive_retries;
 
-        Preconditions.checkNotNull(path, "cassandra.yaml did not set log_dir and not set as parameter");
+        checkNotNull(path, "cassandra.yaml did not set log_dir and not set as parameter");
         FullQueryLogger.instance.enableWithoutClean(Paths.get(path), rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
     }
 
@@ -7280,4 +7302,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         AccordService.instance().createEpochFromConfigUnsafe();
     }
+
+    public ConsensusMigrationStateStore getConsensusMigrationState()
+    {
+        return consensusMigrationState;
+    }
+
 }
