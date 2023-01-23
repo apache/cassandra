@@ -1,6 +1,7 @@
 3.11.15
  * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
 Merged from 3.0:
+ * Expand build.dir property in rat targets (CASSANDRA-18183)
  * Suppress CVE-2022-41881 (CASSANDRA-18148)
  * Default role is created with zero timestamp (CASSANDRA-12525)
  * Suppress CVE-2021-37533 (CASSANDRA-18146)
