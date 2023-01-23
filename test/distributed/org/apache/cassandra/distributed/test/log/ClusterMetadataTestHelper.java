@@ -22,8 +22,8 @@ import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Random;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -46,9 +46,9 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTransformation;
@@ -74,8 +74,8 @@ import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
-import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
+import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
@@ -83,8 +83,8 @@ import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 
@@ -121,7 +121,7 @@ public class ClusterMetadataTestHelper
     public static ClusterMetadataService instanceForTest()
     {
         ClusterMetadata current = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
-        LocalLog log = LocalLog.asyncForTests(LogStorage.None, current, false);
+        LocalLog log = LocalLog.asyncForTests(LogStorage.None, current, true);
         ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
                                                                                         MetadataSnapshots.NO_OP,
                                                                                         log,
@@ -168,6 +168,7 @@ public class ClusterMetadataTestHelper
                                    AccordKeyspaces.EMPTY,
                                    null,
                                    null,
+                                   null,
                                    ImmutableMap.of());
     }
 
@@ -182,6 +183,7 @@ public class ClusterMetadataTestHelper
                                    null,
                                    DataPlacements.empty(),
                                    AccordKeyspaces.EMPTY,
+                                   null,
                                    null,
                                    null,
                                    ImmutableMap.of());
@@ -203,6 +205,7 @@ public class ClusterMetadataTestHelper
                                        AccordKeyspaces.EMPTY,
                                        metadata.lockedRanges,
                                        metadata.inProgressSequences,
+                                       metadata.consensusMigrationState,
                                        metadata.extensions);
         ClusterMetadataService.unsetInstance();
         ClusterMetadataService.setInstance(instanceForTest(metadata));

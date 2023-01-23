@@ -23,9 +23,10 @@ import accord.api.RoutingKey;
 import accord.messages.SetGloballyDurable;
 import accord.messages.SetShardDurable;
 import accord.primitives.Deps;
-import accord.primitives.Ranges;
+import accord.primitives.Seekables;
 import accord.primitives.SyncPoint;
 import accord.primitives.TxnId;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -81,8 +82,9 @@ public class SetDurableSerializers
         {
             CommandSerializers.txnId.serialize(sp.syncId, out, version);
             DepsSerializer.deps.serialize(sp.waitFor, out, version);
-            KeySerializers.ranges.serialize(sp.ranges, out, version);
+            KeySerializers.seekables.serialize(sp.keysOrRanges, out, version);
             KeySerializers.routingKey.serialize(sp.homeKey, out, version);
+            out.writeBoolean(sp.finishedAsync);
         }
 
         @Override
@@ -90,18 +92,20 @@ public class SetDurableSerializers
         {
             TxnId syncId = CommandSerializers.txnId.deserialize(in, version);
             Deps waitFor = DepsSerializer.deps.deserialize(in, version);
-            Ranges ranges = KeySerializers.ranges.deserialize(in, version);
+            Seekables<?, ?> keysOrRanges = KeySerializers.seekables.deserialize(in, version);
             RoutingKey homeKey = KeySerializers.routingKey.deserialize(in, version);
-            return SyncPoint.SerializationSupport.construct(syncId, waitFor, ranges, homeKey);
+            boolean finishedAsync = in.readBoolean();
+            return SyncPoint.SerializationSupport.construct(syncId, waitFor, keysOrRanges, homeKey, finishedAsync);
         }
 
         @Override
         public long serializedSize(SyncPoint sp, int version)
         {
             return CommandSerializers.txnId.serializedSize(sp.syncId, version)
-                 + DepsSerializer.deps.serializedSize(sp.waitFor, version)
-                 + KeySerializers.ranges.serializedSize(sp.ranges, version)
-                 + KeySerializers.routingKey.serializedSize(sp.homeKey, version);
+                   + DepsSerializer.deps.serializedSize(sp.waitFor, version)
+                   + KeySerializers.seekables.serializedSize(sp.keysOrRanges, version)
+                   + KeySerializers.routingKey.serializedSize(sp.homeKey, version)
+                   + TypeSizes.sizeof(sp.finishedAsync);
         }
     };
 }

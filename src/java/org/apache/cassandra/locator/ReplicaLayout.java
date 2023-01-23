@@ -18,7 +18,11 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.Set;
+import java.util.function.Predicate;
+
 import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
@@ -28,9 +32,6 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-
-import java.util.Set;
-import java.util.function.Predicate;
 
 /**
  * The relevant replicas for an operation over a given range or token.
@@ -385,7 +386,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         return metadata.placements.get(keyspace.params.replication).reads.forRange(range.right.getToken()).get();
     }
 
-    static EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
+    public static EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
     {
         return metadata.placements.get(keyspace.params.replication).reads.forToken(token).get();
     }

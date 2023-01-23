@@ -39,17 +39,11 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 public class PreviewRepairTask extends AbstractRepairTask
 {
-    private final TimeUUID parentSession;
-    private final List<CommonRange> commonRanges;
-    private final String[] cfnames;
     private volatile String successMessage = name() + " completed successfully";
 
-    protected PreviewRepairTask(RepairCoordinator coordinator, TimeUUID parentSession, List<CommonRange> commonRanges, String[] cfnames)
+    protected PreviewRepairTask(RepairCoordinator coordinator)
     {
         super(coordinator);
-        this.parentSession = parentSession;
-        this.commonRanges = commonRanges;
-        this.cfnames = cfnames;
     }
 
     @Override
@@ -67,7 +61,7 @@ public class PreviewRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor)
     {
-        Future<CoordinatedRepairResult> f = runRepair(parentSession, false, executor, commonRanges, cfnames);
+        Future<CoordinatedRepairResult> f = runRepair(coordinator.state.id, false, executor, commonRanges, coordinator.neighborsAndRanges.excludedDeadParticipants, coordinator.columnFamilyNames.toArray(new String[0]));
         return f.map(result -> {
             if (result.hasFailed())
                 return result;
@@ -87,7 +81,7 @@ public class PreviewRepairTask extends AbstractRepairTask
                 message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary;
                 RepairMetrics.previewFailures.inc();
                 if (previewKind == PreviewKind.REPAIRED)
-                    maybeSnapshotReplicas(parentSession, keyspace, result.results.get()); // we know its present as summary used it
+                    maybeSnapshotReplicas(coordinator.state.id, keyspace, result.results.get()); // we know its present as summary used it
             }
             successMessage += "; " + message;
             coordinator.notification(message);

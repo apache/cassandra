@@ -29,6 +29,7 @@ import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.ArrayClustering;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringPrefix;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.ListType;
@@ -249,6 +250,27 @@ public class AccordSerializers
                 size += sizeofUnsignedVInt(valueSize);
             }
             return size;
+        }
+    };
+
+    public static final IVersionedSerializer<ConsistencyLevel> consistencyLevelSerializer = new IVersionedSerializer<ConsistencyLevel>()
+    {
+        @Override
+        public void serialize(ConsistencyLevel t, DataOutputPlus out, int version) throws IOException
+        {
+            out.writeByte(t.code);
+        }
+
+        @Override
+        public ConsistencyLevel deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return ConsistencyLevel.fromCode(in.readByte());
+        }
+
+        @Override
+        public long serializedSize(ConsistencyLevel t, int version)
+        {
+            return 1;
         }
     };
 }

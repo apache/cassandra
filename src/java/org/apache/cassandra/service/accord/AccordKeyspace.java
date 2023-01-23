@@ -149,8 +149,8 @@ import org.apache.cassandra.service.accord.serializers.ListenerSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static accord.utils.Invariants.checkArgument;
@@ -1752,7 +1752,7 @@ public class AccordKeyspace
                 break;
         }
 
-        return Iterables.getOnlyElement(statement.getMutations(clientState, options, true, tsMicros, (int) TimeUnit.MICROSECONDS.toSeconds(tsMicros), Clock.Global.nanoTime()));
+        return Iterables.getOnlyElement(statement.getMutations(clientState, options, true, tsMicros, (int) TimeUnit.MICROSECONDS.toSeconds(tsMicros), Clock.Global.nanoTime(), false));
     }
 
 

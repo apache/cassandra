@@ -45,7 +45,7 @@ public abstract class AccordSplitter implements ShardDistributor.EvenSplit.Split
     }
 
     @Override
-    public accord.primitives.Range subRange(accord.primitives.Range range, BigInteger startOffset, BigInteger endOffset)
+    public TokenRange subRange(accord.primitives.Range range, BigInteger startOffset, BigInteger endOffset)
     {
         AccordRoutingKey startBound = (AccordRoutingKey)range.start();
         AccordRoutingKey endBound = (AccordRoutingKey)range.end();

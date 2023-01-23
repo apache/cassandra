@@ -18,15 +18,19 @@
 
 package org.apache.cassandra.distributed.test.accord;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.accord.AccordService;
+
+import static java.util.function.UnaryOperator.identity;
 
 public class NewSchemaTest extends AccordTestBase
 {
@@ -36,6 +40,12 @@ public class NewSchemaTest extends AccordTestBase
     protected Logger logger()
     {
         return logger;
+    }
+
+    @BeforeClass
+    public static void setupClass() throws IOException
+    {
+        AccordTestBase.setupCluster(identity(), 2);
     }
 
     @Test

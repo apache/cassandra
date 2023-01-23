@@ -36,7 +36,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -45,12 +44,11 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.util.concurrent.Future; //checkstyle: permit this import
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -71,7 +69,17 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.async.StreamingMultiplexedChannel;
-import org.apache.cassandra.streaming.messages.*;
+import org.apache.cassandra.streaming.messages.CompleteMessage;
+import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
+import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
+import org.apache.cassandra.streaming.messages.PrepareAckMessage;
+import org.apache.cassandra.streaming.messages.PrepareSynAckMessage;
+import org.apache.cassandra.streaming.messages.PrepareSynMessage;
+import org.apache.cassandra.streaming.messages.ReceivedMessage;
+import org.apache.cassandra.streaming.messages.SessionFailedMessage;
+import org.apache.cassandra.streaming.messages.StreamInitMessage;
+import org.apache.cassandra.streaming.messages.StreamMessage;
+import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -453,6 +461,7 @@ public class StreamSession
         //Range and if it's transient
         RangesAtEndpoint unwrappedRanges = replicas.unwrap();
         List<OutgoingStream> streams = getOutgoingStreamsForRanges(unwrappedRanges, stores, pendingRepair, previewKind);
+
         addTransferStreams(streams);
         Set<Range<Token>> toBeUpdated = transferredRangesPerKeyspace.get(keyspace);
         if (toBeUpdated == null)
@@ -715,7 +724,7 @@ public class StreamSession
 
         if (channel.connected())
         {
-            state(State.FAILED); // make sure subsequent error handling sees the session in a final state 
+            state(State.FAILED); // make sure subsequent error handling sees the session in a final state
             sendControlMessage(new SessionFailedMessage()).awaitUninterruptibly();
         }
         StringBuilder failureReason = new StringBuilder("Failed because of an unknown exception\n");
@@ -1240,7 +1249,7 @@ public class StreamSession
     {
         failIfFinished();
         if (summary.files > 0)
-            receivers.put(summary.tableId, new StreamReceiveTask(this, summary.tableId, summary.files, summary.totalSize));
+            receivers.put(summary.tableId, new StreamReceiveTask(this, summary.tableId, summary.ranges, summary.files, summary.totalSize));
     }
 
     private void startStreamingFiles(@Nullable PrepareDirection prepareDirection)
