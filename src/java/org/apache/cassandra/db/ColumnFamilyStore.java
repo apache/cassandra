@@ -3586,4 +3586,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         return metric;
     }
+
+    public TableId getTableId()
+    {
+        return metadata().id;
+    }
 }

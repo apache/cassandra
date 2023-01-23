@@ -32,14 +32,14 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 import com.google.common.collect.Sets;
+import org.apache.commons.lang3.StringUtils;
 
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.apache.commons.lang3.StringUtils;
 
 @Command(name = "repair", description = "Repair one or more tables")
 public class Repair extends NodeToolCmd
@@ -131,7 +131,8 @@ public class Repair extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        List<String> keyspaces = parseOptionalKeyspace(args, probe, KeyspaceSet.NON_LOCAL_STRATEGY);
+        KeyspaceSet keyspaceSet = KeyspaceSet.NON_LOCAL_STRATEGY;
+        List<String> keyspaces = parseOptionalKeyspace(args, probe, keyspaceSet);
         String[] cfnames = parseOptionalTables(args);
 
         if (primaryRange && (!specificDataCenters.isEmpty() || !specificHosts.isEmpty()))

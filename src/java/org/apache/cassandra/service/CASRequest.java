@@ -18,13 +18,15 @@
 package org.apache.cassandra.service;
 
 import accord.primitives.Txn;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.paxos.Ballot;
+
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult;
 
 /**
  * Abstract the conditions and updates for a CAS operation.
@@ -48,7 +50,7 @@ public interface CASRequest
      */
     PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException;
 
-    Txn toAccordTxn(ClientState clientState, long nowInSecs);
+    Txn toAccordTxn(ConsistencyLevel consistencyLevel, ClientState clientState, long nowInSecs);
 
-    RowIterator toCasResult(TxnData data);
+    ConsensusAttemptResult toCasResult(TxnResult txnResult);
 }

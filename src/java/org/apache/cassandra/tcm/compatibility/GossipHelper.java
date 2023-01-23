@@ -34,7 +34,6 @@ import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,6 +52,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
@@ -285,6 +285,7 @@ public class GossipHelper
                                    AccordKeyspaces.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
+                                   ConsensusMigrationState.EMPTY,
                                    Collections.emptyMap());
     }
 
@@ -356,6 +357,7 @@ public class GossipHelper
                                                                       AccordKeyspaces.EMPTY,
                                                                       LockedRanges.EMPTY,
                                                                       InProgressSequences.EMPTY,
+                                                                      ConsensusMigrationState.EMPTY,
                                                                       extensions);
         return new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
                                    partitioner,
@@ -366,6 +368,7 @@ public class GossipHelper
                                    AccordKeyspaces.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
+                                   ConsensusMigrationState.EMPTY,
                                    extensions);
     }
 

@@ -27,6 +27,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -227,7 +228,7 @@ public class AccordTestUtils
                             })
                             .reduce(null, TxnData::merge);
         return Pair.create(txn.execute(txnId, executeAt, readData),
-                           txn.query().compute(txnId, executeAt, readData, txn.read(), txn.update()));
+                           txn.query().compute(txnId, executeAt, txn.keys(), readData, txn.read(), txn.update()));
 
     }
 

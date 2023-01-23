@@ -26,14 +26,22 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import javax.annotation.Nonnull;
 
-import accord.primitives.*;
+import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.api.DataStore;
 import accord.api.Write;
 import accord.local.SafeCommandStore;
+import accord.primitives.PartialTxn;
+import accord.primitives.RoutableKey;
+import accord.primitives.Seekable;
+import accord.primitives.Timestamp;
+import accord.primitives.Writes;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.Stage;
@@ -45,25 +53,31 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
 import org.apache.cassandra.service.accord.AccordSafeCommandStore;
+import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
+import static org.apache.cassandra.cql3.Lists.accordListPathSupplier;
 import static org.apache.cassandra.service.accord.AccordSerializers.partitionUpdateSerializer;
+import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
 
 public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Write
 {
+    @SuppressWarnings("unused")
+    private static final Logger logger = LoggerFactory.getLogger(TxnWrite.class);
+
     public static final TxnWrite EMPTY_CONDITION_FAILED = new TxnWrite(Collections.emptyList(), false);
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY_CONDITION_FAILED);
@@ -121,9 +135,9 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                    '}';
         }
 
-        public AsyncChain<Void> write(long timestamp, int nowInSeconds)
+        public AsyncChain<Void> write(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long timestamp, int nowInSeconds)
         {
-            PartitionUpdate update = new PartitionUpdate.Builder(get(), 0).updateAllTimestampAndLocalDeletionTime(timestamp, nowInSeconds).build();
+            PartitionUpdate update = new PartitionUpdate.Builder(get(), 0).updateTimesAndPathsForAccord(cellToMaybeNewListPath, timestamp, nowInSeconds).build();
             Mutation mutation = new Mutation(update);
             return AsyncChains.ofRunnable(Stage.MUTATION.executor(), mutation::apply);
         }
@@ -220,12 +234,12 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         {
             return referenceOps.isEmpty();
         }
-        
+
         public Update toUpdate()
         {
             return new Update(key, index, baseUpdate);
         }
-        
+
         public Update complete(AccordUpdateParameters parameters)
         {
             if (isComplete())
@@ -238,7 +252,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                                                                                 baseUpdate.rowCount(),
                                                                                 baseUpdate.canHaveShadowedData());
 
-            UpdateParameters up = parameters.updateParameters(baseUpdate.metadata(), index);
+            UpdateParameters up = parameters.updateParameters(baseUpdate.metadata(), key, index);
             TxnData data = parameters.getData();
             Row staticRow = applyUpdates(baseUpdate.staticRow(), referenceOps.statics, key, Clustering.STATIC_CLUSTERING, up, data);
 
@@ -323,7 +337,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     }
 
     private final boolean isConditionMet;
-    
+
     private TxnWrite(Update[] items, boolean isConditionMet)
     {
         super(items);
@@ -370,7 +384,8 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
         // Apply updates not specified fully by the client but built from fragments completed by data from reads.
         // This occurs, for example, when an UPDATE statement uses a value assigned by a LET statement.
-        forEachWithKey((PartitionKey) key, write -> results.add(write.write(timestamp, nowInSeconds)));
+        Function<Cell, CellPath> accordListPathSuppler = accordListPathSupplier(timestamp);
+        forEachWithKey((PartitionKey) key, write -> results.add(write.write(accordListPathSuppler, timestamp, nowInSeconds)));
 
         if (isConditionMet)
         {
@@ -380,7 +395,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             TxnUpdate txnUpdate = (TxnUpdate) txn.update();
             assert txnUpdate != null : "PartialTxn should contain an update if we're applying a write!";
             List<Update> updates = txnUpdate.completeUpdatesForKey((RoutableKey) key);
-            updates.forEach(update -> results.add(update.write(timestamp, nowInSeconds)));
+            updates.forEach(update -> results.add(update.write(accordListPathSuppler, timestamp, nowInSeconds)));
         }
 
         if (results.isEmpty())

@@ -36,8 +36,10 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.PrepareServerNoRegister;
+import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -69,7 +71,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         targetClass = "FailureDetector",
         targetMethod = "isAlive",
         action = "return true;")
-public class AssureSufficientLiveNodesTest
+@PrepareServerNoRegister
+@UseMurmur3Partitioner
+public class AssureSufficientLiveNodesTest extends CassandraTestBase
 {
     private static final AtomicInteger testIdGen = new AtomicInteger(0);
     private static final Supplier<String> keyspaceNameGen = () -> "race_" + testIdGen.getAndIncrement();
@@ -82,9 +86,6 @@ public class AssureSufficientLiveNodesTest
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
-        ServerTestUtils.daemonInitialization();
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        ServerTestUtils.prepareServerNoRegister();
         // Register peers with expected DC for NetworkTopologyStrategy.
 
         // TODO shouldn't require the snitch setup

@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
-import java.util.SortedSet;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -77,8 +76,6 @@ import org.apache.cassandra.cql3.selection.Selection.Selectors;
 import org.apache.cassandra.cql3.transactions.ReferenceOperation;
 import org.apache.cassandra.db.CBuilder;
 import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.ClusteringBound;
-import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
@@ -605,7 +602,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                          false,
                          options.getTimestamp(queryState),
                          options.getNowInSeconds(queryState),
-                         queryStartNanoTime);
+                         queryStartNanoTime,
+                         false);
         if (!mutations.isEmpty())
         {
             StorageProxy.mutateWithTriggers(mutations, cl, false, queryStartNanoTime);
@@ -770,7 +768,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     {
         long timestamp = options.getTimestamp(queryState);
         long nowInSeconds = options.getNowInSeconds(queryState);
-        for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, queryStartNanoTime))
+        for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, queryStartNanoTime, false))
             mutation.apply();
         return null;
     }
@@ -823,19 +821,20 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                    boolean local,
                                                    long timestamp,
                                                    long nowInSeconds,
-                                                   long queryStartNanoTime)
+                                                   long queryStartNanoTime,
+                                                   boolean constructingAccordBaseUpdate)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
         HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
         SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
-        addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, queryStartNanoTime);
+        addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, queryStartNanoTime, constructingAccordBaseUpdate);
         return collector.toMutations(state);
     }
 
     @VisibleForTesting
     public PartitionUpdate getTxnUpdate(ClientState state, QueryOptions options)
     {
-        List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, 0);
+        List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, 0, true);
         if (mutations.size() != 1)
             throw new IllegalArgumentException("When running withing a transaction, modification statements may only mutate a single partition");
         return Iterables.getOnlyElement(mutations.get(0).getPartitionUpdates());
@@ -898,7 +897,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                           boolean local,
                           long timestamp,
                           long nowInSeconds,
-                          long queryStartNanoTime)
+                          long queryStartNanoTime,
+                          boolean constructingAccordBaseUpdate)
     {
         if (hasSlices())
         {
@@ -916,7 +916,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                            local,
                                                            timestamp,
                                                            nowInSeconds,
-                                                           queryStartNanoTime);
+                                                           queryStartNanoTime,
+                                                           constructingAccordBaseUpdate);
             for (ByteBuffer key : keys)
             {
                 Validation.validateKey(metadata(), key);
@@ -936,7 +937,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, queryStartNanoTime);
+            UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, queryStartNanoTime, constructingAccordBaseUpdate);
 
             for (ByteBuffer key : keys)
             {
@@ -973,7 +974,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   boolean local,
                                                   long timestamp,
                                                   long nowInSeconds,
-                                                  long queryStartNanoTime)
+                                                  long queryStartNanoTime,
+                                                  boolean constructingAccordBaseUpdate)
     {
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
             return makeUpdateParameters(keys,
@@ -984,7 +986,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                         local,
                                         timestamp,
                                         nowInSeconds,
-                                        queryStartNanoTime);
+                                        queryStartNanoTime,
+                                        constructingAccordBaseUpdate);
 
         return makeUpdateParameters(keys,
                                     new ClusteringIndexNamesFilter(clusterings, false),
@@ -994,7 +997,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                     local,
                                     timestamp,
                                     nowInSeconds,
-                                    queryStartNanoTime);
+                                    queryStartNanoTime,
+                                    constructingAccordBaseUpdate);
     }
 
     private UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
@@ -1005,7 +1009,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   boolean local,
                                                   long timestamp,
                                                   long nowInSeconds,
-                                                  long queryStartNanoTime)
+                                                  long queryStartNanoTime,
+                                                  boolean constructingAccordBaseUpdate)
     {
         // Some lists operation requires reading
         Map<DecoratedKey, Partition> lists =
@@ -1023,7 +1028,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                     getTimestamp(timestamp, options),
                                     nowInSeconds,
                                     getTimeToLive(options),
-                                    lists);
+                                    lists,
+                                    constructingAccordBaseUpdate);
     }
 
     public static abstract class Parsed extends QualifiedStatement

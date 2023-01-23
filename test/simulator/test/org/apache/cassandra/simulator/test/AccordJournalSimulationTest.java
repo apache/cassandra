@@ -210,7 +210,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
             Ranges ranges = Ranges.of(new TokenRange(AccordRoutingKey.SentinelKey.min("system"), AccordRoutingKey.SentinelKey.max("system")));
             Topologies topologies = Utils.topologies(TopologyUtils.initialTopology(new Node.Id[] {node}, ranges, 3));
             Keys keys = Keys.of(toKey(0));
-            Txn txn = new Txn.InMemory(keys, new TxnRead(new TxnNamedRead[0], keys), TxnQuery.ALL, new NoopUpdate());
+            Txn txn = new Txn.InMemory(keys, new TxnRead(new TxnNamedRead[0], keys, null), TxnQuery.ALL, new NoopUpdate());
             FullRoute<?> route = route();
             return new PreAccept(node, topologies, id, txn, route);
         }

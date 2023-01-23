@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
@@ -41,6 +42,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -57,6 +59,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.KeyMigrationState;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -68,6 +71,8 @@ import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_RSP;
+import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.getKeyMigrationState;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigratedAt;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.Commit.Accepted;
 import static org.apache.cassandra.service.paxos.Commit.Committed;
@@ -368,7 +373,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     static PaxosPrepare prepareWithBallot(Ballot ballot, Participants participants, SinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadPermission)
     {
         Tracing.trace("Preparing {} with read", ballot);
-        Request request = new Request(ballot, participants.electorate, readCommand, isWrite);
+        Request request = new Request(ballot, participants.electorate, readCommand, isWrite, true);
         return prepareWithBallotInternal(participants, request, acceptEarlyReadPermission, null);
     }
 
@@ -376,7 +381,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     static <T extends Consumer<Status>> T prepareWithBallot(Ballot ballot, Participants participants, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean acceptEarlyReadPermission, T onDone)
     {
         Tracing.trace("Preparing {}", ballot);
-        prepareWithBallotInternal(participants, new Request(ballot, participants.electorate, partitionKey, table, isWrite), acceptEarlyReadPermission, onDone);
+        prepareWithBallotInternal(participants, new Request(ballot, participants.electorate, partitionKey, table, isWrite, true), acceptEarlyReadPermission, onDone);
         return onDone;
     }
 
@@ -904,8 +909,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         final boolean isForWrite;
         final DecoratedKey partitionKey;
         final TableMetadata table;
+        final boolean isForRecovery;
 
-        AbstractRequest(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isForWrite)
+        AbstractRequest(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isForWrite, boolean isForRecovery)
         {
             this.ballot = ballot;
             this.electorate = electorate;
@@ -913,9 +919,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             this.isForWrite = isForWrite;
             this.partitionKey = read.partitionKey();
             this.table = read.metadata();
+            this.isForRecovery = isForRecovery;
         }
 
-        AbstractRequest(Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isForWrite)
+        AbstractRequest(Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isForWrite, boolean isForRecovery)
         {
             this.ballot = ballot;
             this.electorate = electorate;
@@ -923,6 +930,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             this.table = table;
             this.read = null;
             this.isForWrite = isForWrite;
+            this.isForRecovery = isForRecovery;
         }
 
         abstract R withoutRead();
@@ -935,19 +943,19 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     static class Request extends AbstractRequest<Request>
     {
-        Request(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite)
+        Request(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
-            super(ballot, electorate, read, isWrite);
+            super(ballot, electorate, read, isWrite, isForRecovery);
         }
 
-        private Request(Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite)
+        private Request(Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
         {
-            super(ballot, electorate, partitionKey, table, isWrite);
+            super(ballot, electorate, partitionKey, table, isWrite, isForRecovery);
         }
 
         Request withoutRead()
         {
-            return read == null ? this : new Request(ballot, electorate, partitionKey, table, isForWrite);
+            return read == null ? this : new Request(ballot, electorate, partitionKey, table, isForWrite, isForRecovery);
         }
 
         public String toString()
@@ -958,11 +966,16 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     static class Response
     {
+        @Nonnull
         final MaybePromise.Outcome outcome;
 
-        Response(MaybePromise.Outcome outcome)
+        @Nullable
+        final ConsensusMigratedAt maybeConsenusMigratedAt;
+
+        Response(@Nonnull  MaybePromise.Outcome outcome, @Nullable ConsensusMigratedAt maybeConsenusMigratedAt)
         {
             this.outcome = outcome;
+            this.maybeConsenusMigratedAt = maybeConsenusMigratedAt;
         }
         Permitted permitted() { return (Permitted) this; }
         Rejected rejected() { return (Rejected) this; }
@@ -991,9 +1004,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         final Map<InetAddressAndPort, EndpointState> gossipInfo;
         @Nullable final Ballot supersededBy;
 
-        Permitted(MaybePromise.Outcome outcome, long lowBound, @Nullable Accepted latestAcceptedButNotCommitted, Committed latestCommitted, @Nullable ReadResponse readResponse, boolean hadProposalStability, Map<InetAddressAndPort, EndpointState> gossipInfo, @Nullable Ballot supersededBy)
+        Permitted(MaybePromise.Outcome outcome, @Nullable ConsensusMigratedAt maybeConsensusMigratedAt, long lowBound, @Nullable Accepted latestAcceptedButNotCommitted, Committed latestCommitted, @Nullable ReadResponse readResponse, boolean hadProposalStability, Map<InetAddressAndPort, EndpointState> gossipInfo, @Nullable Ballot supersededBy)
         {
-            super(outcome);
+            super(outcome, maybeConsensusMigratedAt);
             this.lowBound = lowBound;
             this.latestAcceptedButNotCommitted = latestAcceptedButNotCommitted;
             this.latestCommitted = latestCommitted;
@@ -1014,9 +1027,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     {
         final Ballot supersededBy;
 
-        Rejected(Ballot supersededBy)
+        Rejected(Ballot supersededBy, @Nullable ConsensusMigratedAt maybeConsensusMigratedAt)
         {
-            super(REJECT);
+            super(REJECT, maybeConsensusMigratedAt);
             this.supersededBy = supersededBy;
         }
 
@@ -1060,6 +1073,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         static Response execute(AbstractRequest<?> request, PaxosState state)
         {
             MaybePromise result = state.promiseIfNewer(request.ballot, request.isForWrite);
+            KeyMigrationState keyMigrationState = getKeyMigrationState(request.table.id, request.partitionKey);
             switch (result.outcome)
             {
                 case PROMISE:
@@ -1088,6 +1102,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
                     if (request.read != null)
                     {
+                        // Make sure the read is safe and there is no Accord state that needs application
+                        keyMigrationState.maybePerformAccordToPaxosKeyMigration(request.isForWrite);
                         try (ReadExecutionController executionController = request.read.executionController();
                              UnfilteredPartitionIterator iterator = request.read.executeLocally(executionController))
                         {
@@ -1109,10 +1125,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
                     ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(request.table.id);
                     long lowBound = cfs.getPaxosRepairLowBound(request.partitionKey).uuidTimestamp();
-                    return new Permitted(result.outcome, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, supersededBy);
+                    return new Permitted(result.outcome, keyMigrationState.consensusMigratedAt, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, supersededBy);
 
                 case REJECT:
-                    return new Rejected(result.supersededBy());
+                    return new Rejected(result.supersededBy(), keyMigrationState.consensusMigratedAt);
 
                 default:
                     throw new IllegalStateException();
@@ -1122,8 +1138,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     static abstract class AbstractRequestSerializer<R extends AbstractRequest<R>, T> implements IVersionedSerializer<R>
     {
-        abstract R construct(T param, Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite);
-        abstract R construct(T param, Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite);
+        abstract R construct(T param, Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery);
+        abstract R construct(T param, Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery);
 
         @Override
         public void serialize(R request, DataOutputPlus out, int version) throws IOException
@@ -1141,6 +1157,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 request.table.id.serialize(out);
                 DecoratedKey.serializer.serialize(request.partitionKey, out, version);
             }
+            if (version >= MessagingService.VERSION_50)
+                out.writeBoolean(request.isForRecovery);
         }
 
         public R deserialize(T param, DataInputPlus in, int version) throws IOException
@@ -1151,44 +1169,61 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             if ((flag & 1) != 0)
             {
                 SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) ReadCommand.serializer.deserialize(in, version);
-                return construct(param, ballot, electorate, readCommand, (flag & 2) == 0);
+                boolean isForRecovery = false;
+                if (version >= MessagingService.VERSION_50)
+                    isForRecovery = in.readBoolean();
+                return construct(param, ballot, electorate, readCommand, (flag & 2) == 0, isForRecovery);
             }
             else
             {
                 TableMetadata table = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
                 DecoratedKey partitionKey = (DecoratedKey) DecoratedKey.serializer.deserialize(in, table.partitioner, version);
-                return construct(param, ballot, electorate, partitionKey, table, (flag & 2) != 0);
+                boolean isForRecovery = false;
+                if (version >= MessagingService.VERSION_50)
+                    isForRecovery = in.readBoolean();
+                return construct(param, ballot, electorate, partitionKey, table, (flag & 2) != 0, isForRecovery);
             }
         }
 
         @Override
         public long serializedSize(R request, int version)
         {
-            return Ballot.sizeInBytes()
+            long size = Ballot.sizeInBytes()
                    + Electorate.serializer.serializedSize(request.electorate, version)
                    + 1 + (request.read != null
                         ? ReadCommand.serializer.serializedSize(request.read, version)
                         : request.table.id.serializedSize()
                             + DecoratedKey.serializer.serializedSize(request.partitionKey, version));
+            if (version >= MessagingService.VERSION_50)
+                size += TypeSizes.sizeof(request.isForRecovery);
+            return size;
         }
     }
 
     public static class RequestSerializer extends AbstractRequestSerializer<Request, Object>
     {
-        Request construct(Object ignore, Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite)
+        Request construct(Object ignore, Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
-            return new Request(ballot, electorate, read, isWrite);
+            return new Request(ballot, electorate, read, isWrite, isForRecovery);
         }
 
-        Request construct(Object ignore, Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite)
+        Request construct(Object ignore, Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
         {
-            return new Request(ballot, electorate, partitionKey, table, isWrite);
+            return new Request(ballot, electorate, partitionKey, table, isWrite, isForRecovery);
         }
 
         public Request deserialize(DataInputPlus in, int version) throws IOException
         {
             return deserialize(null, in, version);
         }
+    }
+
+    private static void serializeRejection(DataOutputPlus out, Ballot supersededBy, ConsensusMigratedAt maybeConsenusMigratedAt, int version) throws IOException
+    {
+        out.writeByte(0);
+        supersededBy.serialize(out);
+        if (version >= MessagingService.VERSION_50)
+            ConsensusMigratedAt.serializer.serialize(maybeConsenusMigratedAt, out, version);
     }
 
     public static class ResponseSerializer implements IVersionedSerializer<Response>
@@ -1199,7 +1234,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             {
                 out.writeByte(0);
                 Rejected rejected = (Rejected) response;
-                rejected.supersededBy.serialize(out);
+                serializeRejection(out, rejected.supersededBy, rejected.maybeConsenusMigratedAt, version);
             }
             else
             {
@@ -1219,6 +1254,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 serializeMap(promised.gossipInfo, out, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer);
                 if (promised.outcome == PERMIT_READ)
                     promised.supersededBy.serialize(out);
+                if (version >= MessagingService.VERSION_50)
+                    ConsensusMigratedAt.serializer.serialize(response.maybeConsenusMigratedAt, out, version);
             }
         }
 
@@ -1228,7 +1265,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             if (flags == 0)
             {
                 Ballot supersededBy = Ballot.deserialize(in);
-                return new Rejected(supersededBy);
+                ConsensusMigratedAt consensusMigratedAt = null;
+                if (version >= MessagingService.VERSION_50)
+                    consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in, version);
+                return new Rejected(supersededBy, consensusMigratedAt);
             }
             else
             {
@@ -1242,15 +1282,20 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 Ballot supersededBy = null;
                 if (outcome == PERMIT_READ)
                     supersededBy = Ballot.deserialize(in);
-                return new Permitted(outcome, lowBound, acceptedNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, supersededBy);
+                ConsensusMigratedAt consensusMigratedAt = null;
+                if (version >= MessagingService.VERSION_50)
+                    consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in, version);
+                return new Permitted(outcome, consensusMigratedAt, lowBound, acceptedNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, supersededBy);
             }
         }
 
         public long serializedSize(Response response, int version)
         {
+            long size;
             if (response.isRejected())
             {
-                return 1 + Ballot.sizeInBytes();
+                size = 1 + Ballot.sizeInBytes();
+
             }
             else
             {
@@ -1263,6 +1308,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         + serializedMapSize(permitted.gossipInfo, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer)
                         + (permitted.outcome == PERMIT_READ ? Ballot.sizeInBytes() : 0);
             }
+            if (version >= MessagingService.VERSION_50)
+                size += ConsensusMigratedAt.serializer.serializedSize(response.maybeConsenusMigratedAt, version);
+
+            return size;
         }
     }
 

@@ -21,7 +21,10 @@ package org.apache.cassandra.service.accord;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import javax.annotation.Nullable;
+
+import com.google.common.base.Predicates;
 
 import accord.api.Agent;
 import accord.api.DataStore;
@@ -156,7 +159,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public Timestamp maxConflict(Seekables<?, ?> keysOrRanges, Ranges slice)
     {
-        Timestamp maxConflict = mapReduce(keysOrRanges, slice, (ts, accum) -> Timestamp.max(ts.max(), accum), Timestamp.NONE, null);
+        Timestamp maxConflict = mapReduce(keysOrRanges, slice, (ts, accum) -> Timestamp.max(ts.max(), accum), Timestamp.NONE, Predicates.isNull());
         return Timestamp.nonNullOrMax(maxConflict, commandStore.commandsForRanges().maxRedundant());
     }
 
@@ -198,15 +201,15 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     {
     }
 
-    private <O> O mapReduce(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
+    private <O> O mapReduce(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, Predicate<O> terminate)
     {
-        accumulate = commandStore.mapReduceForRange(keysOrRanges, slice, map, accumulate, terminalValue);
-        if (accumulate.equals(terminalValue))
+        accumulate = commandStore.mapReduceForRange(keysOrRanges, slice, map, accumulate, terminate);
+        if (terminate.test(accumulate))
             return accumulate;
-        return mapReduceForKey(keysOrRanges, slice, map, accumulate, terminalValue);
+        return mapReduceForKey(keysOrRanges, slice, map, accumulate, terminate);
     }
 
-    private <O> O mapReduceForKey(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
+    private <O> O mapReduceForKey(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, Predicate<O> terminate)
     {
         switch (keysOrRanges.domain())
         {
@@ -221,7 +224,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                     if (!slice.contains(key)) continue;
                     SafeCommandsForKey forKey = commandsForKey(key);
                     accumulate = map.apply(forKey.current(), accumulate);
-                    if (accumulate.equals(terminalValue))
+                    if (terminate.test((accumulate)))
                         return accumulate;
                 }
             }
@@ -239,7 +242,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                     if (!sliced.contains(key)) continue;
                     SafeCommandsForKey forKey = commandsForKey(key);
                     accumulate = map.apply(forKey.current(), accumulate);
-                    if (accumulate.equals(terminalValue))
+                    if (terminate.test(accumulate))
                         return accumulate;
                 }
             }
@@ -251,6 +254,12 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public <T> T mapReduce(Seekables<?, ?> keysOrRanges, Ranges slice, TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp, TestDep testDep, @Nullable TxnId depId, @Nullable Status minStatus, @Nullable Status maxStatus, CommandFunction<T, T> map, T accumulate, T terminalValue)
     {
+        Predicate<T> terminate = Predicates.equalTo(terminalValue);
+        return mapReduceWithTerminate(keysOrRanges, slice, testKind, testTimestamp, timestamp, testDep, depId, minStatus, maxStatus, map, accumulate, terminate);
+    }
+
+    @Override
+    public <T> T mapReduceWithTerminate(Seekables<?, ?> keysOrRanges, Ranges slice, TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp, TestDep testDep, @Nullable TxnId depId, @Nullable Status minStatus, @Nullable Status maxStatus, CommandFunction<T, T> map, T accumulate, Predicate<T> terminate)   {
         accumulate = mapReduce(keysOrRanges, slice, (forKey, prev) -> {
             CommandTimeseries<?> timeseries;
             switch (testTimestamp)
@@ -276,8 +285,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 case MAY_EXECUTE_BEFORE:
                     remapTestTimestamp = CommandTimeseries.TestTimestamp.BEFORE;
             }
-            return timeseries.mapReduce(testKind, remapTestTimestamp, timestamp, testDep, depId, minStatus, maxStatus, map, prev, terminalValue);
-        }, accumulate, terminalValue);
+            return timeseries.mapReduceWithTerminate(testKind, remapTestTimestamp, timestamp, testDep, depId, minStatus, maxStatus, map, prev, terminate);
+        }, accumulate, terminate);
 
         return accumulate;
     }

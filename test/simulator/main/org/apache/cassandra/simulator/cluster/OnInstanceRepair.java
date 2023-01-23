@@ -97,7 +97,7 @@ class OnInstanceRepair extends ClusterAction
     {
         Collection<Range<Token>> ranges = rangesSupplier.call();
         // no need to wait for completion, as we track all task submissions and message exchanges, and ensure they finish before continuing to next action
-        StorageService.instance.repair(keyspaceName, new RepairOption(RepairParallelism.SEQUENTIAL, isPrimaryRangeOnly, false, false, 1, ranges, false, false, force, PreviewKind.NONE, false, true, repairPaxos, repairOnlyPaxos), singletonList((tag, event) -> {
+        StorageService.instance.repair(keyspaceName, new RepairOption(RepairParallelism.SEQUENTIAL, isPrimaryRangeOnly, false, false, 1, ranges, false, force, PreviewKind.NONE, false, true, repairPaxos, repairOnlyPaxos, false), singletonList((tag, event) -> {
             if (event.getType() == ProgressEventType.COMPLETE)
                 listener.run();
         }));

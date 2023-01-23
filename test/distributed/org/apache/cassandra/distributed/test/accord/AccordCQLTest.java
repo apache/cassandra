@@ -20,20 +20,20 @@ package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
-import org.apache.cassandra.distributed.Cluster;
-import org.assertj.core.api.Assertions;
-
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -49,6 +49,7 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.QueryResults;
@@ -56,11 +57,14 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.assertj.core.api.Assertions;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static java.util.Collections.singletonList;
 import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class AccordCQLTest extends AccordTestBase
 {
@@ -75,7 +79,7 @@ public class AccordCQLTest extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws IOException
     {
-        AccordTestBase.setupClass();
+        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord")), 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }
 
@@ -587,9 +591,55 @@ public class AccordCQLTest extends AccordTestBase
                  String check = "BEGIN TRANSACTION\n" +
                                 "  SELECT v FROM " + currentTable + " WHERE k = 1;\n" +
                                 "COMMIT TRANSACTION";
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { endingvalue }, check);
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 2 }, check);
              });
     }
+
+    @Test
+    public void testConstantNonStaticRowReadBeforeUpdate() throws Exception
+    {
+        test("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY (k, c))",
+             cluster ->
+             {
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, 3);
+
+                 String update = "BEGIN TRANSACTION\n" +
+                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 2);\n" +
+                                 "  SELECT row1.v;\n" +
+                                 "  UPDATE " + currentTable + " SET v += 1 WHERE k = 1 AND c = 2;\n" +
+                                 "COMMIT TRANSACTION";
+                 assertRowEquals(cluster, new Object[] { 3 }, update);
+
+                 String check = "BEGIN TRANSACTION\n" +
+                                "  SELECT v FROM " + currentTable + " WHERE k = 1 AND c = 2;\n" +
+                                "COMMIT TRANSACTION";
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 4 }, check);
+             });
+    }
+
+    @Test
+    public void testRangeDeletion() throws Exception
+    {
+        test("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY (k, c))",
+             cluster ->
+             {
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, 3);
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 3, ?)", ConsistencyLevel.ALL, 4);
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 4, ?)", ConsistencyLevel.ALL, 5);
+
+                 String update = "BEGIN TRANSACTION\n" +
+                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 2);\n" +
+                                 "  SELECT row1.v;\n" +
+                                 "  DELETE FROM " + currentTable + " WHERE k = 1 AND c >=3 AND c <= 4;\n" +
+                                 "COMMIT TRANSACTION";
+                 assertRowEquals(cluster, new Object[] { 3 }, update);
+
+                 Object[][] check = cluster.coordinator(1).execute("SELECT * FROM " + currentTable + " WHERE k = 1;", ConsistencyLevel.SERIAL);
+                 assertArrayEquals(new Object[] { 1, 2, 3 }, check[0]);
+                 assertEquals(1, check.length);
+             });
+    }
+
 
     @Test
     public void testPartitionKeyReferenceCondition() throws Exception
@@ -2495,6 +2545,8 @@ public class AccordCQLTest extends AccordTestBase
             cluster -> {
                 ICoordinator coordinator = cluster.coordinator(1);
                 int startingAccordCoordinateCount = getAccordCoordinateCount();
+                assertRowEquals(cluster, new Object[]{false}, "UPDATE " + currentTable + " SET v = 4 WHERE id = 1 AND c = 2 IF EXISTS");
+                assertRowEquals(cluster, new Object[]{false}, "UPDATE " + currentTable + " SET v = 4 WHERE id = 1 AND c = 2 IF v = 3");
                 coordinator.execute("INSERT INTO " + currentTable + " (id, c, v, s) VALUES (1, 2, 3, 5);", ConsistencyLevel.ALL);
                 assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 3, 5);
                 assertRowEquals(cluster, new Object[]{true}, "UPDATE " + currentTable + " SET v = 4 WHERE id = 1 AND c = 2 IF v = 3");
@@ -2509,8 +2561,98 @@ public class AccordCQLTest extends AccordTestBase
                 assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 5, 5);
                 assertRowEquals(cluster, new Object[]{true}, "UPDATE " + currentTable + " SET s = 6 WHERE id = 1 IF s = 5");
                 assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 5, 6);
+
+                // Test that read before write works with CAS
+                assertRowEquals(cluster, new Object[]{true}, "UPDATE " + currentTable + " SET s +=1, v += 1 WHERE id = 1 AND c = 2 IF EXISTS");
+                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 6, 7);
+
+                // Check range deletion works
+                coordinator.execute("INSERT INTO " + currentTable + " (id, c, v, s) VALUES (1, 2, 6, 7);", ConsistencyLevel.ALL);
+                coordinator.execute("INSERT INTO " + currentTable + " (id, c, v) VALUES (1, 3, 3);", ConsistencyLevel.ALL);
+                assertRowEquals(cluster, new Object[]{true}, "BEGIN BATCH \n" +
+                                                             "UPDATE " + currentTable + " SET s +=1, v += 1 WHERE id = 1 AND c = 2 IF EXISTS; \n" +
+                                                             "DELETE FROM " + currentTable + " WHERE id = 1 AND c > 0 AND c < 10; \n" +
+                                                             "APPLY BATCH;");
+                Object[][] rangeDeletionCheck = coordinator.execute("SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1", ConsistencyLevel.SERIAL);
+                assertArrayEquals(new Object[] { 1, 2, 7, 8 }, rangeDeletionCheck[0]);
+                assertEquals(1, rangeDeletionCheck.length);
+
                 // Make sure all the consensus using queries actually were run on Accord
-                assertEquals( 11, getAccordCoordinateCount() - startingAccordCoordinateCount);
-        });
+                assertEquals( 17, getAccordCoordinateCount() - startingAccordCoordinateCount);
+            });
+    }
+
+    // Reproduces some bugs that simulator finds
+    @Test
+    public void testCASSimulatorLite() throws Exception
+    {
+        test("CREATE TABLE " + currentTable + " (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))",
+             cluster -> {
+                 ICoordinator coordinator = cluster.coordinator(1);
+                 coordinator.execute("INSERT INTO " + currentTable + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
+
+                 ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
+                 ExecutorService es = Executors.newCachedThreadPool();
+                 List<Future<Object[][]>> futures = new ArrayList<>();
+                 for (int ii = 0; ii < 10; ii++)
+                 {
+                     int id = ii;
+                     futures.add(es.submit(() -> coordinator.execute("UPDATE " + currentTable + " SET count = count + 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk = ? IF EXISTS", ConsistencyLevel.ALL, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))), 1)));
+                 }
+                 for (Future f : futures)
+                     f.get();
+
+                 Object[][] result = coordinator.execute("SELECT pk, count, seq1, seq2 FROM  " + currentTable + " WHERE pk = 1", ConsistencyLevel.SERIAL);
+
+                 int[] seq1 = Arrays.stream(((String) result[0][2]).split(","))
+                                    .filter(s -> !s.isEmpty())
+                                    .mapToInt(Integer::parseInt)
+                                    .toArray();
+                int[] seq2 = ((ArrayList<Integer>) result[0][3]).stream().mapToInt(x -> x).toArray();
+                logger.info("String append of ids executed {}", Arrays.toString(seq1));
+                logger.info("List append of ids executed {}", Arrays.toString(seq2));
+                assertArrayEquals("History doesn't match between the two columns", seq1, seq2);
+             });
+    }
+
+    @Test
+    public void testTransactionCasSimulatorLite() throws Exception
+    {
+        test("CREATE TABLE " + currentTable + " (pk int, count int, seq1 text, seq2 list<int>, PRIMARY KEY (pk))",
+             cluster ->
+             {
+                 ICoordinator coordinator = cluster.coordinator(1);
+                 coordinator.execute("INSERT INTO " + currentTable + " (pk, count, seq1, seq2) VALUES (1, 0, '', []) USING TIMESTAMP 0", ConsistencyLevel.ALL);
+
+                 ListType<Integer> LIST_TYPE = ListType.getInstance(Int32Type.instance, true);
+                 ExecutorService es = Executors.newCachedThreadPool();
+                 List<Future<SimpleQueryResult>> futures = new ArrayList<>();
+                 for (int ii = 0; ii < 10; ii++)
+                 {
+                     int id = ii;
+                     String update = "BEGIN TRANSACTION\n" +
+                                     "  LET row1 = (SELECT * FROM " + currentTable + " WHERE pk = 1);\n" +
+                                     "  UPDATE " + currentTable + " SET count += 1, seq1 = seq1 + ?, seq2 = seq2 + ? WHERE pk=1;\n" +
+                                     "COMMIT TRANSACTION";
+                     futures.add(es.submit(() -> coordinator.executeWithResult(update, ConsistencyLevel.ANY, id + ",", ByteBufferUtil.getArray(LIST_TYPE.decompose(singletonList(id))))));
+                 }
+                 for (Future f : futures)
+                     f.get();
+
+                 String check = "BEGIN TRANSACTION\n" +
+                                "  SELECT * FROM " + currentTable + " WHERE pk = 1;\n" +
+                                "COMMIT TRANSACTION";
+                 Object[][] result = coordinator.execute(check, ConsistencyLevel.ALL);
+
+                 int[] seq1 = Arrays.stream(((String) result[0][2]).split(","))
+                                    .filter(s -> !s.isEmpty())
+                                    .mapToInt(Integer::parseInt)
+                                    .toArray();
+                 int[] seq2 = ((ArrayList<Integer>) result[0][3]).stream().mapToInt(x -> x).toArray();
+                 logger.info("String append of ids executed {}", Arrays.toString(seq1));
+                 logger.info("List append of ids executed {}", Arrays.toString(seq2));
+                 assertArrayEquals("History doesn't match between the two columns", seq1, seq2);
+             }
+        );
     }
 }

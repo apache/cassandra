@@ -21,23 +21,23 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.text.SimpleDateFormat;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.utils.concurrent.Condition;
-
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.jmx.JMXNotificationProgressListener;
 
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus.FAILED;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus.valueOf;
 import static org.apache.cassandra.tools.NodeProbe.JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
-import static org.apache.cassandra.utils.progress.ProgressEventType.*;
+import static org.apache.cassandra.utils.progress.ProgressEventType.COMPLETE;
+import static org.apache.cassandra.utils.progress.ProgressEventType.ERROR;
+import static org.apache.cassandra.utils.progress.ProgressEventType.PROGRESS;
 
 public class RepairRunner extends JMXNotificationProgressListener
 {
@@ -46,23 +46,21 @@ public class RepairRunner extends JMXNotificationProgressListener
     private final PrintStream out;
     private final StorageServiceMBean ssProxy;
     private final String keyspace;
-    private final Map<String, String> options;
     private final Condition condition = newOneTimeCondition();
 
-    private int cmd;
+    private Integer cmd;
     private volatile Exception error;
 
-    public RepairRunner(PrintStream out, StorageServiceMBean ssProxy, String keyspace, Map<String, String> options)
+    public RepairRunner(PrintStream out, StorageServiceMBean ssProxy, String keyspace, Integer cmd)
     {
         this.out = out;
         this.ssProxy = ssProxy;
         this.keyspace = keyspace;
-        this.options = options;
+        this.cmd = cmd;
     }
 
     public void run() throws Exception
     {
-        cmd = ssProxy.repairAsync(keyspace, options);
         if (cmd <= 0)
         {
             // repairAsync can only return 0 for replication factor 1.
