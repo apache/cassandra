@@ -1,4 +1,5 @@
 4.2
+ * Update JNA to 5.13.0 (CASSANDRA-18050)
  * Make virtual tables decide if they implicitly enable ALLOW FILTERING (CASSANDRA-18238)
  * Add row, tombstone, and sstable count to nodetool profileload (CASSANDRA-18022)
  * Coordinator level metrics for read response and mutation row and column counts (CASSANDRA-18155)

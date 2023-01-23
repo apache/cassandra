@@ -76,6 +76,7 @@ public abstract class OfflineToolUtils
     "process reaper",  // spawned by the jvm when executing external processes
                        // and may still be active when we check
     "Attach Listener", // spawned in intellij IDEA
+    "JNA Cleaner",     // spawned by JNA
     };
 
     static final String[] NON_DEFAULT_MEMTABLE_THREADS =
