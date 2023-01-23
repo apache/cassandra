@@ -1116,6 +1116,116 @@ public class CQLSSTableWriterTest
         assertEquals(0, filtered.size());
     }
 
+    @Test
+    public void testWriteWithTimestamps() throws Exception
+    {
+        long now = Clock.Global.currentTimeMillis();
+        long then = now - 1000;
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
+                              + "  k int,"
+                              + "  c1 int,"
+                              + "  c2 int,"
+                              + "  v text,"
+                              + "  PRIMARY KEY (k)"
+                              + ")";
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + qualifiedTable +
+                                                         " (k, c1, c2, v) VALUES (?,?,?,?) using timestamp ?" )
+                                                  .build();
+
+        writer.addRow( 1, 2, 3, "a", now); // This write should be the one found at the end because it has a higher timestamp
+        writer.addRow( 1, 4, 5, "b", then);
+        writer.close();
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        assertEquals(1, resultSet.size());
+
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        UntypedResultSet.Row r1 = iter.next();
+        assertEquals(1, r1.getInt("k"));
+        assertEquals(2, r1.getInt("c1"));
+        assertEquals(3, r1.getInt("c2"));
+        assertEquals("a", r1.getString("v"));
+        assertFalse(iter.hasNext());
+    }
+    @Test
+    public void testWriteWithTtl() throws Exception
+    {
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
+                              + "  k int,"
+                              + "  c1 int,"
+                              + "  c2 int,"
+                              + "  v text,"
+                              + "  PRIMARY KEY (k)"
+                              + ")";
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + qualifiedTable +
+                                                         " (k, c1, c2, v) VALUES (?,?,?,?) using TTL ?" )
+                                                  .build();
+        // add a row that _should_ show up - 1 hour TTL
+        writer.addRow( 1, 2, 3, "a", 3600);
+        // Insert a row with a TTL of 1 second - should not appear in results once we sleep
+        writer.addRow( 1, 4, 5, "b", 1);
+        writer.close();
+        Thread.sleep(1200); // Slightly over 1 second, just to make sure
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        assertEquals(1, resultSet.size());
+
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        UntypedResultSet.Row r1 = iter.next();
+        assertEquals(1, r1.getInt("k"));
+        assertEquals(2, r1.getInt("c1"));
+        assertEquals(3, r1.getInt("c2"));
+        assertEquals("a", r1.getString("v"));
+        assertFalse(iter.hasNext());
+    }
+    @Test
+    public void testWriteWithTimestampsAndTtl() throws Exception
+    {
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
+                              + "  k int,"
+                              + "  c1 int,"
+                              + "  c2 int,"
+                              + "  v text,"
+                              + "  PRIMARY KEY (k)"
+                              + ")";
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + qualifiedTable +
+                                                         " (k, c1, c2, v) VALUES (?,?,?,?) using timestamp ? AND TTL ?" )
+                                                  .build();
+        long twoSecondsAgo = Clock.Global.currentTimeMillis() - 2000;
+        // Insert some rows with a timestamp of 2 seconds ago, and different TTLs
+        // add a row that _should_ show up - 1 hour TTL
+        writer.addRow( 1, 2, 3, "a", twoSecondsAgo, 3600);
+        // Insert a row "two seconds ago" with a TTL of 1 second - should not appear in results
+        writer.addRow( 1, 4, 5, "b", twoSecondsAgo, 1);
+        writer.close();
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        assertEquals(1, resultSet.size());
+
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        UntypedResultSet.Row r1 = iter.next();
+        assertEquals(1, r1.getInt("k"));
+        assertEquals(2, r1.getInt("c1"));
+        assertEquals(3, r1.getInt("c2"));
+        assertEquals("a", r1.getString("v"));
+        assertFalse(iter.hasNext());
+    }
+
     private static void loadSSTables(File dataDir, String ks) throws ExecutionException, InterruptedException
     {
         SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
