@@ -26,17 +26,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import com.google.common.base.Splitter;
+import com.google.common.primitives.Ints;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.primitives.Txn;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -47,23 +47,30 @@ import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.cql3.transactions.ReferenceValue;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.Cluster.Builder;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FailingConsumer;
-import org.apache.cassandra.utils.Shared;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
-import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 import static org.junit.Assert.assertArrayEquals;
 
 public abstract class AccordTestBase extends TestBaseImpl
@@ -71,22 +78,15 @@ public abstract class AccordTestBase extends TestBaseImpl
     private static final Logger logger = LoggerFactory.getLogger(AccordTestBase.class);
     private static final int MAX_RETRIES = 10;
 
-    @Shared
-    public static class State
-    {
-        public static AtomicInteger coordinateCounts = new AtomicInteger();
-    }
-
     protected static final AtomicInteger COUNTER = new AtomicInteger(0);
 
     protected static Cluster SHARED_CLUSTER;
 
     protected String currentTable;
 
-    @BeforeClass
-    public static void setupClass() throws IOException
+    public static void setupCluster(Function<Builder, Builder> options, int nodes) throws IOException
     {
-        SHARED_CLUSTER = createCluster();
+        SHARED_CLUSTER = createCluster(nodes, options);
     }
 
     @AfterClass
@@ -136,23 +136,123 @@ public abstract class AccordTestBase extends TestBaseImpl
         test("CREATE TABLE " + currentTable + " (k int, c int, v int, primary key (k, c))", fn);
     }
 
-    protected int getAccordCoordinateCount()
+    protected static ConsensusMigrationState getMigrationStateSnapshot(IInvokableInstance instance) throws IOException
     {
-        return State.coordinateCounts.get();
+        byte[] serializedBytes = instance.callOnInstance(() -> {
+            DataOutputBuffer output = new DataOutputBuffer();
+            try
+            {
+                ConsensusMigrationState.serializer.serialize(
+                ClusterMetadata.current().consensusMigrationState,
+                output, Version.V0);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            return output.toByteArray();
+        });
+        DataInputPlus input = new DataInputBuffer(serializedBytes);
+        return ConsensusMigrationState.serializer.deserialize(input, Version.V0);
     }
 
-    private static Cluster createCluster() throws IOException
+    protected static int getAccordCoordinateCount()
+    {
+        return getAccordWriteCount() + getAccordReadCount();
+    }
+
+    protected static int getCasWriteCount(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.Latency.CASWrite"));
+    }
+
+    protected static int getCasPrepareCount(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.keyspace.CasPrepareLatency.distributed_test_keyspace"));
+    }
+
+    protected static int getAccordWriteCount()
+    {
+        return getAccordWriteCount(1);
+    }
+
+    protected static int getAccordWriteCount(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.Latency.AccordWrite"));
+    }
+
+    protected static int getAccordReadCount()
+    {
+        return getAccordReadCount(1);
+    }
+
+    protected static int getAccordReadCount(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.Latency.AccordRead"));
+    }
+
+    protected static int getAccordMigrationRejects(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.AccordMigrationRejects.AccordWrite"));
+    }
+
+    protected static int getAccordMigrationSkippedReads()
+    {
+        // Skipped reads can occur at any node so sum them
+        long sum = 0;
+        for (IInvokableInstance instance : SHARED_CLUSTER)
+            sum += instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.MigrationSkippedReads.AccordWrite");
+        return Ints.checkedCast(sum);
+    }
+
+    protected static int getKeyMigrationCount(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.Table.KeyMigrationLatency.all"));
+    }
+
+    protected static int getCasWriteBeginRejects(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.PaxosBeginMigrationRejects.CASWrite"));
+    }
+
+    protected static int getCasReadBeginRejects(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.PaxosBeginMigrationRejects.CASRead"));
+    }
+
+    protected static int getCasWriteAcceptRejects(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.PaxosAcceptMigrationRejects.CASWrite"));
+    }
+
+    protected static int getCasReadAcceptRejects(int coordinatorIndex)
+    {
+        return Ints.checkedCast(getMetrics(coordinatorIndex).getCounter("org.apache.cassandra.metrics.ClientRequest.PaxosAcceptMigrationRejects.CASRead"));
+    }
+
+    protected static Metrics getMetrics(int coordinatorIndex)
+    {
+        return SHARED_CLUSTER.get(coordinatorIndex).metrics();
+    }
+
+    protected static void forEach(SerializableRunnable runnable)
+    {
+        for (IInvokableInstance instance : SHARED_CLUSTER)
+            instance.runOnInstance(runnable);
+    }
+
+    private static Cluster createCluster(int nodes, Function<Builder, Builder> options) throws IOException
     {
         // need to up the timeout else tests get flaky
         // disable vnode for now, but should enable before trunk
-        return init(Cluster.build(2)
+        Cluster.Builder builder = Cluster.build(nodes)
                            .withoutVNodes()
                            .withConfig(c -> c.with(Feature.NETWORK, Feature.GOSSIP).set("write_request_timeout", "10s")
                                                                    .set("transaction_timeout", "15s")
-                                                                   .set("legacy_paxos_strategy", "migration")) // TODO: switch back to "accord" when TrM integration works
-                           .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install)
-                           .withInstanceInitializer(BBAccordCoordinateCountHelper::install)
-                           .start());
+                                             .set("transaction_timeout", "15s"))
+                           .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install);
+        builder = options.apply(builder);
+        return init(builder.start());
     }
 
     protected static SimpleQueryResult executeAsTxn(Cluster cluster, String check, Object... boundValues)
@@ -168,11 +268,28 @@ public abstract class AccordTestBase extends TestBaseImpl
         return cluster.coordinator(1).executeWithResult(check, ConsistencyLevel.ANY, boundValues);
     }
 
+    private static SimpleQueryResult execute(Cluster cluster, String check, ConsistencyLevel cl, Object... boundValues)
+    {
+        return cluster.coordinator(1).executeWithResult(check, cl, boundValues);
+    }
+
+    protected static SimpleQueryResult assertRowEquals(Cluster cluster, SimpleQueryResult expected, String check, ConsistencyLevel cl, Object... boundValues)
+    {
+        SimpleQueryResult result = execute(cluster, check, cl, boundValues);
+        QueryResultUtil.assertThat(result).isEqualTo(expected);
+        return result;
+    }
+
     protected static SimpleQueryResult assertRowEquals(Cluster cluster, SimpleQueryResult expected, String check, Object... boundValues)
     {
         SimpleQueryResult result = execute(cluster, check, boundValues);
         QueryResultUtil.assertThat(result).isEqualTo(expected);
         return result;
+    }
+
+    protected static SimpleQueryResult assertRowEquals(Cluster cluster, Object[] row, String check, ConsistencyLevel cl, Object... boundValues)
+    {
+        return assertRowEquals(cluster, QueryResults.builder().row(row).build(), check, cl, boundValues);
     }
 
     protected static SimpleQueryResult assertRowEquals(Cluster cluster, Object[] row, String check, Object... boundValues)
@@ -305,26 +422,6 @@ public abstract class AccordTestBase extends TestBaseImpl
                         throw new IllegalStateException("Attempted to load required partition!");
             }
             return map;
-        }
-    }
-
-    public static class BBAccordCoordinateCountHelper
-    {
-        static void install(ClassLoader cl, int nodeNumber)
-        {
-            if (nodeNumber != 1)
-                return;
-            new ByteBuddy().rebase(AccordService.class)
-                           .method(named("coordinate").and(takesArguments(2)))
-                           .intercept(MethodDelegation.to(BBAccordCoordinateCountHelper.class))
-                           .make()
-                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
-        }
-
-        public static TxnData coordinate(Txn txn, @SuperCall Callable<TxnData> actual) throws Exception
-        {
-            State.coordinateCounts.incrementAndGet();
-            return actual.call();
         }
     }
 

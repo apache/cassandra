@@ -60,7 +60,7 @@ public class AccordMetricsTest extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws IOException
     {
-        AccordTestBase.setupClass();
+        AccordTestBase.setupCluster(Function.identity(), 2);
         SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
         for (int i = 0; i < SHARED_CLUSTER.size(); i++) // initialize metrics
             logger.trace(SHARED_CLUSTER.get(i + 1).callOnInstance(() -> AccordMetrics.readMetrics.toString() + AccordMetrics.writeMetrics.toString()));

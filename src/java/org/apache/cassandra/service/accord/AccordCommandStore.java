@@ -30,6 +30,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
+
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -450,7 +452,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         current = null;
     }
 
-    <O> O mapReduceForRange(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
+    <O> O mapReduceForRange(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, Predicate<O> terminate)
     {
         keysOrRanges = keysOrRanges.slice(slice, Routables.Slice.Minimal);
         switch (keysOrRanges.domain())
@@ -461,7 +463,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                 for (CommandTimeseriesHolder summary : commandsForRanges.search(keys))
                 {
                     accumulate = map.apply(summary, accumulate);
-                    if (accumulate.equals(terminalValue))
+                    if (terminate.test(accumulate))
                         return accumulate;
                 }
             }
@@ -475,7 +477,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                     if (summary == null)
                         continue;
                     accumulate = map.apply(summary, accumulate);
-                    if (accumulate.equals(terminalValue))
+                    if (terminate.test(accumulate))
                         return accumulate;
                 }
             }

@@ -65,10 +65,10 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.UDTAndFunctionsAwareMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -282,6 +282,11 @@ public class TableMetadata implements SchemaElement
         return unbuild().indexes(indexes).build();
     }
 
+    public TableId id()
+    {
+        return id;
+    }
+
     public boolean isView()
     {
         return kind == Kind.VIEW;
@@ -306,7 +311,7 @@ public class TableMetadata implements SchemaElement
     {
         return false;
     }
-    
+
     public boolean isIncrementalBackupsEnabled()
     {
         return params.incrementalBackups;

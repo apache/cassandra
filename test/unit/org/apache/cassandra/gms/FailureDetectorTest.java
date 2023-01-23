@@ -57,7 +57,7 @@ public class FailureDetectorTest
     {
         StorageService ss = StorageService.instance;
 //        tmd.clearUnsafe();
-        IPartitioner partitioner = new RandomPartitioner();
+        IPartitioner partitioner = RandomPartitioner.instance;
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
         ArrayList<Token> endpointTokens = new ArrayList<>();

@@ -22,28 +22,33 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.primitives.Ranges;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
-import org.apache.cassandra.db.marshal.ByteArrayAccessor;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.GuidGenerator;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 /**
  * This class generates a BigIntegerToken using MD5 hash.
@@ -107,6 +112,8 @@ public class RandomPartitioner implements IPartitioner
             return MAXIMUM;
         }
     };
+
+    private RandomPartitioner() {}
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {

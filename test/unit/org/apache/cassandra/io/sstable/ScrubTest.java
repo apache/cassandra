@@ -478,7 +478,7 @@ public class ScrubTest
 
         // This test assumes ByteOrderPartitioner to create out-of-order SSTable
         IPartitioner oldPartitioner = DatabaseDescriptor.getPartitioner();
-        DatabaseDescriptor.setPartitionerUnsafe(new ByteOrderedPartitioner());
+        DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
 
         // Create out-of-order SSTable
         File tempDir = FileUtils.createTempFile("ScrubTest.testScrubOutOfOrder", "").parent();

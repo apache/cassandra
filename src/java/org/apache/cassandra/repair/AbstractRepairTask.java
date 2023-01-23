@@ -24,7 +24,6 @@ import java.util.Objects;
 
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.FutureCallback;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +43,7 @@ public abstract class AbstractRepairTask implements RepairTask
     protected final RepairCoordinator coordinator;
     protected final InetAddressAndPort broadcastAddressAndPort;
     protected final RepairOption options;
+    protected final List<CommonRange> commonRanges;
     protected final String keyspace;
 
     protected AbstractRepairTask(RepairCoordinator coordinator)
@@ -52,12 +52,14 @@ public abstract class AbstractRepairTask implements RepairTask
         this.broadcastAddressAndPort = coordinator.ctx.broadcastAddressAndPort();
         this.options = Objects.requireNonNull(coordinator.state.options);
         this.keyspace = Objects.requireNonNull(coordinator.state.keyspace);
+        this.commonRanges = coordinator.neighborsAndRanges.filterCommonRanges(keyspace, coordinator.columnFamilyNames);
     }
 
     private List<RepairSession> submitRepairSessions(TimeUUID parentSession,
                                                      boolean isIncremental,
                                                      ExecutorPlus executor,
                                                      List<CommonRange> commonRanges,
+                                                     boolean excludedDeadNodes,
                                                      String... cfnames)
     {
         List<RepairSession> futures = new ArrayList<>(options.getRanges().size());
@@ -67,6 +69,7 @@ public abstract class AbstractRepairTask implements RepairTask
             logger.info("Starting RepairSession for {}", commonRange);
             RepairSession session = coordinator.ctx.repair().submitRepairSession(parentSession,
                                                                                  commonRange,
+                                                                                 excludedDeadNodes,
                                                                                  keyspace,
                                                                                  options.getParallelism(),
                                                                                  isIncremental,
@@ -75,6 +78,7 @@ public abstract class AbstractRepairTask implements RepairTask
                                                                                  options.optimiseStreams(),
                                                                                  options.repairPaxos(),
                                                                                  options.paxosOnly(),
+                                                                                 options.accordRepair(),
                                                                                  executor,
                                                                                  cfnames);
             if (session == null)
@@ -89,9 +93,10 @@ public abstract class AbstractRepairTask implements RepairTask
                                                         boolean isIncremental,
                                                         ExecutorPlus executor,
                                                         List<CommonRange> commonRanges,
+                                                        boolean excludedDeadNodes,
                                                         String... cfnames)
     {
-        List<RepairSession> allSessions = submitRepairSessions(parentSession, isIncremental, executor, commonRanges, cfnames);
+        List<RepairSession> allSessions = submitRepairSessions(parentSession, isIncremental, executor, commonRanges, excludedDeadNodes, cfnames);
         List<Collection<Range<Token>>> ranges = Lists.transform(allSessions, RepairSession::ranges);
         Future<List<RepairSessionResult>> f = FutureCombiner.successfulOf(allSessions);
         return f.map(results -> {

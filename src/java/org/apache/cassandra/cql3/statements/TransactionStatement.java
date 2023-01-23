@@ -75,6 +75,7 @@ import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -86,6 +87,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.service.accord.txn.TxnRead.createTxnRead;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class TransactionStatement implements CQLStatement.CompositeCQLStatement, CQLStatement.ReturningCQLStatement
@@ -322,7 +325,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
             List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = new TxnRead(reads, txnKeys);
+            TxnRead read = createTxnRead(reads, txnKeys, options.getSerialConsistency());
             return new Txn.InMemory(txnKeys, read, TxnQuery.ALL);
         }
         else
@@ -331,7 +334,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             TxnUpdate update = createUpdate(state, options, autoReads, keySet::add);
             List<TxnNamedRead> reads = createNamedReads(options, state, autoReads, keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = new TxnRead(reads, txnKeys);
+            TxnRead read = createTxnRead(reads, txnKeys, options.getSerialConsistency());
             return new Txn.InMemory(txnKeys, read, TxnQuery.ALL, update);
         }
     }
@@ -408,7 +411,10 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
             maybeConvertTablesToAccord(txn);
 
-            TxnData data = AccordService.instance().coordinate(txn, options.getConsistency());
+            TxnResult txnResult = AccordService.instance().coordinate(txn, options.getConsistency(), queryStartNanoTime);
+            if (txnResult.kind() == retry_new_protocol)
+                throw new IllegalStateException("Transaction statement should never be required to switch consensus protocols");
+            TxnData data = (TxnData)txnResult;
 
             if (returningSelect != null)
             {

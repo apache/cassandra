@@ -26,6 +26,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseRandomPartitioner;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -50,7 +53,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class StorageServiceTest
+@DDDaemonInitialization
+@UseRandomPartitioner
+public class StorageServiceTest extends CassandraTestBase
 {
     static InetAddressAndPort aAddress;
     static InetAddressAndPort bAddress;
@@ -83,7 +88,6 @@ public class StorageServiceTest
     @Before
     public void setUp()
     {
-        DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
         IEndpointSnitch snitch = new AbstractEndpointSnitch()
         {

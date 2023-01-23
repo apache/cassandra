@@ -1152,7 +1152,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                     {
                         try
                         {
-                            IPartitioner partitioner = ((IPartitioner)Class.forName(i.config().getString("partitioner")).newInstance());
+                            IPartitioner partitioner = FBUtilities.newPartitioner(i.config().getString("partitioner"));
                             return Stream.of(i.config().getString("initial_token").split(",")).map(partitioner.getTokenFactory()::fromString);
                         }
                         catch (Throwable t)

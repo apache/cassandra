@@ -554,6 +554,7 @@ public enum CassandraRelevantProperties
     TEST_ORG_CAFFINITAS_OHC_SEGMENTCOUNT("org.caffinitas.ohc.segmentCount"),
     TEST_PRESERVE_THREAD_CREATION_STACKTRACE("cassandra.test.preserve_thread_creation_stacktrace", "false"),
     TEST_RANDOM_SEED("cassandra.test.random.seed"),
+    TEST_RANGE_EXPENSIVE_CHECKS("cassandra.test.range_expensive_checks"),
     TEST_READ_ITERATION_DELAY_MS("cassandra.test.read_iteration_delay_ms", "0"),
     TEST_REUSE_PREPARED("cassandra.test.reuse_prepared", "true"),
     TEST_ROW_CACHE_SIZE("cassandra.test.row_cache_size"),

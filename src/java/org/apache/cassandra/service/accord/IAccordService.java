@@ -21,18 +21,27 @@ package org.apache.cassandra.service.accord;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
 
+import accord.api.BarrierType;
 import accord.local.DurableBefore;
 import accord.local.RedundantBefore;
 import accord.messages.Request;
+import accord.primitives.Ranges;
+import accord.primitives.Seekables;
 import accord.primitives.Txn;
 import accord.topology.TopologyManager;
 import org.agrona.collections.Int2ObjectHashMap;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -41,7 +50,32 @@ public interface IAccordService
 {
     IVerbHandler<? extends Request> verbHandler();
 
-    TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel);
+    default long barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    long barrier(@Nonnull Seekables keysOrRanges, long minEpoch, long queryStartNanos, long timeoutNanos, BarrierType barrierType, boolean isForWrite);
+
+    default void postStreamReceivingBarrier(ColumnFamilyStore cfs, List<Range<Token>> ranges)
+    {
+        String ks = cfs.keyspace.getName();
+        Ranges accordRanges = Ranges.of(ranges
+             .stream()
+             .map(r -> new TokenRange(new TokenKey(ks, r.left), new TokenKey(ks, r.right)))
+             .collect(Collectors.toList())
+             .toArray(new accord.primitives.Range[0]));
+        try
+        {
+            barrierWithRetries(accordRanges, Epoch.FIRST.getEpoch(), BarrierType.global_async, true);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Nonnull TxnResult coordinate(@Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, long queryStartNanos);
 
     long currentEpoch();
 
@@ -74,4 +108,6 @@ public interface IAccordService
      * Fetch the redundnant befores for every command store
      */
     Pair<Int2ObjectHashMap<RedundantBefore>, DurableBefore> getRedundantBeforesAndDurableBefore();
+
+    void addAccordManagedKeyspace(String keyspace);
 }
