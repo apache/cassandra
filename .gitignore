@@ -1,6 +1,7 @@
 .gitignore
 
 # C*
+build
 build/
 src/gen-java/
 src/resources/org/apache/cassandra/config/
