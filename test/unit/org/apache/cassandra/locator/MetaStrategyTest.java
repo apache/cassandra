@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -91,6 +92,7 @@ public class MetaStrategyTest
                                    AccordKeyspaces.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
+                                   ConsensusTableMigrationState.ConsensusMigrationState.EMPTY,
                                    ImmutableMap.of());
     }
 

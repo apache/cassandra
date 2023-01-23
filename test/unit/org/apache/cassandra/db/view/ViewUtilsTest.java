@@ -23,35 +23,39 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseOrderPreservingPartitioner;
 import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.StubClusterMetadataService;
 
-public class ViewUtilsTest
+@DDDaemonInitialization
+@UseOrderPreservingPartitioner
+public class ViewUtilsTest extends CassandraTestBase
 {
     private final String KS = "Keyspace1";
 
     @BeforeClass
     public static void setUp() throws ConfigurationException, IOException
     {
-        DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
         ServerTestUtils.cleanupAndLeaveDirs();
         Keyspace.setInitialized();
 

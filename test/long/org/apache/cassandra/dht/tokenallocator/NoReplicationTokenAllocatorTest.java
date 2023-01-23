@@ -26,9 +26,9 @@ import java.util.Random;
 
 import com.google.common.collect.Maps;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.junit.Assert;
 import org.junit.Test;
 
-import org.junit.Assert;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -42,13 +42,13 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
     @Test
     public void testNewClusterWithMurmur3Partitioner()
     {
-        testNewCluster(new Murmur3Partitioner());
+        testNewCluster(Murmur3Partitioner.instance);
     }
 
     @Test
     public void testNewClusterWithRandomPartitioner()
     {
-        testNewCluster(new RandomPartitioner());
+        testNewCluster(RandomPartitioner.instance);
     }
 
     private void testNewCluster(IPartitioner partitioner)
@@ -75,13 +75,13 @@ public class NoReplicationTokenAllocatorTest extends TokenAllocatorTestBase
     @Test
     public void testExistingClusterWithMurmur3Partitioner()
     {
-        testExistingCluster(new Murmur3Partitioner());
+        testExistingCluster(Murmur3Partitioner.instance);
     }
 
     @Test
     public void testExistingClusterWithRandomPartitioner()
     {
-        testExistingCluster(new RandomPartitioner());
+        testExistingCluster(RandomPartitioner.instance);
     }
 
     private void testExistingCluster(IPartitioner partitioner)

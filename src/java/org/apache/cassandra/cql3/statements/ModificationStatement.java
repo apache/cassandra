@@ -607,7 +607,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                          false,
                          options.getTimestamp(queryState),
                          options.getNowInSeconds(queryState),
-                         requestTime);
+                         requestTime,
+                         false);
         if (!mutations.isEmpty())
         {
             StorageProxy.mutateWithTriggers(mutations, cl, false, requestTime);
@@ -772,7 +773,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     {
         long timestamp = options.getTimestamp(queryState);
         long nowInSeconds = options.getNowInSeconds(queryState);
-        for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime))
+        for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, requestTime, false))
             mutation.apply();
         return null;
     }
@@ -825,19 +826,20 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                    boolean local,
                                                    long timestamp,
                                                    long nowInSeconds,
-                                                   Dispatcher.RequestTime requestTime)
+                                                   Dispatcher.RequestTime requestTime,
+                                                   boolean constructingAccordBaseUpdate)
     {
         List<ByteBuffer> keys = buildPartitionKeyNames(options, state);
         HashMultiset<ByteBuffer> perPartitionKeyCounts = HashMultiset.create(keys);
         SingleTableUpdatesCollector collector = new SingleTableUpdatesCollector(metadata, updatedColumns, perPartitionKeyCounts);
-        addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime);
+        addUpdates(collector, keys, state, options, local, timestamp, nowInSeconds, requestTime, constructingAccordBaseUpdate);
         return collector.toMutations(state);
     }
 
     @VisibleForTesting
     public PartitionUpdate getTxnUpdate(ClientState state, QueryOptions options)
     {
-        List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, new Dispatcher.RequestTime(0, 0));
+        List<? extends IMutation> mutations = getMutations(state, options, false, 0, 0, new Dispatcher.RequestTime(0, 0), true);
         if (mutations.size() != 1)
             throw new IllegalArgumentException("When running withing a transaction, modification statements may only mutate a single partition");
         return Iterables.getOnlyElement(mutations.get(0).getPartitionUpdates());
@@ -900,7 +902,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                           boolean local,
                           long timestamp,
                           long nowInSeconds,
-                          Dispatcher.RequestTime requestTime)
+                          Dispatcher.RequestTime requestTime,
+                          boolean constructingAccordBaseUpdate)
     {
         if (hasSlices())
         {
@@ -918,7 +921,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                            local,
                                                            timestamp,
                                                            nowInSeconds,
-                                                           requestTime);
+                                                           requestTime,
+                                                           constructingAccordBaseUpdate);
             for (ByteBuffer key : keys)
             {
                 Validation.validateKey(metadata(), key);
@@ -938,7 +942,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             if (restrictions.hasClusteringColumnsRestrictions() && clusterings.isEmpty())
                 return;
 
-            UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime);
+            UpdateParameters params = makeUpdateParameters(keys, clusterings, state, options, local, timestamp, nowInSeconds, requestTime, constructingAccordBaseUpdate);
 
             for (ByteBuffer key : keys)
             {
@@ -975,7 +979,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   boolean local,
                                                   long timestamp,
                                                   long nowInSeconds,
-                                                  Dispatcher.RequestTime requestTime)
+                                                  Dispatcher.RequestTime requestTime,
+                                                  boolean constructingAccordBaseUpdate)
     {
         if (clusterings.contains(Clustering.STATIC_CLUSTERING))
             return makeUpdateParameters(keys,
@@ -986,7 +991,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                         local,
                                         timestamp,
                                         nowInSeconds,
-                                        requestTime);
+                                        requestTime,
+                                        constructingAccordBaseUpdate);
 
         return makeUpdateParameters(keys,
                                     new ClusteringIndexNamesFilter(clusterings, false),
@@ -996,7 +1002,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                     local,
                                     timestamp,
                                     nowInSeconds,
-                                    requestTime);
+                                    requestTime,
+                                    constructingAccordBaseUpdate);
     }
 
     private UpdateParameters makeUpdateParameters(Collection<ByteBuffer> keys,
@@ -1007,7 +1014,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                                   boolean local,
                                                   long timestamp,
                                                   long nowInSeconds,
-                                                  Dispatcher.RequestTime requestTime)
+                                                  Dispatcher.RequestTime requestTime,
+                                                  boolean constructingAccordBaseUpdate)
     {
         // Some lists operation requires reading
         Map<DecoratedKey, Partition> lists =
@@ -1025,7 +1033,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                     getTimestamp(timestamp, options),
                                     nowInSeconds,
                                     getTimeToLive(options),
-                                    lists);
+                                    lists,
+                                    constructingAccordBaseUpdate);
     }
 
     public static abstract class Parsed extends QualifiedStatement

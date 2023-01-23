@@ -36,6 +36,7 @@ public class CassandraAuthorizerTest extends CQLTester
     @BeforeClass
     public static void setupAuth()
     {
+        // This runs after the base class sets up Cassandra and might not even work
         CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
         requireAuthentication();
         requireNetwork();

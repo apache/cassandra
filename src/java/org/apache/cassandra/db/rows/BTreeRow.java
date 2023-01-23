@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
-
 import java.util.AbstractCollection;
 import java.util.Arrays;
 import java.util.Collection;
@@ -28,9 +27,10 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
+import javax.annotation.Nonnull;
 
+import com.google.common.base.Function;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
@@ -40,15 +40,13 @@ import org.apache.cassandra.db.Columns;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
-
-import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.DroppedColumn;
-
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.BiLongAccumulator;
 import org.apache.cassandra.utils.BulkIterator;
@@ -443,7 +441,7 @@ public class BTreeRow extends AbstractRow
     }
 
     @Override
-    public Row updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
+    public Row updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime)
     {
         LivenessInfo newInfo = primaryKeyLivenessInfo.isEmpty() ? primaryKeyLivenessInfo : primaryKeyLivenessInfo.withUpdatedTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime);
         // If the deletion is shadowable and the row has a timestamp, we'll forced the deletion timestamp to be less than the row one, so we
@@ -451,7 +449,7 @@ public class BTreeRow extends AbstractRow
         Deletion newDeletion = deletion.isLive() || (deletion.isShadowable() && !primaryKeyLivenessInfo.isEmpty())
                                ? Deletion.LIVE
                                : new Deletion(DeletionTime.build(newTimestamp - 1, newLocalDeletionTime), deletion.isShadowable());
-        return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateAllTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime));
+        return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime));
     }
 
     public Row withRowDeletion(DeletionTime newDeletion)

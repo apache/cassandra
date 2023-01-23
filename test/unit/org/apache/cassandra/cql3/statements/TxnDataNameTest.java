@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.cql3.statements;
 
-import org.apache.cassandra.service.accord.txn.TxnDataName;
 import org.junit.Test;
 
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.service.accord.txn.TxnDataName;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.Generators;
 import org.assertj.core.api.Assertions;
 import org.quicktheories.core.Gen;
@@ -62,6 +63,7 @@ public class TxnDataNameTest
                 case USER: return TxnDataName.user(symbolGen.generate(rnd));
                 case RETURNING: return TxnDataName.returning();
                 case AUTO_READ: return new TxnDataName(kind, symbolGen.generate(rnd), symbolGen.generate(rnd), symbolGen.generate(rnd));
+                case CAS_READ: return TxnRead.CAS_READ;
                 default: throw new IllegalArgumentException("Unknown kind: " + kind);
             }
         };

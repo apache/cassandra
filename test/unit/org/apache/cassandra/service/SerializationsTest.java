@@ -26,9 +26,6 @@ import java.util.List;
 import java.util.UUID;
 
 import com.google.common.collect.Lists;
-
-import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -41,13 +38,19 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.repair.Validator;
-import org.apache.cassandra.repair.messages.*;
+import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.repair.messages.SyncResponse;
+import org.apache.cassandra.repair.messages.ValidationRequest;
+import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -61,6 +64,8 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.TimeUUID;
+
+import static java.util.Collections.emptyList;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
@@ -217,12 +222,12 @@ public class SerializationsTest extends AbstractSerializationsTester
         // sync success
         List<SessionSummary> summaries = new ArrayList<>();
         summaries.add(new SessionSummary(src, dest,
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), 5, 100)),
-                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), 500, 10))
+                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), emptyList(), 5, 100)),
+                                         Lists.newArrayList(new StreamSummary(TableId.fromUUID(UUID.randomUUID()), emptyList(), 500, 10))
         ));
         SyncResponse success = new SyncResponse(DESC, src, dest, true, summaries);
         // sync fail
-        SyncResponse fail = new SyncResponse(DESC, src, dest, false, Collections.emptyList());
+        SyncResponse fail = new SyncResponse(DESC, src, dest, false, emptyList());
 
         testRepairMessageWrite("service.SyncComplete.bin", SyncResponse.serializer, success, fail);
     }

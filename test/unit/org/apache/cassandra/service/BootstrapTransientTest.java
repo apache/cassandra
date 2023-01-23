@@ -30,6 +30,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseOrderPreservingPartitioner;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -63,7 +66,9 @@ import static org.apache.cassandra.service.StorageServiceTest.assertMultimapEqua
  * is used to calculate the endpoints to fetch from and check they are alive for both RangeRelocator (move) and
  * bootstrap (RangeRelocator).
  */
-public class BootstrapTransientTest
+@DDDaemonInitialization
+@UseOrderPreservingPartitioner
+public class BootstrapTransientTest extends CassandraTestBase
 {
     static final String KEYSPACE = "TestKeyspace";
     static InetAddressAndPort address02;

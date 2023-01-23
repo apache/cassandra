@@ -22,8 +22,8 @@ import java.io.IOException;
 
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.ClusterSimulation;
+import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -68,6 +68,11 @@ class PaxosClusterSimulation extends ClusterSimulation<PaxosSimulation> implemen
             RandomSource random = randomSupplier.get();
             random.reset(seed);
             return new PaxosClusterSimulation(random, seed, uniqueNum, this);
+        }
+
+        public String lwtStrategy()
+        {
+            return lwtStrategy;
         }
     }
 

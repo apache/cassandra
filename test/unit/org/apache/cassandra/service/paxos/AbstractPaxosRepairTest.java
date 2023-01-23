@@ -51,7 +51,7 @@ public class AbstractPaxosRepairTest
     {
         public PaxosTestRepair()
         {
-            super(Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1)), null);
+            super(Murmur3Partitioner.instance.decorateKey(ByteBufferUtil.bytes(1)), null, -1);
         }
 
         public State restart(State state, long waitUntil)

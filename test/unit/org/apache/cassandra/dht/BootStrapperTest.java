@@ -32,6 +32,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.PrepareServerNoRegister;
+import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -44,7 +47,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -56,18 +58,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-
-public class BootStrapperTest
+@UseMurmur3Partitioner
+@PrepareServerNoRegister
+public class BootStrapperTest extends CassandraTestBase
 {
-    static IPartitioner oldPartitioner;
     static Predicate<Replica> originalAlivePredicate = RangeStreamer.ALIVE_PREDICATE;
 
     @BeforeClass
     public static void setup() throws ConfigurationException
     {
-        DatabaseDescriptor.daemonInitialization();
-        oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        ServerTestUtils.prepareServerNoRegister();
         SchemaLoader.startGossiper();
         SchemaLoader.schemaDefinition("BootStrapperTest");
         RangeStreamer.ALIVE_PREDICATE = Predicates.alwaysTrue();
@@ -77,7 +76,6 @@ public class BootStrapperTest
     @AfterClass
     public static void tearDown()
     {
-        DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
         RangeStreamer.ALIVE_PREDICATE = originalAlivePredicate;
     }
 

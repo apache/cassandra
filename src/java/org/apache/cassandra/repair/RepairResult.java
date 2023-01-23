@@ -19,6 +19,8 @@ package org.apache.cassandra.repair;
 
 import java.util.List;
 
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationRepairResult;
+
 /**
  * RepairJob's result
  */
@@ -26,10 +28,12 @@ public class RepairResult
 {
     public final RepairJobDesc desc;
     public final List<SyncStat> stats;
+    public final ConsensusMigrationRepairResult consensusMigrationRepairResult;
 
-    public RepairResult(RepairJobDesc desc, List<SyncStat> stats)
+    public RepairResult(RepairJobDesc desc, List<SyncStat> stats, ConsensusMigrationRepairResult consensusMigrationRepairResult)
     {
         this.desc = desc;
         this.stats = stats;
+        this.consensusMigrationRepairResult = consensusMigrationRepairResult;
     }
 }

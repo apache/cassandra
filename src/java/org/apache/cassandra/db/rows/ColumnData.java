@@ -18,13 +18,16 @@
 package org.apache.cassandra.db.rows;
 
 import java.util.Comparator;
+import javax.annotation.Nonnull;
+
+import com.google.common.base.Function;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.db.Digest;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
@@ -284,7 +287,19 @@ public abstract class ColumnData implements IMeasurableMemory
      * This exists for the Paxos path, see {@link PartitionUpdate#updateAllTimestamp} for additional details.
      */
     public abstract ColumnData updateAllTimestamp(long newTimestamp);
-    public abstract ColumnData updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime);
+
+    /**
+     * @param cellToMaybeNewListPath If the cell is a list append cell a new cell path is returned generated based on the Accord executeAt timestamp
+     */
+    public abstract ColumnData updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime);
+
+    /**
+     * List paths are time UUIDs that increment for each item in the list and for Accord and Paxos
+     * should be based on the transaction's ballot/timestamp.
+     *
+     * @param maybeNewPath If this cell is a list append for a non-frozen list (multi-cell) then it will be new path generated using the executeAt timestamp, otherwise it will be the existing path
+     */
+    public abstract ColumnData updateAllTimesWithNewCellPathForComplexColumnData(@Nonnull CellPath maybeNewPath, long newTimestamp, int newLocalDeletionTime);
 
     public abstract ColumnData markCounterLocalToBeCleared();
 

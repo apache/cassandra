@@ -42,6 +42,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.SchemaLoaderPrepareServer;
+import org.apache.cassandra.CassandraTestBase.UseByteOrderedPartitioner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -53,15 +56,12 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.AbstractStrategyHolder.GroupedSSTableContainer;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableDeletingNotification;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -73,27 +73,27 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class CompactionStrategyManagerTest
+/**
+ * We use byte ordered partitioner in this test to be able to easily infer an SSTable
+ * disk assignment based on its generation - See {@link this#getSSTableIndex(Integer[], SSTableReader)}
+ */
+@SchemaLoaderPrepareServer
+@UseByteOrderedPartitioner
+public class CompactionStrategyManagerTest extends CassandraTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionStrategyManagerTest.class);
 
     private static final String KS_PREFIX = "Keyspace1";
     private static final String TABLE_PREFIX = "CF_STANDARD";
 
-    private static IPartitioner originalPartitioner;
     private static boolean backups;
 
     @BeforeClass
     public static void beforeClass()
     {
-        SchemaLoader.prepareServer();
         backups = DatabaseDescriptor.isIncrementalBackupsEnabled();
         DatabaseDescriptor.setIncrementalBackupsEnabled(false);
-        /**
-         * We use byte ordered partitioner in this test to be able to easily infer an SSTable
-         * disk assignment based on its generation - See {@link this#getSSTableIndex(Integer[], SSTableReader)}
-         */
-        originalPartitioner = StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+
         SchemaLoader.createKeyspace(KS_PREFIX,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KS_PREFIX, TABLE_PREFIX)
@@ -110,7 +110,6 @@ public class CompactionStrategyManagerTest
     @AfterClass
     public static void afterClass()
     {
-        DatabaseDescriptor.setPartitionerUnsafe(originalPartitioner);
         DatabaseDescriptor.setIncrementalBackupsEnabled(backups);
     }
 

@@ -152,6 +152,7 @@ public class ClusterMetadataTestHelper
                                    AccordKeyspaces.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
+                                   null,
                                    ImmutableMap.of());
     }
 
@@ -166,6 +167,7 @@ public class ClusterMetadataTestHelper
                                    AccordKeyspaces.EMPTY,
                                    null,
                                    null,
+                                   null,
                                    ImmutableMap.of());
     }
 
@@ -178,6 +180,7 @@ public class ClusterMetadataTestHelper
                                    null,
                                    DataPlacements.empty(),
                                    AccordKeyspaces.EMPTY,
+                                   null,
                                    null,
                                    null,
                                    ImmutableMap.of());

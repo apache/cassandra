@@ -35,7 +35,6 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.RegularAndStaticColumns;
-
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.rows.CellPath;
@@ -95,7 +94,7 @@ public class ColumnFilterTest
         DatabaseDescriptor.setSeedProvider(Arrays::asList);
         DatabaseDescriptor.setEndpointSnitch(new SimpleSnitch());
         DatabaseDescriptor.setDefaultFailureDetector();
-        DatabaseDescriptor.setPartitionerUnsafe(new Murmur3Partitioner());
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
     @Before

@@ -24,11 +24,11 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import accord.api.Data;
-import accord.local.SafeCommandStore;
 import accord.primitives.Timestamp;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -39,10 +39,17 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.metrics.AccordClientRequestMetrics;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
@@ -111,9 +118,24 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         return key;
     }
 
-    public AsyncChain<Data> read(boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
+    public AsyncChain<Data> read(boolean isForWriteTxn, Timestamp executeAt)
     {
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) get();
+        DecoratedKey key = command.partitionKey();
+        TableId tableId = command.metadata().id;
+        AccordClientRequestMetrics metrics = isForWriteTxn ? accordWriteMetrics : accordReadMetrics;
+        TableMigrationState tms = ConsensusTableMigrationState.getTableMigrationState(tableId);
+
+        // This should only rarely occur when coordinators start a transaction in a migrating range
+        // because they haven't yet updated their cluster metadata.
+        // It would be harmless to do the read, but we can respond faster skipping it
+        // and get the transaction on the correct protocol
+        if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(tms, key))
+        {
+            metrics.migrationSkippedReads.mark();
+            return AsyncChains.success(TxnData.emptyPartition(name, command));
+        }
+
         // TODO (required, safety): before release, double check reasoning that this is safe
 //        AccordCommandsForKey cfk = ((SafeAccordCommandStore)safeStore).commandsForKey(key);
 //        int nowInSeconds = cfk.nowInSecondsFor(executeAt, isForWriteTxn);
@@ -121,25 +143,29 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         // this simply looks like the transaction witnessed TTL'd data and the data then expired
         // immediately after the transaction executed, and this simplifies things a great deal
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
+        return performLocalRead(command, nowInSeconds);
+    }
 
+    private AsyncChain<Data> performLocalRead(SinglePartitionReadCommand command, int nowInSeconds)
+    {
         return AsyncChains.ofCallable(Stage.READ.executor(), () ->
-        {
-            SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
+                     {
+                         SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
 
-            try (ReadExecutionController controller = read.executionController();
-                 UnfilteredPartitionIterator partition = read.executeLocally(controller);
-                 PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec()))
-            {
-                TxnData result = new TxnData();
-                if (iterator.hasNext())
-                {
-                    FilteredPartition filtered = FilteredPartition.create(iterator.next());
-                    if (filtered.hasRows() || read.selectsFullPartition())
-                        result.put(name, filtered);
-                }
-                return result;
-            }
-        });
+                         try (ReadExecutionController controller = read.executionController();
+                              UnfilteredPartitionIterator partition = read.executeLocally(controller);
+                              PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec()))
+                         {
+                             TxnData result = new TxnData();
+                             if (iterator.hasNext())
+                             {
+                                 FilteredPartition filtered = FilteredPartition.create(iterator.next());
+                                 if (filtered.hasRows() || read.selectsFullPartition())
+                                     result.put(name, filtered);
+                             }
+                             return result;
+                         }
+                     });
     }
 
     static final IVersionedSerializer<TxnNamedRead> serializer = new IVersionedSerializer<TxnNamedRead>()

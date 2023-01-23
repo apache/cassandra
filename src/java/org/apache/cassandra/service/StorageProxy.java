@@ -39,8 +39,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -90,8 +91,8 @@ import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.exceptions.ReadAbortException;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
-import org.apache.cassandra.exceptions.RequestFailureException;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RequestFailureException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteFailureException;
@@ -128,6 +129,8 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.ContentionStrategy;
@@ -155,10 +158,10 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.Iterables.concat;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.apache.cassandra.config.Config.LegacyPaxosStrategy.accord;
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
@@ -177,6 +180,11 @@ import static org.apache.cassandra.net.Verb.PAXOS_PROPOSE_REQ;
 import static org.apache.cassandra.net.Verb.SCHEMA_VERSION_REQ;
 import static org.apache.cassandra.net.Verb.TRUNCATE_REQ;
 import static org.apache.cassandra.service.BatchlogResponseHandler.BatchlogCleanup;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.RETRY_NEW_PROTOCOL;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.casResult;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.serialReadResult;
+import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
+import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.LOCAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.nextBallot;
@@ -320,6 +328,7 @@ public class StorageProxy implements StorageProxyMBean
                                   Dispatcher.RequestTime requestTime)
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException, CasWriteUnknownResultException
     {
+        TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
         if (DatabaseDescriptor.getPartitionDenylistEnabled() && DatabaseDescriptor.getDenylistWritesEnabled() && !partitionDenylist.isKeyPermitted(keyspaceName, cfName, key.getKey()))
         {
             denylistMetrics.incrementWritesRejected();
@@ -327,34 +336,57 @@ public class StorageProxy implements StorageProxyMBean
                                                             key, keyspaceName, cfName));
         }
 
-        if (DatabaseDescriptor.getLegacyPaxosStrategy() == accord)
+        ConsensusAttemptResult lastAttemptResult;
+        do
         {
-            TxnData data = AccordService.instance().coordinate(request.toAccordTxn(clientState, nowInSeconds), consistencyForPaxos);
-            return request.toCasResult(data);
-        }
-        else
-        {
-            return (Paxos.useV2() || keyspaceName.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
-                   ? Paxos.cas(key, request, consistencyForPaxos, consistencyForCommit, clientState)
-                   : legacyCas(keyspaceName, cfName, key, request, consistencyForPaxos, consistencyForCommit, clientState, nowInSeconds, requestTime);
-        }
+            ConsensusRoutingDecision decision = consensusRouting(metadata, key, consistencyForPaxos, requestTime, true);
+            switch (decision)
+            {
+                case paxosV2:
+                    lastAttemptResult = Paxos.cas(key,
+                                                  request,
+                                                  consistencyForPaxos,
+                                                  consistencyForCommit,
+                                                  clientState,
+                                                  requestTime);
+                    break;
+                case paxosV1:
+                    lastAttemptResult = legacyCas(metadata,
+                                                  key,
+                                                  request,
+                                                  consistencyForPaxos,
+                                                  consistencyForCommit,
+                                                  clientState,
+                                                  nowInSeconds,
+                                                  requestTime);
+                    break;
+                case accord:
+                    TxnResult txnResult = AccordService.instance().coordinate(request.toAccordTxn(consistencyForPaxos,
+                                                                                                  clientState,
+                                                                                                  nowInSeconds),
+                                                                              consistencyForPaxos,
+                                                                              requestTime);
+                    lastAttemptResult = request.toCasResult(txnResult);
+                    break;
+                default:
+                    throw new IllegalStateException("Unsupported consensus " + decision);
+            }
+        } while (lastAttemptResult.shouldRetryOnNewConsensusProtocol);
+        return lastAttemptResult.casResult;
     }
 
-    public static RowIterator legacyCas(String keyspaceName,
-                                        String cfName,
-                                        DecoratedKey key,
-                                        CASRequest request,
-                                        ConsistencyLevel consistencyForPaxos,
-                                        ConsistencyLevel consistencyForCommit,
-                                        ClientState clientState,
-                                        long nowInSeconds,
-                                        Dispatcher.RequestTime requestTime)
+    private static ConsensusAttemptResult legacyCas(TableMetadata metadata,
+                                                    DecoratedKey key,
+                                                    CASRequest request,
+                                                    ConsistencyLevel consistencyForPaxos,
+                                                    ConsistencyLevel consistencyForCommit,
+                                                    ClientState clientState,
+                                                    long nowInSeconds,
+                                                    Dispatcher.RequestTime requestTime)
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
         try
         {
-            TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
-
             Function<Ballot, Pair<PartitionUpdate, RowIterator>> updateProposer = ballot ->
             {
                 // read the current values and check they validate the conditions
@@ -397,15 +429,14 @@ public class StorageProxy implements StorageProxyMBean
                 return Pair.create(updates, null);
             };
 
-            return doPaxos(metadata,
-                           key,
-                           consistencyForPaxos,
-                           consistencyForCommit,
-                           consistencyForCommit,
-                           requestTime,
-                           casWriteMetrics,
-                           updateProposer);
-
+            return casResult(doPaxos(metadata,
+                                     key,
+                                     consistencyForPaxos,
+                                     consistencyForCommit,
+                                     consistencyForCommit,
+                                     requestTime,
+                                     casWriteMetrics,
+                                     updateProposer));
         }
         catch (CasWriteUnknownResultException e)
         {
@@ -1585,7 +1616,7 @@ public class StorageProxy implements StorageProxyMBean
 
         if (insertLocal)
         {
-            Preconditions.checkNotNull(localReplica);
+            checkNotNull(localReplica);
             performLocally(stage, localReplica, mutation::apply, responseHandler, mutation, requestTime);
         }
 
@@ -1864,43 +1895,62 @@ public class StorageProxy implements StorageProxyMBean
         return metadata.myNodeState() == NodeState.JOINED;
     }
 
+    private static ConsensusRoutingDecision consensusRouting(TableMetadata metadata, DecoratedKey partitionKey, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime, boolean isForWrite)
+    {
+        if (metadata.keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
+            return ConsensusRoutingDecision.paxosV2;
+        return ConsensusRequestRouter.instance.routeAndMaybeMigrate(partitionKey,
+                                                                    metadata.id,
+                                                                    consistencyLevel,
+                                                                    requestTime,
+                                                                    DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS),
+                                                                    isForWrite);
+    }
+
     private static PartitionIterator readWithConsensus(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
-        // TCM explicitly relies on paxos and doesn't work with accord
-        if (DatabaseDescriptor.getLegacyPaxosStrategy() == accord && !group.metadata().keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
+        ConsensusAttemptResult lastResult;
+        do
         {
-            return readWithAccord(group, consistencyLevel);
-        }
-        else
-        {
-            return readWithPaxos(group, consistencyLevel, requestTime);
-        }
+            SinglePartitionReadCommand command = group.queries.get(0);
+            ConsensusRoutingDecision decision = consensusRouting(group.metadata(), command.partitionKey(), consistencyLevel, requestTime, false);
+            switch (decision)
+            {
+                case paxosV2:
+                    lastResult = Paxos.read(group, consistencyLevel, requestTime);
+                    break;
+                case paxosV1:
+                    lastResult = legacyReadWithPaxos(group, consistencyLevel, requestTime);
+                    break;
+                case accord:
+                    lastResult = readWithAccord(group, consistencyLevel, requestTime);
+                    break;
+                default:
+                    throw new IllegalStateException("Unsupported consensus " + decision);
+            }
+        } while (lastResult.shouldRetryOnNewConsensusProtocol);
+        return lastResult.serialReadResult;
     }
 
-    private static PartitionIterator readWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
-    throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
-    {
-        return (Paxos.useV2() || group.metadata().keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME))
-                ? Paxos.read(group, consistencyLevel, requestTime)
-                : legacyReadWithPaxos(group, consistencyLevel, requestTime);
-    }
-
-    private static PartitionIterator readWithAccord(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel)
+    private static ConsensusAttemptResult readWithAccord(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     {
         if (group.queries.size() > 1)
             throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one partition at a time");
-        TxnRead read = TxnRead.createSerialRead(group.queries.get(0));
+        TxnRead read = TxnRead.createSerialRead(group.queries.get(0), consistencyLevel);
         Txn txn = new Txn.InMemory(read.keys(), read, TxnQuery.ALL);
-        TxnData data = AccordService.instance().coordinate(txn, consistencyLevel);
+        TxnResult txnResult = AccordService.instance().coordinate(txn, consistencyLevel, requestTime);
+        if (txnResult.kind() == retry_new_protocol)
+            return RETRY_NEW_PROTOCOL;
+        TxnData data = (TxnData)txnResult;
         FilteredPartition partition = data.get(TxnRead.SERIAL_READ);
         if (partition != null)
-            return PartitionIterators.singletonIterator(partition.rowIterator());
+            return serialReadResult(PartitionIterators.singletonIterator(partition.rowIterator()));
         else
-            return EmptyIterators.partition();
+            return serialReadResult(EmptyIterators.partition());
     }
 
-    private static PartitionIterator legacyReadWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    private static ConsensusAttemptResult legacyReadWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
         long start = nanoTime();
@@ -1913,7 +1963,6 @@ public class StorageProxy implements StorageProxyMBean
         // calculate the blockFor before repair any paxos round to avoid RS being altered in between.
         int blockForRead = consistencyLevel.blockFor(Keyspace.open(metadata.keyspace).getReplicationStrategy());
 
-        PartitionIterator result = null;
         try
         {
             final ConsistencyLevel consistencyForReplayCommitsOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
@@ -1950,7 +1999,7 @@ public class StorageProxy implements StorageProxyMBean
                 throw new ReadFailureException(consistencyLevel, e.received, e.blockFor, false, e.failureReasonByEndpoint);
             }
 
-            result = fetchRows(group.queries, consistencyForReplayCommitsOrFetch, requestTime);
+            return serialReadResult(fetchRows(group.queries, consistencyForReplayCommitsOrFetch, requestTime));
         }
         catch (UnavailableException e)
         {
@@ -1994,8 +2043,6 @@ public class StorageProxy implements StorageProxyMBean
             readMetricsForLevel(consistencyLevel).addNano(latency);
             Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
         }
-
-        return result;
     }
 
     @SuppressWarnings("resource")
@@ -2997,6 +3044,37 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
+    public static class ConsensusAttemptResult
+    {
+        public static final ConsensusAttemptResult RETRY_NEW_PROTOCOL = new ConsensusAttemptResult(null, null, true);
+
+        @Nullable
+        RowIterator casResult;
+
+        @Nonnull
+        PartitionIterator serialReadResult;
+
+        boolean shouldRetryOnNewConsensusProtocol;
+
+        private ConsensusAttemptResult(@Nullable RowIterator casResult, @Nullable PartitionIterator serialReadResult, boolean shouldRetryOnNewConsensusProtocol)
+        {
+            this.casResult = casResult;
+            this.serialReadResult = serialReadResult;
+            this.shouldRetryOnNewConsensusProtocol = shouldRetryOnNewConsensusProtocol;
+        }
+
+        public static ConsensusAttemptResult serialReadResult(@Nonnull PartitionIterator serialReadResult)
+        {
+            checkNotNull(serialReadResult, "serialReadResult should not be null");
+            return new ConsensusAttemptResult(null, serialReadResult, false);
+        }
+
+        public static ConsensusAttemptResult casResult(@Nullable RowIterator casResult)
+        {
+            return new ConsensusAttemptResult(casResult, null, false);
+        }
+    }
+
     @Override
     public boolean getSnapshotOnDuplicateRowDetectionEnabled()
     {
@@ -3183,7 +3261,7 @@ public class StorageProxy implements StorageProxyMBean
     @Override
     public void setPaxosVariant(String variant)
     {
-        Preconditions.checkNotNull(variant);
+        checkNotNull(variant);
         Paxos.setPaxosVariant(Config.PaxosVariant.valueOf(variant));
     }
 

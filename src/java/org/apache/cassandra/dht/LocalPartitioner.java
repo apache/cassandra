@@ -21,12 +21,13 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.function.Function;
 
 import accord.primitives.Ranges;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -138,6 +139,21 @@ public class LocalPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering()
     {
         return comparator;
+    }
+
+    @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LocalPartitioner that = (LocalPartitioner) o;
+        return comparator.equals(that.comparator) && tokenFactory.equals(that.tokenFactory);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(comparator, tokenFactory);
     }
 
     public class LocalToken extends ComparableObjectToken<ByteBuffer>

@@ -21,10 +21,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
-import org.apache.cassandra.streaming.StreamSession;
 
 /**
  * StreamMessage is an abstract base class that every messages in streaming protocol inherit.
@@ -44,16 +45,16 @@ public abstract class StreamMessage
         return 1 + message.type.outSerializer.serializedSize(message, version);
     }
 
-    public static StreamMessage deserialize(DataInputPlus in, int version) throws IOException
+    public static StreamMessage deserialize(DataInputPlus in, IPartitioner partitioner, int version) throws IOException
     {
         Type type = Type.lookupById(in.readByte());
-        return type.inSerializer.deserialize(in, version);
+        return type.inSerializer.deserialize(in, partitioner, version);
     }
 
     /** StreamMessage serializer */
     public static interface Serializer<V extends StreamMessage>
     {
-        V deserialize(DataInputPlus in, int version) throws IOException;
+        V deserialize(DataInputPlus in, IPartitioner partitioner, int version) throws IOException;
         void serialize(V message, StreamingDataOutputPlus out, int version, StreamSession session) throws IOException;
         long serializedSize(V message, int version) throws IOException;
     }

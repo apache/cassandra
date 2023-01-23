@@ -54,6 +54,7 @@ import org.apache.cassandra.streaming.StreamingState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.util.Throwables;
 
+import static java.util.Collections.emptyList;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class StreamingVirtualTableTest extends CQLTester
@@ -89,15 +90,15 @@ public class StreamingVirtualTableTest extends CQLTester
     {
         StreamingState state = stream(true);
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.id(), true, "Repair", Collections.emptyList(), "init", 0F, new Date(state.lastUpdatedAtMillis()), null, null });
+                   new Object[] { state.id(), true, "Repair", emptyList(), "init", 0F, new Date(state.lastUpdatedAtMillis()), null, null });
 
         state.phase.start();
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.id(), true, "Repair", Collections.emptyList(), "start", 0F, new Date(state.lastUpdatedAtMillis()), null, null });
+                   new Object[] { state.id(), true, "Repair", emptyList(), "start", 0F, new Date(state.lastUpdatedAtMillis()), null, null });
 
-        state.handleStreamEvent(new StreamEvent.SessionPreparedEvent(state.id(), new SessionInfo(PEER2, 1, PEER1, Collections.emptyList(), Collections.emptyList(), StreamSession.State.PREPARING, null), StreamSession.PrepareDirection.ACK));
+        state.handleStreamEvent(new StreamEvent.SessionPreparedEvent(state.id(), new SessionInfo(PEER2, 1, PEER1, emptyList(), emptyList(), StreamSession.State.PREPARING, null), StreamSession.PrepareDirection.ACK));
 
-        state.onSuccess(new StreamState(state.id(), StreamOperation.REPAIR, ImmutableSet.of(new SessionInfo(PEER2, 1, PEER1, Collections.emptyList(), Collections.emptyList(), StreamSession.State.COMPLETE, null))));
+        state.onSuccess(new StreamState(state.id(), StreamOperation.REPAIR, ImmutableSet.of(new SessionInfo(PEER2, 1, PEER1, emptyList(), emptyList(), StreamSession.State.COMPLETE, null))));
         assertRows(execute(t("select id, follower, operation, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
                    new Object[] { state.id(), true, "Repair", Arrays.asList(address(127, 0, 0, 2).toString()), "success", 100F, new Date(state.lastUpdatedAtMillis()), null, null });
     }
@@ -221,7 +222,7 @@ public class StreamingVirtualTableTest extends CQLTester
     private static StreamSummary streamSummary()
     {
         int files = ThreadLocalRandom.current().nextInt(2, 10);
-        return new StreamSummary(TableId.fromUUID(UUID.randomUUID()), files, files * 1024);
+        return new StreamSummary(TableId.fromUUID(UUID.randomUUID()), emptyList(), files, files * 1024);
     }
 
     @Test
@@ -231,7 +232,7 @@ public class StreamingVirtualTableTest extends CQLTester
         RuntimeException t = new RuntimeException("You failed!");
         state.onFailure(t);
         assertRows(execute(t("select id, follower, peers, status, progress_percentage, last_updated_at, failure_cause, success_message from %s")),
-                   new Object[] { state.id(), true, Collections.emptyList(), "failure", 100F, new Date(state.lastUpdatedAtMillis()), Throwables.getStackTrace(t), null });
+                   new Object[] { state.id(), true, emptyList(), "failure", 100F, new Date(state.lastUpdatedAtMillis()), Throwables.getStackTrace(t), null });
     }
 
     private static String t(String query)

@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.service.accord;
 
-import java.util.Collections;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -27,7 +25,7 @@ import java.util.function.ToLongFunction;
 import com.google.common.primitives.Ints;
 
 import accord.local.Command.TransientListener;
-import accord.utils.DeterministicIdentitySet;
+import accord.local.Listeners;
 import accord.utils.IntrusiveLinkedListNode;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncResults.RunnableResult;
@@ -35,14 +33,14 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.service.accord.AccordCachingState.Status.UNINITIALIZED;
-import static org.apache.cassandra.service.accord.AccordCachingState.Status.LOADING;
-import static org.apache.cassandra.service.accord.AccordCachingState.Status.LOADED;
+import static org.apache.cassandra.service.accord.AccordCachingState.Status.EVICTED;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.FAILED_TO_LOAD;
+import static org.apache.cassandra.service.accord.AccordCachingState.Status.FAILED_TO_SAVE;
+import static org.apache.cassandra.service.accord.AccordCachingState.Status.LOADED;
+import static org.apache.cassandra.service.accord.AccordCachingState.Status.LOADING;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.MODIFIED;
 import static org.apache.cassandra.service.accord.AccordCachingState.Status.SAVING;
-import static org.apache.cassandra.service.accord.AccordCachingState.Status.FAILED_TO_SAVE;
-import static org.apache.cassandra.service.accord.AccordCachingState.Status.EVICTED;
+import static org.apache.cassandra.service.accord.AccordCachingState.Status.UNINITIALIZED;
 
 /**
  * Global (per CommandStore) state of a cached entity (Command or CommandsForKey).
@@ -61,7 +59,7 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
     /**
      * Transient listeners aren't meant to survive process restart, but must survive cache eviction.
      */
-    private Set<TransientListener> transientListeners;
+    private Listeners<TransientListener> transientListeners;
 
     public AccordCachingState(K key)
     {
@@ -140,7 +138,7 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
     public void addListener(TransientListener listener)
     {
         if (transientListeners == null)
-            transientListeners = new DeterministicIdentitySet<>();
+            transientListeners = new Listeners<>();
         transientListeners.add(listener);
     }
 
@@ -149,14 +147,14 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         return transientListeners != null && transientListeners.remove(listener);
     }
 
-    public void listeners(Set<TransientListener> listeners)
+    public void listeners(Listeners<TransientListener> listeners)
     {
         transientListeners = listeners;
     }
 
-    public Set<TransientListener> listeners()
+    public Listeners<TransientListener> listeners()
     {
-        return transientListeners == null ? Collections.emptySet() : transientListeners;
+        return transientListeners == null ? Listeners.EMPTY : transientListeners;
     }
 
     public boolean hasListeners()

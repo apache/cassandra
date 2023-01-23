@@ -23,6 +23,8 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
+
 import accord.api.Agent;
 import accord.api.EventsListener;
 import accord.api.Result;
@@ -32,16 +34,20 @@ import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
+import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.metrics.AccordMetrics;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+import static accord.primitives.Routable.Domain.Key;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
+import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.maybeSaveAccordKeyMigrationLocally;
 
 // TODO (expected): merge with AccordService
 public class AccordAgent implements Agent
@@ -79,6 +85,16 @@ public class AccordAgent implements Agent
     }
 
     @Override
+    public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges, @Nonnull Timestamp executeAt)
+    {
+        if (keysOrRanges.domain() == Key)
+        {
+            PartitionKey key = (PartitionKey)keysOrRanges.get(0);
+            maybeSaveAccordKeyMigrationLocally(key, Epoch.create(executeAt.epoch()));
+        }
+    }
+
+    @Override
     public void onUncaughtException(Throwable t)
     {
         // TODO: this
@@ -99,9 +115,9 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public Txn emptyTxn(Txn.Kind kind, Seekables<?, ?> keysOrRanges)
+    public Txn emptyTxn(Kind kind, Seekables<?, ?> seekables)
     {
-        return new Txn.InMemory(kind, keysOrRanges, TxnRead.EMPTY, TxnQuery.ALL, null);
+        return new Txn.InMemory(kind, seekables, TxnRead.EMPTY, TxnQuery.EMPTY, null);
     }
 
     @Override

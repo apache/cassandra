@@ -17,18 +17,19 @@
  */
 package org.apache.cassandra.streaming.messages;
 
-import java.io.*;
+import java.io.IOException;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 
 public class ReceivedMessage extends StreamMessage
 {
     public static Serializer<ReceivedMessage> serializer = new Serializer<ReceivedMessage>()
     {
-        public ReceivedMessage deserialize(DataInputPlus input, int version) throws IOException
+        public ReceivedMessage deserialize(DataInputPlus input, IPartitioner partitioner, int version) throws IOException
         {
             return new ReceivedMessage(TableId.deserialize(input), input.readInt());
         }

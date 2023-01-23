@@ -21,10 +21,8 @@ package org.apache.cassandra.service.paxos.cleanup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -55,6 +53,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_START_PREPARE_REQ;
@@ -186,6 +185,7 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
     public static IVerbHandler<Request> createVerbHandler(SharedContext ctx)
     {
         return in -> {
+            ClusterMetadataService.instance().fetchLogFromCMS(in.epoch());
             ColumnFamilyStore table = Schema.instance.getColumnFamilyStoreInstance(in.payload.tableId);
             // Note: pre-5.1 we would use gossip state included in the request payload to update topology
             // prior to cleanup. Topology is no longer derived from gossip state, so this has been removed.

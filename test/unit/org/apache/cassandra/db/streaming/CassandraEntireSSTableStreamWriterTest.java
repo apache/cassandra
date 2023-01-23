@@ -62,6 +62,7 @@ import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.util.Collections.emptyList;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -145,14 +146,14 @@ public class CassandraEntireSSTableStreamWriterTest
             CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
             writer.write(out);
 
-            session.prepareReceiving(new StreamSummary(sstable.metadata().id, 1, 5104));
+            session.prepareReceiving(new StreamSummary(sstable.metadata().id, emptyList(), 1, 5104));
 
             CassandraStreamHeader header =
             CassandraStreamHeader.builder()
                                  .withSSTableVersion(sstable.descriptor.version)
                                  .withSSTableLevel(0)
                                  .withEstimatedKeys(sstable.estimatedKeys())
-                                 .withSections(Collections.emptyList())
+                                 .withSections(emptyList())
                                  .withSerializationHeader(sstable.header.toComponent())
                                  .withComponentManifest(context.manifest())
                                  .isEntireSSTable(true)
@@ -208,7 +209,7 @@ public class CassandraEntireSSTableStreamWriterTest
         StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.BOOTSTRAP, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
 
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
-        streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED, null));
+        streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, emptyList(), emptyList(), StreamSession.State.INITIALIZED, null));
 
         StreamSession session = streamCoordinator.getOrCreateOutboundSession(peer);
         session.init(future);

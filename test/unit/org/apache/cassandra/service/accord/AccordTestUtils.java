@@ -227,7 +227,7 @@ public class AccordTestUtils
                             })
                             .reduce(null, TxnData::merge);
         return Pair.create(txn.execute(txnId, executeAt, readData),
-                           txn.query().compute(txnId, executeAt, readData, txn.read(), txn.update()));
+                           txn.query().compute(txnId, executeAt, txn.keys(), readData, txn.read(), txn.update()));
 
     }
 

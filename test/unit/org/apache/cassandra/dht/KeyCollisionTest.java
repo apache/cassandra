@@ -20,26 +20,26 @@ package org.apache.cassandra.dht;
 import java.math.BigInteger;
 import java.util.List;
 
-import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.SchemaLoaderPrepareServer;
+import org.apache.cassandra.CassandraTestBase.UseLengthPartitioner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Test cases where multiple keys collides, ie have the same token.
@@ -48,27 +48,19 @@ import org.apache.cassandra.utils.FBUtilities;
  * length partitioner that takes the length of the key as token, making
  * collision easy and predictable.
  */
-public class KeyCollisionTest
+@UseLengthPartitioner
+@SchemaLoaderPrepareServer
+public class KeyCollisionTest extends CassandraTestBase
 {
-    static IPartitioner oldPartitioner;
     private static final String KEYSPACE1 = "KeyCollisionTest1";
     private static final String CF = "Standard1";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        DatabaseDescriptor.daemonInitialization();
-        oldPartitioner = StorageService.instance.setPartitionerUnsafe(LengthPartitioner.instance);
-        SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF));
-    }
-
-    @AfterClass
-    public static void tearDown()
-    {
-        DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
     }
 
     @Test

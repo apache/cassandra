@@ -38,7 +38,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.service.accord.AccordSerializers.clusteringSerializer;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
@@ -54,7 +53,8 @@ public class TxnDataName implements Comparable<TxnDataName>
     {
         USER((byte) 1),
         RETURNING((byte) 2),
-        AUTO_READ((byte) 3);
+        AUTO_READ((byte) 3),
+        CAS_READ((byte) 4);
 
         private final byte value;
 
@@ -73,6 +73,8 @@ public class TxnDataName implements Comparable<TxnDataName>
                     return RETURNING;
                 case 3:
                     return AUTO_READ;
+                case 4:
+                    return CAS_READ;
                 default:
                     throw new IllegalArgumentException("Unknown kind: " + b);
             }
@@ -140,11 +142,6 @@ public class TxnDataName implements Comparable<TxnDataName>
     public List<String> getParts()
     {
         return Collections.unmodifiableList(Arrays.asList(parts));
-    }
-
-    public boolean isAutoRead()
-    {
-        return kind == Kind.AUTO_READ;
     }
 
     public DecoratedKey getDecoratedKey(TableMetadata metadata)

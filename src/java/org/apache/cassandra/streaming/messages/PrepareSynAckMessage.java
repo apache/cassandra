@@ -22,10 +22,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamSummary;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 
 public class PrepareSynAckMessage extends StreamMessage
 {
@@ -38,12 +39,12 @@ public class PrepareSynAckMessage extends StreamMessage
                 StreamSummary.serializer.serialize(summary, out, version);
         }
 
-        public PrepareSynAckMessage deserialize(DataInputPlus input, int version) throws IOException
+        public PrepareSynAckMessage deserialize(DataInputPlus input, IPartitioner partitioner, int version) throws IOException
         {
             PrepareSynAckMessage message = new PrepareSynAckMessage();
             int numSummaries = input.readInt();
             for (int i = 0; i < numSummaries; i++)
-                message.summaries.add(StreamSummary.serializer.deserialize(input, version));
+                message.summaries.add(StreamSummary.serializer.deserialize(input, partitioner, version));
             return message;
         }
 

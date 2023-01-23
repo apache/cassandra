@@ -49,6 +49,7 @@ public class CassandraOutgoingFile implements OutgoingStream
     private final boolean shouldStreamEntireSSTable;
     private final StreamOperation operation;
     private final CassandraStreamHeader header;
+    private final List<Range<Token>> ranges;
 
     public CassandraOutgoingFile(StreamOperation operation, Ref<SSTableReader> ref,
                                  List<SSTableReader.PartitionPositionBounds> sections, List<Range<Token>> normalizedRanges,
@@ -60,6 +61,7 @@ public class CassandraOutgoingFile implements OutgoingStream
         this.ref = ref;
         this.estimatedKeys = estimatedKeys;
         this.sections = sections;
+        this.ranges = normalizedRanges;
 
         SSTableReader sstable = ref.get();
 
@@ -129,6 +131,12 @@ public class CassandraOutgoingFile implements OutgoingStream
     public int getNumFiles()
     {
         return shouldStreamEntireSSTable ? header.componentManifest.components().size() : 1;
+    }
+
+    @Override
+    public List<Range<Token>> ranges()
+    {
+        return ranges;
     }
 
     @Override

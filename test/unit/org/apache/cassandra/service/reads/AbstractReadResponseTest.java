@@ -30,10 +30,12 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.BufferClusteringBound;
 import org.apache.cassandra.db.BufferClusteringBoundary;
@@ -66,7 +68,6 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -83,7 +84,9 @@ import static org.apache.cassandra.net.Verb.READ_REQ;
  * Base class for testing various components which deal with read responses
  */
 @Ignore
-public abstract class AbstractReadResponseTest
+@DDDaemonInitialization
+@UseMurmur3Partitioner
+public abstract class AbstractReadResponseTest extends CassandraTestBase
 {
     public static final String KEYSPACE1 = "DataResolverTest";
     public static final String KEYSPACE3 = "DataResolverTest3";
@@ -124,9 +127,6 @@ public abstract class AbstractReadResponseTest
     @BeforeClass
     public static void setupClass() throws Throwable
     {
-        DatabaseDescriptor.daemonInitialization();
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-
         TableMetadata.Builder builder1 =
         TableMetadata.builder(KEYSPACE1, CF_STANDARD)
                      .addPartitionKeyColumn("key", BytesType.instance)

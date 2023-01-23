@@ -27,16 +27,19 @@ public class NormalRepairTask extends AbstractRepairTask
 {
     private final TimeUUID parentSession;
     private final List<CommonRange> commonRanges;
+    private final boolean excludedDeadNodes;
     private final String[] cfnames;
 
     protected NormalRepairTask(RepairCoordinator coordinator,
                                TimeUUID parentSession,
                                List<CommonRange> commonRanges,
+                               boolean excludedDeadNodes,
                                String[] cfnames)
     {
         super(coordinator);
         this.parentSession = parentSession;
         this.commonRanges = commonRanges;
+        this.excludedDeadNodes = excludedDeadNodes;
         this.cfnames = cfnames;
     }
 
@@ -49,6 +52,6 @@ public class NormalRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor, Scheduler validationScheduler)
     {
-        return runRepair(parentSession, false, executor, validationScheduler, commonRanges, cfnames);
+        return runRepair(parentSession, false, executor, validationScheduler, commonRanges, excludedDeadNodes, cfnames);
     }
 }

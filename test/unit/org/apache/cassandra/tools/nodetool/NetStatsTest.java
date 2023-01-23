@@ -40,6 +40,7 @@ import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.util.Collections.emptyList;
 import static org.apache.cassandra.net.Verb.ECHO_REQ;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -111,7 +112,7 @@ public class NetStatsTest extends CQLTester
     @Test
     public void testHumanReadable() throws IOException
     {
-        List<StreamSummary> streamSummaries = Collections.singletonList(new StreamSummary(TableId.generate(), 1, 1024));
+        List<StreamSummary> streamSummaries = Collections.singletonList(new StreamSummary(TableId.generate(), emptyList(), 1, 1024));
         SessionInfo info = new SessionInfo(InetAddressAndPort.getLocalHost(),
                                            1,
                                            InetAddressAndPort.getLocalHost(),

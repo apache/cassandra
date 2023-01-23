@@ -242,6 +242,11 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         return unixMicros * 10 - (UUID_EPOCH_UNIX_MILLIS * 10000);
     }
 
+    public static long unixMicrosToMsb(long unixMicros)
+    {
+        return TimeUUID.rawTimestampToMsb(TimeUUID.unixMicrosToRawTimestamp(unixMicros));
+    }
+
     public static long msbToRawTimestamp(long msb)
     {
         assert (UUID_VERSION_BITS_IN_MSB & msb) == TIMESTAMP_UUID_VERSION_IN_MSB;

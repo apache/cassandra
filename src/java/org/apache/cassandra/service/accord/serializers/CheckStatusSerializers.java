@@ -173,7 +173,7 @@ public class CheckStatusSerializers
             size += KeySerializers.ranges.serializedSize(ok.truncated, version);
             size += CommandSerializers.status.serializedSize(ok.invalidIfNotAtLeast, version);
             size += CommandSerializers.saveStatus.serializedSize(ok.saveStatus, version);
-            size += CommandSerializers.saveStatus.serializedSize(ok.saveStatus, version);
+            size += CommandSerializers.saveStatus.serializedSize(ok.maxSaveStatus, version);
             size += CommandSerializers.ballot.serializedSize(ok.promised, version);
             size += CommandSerializers.ballot.serializedSize(ok.accepted, version);
             size += CommandSerializers.nullableTimestamp.serializedSize(ok.executeAt, version);

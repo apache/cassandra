@@ -28,38 +28,47 @@ import java.util.concurrent.ExecutionException;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
-import org.junit.*;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DisableMBeanRegistration;
+import org.apache.cassandra.CassandraTestBase.PrepareServerNoRegister;
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.ServerTestUtils.recreateCMS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class SimpleStrategyTest
+@PrepareServerNoRegister
+@DisableMBeanRegistration
+public class SimpleStrategyTest extends CassandraTestBase
 {
     public static final String KEYSPACE1 = "SimpleStrategyTest";
     public static final String MULTIDC = "MultiDCSimpleStrategyTest";
@@ -69,16 +78,9 @@ public class SimpleStrategyTest
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
     }
 
-    @BeforeClass
-    public static void defineSchema()
+    @Before
+    public void defineSchema()
     {
-        DatabaseDescriptor.daemonInitialization();
-    }
-
-    public static void withPartitioner(IPartitioner partitioner)
-    {
-        DatabaseDescriptor.setPartitionerUnsafe(partitioner);
-        ServerTestUtils.prepareServerNoRegister();
         recreateCMS();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1));
         SchemaLoader.createKeyspace(MULTIDC, KeyspaceParams.simple(3));
@@ -98,9 +100,10 @@ public class SimpleStrategyTest
     }
 
     @Test
+    @UseRandomPartitioner
     public void testBigIntegerEndpoints() throws UnknownHostException
     {
-        withPartitioner(RandomPartitioner.instance);
+        defineSchema();
         List<Token> endpointTokens = new ArrayList<>();
         List<Token> keyTokens = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
@@ -111,23 +114,24 @@ public class SimpleStrategyTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testStringEndpoints() throws UnknownHostException
     {
-        IPartitioner partitioner = OrderPreservingPartitioner.instance;
-        withPartitioner(partitioner);
+        defineSchema();
         List<Token> endpointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
         for (int i = 0; i < 5; i++) {
             endpointTokens.add(new StringToken(String.valueOf((char)('a' + i * 2))));
-            keyTokens.add(partitioner.getToken(ByteBufferUtil.bytes(String.valueOf((char) ('a' + i * 2 + 1)))));
+            keyTokens.add(OrderPreservingPartitioner.instance.getToken(ByteBufferUtil.bytes(String.valueOf((char) ('a' + i * 2 + 1)))));
         }
         verifyGetNaturalEndpoints(endpointTokens.toArray(new Token[0]), keyTokens.toArray(new Token[0]));
     }
 
     @Test
+    @UseMurmur3Partitioner
     public void testMultiDCSimpleStrategyEndpoints() throws UnknownHostException
     {
-        withPartitioner(Murmur3Partitioner.instance);
+        defineSchema();
         IEndpointSnitch snitch = new PropertyFileSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
 
@@ -194,9 +198,10 @@ public class SimpleStrategyTest
     }
 
     @Test
+    @UseRandomPartitioner
     public void testGetEndpointsDuringBootstrap() throws UnknownHostException, ExecutionException, InterruptedException
     {
-        withPartitioner(RandomPartitioner.instance);
+        defineSchema();
         // the token difference will be RING_SIZE * 2.
         final int RING_SIZE = 10;
 
@@ -272,9 +277,10 @@ public class SimpleStrategyTest
     }
 
     @Test
+    @UseMurmur3Partitioner
     public void transientReplica() throws Exception
     {
-        withPartitioner(Murmur3Partitioner.instance);
+        defineSchema();
         IEndpointSnitch snitch = new SimpleSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
 
@@ -315,9 +321,10 @@ public class SimpleStrategyTest
     public ExpectedException expectedEx = ExpectedException.none();
 
     @Test
+    @UseMurmur3Partitioner
     public void testSimpleStrategyThrowsConfigurationException() throws ConfigurationException, UnknownHostException
     {
-        withPartitioner(Murmur3Partitioner.instance);
+        defineSchema();
         expectedEx.expect(ConfigurationException.class);
         expectedEx.expectMessage("SimpleStrategy requires a replication_factor strategy option.");
 
@@ -340,9 +347,10 @@ public class SimpleStrategyTest
     }
     
     @Test
+    @UseMurmur3Partitioner
     public void shouldReturnNoEndpointsForEmptyRing()
     {
-        withPartitioner(Murmur3Partitioner.instance);
+        defineSchema();
 
         HashMap<String, String> configOptions = new HashMap<>();
         configOptions.put("replication_factor", "1");
@@ -354,9 +362,10 @@ public class SimpleStrategyTest
     }
 
     @Test
+    @UseMurmur3Partitioner
     public void shouldWarnOnHigherReplicationFactorThanNodes()
     {
-        withPartitioner(Murmur3Partitioner.instance);
+        defineSchema();
         HashMap<String, String> configOptions = new HashMap<>();
         configOptions.put("replication_factor", "2");
 

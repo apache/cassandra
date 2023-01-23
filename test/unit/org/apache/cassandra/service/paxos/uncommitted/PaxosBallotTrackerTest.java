@@ -20,23 +20,26 @@ package org.apache.cassandra.service.paxos.uncommitted;
 
 import java.io.IOException;
 
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.paxos.Ballot;
-import org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome;
-import org.junit.*;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.REJECT;
@@ -126,7 +129,7 @@ public class PaxosBallotTrackerTest
             case PROPOSE:
                 try (PaxosState state = PaxosState.get(commit))
                 {
-                    state.acceptIfLatest(commit);
+                    state.acceptIfLatest(commit, false);
                 }
                 break;
             case COMMIT:
@@ -220,7 +223,7 @@ public class PaxosBallotTrackerTest
         DecoratedKey key = dk(1);
         try (PaxosState state = PaxosState.get(key, cfm))
         {
-            Ballot result = state.acceptIfLatest(new Commit.Proposal(ballot2, PartitionUpdate.emptyUpdate(cfm, key)));
+            Ballot result = state.acceptIfLatest(new Commit.Proposal(ballot2, PartitionUpdate.emptyUpdate(cfm, key)), false).supersededBy;
             Assert.assertNull(result);
         }
 
@@ -228,7 +231,7 @@ public class PaxosBallotTrackerTest
         ballotTracker.updateLowBound(ballot4);
         try (PaxosState state = PaxosState.get(key, cfm))
         {
-            Ballot result = state.acceptIfLatest(new Commit.Proposal(ballot3, PartitionUpdate.emptyUpdate(cfm, key)));
+            Ballot result = state.acceptIfLatest(new Commit.Proposal(ballot3, PartitionUpdate.emptyUpdate(cfm, key)), false).supersededBy;
             Assert.assertEquals(ballot4, result);
         }
     }
