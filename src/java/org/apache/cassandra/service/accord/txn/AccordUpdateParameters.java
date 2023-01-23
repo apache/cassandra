@@ -31,6 +31,8 @@ import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 
+import static com.google.common.base.Preconditions.checkState;
+
 public class AccordUpdateParameters
 {
     private final TxnData data;
@@ -47,7 +49,7 @@ public class AccordUpdateParameters
         return data;
     }
 
-    public UpdateParameters updateParameters(TableMetadata metadata, int rowIndex)
+    public UpdateParameters updateParameters(TableMetadata metadata, DecoratedKey dk, int rowIndex)
     {
         // This is currently only used by Guardrails, but this logically have issues with Accord as drifts in config
         // values could cause unexpected issues in Accord. (ex. some nodes reject writes while others accept)
@@ -67,16 +69,24 @@ public class AccordUpdateParameters
                                     timestamp,
                                     nowInSeconds,
                                     ttl,
-                                    prefetchRow(metadata, rowIndex));
+                                    prefetchRow(metadata, dk, rowIndex));
     }
 
-    private Map<DecoratedKey, Partition> prefetchRow(TableMetadata metadata, int index)
+    private Map<DecoratedKey, Partition> prefetchRow(TableMetadata metadata, DecoratedKey dk, int index)
     {
         for (Map.Entry<TxnDataName, FilteredPartition> e : data.entrySet())
         {
             TxnDataName name = e.getKey();
-            if (name.isAutoRead() && name.atIndex(index))
-                return ImmutableMap.of(name.getDecoratedKey(metadata), e.getValue());
+            switch (name.getKind())
+            {
+                case CAS_READ:
+                    checkState(data.entrySet().size() == 1, "CAS read should only have one entry");
+                    return ImmutableMap.of(dk, e.getValue());
+                case AUTO_READ:
+                    if (name.atIndex(index))
+                        return ImmutableMap.of(name.getDecoratedKey(metadata), e.getValue());
+                default:
+            }
         }
         return Collections.emptyMap();
     }

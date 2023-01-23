@@ -445,6 +445,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      */
     public RepairSession submitRepairSession(TimeUUID parentRepairSession,
                                              CommonRange range,
+                                             boolean excludedDeadNodes,
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
                                              boolean isIncremental,
@@ -453,6 +454,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              boolean optimiseStreams,
                                              boolean repairPaxos,
                                              boolean paxosOnly,
+                                             boolean accordRepair,
                                              ExecutorPlus executor,
                                              Scheduler validationScheduler,
                                              String... cfnames)
@@ -466,9 +468,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession, range, keyspace,
+        final RepairSession session = new RepairSession(ctx, validationScheduler, parentRepairSession,
+                                                        range, excludedDeadNodes, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
-                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
+                                                        previewKind, optimiseStreams, repairPaxos, paxosOnly,
+                                                        accordRepair, cfnames);
         repairs.getIfPresent(parentRepairSession).register(session.state);
 
         sessions.put(session.getId(), session);

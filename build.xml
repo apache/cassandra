@@ -1142,6 +1142,7 @@
     <attribute name="testtag" default=""/>
     <attribute name="usejacoco" default="no"/>
     <attribute name="showoutput" default="false"/>
+    <attribute name="maxmemory" default="1024m"/>
 
     <sequential>
       <fail message="testing with build.test.dir (${build.test.dir}) not pointing to 'build/test/' will fail, test configurations are hardcoded.">
@@ -1161,7 +1162,7 @@
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
       <mkdir dir="${tmp.dir}"/>
-      <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}" showoutput="@{showoutput}">
+      <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="@{maxmemory}" timeout="@{timeout}" showoutput="@{showoutput}">
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1340,7 +1341,7 @@
           <fileset file="${test.conf}/cassandra.yaml"/>
           <fileset file="${test.conf}/storage_compatibility_mode_none.yaml"/>
         </concat>
-      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}" 
+      <testmacrohelper inputdir="${test.dir}/${test.classlistprefix}" filelist="@{test.file.list}"
                        exclude="**/*.java" timeout="${test.timeout}" testtag="oa">
         <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
         <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
@@ -1651,12 +1652,14 @@
     <attribute name="exclude" default="" />
     <attribute name="filelist" default="" />
     <attribute name="testtag" default=""/>
+    <attribute name="maxmemory" default="1024m"/>
 
     <sequential>
       <testmacrohelper inputdir="@{inputdir}" timeout="@{timeout}"
                        forkmode="@{forkmode}" filter="@{filter}"
                        exclude="@{exclude}" filelist="@{filelist}"
-                       testtag="@{testtag}" showoutput="false" >
+                       testtag="@{testtag}" showoutput="@{showoutput}"
+                       maxmemory="@{maxmemory}">
           <optjvmargs/>
       </testmacrohelper>
       <fail message="Some test(s) failed.">
@@ -1800,7 +1803,7 @@
 
     <property name="simulator.asm.print" value="none"/> <!-- Supports: NONE, CLASS_SUMMARY, CLASS_DETAIL, METHOD_SUMMARY, METHOD_DETAIL, ASM; see org.apache.cassandra.simulator.asm.MethodLogger.Level -->
   <target name="test-simulator-dtest" depends="maybe-build-test" description="Execute simulator dtests">
-    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java">
+    <testmacro inputdir="${test.simulator-test.src}" timeout="${test.simulation.timeout}" forkmode="perTest" showoutput="true" filter="**/test/${test.name}.java" maxmemory="8g">
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-simulator.xml"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>

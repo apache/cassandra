@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,7 +42,6 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.utils.BiMultiValMap;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.SortedBiMultiValMap;
 
@@ -112,7 +112,7 @@ public class TokenMap implements MetadataValue<TokenMap>
         return new TokenMap(lastModified, partitioner, finalisedCopy);
     }
 
-    public BiMultiValMap<Token, NodeId> asMap()
+    public SortedBiMultiValMap<Token, NodeId> asMap()
     {
         return SortedBiMultiValMap.create(map);
     }
@@ -166,7 +166,14 @@ public class TokenMap implements MetadataValue<TokenMap>
             ranges.add(r);
     }
 
-    public Token nextToken(List<Token> tokens, Token token)
+    public Token getPredecessor(Token token)
+    {
+        int index = Collections.binarySearch(tokens, token);
+        assert index >= 0 : token + " not found in " + StringUtils.join(map.keySet(), ", ");
+        return index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(index - 1);
+    }
+
+    public static Token nextToken(List<Token> tokens, Token token)
     {
        return tokens.get(nextTokenIndex(tokens, token));
     }

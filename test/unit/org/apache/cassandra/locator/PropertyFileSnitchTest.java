@@ -32,9 +32,14 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseRandomPartitioner;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -50,17 +55,13 @@ import static org.junit.Assert.fail;
 /**
  * Unit tests for {@link PropertyFileSnitch}.
  */
-public class PropertyFileSnitchTest
+@DDDaemonInitialization
+@UseRandomPartitioner
+public class PropertyFileSnitchTest extends CassandraTestBase
 {
     private Path effectiveFile;
     private Path backupFile;
     private InetAddressAndPort localAddress;
-
-    @BeforeClass
-    public static void setupDD()
-    {
-        DatabaseDescriptor.daemonInitialization();
-    }
 
     @Before
     public void setup() throws ConfigurationException, IOException

@@ -66,6 +66,7 @@ import org.apache.cassandra.simulator.asm.DeterministicChanceSupplier;
 import org.apache.cassandra.simulator.asm.InterceptAsClassTransformer;
 import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
+import org.apache.cassandra.simulator.cluster.ClusterActions.ConsensusChange;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
 import org.apache.cassandra.simulator.systems.Failures;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
@@ -150,6 +151,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected TopologyChange[] topologyChanges = TopologyChange.values();
         protected int topologyChangeLimit = -1;
 
+        protected ConsensusChange[] consensusChanges = ConsensusChange.values();
+        protected int consensusChangeLimit = -1;
+
         protected int primaryKeyCount;
         protected int secondsToSimulate;
 
@@ -175,7 +179,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                               schedulerLongDelayNanos = new LongRange(50, 5000, MICROSECONDS, NANOSECONDS),
                                       clockDriftNanos = new LongRange(1, 5000, MILLISECONDS, NANOSECONDS),
                        clockDiscontinuitIntervalNanos = new LongRange(10, 60, SECONDS, NANOSECONDS),
-                          topologyChangeIntervalNanos = new LongRange(5, 15, SECONDS, NANOSECONDS);
+                          topologyChangeIntervalNanos = new LongRange(5, 15, SECONDS, NANOSECONDS),
+                         consensusChangeIntervalNanos = new LongRange(1, 5, SECONDS, NANOSECONDS);
 
 
 
@@ -192,6 +197,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected HeapPool.Logged.Listener memoryListener;
         protected SimulatedTime.Listener timeListener = (i1, i2) -> {};
         protected LongConsumer onThreadLocalRandomCheck;
+        protected String lwtStrategy = "migration";
 
         public Builder<S> failures(Failures failures)
         {
@@ -308,6 +314,24 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         public Builder<S> topologyChangeLimit(int topologyChangeLimit)
         {
             this.topologyChangeLimit = topologyChangeLimit;
+            return this;
+        }
+
+        public Builder<S> consensusChanges(ConsensusChange[] consensusChanges)
+        {
+            this.consensusChanges = consensusChanges;
+            return this;
+        }
+
+        public Builder<S> consensusChangeIntervalNanos(LongRange consensusChangeIntervalNanos)
+        {
+            this.consensusChangeIntervalNanos = consensusChangeIntervalNanos;
+            return this;
+        }
+
+        public Builder<S> consensusChangeLimit(int consensusChangeLimit)
+        {
+            this.consensusChangeLimit = consensusChangeLimit;
             return this;
         }
 
@@ -550,6 +574,12 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return this;
         }
 
+        public Builder<S> lwtStrategy(String strategy)
+        {
+            this.lwtStrategy = strategy;
+            return this;
+        }
+
         public abstract ClusterSimulation<S> create(long seed) throws IOException;
     }
 
@@ -741,10 +771,10 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("memtable_allocation_type", builder.memoryListener != null ? "unslabbed_heap_buffers_logged" : "heap_buffers")
                                    .set("file_cache_size", "16MiB")
                                    .set("use_deterministic_table_id", true)
-                                   .set("disk_access_mode", disk_access_mode)
-                                   .set("failure_detector", SimulatedFailureDetector.Instance.class.getName());
-                             if (commitlogCompressed)
-                                 config.set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()));
+                                   .set("disk_access_mode", "standard")
+                                   .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
+                                   .set("lwt_strategy", builder.lwtStrategy)
+                                   .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()));
                              configUpdater.accept(threadAllocator.update(config));
                          })
                          .withInstanceInitializer(new IInstanceInitializer()
@@ -831,6 +861,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         scheduler = builder.schedulerFactory.create(random);
         options = new ClusterActions.Options(builder.topologyChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.topologyChangeIntervalNanos, random),
                                              Choices.random(random, builder.topologyChanges),
+                                             builder.consensusChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.consensusChangeIntervalNanos, random),
+                                             Choices.random(random, builder.consensusChanges),
                                              minRf, initialRf, maxRf, null);
         this.factory = factory;
     }

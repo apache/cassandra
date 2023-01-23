@@ -142,7 +142,7 @@ public class LocalRepairTables
             result.column("options_primary_range", state.options.isPrimaryRange());
             result.column("options_trace", state.options.isTraced());
             result.column("options_job_threads", state.options.getJobThreads());
-            result.column("options_subrange_repair", state.options.isSubrangeRepair());
+            result.column("options_subrange_repair", false);
             result.column("options_pull_repair", state.options.isPullRepair());
             result.column("options_force_repair", state.options.isForcedRepair());
             result.column("options_preview_kind", state.options.getPreviewKind().name());
@@ -155,8 +155,7 @@ public class LocalRepairTables
 
             result.column("sessions", state.getSessionIds());
 
-            String[] columnFamilyNames = state.getColumnFamilyNames();
-            result.column("table_names", columnFamilyNames == null ? null : Arrays.asList(columnFamilyNames));
+            result.column("table_names", state.getColumnFamilyNames());
 
             Set<InetAddressAndPort> participants = state.getParticipants();
             result.column("participants", participants == null ? null : toStringList(participants));
@@ -180,6 +179,10 @@ public class LocalRepairTables
                     case NONE: throw new AssertionError("NONE preview kind not expected when preview repair is set");
                     default: throw new AssertionError("Unknown preview kind: " + state.options.getPreviewKind());
                 }
+            }
+            else if (state.options.accordRepair())
+            {
+                return "accord repair";
             }
             else if (state.options.isIncremental())
             {

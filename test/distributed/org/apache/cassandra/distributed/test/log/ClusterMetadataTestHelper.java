@@ -154,6 +154,7 @@ public class ClusterMetadataTestHelper
                                    AccordKeyspaces.EMPTY,
                                    null,
                                    null,
+                                   null,
                                    ImmutableMap.of());
     }
 
@@ -168,6 +169,7 @@ public class ClusterMetadataTestHelper
                                    null,
                                    DataPlacements.empty(),
                                    AccordKeyspaces.EMPTY,
+                                   null,
                                    null,
                                    null,
                                    ImmutableMap.of());
@@ -189,6 +191,7 @@ public class ClusterMetadataTestHelper
                                        AccordKeyspaces.EMPTY,
                                        metadata.lockedRanges,
                                        metadata.inProgressSequences,
+                                       metadata.consensusMigrationState,
                                        metadata.extensions);
         ClusterMetadataService.instance().log().append(new LogState(metadata, LogState.EMPTY.entries));
     }

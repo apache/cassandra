@@ -45,6 +45,7 @@ import org.assertj.core.api.Assertions;
 import static org.apache.cassandra.config.DatabaseDescriptor.NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.TRANSACTIONS_DISABLED_MESSAGE;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 
 public class AccordFeatureFlagTest extends TestBaseImpl
@@ -78,7 +79,7 @@ public class AccordFeatureFlagTest extends TestBaseImpl
             assertEquals("No Accord virtual tables should exist", Collections.emptyList(), tables);
 
             // Make sure we throw if someone tries to coordinate a transaction against the no-op service:
-            Assertions.assertThatThrownBy(() -> cluster.get(1).callOnInstance(() -> AccordService.instance().coordinate(null, null)))
+            Assertions.assertThatThrownBy(() -> cluster.get(1).callOnInstance(() -> AccordService.instance().coordinate(null, null, nanoTime())))
                       .isInstanceOf(UnsupportedOperationException.class);
         }
     }
@@ -91,7 +92,7 @@ public class AccordFeatureFlagTest extends TestBaseImpl
                                       .withoutVNodes()
                                       .withConfig(c -> c.with(Feature.NETWORK)
                                                         .set("accord.enabled", "false")
-                                                        .set("legacy_paxos_strategy", "accord")).createWithoutStarting())
+                                                        .set("lwt_strategy", "accord")).createWithoutStarting())
         {
 
             Assertions.assertThatThrownBy(() -> cluster.startup())

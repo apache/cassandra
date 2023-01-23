@@ -45,7 +45,7 @@ public class PaxosCommitAndPrepare
     static PaxosPrepare commitAndPrepare(Agreed commit, Paxos.Participants participants, SinglePartitionReadCommand readCommand, boolean isWrite, boolean acceptEarlyReadSuccess)
     {
         Ballot ballot = newBallot(commit.ballot, participants.consistencyForConsensus);
-        Request request = new Request(commit, ballot, participants.electorate, readCommand, isWrite);
+        Request request = new Request(commit, ballot, participants.electorate, readCommand, isWrite, true);
         PaxosPrepare prepare = new PaxosPrepare(participants, request, acceptEarlyReadSuccess, null);
 
         Tracing.trace("Committing {}; Preparing {}", commit.ballot, ballot);
@@ -59,21 +59,21 @@ public class PaxosCommitAndPrepare
     {
         final Agreed commit;
 
-        Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite)
+        Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
-            super(ballot, electorate, read, isWrite);
+            super(ballot, electorate, read, isWrite, isForRecovery);
             this.commit = commit;
         }
 
-        private Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite)
+        private Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
         {
-            super(ballot, electorate, partitionKey, table, isWrite);
+            super(ballot, electorate, partitionKey, table, isWrite, isForRecovery);
             this.commit = commit;
         }
 
         Request withoutRead()
         {
-            return new Request(commit, ballot, electorate, partitionKey, table, isForWrite);
+            return new Request(commit, ballot, electorate, partitionKey, table, isForWrite, isForRecovery);
         }
 
         public String toString()
@@ -84,14 +84,14 @@ public class PaxosCommitAndPrepare
 
     public static class RequestSerializer extends PaxosPrepare.AbstractRequestSerializer<Request, Agreed>
     {
-        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite)
+        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
-            return new Request(param, ballot, electorate, read, isWrite);
+            return new Request(param, ballot, electorate, read, isWrite, isForRecovery);
         }
 
-        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite)
+        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
         {
-            return new Request(param, ballot, electorate, partitionKey, table, isWrite);
+            return new Request(param, ballot, electorate, partitionKey, table, isWrite, isForRecovery);
         }
 
         @Override

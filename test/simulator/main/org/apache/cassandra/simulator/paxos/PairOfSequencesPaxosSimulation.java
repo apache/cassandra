@@ -286,6 +286,10 @@ public class PairOfSequencesPaxosSimulation extends AbstractPairOfSequencesPaxos
     @Override
     boolean joinAll()
     {
+        // Consensus migration means Accord is running and Accord doesn't yet support joining nodes
+        if ((clusterOptions.consensusChangeLimit == -1 || clusterOptions.consensusChangeLimit > 0)
+            && clusterOptions.consensusChoices.options.length > 0)
+            return true;
         return false;
     }
 }
