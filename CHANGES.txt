@@ -3,6 +3,7 @@
  * Streaming progress virtual table lock contention can trigger TCP_USER_TIMEOUT and fail streaming (CASSANDRA-18110)
  * Fix perpetual load of denylist on read in cases where denylist can never be loaded (CASSANDRA-18116)
 Merged from 4.0:
+ * Fix legacy clustering serialization for paging with compact storage (CASSANDRA-17507)
  * Add support for python 3.11 (CASSANDRA-18088)
  * Fix formatting of duration in cqlsh (CASSANDRA-18141)
  * Fix sstable loading of keyspaces named snapshots or backups (CASSANDRA-14013)
