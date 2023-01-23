@@ -24,9 +24,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,9 +64,9 @@ public abstract class AbstractPaxosRepair
 
     public static class Result extends State
     {
-        enum Outcome { DONE, CANCELLED, FAILURE }
+        public enum Outcome { DONE, CANCELLED, FAILURE }
 
-        final Outcome outcome;
+        public final Outcome outcome;
 
         public Result(Outcome outcome)
         {
@@ -127,15 +127,20 @@ public abstract class AbstractPaxosRepair
     }
 
     private final DecoratedKey partitionKey;
+    @Nullable
     private final Ballot incompleteBallot;
+
+    protected final long retryTimeoutNanos;
+
     private List<Listener> listeners = null;
     private volatile State state;
     private volatile long startedNanos = Long.MIN_VALUE;
 
-    public AbstractPaxosRepair(DecoratedKey partitionKey, Ballot incompleteBallot)
+    public AbstractPaxosRepair(DecoratedKey partitionKey, Ballot incompleteBallot, long retryTimeoutNanos)
     {
         this.partitionKey = partitionKey;
         this.incompleteBallot = incompleteBallot;
+        this.retryTimeoutNanos = retryTimeoutNanos;
     }
 
     public State state()
@@ -158,7 +163,8 @@ public abstract class AbstractPaxosRepair
         return isResult(state);
     }
 
-    public Ballot incompleteBallot()
+    // Shouldn't be null when used by PaxosRepairs, but will be null when used by ConsensusRequestRouter
+    public @Nullable Ballot incompleteBallot()
     {
         return incompleteBallot;
     }
@@ -203,11 +209,19 @@ public abstract class AbstractPaxosRepair
     public State restart(State state) { return restart(state, Long.MIN_VALUE); }
     public abstract State restart(State state, long waitUntil);
 
+    // Used to start repairs from PaxosTableRepairs
     public final synchronized AbstractPaxosRepair start()
+    {
+        long startedNanos = Math.max(Long.MIN_VALUE + 1, nanoTime());
+        return start(startedNanos);
+    }
+
+    // Used to start repairs from ConsensusRequestRouter
+    public final synchronized AbstractPaxosRepair start(long queryStartNanos)
     {
         updateState(null, null, (state, i2) -> {
             Preconditions.checkState(!isStarted());
-            startedNanos = Math.max(Long.MIN_VALUE + 1, nanoTime());
+            startedNanos = queryStartNanos;
             return restart(state);
         });
         return this;

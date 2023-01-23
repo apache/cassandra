@@ -180,6 +180,10 @@ public class LocalRepairTables
                     default: throw new AssertionError("Unknown preview kind: " + state.options.getPreviewKind());
                 }
             }
+            else if (state.options.accordRepair())
+            {
+                return "accord repair";
+            }
             else if (state.options.isIncremental())
             {
                 return "incremental";

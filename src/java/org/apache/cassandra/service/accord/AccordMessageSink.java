@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.google.common.base.Preconditions;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,8 +61,8 @@ public class AccordMessageSink implements MessageSink
             mapping.put(MessageType.COMMIT_INVALIDATE,      Verb.ACCORD_COMMIT_INVALIDATE_REQ);
             mapping.put(MessageType.APPLY_REQ,              Verb.ACCORD_APPLY_REQ);
             mapping.put(MessageType.APPLY_RSP,              Verb.ACCORD_APPLY_RSP);
-            mapping.put(MessageType.READ_REQ,               Verb.ACCORD_READ_REQ);
-            mapping.put(MessageType.READ_RSP,               Verb.ACCORD_READ_RSP);
+            mapping.put(MessageType.EXECUTE_REQ,            Verb.ACCORD_EXECUTE_REQ);
+            mapping.put(MessageType.EXECUTE_RSP,            Verb.ACCORD_EXECUTE_RSP);
             mapping.put(MessageType.BEGIN_RECOVER_REQ,      Verb.ACCORD_RECOVER_REQ);
             mapping.put(MessageType.BEGIN_RECOVER_RSP,      Verb.ACCORD_RECOVER_RSP);
             mapping.put(MessageType.BEGIN_INVALIDATE_REQ,   Verb.ACCORD_BEGIN_INVALIDATE_REQ);

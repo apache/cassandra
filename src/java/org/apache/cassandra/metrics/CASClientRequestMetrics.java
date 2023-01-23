@@ -30,12 +30,24 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
     public final Counter unfinishedCommit;
     public final Meter unknownResult;
 
+    // CAS request rejected after Prepare/Promise due to migration from Paxos to Accord
+    public final Meter beginMigrationRejects;
+
+    // Number of times a CAS request was rejected after Propose/Accept due to migration from Paxos to Accord
+    public final Meter acceptMigrationRejects;
+
+    // Number of times a key was migrated from Accord to Paxos
+    public final Meter accordKeyMigrations;
+
     public CASClientRequestMetrics(String scope)
     {
         super(scope);
         contention = Metrics.histogram(factory.createMetricName("ContentionHistogram"), false);
         unfinishedCommit = Metrics.counter(factory.createMetricName("UnfinishedCommit"));
         unknownResult = Metrics.meter(factory.createMetricName("UnknownResult"));
+        beginMigrationRejects = Metrics.meter(factory.createMetricName("PaxosBeginMigrationRejects"));
+        acceptMigrationRejects = Metrics.meter(factory.createMetricName("PaxosAcceptMigrationRejects"));
+        accordKeyMigrations = Metrics.meter(factory.createMetricName("AccordKeyMigrations"));
     }
 
     public void release()
@@ -44,5 +56,8 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
         Metrics.remove(factory.createMetricName("ContentionHistogram"));
         Metrics.remove(factory.createMetricName("UnfinishedCommit"));
         Metrics.remove(factory.createMetricName("UnknownResult"));
+        Metrics.remove(factory.createMetricName("PaxosBeginMigrationRejects"));
+        Metrics.remove(factory.createMetricName("PaxosAcceptMigrationRejects"));
+        Metrics.remove(factory.createMetricName("AccordKeyMigrations"));
     }
 }

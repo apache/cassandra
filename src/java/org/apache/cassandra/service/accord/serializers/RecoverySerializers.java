@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import accord.api.Result;
@@ -40,7 +41,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
@@ -90,11 +91,12 @@ public class RecoverySerializers
             CommandSerializers.ballot.serialize(recoverOk.accepted, out, version);
             serializeNullable(recoverOk.executeAt, out, version, CommandSerializers.timestamp);
             DepsSerializer.partialDeps.serialize(recoverOk.deps, out, version);
+            DepsSerializer.partialDeps.serialize(recoverOk.acceptedDeps, out, version);
             DepsSerializer.deps.serialize(recoverOk.earlierCommittedWitness, out, version);
             DepsSerializer.deps.serialize(recoverOk.earlierAcceptedNoWitness, out, version);
             out.writeBoolean(recoverOk.rejectsFastPath);
             serializeNullable(recoverOk.writes, out, version, CommandSerializers.writes);
-            serializeNullable((TxnData) recoverOk.result, out, version, TxnData.serializer);
+            serializeNullable((TxnResult) recoverOk.result, out, version, TxnResult.serializer);
         }
 
         @Override
@@ -112,9 +114,9 @@ public class RecoverySerializers
             return new RecoverNack(supersededBy);
         }
 
-        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, PartialDeps deps, Deps earlierCommittedWitness, Deps earlierAcceptedNoWitness, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
+        RecoverOk deserializeOk(TxnId txnId, Status status, Ballot accepted, Timestamp executeAt, @Nonnull PartialDeps deps, PartialDeps acceptedDeps, Deps earlierCommittedWitness, Deps earlierAcceptedNoWitness, boolean rejectsFastPath, Writes writes, Result result, DataInputPlus in, int version)
         {
-            return new RecoverOk(txnId, status, accepted, executeAt, deps, earlierCommittedWitness, earlierAcceptedNoWitness, rejectsFastPath, writes, result);
+            return new RecoverOk(txnId, status, accepted, executeAt, deps, acceptedDeps, earlierCommittedWitness, earlierAcceptedNoWitness, rejectsFastPath, writes, result);
         }
 
         @Override
@@ -129,11 +131,12 @@ public class RecoverySerializers
                                  CommandSerializers.ballot.deserialize(in, version),
                                  deserializeNullable(in, version, CommandSerializers.timestamp),
                                  DepsSerializer.partialDeps.deserialize(in, version),
+                                 DepsSerializer.partialDeps.deserialize(in, version),
                                  DepsSerializer.deps.deserialize(in, version),
                                  DepsSerializer.deps.deserialize(in, version),
                                  in.readBoolean(),
                                  deserializeNullable(in, version, CommandSerializers.writes),
-                                 deserializeNullable(in, version, TxnData.serializer),
+                                 deserializeNullable(in, version, TxnResult.serializer),
                                  in,
                                  version);
         }
@@ -150,11 +153,12 @@ public class RecoverySerializers
             size += CommandSerializers.ballot.serializedSize(recoverOk.accepted, version);
             size += serializedNullableSize(recoverOk.executeAt, version, CommandSerializers.timestamp);
             size += DepsSerializer.partialDeps.serializedSize(recoverOk.deps, version);
+            size += DepsSerializer.partialDeps.serializedSize(recoverOk.acceptedDeps, version);
             size += DepsSerializer.deps.serializedSize(recoverOk.earlierCommittedWitness, version);
             size += DepsSerializer.deps.serializedSize(recoverOk.earlierAcceptedNoWitness, version);
             size += TypeSizes.sizeof(recoverOk.rejectsFastPath);
             size += serializedNullableSize(recoverOk.writes, version, CommandSerializers.writes);
-            size += serializedNullableSize((TxnData) recoverOk.result, version, TxnData.serializer);
+            size += serializedNullableSize((TxnResult) recoverOk.result, version, TxnResult.serializer);
             return size;
         }
 

@@ -21,11 +21,16 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.LivenessInfo;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 import org.apache.cassandra.utils.memory.Cloner;
@@ -41,6 +46,8 @@ import org.apache.cassandra.utils.memory.Cloner;
  */
 public abstract class Cell<V> extends ColumnData
 {
+    private static final Logger logger = LoggerFactory.getLogger(Cell.class);
+
     public static final int NO_TTL = 0;
     public static final int NO_DELETION_TIME = Integer.MAX_VALUE;
     public static final int MAX_DELETION_TIME = Integer.MAX_VALUE - 1;
@@ -282,7 +289,8 @@ public abstract class Cell<V> extends ColumnData
                 }
             }
 
-            return accessor.factory().cell(column, timestamp, ttl, localDeletionTime, value, path);
+            Cell cell = accessor.factory().cell(column, timestamp, ttl, localDeletionTime, value, path);
+            return cell;
         }
 
         public <T> long serializedSize(Cell<T> cell, ColumnMetadata column, LivenessInfo rowLiveness, SerializationHeader header)

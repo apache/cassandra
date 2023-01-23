@@ -21,12 +21,16 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
+import com.google.common.base.Function;
+
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.Digest;
-import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**
@@ -36,6 +40,38 @@ public abstract class CellPath implements IMeasurableMemory
 {
     public static final CellPath BOTTOM = new EmptyCellPath();
     public static final CellPath TOP = new EmptyCellPath();
+
+    /**
+     * Sentinel value indicating the cell path should be replaced by Accord with one based on the transaction executeAt
+     */
+    private static final long ACCORD_CELL_PATH_SENTINEL_MSB = TimeUUID.atUnixMicrosWithLsb(0, 0).msb();
+
+    /**
+     * Return a function that given a cell with an ACCORD_CELL_PATH_SENTINEL_MSB will
+     * return a new CellPath with a TimeUUID that increases monotonically every time it is called or
+     * the existing cell path if path does not contain ACCORD_CELL_PATH_SENTINEL_MSB.
+     *
+     * Only intended to work with list cell paths where list append needs a timestamp based on the executeAt
+     * of the Accord transaction appending the cell.
+     * @param timestampMicros executeAt timestamp to use as the MSB for generated cell paths
+     */
+    public static Function<Cell, CellPath> accordListPathSuppler(long timestampMicros)
+    {
+        return new Function<>()
+        {
+            final long timeUuidMsb = TimeUUID.unixMicrosToMsb(timestampMicros);
+            long cellIndex = 0;
+            @Override
+            public CellPath apply(Cell cell)
+            {
+                CellPath path = cell.path();
+                if (ACCORD_CELL_PATH_SENTINEL_MSB == path.get(0).getLong(0))
+                    return CellPath.create(ByteBuffer.wrap(TimeUUID.toBytes(timeUuidMsb, TimeUUIDType.signedBytesToNativeLong(cellIndex++))));
+                else
+                    return path;
+            }
+        };
+    }
 
     public abstract int size();
     public abstract ByteBuffer get(int i);

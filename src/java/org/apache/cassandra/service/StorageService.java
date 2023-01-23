@@ -61,6 +61,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.management.ListenerNotFoundException;
 import javax.management.NotificationBroadcasterSupport;
@@ -191,6 +192,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.service.ConsensusTableMigrationState.MigrationStateSnapshot;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Paxos;
@@ -206,6 +208,7 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -230,6 +233,10 @@ import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.collect.Iterables.transform;
+import static com.google.common.collect.Iterables.tryFind;
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -238,11 +245,6 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
-
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.collect.Iterables.transform;
-import static com.google.common.collect.Iterables.tryFind;
-
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DRAIN_EXECUTOR_TIMEOUT_MS;
@@ -253,10 +255,15 @@ import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
+import static org.apache.cassandra.service.ConsensusTableMigrationState.startMigrationToConsensusProtocol;
+import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
+import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.now;
+import static org.apache.cassandra.utils.FBUtilities.now;
+import static org.apache.cassandra.utils.PojoToString.pojoMapToString;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -2221,6 +2228,44 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+    @Override
+    public void migrateConsensusProtocol(@Nonnull String targetProtocol,
+                                         @Nonnull List<String> keyspaceNames,
+                                         @Nonnull List<String> maybeTableNames,
+                                         @Nullable String maybeRangesStr)
+    {
+        checkNotNull(targetProtocol, "targetProtocol is null");
+        checkNotNull(keyspaceNames, "keyspaceNames is null");
+
+        startMigrationToConsensusProtocol(targetProtocol, keyspaceNames, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr));
+    }
+
+    @Override
+    public void setConsensusMigrationTargetProtocol(@Nonnull String targetProtocol,
+                                                    @Nonnull List<String> keyspaceNames,
+                                                    @Nullable List<String> maybeTableNames)
+    {
+        checkNotNull(targetProtocol, "targetProtocol is null");
+        checkNotNull(keyspaceNames, "keyspaceNames is null");
+
+        ConsensusTableMigrationState.setConsensusMigrationTargetProtocol(targetProtocol, keyspaceNames, Optional.ofNullable(maybeTableNames));
+    }
+
+    @Override
+    public String listConsensusMigrations(@Nullable Set<String> keyspaceNames,
+                                          @Nullable Set<String> tableNames,
+                                          @Nonnull String format)
+    {
+        ClusterMetadata cm = ClusterMetadata.current();
+        MigrationStateSnapshot snapshot = cm.migrationStateSnapshot;
+        // TODO wanted something human and machine readable, but didn't expend a lot of thought
+        // on what human readable conventions should be, also couldn't get snakeyaml
+        // to output YAML containing only primitives without going through the goofy mapping process
+        // it adds tags and references that clutter the output up badly
+        Map<String, Object> snapshotAsMap = snapshot.toMap(keyspaceNames, tableNames);
+        return pojoMapToString(snapshotAsMap, format);
+    }
+
     public Map<String,List<Integer>> getConcurrency(List<String> stageNames)
     {
         Stream<Stage> stageStream = stageNames.isEmpty() ? stream(Stage.values()) : stageNames.stream().map(Stage::fromPoolName);
@@ -3466,8 +3511,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         public LeavingReplica(Replica leavingReplica, Replica ourReplica)
         {
-            Preconditions.checkNotNull(leavingReplica);
-            Preconditions.checkNotNull(ourReplica);
+            checkNotNull(leavingReplica);
+            checkNotNull(ourReplica);
             this.leavingReplica = leavingReplica;
             this.ourReplica = ourReplica;
         }
@@ -5239,7 +5284,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         Future<?> hintsSuccess = ImmediateFuture.success(null);
 
-        if (DatabaseDescriptor.getTransferHintsOnDecommission()) 
+        if (DatabaseDescriptor.getTransferHintsOnDecommission())
         {
             setMode(Mode.LEAVING, "streaming hints to other nodes", true);
             hintsSuccess = streamHints();
@@ -6807,7 +6852,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         archiveCommand = archiveCommand != null ? archiveCommand : fqlOptions.archive_command;
         maxArchiveRetries = maxArchiveRetries != Integer.MIN_VALUE ? maxArchiveRetries : fqlOptions.max_archive_retries;
 
-        Preconditions.checkNotNull(path, "cassandra.yaml did not set log_dir and not set as parameter");
+        checkNotNull(path, "cassandra.yaml did not set log_dir and not set as parameter");
         FullQueryLogger.instance.enableWithoutClean(File.getPath(path), rollCycle, blocking, maxQueueWeight, maxLogSize, archiveCommand, maxArchiveRetries);
     }
 

@@ -22,7 +22,7 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
-
+import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 import accord.api.Agent;
@@ -144,7 +144,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    protected Timestamp maxConflict(Seekables<?, ?> keysOrRanges, Ranges slice)
+    public Timestamp maxConflict(Seekables<?, ?> keysOrRanges, Ranges slice)
     {
         // TODO: Seekables
         // TODO: efficiency
@@ -158,7 +158,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                            .orElse(Timestamp.NONE);
     }
 
-    private <O> O mapReduceForKey(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandsForKey, O, O> map, O accumulate, O terminalValue)
+    private <O> O mapReduceForKey(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandsForKey, O, O> map, O accumulate, Predicate<O> terminate)
     {
         switch (keysOrRanges.domain()) {
             default:
@@ -171,7 +171,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                     if (!slice.contains(key)) continue;
                     SafeCommandsForKey forKey = commandsForKey(key);
                     accumulate = map.apply(forKey.current(), accumulate);
-                    if (accumulate.equals(terminalValue))
+                    if (terminate.test((accumulate)))
                         return accumulate;
                 }
                 break;
@@ -184,6 +184,16 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
 
     @Override
     public <T> T mapReduce(Seekables<?, ?> keysOrRanges, Ranges slice, TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp, TestDep testDep, @Nullable TxnId depId, @Nullable Status minStatus, @Nullable Status maxStatus, CommandFunction<T, T> map, T accumulate, T terminalValue)
+    {
+        return mapReduceWithTerminate(keysOrRanges, slice, testKind, testTimestamp, timestamp, testDep, depId, minStatus, maxStatus, map, accumulate, Predicate.isEqual(terminalValue));
+    }
+
+    @Override
+    public <T> T mapReduceWithTerminate(Seekables<?, ?> keysOrRanges, Ranges slice,
+                                 TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp,
+                                 TestDep testDep, @Nullable TxnId depId,
+                                 @Nullable Status minStatus, @Nullable Status maxStatus,
+                                 CommandFunction<T, T> map, T accumulate, Predicate<T> terminate)
     {
         accumulate = mapReduceForKey(keysOrRanges, slice, (forKey, prev) -> {
             CommandsForKey.CommandTimeseries<?> timeseries;
@@ -210,8 +220,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 case MAY_EXECUTE_BEFORE:
                     remapTestTimestamp = CommandsForKey.CommandTimeseries.TestTimestamp.BEFORE;
             }
-            return timeseries.mapReduce(testKind, remapTestTimestamp, timestamp, testDep, depId, minStatus, maxStatus, map, prev, terminalValue);
-        }, accumulate, terminalValue);
+            return timeseries.mapReduce(testKind, remapTestTimestamp, timestamp, testDep, depId, minStatus, maxStatus, map, prev, terminate);
+        }, accumulate, terminate);
 
         return accumulate;
     }

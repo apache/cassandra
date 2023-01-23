@@ -21,11 +21,11 @@ package org.apache.cassandra.service.accord;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.common.base.Preconditions;
-
 import accord.api.ConfigurationService;
 import accord.local.Node;
 import accord.topology.Topology;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 
 /**
  * Currently a stubbed out config service meant to be triggered from a dtest
@@ -63,13 +63,7 @@ public class AccordConfigurationService implements ConfigurationService
     @Override
     public synchronized void fetchTopologyForEpoch(long epoch)
     {
-        Topology current = currentTopology();
-        Preconditions.checkArgument(epoch > current.epoch(), "Requested to fetch epoch %d which is <= %d (current epoch)", epoch, current.epoch());
-        while (current.epoch() < epoch)
-        {
-            current = AccordTopologyUtils.createTopology(epochs.size());
-            unsafeAddEpoch(current);
-        }
+        ClusterMetadataService.instance.maybeCatchup(Epoch.create(Epoch.FIRST.getPeriod(), epoch));
     }
 
     @Override
@@ -89,7 +83,10 @@ public class AccordConfigurationService implements ConfigurationService
     {
         Topology current = currentTopology();
         Topology topology = AccordTopologyUtils.createTopology(epochs.size());
-        if (current.equals(topology.withEpoch(current.epoch()))) return;
+        if (current.equals(topology.withEpoch(current.epoch()))
+            // Cluster metadata needs to create new epochs when it updates
+            && ClusterMetadataService.instance.metadata.epoch.getEpoch() <= current.epoch())
+            return;
         unsafeAddEpoch(topology);
     }
 

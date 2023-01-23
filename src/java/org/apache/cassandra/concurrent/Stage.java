@@ -47,6 +47,7 @@ public enum Stage
     COUNTER_MUTATION  (true,  "CounterMutationStage",  "request",  DatabaseDescriptor::getConcurrentCounterWriters, DatabaseDescriptor::setConcurrentCounterWriters, Stage::multiThreadedLowSignalStage),
     VIEW_MUTATION     (true,  "ViewMutationStage",     "request",  DatabaseDescriptor::getConcurrentViewWriters,    DatabaseDescriptor::setConcurrentViewWriters,    Stage::multiThreadedLowSignalStage),
     ACCORD            (true,  "AccordStage",           "request",  DatabaseDescriptor::getConcurrentAccordOps,      DatabaseDescriptor::setConcurrentAccordOps,      Stage::multiThreadedLowSignalStage),
+    ACCORD_MIGRATION  (false, "AccordMigrationReadStage", "request",  DatabaseDescriptor::getConcurrentAccordOps,   DatabaseDescriptor::setConcurrentAccordOps,      Stage::multiThreadedLowSignalStage),
     GOSSIP            (true,  "GossipStage",           "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),
     REQUEST_RESPONSE  (false, "RequestResponseStage",  "request",  FBUtilities::getAvailableProcessors,             null,                                            Stage::multiThreadedLowSignalStage),
     ANTI_ENTROPY      (false, "AntiEntropyStage",      "internal", () -> 1,                                         null,                                            Stage::singleThreadedStage),

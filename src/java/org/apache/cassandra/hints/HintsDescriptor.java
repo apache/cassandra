@@ -34,9 +34,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +43,8 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.security.EncryptionContext;
@@ -66,7 +65,8 @@ final class HintsDescriptor
 
     static final int VERSION_30 = 1;
     static final int VERSION_40 = 2;
-    static final int CURRENT_VERSION = VERSION_40;
+    static final int VERSION_50 = 3;
+    static final int CURRENT_VERSION = VERSION_50;
 
     static final String COMPRESSION = "compression";
     static final String ENCRYPTION = "encryption";
@@ -232,6 +232,8 @@ final class HintsDescriptor
                 return MessagingService.VERSION_30;
             case VERSION_40:
                 return MessagingService.VERSION_40;
+            case VERSION_50:
+                return MessagingService.VERSION_50;
             default:
                 throw new AssertionError();
         }

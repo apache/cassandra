@@ -32,28 +32,30 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.*;
-import org.apache.cassandra.concurrent.ExecutorFactory;
-import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.repair.state.SessionState;
-import org.apache.cassandra.utils.concurrent.AsyncFuture;
+import com.google.common.util.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
-import org.apache.cassandra.gms.*;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
+import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.consistent.ConsistentSession;
 import org.apache.cassandra.repair.consistent.LocalSession;
 import org.apache.cassandra.repair.consistent.LocalSessions;
+import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.ConsensusTableMigrationState;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
@@ -61,6 +63,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
 
 /**
@@ -68,7 +72,7 @@ import org.apache.cassandra.utils.concurrent.Future;
  *
  * A given RepairSession repairs a set of replicas for a given set of ranges on a list
  * of column families. For each of the column family to repair, RepairSession
- * creates a {@link RepairJob} that handles the repair of that CF.
+ * creates a {@link AbstractRepairJob} that handles the repair of that CF.
  *
  * A given RepairJob has the 3 main phases:
  * <ol>
@@ -127,6 +131,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
     public final ExecutorPlus taskExecutor;
     public final boolean optimiseStreams;
+    private final boolean accordRepair;
 
     private volatile boolean terminated = false;
 
@@ -151,6 +156,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
                          boolean optimiseStreams,
                          boolean repairPaxos,
                          boolean paxosOnly,
+                         boolean accordRepair,
                          String... cfnames)
     {
         this.repairPaxos = repairPaxos;
@@ -162,6 +168,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.previewKind = previewKind;
         this.pullRepair = pullRepair;
         this.optimiseStreams = optimiseStreams;
+        this.accordRepair = accordRepair;
         this.taskExecutor = createExecutor();
     }
 
@@ -317,7 +324,11 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         List<Future<RepairResult>> jobs = new ArrayList<>(state.cfnames.length);
         for (String cfname : state.cfnames)
         {
-            RepairJob job = new RepairJob(this, cfname);
+            AbstractRepairJob job = accordRepair ?
+                                    new AccordRepairJob(this, cfname) :
+                                    new CassandraRepairJob(this, cfname);
+            // Repairs can drive forward progress for consensus migration so always check
+            job.addCallback(ConsensusTableMigrationState.completedRepairJobHandler);
             state.register(job.state);
             executor.execute(job);
             jobs.add(job);

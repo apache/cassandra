@@ -111,7 +111,7 @@ import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.DepsSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ListenerSerializers;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.utils.Clock;
 
 import static java.lang.String.format;
@@ -190,7 +190,7 @@ public class AccordKeyspace
         static final LocalVersionedSerializer<PartialTxn> partialTxn = localSerializer(CommandSerializers.partialTxn);
         static final LocalVersionedSerializer<PartialDeps> partialDeps = localSerializer(DepsSerializer.partialDeps);
         static final LocalVersionedSerializer<Writes> writes = localSerializer(CommandSerializers.writes);
-        static final LocalVersionedSerializer<TxnData> result = localSerializer(TxnData.serializer);
+        static final LocalVersionedSerializer<TxnResult> result = localSerializer(TxnResult.serializer);
         static final LocalVersionedSerializer<CommandListener> listeners = localSerializer(ListenerSerializers.listener);
 
         private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
@@ -520,7 +520,7 @@ public class AccordKeyspace
                     Command.Executed executed = command.asExecuted();
                     Command.Executed originalExecuted = original != null && original.isExecuted() ? original.asExecuted() : null;
                     addCellIfModified(CommandsColumns.writes, Command.Executed::writes, v -> serialize(v, CommandsSerializers.writes), builder, timestampMicros, originalExecuted, executed);
-                    addCellIfModified(CommandsColumns.result, Command.Executed::result, v -> serialize((TxnData) v, CommandsSerializers.result), builder, timestampMicros, originalExecuted, executed);
+                    addCellIfModified(CommandsColumns.result, Command.Executed::result, v -> serialize((TxnResult) v, CommandsSerializers.result), builder, timestampMicros, originalExecuted, executed);
                 }
             }
 

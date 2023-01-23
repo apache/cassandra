@@ -26,11 +26,13 @@ import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 /**
  * The unique identifier of a table.
@@ -145,4 +147,25 @@ public class TableId implements Comparable<TableId>
     {
         return new TableId(new UUID(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE)));
     }
+
+    public static final IVersionedSerializer<TableId> serializer = new IVersionedSerializer<TableId>()
+    {
+        @Override
+        public void serialize(TableId t, DataOutputPlus out, int version) throws IOException
+        {
+            t.serialize(out);
+        }
+
+        @Override
+        public TableId deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return TableId.deserialize(in);
+        }
+
+        @Override
+        public long serializedSize(TableId t, int version)
+        {
+            return t.serializedSize();
+        }
+    };
 }

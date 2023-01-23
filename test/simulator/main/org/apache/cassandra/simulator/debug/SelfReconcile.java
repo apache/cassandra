@@ -300,5 +300,4 @@ public class SelfReconcile
             ).replaceAll("$1$2]")
         ).replaceAll("$1]");
     }
-
 }

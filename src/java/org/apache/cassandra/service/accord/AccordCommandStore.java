@@ -19,11 +19,13 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -38,14 +40,19 @@ import accord.local.CommandStores.RangesForEpochHolder;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
+import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
+import accord.primitives.Seekables;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
+import accord.utils.ReducingRangeMap;
 import accord.utils.async.AsyncChain;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static accord.primitives.Txn.Kind.ExclusiveSyncPoint;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class AccordCommandStore implements CommandStore
@@ -83,6 +90,10 @@ public class AccordCommandStore implements CommandStore
     private final ProgressLog progressLog;
     private final RangesForEpochHolder rangesForEpochHolder;
 
+    // TODO (expected): schedule regular pruning of this collection, and this is not persistent!
+    @Nullable
+    ReducingRangeMap<Timestamp> rejectBefore;
+
     public AccordCommandStore(int id,
                               NodeTimeService time,
                               Agent agent,
@@ -108,6 +119,38 @@ public class AccordCommandStore implements CommandStore
     public int id()
     {
         return id;
+    }
+
+    @Override
+    public void setRejectBefore(ReducingRangeMap<Timestamp> newRejectBefore)
+    {
+        this.rejectBefore = newRejectBefore;
+    }
+
+    @Override
+    public Timestamp preaccept(TxnId txnId, Seekables<?, ?> keys, SafeCommandStore safeStore)
+    {
+        NodeTimeService time = safeStore.time();
+        boolean isExpired = agent().isExpired(txnId, safeStore.time().now());
+        if (rejectBefore != null && !isExpired)
+            isExpired = null == rejectBefore.foldl(keys, (rejectIfBefore, test) -> rejectIfBefore.compareTo(test) >= 0 ? null : test, txnId, Objects::isNull);
+
+        if (isExpired)
+            return time.uniqueNow(txnId).asRejected();
+
+        if (txnId.rw() == ExclusiveSyncPoint)
+        {
+            Ranges ranges = (Ranges)keys;
+            ReducingRangeMap<Timestamp> newRejectBefore = rejectBefore != null ? rejectBefore : new ReducingRangeMap<>(Timestamp.NONE);
+            newRejectBefore = ReducingRangeMap.add(newRejectBefore, ranges, txnId, Timestamp::max);
+            setRejectBefore(newRejectBefore);
+        }
+
+        Timestamp maxConflict = safeStore.maxConflict(keys, safeStore.ranges().at(txnId.epoch()));
+        if (txnId.compareTo(maxConflict) > 0 && txnId.epoch() >= time.epoch())
+            return txnId;
+
+        return time.uniqueNow(maxConflict);
     }
 
     public void setCacheSize(long bytes)

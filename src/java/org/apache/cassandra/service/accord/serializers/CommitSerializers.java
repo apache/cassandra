@@ -44,7 +44,7 @@ public class CommitSerializers
             serializeNullable(msg.partialTxn, out, version, CommandSerializers.partialTxn);
             DepsSerializer.partialDeps.serialize(msg.partialDeps, out, version);
             serializeNullable(msg.route, out, version, KeySerializers.fullRoute);
-            serializeNullable(msg.read, out, version, ReadDataSerializers.request);
+            serializeNullable(msg.toExecute, out, version, ExecuteSerializers.toExecuteSerializer);
         }
 
         @Override
@@ -55,7 +55,7 @@ public class CommitSerializers
                                                    deserializeNullable(in, version, CommandSerializers.partialTxn),
                                                    DepsSerializer.partialDeps.deserialize(in, version),
                                                    deserializeNullable(in, version, KeySerializers.fullRoute),
-                                                   deserializeNullable(in, version, ReadDataSerializers.request)
+                                                   deserializeNullable(in, version, ExecuteSerializers.toExecuteSerializer)
             );
         }
 
@@ -66,7 +66,7 @@ public class CommitSerializers
                    + serializedNullableSize(msg.partialTxn, version, CommandSerializers.partialTxn)
                    + DepsSerializer.partialDeps.serializedSize(msg.partialDeps, version)
                    + serializedNullableSize(msg.route, version, KeySerializers.fullRoute)
-                   + serializedNullableSize(msg.read, version, ReadDataSerializers.request);
+                   + serializedNullableSize(msg.toExecute, version, ExecuteSerializers.toExecuteSerializer);
         }
     };
 

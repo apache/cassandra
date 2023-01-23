@@ -19,13 +19,23 @@
 package org.apache.cassandra.simulator.test;
 
 import java.io.IOException;
+import java.util.Map;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.simulator.paxos.AccordSimulationRunner;
 
 public class ShortAccordSimulationTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        for (Map.Entry<Object, Object> entry : System.getProperties().entrySet())
+        {
+            System.out.printf("%s -- %s%n", entry.getKey(), entry.getValue());
+        }
+    }
     @Test
     public void simulationTest() throws IOException
     {

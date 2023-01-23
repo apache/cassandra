@@ -27,21 +27,28 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import org.apache.cassandra.db.guardrails.Guardrails;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.schema.ColumnMetadata;
 import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -52,6 +59,8 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
  */
 public abstract class Lists
 {
+    private static final Logger logger = LoggerFactory.getLogger(Lists.class);
+
     private Lists() {}
 
     public static ColumnSpecification indexSpecOf(ColumnSpecification column)
@@ -524,11 +533,18 @@ public abstract class Lists
                 // during SSTable write.
                 Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.clientState);
 
+                long cellIndex = 0;
                 int dataSize = 0;
                 for (ByteBuffer buffer : elements)
                 {
-                    ByteBuffer uuid = ByteBuffer.wrap(params.nextTimeUUIDAsBytes());
-                    Cell<?> cell = params.addCell(column, CellPath.create(uuid), buffer);
+                    ByteBuffer cellPath;
+                    // Accord will need to replace this value later once it knows the executeAt timestamp
+                    // so just put a TimeUUID with MSB centinel for now
+                    if (params.constructingAccordBaseUpdate)
+                        cellPath = TimeUUID.atUnixMicrosWithLsb(0, cellIndex++).toBytes();
+                    else
+                        cellPath = ByteBuffer.wrap(params.nextTimeUUIDAsBytes());
+                    Cell<?> cell = params.addCell(column, CellPath.create(cellPath), buffer);
                     dataSize += cell.dataSize();
                 }
                 Guardrails.collectionSize.guard(dataSize, column.name.toString(), false, params.clientState);

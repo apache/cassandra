@@ -23,6 +23,8 @@ import java.util.function.ToLongFunction;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import com.google.common.collect.Sets;
+
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
@@ -99,6 +101,12 @@ public class KeyspaceMetrics
     public final LatencyMetrics casPropose;
     /** CAS Commit metrics */
     public final LatencyMetrics casCommit;
+    /** Latency for locally run key migrations **/
+    public final LatencyMetrics keyMigration;
+    /** Latency for range migrations run by locally coordinated Accord repairs **/
+    public final LatencyMetrics rangeMigration;
+    public final Meter rangeMigrationUnexpectedFailures;
+    public final Meter rangeMigrationDependencyLimitFailures;
     /** Writes failed ideal consistency **/
     public final Counter writeFailedIdealCL;
     /** Ideal CL write latency metrics */
@@ -236,6 +244,10 @@ public class KeyspaceMetrics
         casPrepare = createLatencyMetrics("CasPrepare");
         casPropose = createLatencyMetrics("CasPropose");
         casCommit = createLatencyMetrics("CasCommit");
+        keyMigration = createLatencyMetrics("KeyMigration");
+        rangeMigration = createLatencyMetrics("RangeMigration");
+        rangeMigrationUnexpectedFailures = createKeyspaceMeter("RangeMigrationUnexpectedFailures");
+        rangeMigrationDependencyLimitFailures = createKeyspaceMeter("RangeMigratingDependencyLimitFailures");
         writeFailedIdealCL = createKeyspaceCounter("WriteFailedIdealCL");
         idealCLWriteLatency = createLatencyMetrics("IdealCLWrite");
 

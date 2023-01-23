@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.management.NotificationEmitter;
 import javax.management.openmbean.CompositeData;
@@ -35,6 +36,7 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.utils.BreaksJMX;
 
 public interface StorageServiceMBean extends NotificationEmitter
@@ -477,7 +479,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     /**
      * Get the status of a given parent repair session.
      * @param cmd the int reference returned when issuing the repair
-     * @return status of parent repair from enum {@link org.apache.cassandra.repair.RepairRunnable.Status}
+     * @return status of parent repair from enum {@link RepairRunnable.Status}
      * followed by final message or messages of the session
      */
     @Nullable
@@ -1002,6 +1004,17 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return true if the node successfully starts resuming. (this does not mean bootstrap streaming was success.)
      */
     public boolean resumeBootstrap();
+
+    void migrateConsensusProtocol(@Nonnull String targetProtocol,
+                                  @Nonnull List<String> keyspaceNames,
+                                  @Nullable List<String> maybeTableNames,
+                                  @Nullable String maybeRangesStr);
+
+    void setConsensusMigrationTargetProtocol(@Nonnull String targetProtocol,
+                                             @Nonnull List<String> keyspaceNames,
+                                             @Nullable List<String> maybeTableNames);
+
+    String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, @Nonnull String format);
 
     /** Gets the concurrency settings for processing stages*/
     static class StageConcurrency implements Serializable

@@ -17,39 +17,42 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.function.Predicate;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
-
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.util.concurrent.*;
-import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.repair.state.JobState;
-import org.apache.cassandra.utils.concurrent.AsyncFuture;
+import com.google.common.util.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.asymmetric.DifferenceHolder;
 import org.apache.cassandra.repair.asymmetric.HostDifferences;
 import org.apache.cassandra.repair.asymmetric.PreferedNodeFilter;
 import org.apache.cassandra.repair.asymmetric.ReduceHelper;
-import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationRepairResult;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTrees;
@@ -58,6 +61,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosRepairEnabled;
 import static org.apache.cassandra.service.paxos.Paxos.useV2;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -65,15 +69,11 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 /**
  * RepairJob runs repair on given ColumnFamily.
  */
-public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
+public class CassandraRepairJob extends AbstractRepairJob
 {
-    private static final Logger logger = LoggerFactory.getLogger(RepairJob.class);
+    private static final Logger logger = LoggerFactory.getLogger(CassandraRepairJob.class);
 
-    public final JobState state;
-    private final RepairJobDesc desc;
-    private final RepairSession session;
     private final RepairParallelism parallelismDegree;
-    private final ExecutorPlus taskExecutor;
 
     @VisibleForTesting
     final List<ValidationTask> validationTasks = new CopyOnWriteArrayList<>();
@@ -86,13 +86,10 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
      *  @param session RepairSession that this RepairJob belongs
      * @param columnFamily name of the ColumnFamily to repair
      */
-    public RepairJob(RepairSession session, String columnFamily)
+    public CassandraRepairJob(RepairSession session, String columnFamily)
     {
-        this.session = session;
-        this.taskExecutor = session.taskExecutor;
+        super(session, columnFamily);
         this.parallelismDegree = session.parallelismDegree;
-        this.desc = new RepairJobDesc(session.state.parentRepairSession, session.getId(), session.state.keyspace, columnFamily, session.state.commonRange.ranges);
-        this.state = new JobState(desc, session.state.commonRange.endpoints);
     }
 
     public int getNowInSeconds()
@@ -108,24 +105,23 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         }
     }
 
+
     /**
      * Runs repair job.
      *
      * This sets up necessary task and runs them on given {@code taskExecutor}.
      * After submitting all tasks, waits until validation with replica completes.
      */
-    public void run()
+    @Override
+    protected void runRepair()
     {
-        state.phase.start();
-        Keyspace ks = Keyspace.open(desc.keyspace);
-        ColumnFamilyStore cfs = ks.getColumnFamilyStore(desc.columnFamily);
-        cfs.metric.repairsStarted.inc();
         List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.state.commonRange.endpoints);
         allEndpoints.add(FBUtilities.getBroadcastAddressAndPort());
 
         Future<List<TreeResponse>> treeResponses;
-        Future<Void> paxosRepair;
-        if (paxosRepairEnabled() && ((useV2() && session.repairPaxos) || session.paxosOnly))
+        Future<Epoch> paxosRepair;
+        boolean doPaxosRepair = paxosRepairEnabled() && ((useV2() && session.repairPaxos) || session.paxosOnly);
+        if (doPaxosRepair)
         {
             logger.info("{} {}.{} starting paxos repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
             TableMetadata metadata = Schema.instance.getTableMetadata(desc.keyspace, desc.columnFamily);
@@ -134,17 +130,17 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         else
         {
             logger.info("{} {}.{} not running paxos repair", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-            paxosRepair = ImmediateFuture.success(null);
+            paxosRepair = ImmediateFuture.success(Epoch.EMPTY);
         }
 
         if (session.paxosOnly)
         {
-            paxosRepair.addCallback(new FutureCallback<Void>()
+            paxosRepair.addCallback(new FutureCallback<Epoch>()
             {
-                public void onSuccess(Void v)
+                public void onSuccess(Epoch minEpoch)
                 {
                     logger.info("{} {}.{} paxos repair completed", session.previewKind.logPrefix(session.getId()), desc.keyspace, desc.columnFamily);
-                    trySuccess(new RepairResult(desc, Collections.emptyList()));
+                    trySuccess(new RepairResult(desc, Collections.emptyList(), ConsensusMigrationRepairResult.fromCassandraRepair(minEpoch, false)));
                 }
 
                 /**
@@ -221,7 +217,9 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     SystemDistributedKeyspace.successfulRepairJob(session.getId(), desc.keyspace, desc.columnFamily);
                 }
                 cfs.metric.repairsCompleted.inc();
-                trySuccess(new RepairResult(desc, stats));
+                Epoch minEpoch = paxosRepair.getNow();
+                checkNotNull(minEpoch, "Future should be completed and return nonnull epoch");
+                trySuccess(new RepairResult(desc, stats, ConsensusMigrationRepairResult.fromCassandraRepair(minEpoch, doPaxosRepair)));
             }
 
             /**

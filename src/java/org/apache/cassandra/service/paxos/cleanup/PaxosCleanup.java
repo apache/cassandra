@@ -25,7 +25,6 @@ import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,6 +41,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Ballot;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -51,7 +51,7 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getCasContentionTim
 import static org.apache.cassandra.config.DatabaseDescriptor.getWriteRpcTimeout;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
-public class PaxosCleanup extends AsyncFuture<Void> implements Runnable
+public class PaxosCleanup extends AsyncFuture<Epoch> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(PaxosCleanup.class);
 
@@ -113,7 +113,7 @@ public class PaxosCleanup extends AsyncFuture<Void> implements Runnable
     private void finish(Ballot lowBound)
     {
         complete = new PaxosCleanupComplete(endpoints, table.id, ranges, lowBound, skippedReplicas);
-        addCallback(complete, this::trySuccess);
+        addCallback(complete, ignored -> trySuccess(startPrepare.minEpoch));
         executor.execute(complete);
     }
 

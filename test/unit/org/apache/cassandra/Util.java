@@ -145,6 +145,7 @@ import org.apache.cassandra.utils.Throwables;
 import org.awaitility.Awaitility;
 import org.mockito.Mockito;
 import org.mockito.internal.stubbing.defaultanswers.ForwardsInvocations;
+import org.awaitility.core.ThrowingRunnable;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -691,6 +692,21 @@ public class Util
                   .pollDelay(0, TimeUnit.MILLISECONDS)
                   .atMost(timeout, timeUnit)
                   .untilAsserted(() -> assertThat(message, actualSupplier.get(), equalTo(expected)));
+    }
+
+    public static void spinUntilSuccess(ThrowingRunnable runnable)
+    {
+        spinUntilSuccess(runnable, 10);
+    }
+
+    public static void spinUntilSuccess(ThrowingRunnable runnable, int timeoutInSeconds)
+    {
+        Awaitility.await()
+                  .pollInterval(Duration.ofMillis(100))
+                  .pollDelay(0, TimeUnit.MILLISECONDS)
+                  .atMost(timeoutInSeconds, TimeUnit.SECONDS)
+        .ignoreExceptions()
+                  .untilAsserted(runnable);
     }
 
     public static void joinThread(Thread thread) throws InterruptedException

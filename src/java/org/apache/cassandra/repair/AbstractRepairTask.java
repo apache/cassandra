@@ -24,7 +24,6 @@ import java.util.Objects;
 
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.FutureCallback;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,6 +72,7 @@ public abstract class AbstractRepairTask implements RepairTask
                                                                                      options.optimiseStreams(),
                                                                                      options.repairPaxos(),
                                                                                      options.paxosOnly(),
+                                                                                     options.accordRepair(),
                                                                                      executor,
                                                                                      cfnames);
             if (session == null)

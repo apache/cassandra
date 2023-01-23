@@ -18,7 +18,13 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -48,7 +54,10 @@ import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.net.MessagingService.*;
+import static org.apache.cassandra.net.MessagingService.VERSION_30;
+import static org.apache.cassandra.net.MessagingService.VERSION_3014;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.VERSION_50;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class Mutation implements IMutation, Supplier<Mutation>
@@ -317,6 +326,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
     private int serializedSize30;
     private int serializedSize3014;
     private int serializedSize40;
+    private int serializedSize50;
 
     public int serializedSize(int version)
     {
@@ -334,6 +344,11 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 if (serializedSize40 == 0)
                     serializedSize40 = (int) serializer.serializedSize(this, VERSION_40);
                 return serializedSize40;
+                // TODO should we reuse 40 or is that fragile? Discard 30?
+            case VERSION_50:
+                if (serializedSize50 == 0)
+                    serializedSize50 = (int) serializer.serializedSize(this, VERSION_50);
+                return serializedSize50;
             default:
                 throw new IllegalStateException("Unknown serialization version: " + version);
         }

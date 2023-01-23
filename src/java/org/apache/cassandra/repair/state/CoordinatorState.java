@@ -88,11 +88,6 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
         return columnFamilies.stream().map(ColumnFamilyStore::getTableName).toArray(String[]::new);
     }
 
-    public RepairRunnable.NeighborsAndRanges getNeighborsAndRanges()
-    {
-        return neighborsAndRanges;
-    }
-
     public Set<InetAddressAndPort> getParticipants()
     {
         if (neighborsAndRanges == null)

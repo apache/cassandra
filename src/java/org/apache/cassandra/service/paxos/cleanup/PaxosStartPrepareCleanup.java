@@ -19,13 +19,21 @@
 package org.apache.cassandra.service.paxos.cleanup;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -36,13 +44,18 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.*;
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_START_PREPARE_REQ;
@@ -57,6 +70,8 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
     private static final Logger logger = LoggerFactory.getLogger(PaxosStartPrepareCleanup.class);
 
     public static final RequestSerializer serializer = new RequestSerializer();
+
+    public Epoch minEpoch = Epoch.EMPTY;
 
     private final TableId table;
 
@@ -106,8 +121,10 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
 
         history = PaxosRepairHistory.merge(history, msg.payload.history);
 
+        minEpoch = minEpoch == Epoch.EMPTY ? msg.epoch() : Epoch.min(minEpoch, msg.epoch());
+
         if (waitingResponse.isEmpty())
-            trySuccess(new PaxosCleanupHistory(table, maxBallot, history));
+            trySuccess(new PaxosCleanupHistory(table, maxBallot, history, minEpoch));
     }
 
     private static void maybeUpdateTopology(InetAddressAndPort endpoint, EndpointState remote)
@@ -186,7 +203,7 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
         maybeUpdateTopology(in.from(), in.payload.epState);
         Ballot highBound = newBallot(ballotTracker().getHighBound(), ConsistencyLevel.SERIAL);
         PaxosRepairHistory history = table.getPaxosRepairHistoryForRanges(in.payload.ranges);
-        Message<PaxosCleanupHistory> out = in.responseWith(new PaxosCleanupHistory(table.metadata.id, highBound, history));
+        Message<PaxosCleanupHistory> out = in.responseWith(new PaxosCleanupHistory(table.metadata.id, highBound, history, ClusterMetadata.current().epoch));
         MessagingService.instance().send(out, in.respondTo());
     };
 }

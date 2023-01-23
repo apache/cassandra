@@ -54,12 +54,12 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.primitives.Writes;
-import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
-import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -337,7 +337,7 @@ public class AccordObjectSizes
         size += sizeNullable(executed.writes(), AccordObjectSizes::writes);
         Result result = executed.result();
         if (result != null)
-            size += ((TxnData) result).estimatedSizeOnHeap();
+            size += ((TxnResult) result).estimatedSizeOnHeap();
 
         return size;
     }
