@@ -112,6 +112,7 @@ Merged from 4.0:
  * Restore internode custom tracing on 4.0's new messaging system (CASSANDRA-17981)
 Merged from 3.11:
 Merged from 3.0:
+ * Switch to snakeyaml's SafeConstructor (CASSANDRA-18150)
  * Expand build.dir property in rat targets (CASSANDRA-18183)
  * Suppress CVE-2022-41881 (CASSANDRA-18148)
  * Default role is created with zero timestamp (CASSANDRA-12525)
