@@ -38,6 +38,10 @@
         <cve>CVE-2022-38751</cve>
         <cve>CVE-2022-38752</cve>
         <cve>CVE-2022-41854</cve>
+        <cve>CVE-2021-1471</cve>
+        <cve>CVE-2021-3064</cve>
+        <cve>CVE-2021-4235</cve>
+        <cve>CVE-2017-18640</cve>
     </suppress>
     <suppress>
         <!-- dependency checker identified this as a completely different package (wire) -->
