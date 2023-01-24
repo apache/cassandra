@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.paxos;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -54,6 +55,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.util.Collections.emptyMap;
@@ -74,6 +76,7 @@ import static org.apache.cassandra.utils.CollectionSerializer.deserializeMap;
 import static org.apache.cassandra.utils.CollectionSerializer.newHashMap;
 import static org.apache.cassandra.utils.CollectionSerializer.serializeMap;
 import static org.apache.cassandra.utils.CollectionSerializer.serializedSizeMap;
+import static org.apache.cassandra.utils.NoSpamLogger.Level.WARN;
 import static org.apache.cassandra.utils.concurrent.Awaitable.SyncAwaitable.waitUntil;
 
 /**
@@ -974,6 +977,17 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             this.readResponse = readResponse;
             this.gossipInfo = gossipInfo;
             this.supersededBy = supersededBy;
+            // This should not happen as the root cause is believed to be fixed, but to be extra defensive filter out
+            // all keys with null values
+            List<InetAddressAndPort> nullEndpoints = gossipInfo.entrySet().stream()
+                                                               .filter(e -> e.getValue() == null)
+                                                               .map(e -> e.getKey())
+                                                               .collect(Collectors.toList());
+            if (!nullEndpoints.isEmpty())
+            {
+                NoSpamLogger.log(logger, WARN, 1, TimeUnit.MINUTES, "Found null EndpointStates for {}", nullEndpoints);
+                nullEndpoints.forEach(gossipInfo::remove);
+            }
         }
 
         @Override
