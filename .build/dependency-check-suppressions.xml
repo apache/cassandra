@@ -30,6 +30,10 @@
         <cve>CVE-2022-38751</cve>
         <cve>CVE-2022-38752</cve>
         <cve>CVE-2022-41854</cve>
+        <cve>CVE-2021-1471</cve>
+        <cve>CVE-2021-3064</cve>
+        <cve>CVE-2021-4235</cve>
+        <cve>CVE-2017-18640</cve>
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-15417 -->
