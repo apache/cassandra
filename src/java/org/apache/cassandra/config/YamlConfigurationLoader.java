@@ -44,7 +44,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.composer.Composer;
-import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.MissingProperty;
@@ -122,7 +122,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             }
 
 
-            Constructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
+            SafeConstructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
             PropertiesChecker propertiesChecker = new PropertiesChecker();
             constructor.setPropertyUtils(propertiesChecker);
             Yaml yaml = new Yaml(constructor);
@@ -145,7 +145,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     @SuppressWarnings("unchecked") //getSingleData returns Object, not T
     public static <T> T fromMap(Map<String,Object> map, boolean shouldCheck, Class<T> klass)
     {
-        Constructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
+        SafeConstructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker();
         constructor.setPropertyUtils(propertiesChecker);
         Yaml yaml = new Yaml(constructor);
