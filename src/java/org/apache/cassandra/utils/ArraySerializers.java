@@ -25,21 +25,20 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-import static com.google.common.primitives.Ints.checkedCast;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class ArraySerializers
 {
     public static <T> void serializeArray(T[] items, DataOutputPlus out, int version, IVersionedSerializer<T> serializer) throws IOException
     {
-        out.writeUnsignedVInt(items.length);
+        out.writeUnsignedVInt32(items.length);
         for (T item : items)
             serializer.serialize(item, out, version);
     }
 
     public static <T> T[] deserializeArray(DataInputPlus in, int version, IVersionedSerializer<T> serializer, IntFunction<T[]> arrayFactory) throws IOException
     {
-        int size = checkedCast(in.readUnsignedVInt());
+        int size = in.readUnsignedVInt32();
         T[] items = arrayFactory.apply(size);
         for (int i = 0; i < size; i++)
             items[i] = serializer.deserialize(in, version);

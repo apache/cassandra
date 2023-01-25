@@ -47,7 +47,6 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static java.lang.Math.toIntExact;
 import static org.apache.cassandra.service.accord.AccordSerializers.serialize;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
@@ -245,8 +244,8 @@ public class TxnUpdate implements Update
 
         try (DataOutputBuffer out = new DataOutputBuffer((int) size))
         {
-            out.writeUnsignedVInt(version);
-            out.writeUnsignedVInt(end - start);
+            out.writeUnsignedVInt32(version);
+            out.writeUnsignedVInt32(end - start);
             for (int i = start ; i < end ; ++i)
                 serializer.serialize(items.get(i), out, version);
             return out.buffer(false);
@@ -264,8 +263,8 @@ public class TxnUpdate implements Update
 
         try (DataInputBuffer in = new DataInputBuffer(bytes, true))
         {
-            int version = toIntExact(in.readUnsignedVInt());
-            int count = toIntExact(in.readUnsignedVInt());
+            int version = in.readUnsignedVInt32();
+            int count = in.readUnsignedVInt32();
             switch (count)
             {
                 case 0: throw new IllegalStateException();

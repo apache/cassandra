@@ -69,9 +69,10 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.primitives.Ints.checkedCast;
 import static java.util.stream.Collectors.toList;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+
 import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -369,7 +370,7 @@ public abstract class ColumnCondition
                 columnMetadataSerializer.serialize(bound.column, out, version);
                 bound.comparisonOperator.writeToUnsignedVInt(out);
                 BoundKind kind = bound.kind();
-                out.writeUnsignedVInt(kind.ordinal());
+                out.writeUnsignedVInt32(kind.ordinal());
                 kind.serializer.serialize(bound, out, version);
             }
 
@@ -378,7 +379,7 @@ public abstract class ColumnCondition
             {
                 ColumnMetadata column = columnMetadataSerializer.deserialize(in, version);
                 Operator comparisonOperator = Operator.readFromUnsignedVInt(in);
-                int boundKind = checkedCast(in.readUnsignedVInt());
+                int boundKind = in.readUnsignedVInt32();
                 return BoundKind.serializer(boundKind).deserialize(in, version, column, comparisonOperator);
             }
 
@@ -402,21 +403,21 @@ public abstract class ColumnCondition
         long serializedSize(T condition, int version);
     }
 
-    protected static final Cell<?> getCell(Row row, ColumnMetadata column)
+    protected static Cell<?> getCell(Row row, ColumnMetadata column)
     {
         // If we're asking for a given cell, and we didn't got any row from our read, it's
         // the same as not having said cell.
         return row == null ? null : row.getCell(column);
     }
 
-    protected static final Cell<?> getCell(Row row, ColumnMetadata column, CellPath path)
+    protected static Cell<?> getCell(Row row, ColumnMetadata column, CellPath path)
     {
         // If we're asking for a given cell, and we didn't got any row from our read, it's
         // the same as not having said cell.
         return row == null ? null : row.getCell(column, path);
     }
 
-    protected static final Iterator<Cell<?>> getCells(Row row, ColumnMetadata column)
+    protected static Iterator<Cell<?>> getCells(Row row, ColumnMetadata column)
     {
         // If we're asking for a complex cells, and we didn't got any row from our read, it's
         // the same as not having any cells for that column.
@@ -427,7 +428,7 @@ public abstract class ColumnCondition
         return complexData == null ? Collections.<Cell<?>>emptyIterator() : complexData.iterator();
     }
 
-    protected static final boolean evaluateComparisonWithOperator(int comparison, Operator operator)
+    protected static boolean evaluateComparisonWithOperator(int comparison, Operator operator)
     {
         // called when comparison != 0
         switch (operator)
@@ -829,7 +830,7 @@ public abstract class ColumnCondition
                 else
                 {
                     for (int i = 0; i < numTerminals; i++)
-                        terminals.add(deserializeCqlCollectionAsTerm(nullableByteBufferSerializer.deserialize(in, version), column.type, ProtocolVersion.CURRENT));
+                        terminals.add(deserializeCqlCollectionAsTerm(nullableByteBufferSerializer.deserialize(in, version), column.type));
                 }
                 return new MultiCellCollectionBound(column, operator, terminals);
             }
@@ -1007,7 +1008,7 @@ public abstract class ColumnCondition
             UserType userType = (UserType) column.type;
             Iterator<Cell<?>> iter = getCells(row, column);
             // User type doesn't use the protocol version so passing in null
-            return iter.hasNext() ? userType.serializeForNativeProtocol(iter, null) : null;
+            return iter.hasNext() ? userType.serializeForNativeProtocol(iter) : null;
         }
 
         private boolean isSatisfiedBy(ByteBuffer rowValue)

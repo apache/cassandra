@@ -22,7 +22,6 @@ import java.io.IOException;
 
 import accord.messages.WaitOnCommit;
 import accord.messages.WaitOnCommit.WaitOnCommitOk;
-import accord.primitives.Routables;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import org.apache.cassandra.io.IVersionedSerializer;

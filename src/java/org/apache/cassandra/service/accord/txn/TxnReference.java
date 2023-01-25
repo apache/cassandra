@@ -38,7 +38,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.db.marshal.CollectionType.Kind.SET;
@@ -241,12 +240,12 @@ public class TxnReference
             if (type instanceof CollectionType)
             {
                 CollectionType<?> col = (CollectionType<?>) type;
-                return col.serializeForNativeProtocol(complex.iterator(), ProtocolVersion.CURRENT);
+                return col.serializeForNativeProtocol(complex.iterator());
             }
             else if (type instanceof UserType)
             {
                 UserType udt = (UserType) type;
-                return udt.serializeForNativeProtocol(complex.iterator(), ProtocolVersion.CURRENT);
+                return udt.serializeForNativeProtocol(complex.iterator());
             }
 
             throw new UnsupportedOperationException("Unsupported complex type: " + type);

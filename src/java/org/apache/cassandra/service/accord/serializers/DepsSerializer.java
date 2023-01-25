@@ -75,14 +75,14 @@ public abstract class DepsSerializer<D extends Deps> implements IVersionedSerial
         KeySerializers.keys.serialize(keys, out, version);
 
         int txnIdCount = deps.txnIdCount();
-        out.writeUnsignedVInt(txnIdCount);
+        out.writeUnsignedVInt32(txnIdCount);
         for (int i=0; i<txnIdCount; i++)
             CommandSerializers.txnId.serialize(deps.txnId(i), out, version);
 
         int keyToTxnIdCount = keyToTxnIdCount(deps);
-        out.writeUnsignedVInt(keyToTxnIdCount);
+        out.writeUnsignedVInt32(keyToTxnIdCount);
         for (int i=0; i<keyToTxnIdCount; i++)
-            out.writeUnsignedVInt(keyToTxnId(deps, i));
+            out.writeUnsignedVInt32(keyToTxnId(deps, i));
     }
 
     @Override
@@ -90,13 +90,13 @@ public abstract class DepsSerializer<D extends Deps> implements IVersionedSerial
     {
         Keys keys = KeySerializers.keys.deserialize(in, version);
 
-        TxnId[] txnIds = new TxnId[(int) in.readUnsignedVInt()];
+        TxnId[] txnIds = new TxnId[in.readUnsignedVInt32()];
         for (int i=0; i<txnIds.length; i++)
             txnIds[i] = CommandSerializers.txnId.deserialize(in, version);
 
-        int[] keyToTxnIds = new int[(int) in.readUnsignedVInt()];
+        int[] keyToTxnIds = new int[in.readUnsignedVInt32()];
         for (int i=0; i<keyToTxnIds.length; i++)
-            keyToTxnIds[i] = (int) in.readUnsignedVInt();
+            keyToTxnIds[i] = in.readUnsignedVInt32();
 
         return deserialize(keys, txnIds, keyToTxnIds, in, version);
     }

@@ -38,7 +38,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.primitives.Ints.checkedCast;
+
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.service.accord.AccordSerializers.clusteringSerializer;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
@@ -217,7 +217,7 @@ public class TxnDataName implements Comparable<TxnDataName>
     @Override
     public String toString()
     {
-        return kind.name() + ":" + name();
+        return kind.name() + ':' + name();
     }
 
     public static final IVersionedSerializer<TxnDataName> serializer = new IVersionedSerializer<TxnDataName>()
@@ -226,7 +226,7 @@ public class TxnDataName implements Comparable<TxnDataName>
         public void serialize(TxnDataName t, DataOutputPlus out, int version) throws IOException
         {
             out.writeByte(t.kind.value);
-            out.writeUnsignedVInt(t.parts.length);
+            out.writeUnsignedVInt32(t.parts.length);
             for (String part : t.parts)
                 out.writeUTF(part);
             serializeNullable(t.clustering, out, version, clusteringSerializer);
@@ -236,7 +236,7 @@ public class TxnDataName implements Comparable<TxnDataName>
         public TxnDataName deserialize(DataInputPlus in, int version) throws IOException
         {
             Kind kind = Kind.from(in.readByte());
-            int length = checkedCast(in.readUnsignedVInt());
+            int length = in.readUnsignedVInt32();
             String[] parts = new String[length];
             for (int i = 0; i < length; i++)
                 parts[i] = in.readUTF();

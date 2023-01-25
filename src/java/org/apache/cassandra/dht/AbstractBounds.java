@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.dht;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;

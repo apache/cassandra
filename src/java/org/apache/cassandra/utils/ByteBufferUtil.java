@@ -364,11 +364,11 @@ public class ByteBufferUtil
     {
         if (bytes == null)
         {
-            out.writeVInt(-1);
+            out.writeVInt32(-1);
             return;
         }
         
-        out.writeVInt(bytes.remaining());
+        out.writeVInt32(bytes.remaining());
         out.write(bytes);
     }
 

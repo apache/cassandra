@@ -33,7 +33,6 @@ import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.primitives.Ints.checkedCast;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public enum Operator
@@ -295,7 +294,7 @@ public enum Operator
      * Creates a new <code>Operator</code> with the specified binary representation.
      * @param b the binary representation of this <code>Enum</code> value
      */
-    private Operator(int b)
+    Operator(int b)
     {
         this.b = b;
     }
@@ -319,7 +318,7 @@ public enum Operator
      */
     public void writeToUnsignedVInt(DataOutputPlus output) throws IOException
     {
-        output.writeUnsignedVInt(b);
+        output.writeUnsignedVInt32(b);
     }
 
     public int getValue()
@@ -348,7 +347,7 @@ public enum Operator
      */
     public static Operator readFromUnsignedVInt(DataInputPlus input) throws IOException
     {
-        return fromBinary(checkedCast(input.readUnsignedVInt()));
+        return fromBinary(input.readUnsignedVInt32());
     }
 
     private static Operator fromBinary(int b) throws IOException
