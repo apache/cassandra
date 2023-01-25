@@ -488,7 +488,7 @@ public class TransactionStatement implements CQLStatement
             {
                 ModificationStatement.Parsed parsed = updates.get(i);
 
-                ModificationStatement prepared = parsed.prepare(bindVariables);
+                ModificationStatement prepared = parsed.prepare(state, bindVariables);
                 checkFalse(prepared.hasConditions(), NO_CONDITIONS_IN_UPDATES_MESSAGE);
                 checkFalse(prepared.isTimestampSet(), NO_TIMESTAMPS_IN_UPDATES_MESSAGE);
 

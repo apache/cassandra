@@ -47,10 +47,8 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static com.google.common.primitives.Ints.checkedCast;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.db.marshal.CollectionType.Kind.LIST;
@@ -65,7 +63,7 @@ public class AccordSerializers
         long size = serializer.serializedSize(item, version) + sizeofUnsignedVInt(version);
         try (DataOutputBuffer out = new DataOutputBuffer((int) size))
         {
-            out.writeUnsignedVInt(version);
+            out.writeUnsignedVInt32(version);
             serializer.serialize(item, out, version);
             return out.buffer(false);
         }
@@ -87,7 +85,7 @@ public class AccordSerializers
     {
         try (DataInputBuffer in = new DataInputBuffer(bytes, true))
         {
-            int version = checkedCast(in.readUnsignedVInt());
+            int version = in.readUnsignedVInt32();
             return serializer.deserialize(in, version);
         }
         catch (IOException e)
@@ -96,16 +94,16 @@ public class AccordSerializers
         }
     }
 
-    public static Term.Terminal deserializeCqlCollectionAsTerm(ByteBuffer buffer, AbstractType<?> type, ProtocolVersion version)
+    public static Term.Terminal deserializeCqlCollectionAsTerm(ByteBuffer buffer, AbstractType<?> type)
     {
         CollectionType<?> collectionType = (CollectionType<?>) type;
 
         if (collectionType.kind == SET)
-            return Sets.Value.fromSerialized(buffer, (SetType<?>) type, version);
+            return Sets.Value.fromSerialized(buffer, (SetType<?>) type);
         else if (collectionType.kind == LIST)
-            return Lists.Value.fromSerialized(buffer, (ListType<?>) type, version);
+            return Lists.Value.fromSerialized(buffer, (ListType<?>) type);
         else if (collectionType.kind == MAP)
-            return Maps.Value.fromSerialized(buffer, (MapType<?, ?>) type, version);
+            return Maps.Value.fromSerialized(buffer, (MapType<?, ?>) type);
 
         throw new UnsupportedOperationException("Unsupported collection type: " + type);
     }
@@ -202,7 +200,7 @@ public class AccordSerializers
             else
             {
                 out.writeBoolean(false);
-                out.writeUnsignedVInt(clustering.size());
+                out.writeUnsignedVInt32(clustering.size());
                 ValueAccessor<V> accessor = clustering.accessor();
                 for (int i = 0; i < clustering.size(); i++)
                 {
@@ -221,11 +219,11 @@ public class AccordSerializers
             }
             else
             {
-                int numComponents = checkedCast(in.readUnsignedVInt());
+                int numComponents = in.readUnsignedVInt32();
                 byte[][] components = new byte[numComponents][];
                 for (int ci = 0; ci < numComponents; ci++)
                 {
-                    int componentLength = checkedCast(in.readUnsignedVInt());
+                    int componentLength = in.readUnsignedVInt32();
                     components[ci] = new byte[componentLength];
                     in.readFully(components[ci]);
                 }

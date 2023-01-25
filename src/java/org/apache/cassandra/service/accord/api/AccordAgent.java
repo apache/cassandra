@@ -18,8 +18,6 @@
 
 package org.apache.cassandra.service.accord.api;
 
-import java.util.concurrent.TimeUnit;
-
 import accord.api.Agent;
 import accord.api.Result;
 import accord.local.Command;

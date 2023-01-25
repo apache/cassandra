@@ -405,7 +405,7 @@ public abstract class Selector
                 UserType udt = (UserType) type;
                 int size = udt.size();
 
-                values[index] = udt.serializeForNativeProtocol(ccd.iterator(), protocolVersion);
+                values[index] = udt.serializeForNativeProtocol(ccd.iterator());
 
                 short fieldPosition = 0;
                 for (Cell<?> cell : ccd)

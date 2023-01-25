@@ -77,9 +77,9 @@ public abstract class Token implements RingPosition<Token>, Serializable
             out.put(toByteArray(token));
         }
 
-        public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
+        public Token deserialize(DataInputPlus in, IPartitioner p) throws IOException
         {
-            int size = p.isFixedLength() ? p.getMaxTokenSize() : (int)in.readUnsignedVInt();
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
             byte[] bytes = new byte[size];
             in.readFully(bytes);
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
@@ -135,13 +135,13 @@ public abstract class Token implements RingPosition<Token>, Serializable
         {
             IPartitioner p = token.getPartitioner();
             if (!p.isFixedLength())
-                out.writeUnsignedVInt(p.getTokenFactory().byteSize(token));
+                out.writeUnsignedVInt32(p.getTokenFactory().byteSize(token));
             p.getTokenFactory().serialize(token, out);
         }
 
         public Token deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
         {
-            int size = p.isFixedLength() ? p.getMaxTokenSize() : (int)in.readUnsignedVInt();
+            int size = p.isFixedLength() ? p.getMaxTokenSize() : in.readUnsignedVInt32();
             byte[] bytes = new byte[size];
             in.readFully(bytes);
             return p.getTokenFactory().fromByteArray(ByteBuffer.wrap(bytes));
