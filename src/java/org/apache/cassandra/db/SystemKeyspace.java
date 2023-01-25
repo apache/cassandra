@@ -140,6 +140,8 @@ public final class SystemKeyspace
 
     private static final Logger logger = LoggerFactory.getLogger(SystemKeyspace.class);
 
+    public static UUID initialHostId = UUID.randomUUID();
+
     public static final CassandraVersion CURRENT_VERSION = new CassandraVersion(FBUtilities.getReleaseVersionString());
 
     public static final String BATCHES = "batches";
@@ -1193,10 +1195,7 @@ public final class SystemKeyspace
                             .collect(Collectors.toList());
     }
 
-    /**
-     * Read the host ID from the system keyspace.
-     */
-    public static UUID getLocalHostId()
+    private static UUID readLocalHostId()
     {
         String req = "SELECT host_id FROM system.%s WHERE key='%s'";
         UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
@@ -1209,17 +1208,26 @@ public final class SystemKeyspace
     }
 
     /**
+     * Read the host ID from the system keyspace.
+     */
+    public static UUID getLocalHostId()
+    {
+        UUID persistedUUID = readLocalHostId();
+        return persistedUUID == null ? initialHostId : persistedUUID;
+    }
+
+    /**
      * Read the host ID from the system keyspace, creating (and storing) one if
      * none exists.
      */
     public static synchronized UUID getOrInitializeLocalHostId()
     {
-        UUID hostId = getLocalHostId();
+        UUID hostId = readLocalHostId();
         if (hostId != null)
             return hostId;
 
         // ID not found, generate a new one, persist, and then return it.
-        hostId = UUID.randomUUID();
+        hostId = initialHostId;
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
         return setLocalHostId(hostId);
     }
@@ -1242,7 +1250,7 @@ public final class SystemKeyspace
         String req = "SELECT schema_version FROM system.%s WHERE key='%s'";
         UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
 
-        if (!result.isEmpty() && result.one().has("schema_version"))
+        if (result != null && result.isEmpty() && result.one().has("schema_version"))
             return result.one().getUUID("schema_version");
 
         return null;
