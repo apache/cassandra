@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
@@ -30,7 +29,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 public interface PartitionPosition extends RingPosition<PartitionPosition>, ByteComparable
 {
-    public static enum Kind
+    public enum Kind
     {
         // Only add new values to the end of the enum, the ordinal is used
         // during serialization

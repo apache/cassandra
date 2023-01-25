@@ -24,7 +24,6 @@ import accord.messages.ReadData;
 import accord.messages.ReadData.ReadNack;
 import accord.messages.ReadData.ReadOk;
 import accord.messages.ReadData.ReadReply;
-import accord.primitives.Keys;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;

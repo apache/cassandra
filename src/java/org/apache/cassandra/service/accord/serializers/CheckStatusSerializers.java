@@ -32,7 +32,6 @@ import accord.messages.CheckStatus.CheckStatusReply;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
-import accord.primitives.Routables;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
