@@ -35,7 +35,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
  * This class tests all keywords which took a long time. Hence it was split into multiple
  * KeywordTestSplitN to prevent CI timing out. If timeouts reappear split it further
  */
-public class KeywordTestBase extends CQLTester
+public abstract class KeywordTestBase extends CQLTester
 {
     public static List<Object[]> keywords = Arrays.stream(CqlParser.tokenNames)
                                                   .filter(k -> k.startsWith("K_"))
