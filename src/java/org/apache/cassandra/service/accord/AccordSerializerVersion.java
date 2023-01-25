@@ -86,7 +86,7 @@ public enum AccordSerializerVersion implements MessageVersionProvider
 
         public void serialize(AccordSerializerVersion t, DataOutputPlus out) throws IOException
         {
-            out.writeUnsignedVInt(t.version);
+            out.writeUnsignedVInt32(t.version);
         }
 
         @Override
@@ -97,7 +97,7 @@ public enum AccordSerializerVersion implements MessageVersionProvider
 
         public AccordSerializerVersion deserialize(DataInputPlus in) throws IOException
         {
-            return fromVersion(Math.toIntExact(in.readUnsignedVInt()));
+            return fromVersion(in.readUnsignedVInt32());
         }
 
         @Override

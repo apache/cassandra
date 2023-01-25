@@ -61,12 +61,12 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.primitives.Ints.checkedCast;
 import static java.util.stream.Collectors.toList;
+
+import static com.google.common.base.Preconditions.checkNotNull;
+
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
@@ -356,7 +356,7 @@ public abstract class ColumnCondition
                 columnMetadataSerializer.serialize(bound.column, out, version);
                 bound.comparisonOperator.writeToUnsignedVInt(out);
                 BoundKind kind = bound.kind();
-                out.writeUnsignedVInt(kind.ordinal());
+                out.writeUnsignedVInt32(kind.ordinal());
                 kind.serializer.serialize(bound, out, version);
             }
 
@@ -365,7 +365,7 @@ public abstract class ColumnCondition
             {
                 ColumnMetadata column = columnMetadataSerializer.deserialize(in, version);
                 Operator comparisonOperator = Operator.readFromUnsignedVInt(in);
-                int boundKind = checkedCast(in.readUnsignedVInt());
+                int boundKind = in.readUnsignedVInt32();
                 return BoundKind.serializer(boundKind).deserialize(in, version, column, comparisonOperator);
             }
 
@@ -821,7 +821,7 @@ public abstract class ColumnCondition
                 else
                 {
                     for (int i = 0; i < numTerminals; i++)
-                        terminals.add(deserializeCqlCollectionAsTerm(nullableByteBufferSerializer.deserialize(in, version), column.type, ProtocolVersion.CURRENT));
+                        terminals.add(deserializeCqlCollectionAsTerm(nullableByteBufferSerializer.deserialize(in, version), column.type));
                 }
                 return new MultiCellCollectionBound(column, operator, Terms.Terminals.of(terminals));
             }
@@ -999,7 +999,7 @@ public abstract class ColumnCondition
             UserType userType = (UserType) column.type;
             Iterator<Cell<?>> iter = getCells(row, column);
             // User type doesn't use the protocol version so passing in null
-            return iter.hasNext() ? userType.serializeForNativeProtocol(iter, null) : null;
+            return iter.hasNext() ? userType.serializeForNativeProtocol(iter) : null;
         }
 
         private boolean isSatisfiedBy(ByteBuffer rowValue)

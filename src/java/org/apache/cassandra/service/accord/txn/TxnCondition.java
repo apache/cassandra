@@ -54,7 +54,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.primitives.Ints.checkedCast;
+
 import static org.apache.cassandra.service.accord.AccordSerializers.clusteringSerializer;
 import static org.apache.cassandra.service.accord.AccordSerializers.deserializeCqlCollectionAsTerm;
 import static org.apache.cassandra.service.accord.txn.TxnRead.SERIAL_READ;
@@ -63,7 +63,6 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializeCollecti
 import static org.apache.cassandra.utils.CollectionSerializers.serializeList;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedCollectionSize;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedListSize;
-
 
 public abstract class TxnCondition
 {
@@ -440,7 +439,7 @@ public abstract class TxnCondition
                     }
                     else
                     {
-                        Term.Terminal term = deserializeCqlCollectionAsTerm(value, type, version);
+                        Term.Terminal term = deserializeCqlCollectionAsTerm(value, type);
                         return ColumnCondition.MultiCellCollectionBound.appliesTo(column, kind.operator, Terms.Terminals.of(term), row);
                     }
                 }
@@ -586,14 +585,14 @@ public abstract class TxnCondition
         @Override
         public void serialize(TxnCondition condition, DataOutputPlus out, int version) throws IOException
         {
-            out.writeUnsignedVInt(condition.kind.ordinal());
+            out.writeUnsignedVInt32(condition.kind.ordinal());
             condition.kind.serializer().serialize(condition, out, version);
         }
 
         @Override
         public TxnCondition deserialize(DataInputPlus in, int version) throws IOException
         {
-            Kind kind = Kind.values()[checkedCast(in.readUnsignedVInt())];
+            Kind kind = Kind.values()[in.readUnsignedVInt32()];
             return kind.serializer().deserialize(in, version, kind);
         }
 

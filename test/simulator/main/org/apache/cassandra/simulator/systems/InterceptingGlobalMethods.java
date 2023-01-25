@@ -24,9 +24,6 @@ import java.util.function.LongConsumer;
 
 import javax.annotation.Nullable;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.InterceptedWait.InterceptedConditionWait;

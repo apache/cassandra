@@ -57,8 +57,6 @@ import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
 
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.fail;
-import static org.apache.cassandra.utils.AssertionUtils.hasCause;
-import static org.apache.cassandra.utils.AssertionUtils.isThrowableInstanceof;
 
 // TODO: the class hierarchy is a bit broken, but hard to untangle. Need to go Paxos->Consensus, probably.
 @SuppressWarnings("unused")

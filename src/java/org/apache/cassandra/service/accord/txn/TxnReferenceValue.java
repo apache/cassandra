@@ -29,8 +29,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static com.google.common.primitives.Ints.checkedCast;
-
 public abstract class TxnReferenceValue
 {
     private interface Serializer<T extends TxnReferenceValue>
@@ -196,14 +194,14 @@ public abstract class TxnReferenceValue
         @Override
         public void serialize(TxnReferenceValue value, DataOutputPlus out, int version) throws IOException
         {
-            out.writeUnsignedVInt(value.kind().ordinal());
+            out.writeUnsignedVInt32(value.kind().ordinal());
             value.kind().serializer.serialize(value, out, version);
         }
 
         @Override
         public TxnReferenceValue deserialize(DataInputPlus in, int version) throws IOException
         {
-            Kind kind = Kind.values()[checkedCast(in.readUnsignedVInt())];
+            Kind kind = Kind.values()[in.readUnsignedVInt32()];
             return kind.serializer.deserialize(in, version, kind);
         }
 
