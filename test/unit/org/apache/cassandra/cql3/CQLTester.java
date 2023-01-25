@@ -56,6 +56,7 @@ import com.datastax.driver.core.*;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ResultSet;
 
+import com.datastax.shaded.netty.channel.EventLoopGroup;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
@@ -133,6 +134,16 @@ public abstract class CQLTester
                                                                    "(\\((?:\\s*\\w+\\s*\\()?%<s\\))?",
                                                                    CREATE_INDEX_NAME_REGEX);
     private static final Pattern CREATE_INDEX_PATTERN = Pattern.compile(CREATE_INDEX_REGEX, Pattern.CASE_INSENSITIVE);
+
+    public static final NettyOptions IMMEDIATE_CONNECTION_SHUTDOWN_NETTY_OPTIONS = new NettyOptions()
+    {
+        @Override
+        public void onClusterClose(EventLoopGroup eventLoopGroup)
+        {
+            // shutdown driver connection immediatelly
+            eventLoopGroup.shutdownGracefully(0, 0, TimeUnit.SECONDS).syncUninterruptibly();
+        }
+    };
 
     /** Return the current server version if supported by the driver, else
      * the latest that is supported.
@@ -482,9 +493,10 @@ public abstract class CQLTester
                                              .addContactPoints(nativeAddr)
                                              .withClusterName("Test Cluster")
                                              .withPort(nativePort)
-                                             .withSocketOptions(socketOptions);
+                                             .withSocketOptions(socketOptions)
+                                             .withNettyOptions(IMMEDIATE_CONNECTION_SHUTDOWN_NETTY_OPTIONS);
 
-            if (clusterConfigurator != null)
+        if (clusterConfigurator != null)
                 clusterConfigurator.accept(builder);
 
             if (version.isBeta())
