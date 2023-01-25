@@ -22,7 +22,6 @@ import java.io.IOException;
 
 import accord.messages.Commit;
 import accord.primitives.PartialRoute;
-import accord.primitives.Routables;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import org.apache.cassandra.db.TypeSizes;

@@ -44,7 +44,6 @@ import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.primitives.Ints.checkedCast;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -568,7 +567,7 @@ public enum Operator
      */
     public void writeToUnsignedVInt(DataOutputPlus output) throws IOException
     {
-        output.writeUnsignedVInt(b);
+        output.writeUnsignedVInt32(b);
     }
 
     public int getValue()
@@ -597,7 +596,7 @@ public enum Operator
      */
     public static Operator readFromUnsignedVInt(DataInputPlus input) throws IOException
     {
-        return fromBinary(checkedCast(input.readUnsignedVInt()));
+        return fromBinary(input.readUnsignedVInt32());
     }
 
     private static Operator fromBinary(int b) throws IOException

@@ -23,7 +23,6 @@ import javax.annotation.Nullable;
 import accord.verify.StrictSerializabilityVerifier;
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
-import com.carrotsearch.hppc.cursors.IntIntCursor;
 
 public class StrictSerializabilityValidator implements HistoryValidator
 {

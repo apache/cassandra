@@ -18,16 +18,12 @@
 package org.apache.cassandra.dht;
 
 import java.io.IOException;
-import java.math.BigInteger;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
-import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 
 public class OrderPreservingPartitionerTest extends PartitionerTestCase
 {

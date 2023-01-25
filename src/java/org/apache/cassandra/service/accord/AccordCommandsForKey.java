@@ -53,7 +53,6 @@ import org.assertj.core.util.VisibleForTesting;
 import static accord.local.CommandsForKey.CommandTimeseries.TestDep.ANY_DEPS;
 import static accord.local.CommandsForKey.CommandTimeseries.TestDep.WITHOUT;
 import static accord.local.CommandsForKey.CommandTimeseries.TestKind.RorWs;
-import static accord.primitives.Txn.Kind.Write;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applyMapChanges;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applySetChanges;
 
