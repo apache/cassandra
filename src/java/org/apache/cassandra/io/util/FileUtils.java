@@ -57,12 +57,15 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.SyncUtil;
 
 import static com.google.common.base.Throwables.propagate;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.USE_NIX_RECURSIVE_DELETE;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -671,9 +674,15 @@ public final class FileUtils
      */
     public static void deleteRecursive(File dir)
     {
+        if (USE_NIX_RECURSIVE_DELETE.getBoolean() && dir.toPath().getFileSystem() == FileSystems.getDefault())
+        {
+            deleteRecursiveUsingNixCommand(dir.toPath(), false);
+            return;
+        }
+
         deleteChildrenRecursive(dir);
 
-        // The directory is now empty so now it can be smoked
+        // The directory is now empty, so now it can be smoked
         deleteWithConfirm(dir);
     }
 
@@ -688,8 +697,64 @@ public final class FileUtils
         if (dir.isDirectory())
         {
             String[] children = dir.list();
-            for (String child : children)
-                deleteRecursive(new File(dir, child));
+            if (children.length == 0)
+                return;
+
+            if (USE_NIX_RECURSIVE_DELETE.getBoolean() && dir.toPath().getFileSystem() == FileSystems.getDefault())
+            {
+                for (String child : children)
+                    deleteRecursiveUsingNixCommand(dir.toPath().resolve(child), false);
+            }
+            else
+            {
+                for (String child : children)
+                    deleteRecursive(new File(dir, child));
+            }
+        }
+    }
+
+    /**
+     * Uses unix `rm -r` to delete a directory recursively.
+     * This method can be much faster than deleting files and directories recursively by traversing them with Java.
+     * Though, we use it only for tests because it provides less information about the problem when something goes wrong.
+     *
+     * @param path        path to be deleted
+     * @param quietly     if quietly, additional `-f` flag is added to the `rm` command so that it will not complain in case
+     *                    the provided path is missing
+     */
+    private static void deleteRecursiveUsingNixCommand(Path path, boolean quietly)
+    {
+        String[] cmd = new String[]{ "rm",
+                                     quietly ? "-drf" : "-dr",
+                                     path.toAbsolutePath().toString() };
+
+        try
+        {
+            Process p = Runtime.getRuntime().exec(cmd);
+            int result = p.waitFor();
+
+            String out, err;
+            try (BufferedReader outReader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                 BufferedReader errReader = new BufferedReader(new InputStreamReader(p.getErrorStream())))
+            {
+                out = outReader.lines().collect(Collectors.joining("\n"));
+                err = errReader.lines().collect(Collectors.joining("\n"));
+            }
+
+            if (result != 0 && Files.exists(path))
+            {
+                logger.error("{} returned:\nstdout:\n{}\n\nstderr:\n{}", Arrays.toString(cmd), out, err);
+                throw new IOException(String.format("%s returned non-zero exit code: %d%nstdout:%n%s%n%nstderr:%n%s", Arrays.toString(cmd), result, out, err));
+            }
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, path.toString());
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new FSWriteError(e, path.toString());
         }
     }
 
