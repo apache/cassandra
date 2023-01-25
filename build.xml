@@ -111,11 +111,17 @@
     <property name="test.burn.timeout" value="60000000" />
     <property name="test.distributed.timeout" value="900000" />
 
-    <!-- default for cql tests. Can be override by -Dcassandra.test.use_prepared=false -->
+    <!-- default for cql tests. Can be overridden by -Dcassandra.test.use_prepared=false -->
     <property name="cassandra.test.use_prepared" value="true" />
+
+    <!-- The number of active processors seen by JVM -->
+    <property name="cassandra.test.processorCount" value="4"/>
 
     <!-- skip flushing schema tables during tests -->
     <property name="cassandra.test.flush_local_schema_changes" value="false" />
+
+    <!-- fast shutdown of messaging service -->
+    <property name="cassandra.test.messagingService.nonGracefulShutdown" value="true"/>
 
     <!-- https://www.eclemma.org/jacoco/ -->
     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
@@ -150,6 +156,10 @@
 
     <condition property="is.source.artifact">
       <available file="${build.src.java}" type="dir" />
+    </condition>
+
+    <condition property="cassandra.use_nix_recursive_delete" value="false" else="true">
+        <os family="windows" />
     </condition>
 
     <!-- Check if all tests are being run or just one. If it's all tests don't spam the console with test output.
@@ -1406,6 +1416,7 @@
              more aggressively rather than waiting. See CASSANDRA-14922 for more details.
         -->
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
+        <jvmarg value="-XX:ActiveProcessorCount=${cassandra.test.processorCount}" />
         <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
         <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
@@ -1416,6 +1427,9 @@
         <jvmarg value="-Dcassandra.testtag=@{testtag}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
+        <jvmarg value="-Dcassandra.test.flush_local_schema_changes=${cassandra.test.flush_local_schema_changes}"/>
+        <jvmarg value="-Dcassandra.test.messagingService.nonGracefulShutdown=${cassandra.test.messagingService.nonGracefulShutdown}"/>
+        <jvmarg value="-Dcassandra.use_nix_recursive_delete=${cassandra.use_nix_recursive_delete}"/>
         <jvmarg line="${java11-jvmargs}"/>
         <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
@@ -2009,6 +2023,7 @@
         <fileset dir="ide/idea"/>
     </copy>
     <replace file=".idea/workspace.xml" token="trunk" value="${eclipse.project.name}"/>
+    <replace file=".idea/workspace.xml" token="-Dcassandra.use_nix_recursive_delete=true" value="-Dcassandra.use_nix_recursive_delete=${cassandra.use_nix_recursive_delete}"/>
     <copy tofile="${eclipse.project.name}.iml" file="ide/idea-iml-file.xml"/>
     <echo file=".idea/.name">Apache Cassandra ${eclipse.project.name}</echo>
     <echo file=".idea/modules.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>

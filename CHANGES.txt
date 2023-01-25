@@ -1,4 +1,5 @@
 4.0.8
+ * Improve unit tests performance (CASSANDRA-17427)
  * Connect to listen address when own broadcast address is requested (CASSANDRA-18200)
  * Add safeguard so cleanup fails when node has pending ranges (CASSANDRA-16418)
  * Fix legacy clustering serialization for paging with compact storage (CASSANDRA-17507)
