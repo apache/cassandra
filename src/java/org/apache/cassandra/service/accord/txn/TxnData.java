@@ -162,7 +162,7 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
         @Override
         public void serialize(TxnData data, DataOutputPlus out, int version) throws IOException
         {
-            out.writeUnsignedVInt(data.data.size());
+            out.writeUnsignedVInt32(data.data.size());
             for (Map.Entry<TxnDataName, FilteredPartition> entry : data.data.entrySet())
             {
                 TxnDataName.serializer.serialize(entry.getKey(), out, version);
