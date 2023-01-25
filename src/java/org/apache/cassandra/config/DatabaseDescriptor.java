@@ -3510,9 +3510,9 @@ public class DatabaseDescriptor
         return conf.stream_entire_sstables;
     }
 
-    public static long timeoutDelay()
+    public static long getTimeoutDelay()
     {
-        return conf.timeout_delay.toMilliseconds();
+        return conf.stream_transfer_task_timeout.toMilliseconds();
     }
 
     public static boolean getSkipStreamDiskSpaceCheck()

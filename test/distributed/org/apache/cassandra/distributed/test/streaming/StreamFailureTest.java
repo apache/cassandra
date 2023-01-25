@@ -85,7 +85,6 @@ public class StreamFailureTest extends TestBaseImpl
     private void streamTest(boolean zeroCopyStreaming, String reason, Integer failedNode) throws IOException
     {
         try (Cluster cluster = Cluster.build(2)
-                                      .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                       .withInstanceInitializer(BBHelper::install)
                                       .withConfig(c -> c.with(Feature.values())
                                                         .set("stream_entire_sstables", zeroCopyStreaming)
@@ -110,12 +109,11 @@ public class StreamFailureTest extends TestBaseImpl
     private void streamTest2(String reason) throws IOException
     {
         try (Cluster cluster = Cluster.build(2)
-                                      .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                       .withInstanceInitializer(BB::install)
                                       .withConfig(c -> c.with(Feature.values())
                                                         // when die, this will try to halt JVM, which is easier to validate in the test
                                                         // other levels require checking state of the subsystems
-                                                        .set("timeout_delay", "1ms"))
+                                                        .set("stream_transfer_task_timeout", "1ms"))
                                       .start())
         {
 
@@ -156,11 +154,12 @@ public class StreamFailureTest extends TestBaseImpl
         // grepForErrors will include all ERROR logs even if they don't match the pattern; for this reason need to filter after the fact
         List<String> matches = result.getResult();
 
-        matches = matches.stream().filter(s -> s.startsWith("WARN") && s.contains("Stream failed")).collect(Collectors.toList());
+        matches = matches.stream().filter(s -> s.startsWith("WARN")).collect(Collectors.toList());
         logger.info("Stream failed logs found: {}", String.join("\n", matches));
 
         Assertions.assertThat(matches)
-                  .describedAs("node%d expected 1 element but was not true", failingNode.config().num()).hasSize(1);
+                  .describedAs("node%d expected 1 element but was not true", failingNode.config().num())
+                  .hasSize(1);
         String logLine = matches.get(0);
         Assertions.assertThat(logLine).contains(reason);
 
@@ -240,11 +239,9 @@ public class StreamFailureTest extends TestBaseImpl
         {
             //TODO is there a cleaner way to check this?
             StackTraceElement[] stack = Thread.currentThread().getStackTrace();
-            System.out.println("CURRENTTTT THREAD: " + Thread.currentThread().getName());
             for (int i = 0; i < stack.length; i++)
             {
                 StackTraceElement e = stack[i];
-                System.out.println("KLASS: " + klass + " e.getClassName " + e.getClassName() + " e.getMethodName " + e.getMethodName());
                 if (klass.equals(e.getClassName()) && method.equals(e.getMethodName()))
                     return true;
             }
@@ -295,11 +292,9 @@ public class StreamFailureTest extends TestBaseImpl
         {
             //TODO is there a cleaner way to check this?
             StackTraceElement[] stack = Thread.currentThread().getStackTrace();
-            System.out.println("CURRENT THREAD: " + Thread.currentThread().getName());
             for (int i = 0; i < stack.length; i++)
             {
                 StackTraceElement e = stack[i];
-                System.out.println("KLASS: " + klass + " e.getClassName " + e.getClassName() + " e.getMethodName " + e.getMethodName());
                 if (klass.equals(e.getClassName()) && method.equals(e.getMethodName()))
                     return true;
             }

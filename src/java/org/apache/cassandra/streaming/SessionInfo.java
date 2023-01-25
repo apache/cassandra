@@ -47,7 +47,7 @@ public final class SessionInfo implements Serializable
     private final Map<String, ProgressInfo> receivingFiles = new ConcurrentHashMap<>();
     private final Map<String, ProgressInfo> sendingFiles = new ConcurrentHashMap<>();
 
-    public final String failurereason;
+    public final String failureReason;
 
     public SessionInfo(InetSocketAddress peer,
                        int sessionIndex,
@@ -55,7 +55,7 @@ public final class SessionInfo implements Serializable
                        Collection<StreamSummary> receivingSummaries,
                        Collection<StreamSummary> sendingSummaries,
                        StreamSession.State state,
-                       String failurereason)
+                       String failureReason)
     {
         this.peer = peer;
         this.sessionIndex = sessionIndex;
@@ -63,12 +63,12 @@ public final class SessionInfo implements Serializable
         this.receivingSummaries = ImmutableSet.copyOf(receivingSummaries);
         this.sendingSummaries = ImmutableSet.copyOf(sendingSummaries);
         this.state = state;
-        this.failurereason =  failurereason;
+        this.failureReason =  failureReason;
     }
 
     public SessionInfo(SessionInfo other)
     {
-        this(other.peer, other.sessionIndex, other.connecting, other.receivingSummaries, other.sendingSummaries, other.state, other.failurereason);
+        this(other.peer, other.sessionIndex, other.connecting, other.receivingSummaries, other.sendingSummaries, other.state, other.failureReason);
     }
 
     public boolean isFailed()
@@ -210,7 +210,7 @@ public final class SessionInfo implements Serializable
         return new SessionSummary(FBUtilities.getBroadcastAddressAndPort(), peer, receivingSummaries, sendingSummaries);
     }
 
-    public String getFailurereason() {
-        return failurereason;
+    public String getFailureReason() {
+        return failureReason;
     }
 }

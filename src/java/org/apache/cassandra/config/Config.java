@@ -165,7 +165,7 @@ public class Config
     @Replaces(oldName = "slow_query_log_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound slow_query_log_timeout = new DurationSpec.LongMillisecondsBound("500ms");
 
-    public volatile DurationSpec.LongMillisecondsBound timeout_delay = new DurationSpec.LongMillisecondsBound("43000000ms");
+    public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
 
     public volatile double phi_convict_threshold = 8.0;
 

@@ -240,13 +240,15 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
             if (finalState.hasFailedSession())
             {
                 StringBuilder stringBuilder = new StringBuilder();
+                stringBuilder.append("Stream failed: ");
                 for (SessionInfo info : finalState.getAllSessionInfo())
                 {
                     if (info.isFailed())
-                        stringBuilder.append("\nSession peer ").append(info.peer).append(info.failurereason);
+                        stringBuilder.append("\nSession peer ").append(info.peer).append(" ").append(info.failureReason);
                 }
-                logger.warn("[Stream #{}] Stream failed: {}", planId, stringBuilder);
-                tryFailure(new StreamException(finalState, "Stream failed: " + stringBuilder));
+                String message = stringBuilder.toString();
+                logger.warn("[Stream #{}] {}", planId, message);
+                tryFailure(new StreamException(finalState, message));
             }
             else if (finalState.hasAbortedSession())
             {

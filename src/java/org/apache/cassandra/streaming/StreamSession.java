@@ -59,7 +59,6 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.*;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
@@ -204,7 +203,7 @@ public class StreamSession
     private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
 
-    public String failurereasons;
+    public String failureReason;
 
 /**
  * State Transition:
@@ -522,7 +521,7 @@ public class StreamSession
         return closeSession(finalState, null);
     }
 
-    private synchronized Future<?> closeSession(State finalState, String reason)
+    private synchronized Future<?> closeSession(State finalState, String failureReason)
     {
         // it's session is already closed
         if (closeFuture != null)
@@ -530,7 +529,7 @@ public class StreamSession
 
         state(finalState);
         //this refers to StreamInfo
-        this.failurereasons = reason;
+        this.failureReason = failureReason;
 
         List<Future<?>> futures = new ArrayList<>();
 
@@ -691,7 +690,7 @@ public class StreamSession
                              planId(),
                              peer.getHostAddressAndPort(),
                              e);
-                return closeSession(State.FAILED, " Failed because there was an " + e.getClass().getCanonicalName() + " with state=" + state.name());
+                return closeSession(State.FAILED, "Failed because there was an " + e.getClass().getCanonicalName() + " with state=" + state.name());
             }
         }
 
@@ -702,7 +701,7 @@ public class StreamSession
             state(State.FAILED); // make sure subsequent error handling sees the session in a final state 
             channel.sendControlMessage(new SessionFailedMessage()).awaitUninterruptibly();
         }
-        return closeSession(State.FAILED, "Failed because of an unkown exception;\n" + Throwables.getStackTraceAsString(e));
+        return closeSession(State.FAILED, "Failed because of an exception that is not an EOF exception;\n" + Throwables.getStackTraceAsString(e));
     }
 
     private void logError(Throwable e)
@@ -988,7 +987,7 @@ public class StreamSession
         StreamTransferTask task = transfers.get(message.header.tableId);
         if (task != null)
         {
-            task.scheduleTimeout(message.header.sequenceNumber, DatabaseDescriptor.timeoutDelay(), TimeUnit.MILLISECONDS);
+            task.scheduleTimeout(message.header.sequenceNumber, DatabaseDescriptor.getTimeoutDelay(), TimeUnit.MILLISECONDS);
         }
     }
 
@@ -1114,7 +1113,9 @@ public class StreamSession
     public synchronized void sessionFailed()
     {
         logger.error("[Stream #{}] Remote peer {} failed stream session.", planId(), peer.toString());
-        closeSession(State.FAILED," Remote peer " + peer + " failed stream session");
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("Remote peer ").append(peer).append(" failed stream session");
+        closeSession(State.FAILED, stringBuilder.toString());
     }
 
     /**
@@ -1123,7 +1124,7 @@ public class StreamSession
     public synchronized void sessionTimeout()
     {
         logger.error("[Stream #{}] timeout with {}.", planId(), peer.toString());
-        closeSession(State.FAILED, " Failed because the session timed out");
+        closeSession(State.FAILED, "Failed because the session timed out");
     }
 
     /**
@@ -1137,7 +1138,7 @@ public class StreamSession
         List<StreamSummary> transferSummaries = Lists.newArrayList();
         for (StreamTask transfer : transfers.values())
             transferSummaries.add(transfer.getSummary());
-        return new SessionInfo(channel.peer(), index, channel.connectedTo(), receivingSummaries, transferSummaries, state, failurereasons);
+        return new SessionInfo(channel.peer(), index, channel.connectedTo(), receivingSummaries, transferSummaries, state, failureReason);
     }
 
     public synchronized void taskCompleted(StreamReceiveTask completedTask)
