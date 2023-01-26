@@ -15,14 +15,13 @@
 ; specific language governing permissions and limitations
 ; under the License.
 ;
-; Sample ~/.cqlshrc file.
+; Sample ~/.cassandra/cqlshrc file.
 
 [authentication]
 ;; If Cassandra has auth enabled, fill out these options
 ;; Path to the credentials file, an initial ~ or ~user is expanded to that user's home directory
 ; credentials = ~/.cassandra/credentials
 ; keyspace = ks1
-
 
 [auth_provider]
 ;; you can specify any auth provider found in your python environment
@@ -32,6 +31,10 @@
 ; module = cassandra.auth
 ; classname = PlainTextAuthProvider
 ; username = user1
+
+[protocol]
+;; Specify a specific protcol version otherwise the client will default and downgrade as necessary
+; version = None
 
 [ui]
 ;; Whether or not to display query results with colors
@@ -153,9 +156,8 @@ port = 9042
 ; boolstyle = True,False
 
 ;; The number of child worker processes to create for
-;; COPY tasks.  Defaults to a max of 4 for COPY FROM and 16
-;; for COPY TO.  However, at most (num_cores - 1) processes
-;; will be created.
+;; COPY tasks.  Defaults to 16 for `COPY` tasks.
+;; However, at most (num_cores - 1) processes will be created.
 ; numprocesses =
 
 ;; The maximum number of failed attempts to fetch a range of data (when using

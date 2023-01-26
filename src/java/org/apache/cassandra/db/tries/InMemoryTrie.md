@@ -85,7 +85,7 @@ Example: -1 is a leaf cell with content `contentArray[0]`.
 
 Chain nodes are one-child nodes. Multiple chain nodes, forming a chain of transitions to one target, can reside in a
 single cell. Chain nodes are identified by the lowest 5 bits of a pointer being between `0x00` and `0x1B`. In addition
-to the the type of node, in this case the bits also define the length of the chain &mdash; the difference between
+to the type of node, in this case the bits also define the length of the chain &mdash; the difference between
 `0x1C` and the pointer offset specifies the number of characters in the chain.
 
 The simplest chain node has one transition leading to one child and is laid out like this:

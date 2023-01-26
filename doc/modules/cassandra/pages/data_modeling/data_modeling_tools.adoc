@@ -35,7 +35,7 @@ management and query execution.
 Some IDEs and tools that claim to support Cassandra do not actually
 support CQL natively, but instead access Cassandra using a JDBC/ODBC
 driver and interact with Cassandra as if it were a relational database
-with SQL support. Wnen selecting tools for working with Cassandra you’ll
+with SQL support. When selecting tools for working with Cassandra you’ll
 want to make sure they support CQL and reinforce Cassandra best
 practices for data modeling as presented in this documentation.
 

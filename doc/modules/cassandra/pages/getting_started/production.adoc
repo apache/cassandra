@@ -51,7 +51,7 @@ appropriate number of replicates, to ensure even token allocation.
 Read ahead is an operating system feature that attempts to keep as much
 data as possible loaded in the page cache.
 Spinning disks can have long seek times causing high latency, so additional
-throughout on reads using page cache can improve performance.
+throughput on reads using page cache can improve performance.
 By leveraging read ahead, the OS can pull additional data into memory without
 the cost of additional seeks.
 This method works well when the available RAM is greater than the size of the
@@ -80,7 +80,7 @@ The recommended read ahead settings are:
 
 Read ahead can be adjusted on Linux systems using the `blockdev` tool.
 
-For example, set the read ahead of the disk `/dev/sda1\` to 4KB:
+For example, set the read ahead of the disk `/dev/sda1` to 4KB:
 
 [source, shell]
 ----
@@ -100,7 +100,7 @@ section.
 
 == Compression
 
-Compressed data is stored by compressing fixed size byte buffers and writing the
+Compressed data is stored by compressing fixed-size byte buffers and writing the
 data to disk.
 The buffer size is determined by the `chunk_length_in_kb` element in the compression
 map of a table's schema settings for `WITH COMPRESSION`.
@@ -158,6 +158,6 @@ of the ability to configure multiple racks and data centers.
 **Correctly configuring or changing racks after a cluster has been provisioned is an unsupported process**.
 Migrating from a single rack to multiple racks is also unsupported and can
 result in data loss.
-Using `GossipingPropertyFileSnitch` is the most flexible solution for on
-premise or mixed cloud environments.
+Using `GossipingPropertyFileSnitch` is the most flexible solution for
+on-premise or mixed cloud environments.
 `Ec2Snitch` is reliable for AWS EC2 only environments.
