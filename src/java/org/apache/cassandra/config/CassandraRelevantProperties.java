@@ -264,6 +264,12 @@ public enum CassandraRelevantProperties
     CUSTOM_CLIENT_REQUEST_METRICS_PROVIDER_PROPERTY("cassandra.custom_client_request_metrics_provider_class"),
 
     /**
+     * Which class to use for messaging metrics for {@link org.apache.cassandra.net.MessagingService}.
+     * The provided class name must point to an implementation of {@link org.apache.cassandra.metrics.MessagingMetrics}.
+     */
+    CUSTOM_MESSAGING_METRICS_PROVIDER_PROPERTY("cassandra.custom_messaging_metrics_provider_class"),
+
+    /**
      * Which class to use for creating guardrails
      */
     CUSTOM_GUARDRAILS_FACTORY_PROPERTY("cassandra.custom_guardrails_factory_class"),

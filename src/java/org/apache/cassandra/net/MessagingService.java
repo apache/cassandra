@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -35,7 +34,6 @@ import io.netty.util.concurrent.Future;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -48,6 +46,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.Stage.MUTATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_MESSAGING_METRICS_PROVIDER_PROPERTY;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 
 /**
@@ -291,7 +290,10 @@ public class MessagingService extends MessagingServiceMBeanImpl
     @VisibleForTesting
     MessagingService(boolean testOnly)
     {
-        this(testOnly, new EndpointMessagingVersions(), new MessagingMetrics());
+        this(testOnly, new EndpointMessagingVersions(),
+             CUSTOM_MESSAGING_METRICS_PROVIDER_PROPERTY.isPresent() ?
+                FBUtilities.construct(CUSTOM_MESSAGING_METRICS_PROVIDER_PROPERTY.getString(), "Messaging Metrics Provider") :
+                new MessagingMetrics());
     }
 
     @VisibleForTesting

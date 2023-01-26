@@ -88,7 +88,7 @@ public final class InboundMessageHandlers
     public interface GlobalMetricCallbacks
     {
         LatencyConsumer internodeLatencyRecorder(InetAddressAndPort to);
-        void recordInternalLatency(Verb verb, long timeElapsed, TimeUnit timeUnit);
+        void recordInternalLatency(Verb verb, InetAddressAndPort from, long timeElapsed, TimeUnit timeUnit);
         void recordInternodeDroppedMessage(Verb verb, long timeElapsed, TimeUnit timeUnit);
     }
 
@@ -264,7 +264,7 @@ public final class InboundMessageHandlers
             @Override
             public void onExecuting(int messageSize, Header header, long timeElapsed, TimeUnit unit)
             {
-                globalMetrics.recordInternalLatency(header.verb, timeElapsed, unit);
+                globalMetrics.recordInternalLatency(header.verb, header.from, timeElapsed, unit);
             }
 
             @Override
