@@ -6,7 +6,7 @@ for example, change the minimum sstable size, and therefore restart the
 compaction process using this new configuration.
 
 See
-http://cassandra.apache.org/doc/latest/operating/compaction.html#leveled-compaction-strategy
+https://cassandra.apache.org/doc/latest/operating/compaction/lcs.html#lcs
 for information on how levels are used in this compaction strategy.
 
 Cassandra must be stopped before this tool is executed, or unexpected

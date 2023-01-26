@@ -32,7 +32,7 @@ CREATE TABLE hotel.hotels (
   name text,
   phone text,
   address frozen<address>,
-  pois set )
+  pois set<text> )
   WITH comment = ‘Q2. Find information about a hotel’;
 
 CREATE TABLE hotel.pois_by_hotel (

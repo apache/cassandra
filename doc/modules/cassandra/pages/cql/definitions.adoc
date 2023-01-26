@@ -103,7 +103,7 @@ however than float allows the special `NaN` and `Infinity` constants.
 * CQL supports
 https://en.wikipedia.org/wiki/Universally_unique_identifier[UUID]
 constants.
-* Blobs content are provided in hexadecimal and prefixed by `0x`.
+* The content for blobs is provided in hexadecimal and prefixed by `0x`.
 * The special `NULL` constant denotes the absence of value.
 
 For how these constants are typed, see the xref:cql/types.adoc[Data types] section.

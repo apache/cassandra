@@ -508,7 +508,7 @@ The two main tools/commands for restoring a table after it has been
 dropped are:
 
 * sstableloader
-* nodetool import
+* nodetool refresh
 
 A snapshot contains essentially the same set of SSTable files as an
 incremental backup does with a few additional files. A snapshot includes

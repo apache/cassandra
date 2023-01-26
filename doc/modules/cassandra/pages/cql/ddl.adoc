@@ -4,9 +4,10 @@
 CQL stores data in _tables_, whose schema defines the layout of the
 data in the table. Tables are located in _keyspaces_. 
 A keyspace defines options that apply to all the keyspace's tables. 
-The xref:cql/ddl.adoc#replication-strategy[replication strategy] is an important keyspace option, as is the replication factor. 
+The xref:cql/ddl.adoc#replication-strategy[replication strategy]
+is an important keyspace option, as is the replication factor. 
 A good general rule is one keyspace per application.
-It is common for a cluster to define only one keyspace for an actie application.
+It is common for a cluster to define only one keyspace for an active application.
 
 This section describes the statements used to create, modify, and remove
 those keyspace and tables.
@@ -32,7 +33,7 @@ double-quotes (`"myTable"` is different from `mytable`).
 Further, a table is always part of a keyspace and a table name can be
 provided fully-qualified by the keyspace it is part of. If is is not
 fully-qualified, the table is assumed to be in the _current_ keyspace
-(see xref:cql/ddl.adoc#use-statement[USE] statement.
+(see xref:cql/ddl.adoc#use-statement[USE] statement).
 
 Further, the valid names for columns are defined as:
 
@@ -502,7 +503,7 @@ A table supports the following options:
 | `bloom_filter_fp_chance` |_simple_ |0.00075 |The target probability of
 false positive of the sstable bloom filters. Said bloom filters will be
 sized to provide the provided probability, thus lowering this value
-impact the size of bloom filters in-memory and on-disk.
+impacts the size of bloom filters in-memory and on-disk.
 | `default_time_to_live` |_simple_ |0 |Default expiration time (“TTL”) in seconds for a table
 | `compaction` |_map_ |_see below_ | xref:operating/compaction/index.adoc#cql-compaction-options[Compaction options]
 | `compression` |_map_ |_see below_ | xref:operating/compression/index.adoc#cql-compression-options[Compression options]
