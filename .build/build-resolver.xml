@@ -165,7 +165,7 @@
         <property name="resolver-ant-tasks.initialized" value="true"/>
     </target>
 
-    <target name="resolver-retrieve-build" depends="resolver-init,write-poms">
+    <target name="resolver-retrieve-build" depends="resolver-init,write-poms,_build_subprojects">
         <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
         <resolvepom file="${build.dir}/tmp-${final.name}-deps.pom" id="pom-deps" />
 
@@ -189,7 +189,7 @@
         </unzip>
     </target>
 
-    <target name="resolver-dist-lib" depends="resolver-retrieve-build">
+    <target name="resolver-dist-lib" depends="resolver-retrieve-build,_build_subprojects">
         <resolvepom file="${build.dir}/${final.name}.pom" id="all-pom" />
 
         <resolve failOnMissingAttachments="true">

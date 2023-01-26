@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project basedir=".." name="apache-cassandra-accord-build"
+         xmlns:if="ant:if">
+    <target name="_build-accord" depends="init">
+      <exec executable="${basedir}/${accord.dir}/gradlew" dir="${basedir}/${accord.dir}" logError="true" failonerror="true" failifexecutionfails="true">
+        <!-- Need to call clean as a version change with a jar that didn't have code changes will not produce a new jar with the new version... so need clean to make sure build is stable -->
+        <arg value="clean" />
+        <arg value="build" />
+        <arg value="copyDependencies" /> <!-- For IDE support -->
+        <arg value="publishToMavenLocal" />
+        <arg value="-x" />
+        <arg value="test" />
+        <arg value="-x" />
+        <arg value="rat" />
+        <arg value="-Paccord_group=org.apache.cassandra" />
+        <arg value="-Paccord_artifactId=cassandra-accord" />
+        <arg value="-Paccord_version=${version}" />
+      </exec>
+    </target>
+</project>
