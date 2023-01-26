@@ -1,4 +1,5 @@
 4.1.1
+ * PaxosPrepare may add instances to the Electorate that are not in gossip (CASSANDRA-18194)
  * Fix PAXOS2_COMMIT_AND_PREPARE_RSP serialisation AssertionError (CASSANDRA-18164)
  * Streaming progress virtual table lock contention can trigger TCP_USER_TIMEOUT and fail streaming (CASSANDRA-18110)
  * Fix perpetual load of denylist on read in cases where denylist can never be loaded (CASSANDRA-18116)
