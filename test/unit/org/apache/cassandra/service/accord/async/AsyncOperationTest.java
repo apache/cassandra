@@ -23,7 +23,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import com.google.common.collect.Iterables;
-import com.google.common.util.concurrent.Futures;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -54,6 +53,7 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static accord.local.PreLoadContext.contextFor;
+import static accord.utils.async.AsyncChains.awaitUninterruptibly;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
@@ -94,10 +94,10 @@ public class AsyncOperationTest
         Txn txn = createTxn((int)clock.incrementAndGet());
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
-        commandStore.execute(contextFor(txnId), instance -> {
+        awaitUninterruptibly(commandStore.execute(contextFor(txnId), instance -> {
             Command command = instance.ifPresent(txnId);
             Assert.assertNull(command);
-        }).get();
+        }));
 
         UntypedResultSet result = AccordKeyspace.loadCommandRow(commandStore, txnId);
         Assert.assertTrue(result.isEmpty());
@@ -110,10 +110,10 @@ public class AsyncOperationTest
         Txn txn = createTxn((int)clock.incrementAndGet());
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
-        commandStore.execute(contextFor(Collections.emptyList(), Keys.of(key)),instance -> {
+        awaitUninterruptibly(commandStore.execute(contextFor(Collections.emptyList(), Keys.of(key)),instance -> {
             AccordCommandsForKey cfk = ((SafeAccordCommandStore)instance).maybeCommandsForKey(key);
             Assert.assertNull(cfk);
-        }).get();
+        }));
 
         int nowInSeconds = FBUtilities.nowInSeconds();
         SinglePartitionReadCommand command = AccordKeyspace.getCommandsForKeyRead(commandStore, key, nowInSeconds);
@@ -142,10 +142,10 @@ public class AsyncOperationTest
 
     private static void assertFutureState(AccordStateCache.Instance<TxnId, AccordCommand> cache, TxnId txnId, boolean expectLoadFuture, boolean expectSaveFuture)
     {
-        if (cache.hasLoadFuture(txnId) != expectLoadFuture)
+        if (cache.hasLoadResult(txnId) != expectLoadFuture)
             throw new AssertionError(expectLoadFuture ? "Load future unexpectedly not found for " + txnId
                                                       : "Unexpectedly found load future for " + txnId);
-        if (cache.hasSaveFuture(txnId) != expectSaveFuture)
+        if (cache.hasSaveResult(txnId) != expectSaveFuture)
             throw new AssertionError(expectSaveFuture ? "Save future unexpectedly not found for " + txnId
                                                       : "Unexpectedly found save future for " + txnId);
 
@@ -220,6 +220,6 @@ public class AsyncOperationTest
 
         commandStore.executor().submit(operation);
 
-        Futures.getUnchecked(operation);
+        awaitUninterruptibly(operation);
     }
 }
