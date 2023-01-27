@@ -987,7 +987,7 @@ public class StreamSession
         StreamTransferTask task = transfers.get(message.header.tableId);
         if (task != null)
         {
-            task.scheduleTimeout(message.header.sequenceNumber, DatabaseDescriptor.getTimeoutDelay(), TimeUnit.MILLISECONDS);
+            task.scheduleTimeout(message.header.sequenceNumber, DatabaseDescriptor.getStreamTransferTaskTimeout(), TimeUnit.MILLISECONDS);
         }
     }
 
@@ -1124,7 +1124,7 @@ public class StreamSession
     public synchronized void sessionTimeout()
     {
         logger.error("[Stream #{}] timeout with {}.", planId(), peer.toString());
-        closeSession(State.FAILED, "Failed because the session timed out");
+        closeSession(State.FAILED, "Session timed out");
     }
 
     /**

@@ -40,7 +40,6 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.LogResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
-import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.sstable.format.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigTableZeroCopyWriter;
@@ -52,22 +51,20 @@ import static net.bytebuddy.matcher.ElementMatchers.takesArguments;
 
 public class StreamFailureTest extends TestBaseImpl
 {
-
-    private static final int FAILINGNODE = 2;
+    private static final int FAILING_NODE = 2;
 
     private static final Logger logger = LoggerFactory.getLogger(StreamFailureTest.class);
-
 
     @Test
     public void failureInTheMiddleWithUnknown() throws IOException
     {
-        streamTest(true, "java.lang.RuntimeException: TEST", FAILINGNODE);
+        streamTest(true, "java.lang.RuntimeException: TEST", FAILING_NODE);
     }
 
     @Test
     public void failureInTheMiddleWithEOF() throws IOException
     {
-        streamTest(false, "Session peer /127.0.0.1:7012 Failed because there was an java.nio.channels.ClosedChannelException with state=STREAMING", FAILINGNODE);
+        streamTest(false, "Session peer /127.0.0.1:7012 Failed because there was an java.nio.channels.ClosedChannelException with state=STREAMING", FAILING_NODE);
     }
 
     @Test
@@ -79,7 +76,7 @@ public class StreamFailureTest extends TestBaseImpl
     @Test
     public void failureDueToSessionTimeout() throws IOException
     {
-        streamTest2("Failed because the session timed out");
+        streamTimeoutTest("Session timed out");
     }
 
     private void streamTest(boolean zeroCopyStreaming, String reason, Integer failedNode) throws IOException
@@ -106,7 +103,7 @@ public class StreamFailureTest extends TestBaseImpl
         }
     }
 
-    private void streamTest2(String reason) throws IOException
+    private void streamTimeoutTest(String reason) throws IOException
     {
         try (Cluster cluster = Cluster.build(2)
                                       .withInstanceInitializer(BB::install)
@@ -128,11 +125,8 @@ public class StreamFailureTest extends TestBaseImpl
             IInvokableInstance failingNode = cluster.get(1);
 
             searchForLog(failingNode, reason);
-
-
         }
     }
-
 
     private void triggerStreaming(Cluster cluster, boolean expectedEntireSSTable)
     {
@@ -250,7 +244,7 @@ public class StreamFailureTest extends TestBaseImpl
 
         public static void install(ClassLoader classLoader, Integer num)
         {
-            if (num != FAILINGNODE)
+            if (num != FAILING_NODE)
                 return;
             new ByteBuddy().rebase(SequentialWriter.class)
                            .method(named("writeDirectlyToChannel").and(takesArguments(1)))
@@ -303,7 +297,7 @@ public class StreamFailureTest extends TestBaseImpl
 
         public static void install(ClassLoader classLoader, Integer num)
         {
-            if (num != FAILINGNODE)
+            if (num != FAILING_NODE)
                 return;
             new ByteBuddy().rebase(SequentialWriter.class)
                            .method(named("writeDirectlyToChannel").and(takesArguments(1)))
