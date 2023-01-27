@@ -54,10 +54,10 @@ import accord.primitives.AbstractKeys;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import accord.utils.async.AsyncChain;
 import org.apache.cassandra.service.accord.async.AsyncContext;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -271,13 +271,13 @@ public class AccordCommandStore extends CommandStore
         }
 
         @Override
-        public Future<Void> execute(PreLoadContext context, Consumer<? super SafeCommandStore> consumer)
+        public AsyncChain<Void> execute(PreLoadContext context, Consumer<? super SafeCommandStore> consumer)
         {
             return AccordCommandStore.this.execute(context, consumer);
         }
 
         @Override
-        public <T> Future<T> submit(PreLoadContext context, Function<? super SafeCommandStore, T> function)
+        public <T> AsyncChain<T> submit(PreLoadContext context, Function<? super SafeCommandStore, T> function)
         {
             return AccordCommandStore.this.submit(context, function);
         }
@@ -445,11 +445,9 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public <T> Future<T> submit(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
+    public <T> AsyncChain<T> submit(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
-        AsyncOperation<T> operation = AsyncOperation.create(this, loadCtx, function);
-        executor.execute(operation);
-        return operation;
+        return AsyncOperation.create(this, loadCtx, function);
     }
 
     @Override
@@ -459,11 +457,9 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public Future<Void> execute(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
+    public AsyncChain<Void> execute(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
     {
-        AsyncOperation<Void> operation = AsyncOperation.create(this, preLoadContext, consumer);
-        executor.execute(operation);
-        return operation;
+        return AsyncOperation.create(this, preLoadContext, consumer);
     }
 
     public void executeBlocking(Runnable runnable)

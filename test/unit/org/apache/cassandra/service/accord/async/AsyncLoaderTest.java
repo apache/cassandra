@@ -33,6 +33,8 @@ import org.junit.Test;
 import accord.local.Status;
 import accord.primitives.PartialTxn;
 import accord.primitives.TxnId;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
@@ -43,7 +45,6 @@ import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Future;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static java.util.Collections.singleton;
@@ -207,8 +208,8 @@ public class AsyncLoaderTest
         AsyncLoader loader = new AsyncLoader(commandStore, singleton(txnId), singleton(key));
 
         // since there's a read future associated with the txnId, we'll wait for it to load
-        AsyncPromise<Void> readFuture = new AsyncPromise<>();
-        commandCache.setLoadFuture(command.txnId(), readFuture);
+        AsyncResult.Settable<Void> readFuture = AsyncResults.settable();
+        commandCache.setLoadResult(command.txnId(), readFuture);
 
         AsyncPromise<Void> cbFired = new AsyncPromise<>();
         commandStore.executeBlocking(() -> {
@@ -254,12 +255,12 @@ public class AsyncLoaderTest
             AccordStateCache.Instance<TxnId, AccordCommand> cache = commandStore.commandCache();
             AccordCommand.WriteOnly writeOnly1 = new AccordCommand.WriteOnly(txnId);
             writeOnly1.blockingApplyOn.blindAdd(blockApply);
-            writeOnly1.future(new AsyncPromise<>());
+            writeOnly1.asyncResult(AsyncResults.settable());
             cache.addWriteOnly(writeOnly1);
 
             AccordCommand.WriteOnly writeOnly2 = new AccordCommand.WriteOnly(txnId);
             writeOnly2.blockingCommitOn.blindAdd(blockCommit);
-            writeOnly2.future(new AsyncPromise<>());
+            writeOnly2.asyncResult(AsyncResults.settable());
             cache.addWriteOnly(writeOnly2);
 
             AsyncContext context = new AsyncContext();
@@ -286,9 +287,9 @@ public class AsyncLoaderTest
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
 
-        AsyncPromise<Void> promise1 = new AsyncPromise<>();
-        AsyncPromise<Void> promise2 = new AsyncPromise<>();
-        AsyncPromise<Void> callback = new AsyncPromise<>();
+        AsyncResult.Settable<Void> promise1 = AsyncResults.settable();
+        AsyncResult.Settable<Void> promise2 = AsyncResults.settable();
+        AsyncResult.Settable<Void> callback = AsyncResults.settable();
         RuntimeException failure = new RuntimeException();
 
         execute(commandStore, () -> {
@@ -296,7 +297,7 @@ public class AsyncLoaderTest
             AtomicInteger loadCalls = new AtomicInteger();
             AsyncLoader loader = new AsyncLoader(commandStore, ImmutableList.of(txnId1, txnId2), Collections.emptyList()){
                 @Override
-                Function<AccordCommand, Future<?>> loadCommandFunction(Object callback)
+                Function<AccordCommand, AsyncResult<Void>> loadCommandFunction(Object callback)
                 {
                     return cmd -> {
                         TxnId txnId = cmd.txnId();
@@ -321,6 +322,6 @@ public class AsyncLoaderTest
         });
 
         promise1.tryFailure(failure);
-        callback.get();
+        AsyncResults.awaitUninterruptibly(callback);
     }
 }

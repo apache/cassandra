@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -32,12 +33,12 @@ import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
+import accord.utils.async.AsyncChains;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
-public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runnable, Function<SafeCommandStore, R>, BiConsumer<Object, Throwable>
+public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements Runnable, Function<SafeCommandStore, R>
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncOperation.class);
 
@@ -50,6 +51,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
     enum State
     {
         INITIALIZED,
+        SUBMITTED,
         LOADING,
         RUNNING,
         SAVING,
@@ -71,6 +73,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
     private final AsyncContext context = new AsyncContext();
     private R result;
     private final String loggingId;
+    private BiConsumer<? super R, Throwable> callback;
 
     private void setLoggingIds()
     {
@@ -123,20 +126,30 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
         this.state = state;
     }
 
-    /**
-     * callback for loader and writer
-     */
-    @Override
-    public void accept(Object o, Throwable throwable)
+    private void callback(Object o, Throwable throwable)
     {
         if (throwable != null)
         {
             logger.error(String.format("Operation %s failed", this), throwable);
             state = State.FAILED;
-            tryFailure(throwable);
+            fail(throwable);
         }
         else
             run();
+    }
+
+    private void finish(R result)
+    {
+        Preconditions.checkArgument(state == State.COMPLETING);
+        callback.accept(result, null);
+        state = State.FINISHED;
+    }
+
+    private void fail(Throwable throwable)
+    {
+        Preconditions.checkArgument(state != State.FINISHED && state != State.FAILED);
+        callback.accept(null, throwable);
+        state = State.FAILED;
     }
 
     protected void runInternal()
@@ -147,7 +160,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
             case INITIALIZED:
                 state = State.LOADING;
             case LOADING:
-                if (!loader.load(context, this))
+                if (!loader.load(context, this::callback))
                     return;
 
                 state = State.RUNNING;
@@ -156,7 +169,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
                 state = State.SAVING;
             case SAVING:
             case AWAITING_SAVE:
-                boolean updatesPersisted = writer.save(context, this);
+                boolean updatesPersisted = writer.save(context, this::callback);
 
                 if (state != State.AWAITING_SAVE)
                 {
@@ -170,8 +183,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
                     return;
 
                 state = State.COMPLETING;
-                setSuccess(result);
-                state = State.FINISHED;
+                finish(result);
             case FINISHED:
                 break;
             default:
@@ -196,7 +208,7 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
             catch (Throwable t)
             {
                 logger.error(String.format("Operation %s failed", this), t);
-                tryFailure(t);
+                fail(t);
             }
             finally
             {
@@ -208,6 +220,14 @@ public abstract class AsyncOperation<R> extends AsyncPromise<R> implements Runna
             logger.trace("Exiting {}", this);
             clearLoggingIds();
         }
+    }
+
+    @Override
+    public void begin(BiConsumer<? super R, Throwable> callback)
+    {
+        Preconditions.checkArgument(this.callback == null);
+        this.callback = callback;
+        commandStore.executor().submit(this);
     }
 
     private static Iterable<PartitionKey> toPartitionKeys(Seekables<?, ?> keys)
