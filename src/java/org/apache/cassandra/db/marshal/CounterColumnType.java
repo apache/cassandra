@@ -32,6 +32,8 @@ public class CounterColumnType extends NumberType<Long>
 {
     public static final CounterColumnType instance = new CounterColumnType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(0L);
+
     CounterColumnType() {super(ComparisonType.NOT_COMPARABLE);} // singleton
 
     public boolean isEmptyValueMeaningless()
@@ -157,5 +159,11 @@ public class CounterColumnType extends NumberType<Long>
     public ByteBuffer round(ByteBuffer input)
     {
         return ByteBufferUtil.clone(input);
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

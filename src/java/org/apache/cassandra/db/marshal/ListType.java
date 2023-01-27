@@ -250,4 +250,10 @@ public class ListType<T> extends CollectionType<List<T>>
     {
         serializer.forEach(input, action);
     }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return decompose(Collections.emptyList());
+    }
 }

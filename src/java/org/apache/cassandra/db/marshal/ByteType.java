@@ -36,6 +36,8 @@ public class ByteType extends NumberType<Byte>
 {
     public static final ByteType instance = new ByteType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose((byte) 0);
+
     ByteType()
     {
         super(ComparisonType.CUSTOM);
@@ -182,5 +184,11 @@ public class ByteType extends NumberType<Byte>
     public ByteBuffer round(ByteBuffer input)
     {
         return ByteBufferUtil.clone(input);
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

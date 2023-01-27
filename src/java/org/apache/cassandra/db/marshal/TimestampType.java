@@ -51,6 +51,8 @@ public class TimestampType extends TemporalType<Date>
 
     public static final TimestampType instance = new TimestampType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(new Date(0));
+
     private TimestampType() {super(ComparisonType.CUSTOM);} // singleton
 
     public boolean isEmptyValueMeaningless()
@@ -169,5 +171,11 @@ public class TimestampType extends TemporalType<Date>
     {
         if (!duration.hasMillisecondPrecision())
             throw invalidRequest("The duration must have a millisecond precision. Was: %s", duration);
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

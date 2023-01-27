@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Json;
 
 import org.apache.cassandra.cql3.QueryOptions;
@@ -81,7 +82,7 @@ public class FromJsonFct extends NativeScalarFunction
 
     public static void addFunctionsTo(NativeFunctions functions)
     {
-        functions.add(new FunctionFactory(NAME.name, FunctionParameter.fixed(UTF8Type.instance))
+        functions.add(new FunctionFactory(NAME.name, FunctionParameter.fixed(CQL3Type.Native.TEXT))
         {
             @Override
             protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
