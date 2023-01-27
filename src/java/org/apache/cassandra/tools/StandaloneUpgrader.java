@@ -77,9 +77,7 @@ public class StandaloneUpgrader
             Collection<SSTableReader> readers = new ArrayList<>();
 
             // Upgrade sstables in SSTableId order
-            SortedMap<Descriptor, Set<Component>> selected = new TreeMap<>((t1, t2) -> SSTableIdFactory.COMPARATOR.compare(t1.id, t2.id));
-            selected.putAll(lister.list());
-            for (Map.Entry<Descriptor, Set<Component>> entry : selected.entrySet())
+            for (Map.Entry<Descriptor, Set<Component>> entry : lister.sortedList().entrySet())
             {
                 Set<Component> components = entry.getValue();
                 if (!components.contains(Component.DATA) || !components.contains(Component.PRIMARY_INDEX))

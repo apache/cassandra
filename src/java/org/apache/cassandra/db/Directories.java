@@ -961,6 +961,13 @@ public class Directories
             return ImmutableMap.copyOf(components);
         }
 
+        public SortedMap<Descriptor, Set<Component>> sortedList()
+        {
+            SortedMap<Descriptor, Set<Component>> selected = new TreeMap<>((t1, t2) -> SSTableIdFactory.COMPARATOR.compare(t1.id, t2.id));
+            selected.putAll(list());
+            return selected;
+        }
+
         public List<File> listFiles()
         {
             filter();
