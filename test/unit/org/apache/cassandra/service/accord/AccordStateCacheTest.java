@@ -21,12 +21,13 @@ package org.apache.cassandra.service.accord;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Future;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 
 public class AccordStateCacheTest
 {
@@ -248,8 +249,8 @@ public class AccordStateCacheTest
 
         assertCacheState(cache, 0, 4, DEFAULT_NODE_SIZE * 4);
 
-        AsyncPromise<Void> saveFuture = new AsyncPromise<>();
-        instance.addSaveFuture(0, saveFuture);
+        AsyncResult<Void> saveFuture = AsyncResults.settable();
+        instance.addSaveResult(0, saveFuture);
         cache.setMaxSize(0);
 
         // all should have been evicted except 0
@@ -269,7 +270,7 @@ public class AccordStateCacheTest
 
         static class WriteOnly extends SetItem implements AccordState.WriteOnly<Integer, SetItem>
         {
-            AsyncPromise<?> promise = null;
+            AsyncResult.Settable<Void> promise = null;
             final Set<Integer> added = new HashSet<>();
             final Set<Integer> remove = new HashSet<>();
 
@@ -279,14 +280,14 @@ public class AccordStateCacheTest
             }
 
             @Override
-            public void future(Future<?> future)
+            public void asyncResult(AsyncResult<Void> notifier)
             {
-                Assert.assertTrue(future instanceof AsyncPromise);
-                this.promise = (AsyncPromise<?>) future;
+                Preconditions.checkArgument(notifier instanceof AsyncResult.Settable);
+                this.promise = (AsyncResult.Settable<Void>) notifier;
             }
 
             @Override
-            public Future<?> future()
+            public AsyncResult<Void> asyncResult()
             {
                 return promise;
             }
@@ -353,17 +354,17 @@ public class AccordStateCacheTest
 
         SetItem.WriteOnly writeOnly1 = new SetItem.WriteOnly(5);
         writeOnly1.added.addAll(ImmutableSet.of(4, 5));
-        writeOnly1.future(new AsyncPromise<>());
+        writeOnly1.asyncResult(AsyncResults.settable());
         instance.addWriteOnly(writeOnly1);
         Assert.assertEquals(1, instance.pendingWriteOnlyOperations(5));
 
         SetItem.WriteOnly writeOnly2 = new SetItem.WriteOnly(5);
         writeOnly2.remove.addAll(ImmutableSet.of(2, 4));
-        writeOnly2.future(new AsyncPromise<>());
+        writeOnly2.asyncResult(AsyncResults.settable());
         instance.addWriteOnly(writeOnly2);
         Assert.assertEquals(2, instance.pendingWriteOnlyOperations(5));
 
-        Assert.assertNull(instance.getSaveFuture(5));
+        Assert.assertNull(instance.getSaveResult(5));
         Assert.assertFalse(instance.writeOnlyGroupIsLocked(5));
 
         instance.lockWriteOnlyGroupIfExists(5);
@@ -377,7 +378,7 @@ public class AccordStateCacheTest
 
         // write only futures should have been merged and promoted to normal save futures, which would
         // prevent the cached object from being purged until they were completed
-        Future<?> saveFuture = instance.getSaveFuture(5);
+        AsyncResult<?> saveFuture = instance.getSaveResult(5);
         Assert.assertNotNull(saveFuture);
         Assert.assertFalse(saveFuture.isDone());
         Assert.assertFalse(instance.canEvict(5));
@@ -402,7 +403,7 @@ public class AccordStateCacheTest
         {
             SetItem.WriteOnly item = new SetItem.WriteOnly(5);
             item.added.add(i);
-            item.future(new AsyncPromise<>());
+            item.asyncResult(AsyncResults.settable());
             instance.addWriteOnly(item);
             writeOnly[i] = item;
         }
@@ -433,7 +434,7 @@ public class AccordStateCacheTest
 
         SetItem.WriteOnly item = new SetItem.WriteOnly(5);
         item.added.add(0);
-        item.future(new AsyncPromise<>());
+        item.asyncResult(AsyncResults.settable());
         instance.addWriteOnly(item);
 
         instance.lockWriteOnlyGroupIfExists(5);
@@ -452,8 +453,8 @@ public class AccordStateCacheTest
         AccordStateCache cache = new AccordStateCache(500);
         AccordStateCache.Instance<Integer, SetItem> instance = cache.instance(Integer.class, SetItem.class, SetItem::new);
 
-        AsyncPromise<?> loadfuture = new AsyncPromise<>();
-        instance.setLoadFuture(5, loadfuture);
+        AsyncResult<Void> loadfuture = AsyncResults.settable();
+        instance.setLoadResult(5, loadfuture);
 
         Assert.assertFalse(instance.writeOnlyGroupIsLocked(5));
         Assert.assertEquals(0, instance.pendingWriteOnlyOperations(5));
@@ -461,7 +462,7 @@ public class AccordStateCacheTest
         // adding a write only object should immediately lock the group, since there's an existing load future
         SetItem.WriteOnly item = new SetItem.WriteOnly(5);
         item.added.add(0);
-        item.future(new AsyncPromise<>());
+        item.asyncResult(AsyncResults.settable());
         instance.addWriteOnly(item);
 
         Assert.assertTrue(instance.writeOnlyGroupIsLocked(5));
@@ -474,12 +475,12 @@ public class AccordStateCacheTest
     {
         AccordStateCache cache = new AccordStateCache(500);
         AccordStateCache.Instance<Integer, SetItem> instance = cache.instance(Integer.class, SetItem.class, SetItem::new);
-        AsyncPromise<?> promise1 = new AsyncPromise<>();
-        AsyncPromise<?> promise2 = new AsyncPromise<>();
-        instance.addSaveFuture(5, promise1);
-        instance.addSaveFuture(5, promise2);
+        AsyncResult.Settable<Void> promise1 = AsyncResults.settable();
+        AsyncResult.Settable<Void> promise2 = AsyncResults.settable();
+        instance.addSaveResult(5, promise1);
+        instance.addSaveResult(5, promise2);
 
-        Future<?> future = instance.getSaveFuture(5);
+        AsyncResult<?> future = instance.getSaveResult(5);
         Assert.assertNotSame(future, promise1);
         Assert.assertNotSame(future, promise2);
 
