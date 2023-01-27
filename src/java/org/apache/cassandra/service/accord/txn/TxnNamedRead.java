@@ -26,6 +26,8 @@ import java.util.concurrent.TimeUnit;
 import accord.api.Data;
 import accord.local.SafeCommandStore;
 import accord.primitives.Timestamp;
+import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -40,7 +42,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
@@ -110,7 +111,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         return key;
     }
 
-    public Future<Data> read(boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
+    public AsyncChain<Data> read(boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
     {
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) get();
         // TODO (required, safety): before release, double check reasoning that this is safe
@@ -121,7 +122,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         // immediately after the transaction executed, and this simplifies things a great deal
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
 
-        return Stage.READ.submit(() ->
+        return AsyncChains.ofCallable(Stage.READ.executor(), () ->
         {
             SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
 

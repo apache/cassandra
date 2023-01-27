@@ -35,6 +35,9 @@ import org.slf4j.LoggerFactory;
 import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.service.accord.AccordCommand;
@@ -46,8 +49,8 @@ import org.apache.cassandra.service.accord.AccordStateCache;
 import org.apache.cassandra.service.accord.AccordState;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.store.StoredSet;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.FutureCombiner;
+
+import static accord.utils.async.AsyncResults.ofRunnable;
 
 import static accord.primitives.Routable.Domain.Range;
 
@@ -64,7 +67,7 @@ public class AsyncWriter
     }
 
     private State state = State.INITIALIZED;
-    protected Future<?> writeFuture;
+    protected AsyncResult<Void> writeResult;
     private final AccordCommandStore commandStore;
     final AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
     final AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCache;
@@ -81,12 +84,12 @@ public class AsyncWriter
         Mutation apply(AccordCommandStore commandStore, V state, long timestamp);
     }
 
-    private static <K, V extends AccordState<K>> List<Future<?>> dispatchWrites(AsyncContext.Group<K, V> ctxGroup,
+    private static <K, V extends AccordState<K>> List<AsyncChain<Void>> dispatchWrites(AsyncContext.Group<K, V> ctxGroup,
                                                                                 AccordStateCache.Instance<K, V> cache,
                                                                                 StateMutationFunction<K, V> mutationFunction,
                                                                                 long timestamp,
                                                                                 AccordCommandStore commandStore,
-                                                                                List<Future<?>> futures,
+                                                                                List<AsyncChain<Void>> results,
                                                                                 Object callback)
     {
         for (V item : ctxGroup.items.values())
@@ -98,13 +101,13 @@ public class AsyncWriter
                 continue;
             }
 
-            if (futures == null)
-                futures = new ArrayList<>();
+            if (results == null)
+                results = new ArrayList<>();
             K key = item.key();
             Mutation mutation = mutationFunction.apply(commandStore, item, timestamp);
             if (logger.isTraceEnabled())
                 logger.trace("Dispatching mutation for {} for {}, {} -> {}", key, callback, item, mutation);
-            Future<?> future = Stage.MUTATION.submit(() -> {
+            AsyncResult<Void> result = ofRunnable(Stage.MUTATION.executor(), () -> {
                 try
                 {
                     if (logger.isTraceEnabled())
@@ -119,46 +122,46 @@ public class AsyncWriter
                     throw t;
                 }
             });
-            cache.addSaveFuture(item.key(), future);
-            futures.add(future);
+            cache.addSaveResult(item.key(), result);
+            results.add(result);
         }
 
         for (AccordState.WriteOnly<K, V> item : ctxGroup.writeOnly.values())
         {
             Preconditions.checkState(item.hasModifications());
-            if (futures == null) futures = new ArrayList<>();
+            if (results == null) results = new ArrayList<>();
             Mutation mutation = mutationFunction.apply(commandStore, (V) item, timestamp);
-            Future<?> future = Stage.MUTATION.submit((Runnable) mutation::apply);
-            future.addListener(() -> cache.purgeWriteOnly(item.key()), commandStore.executor());
-            item.future(future);
-            futures.add(future);
+            AsyncResult<Void> result = AsyncResults.ofRunnable(Stage.MUTATION.executor(), mutation::apply);
+            result.addListener(() -> cache.purgeWriteOnly(item.key()), commandStore.executor());
+            item.asyncResult(result);
+            results.add(result);
         }
 
-        return futures;
+        return results;
     }
 
-    private Future<?> maybeDispatchWrites(AsyncContext context, Object callback) throws IOException
+    private AsyncResult<Void> maybeDispatchWrites(AsyncContext context, Object callback) throws IOException
     {
-        List<Future<?>> futures = null;
+        List<AsyncChain<Void>> results = null;
 
         long timestamp = commandStore.nextSystemTimestampMicros();
-        futures = dispatchWrites(context.commands,
+        results = dispatchWrites(context.commands,
                                  commandStore.commandCache(),
                                  AccordKeyspace::getCommandMutation,
                                  timestamp,
                                  commandStore,
-                                 futures,
+                                 results,
                                  callback);
 
-        futures = dispatchWrites(context.commandsForKey,
+        results = dispatchWrites(context.commandsForKey,
                                  commandStore.commandsForKeyCache(),
                                  AccordKeyspace::getCommandsForKeyMutation,
                                  timestamp,
                                  commandStore,
-                                 futures,
+                                 results,
                                  callback);
 
-        return futures != null ? FutureCombiner.allOf(futures) : null;
+        return results != null ? AsyncResults.reduce(results, (a, b) -> null).beginAsResult() : null;
     }
 
     private void denormalizeBlockedOn(AccordCommand command,
@@ -201,7 +204,7 @@ public class AsyncWriter
             return item;
 
         item = cache.getOrNull(key);
-        if (item != null && !cache.hasLoadFuture(key))
+        if (item != null && !cache.hasLoadResult(key))
         {
             ctxGroup.items.put(key, item);
             return item;
@@ -303,18 +306,18 @@ public class AsyncWriter
                     setState(State.SETUP);
                 case SETUP:
                     denormalize(context, callback);
-                    writeFuture = maybeDispatchWrites(context, callback);
+                    writeResult = maybeDispatchWrites(context, callback);
 
                     setState(State.SAVING);
                 case SAVING:
-                    if (writeFuture != null && !writeFuture.isSuccess())
+                    if (writeResult != null && !writeResult.isSuccess())
                     {
-                        logger.trace("Adding callback for write future: {}", callback);
-                        writeFuture.addCallback(callback, commandStore.executor());
+                        logger.trace("Adding callback for write result: {}", callback);
+                        writeResult.addCallback(callback, commandStore.executor());
                         break;
                     }
-                    context.commands.items.keySet().forEach(commandStore.commandCache()::cleanupSaveFuture);
-                    context.commandsForKey.items.keySet().forEach(commandStore.commandsForKeyCache()::cleanupSaveFuture);
+                    context.commands.items.keySet().forEach(commandStore.commandCache()::cleanupSaveResult);
+                    context.commandsForKey.items.keySet().forEach(commandStore.commandsForKeyCache()::cleanupSaveResult);
                     setState(State.FINISHED);
                 case FINISHED:
                     break;

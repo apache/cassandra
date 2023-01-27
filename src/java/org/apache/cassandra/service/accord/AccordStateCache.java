@@ -35,9 +35,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Data;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 /**
  * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between the two object types.
@@ -85,7 +85,7 @@ public class AccordStateCache
                 AccordState.WriteOnly<K, V> item = items.get(0);
 
                 // we can't remove items out of order, so if we encounter a write is still pending, we stop
-                if (item.future() == null || !item.future().isDone())
+                if (item.asyncResult() == null || !item.asyncResult().isDone())
                     break;
 
                 items.remove(0);
@@ -154,11 +154,11 @@ public class AccordStateCache
     private final Map<Object, WriteOnlyGroup<?, ?>> pendingWriteOnly = new HashMap<>();
     private final Set<Instance<?, ?>> instances = new HashSet<>();
 
-    private final NamedMap<Object, Future<?>> loadFutures = new NamedMap<>("loadFutures");
-    private final NamedMap<Object, Future<?>> saveFutures = new NamedMap<>("saveFutures");
+    private final NamedMap<Object, AsyncResult<Void>> loadResults = new NamedMap<>("loadResults");
+    private final NamedMap<Object, AsyncResult<Void>> saveResults = new NamedMap<>("saveResults");
 
-    private final NamedMap<Object, Future<Data>> readFutures = new NamedMap<>("readFutures");
-    private final NamedMap<Object, Future<?>> writeFutures = new NamedMap<>("writeFutures");
+    private final NamedMap<Object, AsyncResult<Data>> readResults = new NamedMap<>("readResults");
+    private final NamedMap<Object, AsyncResult<Void>> writeResults = new NamedMap<>("writeResults");
 
     Node<?, ?> head;
     Node<?, ?> tail;
@@ -227,13 +227,13 @@ public class AccordStateCache
         bytesCached += node.estimatedSizeOnHeapDelta();
     }
 
-    // don't evict if there's an outstanding save future. If an item is evicted then reloaded
+    // don't evict if there's an outstanding save result. If an item is evicted then reloaded
     // before it's mutation is applied, out of date info will be loaded
     private boolean canEvict(Object key)
     {
-        // getFuture only returns a future if it is running, so don't need to check if its still running
-        Future<?> future = getFuture(saveFutures, key);
-        return future == null;
+        // getResult only returns a result if it is running, so don't need to check if its still running
+        AsyncResult<?> result = getAsyncResult(saveResults, key);
+        return result == null || result.isDone();
     }
 
     private void maybeEvict()
@@ -248,7 +248,7 @@ public class AccordStateCache
             current = current.prev;
 
             // if there are any dangling write only groups, apply them and
-            // move their futures into write futures so we don't evict
+            // move their results into write results so we don't evict
             applyAndRemoveWriteOnlyGroup(evict.value);
             if (!canEvict(evict.key()))
                 continue;
@@ -260,9 +260,9 @@ public class AccordStateCache
         }
     }
 
-    private static <K, F extends Future<?>> F getFuture(NamedMap<Object, F> futuresMap, K key)
+    private static <K, F extends AsyncResult<?>> F getAsyncResult(NamedMap<Object, F> resultMap, K key)
     {
-        F r = futuresMap.get(key);
+        F r = resultMap.get(key);
         if (r == null)
             return null;
 
@@ -270,36 +270,36 @@ public class AccordStateCache
             return r;
 
         if (logger.isTraceEnabled())
-            logger.trace("Clearing future for {} from {}: {}", key, futuresMap.name, r);
-        futuresMap.remove(key);
+            logger.trace("Clearing result for {} from {}: {}", key, resultMap.name, r);
+        resultMap.remove(key);
         return null;
     }
 
-    private static <K, F extends Future<?>> void setFuture(Map<Object, F> futuresMap, K key, F future)
+    private static <K, F extends AsyncResult<?>> void setAsyncResult(Map<Object, F> resultsMap, K key, F result)
     {
-        Preconditions.checkState(!futuresMap.containsKey(key));
-        futuresMap.put(key, future);
+        Preconditions.checkState(!resultsMap.containsKey(key));
+        resultsMap.put(key, result);
     }
 
-    private static <K> void mergeFuture(Map<Object, Future<?>> futuresMap, K key, Future<?> future)
+    private static <K> void mergeAsyncResult(Map<Object, AsyncResult<Void>> resultMap, K key, AsyncResult<Void> result)
     {
-        Future<?> existing = futuresMap.get(key);
+        AsyncResult<Void> existing = resultMap.get(key);
         if (existing != null && !existing.isDone())
         {
-            logger.trace("Merging future {} with existing {}", future, existing);
-            future = FutureCombiner.allOf(ImmutableList.of(existing, future));
+            logger.trace("Merging result {} with existing {}", result, existing);
+            result = AsyncResults.reduce(ImmutableList.of(existing, result), (a, b) -> null).beginAsResult();
         }
 
-        futuresMap.put(key, future);
+        resultMap.put(key, result);
     }
 
-    private <K> void maybeClearFuture(K key)
+    private <K> void maybeClearAsyncResult(K key)
     {
         // will clear if it's done
-        getFuture(loadFutures, key);
-        getFuture(saveFutures, key);
-        getFuture(readFutures, key);
-        getFuture(writeFutures, key);
+        getAsyncResult(loadResults, key);
+        getAsyncResult(saveResults, key);
+        getAsyncResult(readResults, key);
+        getAsyncResult(writeResults, key);
     }
 
     public <K, V extends AccordState<K>> void applyAndRemoveWriteOnlyGroup(V instance)
@@ -312,8 +312,8 @@ public class AccordStateCache
         for (AccordState.WriteOnly<K, V> writeOnly : group.items)
         {
             writeOnly.applyChanges(instance);
-            if (!writeOnly.future().isDone())
-                mergeFuture(saveFutures, instance.key(), writeOnly.future());
+            if (!writeOnly.asyncResult().isDone())
+                mergeAsyncResult(saveResults, instance.key(), writeOnly.asyncResult());
         }
     }
 
@@ -402,7 +402,7 @@ public class AccordStateCache
         {
             K key = value.key();
             logger.trace("Releasing resources for {}: {}", key, value);
-            maybeClearFuture(key);
+            maybeClearAsyncResult(key);
             Node<K, V> node = (Node<K, V>) active.get(key);
             Preconditions.checkState(node != null && node.references > 0);
             Preconditions.checkState(node.value == value);
@@ -462,12 +462,12 @@ public class AccordStateCache
         public void addWriteOnly(AccordState.WriteOnly<K, V> writeOnly)
         {
             K key = writeOnly.key();
-            Preconditions.checkArgument(writeOnly.future() != null);
+            Preconditions.checkArgument(writeOnly.asyncResult() != null);
             WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.computeIfAbsent(key, k -> new WriteOnlyGroup<>());
 
-            // if a load future exists for the key we're creating a write group for, we need to lock
+            // if a load result exists for the key we're creating a write group for, we need to lock
             // the group so the loading instance gets changes applied when it finishes loading
-            if (getLoadFuture(key) != null)
+            if (getLoadResult(key) != null)
                 group.lock();
 
             group.add(writeOnly);
@@ -495,77 +495,77 @@ public class AccordStateCache
             return group != null ? group.items.size() : 0;
         }
 
-        public Future<?> getLoadFuture(K key)
+        public AsyncResult<Void> getLoadResult(K key)
         {
-            return getFuture(loadFutures, key);
+            return getAsyncResult(loadResults, key);
         }
 
-        public void cleanupLoadFuture(K key)
+        public void cleanupLoadResult(K key)
         {
-            getLoadFuture(key);
-        }
-
-        @VisibleForTesting
-        public boolean hasLoadFuture(K key)
-        {
-            return loadFutures.get(key) != null;
-        }
-
-        public void setLoadFuture(K key, Future<?> future)
-        {
-            setFuture(loadFutures, key, future);
-        }
-
-        public Future<?> getSaveFuture(K key)
-        {
-            return getFuture(saveFutures, key);
-        }
-
-        public void addSaveFuture(K key, Future<?> future)
-        {
-            logger.trace("Adding save future for {}: {}", key, future);
-            mergeFuture(saveFutures, key, future);
-        }
-
-        public void cleanupSaveFuture(K key)
-        {
-            getSaveFuture(key);
+            getLoadResult(key);
         }
 
         @VisibleForTesting
-        public boolean hasSaveFuture(K key)
+        public boolean hasLoadResult(K key)
         {
-            return saveFutures.get(key) != null;
+            return loadResults.get(key) != null;
         }
 
-        public Future<Data> getReadFuture(K key)
+        public void setLoadResult(K key, AsyncResult<Void> result)
         {
-            return getFuture(readFutures, key);
+            setAsyncResult(loadResults, key, result);
         }
 
-        public void setReadFuture(K key, Future<Data> future)
+        public AsyncResult<?> getSaveResult(K key)
         {
-            setFuture(readFutures, key, future);
+            return getAsyncResult(saveResults, key);
         }
 
-        public void cleanupReadFuture(K key)
+        public void addSaveResult(K key, AsyncResult<Void> result)
         {
-            getReadFuture(key);
+            logger.trace("Adding save result for {}: {}", key, result);
+            mergeAsyncResult(saveResults, key, result);
         }
 
-        public Future<Void> getWriteFuture(K key)
+        public void cleanupSaveResult(K key)
         {
-            return (Future<Void>) getFuture(writeFutures, key);
+            getSaveResult(key);
         }
 
-        public void setWriteFuture(K key, Future<Void> future)
+        @VisibleForTesting
+        public boolean hasSaveResult(K key)
         {
-            setFuture(writeFutures, key, future);
+            return saveResults.get(key) != null;
         }
 
-        public void cleanupWriteFuture(K key)
+        public AsyncResult<Data> getReadResult(K key)
         {
-            getWriteFuture(key);
+            return getAsyncResult(readResults, key);
+        }
+
+        public void setReadResult(K key, AsyncResult<Data> result)
+        {
+            setAsyncResult(readResults, key, result);
+        }
+
+        public void cleanupReadResult(K key)
+        {
+            getReadResult(key);
+        }
+
+        public AsyncResult<Void> getWriteResult(K key)
+        {
+            return getAsyncResult(writeResults, key);
+        }
+
+        public void setWriteResult(K key, AsyncResult<Void> result)
+        {
+            setAsyncResult(writeResults, key, result);
+        }
+
+        public void cleanupWriteResult(K key)
+        {
+            getWriteResult(key);
         }
 
         public long cacheQueries()
