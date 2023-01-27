@@ -37,6 +37,8 @@ import accord.local.SafeCommandStore;
 import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.primitives.Writes;
+import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.Clustering;
@@ -56,7 +58,6 @@ import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.concurrent.*;
 
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.service.accord.AccordSerializers.partitionUpdateSerializer;
@@ -122,11 +123,11 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                    '}';
         }
 
-        public Future<?> write(long timestamp, int nowInSeconds)
+        public AsyncChain<Void> write(long timestamp, int nowInSeconds)
         {
             PartitionUpdate update = new PartitionUpdate.Builder(get(), 0).updateAllTimestampAndLocalDeletionTime(timestamp, nowInSeconds).build();
             Mutation mutation = new Mutation(update);
-            return Stage.MUTATION.submit((Runnable) mutation::apply);
+            return AsyncChains.ofRunnable(Stage.MUTATION.executor(), mutation::apply);
         }
 
         @Override
@@ -342,7 +343,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     }
 
     @Override
-    public Future<Void> apply(Seekable key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
+    public AsyncChain<Void> apply(Seekable key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
     {
         AccordCommandsForKey cfk = ((SafeAccordCommandStore) safeStore).commandsForKey((Key)key);
         // TODO (expected, efficiency): 99.9999% of the time we can just use executeAt.hlc(), so can avoid bringing
@@ -352,16 +353,16 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         // TODO (low priority - do we need to compute nowInSeconds, or can we just use executeAt?)
         int nowInSeconds = cfk.nowInSecondsFor(executeAt, true);
 
-        List<Future<?>> futures = new ArrayList<>();
-        forEachWithKey((PartitionKey) key, write -> futures.add(write.write(timestamp, nowInSeconds)));
+        List<AsyncChain<Void>> results = new ArrayList<>();
+        forEachWithKey((PartitionKey) key, write -> results.add(write.write(timestamp, nowInSeconds)));
 
-        if (futures.isEmpty())
+        if (results.isEmpty())
             return Writes.SUCCESS;
 
-        if (futures.size() == 1)
-            return futures.get(0).flatMap(o -> Writes.SUCCESS);
+        if (results.size() == 1)
+            return results.get(0).flatMap(o -> Writes.SUCCESS);
 
-        return FutureCombiner.allOf(futures).flatMap(objects -> Writes.SUCCESS);
+        return AsyncChains.all(results).flatMap(objects -> Writes.SUCCESS);
     }
 
     public long estimatedSizeOnHeap()
