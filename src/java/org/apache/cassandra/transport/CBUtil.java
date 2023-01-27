@@ -46,7 +46,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
-
+import org.apache.cassandra.utils.memory.MemoryUtil;
 /**
  * ByteBuf utility methods.
  * Note that contrarily to ByteBufferUtil, these method do "read" the
@@ -66,6 +66,15 @@ public abstract class CBUtil
         protected CharsetDecoder initialValue()
         {
             return StandardCharsets.UTF_8.newDecoder();
+        }
+    };
+
+    private static final FastThreadLocal<ByteBuffer> localBuffer = new FastThreadLocal<>()
+    {
+        @Override
+        protected ByteBuffer initialValue()
+        {
+            return ByteBuffer.wrap(new byte[0]);
         }
     };
 
@@ -478,7 +487,7 @@ public abstract class CBUtil
         cb.writeInt(remaining);
 
         if (remaining > 0)
-            cb.writeBytes(bytes.duplicate());
+            cb.writeBytes(MemoryUtil.duplicateHeapByteBuffer(bytes, getLocalBuffer()));
     }
 
     public static int sizeOfValue(byte[] bytes)
@@ -612,6 +621,11 @@ public abstract class CBUtil
         byte[] bytes = new byte[length];
         cb.readBytes(bytes);
         return bytes;
+    }
+
+    public static ByteBuffer getLocalBuffer()
+    {
+        return localBuffer.get();
     }
 
 }
