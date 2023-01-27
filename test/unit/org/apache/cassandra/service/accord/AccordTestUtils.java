@@ -54,6 +54,7 @@ import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topology;
+import accord.utils.async.AsyncChains;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
@@ -68,6 +69,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.primitives.Routable.Domain.Key;
+import static accord.utils.async.AsyncChains.awaitUninterruptibly;
 import static java.lang.String.format;
 
 public class AccordTestUtils
@@ -113,7 +115,7 @@ public class AccordTestUtils
     public static void processCommandResult(AccordCommandStore commandStore, Command command) throws Throwable
     {
 
-        commandStore.execute(PreLoadContext.contextFor(Collections.emptyList(), command.partialTxn().keys()),
+        awaitUninterruptibly(commandStore.execute(PreLoadContext.contextFor(Collections.emptyList(), command.partialTxn().keys()),
                                        instance -> {
             PartialTxn txn = command.partialTxn();
             TxnRead read = (TxnRead) txn.read();
@@ -121,7 +123,7 @@ public class AccordTestUtils
                                 .map(key -> {
                                     try
                                     {
-                                        return read.read(key, command.txnId().rw(), instance, command.executeAt(), null).get();
+                                        return AsyncChains.getBlocking(read.read(key, command.txnId().rw(), instance, command.executeAt(), null));
                                     }
                                     catch (InterruptedException e)
                                     {
@@ -136,7 +138,7 @@ public class AccordTestUtils
             Write write = txn.update().apply(readData);
             ((AccordCommand)command).setWrites(new Writes(command.executeAt(), (Keys)txn.keys(), write));
             ((AccordCommand)command).setResult(txn.query().compute(command.txnId(), readData, txn.read(), txn.update()));
-        }).get();
+        }));
     }
 
     public static Txn createTxn(String query)

@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.BiConsumer;
 
 import com.google.common.collect.ImmutableList;
 
@@ -36,21 +35,18 @@ import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.Simulate;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
-import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
 public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
 {
@@ -143,51 +139,18 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     }
 
     @Override
-    public Future<Data> read(Seekable key, Txn.Kind kind, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
+    public AsyncChain<Data> read(Seekable key, Txn.Kind kind, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
     {
-        List<Future<Data>> futures = new ArrayList<>();
-        forEachWithKey((PartitionKey) key, read -> futures.add(read.read(kind.isWrite(), safeStore, executeAt)));
+        List<AsyncChain<Data>> results = new ArrayList<>();
+        forEachWithKey((PartitionKey) key, read -> results.add(read.read(kind.isWrite(), safeStore, executeAt)));
 
-        if (futures.isEmpty())
-            return ImmediateFuture.success(new TxnData());
+        if (results.isEmpty())
+            return AsyncChains.success(new TxnData());
 
-        if (futures.size() == 1)
-            return futures.get(0);
+        if (results.size() == 1)
+            return results.get(0);
 
-        return new MultiReadFuture(futures);
-    }
-
-    @Simulate(with = MONITORS)
-    private static class MultiReadFuture extends AsyncPromise<Data> implements BiConsumer<Data, Throwable>
-    {
-        private Data result = null;
-        private int pending;
-
-        public MultiReadFuture(List<Future<Data>> futures)
-        {
-            pending = futures.size();
-            listen(futures);
-        }
-
-        private synchronized void listen(List<Future<Data>> futures)
-        {
-            for (int i=0, mi=futures.size(); i<mi; i++)
-                futures.get(i).addCallback(this);
-        }
-
-        @Override
-        public synchronized void accept(Data data, Throwable throwable)
-        {
-            if (isDone())
-                return;
-
-            if (throwable != null)
-                tryFailure(throwable);
-
-            result = result != null ? result.merge(data) : data;
-            if (--pending == 0)
-                trySuccess(result);
-        }
+        return AsyncChains.reduce(results, Data::merge);
     }
 
     public static final IVersionedSerializer<TxnRead> serializer = new IVersionedSerializer<TxnRead>()

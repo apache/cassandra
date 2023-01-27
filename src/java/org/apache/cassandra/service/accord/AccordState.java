@@ -21,9 +21,9 @@ package org.apache.cassandra.service.accord;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import accord.utils.async.AsyncResult;
 import org.apache.cassandra.service.accord.store.StoredNavigableMap;
 import org.apache.cassandra.service.accord.store.StoredSet;
-import org.apache.cassandra.utils.concurrent.Future;
 
 public interface AccordState<K>
 {
@@ -69,9 +69,9 @@ public interface AccordState<K>
             return ReadWrite.WRITE_ONLY;
         }
 
-        void future(Future<?> future);
+        void asyncResult(AsyncResult<Void> notifier);
 
-        Future<?> future();
+        AsyncResult<Void> asyncResult();
 
         /**
          * Apply the write only changes to the full instance

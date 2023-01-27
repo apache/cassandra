@@ -37,6 +37,8 @@ import accord.messages.Request;
 import accord.primitives.Txn;
 import accord.topology.TopologyManager;
 import org.apache.cassandra.concurrent.Shutdownable;
+import accord.utils.async.AsyncResult;
+import accord.utils.async.AsyncResults;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
@@ -51,7 +53,6 @@ import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentAccordOps;
@@ -185,8 +186,8 @@ public class AccordService implements IAccordService, Shutdownable
         try
         {
             metrics.keySize.update(txn.keys().size());
-            Future<Result> future = node.coordinate(txn);
-            Result result = future.get(DatabaseDescriptor.getTransactionTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
+            AsyncResult<Result> asyncResult = node.coordinate(txn);
+            Result result = AsyncResults.getBlocking(asyncResult, DatabaseDescriptor.getTransactionTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
             return (TxnData) result;
         }
         catch (ExecutionException e)
