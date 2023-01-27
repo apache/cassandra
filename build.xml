@@ -352,7 +352,7 @@
 	         <exclusion groupId="org.apache.httpcomponents" artifactId="httpclient"/>
 	         <exclusion groupId="org.apache.httpcomponents" artifactId="httpcore"/>
           </dependency>
-          <dependency groupId="junit" artifactId="junit" version="4.6" scope="test">
+          <dependency groupId="junit" artifactId="junit" version="4.13" scope="test">
             <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
           </dependency>
           <dependency groupId="org.apache.rat" artifactId="apache-rat" version="0.10">

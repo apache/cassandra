@@ -671,6 +671,18 @@ public class Directories
             return ImmutableMap.copyOf(components);
         }
 
+        /**
+         * Returns a sorted version of the {@code list} method.
+         * Descriptors are sorted by generation.
+         * @return a SortedMap of descriptors to their components.
+         */
+        public SortedMap<Descriptor, Set<Component>> sortedList()
+        {
+            SortedMap<Descriptor, Set<Component>> selected = new TreeMap<Descriptor,Set<Component>>((t1,t2) -> Integer.compare( t1.generation, t2.generation));
+            selected.putAll(list());
+            return selected;
+        }
+
         public List<File> listFiles()
         {
             filter();

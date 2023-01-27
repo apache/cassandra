@@ -45,7 +45,7 @@ public class StandaloneUpgrader
     private static final String HELP_OPTION  = "help";
     private static final String KEEP_SOURCE = "keep-source";
 
-    public static <Compraatpor> void main(String args[])
+    public static void main(String args[])
     {
         Options options = Options.parseArgs(args);
         Util.initDatabaseDescriptor();
@@ -73,9 +73,7 @@ public class StandaloneUpgrader
             Collection<SSTableReader> readers = new ArrayList<>();
 
             // Upgrade sstables in SSTableId order
-            SortedMap<Descriptor, Set<Component>> selected = new TreeMap<Descriptor,Set<Component>>((t1,t2) -> Integer.compare( t1.generation, t2.generation));
-            selected.putAll(lister.list());
-            for (Map.Entry<Descriptor, Set<Component>> entry : selected.entrySet())
+            for (Map.Entry<Descriptor, Set<Component>> entry : lister.sortedList().entrySet())
             {
                 Set<Component> components = entry.getValue();
                 if (!components.contains(Component.DATA) || !components.contains(Component.PRIMARY_INDEX))

@@ -954,7 +954,7 @@ public class LegacySSTableTest
         File directory = new File(System.getProperty("java.io.tmpdir"));
 
         Util.findFirstUnordered(() -> {
-            return new Descriptor(legacyVersion, directory, ksname, cfname, generation[0], formatType);
+            return new Descriptor(legacyVersion, directory, ksname, cfname, ++generation[0], formatType);
         });
         return generation[0];
     }
@@ -990,7 +990,7 @@ public class LegacySSTableTest
                 if (file.isFile())
                 {
                     String[] fileNameParts = file.getName().split("-");
-                    String targetName = String.format("%s-%s-%s-%s", legacyVersion, start + i, fileNameParts[2], fileNameParts[3]);
+                    String targetName = String.format("%s-%s-%s-%s-%s", fileNameParts[0],tableName, fileNameParts[2], start + i,  fileNameParts[4]);
                     logger.info("creating legacy sstable {}", targetName);
                     File target = new File(cfDir, targetName);
                     org.apache.commons.io.FileUtils.copyFile(file,target);

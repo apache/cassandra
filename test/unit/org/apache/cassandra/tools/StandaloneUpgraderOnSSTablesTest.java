@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.tools;
 
+import java.io.DataOutputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.Set;
@@ -31,15 +34,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.Directories;
+
 import org.junit.AfterClass;
-import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.StartupException;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.LegacySSTableTest;
 import org.apache.cassandra.service.StorageService;
 import org.assertj.core.api.Assertions;
@@ -49,33 +52,191 @@ import static org.junit.Assert.assertNotEquals;
 
 /*
  * SStableUpdater should be run with the server shutdown, but we need to set up a certain env to be able to
- * load/swap/drop sstable files under the test's feet. Hence why we need a separate file vs StandaloneUpgraderTest.
+ * load/swap/drop sstable files under the test's feet. Thus, we need a separate file vs StandaloneUpgraderTest.
  *
  * Caution: heavy hacking ahead.
  */
-public class StandaloneUpgraderOnSStablesTest
+public class StandaloneUpgraderOnSSTablesTest
 {
-
-    static final String EXECUTABLE = StandaloneUpgrader.class.getClassLoader().getResource( StandaloneUpgrader.class.getCanonicalName()).getFile();
     String legacyId = LegacySSTableTest.legacyVersions[LegacySSTableTest.legacyVersions.length - 1];
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
         LegacySSTableTest.defineSchema();
-        //System.setProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
     }
 
-    @AfterClass
-    public static void clearClassEnv()
+
+    /**
+     * Executes the bin/sstableupgrade script and returns the results.
+     * @param waitFor How long, in seconds, to wait for the script to complete.
+     * @param args The arguments for the sstablesupgrade call.
+     * @return A ToolResult containing the results of the call.
+     * @throws InterruptedException if thread execution is interrupted.
+     * @throws IOException during file manipulation.
+     */
+    private ToolResult execTool(int waitFor, String... args) throws InterruptedException, IOException
     {
-        //System.clearProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST);
+        List<String> command = new ArrayList<>();
+        command.add("bin/sstableupgrade");
+        command.addAll(Arrays.asList(args));
+        ProcessBuilder builder = new ProcessBuilder(command);
+        Path includeFile = Files.createTempFile("tst", ".sh");
+        try
+        {
+            try (DataOutputStream dos = new DataOutputStream(new FileOutputStream(includeFile.toFile())))
+            {
+                dos.writeBytes("#!/bin/bash -x\n");
+                dos.writeBytes(". ${PWD}/bin/cassandra.in.sh\n");
+                dos.writeBytes("export cassandra_storagedir=${PWD}/build/test/cassandra\n");
+                dos.writeBytes("export JVM_OPTS=\"$JVM_OPTS -Dcassandra.config=file://${PWD}/test/conf/cassandra.yaml\"\n");
+            }
+            builder.environment().put("CASSANDRA_INCLUDE", includeFile.toString());
+            Process process = builder.start();
+            if (!process.waitFor(waitFor, TimeUnit.SECONDS))
+            {
+                process.destroyForcibly();
+            }
+            StringWriter stdout = new StringWriter();
+            org.apache.commons.io.IOUtils.copy(process.getInputStream(), stdout, StandardCharsets.UTF_8);
+            StringWriter stderr = new StringWriter();
+            org.apache.commons.io.IOUtils.copy(process.getErrorStream(), stderr, StandardCharsets.UTF_8);
+            return new ToolResult(process.exitValue(), stdout.toString(), stderr.toString());
+        }
+        finally
+        {
+            Files.delete(includeFile);
+        }
     }
 
-    class ToolResult {
-        private int exitValue;
-        private String stdout;
-        private String stderr;
+    @Test
+    public void testUpgradeKeepFiles() throws Throwable
+    {
+        LegacySSTableTest.truncateLegacyTables(legacyId);
+        LegacySSTableTest.loadLegacyTables(legacyId);
+
+        List<String> origFiles = getSStableFiles("legacy_tables", "legacy_" + legacyId + "_simple");
+        ToolResult tool = execTool(5,
+                                   "-k",
+                                   "legacy_tables",
+                                   "legacy_" + legacyId + "_simple");
+        Assertions.assertThat(tool.getStdout()).contains("Found 1 sstables that need upgrading.");
+        Assertions.assertThat(tool.getStdout()).contains("legacy_tables/legacy_" + legacyId + "_simple");
+        Assertions.assertThat(tool.getStdout()).contains("-Data.db");
+        tool.assertOnCleanExit();
+
+        List<String> newFiles = getSStableFiles("legacy_tables", "legacy_" + legacyId + "_simple");
+        origFiles.removeAll(newFiles);
+        assertEquals(0, origFiles.size()); // check previous version files are kept
+
+        // need to make sure the new sstables are live, so that they get truncated later
+        Keyspace.open("legacy_tables").getColumnFamilyStore("legacy_" + legacyId + "_simple").loadNewSSTables();
+    }
+
+    @Test
+    public void testUpgradeSnapshot() throws Throwable
+    {
+        LegacySSTableTest.truncateLegacyTables(legacyId);
+        LegacySSTableTest.loadLegacyTables(legacyId);
+        StorageService.instance.takeSnapshot("testsnapshot",
+                                             "legacy_tables");
+
+        ToolResult tool = execTool(5,
+                                   "legacy_tables",
+                                   "legacy_" + legacyId + "_simple",
+                                   "wrongsnapshot");
+        Assertions.assertThat(tool.getStdout()).contains("Found 0 sstables that need upgrading.");
+
+        tool = execTool(5,
+                        "legacy_tables",
+                        "legacy_" + legacyId + "_simple",
+                        "testsnapshot");
+        Assertions.assertThat(tool.getStdout()).contains("Found 1 sstables that need upgrading.");
+        Assertions.assertThat(tool.getStdout()).contains("legacy_tables/legacy_" + legacyId + "_simple");
+        Assertions.assertThat(tool.getStdout()).contains("-Data.db");
+        tool.assertOnCleanExit();
+    }
+
+    @Test
+    public void testUpgrade() throws Throwable
+    {
+        LegacySSTableTest.truncateLegacyTables(legacyId);
+        LegacySSTableTest.loadLegacyTables(legacyId);
+
+        List<String> origFiles = getSStableFiles("legacy_tables", "legacy_" + legacyId + "_simple");
+        ToolResult tool = execTool(5,
+                                   "legacy_tables",
+                                   "legacy_" + legacyId + "_simple");
+        Assertions.assertThat(tool.getStdout()).contains("Found 1 sstables that need upgrading.");
+        Assertions.assertThat(tool.getStdout()).contains("legacy_tables/legacy_" + legacyId + "_simple");
+        Assertions.assertThat(tool.getStdout()).contains("-Data.db");
+        tool.assertOnCleanExit();
+
+        List<String> newFiles = getSStableFiles("legacy_tables", "legacy_" + legacyId + "_simple");
+        int origSize = origFiles.size();
+        origFiles.removeAll(newFiles);
+        assertEquals(origSize, origFiles.size()); // check previous version files are gone
+        // need to make sure the new sstables are live, so that they get truncated later
+        Keyspace.open("legacy_tables").getColumnFamilyStore("legacy_" + legacyId + "_simple").loadNewSSTables();
+    }
+
+    @Test
+    public void testUpgradeSequence() throws Throwable
+    {
+        int startGeneration = LegacySSTableTest.generateMultipleTables(legacyId);
+
+        String tableName = "legacy_" + legacyId + "_multiple";
+
+        List<String> origFiles = getSStableFiles("legacy_tables", tableName);
+        // verify that the files are not returned in the correct order.
+        Set<String> treeSet = new TreeSet<>(origFiles);
+        assertNotEquals("Initial data was not in the incorret order", treeSet.toArray(), origFiles.toArray());
+        ToolResult tool = execTool(5,
+                                   "legacy_tables",
+                                   tableName);
+        Assertions.assertThat(tool.getStdout()).contains("Found 3 sstables that need upgrading.");
+        Assertions.assertThat(tool.getStdout()).contains("legacy_tables/" + tableName);
+        int[] loc = new int[3];
+        for (int i = 0; i < 3; i++)
+        {
+            String fileName = String.format("legacy_tables-legacy_%s_multiple-%s-%s-Data.db", legacyId, legacyId, startGeneration + i);
+            Assertions.assertThat(tool.getStdout()).contains(fileName);
+            loc[i] = tool.getStdout().lastIndexOf(fileName);
+        }
+        Assertions.assertThat(loc).isSorted();
+        tool.assertOnCleanExit();
+
+        List<String> newFiles = getSStableFiles("legacy_tables", tableName);
+        int origSize = origFiles.size();
+        origFiles.removeAll(newFiles);
+        assertEquals(origSize, origFiles.size()); // check previous version files are gone
+        // need to make sure the new sstables are live, so that they get truncated later
+        Keyspace.open("legacy_tables").getColumnFamilyStore(tableName).loadNewSSTables();
+    }
+
+    /**
+     * Gets sstable names  for the keyspace in the order returned by Directories.SSTableLister
+     *
+     * @param ks    the keyspace to read.
+     * @param table the name to read.
+     * @return a list of sstable names.
+     */
+    private List<String> getSStableFiles(String ks, String table)
+    {
+        ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(table);
+        cfs.forceBlockingFlush();
+        ColumnFamilyStore.scrubDataDirectories(cfs.metadata);
+
+        Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW);
+        lister.includeBackups(false);
+        return lister.list().keySet().stream().map(Descriptor::toString).collect(Collectors.toList());
+    }
+
+    static class ToolResult
+    {
+        private final int exitValue;
+        private final String stdout;
+        private final String stderr;
 
         public ToolResult(int exitValue, String stdout, String stderr)
         {
@@ -99,153 +260,9 @@ public class StandaloneUpgraderOnSStablesTest
             return stderr;
         }
 
-        public boolean assertOnCleanExit() {
-            return exitValue == 0;
-        }
-    }
-
-    private ToolResult execTool( int waitFor, String... args) throws InterruptedException, IOException
-    {
-        List<String> command = new ArrayList<>();
-        command.add( EXECUTABLE );
-        command.addAll(Arrays.asList(args ));
-        Process process =  new ProcessBuilder( command ).start();
-        if (!process.waitFor(waitFor, TimeUnit.SECONDS))
+        public void assertOnCleanExit()
         {
-            process.destroyForcibly();
+            assert exitValue == 0;
         }
-
-        StringWriter stdout = new StringWriter();
-        org.apache.commons.io.IOUtils.copy(process.getInputStream(), stdout, StandardCharsets.UTF_8 );
-        StringWriter stderr = new StringWriter();
-        org.apache.commons.io.IOUtils.copy(process.getErrorStream(), stderr, StandardCharsets.UTF_8 );
-        return new ToolResult(process.exitValue(), stdout.toString(), stderr.toString());
-    }
-
-    @Test
-    public void testUpgradeKeepFiles() throws Throwable
-    {
-        LegacySSTableTest.truncateLegacyTables(legacyId);
-        LegacySSTableTest.loadLegacyTables(legacyId);
-
-        List<String> origFiles = getSStableFiles("legacy_tables", "legacy_" + legacyId + "_simple");
-        ToolResult tool = execTool(5,
-                                            "-k",
-                                                 "legacy_tables",
-                                                 "legacy_" + legacyId + "_simple");
-        Assertions.assertThat(tool.getStdout()).contains("Found 1 sstables that need upgrading.");
-        Assertions.assertThat(tool.getStdout()).contains("legacy_tables/legacy_" + legacyId + "_simple");
-        Assertions.assertThat(tool.getStdout()).contains("-Data.db");
-        tool.assertOnCleanExit();
-
-        List<String> newFiles = getSStableFiles("legacy_tables", "legacy_" + legacyId + "_simple");
-        origFiles.removeAll(newFiles);
-        assertEquals(0, origFiles.size()); // check previous version files are kept
-
-        // need to make sure the new sstables are live, so that they get truncated later
-        Keyspace.open("legacy_tables").getColumnFamilyStore("legacy_" + legacyId + "_simple").loadNewSSTables();
-    }
-
-    @Test
-    public void testUpgradeSnapshot() throws Throwable
-    {
-        LegacySSTableTest.truncateLegacyTables(legacyId);
-        LegacySSTableTest.loadLegacyTables(legacyId);
-        StorageService.instance.takeSnapshot("testsnapshot",
-                                             Collections.emptyMap(),
-                                             "legacy_tables.legacy_" + legacyId + "_simple");
-
-        ToolResult tool = execTool(5,
-                                                 "-k",
-                                                 "legacy_tables",
-                                                 "legacy_" + legacyId + "_simple",
-                                                 "wrongsnapshot");
-        Assertions.assertThat(tool.getStdout()).contains("Found 0 sstables that need upgrading.");
-
-        tool = execTool(5,
-                                      "legacy_tables",
-                                      "legacy_" + legacyId + "_simple",
-                                      "testsnapshot");
-        Assertions.assertThat(tool.getStdout()).contains("Found 1 sstables that need upgrading.");
-        Assertions.assertThat(tool.getStdout()).contains("legacy_tables/legacy_" + legacyId + "_simple");
-        Assertions.assertThat(tool.getStdout()).contains("-Data.db");
-        tool.assertOnCleanExit();
-    }
-
-    @Test
-    public void testUpgrade() throws Throwable
-    {
-        LegacySSTableTest.truncateLegacyTables(legacyId);
-        LegacySSTableTest.loadLegacyTables(legacyId);
-
-        List<String> origFiles = getSStableFiles("legacy_tables", "legacy_" + legacyId + "_simple");
-        ToolResult tool = execTool(5,
-                                                 "legacy_tables",
-                                                 "legacy_" + legacyId + "_simple");
-        Assertions.assertThat(tool.getStdout()).contains("Found 1 sstables that need upgrading.");
-        Assertions.assertThat(tool.getStdout()).contains("legacy_tables/legacy_" + legacyId + "_simple");
-        Assertions.assertThat(tool.getStdout()).contains("-Data.db");
-        tool.assertOnCleanExit();
-
-        List<String> newFiles = getSStableFiles("legacy_tables", "legacy_" + legacyId + "_simple");
-        int origSize = origFiles.size();
-        origFiles.removeAll(newFiles);
-        assertEquals(origSize, origFiles.size()); // check previous version files are gone
-        // need to make sure the new sstables are live, so that they get truncated later
-        Keyspace.open("legacy_tables").getColumnFamilyStore("legacy_" + legacyId + "_simple").loadNewSSTables();
-    }
-
-    @Test
-    public void testUpgradeSequence() throws Throwable
-    {
-        int startGeneration = LegacySSTableTest.generateMultipleTables(legacyId);
-
-        String tableName = "legacy_" + legacyId + "_multiple";
-
-        List<String> origFiles = getSStableFiles("legacy_tables", tableName);
-        // verify that the files are not returned in the correct order.
-        Set<String> treeSet = new TreeSet<>();
-        treeSet.addAll(origFiles);
-        assertNotEquals("Initial data was not in the incorret order", treeSet.toArray(), origFiles.toArray());
-
-        ToolResult tool = execTool(5,
-                                                 "legacy_tables",
-                                                 tableName);
-        Assertions.assertThat(tool.getStdout()).contains("Found 3 sstables that need upgrading.");
-        Assertions.assertThat(tool.getStdout()).contains("legacy_tables/" + tableName);
-        int[] loc = new int[3];
-        for (int i = 0; i < 3; i++)
-        {
-            String fileName = String.format("%s-%s-big-Data.db", legacyId, startGeneration + i);
-            Assertions.assertThat(tool.getStdout()).contains(fileName);
-            loc[i] = tool.getStdout().lastIndexOf(fileName);
-        }
-        Assertions.assertThat(loc).isSorted();
-        tool.assertOnCleanExit();
-
-        List<String> newFiles = getSStableFiles("legacy_tables", tableName);
-        int origSize = origFiles.size();
-        origFiles.removeAll(newFiles);
-        assertEquals(origSize, origFiles.size()); // check previous version files are gone
-        // need to make sure the new sstables are live, so that they get truncated later
-        Keyspace.open("legacy_tables").getColumnFamilyStore(tableName).loadNewSSTables();
-    }
-
-    /**
-     * Gets sstable names  for the keyspace in the order returned by Directories.SSTableLister
-     * @param ks the keyspace to read.
-     * @param table the name to read.
-     * @return a list of sstable names.
-     * @throws StartupException
-     */
-    private List<String> getSStableFiles(String ks, String table) throws StartupException
-    {
-        ColumnFamilyStore cfs = Keyspace.open(ks).getColumnFamilyStore(table);
-        cfs.forceBlockingFlush();
-        ColumnFamilyStore.scrubDataDirectories(cfs.metadata);
-
-        Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW);
-        lister.includeBackups(false);
-        return lister.list().keySet().stream().map( s -> s.toString()).collect(Collectors.toList());
     }
 }
