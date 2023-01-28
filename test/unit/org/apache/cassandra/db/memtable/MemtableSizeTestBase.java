@@ -42,7 +42,7 @@ import org.github.jamm.MemoryMeter;
 // Note: This test can be run in idea with the allocation type configured in the test yaml and memtable using the
 // value memtableClass is initialized with.
 @RunWith(Parameterized.class)
-public class MemtableSizeTestBase extends CQLTester
+public abstract class MemtableSizeTestBase extends CQLTester
 {
     // Note: To see a printout of the usage for each object, add .enableDebug() here (most useful with smaller number of
     // partitions).
