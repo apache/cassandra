@@ -50,7 +50,6 @@ import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.fail;
-import static org.reflections.util.Utils.isEmpty;
 
 public class CompactStorageTest extends CQLTester
 {
@@ -4369,19 +4368,9 @@ public class CompactStorageTest extends CQLTester
         execute("UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 = ?", null, 0, 0);
         flush(forceFlush);
 
-        if (isEmpty(compactOption))
-        {
-            assertRows(execute("SELECT * FROM %s WHERE partitionKey = ? AND (clustering_1) IN ((?), (?))",
-                               0, 0, 1),
-                       row(0, 0, null),
-                       row(0, 1, 20));
-        }
-        else
-        {
-            assertRows(execute("SELECT * FROM %s WHERE partitionKey = ? AND (clustering_1) IN ((?), (?))",
-                               0, 0, 1),
-                       row(0, 1, 20));
-        }
+        assertRows(execute("SELECT * FROM %s WHERE partitionKey = ? AND (clustering_1) IN ((?), (?))",
+                           0, 0, 1),
+                   row(0, 1, 20));
 
         // test invalid queries
 
