@@ -33,7 +33,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-public class BatchTests
+public class BatchTest extends CQLTester
 {
     private static EmbeddedCassandraService cassandra;
 
