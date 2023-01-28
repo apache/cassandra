@@ -48,7 +48,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * For Authorizer based tests where we need to fully truncate the roles, members, and permissions between tests
  */
-public class CassandraAuthorizerTruncatingTests extends CQLTester
+public class CassandraAuthorizerTruncatingTest extends CQLTester
 {
     @BeforeClass
     public static void setupClass()

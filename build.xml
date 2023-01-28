@@ -1439,11 +1439,25 @@
      <src path="${test.simulator-test.src}"/>
     </javac>
 
+    <checktestnameshelper/>
+
     <!-- Non-java resources needed by the test suite -->
     <copy todir="${test.classes}">
       <fileset dir="${test.resources}"/>
     </copy>
   </target>
+
+  <macrodef name="checktestnameshelper">
+    <sequential>
+      <taskdef name="test-name-check_" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
+        <classpath>
+          <path refid="cassandra.classpath.test"/>
+          <path location="${fqltool.build.classes}"/>
+        </classpath>
+      </taskdef>
+      <test-name-check_/>
+    </sequential>
+  </macrodef>
 
   <!-- Run tests separately and report errors after and generate a junit report -->
   <macrodef name="testhelper">

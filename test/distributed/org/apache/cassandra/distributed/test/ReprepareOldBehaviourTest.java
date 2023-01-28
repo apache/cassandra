@@ -30,7 +30,7 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class ReprepareTestOldBehaviour extends ReprepareTestBase
+public class ReprepareOldBehaviourTest extends ReprepareTestBase
 {
     @Test
     public void testReprepareMixedVersion() throws Throwable
