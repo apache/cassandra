@@ -28,9 +28,9 @@ import org.junit.runners.Parameterized;
  * KeywordTestSplitN to prevent CI timing out. If timeouts reappear split it further
  */
 @RunWith(Parameterized.class)
-public class KeywordTestSplit2 extends KeywordTestBase
+public class KeywordSplit1Test extends KeywordTestBase
 {
-    static int SPLIT = 2;
+    static int SPLIT = 1;
     static int TOTAL_SPLITS = 2;
     
     @Parameterized.Parameters(name = "keyword {0} isReserved {1}")
@@ -38,7 +38,7 @@ public class KeywordTestSplit2 extends KeywordTestBase
         return KeywordTestBase.getKeywordsForSplit(SPLIT, TOTAL_SPLITS);
     }
     
-    public KeywordTestSplit2(String keyword, boolean isReserved)
+    public KeywordSplit1Test(String keyword, boolean isReserved)
     {
         super(keyword, isReserved);
     }

@@ -35,11 +35,10 @@ import org.junit.Test;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.utils.UUIDGen;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 
-public class UUIDTests
+public class UUIDTest
 {
     @Test
     public void verifyType1()
