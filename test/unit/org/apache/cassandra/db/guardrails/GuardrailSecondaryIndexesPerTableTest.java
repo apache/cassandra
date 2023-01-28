@@ -26,12 +26,12 @@ import static java.lang.String.format;
 /**
  * Tests the guardrail for the number of secondary indexes in a table, {@link Guardrails#secondaryIndexesPerTable}.
  */
-public class GuardrailSecondaryIndexesPerTable extends ThresholdTester
+public class GuardrailSecondaryIndexesPerTableTest extends ThresholdTester
 {
     private static final int INDEXES_PER_TABLE_WARN_THRESHOLD = 1;
     private static final int INDEXES_PER_TABLE_FAIL_THRESHOLD = 3;
 
-    public GuardrailSecondaryIndexesPerTable()
+    public GuardrailSecondaryIndexesPerTableTest()
     {
         super(INDEXES_PER_TABLE_WARN_THRESHOLD,
               INDEXES_PER_TABLE_FAIL_THRESHOLD,

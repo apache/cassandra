@@ -37,7 +37,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class VirtualTableFromInternode extends TestBaseImpl
+public class VirtualTableFromInternodeTest extends TestBaseImpl
 {
     private static Cluster CLUSTER;
 
