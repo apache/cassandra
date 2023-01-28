@@ -27,10 +27,9 @@ import java.util.UUID;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.utils.UUIDGen;
 
 
-public class UUIDTests
+public class UUIDTest
 {
     @Test
     public void verifyType1()

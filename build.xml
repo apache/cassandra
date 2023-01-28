@@ -67,6 +67,7 @@
     <property name="test.classlistfile" value="testlist.txt"/>
     <property name="test.classlistprefix" value="unit"/>
     <property name="benchmark.name" value=""/>
+    <property name="test.anttasks.src" value="${test.dir}/anttasks"/>
     <property name="test.methods" value=""/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
     <property name="test.long.src" value="${test.dir}/long"/>
@@ -360,7 +361,7 @@
           </dependency>
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
           <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.13" scope="test"/>
-          <dependency groupId="org.reflections" artifactId="reflections" version="0.9.12" scope="test"/>
+          <dependency groupId="org.reflections" artifactId="reflections" version="0.10.2" scope="test"/>
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">
           	<exclusion groupId="org.mortbay.jetty" artifactId="servlet-api"/>
@@ -1097,6 +1098,7 @@
         <path refid="cassandra.classpath.test"/>
      </classpath>
      <compilerarg value="-XDignore.symbol.file"/>
+     <src path="${test.anttasks.src}"/>
      <src path="${test.unit.src}"/>
      <src path="${test.long.src}"/>
      <src path="${test.burn.src}"/>
@@ -1104,11 +1106,24 @@
      <src path="${test.distributed.src}"/>
     </javac>
 
+    <checktestnameshelper/>
+
     <!-- Non-java resources needed by the test suite -->
     <copy todir="${test.classes}">
       <fileset dir="${test.resources}"/>
     </copy>
   </target>
+
+  <macrodef name="checktestnameshelper">
+    <sequential>
+      <taskdef name="test-name-check_" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
+        <classpath>
+          <path refid="cassandra.classpath.test"/>
+        </classpath>
+      </taskdef>
+      <test-name-check_/>
+    </sequential>
+  </macrodef>
 
   <!-- Run tests separately and report errors after and generate a junit report -->
   <macrodef name="testhelper">
