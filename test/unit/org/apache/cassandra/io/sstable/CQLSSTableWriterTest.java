@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
@@ -55,6 +56,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -1119,7 +1121,7 @@ public class CQLSSTableWriterTest
     @Test
     public void testWriteWithTimestamps() throws Exception
     {
-        long now = Clock.Global.currentTimeMillis();
+        long now = currentTimeMillis();
         long then = now - 1000;
         final String schema = "CREATE TABLE " + qualifiedTable + " ("
                               + "  k int,"
@@ -1163,16 +1165,16 @@ public class CQLSSTableWriterTest
                               + "  PRIMARY KEY (k)"
                               + ")";
 
-        CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                                                  .inDirectory(dataDir)
-                                                  .forTable(schema)
-                                                  .using("INSERT INTO " + qualifiedTable +
-                                                         " (k, c1, c2, v) VALUES (?,?,?,?) using TTL ?" )
-                                                  .build();
+        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
+                                                         .inDirectory(dataDir)
+                                                         .forTable(schema)
+                                                         .using("INSERT INTO " + qualifiedTable +
+                                                                " (k, c1, c2, v) VALUES (?,?,?,?) using TTL ?");
+        CQLSSTableWriter writer = builder.build();
         // add a row that _should_ show up - 1 hour TTL
         writer.addRow( 1, 2, 3, "a", 3600);
         // Insert a row with a TTL of 1 second - should not appear in results once we sleep
-        writer.addRow( 1, 4, 5, "b", 1);
+        writer.addRow( 2, 4, 5, "b", 1);
         writer.close();
         Thread.sleep(1200); // Slightly over 1 second, just to make sure
         loadSSTables(dataDir, keyspace);
@@ -1205,16 +1207,21 @@ public class CQLSSTableWriterTest
                                                   .using("INSERT INTO " + qualifiedTable +
                                                          " (k, c1, c2, v) VALUES (?,?,?,?) using timestamp ? AND TTL ?" )
                                                   .build();
-        long twoSecondsAgo = Clock.Global.currentTimeMillis() - 2000;
-        // Insert some rows with a timestamp of 2 seconds ago, and different TTLs
+        // NOTE: It would be easier to make this a timestamp in the past, but Cassandra also has a _local_ deletion time
+        // which is based on the server's timestamp, so simply setting the timestamp to some time in the past
+        // doesn't actually do what you'd think it would do.
+        long oneSecondFromNow = TimeUnit.MILLISECONDS.toMicros(currentTimeMillis() + 1000);
+        // Insert some rows with a timestamp of 1 second from now, and different TTLs
         // add a row that _should_ show up - 1 hour TTL
-        writer.addRow( 1, 2, 3, "a", twoSecondsAgo, 3600);
+        writer.addRow( 1, 2, 3, "a", oneSecondFromNow, 3600);
         // Insert a row "two seconds ago" with a TTL of 1 second - should not appear in results
-        writer.addRow( 1, 4, 5, "b", twoSecondsAgo, 1);
+        writer.addRow( 2, 4, 5, "b", oneSecondFromNow, 1);
         writer.close();
         loadSSTables(dataDir, keyspace);
-
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        assertEquals(2, resultSet.size());
+        Thread.sleep(1200);
+        resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
         assertEquals(1, resultSet.size());
 
         Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
