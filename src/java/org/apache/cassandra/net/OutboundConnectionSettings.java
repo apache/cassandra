@@ -453,6 +453,8 @@ public class OutboundConnectionSettings
         InetAddressAndPort connectTo = this.connectTo;
         if (connectTo == null)
             connectTo = SystemKeyspace.getPreferredIP(to);
+        if (FBUtilities.getBroadcastAddressAndPort().equals(connectTo))
+            return FBUtilities.getLocalAddressAndPort();
         return connectTo;
     }
 

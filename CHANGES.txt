@@ -4,6 +4,7 @@
  * Streaming progress virtual table lock contention can trigger TCP_USER_TIMEOUT and fail streaming (CASSANDRA-18110)
  * Fix perpetual load of denylist on read in cases where denylist can never be loaded (CASSANDRA-18116)
 Merged from 4.0:
+ * Connect to listen address when own broadcast address is requested (CASSANDRA-18200)
  * Add safeguard so cleanup fails when node has pending ranges (CASSANDRA-16418)
  * Fix legacy clustering serialization for paging with compact storage (CASSANDRA-17507)
  * Add support for python 3.11 (CASSANDRA-18088)
