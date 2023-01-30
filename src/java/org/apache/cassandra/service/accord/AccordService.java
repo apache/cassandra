@@ -35,6 +35,7 @@ import accord.local.Node;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.messages.Request;
 import accord.primitives.Txn;
+import accord.topology.TopologyManager;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -57,26 +58,62 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentAccord
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-public class AccordService implements Shutdownable
+public class AccordService implements IAccordService, Shutdownable
 {
     public static final AccordClientRequestMetrics readMetrics = new AccordClientRequestMetrics("AccordRead");
     public static final AccordClientRequestMetrics writeMetrics = new AccordClientRequestMetrics("AccordWrite");
 
-    public final Node node;
+    private final Node node;
     private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
-    public final AccordConfigurationService configService;
+    private final AccordConfigurationService configService;
     private final AccordScheduler scheduler;
     private final AccordVerbHandler<? extends Request> verbHandler;
+    
+    private static final IAccordService NOOP_SERVICE = new IAccordService()
+    {
+        @Override
+        public IVerbHandler<? extends Request> verbHandler()
+        {
+            return null;
+        }
+
+        @Override
+        public void createEpochFromConfigUnsafe() { }
+
+        @Override
+        public TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel)
+        {
+            throw new UnsupportedOperationException("No accord transaction should be executed when accord_transactions_enabled = false in cassandra.yaml");
+        }
+
+        @Override
+        public long currentEpoch()
+        {
+            throw new UnsupportedOperationException("Cannot return epoch when accord_transactions_enabled = false in cassandra.yaml");
+        }
+
+        @Override
+        public void setCacheSize(long kb) { }
+
+        @Override
+        public TopologyManager topology()
+        {
+            throw new UnsupportedOperationException("Cannot return topology when accord_transactions_enabled = false in cassandra.yaml");
+        }
+
+        @Override
+        public void shutdownAndWait(long timeout, TimeUnit unit) { }
+    };
 
     private static class Handle
     {
         public static final AccordService instance = new AccordService();
     }
 
-    public static AccordService instance()
+    public static IAccordService instance()
     {
-        return Handle.instance;
+        return DatabaseDescriptor.getAccordTransactionsEnabled() ? Handle.instance : NOOP_SERVICE;
     }
 
     public static long uniqueNow()
@@ -106,11 +143,13 @@ public class AccordService implements Shutdownable
         this.verbHandler = new AccordVerbHandler<>(this.node);
     }
 
+    @Override
     public IVerbHandler<? extends Request> verbHandler()
     {
         return verbHandler;
     }
 
+    @Override
     @VisibleForTesting
     public void createEpochFromConfigUnsafe()
     {
@@ -122,10 +161,23 @@ public class AccordService implements Shutdownable
         return TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
     }
 
+    @Override
+    public long currentEpoch()
+    {
+        return configService.currentEpoch();
+    }
+    
+    @Override
+    public TopologyManager topology()
+    {
+        return node.topology();
+    }
+    
     /**
      * Consistency level is just echoed back in timeouts, in the future it may be used for interoperability
      * with non-Accord operations.
      */
+    @Override
     public TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel)
     {
         AccordClientRequestMetrics metrics = txn.isWrite() ? writeMetrics : readMetrics;
@@ -184,6 +236,7 @@ public class AccordService implements Shutdownable
         return messageSink;
     }
 
+    @Override
     public void setCacheSize(long kb)
     {
         long bytes = kb << 10;
@@ -225,6 +278,7 @@ public class AccordService implements Shutdownable
     }
 
     @VisibleForTesting
+    @Override
     public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         ExecutorUtils.shutdownAndWait(timeout, unit, this);
