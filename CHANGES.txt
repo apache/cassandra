@@ -14,6 +14,7 @@ Merged from 4.0:
  * Restore internode custom tracing on 4.0's new messaging system (CASSANDRA-17981)
 Merged from 3.11:
 Merged from 3.0:
+ * Suppress CVE-2022-41915 (CASSANDRA-18147)
  * Introduce check for names of test classes (CASSANDRA-17964)
  * Suppress CVE-2021-1471, CVE-2021-3064, CVE-2021-4235 (CASSANDRA-18149)
  * Switch to snakeyaml's SafeConstructor (CASSANDRA-18150)
