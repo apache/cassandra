@@ -961,6 +961,11 @@ public class Directories
             return ImmutableMap.copyOf(components);
         }
 
+        /**
+         * Returs a sorted map equivalent to @{code list}
+         * Sorts the Descriptors by id.
+         * @return as sorted map of Distriptor to Set of components.
+         */
         public SortedMap<Descriptor, Set<Component>> sortedList()
         {
             SortedMap<Descriptor, Set<Component>> selected = new TreeMap<>((t1, t2) -> SSTableIdFactory.COMPARATOR.compare(t1.id, t2.id));
