@@ -132,7 +132,9 @@ public abstract class AccordTestBase extends TestBaseImpl
         // disable vnode for now, but should enable before trunk
         return init(Cluster.build(2)
                            .withoutVNodes()
-                           .withConfig(c -> c.with(Feature.NETWORK).set("write_request_timeout", "10s").set("transaction_timeout", "15s").set("legacy_paxos_strategy", "accord"))
+                           .withConfig(c -> c.with(Feature.NETWORK).set("write_request_timeout", "10s")
+                                                                   .set("transaction_timeout", "15s")
+                                                                   .set("legacy_paxos_strategy", "accord"))
                            .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install)
                            .withInstanceInitializer(BBAccordCoordinateCountHelper::install)
                            .start());

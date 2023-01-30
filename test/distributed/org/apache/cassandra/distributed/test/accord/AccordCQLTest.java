@@ -31,6 +31,7 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -54,12 +55,11 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.assertj.core.api.Assertions;
 
-import static org.apache.cassandra.cql3.CQLTester.row;
-import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.apache.cassandra.cql3.CQLTester.row;
+import static org.apache.cassandra.distributed.util.QueryResultUtil.assertThat;
 
 public class AccordCQLTest extends AccordTestBase
 {
@@ -179,7 +179,7 @@ public class AccordCQLTest extends AccordTestBase
                 sb.append("COMMIT TRANSACTION");
 
                 Unseekables<?, ?> routables = AccordTestUtils.createTxn(sb.toString()).keys().toUnseekables();
-                Topologies topology = AccordService.instance().node.topology().withUnsyncedEpochs(routables, AccordService.instance().node.topology().epoch());
+                Topologies topology = AccordService.instance().topology().withUnsyncedEpochs(routables, AccordService.instance().topology().epoch());
                 // we don't detect out-of-bounds read/write yet, so use this to validate we reach different shards
                 Assertions.assertThat(topology.totalShards()).isEqualTo(2);
             });

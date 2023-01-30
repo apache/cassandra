@@ -55,6 +55,7 @@ file_cache_enabled: true
 full_query_logging_options:
   allow_nodetool_archive_command: true
 auto_hints_cleanup_enabled: true
+accord_transactions_enabled: true
 
 heap_dump_path: build/test
 dump_heap_on_uncaught_exception: false
