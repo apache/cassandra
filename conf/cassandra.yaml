@@ -1683,6 +1683,9 @@ drop_compact_storage_enabled: false
 # Whether or not USE <keyspace> is allowed. This is enabled by default to avoid failure on upgrade.
 #use_statements_enabled: true
 
+# Enables the execution of Accord (multi-key) transactions on this node.
+accord_transactions_enabled: false
+
 # When the client triggers a protocol exception or unknown issue (Cassandra bug) we increment
 # a client metric showing this; this logic will exclude specific subnets from updating these
 # metrics

@@ -315,7 +315,7 @@ public final class SchemaKeyspace
         for (String schemaTable : ALL)
         {
             String query = String.format("DELETE FROM %s.%s USING TIMESTAMP ? WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, schemaTable);
-            for (String systemKeyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
+            for (String systemKeyspace : Schema.instance.getLocalKeyspaces().names())
                 executeOnceInternal(query, timestamp, systemKeyspace);
         }
 

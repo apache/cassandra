@@ -53,6 +53,7 @@ materialized_views_enabled: true
 drop_compact_storage_enabled: true
 file_cache_enabled: true
 auto_hints_cleanup_enabled: true
+accord_transactions_enabled: true
 
 heap_dump_path: build/test
 dump_heap_on_uncaught_exception: true

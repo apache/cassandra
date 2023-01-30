@@ -20,10 +20,15 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
+import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.IAccordService;
 
 public class AccordVirtualTables
 {
@@ -34,12 +39,16 @@ public class AccordVirtualTables
 
     public static Collection<VirtualTable> getAll(String keyspace)
     {
+        if (!DatabaseDescriptor.getAccordTransactionsEnabled())
+            return Collections.emptyList();
+
         return Arrays.asList(
         new Epoch(keyspace)
         );
     }
 
-    static final class Epoch extends AbstractVirtualTable
+    @VisibleForTesting
+    public static final class Epoch extends AbstractVirtualTable
     {
 
         protected Epoch(String keyspace)
@@ -54,10 +63,10 @@ public class AccordVirtualTables
         @Override
         public DataSet data()
         {
-            AccordService accord = AccordService.instance();
+            IAccordService accord = AccordService.instance();
             accord.createEpochFromConfigUnsafe();
 
-            long epoch = accord.configService.currentEpoch();
+            long epoch = accord.currentEpoch();
 
             SimpleDataSet result = new SimpleDataSet(metadata());
             result.row(epoch);

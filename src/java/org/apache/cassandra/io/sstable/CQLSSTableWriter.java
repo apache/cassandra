@@ -23,9 +23,11 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -553,7 +555,12 @@ public class CQLSSTableWriter implements Closeable
             if (modificationStatement == null)
                 throw new IllegalStateException("No modification (INSERT/UPDATE/DELETE) statement specified, you should provide a modification statement through using()");
 
-            Preconditions.checkState(Sets.difference(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES, Schema.instance.getKeyspaces()).isEmpty(),
+            Set<String> activeKeyspaces = new HashSet<>(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES);
+
+            if (!DatabaseDescriptor.getAccordTransactionsEnabled())
+                activeKeyspaces.remove(SchemaConstants.ACCORD_KEYSPACE_NAME);
+
+            Preconditions.checkState(Sets.difference(activeKeyspaces, Schema.instance.getKeyspaces()).isEmpty(),
                                      "Local keyspaces were not loaded. If this is running as a client, please make sure to add %s=true system property.",
                                      CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.getKey());
             synchronized (CQLSSTableWriter.class)

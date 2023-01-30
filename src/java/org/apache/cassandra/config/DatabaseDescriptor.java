@@ -112,6 +112,9 @@ import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
 
 public class DatabaseDescriptor
 {
+    public static final String NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE = 
+            "Cannot use legacy_paxos_strategy \"accord\" while Accord transactions are disabled.";
+
     static
     {
         // This static block covers most usages
@@ -941,6 +944,9 @@ public class DatabaseDescriptor
 
         if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
+        
+        if (conf.legacy_paxos_strategy == Config.LegacyPaxosStrategy.accord && !conf.accord_transactions_enabled)
+            throw new ConfigurationException(NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE);
     }
 
     @VisibleForTesting
@@ -4474,6 +4480,11 @@ public class DatabaseDescriptor
             logger.info("Setting use_statements_enabled to {}", enabled);
             conf.use_statements_enabled = enabled;
         }
+    }
+
+    public static boolean getAccordTransactionsEnabled()
+    {
+        return conf.accord_transactions_enabled;
     }
 
     public static boolean getForceNewPreparedStatementBehaviour()

@@ -39,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UserFunction;
@@ -119,9 +120,16 @@ public class Schema implements SchemaProvider
     private Schema()
     {
         this.online = isDaemonInitialized();
-        this.localKeyspaces = (CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.getBoolean() || isDaemonInitialized() || isToolInitialized())
-                              ? Keyspaces.of(SchemaKeyspace.metadata(), SystemKeyspace.metadata(), AccordKeyspace.metadata())
-                              : Keyspaces.none();
+
+        if (CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.getBoolean() || isDaemonInitialized() || isToolInitialized())
+        {
+            Keyspaces.Builder toLoad = Keyspaces.builder().add(SchemaKeyspace.metadata(), SystemKeyspace.metadata());
+            this.localKeyspaces = DatabaseDescriptor.getAccordTransactionsEnabled() ? toLoad.add(AccordKeyspace.metadata()).build() : toLoad.build();
+        }
+        else
+        {
+            this.localKeyspaces = Keyspaces.none();
+        }
         this.distributedAndLocalKeyspaces = this.localKeyspaces;
 
         this.localKeyspaces.forEach(this::loadNew);
