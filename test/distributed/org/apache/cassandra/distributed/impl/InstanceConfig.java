@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import com.vdurmont.semver4j.Semver;
 
@@ -78,7 +77,7 @@ public class InstanceConfig implements IInstanceConfig
         this.hostId = new UUID(0x4000L, (1L << 63) | num); // deterministic hostId for simulator
         //TODO move away from magic strings in favor of constants
         this    .set("num_tokens", initial_token.size())
-                .set("initial_token", initial_token.stream().collect(Collectors.joining(",")))
+                .set("initial_token", String.join(",", initial_token))
                 .set("broadcast_address", broadcast_address)
                 .set("listen_address", listen_address)
                 .set("broadcast_rpc_address", broadcast_rpc_address)
@@ -102,10 +101,11 @@ public class InstanceConfig implements IInstanceConfig
                 .set("native_transport_port", native_transport_port)
                 .set("endpoint_snitch", DistributedTestSnitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                        Collections.singletonMap("seeds", seedIp + ":" + seedPort)))
+                        Collections.singletonMap("seeds", seedIp + ':' + seedPort)))
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
                 .set("auto_bootstrap", false)
+                .set("accord_transactions_enabled", true)
                 // capacities that are based on `totalMemory` that should be fixed size
                 .set("index_summary_capacity", "50MiB")
                 .set("counter_cache_size", "50MiB")

@@ -43,6 +43,7 @@ import accord.primitives.Keys;
 import accord.primitives.Txn;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -91,6 +92,7 @@ public class TransactionStatement implements CQLStatement
     public static final String NO_TIMESTAMPS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify custom timestamps.";
     public static final String EMPTY_TRANSACTION_MESSAGE = "Transaction contains no reads or writes";
     public static final String SELECT_REFS_NEED_COLUMN_MESSAGE = "SELECT references must specify a column.";
+    public static final String TRANSACTIONS_DISABLED_MESSAGE = "Accord transactions are disabled. (See accord_transactions_enabled in cassandra.yaml)";
 
     static class NamedSelect
     {
@@ -320,6 +322,8 @@ public class TransactionStatement implements CQLStatement
     @Override
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
     {
+        checkTrue(DatabaseDescriptor.getAccordTransactionsEnabled(), TRANSACTIONS_DISABLED_MESSAGE);
+
         try
         {
             for (NamedSelect assignment : assignments)

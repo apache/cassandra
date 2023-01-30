@@ -64,7 +64,7 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 
 public class AsyncOperationTest
 {
-    private static AtomicLong clock = new AtomicLong(0);
+    private static final AtomicLong clock = new AtomicLong(0);
 
     @BeforeClass
     public static void beforeClass() throws Throwable
