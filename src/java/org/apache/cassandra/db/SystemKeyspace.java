@@ -1787,7 +1787,7 @@ public final class SystemKeyspace
                                                                              next));
 
             Instant creationTime = now();
-            for (String keyspace : SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES)
+            for (String keyspace : Schema.instance.getLocalKeyspaces().names())
                 Keyspace.open(keyspace).snapshot(snapshotName, null, false, null, null, creationTime);
         }
     }
