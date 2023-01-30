@@ -1138,8 +1138,10 @@ public class CQLSSTableWriterTest
                                                          " (k, c1, c2, v) VALUES (?,?,?,?) using timestamp ?" )
                                                   .build();
 
-        writer.addRow( 1, 2, 3, "a", now); // This write should be the one found at the end because it has a higher timestamp
-        writer.addRow( 1, 4, 5, "b", then);
+        // Note that, all other things being equal, Cassandra will sort these rows lexicographically, so we use "higher" values in the
+        // row we expect to "win" so that we're sure that it isn't just accidentally picked due to the row sorting.
+        writer.addRow( 1, 4, 5, "b", now); // This write should be the one found at the end because it has a higher timestamp
+        writer.addRow( 1, 2, 3, "a", then);
         writer.close();
         loadSSTables(dataDir, keyspace);
 
@@ -1149,9 +1151,9 @@ public class CQLSSTableWriterTest
         Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
         UntypedResultSet.Row r1 = iter.next();
         assertEquals(1, r1.getInt("k"));
-        assertEquals(2, r1.getInt("c1"));
-        assertEquals(3, r1.getInt("c2"));
-        assertEquals("a", r1.getString("v"));
+        assertEquals(4, r1.getInt("c1"));
+        assertEquals(5, r1.getInt("c2"));
+        assertEquals("b", r1.getString("v"));
         assertFalse(iter.hasNext());
     }
     @Test
