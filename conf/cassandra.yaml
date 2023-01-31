@@ -428,7 +428,7 @@ key_cache_save_period: 4h
 #   Fully off-heap row cache implementation (default).
 #
 # org.apache.cassandra.cache.SerializingCacheProvider
-#   This is the row cache implementation availabile
+#   This is the row cache implementation available
 #   in previous releases of Cassandra.
 # row_cache_class_name: org.apache.cassandra.cache.OHCProvider
 
