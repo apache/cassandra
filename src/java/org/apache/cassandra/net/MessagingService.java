@@ -51,6 +51,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.Stage.MUTATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 
@@ -523,15 +524,20 @@ public class MessagingService extends MessagingServiceMBeanImpl
     }
 
     /**
-     * Wait for callbacks and don't allow any more to be created (since they could require writing hints)
+     * Wait for callbacks and don't allow anymore to be created (since they could require writing hints)
      */
     public void shutdown()
     {
-        shutdown(1L, MINUTES, true, true);
+        if (NON_GRACEFUL_SHUTDOWN.getBoolean())
+            // this branch is used in unit-tests when we really never restart a node and shutting down means the end of test
+            shutdownAbrubtly();
+        else
+            shutdown(1L, MINUTES, true, true);
     }
 
     public void shutdown(long timeout, TimeUnit units, boolean shutdownGracefully, boolean shutdownExecutors)
     {
+        logger.debug("Shutting down: timeout={}s, gracefully={}, shutdownExecutors={}", units.toSeconds(timeout), shutdownGracefully, shutdownExecutors);
         if (isShuttingDown)
         {
             logger.info("Shutdown was already called");
@@ -555,7 +561,7 @@ public class MessagingService extends MessagingServiceMBeanImpl
                       () -> {
                           List<ExecutorService> inboundExecutors = new ArrayList<>();
                           inboundSockets.close(synchronizedList(inboundExecutors)::add).get();
-                          ExecutorUtils.awaitTermination(1L, TimeUnit.MINUTES, inboundExecutors);
+                          ExecutorUtils.awaitTermination(timeout, units, inboundExecutors);
                       },
                       () -> {
                           if (shutdownExecutors)
@@ -585,6 +591,30 @@ public class MessagingService extends MessagingServiceMBeanImpl
                       inboundSink::clear,
                       outboundSink::clear);
         }
+    }
+
+    public void shutdownAbrubtly()
+    {
+        logger.debug("Shutting down abruptly");
+        if (isShuttingDown)
+        {
+            logger.info("Shutdown was already called");
+            return;
+        }
+
+        isShuttingDown = true;
+        logger.info("Waiting for messaging service to quiesce");
+        // We may need to schedule hints on the mutation stage, so it's erroneous to shut down the mutation stage first
+        assert !MUTATION.executor().isShutdown();
+
+        callbacks.shutdownNow(false);
+        inboundSockets.close();
+        for (OutboundConnections pool : channelManagers.values())
+            pool.close(false);
+
+        maybeFail(socketFactory::shutdownNow,
+                  inboundSink::clear,
+                  outboundSink::clear);
     }
 
     private void shutdownExecutors(long deadlineNanos) throws TimeoutException, InterruptedException
