@@ -64,6 +64,16 @@ public final class Resources
             throw new IllegalArgumentException(String.format("Name %s is not valid for any resource type", name));
     }
 
+    public static List<IResource> getAllRootLevelResources()
+    {
+        List<IResource> result = new ArrayList<IResource>();
+        result.add(RoleResource.root());
+        result.add(DataResource.root());
+        result.add(FunctionResource.root());
+        result.add(JMXResource.root());
+        return result;
+    }
+
     @Deprecated
     public final static String ROOT = "cassandra";
     @Deprecated
