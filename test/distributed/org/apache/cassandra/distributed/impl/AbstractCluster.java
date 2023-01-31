@@ -60,6 +60,7 @@ import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -183,6 +184,12 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     {
         private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
         private ShutdownExecutor shutdownExecutor = DEFAULT_SHUTDOWN_EXECUTOR;
+
+        {
+            // those properties may be set for unit-test optimizations; those should not be used when running dtests
+            CassandraRelevantProperties.FLUSH_LOCAL_SCHEMA_CHANGES.reset();
+            CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
+        }
 
         public AbstractBuilder(Factory<I, C, B> factory)
         {
@@ -1319,4 +1326,3 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         INSTANCE;
     }
 }
-
