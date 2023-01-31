@@ -36,7 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.management.openmbean.OpenDataException;
@@ -1194,7 +1194,9 @@ public final class SystemKeyspace
                             .collect(Collectors.toList());
     }
 
-    public static AtomicReference<UUID> currentHostId = new AtomicReference<>(UUID.randomUUID());
+    @VisibleForTesting
+    public static volatile UUID currentHostId = UUID.randomUUID();
+    private static final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     private static UUID readLocalHostId()
     {
@@ -1209,14 +1211,23 @@ public final class SystemKeyspace
     }
 
     /**
-     * Read the host ID from the system keyspace.
+     * Read the host ID from the system keyspace or return {@code currentHostId} when not found.
      */
     public static UUID getLocalHostId()
     {
-        UUID persistedUUID = readLocalHostId();
-        if (persistedUUID != null)
-            currentHostId.set(persistedUUID);
-        return currentHostId.get();
+        ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
+        readLock.lock();
+        try
+        {
+            UUID persistedUUID = readLocalHostId();
+            if (persistedUUID != null)
+                currentHostId = persistedUUID;
+            return currentHostId;
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     /**
@@ -1225,16 +1236,24 @@ public final class SystemKeyspace
      */
     public static synchronized UUID getOrInitializeLocalHostId()
     {
-        UUID hostId = readLocalHostId();
-        if (hostId != null)
+        ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
+        readLock.lock();
+        try
         {
-            currentHostId.set(hostId);
-            return currentHostId.get();
+            UUID hostId = readLocalHostId();
+            if (hostId != null)
+            {
+                currentHostId = hostId;
+                return currentHostId;
+            }
+        }
+        finally
+        {
+            readLock.unlock();
         }
 
-        UUID uuid = currentHostId.get();
-        logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", uuid);
-        return setLocalHostId(uuid);
+        logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", currentHostId);
+        return setLocalHostId(currentHostId);
     }
 
     /**
@@ -1242,10 +1261,19 @@ public final class SystemKeyspace
      */
     public static synchronized UUID setLocalHostId(UUID hostId)
     {
-        String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
-        executeInternal(format(req, LOCAL, LOCAL), hostId);
-        currentHostId.set(hostId);
-        return currentHostId.get();
+        ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
+        writeLock.lock();
+        try
+        {
+            String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
+            executeInternal(format(req, LOCAL, LOCAL), hostId);
+            currentHostId = hostId;
+            return currentHostId;
+        }
+        finally
+        {
+            writeLock.unlock();
+        }
     }
 
     /**
