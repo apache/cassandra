@@ -1250,7 +1250,7 @@ public final class SystemKeyspace
         String req = "SELECT schema_version FROM system.%s WHERE key='%s'";
         UntypedResultSet result = executeInternal(format(req, LOCAL, LOCAL));
 
-        if (result != null && result.isEmpty() && result.one().has("schema_version"))
+        if (!result.isEmpty() && result.one().has("schema_version"))
             return result.one().getUUID("schema_version");
 
         return null;
