@@ -29,7 +29,7 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 
-public class Cassandra18153Reproducer extends TestBaseImpl
+public class Cassandra18153ReproducerTest extends TestBaseImpl
 {
     @Test
     public void test() throws Exception

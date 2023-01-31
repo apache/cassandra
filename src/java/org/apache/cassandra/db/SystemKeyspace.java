@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.management.openmbean.OpenDataException;
@@ -139,8 +140,6 @@ public final class SystemKeyspace
     }
 
     private static final Logger logger = LoggerFactory.getLogger(SystemKeyspace.class);
-
-    public static UUID initialHostId = UUID.randomUUID();
 
     public static final CassandraVersion CURRENT_VERSION = new CassandraVersion(FBUtilities.getReleaseVersionString());
 
@@ -1195,6 +1194,8 @@ public final class SystemKeyspace
                             .collect(Collectors.toList());
     }
 
+    public static AtomicReference<UUID> currentHostId = new AtomicReference<>(UUID.randomUUID());
+
     private static UUID readLocalHostId()
     {
         String req = "SELECT host_id FROM system.%s WHERE key='%s'";
@@ -1213,7 +1214,9 @@ public final class SystemKeyspace
     public static UUID getLocalHostId()
     {
         UUID persistedUUID = readLocalHostId();
-        return persistedUUID == null ? initialHostId : persistedUUID;
+        if (persistedUUID != null)
+            currentHostId.set(persistedUUID);
+        return currentHostId.get();
     }
 
     /**
@@ -1224,12 +1227,14 @@ public final class SystemKeyspace
     {
         UUID hostId = readLocalHostId();
         if (hostId != null)
-            return hostId;
+        {
+            currentHostId.set(hostId);
+            return currentHostId.get();
+        }
 
-        // ID not found, generate a new one, persist, and then return it.
-        hostId = initialHostId;
-        logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
-        return setLocalHostId(hostId);
+        UUID uuid = currentHostId.get();
+        logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", uuid);
+        return setLocalHostId(uuid);
     }
 
     /**
@@ -1239,7 +1244,8 @@ public final class SystemKeyspace
     {
         String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
         executeInternal(format(req, LOCAL, LOCAL), hostId);
-        return hostId;
+        currentHostId.set(hostId);
+        return currentHostId.get();
     }
 
     /**

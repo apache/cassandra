@@ -591,7 +591,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 DistributedTestSnitch.assign(config.networkTopology());
 
                 DatabaseDescriptor.daemonInitialization();
-                SystemKeyspace.initialHostId = config.hostId();
+                SystemKeyspace.currentHostId.set(config.hostId());
                 LoggingSupportFactory.getLoggingSupport().onStartup();
 
                 FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
