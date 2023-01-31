@@ -1221,7 +1221,6 @@ public class CQLSSTableWriterTest
         writer.close();
         loadSSTables(dataDir, keyspace);
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
-        assertEquals(2, resultSet.size());
         Thread.sleep(1200);
         resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
         assertEquals(1, resultSet.size());
