@@ -18,6 +18,16 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.regex.Pattern;
+
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -26,15 +36,6 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.Clock;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.regex.Pattern;
 
 import static java.lang.String.format;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -60,7 +61,7 @@ public class SnapshotsTest extends TestBaseImpl
         properties.set(CassandraRelevantProperties.SNAPSHOT_CLEANUP_INITIAL_DELAY_SECONDS, 0);
         properties.set(CassandraRelevantProperties.SNAPSHOT_CLEANUP_PERIOD_SECONDS, SNAPSHOT_CLEANUP_PERIOD_SECONDS);
         properties.set(CassandraRelevantProperties.SNAPSHOT_MIN_ALLOWED_TTL_SECONDS, FIVE_SECONDS);
-        cluster = init(Cluster.build(1).withConfig(c -> c.with(Feature.GOSSIP)).start());
+        cluster = init(Cluster.build(1).start());
     }
 
     @After
@@ -340,22 +341,27 @@ public class SnapshotsTest extends TestBaseImpl
 
     private void waitForSnapshot(String snapshotName, boolean expectPresent, boolean noTTL)
     {
+        if (waitForSnapshotInternal(snapshotName, expectPresent, noTTL))
+            return;
+
         await().timeout(20, SECONDS)
                .pollInterval(1, SECONDS)
-               .until(() -> {
-                    NodeToolResult listsnapshots;
-                    if (noTTL)
-                        listsnapshots = cluster.get(1).nodetoolResult("listsnapshots", "-nt");
-                    else
-                        listsnapshots = cluster.get(1).nodetoolResult("listsnapshots");
+               .until(() -> waitForSnapshotInternal(snapshotName, expectPresent, noTTL));
+    }
 
-                   List<String> lines = Arrays.stream(listsnapshots.getStdout().split("\n"))
-                                              .filter(line -> !line.isEmpty())
-                                              .filter(line -> !line.startsWith("Snapshot Details:") && !line.startsWith("There are no snapshots"))
-                                              .filter(line -> !line.startsWith("Snapshot name") && !line.startsWith("Total TrueDiskSpaceUsed"))
-                                              .collect(toList());
+    private boolean waitForSnapshotInternal(String snapshotName, boolean expectPresent, boolean noTTL) {
+        NodeToolResult listsnapshots;
+        if (noTTL)
+            listsnapshots = cluster.get(1).nodetoolResult("listsnapshots", "-nt");
+        else
+            listsnapshots = cluster.get(1).nodetoolResult("listsnapshots");
 
-                   return expectPresent == lines.stream().anyMatch(line -> line.startsWith(snapshotName));
-                });
+        List<String> lines = Arrays.stream(listsnapshots.getStdout().split("\n"))
+                                   .filter(line -> !line.isEmpty())
+                                   .filter(line -> !line.startsWith("Snapshot Details:") && !line.startsWith("There are no snapshots"))
+                                   .filter(line -> !line.startsWith("Snapshot name") && !line.startsWith("Total TrueDiskSpaceUsed"))
+                                   .collect(toList());
+
+        return expectPresent == lines.stream().anyMatch(line -> line.startsWith(snapshotName));
     }
 }

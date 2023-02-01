@@ -135,15 +135,14 @@ public class SnapshotManager {
     @VisibleForTesting
     protected synchronized void clearExpiredSnapshots()
     {
-        Instant now = now();
-        while (!expiringSnapshots.isEmpty() && expiringSnapshots.peek().isExpired(now))
+        TableSnapshot expiredSnapshot;
+        while ((expiredSnapshot = expiringSnapshots.peek()) != null)
         {
-            TableSnapshot expiredSnapshot = expiringSnapshots.peek();
-            if (expiredSnapshot != null)
-            {
-                logger.debug("Removing expired snapshot {}.", expiredSnapshot);
-                clearSnapshot(expiredSnapshot);
-            }
+            if (!expiredSnapshot.isExpired(now()))
+                break; // the earliest expiring snapshot is not expired yet, so there is no more expired snapshots to remove
+
+            logger.debug("Removing expired snapshot {}.", expiredSnapshot);
+            clearSnapshot(expiredSnapshot);
         }
     }
 
