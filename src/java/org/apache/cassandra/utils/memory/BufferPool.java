@@ -427,8 +427,8 @@ public class BufferPool
                 {
                     if (memoryUsageThreshold > 0)
                     {
-                        noSpamLogger.info("Maximum memory usage reached ({}), cannot allocate chunk of {}",
-                                          readableMemoryUsageThreshold, READABLE_MACRO_CHUNK_SIZE);
+                        noSpamLogger.info("Maximum memory usage reached ({}) for {} buffer pool, cannot allocate chunk of {}",
+                                          readableMemoryUsageThreshold, name, READABLE_MACRO_CHUNK_SIZE);
                     }
                     return null;
                 }
