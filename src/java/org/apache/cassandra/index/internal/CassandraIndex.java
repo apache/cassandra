@@ -736,12 +736,7 @@ public abstract class CassandraIndex implements Index
         ColumnMetadata indexedColumn = target.left;
         AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
 
-        AbstractType<?> indexedTablePartitionKeyType =  baseCfsMetadata.partitioner.partitionOrdering();
-        if(indexedTablePartitionKeyType instanceof PartitionerDefinedOrder)
-        {
-            PartitionerDefinedOrder tmp = (PartitionerDefinedOrder)indexedTablePartitionKeyType;
-            indexedTablePartitionKeyType = tmp.withBaseType(baseCfsMetadata.partitionKeyType);
-        }
+        AbstractType<?> indexedTablePartitionKeyType = baseCfsMetadata.partitioner.partitionOrdering(baseCfsMetadata.partitionKeyType);
         TableMetadata.Builder builder =
             TableMetadata.builder(baseCfsMetadata.keyspace, baseCfsMetadata.indexTableName(indexMetadata), baseCfsMetadata.id)
                          .kind(TableMetadata.Kind.INDEX)

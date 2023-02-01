@@ -33,6 +33,8 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 
+import java.util.function.Consumer;
+
 public class TypeParserTest
 {
     @BeforeClass
@@ -99,71 +101,58 @@ public class TypeParserTest
     @Test
     public void testParsePartitionerOrder() throws ConfigurationException, SyntaxException
     {
-        for (IPartitioner partitioner: new IPartitioner[] { Murmur3Partitioner.instance,
-                                                            ByteOrderedPartitioner.instance,
-                                                            RandomPartitioner.instance,
-                                                            OrderPreservingPartitioner.instance })
-        {
-            AbstractType<?> type = partitioner.partitionOrdering();
-            assertSame(type, TypeParser.parse(type.toString()));
-        }
-        assertSame(DatabaseDescriptor.getPartitioner().partitionOrdering(), TypeParser.parse("PartitionerDefinedOrder"));
+        assertForEachPartitioner(partitioner -> {
+            AbstractType<?> type = partitioner.partitionOrdering(null);
+            assertEquals(type, TypeParser.parse(type.toString()));
+        });
+        assertEquals(DatabaseDescriptor.getPartitioner().partitionOrdering(null), TypeParser.parse("PartitionerDefinedOrder"));
     }
     
     @Test
     public void testParsePartitionerOrderWithBaseType()
     {
         // default partitioner
-        assertSame(DatabaseDescriptor.getPartitioner().partitionOrdering(), TypeParser.parse("PartitionerDefinedOrder"));
+        assertEquals(DatabaseDescriptor.getPartitioner().partitionOrdering(null), TypeParser.parse("PartitionerDefinedOrder"));
 
         // PartitionerDefinedOrder's base type is not composite type
         differentBaseTypeValidation(Int32Type.instance);
-        // PartitionerDefinedOrder's base type is  composite type
+        // PartitionerDefinedOrder's base type is composite type
         differentBaseTypeValidation(CompositeType.getInstance(Int32Type.instance, UTF8Type.instance));
-        // PartitionerDefinedOrder's base type is  tuple type
+        // PartitionerDefinedOrder's base type is tuple type
         differentBaseTypeValidation(new TupleType(Lists.newArrayList(Int32Type.instance, UTF8Type.instance)));
-        // PartitionerDefinedOrder's base type is  ReversedType
+        // PartitionerDefinedOrder's base type is ReversedType
         differentBaseTypeValidation(ReversedType.getInstance(Int32Type.instance));
-        // PartitionerDefinedOrder's base type is  CollectionType
+        // PartitionerDefinedOrder's base type is CollectionType
         differentBaseTypeValidation(MapType.getInstance(Int32Type.instance, UTF8Type.instance, false));
     }
 
     @Test
     public void testParsePartitionerOrderMistMatch()
     {
-        for (IPartitioner partitioner: new IPartitioner[] { Murmur3Partitioner.instance,
-                                                            ByteOrderedPartitioner.instance,
-                                                            RandomPartitioner.instance,
-                                                            OrderPreservingPartitioner.instance })
-        {
-            AbstractType<?> type = partitioner.partitionOrdering();
+        assertForEachPartitioner(partitioner -> {
+            AbstractType<?> type = partitioner.partitionOrdering(null);
             if (type instanceof PartitionerDefinedOrder)
             {
                 PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) type;
                 type = tmp.withBaseType(Int32Type.instance);
-                boolean result = partitioner.partitionOrdering().equals(TypeParser.parse(type.toString()));
+                boolean result = partitioner.partitionOrdering(null).equals(TypeParser.parse(type.toString()));
                 assertFalse(result);
             }
             else
             {
                 // ByteOrderedPartitioner.instance and OrderPreservingPartitioner.instance's partitionOrdering will not be PartitionerDefinedOrder
-                boolean result = partitioner.partitionOrdering().equals(TypeParser.parse(type.toString()));
+                boolean result = partitioner.partitionOrdering(null).equals(TypeParser.parse(type.toString()));
                 assertTrue(result);
             }
-        }
-
-        assertEquals(DatabaseDescriptor.getPartitioner().partitionOrdering(), TypeParser.parse("PartitionerDefinedOrder"));
+        });
+        assertEquals(DatabaseDescriptor.getPartitioner().partitionOrdering(null), TypeParser.parse("PartitionerDefinedOrder"));
     }
 
     @Test
     public void testParsePartitionerOrderWithErrorFormat()
     {
-        for (IPartitioner partitioner: new IPartitioner[] { Murmur3Partitioner.instance,
-                                                            ByteOrderedPartitioner.instance,
-                                                            RandomPartitioner.instance,
-                                                            OrderPreservingPartitioner.instance })
-        {
-            AbstractType<?> type = partitioner.partitionOrdering();
+        assertForEachPartitioner(partitioner -> {
+            AbstractType<?> type = partitioner.partitionOrdering(null);
             if (type instanceof PartitionerDefinedOrder)
             {
                 // only Murmur3Partitioner and RandomPartitioner's partitionOrdering() are instanceof PartitionerDefinedOrder
@@ -204,24 +193,31 @@ public class TypeParserTest
                     assertTrue(t.getCause().getMessage().contains("Unable to find abstract-type class 'org.apache.cassandra.db.marshal.'"));
                 }
             }
-        }
-        assertSame(DatabaseDescriptor.getPartitioner().partitionOrdering(), TypeParser.parse("PartitionerDefinedOrder"));
+        });
+        assertEquals(DatabaseDescriptor.getPartitioner().partitionOrdering(null), TypeParser.parse("PartitionerDefinedOrder"));
     }
 
-    private void differentBaseTypeValidation(AbstractType baseType)
+    private void differentBaseTypeValidation(AbstractType<?> baseType)
     {
-        for (IPartitioner partitioner: new IPartitioner[] { Murmur3Partitioner.instance,
-                                                            ByteOrderedPartitioner.instance,
-                                                            RandomPartitioner.instance,
-                                                            OrderPreservingPartitioner.instance })
-        {
-            AbstractType<?> type = partitioner.partitionOrdering();
+        assertForEachPartitioner(partitioner -> {
+            AbstractType<?> type = partitioner.partitionOrdering(null);
             if (type instanceof PartitionerDefinedOrder)
             {
                 PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) type;
                 type = tmp.withBaseType(baseType);
             }
             assertEquals(type, TypeParser.parse(type.toString()));
+        });
+    }
+
+    public static void assertForEachPartitioner(Consumer<IPartitioner> consumer)
+    {
+        for (IPartitioner partitioner : new IPartitioner[] { Murmur3Partitioner.instance,
+                                                             ByteOrderedPartitioner.instance,
+                                                             RandomPartitioner.instance,
+                                                             OrderPreservingPartitioner.instance })
+        {
+            consumer.accept(partitioner);
         }
     }
 }

@@ -39,35 +39,27 @@ public class PartitionerDefinedOrderTest
     @Test
     public void testToJsonStringWithBaseType()
     {
-        for (IPartitioner partitioner: new IPartitioner[] { Murmur3Partitioner.instance,
-                                                            ByteOrderedPartitioner.instance,
-                                                            RandomPartitioner.instance,
-                                                            OrderPreservingPartitioner.instance })
-        {
-            if (partitioner.partitionOrdering() instanceof PartitionerDefinedOrder)
-            { 
-                PartitionerDefinedOrder partitionerDefinedOrder = (PartitionerDefinedOrder) partitioner.partitionOrdering();
+        TypeParserTest.assertForEachPartitioner(partitioner -> {
+            if (partitioner.partitionOrdering(null) instanceof PartitionerDefinedOrder)
+            {
+                PartitionerDefinedOrder partitionerDefinedOrder = (PartitionerDefinedOrder) partitioner.partitionOrdering(null);
                 String jsonString = partitionerDefinedOrder.withBaseType(type).toJSONString(UTF8Type.instance.decompose(key), ProtocolVersion.V4);
                 assertTrue(jsonString.contains(key));
             }
-        }
+        });
     }
 
     @Test
     public void testToJsonStringWithOutBaseType()
     {
-        for (IPartitioner partitioner: new IPartitioner[] { Murmur3Partitioner.instance,
-                                                            ByteOrderedPartitioner.instance,
-                                                            RandomPartitioner.instance,
-                                                            OrderPreservingPartitioner.instance })
-        {
-            if (partitioner.partitionOrdering() instanceof PartitionerDefinedOrder)
+        TypeParserTest.assertForEachPartitioner(partitioner -> {
+            if (partitioner.partitionOrdering(null) instanceof PartitionerDefinedOrder)
             {
-                PartitionerDefinedOrder partitionerDefinedOrder = (PartitionerDefinedOrder) partitioner.partitionOrdering();
+                PartitionerDefinedOrder partitionerDefinedOrder = (PartitionerDefinedOrder) partitioner.partitionOrdering(null);
                 assertNull(partitionerDefinedOrder.getBaseType());
                 Assertions.assertThatThrownBy(() -> partitionerDefinedOrder.toJSONString(UTF8Type.instance.decompose(key), ProtocolVersion.V4))
-                          .hasMessageContaining("PartitionerDefinedOrder's toJSONString method need a baseType but now is null or with a not euqal type.");   
+                    .hasMessageContaining("PartitionerDefinedOrder's toJSONString method need a baseType but now is null .");
             }
-        }
+        });
     }
 }

@@ -128,8 +128,9 @@ public interface IPartitioner
     /**
      * Abstract type that orders the same way as DecoratedKeys provided by this partitioner.
      * Used by secondary indices.
+     * @param baseType base type for PartitionerDefinedOrder
      */
-    public AbstractType<?> partitionOrdering();
+    public AbstractType<?> partitionOrdering(AbstractType<?> baseType);
 
     default Optional<Splitter> splitter()
     {

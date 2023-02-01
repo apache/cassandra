@@ -217,14 +217,14 @@ public interface CassandraIndexFunctions
         public AbstractType<?> getIndexedPartitionKeyType(ColumnMetadata indexedColumn)
         {
             assert indexedColumn.type.isCollection() ;
-            switch (((CollectionType<?>)indexedColumn.type).kind)
+            switch (((CollectionType<?>) indexedColumn.type).kind)
             {
                 case LIST:
-                    return ((ListType<?>)indexedColumn.type).getElementsType();
+                    return ((ListType<?>) indexedColumn.type).getElementsType();
                 case SET:
-                    return ((SetType<?>)indexedColumn.type).getElementsType();
+                    return ((SetType<?>) indexedColumn.type).getElementsType();
                 case MAP:
-                    return ((MapType<?, ?>)indexedColumn.type).getValuesType();
+                    return ((MapType<?, ?>) indexedColumn.type).getValuesType();
             }
             throw new RuntimeException("Error collection type " + indexedColumn.type);
         }

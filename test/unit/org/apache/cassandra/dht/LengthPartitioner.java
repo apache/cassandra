@@ -175,8 +175,8 @@ public class LengthPartitioner implements IPartitioner
         return IntegerType.instance;
     }
 
-    public AbstractType<?> partitionOrdering()
+    public AbstractType<?> partitionOrdering(AbstractType<?> baseType)
     {
-        return new PartitionerDefinedOrder(this);
+        return new PartitionerDefinedOrder(this).withBaseType(baseType);
     }
 }

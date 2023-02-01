@@ -687,7 +687,7 @@ public class AbstractTypeByteSourceTest
         );
         for (IPartitioner partitioner : partitioners)
         {
-            AbstractType<?> partitionOrdering = partitioner.partitionOrdering();
+            AbstractType<?> partitionOrdering = partitioner.partitionOrdering(null);
             Assert.assertTrue(partitionOrdering instanceof PartitionerDefinedOrder);
             for (ByteBuffer input : byteBuffers)
             {

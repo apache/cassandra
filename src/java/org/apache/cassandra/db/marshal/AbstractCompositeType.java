@@ -266,7 +266,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        //TODO suport toJSONString for AbstractCompositeType
+        // TODO: suport toJSONString (CASSANDRA-18177)
         throw new UnsupportedOperationException();
     }
 

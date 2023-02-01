@@ -72,14 +72,7 @@ public class SSTableExport
 
     static
     {
-        if (Boolean.getBoolean(Util.ALLOW_TOOL_REINIT_FOR_TEST))
-        {
-            DatabaseDescriptor.clientInitialization(false);//Necessary for testing
-        }
-        else 
-        {
-            DatabaseDescriptor.clientInitialization();
-        }
+        DatabaseDescriptor.clientInitialization(!Boolean.getBoolean(Util.ALLOW_TOOL_REINIT_FOR_TEST));
         
         Option optKey = new Option(KEY_OPTION, true, "List of included partition keys");
         // Number of times -k <key> can be passed on the command line.
