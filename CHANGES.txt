@@ -106,6 +106,7 @@ Merged from 4.1:
  * Streaming progress virtual table lock contention can trigger TCP_USER_TIMEOUT and fail streaming (CASSANDRA-18110)
  * Fix perpetual load of denylist on read in cases where denylist can never be loaded (CASSANDRA-18116)
 Merged from 4.0:
+ * Fix NPE in fqltool dump on null value (CASSANDRA-18113)
  * Improve unit tests performance (CASSANDRA-17427)
  * Connect to listen address when own broadcast address is requested (CASSANDRA-18200)
  * Add safeguard so cleanup fails when node has pending ranges (CASSANDRA-16418)
