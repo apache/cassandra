@@ -1164,9 +1164,11 @@ public class Directories
             {
                 FileUtils.deleteRecursiveWithThrottle(snapshotDir, snapshotRateLimiter);
             }
-            catch (FSWriteError e)
+            catch (RuntimeException ex)
             {
-                throw e;
+                if (!snapshotDir.exists())
+                    return; // ignore
+                throw ex;
             }
         }
     }
