@@ -1110,7 +1110,7 @@ public class Directories
         }
     }
 
-    public static void removeSnapshotDirectory(RateLimiter snapshotRateLimiter, File snapshotDir)
+    public synchronized static void removeSnapshotDirectory(RateLimiter snapshotRateLimiter, File snapshotDir)
     {
         if (snapshotDir.exists())
         {
@@ -1119,9 +1119,11 @@ public class Directories
             {
                 FileUtils.deleteRecursiveWithThrottle(snapshotDir, snapshotRateLimiter);
             }
-            catch (FSWriteError e)
+            catch (RuntimeException ex)
             {
-                throw e;
+                if (!snapshotDir.exists())
+                    return; // ignore
+                throw ex;
             }
         }
     }
