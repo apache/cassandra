@@ -69,7 +69,7 @@ public abstract class CBUtil
         }
     };
 
-    private static final FastThreadLocal<ByteBuffer> localBuffer = new FastThreadLocal<>()
+    private final static FastThreadLocal<ByteBuffer> localBuffer = new FastThreadLocal<ByteBuffer>()
     {
         @Override
         protected ByteBuffer initialValue()
