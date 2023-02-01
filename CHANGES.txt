@@ -1,4 +1,5 @@
 4.0.8
+ * Add cache type information for maximum memory usage warning message (CASSANDRA-18184)
  * Fix NPE in fqltool dump on null value (CASSANDRA-18113)
  * Improve unit tests performance (CASSANDRA-17427)
  * Connect to listen address when own broadcast address is requested (CASSANDRA-18200)
