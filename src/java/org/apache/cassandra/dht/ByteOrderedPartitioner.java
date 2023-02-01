@@ -333,7 +333,7 @@ public class ByteOrderedPartitioner implements IPartitioner
         return BytesType.instance;
     }
 
-    public AbstractType<?> partitionOrdering()
+    public AbstractType<?> partitionOrdering(AbstractType<?> baseType)
     {
         return BytesType.instance;
     }

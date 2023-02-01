@@ -342,9 +342,9 @@ public class RandomPartitioner implements IPartitioner
         return IntegerType.instance;
     }
 
-    public AbstractType<?> partitionOrdering()
+    public AbstractType<?> partitionOrdering(AbstractType<?> baseType)
     {
-        return partitionOrdering;
+        return ((PartitionerDefinedOrder)partitionOrdering).withBaseType(baseType);
     }
 
     public AbstractType<?> partitionOrdering(AbstractType<?> partitionKeyType)

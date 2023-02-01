@@ -76,7 +76,7 @@ public class RegularColumnIndex extends CassandraIndex
         // base table partition should be returned for any mathching index entry.
         return builder;
     }
-    
+
     public IndexEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
         Clustering<?> clustering = indexEntry.clustering();

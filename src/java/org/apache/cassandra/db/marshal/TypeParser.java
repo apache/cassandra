@@ -268,7 +268,7 @@ public class TypeParser
 
         if (isEOS())
             return list;
-        
+
         if (str.charAt(idx) != '(')
             throw new IllegalStateException();
 
