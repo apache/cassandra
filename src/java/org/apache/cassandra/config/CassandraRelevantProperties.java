@@ -339,6 +339,23 @@ public enum CassandraRelevantProperties
      * The default used in SimpleSeedProvider is 20.
      */
     SEED_COUNT_WARN_THRESHOLD("cassandra.seed_count_warn_threshold"),
+
+
+    /** When enabled, recursive directory deletion will be executed using a unix command `rm -rf` instead of traversing
+     * and removing individual files. This is now used only tests, but eventually we will make it true by default.*/
+    USE_NIX_RECURSIVE_DELETE("cassandra.use_nix_recursive_delete"),
+
+    /** If set, {@link org.apache.cassandra.net.MessagingService} is shutdown abrtuptly without waiting for anything.
+     * This is an optimization used in unit tests becuase we never restart a node there. The only node is stopoped
+     * when the JVM terminates. Therefore, we can use such optimization and not wait unnecessarily. */
+    NON_GRACEFUL_SHUTDOWN("cassandra.test.messagingService.nonGracefulShutdown"),
+
+    /** Flush changes of {@link org.apache.cassandra.schema.SchemaKeyspace} after each schema modification. In production,
+     * we always do that. However, tests which do not restart nodes may disable this functionality in order to run
+     * faster. Note that this is disabled for unit tests but if an individual test requires schema to be flushed, it
+     * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
+    FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
+
     ;
 
     CassandraRelevantProperties(String key, String defaultVal)
@@ -380,6 +397,17 @@ public enum CassandraRelevantProperties
     public String getDefaultValue()
     {
         return defaultVal;
+    }
+
+    /**
+     * Sets the property to its default value if a default value was specified. Remove the property otherwise.
+     */
+    public void reset()
+    {
+        if (defaultVal != null)
+            System.setProperty(key, defaultVal);
+        else
+            System.getProperties().remove(key);
     }
 
     /**
@@ -584,4 +612,3 @@ public enum CassandraRelevantProperties
         return System.getProperties().containsKey(key);
     }
 }
-

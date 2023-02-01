@@ -111,6 +111,8 @@ public class TpStatsTest extends CQLTester
 
         createTable("CREATE TABLE %s (pk int, c int, PRIMARY KEY(pk))");
         execute("INSERT INTO %s (pk, c) VALUES (?, ?)", 1, 1);
+        flush();
+
         tool = ToolRunner.invokeNodetool("tpstats");
         tool.assertOnCleanExit();
         stdout = tool.getStdout();
