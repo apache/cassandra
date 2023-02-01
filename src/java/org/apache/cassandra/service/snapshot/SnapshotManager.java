@@ -121,7 +121,8 @@ public class SnapshotManager {
     }
 
     // TODO: Support pausing snapshot cleanup
-    private synchronized void resumeSnapshotCleanup()
+    @VisibleForTesting
+    synchronized void resumeSnapshotCleanup()
     {
         if (cleanupTaskFuture == null)
         {
@@ -150,7 +151,7 @@ public class SnapshotManager {
     /**
      * Deletes snapshot and remove it from manager
      */
-    public void clearSnapshot(TableSnapshot snapshot)
+    public synchronized void clearSnapshot(TableSnapshot snapshot)
     {
         for (File snapshotDir : snapshot.getDirectories())
         {
