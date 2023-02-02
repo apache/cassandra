@@ -122,8 +122,8 @@ public class AccordKeyspace
     public static final String COMMANDS = "commands";
     public static final String COMMANDS_FOR_KEY = "commands_for_key";
 
-    private static final String TIMESTAMP_TUPLE = "tuple<bigint, bigint, bigint>";
-    private static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, LongType.instance));
+    private static final String TIMESTAMP_TUPLE = "tuple<bigint, bigint, int>";
+    private static final TupleType TIMESTAMP_TYPE = new TupleType(Lists.newArrayList(LongType.instance, LongType.instance, Int32Type.instance));
     private static final String KEY_TUPLE = "tuple<uuid, blob>";
 
     private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexSliceFilter(Slices.ALL, false);
@@ -532,7 +532,7 @@ public class AccordKeyspace
         if (bytes == null || ByteBufferAccessor.instance.isEmpty(bytes))
             return null;
         ByteBuffer[] split = TIMESTAMP_TYPE.split(ByteBufferAccessor.instance, bytes);
-        return factory.create(split[0].getLong(), split[1].getLong(), new Node.Id(split[2].getLong()));
+        return factory.create(split[0].getLong(), split[1].getLong(), new Node.Id(split[2].getInt()));
     }
 
     private static <T extends Timestamp> T deserializeTimestampOrNull(UntypedResultSet.Row row, String name, TimestampFactory<T> factory)
