@@ -266,7 +266,7 @@ public class OrderPreservingPartitioner implements IPartitioner
         return UTF8Type.instance;
     }
 
-    public AbstractType<?> partitionOrdering(AbstractType<?> baseType)
+    public AbstractType<?> partitionOrdering()
     {
         return UTF8Type.instance;
     }

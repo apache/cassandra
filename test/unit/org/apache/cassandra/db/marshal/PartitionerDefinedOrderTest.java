@@ -22,12 +22,6 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.OrderPreservingPartitioner;
-import org.apache.cassandra.dht.RandomPartitioner;
-
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -43,7 +37,7 @@ public class PartitionerDefinedOrderTest
             if (partitioner.partitionOrdering(null) instanceof PartitionerDefinedOrder)
             {
                 PartitionerDefinedOrder partitionerDefinedOrder = (PartitionerDefinedOrder) partitioner.partitionOrdering(null);
-                String jsonString = partitionerDefinedOrder.withBaseType(type).toJSONString(UTF8Type.instance.decompose(key), ProtocolVersion.V4);
+                String jsonString = partitionerDefinedOrder.withPartitionKeyType(type).toJSONString(UTF8Type.instance.decompose(key), ProtocolVersion.V4);
                 assertTrue(jsonString.contains(key));
             }
         });
@@ -56,9 +50,9 @@ public class PartitionerDefinedOrderTest
             if (partitioner.partitionOrdering(null) instanceof PartitionerDefinedOrder)
             {
                 PartitionerDefinedOrder partitionerDefinedOrder = (PartitionerDefinedOrder) partitioner.partitionOrdering(null);
-                assertNull(partitionerDefinedOrder.getBaseType());
+                assertNull(partitionerDefinedOrder.getPartitionKeyType());
                 Assertions.assertThatThrownBy(() -> partitionerDefinedOrder.toJSONString(UTF8Type.instance.decompose(key), ProtocolVersion.V4))
-                    .hasMessageContaining("PartitionerDefinedOrder's toJSONString method need a baseType but now is null .");
+                          .hasMessageContaining("PartitionerDefinedOrder's toJSONString method needs a partition key type but now is null.");
             }
         });
     }

@@ -38,20 +38,20 @@ import javax.annotation.Nullable;
 public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
 {
     private final IPartitioner partitioner;
-    private final AbstractType<?> baseType; 
+    private final AbstractType<?> partitionKeyType;
     
     public PartitionerDefinedOrder(IPartitioner partitioner)
     {
         super(ComparisonType.CUSTOM);
         this.partitioner = partitioner;
-        this.baseType = null;
+        this.partitionKeyType = null;
     }
 
-    public PartitionerDefinedOrder(IPartitioner partitioner, AbstractType<?> baseType)
+    public PartitionerDefinedOrder(IPartitioner partitioner, AbstractType<?> partitionKeyType)
     {
         super(ComparisonType.CUSTOM);
         this.partitioner = partitioner;
-        this.baseType = baseType;
+        this.partitionKeyType = partitionKeyType;
     }
 
     public static AbstractType<?> getInstance(TypeParser parser)
@@ -59,9 +59,9 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
         return parser.getPartitionerDefinedOrder();
     }
 
-    public AbstractType<?> withBaseType(AbstractType<?> baseType)
+    public AbstractType<?> withPartitionKeyType(AbstractType<?> partitionKeyType)
     {
-        return new PartitionerDefinedOrder(partitioner, baseType);
+        return new PartitionerDefinedOrder(partitioner, partitionKeyType);
     }
     
     @Override
@@ -95,8 +95,8 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        assert baseType != null : "PartitionerDefinedOrder's toJSONString method need a baseType but now is null .";
-        return baseType.toJSONString(buffer, protocolVersion);
+        assert partitionKeyType != null : "PartitionerDefinedOrder's toJSONString method needs a partition key type but now is null.";
+        return partitionKeyType.toJSONString(buffer, protocolVersion);
     }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
@@ -146,17 +146,17 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toString()
     {
-        if (baseType != null)
+        if (partitionKeyType != null)
         {
-            return String.format("%s(%s:%s)", getClass().getName(),  partitioner.getClass().getName(), baseType); 
+            return String.format("%s(%s:%s)", getClass().getName(),  partitioner.getClass().getName(), partitionKeyType);
         }
         return String.format("%s(%s)", getClass().getName(), partitioner.getClass().getName());
     }
     
     @Nullable
-    public AbstractType<?>  getBaseType() 
+    public AbstractType<?>  getPartitionKeyType()
     { 
-        return baseType;
+        return partitionKeyType;
     }
 
     @Override
@@ -169,7 +169,7 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
         if (obj instanceof PartitionerDefinedOrder)
         {
             PartitionerDefinedOrder other = (PartitionerDefinedOrder) obj;
-            return partitioner.equals(other.partitioner) && Objects.equals(baseType, other.baseType);
+            return partitioner.equals(other.partitioner) && Objects.equals(partitionKeyType, other.partitionKeyType);
         }
         return false;
     }

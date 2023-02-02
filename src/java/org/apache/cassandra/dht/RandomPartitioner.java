@@ -79,7 +79,7 @@ public class RandomPartitioner implements IPartitioner
     private static final int HEAP_SIZE = (int) ObjectSizes.measureDeep(new BigIntegerToken(hashToBigInteger(ByteBuffer.allocate(1))));
 
     public static final RandomPartitioner instance = new RandomPartitioner();
-    public static final AbstractType<?> partitionOrdering = new PartitionerDefinedOrder(instance);
+    public static final PartitionerDefinedOrder partitionOrdering = new PartitionerDefinedOrder(instance);
 
     private final Splitter splitter = new Splitter(this)
     {
@@ -342,9 +342,14 @@ public class RandomPartitioner implements IPartitioner
         return IntegerType.instance;
     }
 
-    public AbstractType<?> partitionOrdering(AbstractType<?> baseType)
+    public AbstractType<?> partitionOrdering()
     {
-        return ((PartitionerDefinedOrder)partitionOrdering).withBaseType(baseType);
+        return partitionOrdering;
+    }
+
+    public AbstractType<?> partitionOrdering(AbstractType<?> partitionKeyType)
+    {
+        return partitionOrdering.withPartitionKeyType(partitionKeyType);
     }
 
     public Optional<Splitter> splitter()

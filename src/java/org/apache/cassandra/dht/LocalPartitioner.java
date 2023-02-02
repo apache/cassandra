@@ -133,7 +133,7 @@ public class LocalPartitioner implements IPartitioner
         return comparator;
     }
 
-    public AbstractType<?> partitionOrdering(AbstractType<?> baseType)
+    public AbstractType<?> partitionOrdering()
     {
         return comparator;
     }

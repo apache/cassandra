@@ -24,7 +24,6 @@ import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -134,7 +133,7 @@ public class TypeParserTest
             if (type instanceof PartitionerDefinedOrder)
             {
                 PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) type;
-                type = tmp.withBaseType(Int32Type.instance);
+                type = tmp.withPartitionKeyType(Int32Type.instance);
                 boolean result = partitioner.partitionOrdering(null).equals(TypeParser.parse(type.toString()));
                 assertFalse(result);
             }
@@ -204,7 +203,7 @@ public class TypeParserTest
             if (type instanceof PartitionerDefinedOrder)
             {
                 PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) type;
-                type = tmp.withBaseType(baseType);
+                type = tmp.withPartitionKeyType(baseType);
             }
             assertEquals(type, TypeParser.parse(type.toString()));
         });

@@ -140,7 +140,7 @@ public class TypeParser
 
     /**
      * Parse PartitionOrdering from old version of PartitionOrdering' string format 
-     * */
+     */
     private static AbstractType<?> defaultParsePartitionOrdering(TypeParser typeParser)
     {
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
@@ -157,7 +157,7 @@ public class TypeParser
      * Parse and return the real {@link PartitionerDefinedOrder} from the string variable {@link #str}.
      * The {@link #str} format can be like {@code PartitionerDefinedOrder(<partitioner>)} or
      * {@code PartitionerDefinedOrder(<partitioner>:<baseType>)}.
-     * */
+     */
     public AbstractType<?> getPartitionerDefinedOrder()
     {
         int initIdx = idx;

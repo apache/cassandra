@@ -28,6 +28,8 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.StorageService;
 
+import javax.annotation.Nullable;
+
 public interface IPartitioner
 {
     static IPartitioner global()
@@ -128,9 +130,19 @@ public interface IPartitioner
     /**
      * Abstract type that orders the same way as DecoratedKeys provided by this partitioner.
      * Used by secondary indices.
-     * @param baseType base type for PartitionerDefinedOrder
      */
-    public AbstractType<?> partitionOrdering(AbstractType<?> baseType);
+    @Deprecated // use #partitionOrdering(AbstractType) instead, see CASSANDRA-17698 for details
+    public AbstractType<?> partitionOrdering();
+
+    /**
+     * Abstract type that orders the same way as DecoratedKeys provided by this partitioner.
+     * Used by secondary indices.
+     * @param partitionKeyType partition key type for PartitionerDefinedOrder
+     */
+    default AbstractType<?> partitionOrdering(@Nullable AbstractType<?> partitionKeyType)
+    {
+        return partitionOrdering();
+    }
 
     default Optional<Splitter> splitter()
     {
