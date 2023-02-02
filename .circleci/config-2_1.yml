@@ -418,17 +418,13 @@ pre-commit_jobs: &pre-commit_jobs
         requires:
           - start_j8_dtests_large_repeat
           - build
-    - start_j8_dtests_large_vnode:
-        type: approval
     - j8_dtests_large_vnode:
         requires:
-          - start_j8_dtests_large_vnode
+          - start_j8_dtests_large
           - build
-    - start_j8_dtests_large_vnode_repeat:
-        type: approval
     - j8_dtests_large_vnode_repeat:
         requires:
-          - start_j8_dtests_large_vnode_repeat
+          - start_j8_dtests_large_repeat
           - build
     # Java 8 upgrade tests (on request)
     - start_upgrade_dtests:
