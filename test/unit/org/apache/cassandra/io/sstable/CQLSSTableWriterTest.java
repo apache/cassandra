@@ -1125,9 +1125,9 @@ public class CQLSSTableWriterTest
         long then = now - 1000;
         final String schema = "CREATE TABLE " + qualifiedTable + " ("
                               + "  k int,"
-                              + "  c1 int,"
-                              + "  c2 int,"
-                              + "  v text,"
+                              + "  v1 int,"
+                              + "  v2 int,"
+                              + "  v3 text,"
                               + "  PRIMARY KEY (k)"
                               + ")";
 
@@ -1135,7 +1135,7 @@ public class CQLSSTableWriterTest
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using("INSERT INTO " + qualifiedTable +
-                                                         " (k, c1, c2, v) VALUES (?,?,?,?) using timestamp ?" )
+                                                         " (k, v1, v2, v3) VALUES (?,?,?,?) using timestamp ?" )
                                                   .build();
 
         // Note that, all other things being equal, Cassandra will sort these rows lexicographically, so we use "higher" values in the
@@ -1151,9 +1151,9 @@ public class CQLSSTableWriterTest
         Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
         UntypedResultSet.Row r1 = iter.next();
         assertEquals(1, r1.getInt("k"));
-        assertEquals(4, r1.getInt("c1"));
-        assertEquals(5, r1.getInt("c2"));
-        assertEquals("b", r1.getString("v"));
+        assertEquals(4, r1.getInt("v1"));
+        assertEquals(5, r1.getInt("v2"));
+        assertEquals("b", r1.getString("v3"));
         assertFalse(iter.hasNext());
     }
     @Test
@@ -1161,9 +1161,9 @@ public class CQLSSTableWriterTest
     {
         final String schema = "CREATE TABLE " + qualifiedTable + " ("
                               + "  k int,"
-                              + "  c1 int,"
-                              + "  c2 int,"
-                              + "  v text,"
+                              + "  v1 int,"
+                              + "  v2 int,"
+                              + "  v3 text,"
                               + "  PRIMARY KEY (k)"
                               + ")";
 
@@ -1171,7 +1171,7 @@ public class CQLSSTableWriterTest
                                                          .inDirectory(dataDir)
                                                          .forTable(schema)
                                                          .using("INSERT INTO " + qualifiedTable +
-                                                                " (k, c1, c2, v) VALUES (?,?,?,?) using TTL ?");
+                                                                " (k, v1, v2, v3) VALUES (?,?,?,?) using TTL ?");
         CQLSSTableWriter writer = builder.build();
         // add a row that _should_ show up - 1 hour TTL
         writer.addRow( 1, 2, 3, "a", 3600);
@@ -1187,9 +1187,9 @@ public class CQLSSTableWriterTest
         Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
         UntypedResultSet.Row r1 = iter.next();
         assertEquals(1, r1.getInt("k"));
-        assertEquals(2, r1.getInt("c1"));
-        assertEquals(3, r1.getInt("c2"));
-        assertEquals("a", r1.getString("v"));
+        assertEquals(2, r1.getInt("v1"));
+        assertEquals(3, r1.getInt("v2"));
+        assertEquals("a", r1.getString("v3"));
         assertFalse(iter.hasNext());
     }
     @Test
@@ -1197,9 +1197,9 @@ public class CQLSSTableWriterTest
     {
         final String schema = "CREATE TABLE " + qualifiedTable + " ("
                               + "  k int,"
-                              + "  c1 int,"
-                              + "  c2 int,"
-                              + "  v text,"
+                              + "  v1 int,"
+                              + "  v2 int,"
+                              + "  v3 text,"
                               + "  PRIMARY KEY (k)"
                               + ")";
 
@@ -1207,7 +1207,7 @@ public class CQLSSTableWriterTest
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
                                                   .using("INSERT INTO " + qualifiedTable +
-                                                         " (k, c1, c2, v) VALUES (?,?,?,?) using timestamp ? AND TTL ?" )
+                                                         " (k, v1, v2, v3) VALUES (?,?,?,?) using timestamp ? AND TTL ?" )
                                                   .build();
         // NOTE: It would be easier to make this a timestamp in the past, but Cassandra also has a _local_ deletion time
         // which is based on the server's timestamp, so simply setting the timestamp to some time in the past
@@ -1228,9 +1228,9 @@ public class CQLSSTableWriterTest
         Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
         UntypedResultSet.Row r1 = iter.next();
         assertEquals(1, r1.getInt("k"));
-        assertEquals(2, r1.getInt("c1"));
-        assertEquals(3, r1.getInt("c2"));
-        assertEquals("a", r1.getString("v"));
+        assertEquals(2, r1.getInt("v1"));
+        assertEquals(3, r1.getInt("v2"));
+        assertEquals("a", r1.getString("v3"));
         assertFalse(iter.hasNext());
     }
 

@@ -58,7 +58,8 @@ import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.Clock;
+
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * Utility to write SSTables.
@@ -246,7 +247,7 @@ public class CQLSSTableWriter implements Closeable
         ClientState state = ClientState.forInternalCalls();
         List<ByteBuffer> keys = modificationStatement.buildPartitionKeyNames(options, state);
 
-        long now = Clock.Global.currentTimeMillis();
+        long now = currentTimeMillis();
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
         // and that forces a lot of initialization that we don't want.
         UpdateParameters params = new UpdateParameters(modificationStatement.metadata,
