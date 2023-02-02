@@ -50,7 +50,7 @@ _main() {
   # are there changes?
   git pull --rebase origin "$accord_branch"
   if [[ $(git rev-parse HEAD) != $(cat .SHA || true) ]]; then
-    ./gradlew clean install -x test
+    ./gradlew clean install -x test -x rat
     git rev-parse HEAD > .SHA
   fi
 }
