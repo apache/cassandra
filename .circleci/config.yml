@@ -3091,11 +3091,9 @@ workflows:
         requires:
         - start_j8_dtests_large
         - build
-    - start_j8_dtests_large_vnode:
-        type: approval
     - j8_dtests_large_vnode:
         requires:
-        - start_j8_dtests_large_vnode
+        - start_j8_dtests_large
         - build
     - start_upgrade_dtests:
         type: approval
