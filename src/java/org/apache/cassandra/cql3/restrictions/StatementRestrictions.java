@@ -274,7 +274,7 @@ public final class StatementRestrictions
             }
             if (hasQueriableIndex)
                 usesSecondaryIndexing = true;
-            else if (!allowFiltering)
+            else if (!allowFiltering && !table.isVirtual())
                 throw invalidRequest(allowFilteringMessage(state));
 
             filterRestrictions.add(nonPrimaryKeyRestrictions);
@@ -500,7 +500,7 @@ public final class StatementRestrictions
             // components must have a EQ. Only the last partition key component can be in IN relation.
             if (partitionKeyRestrictions.needFiltering(table))
             {
-                if (!allowFiltering && !forView && !hasQueriableIndex)
+                if (!allowFiltering && !forView && !hasQueriableIndex && !table.isVirtual())
                     throw new InvalidRequestException(allowFilteringMessage(state));
 
                 isKeyRange = true;
