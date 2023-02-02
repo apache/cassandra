@@ -39,23 +39,23 @@ public class TopologySerializers
         @Override
         public void serialize(Node.Id id, DataOutputPlus out, int version) throws IOException
         {
-            out.writeLong(id.id);
+            out.writeInt(id.id);
         }
 
         public <V> int serialize(Node.Id id, V dst, ValueAccessor<V> accessor, int offset)
         {
-            return accessor.putLong(dst, offset, id.id);
+            return accessor.putInt(dst, offset, id.id);
         }
 
         @Override
         public Node.Id deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new Node.Id(in.readLong());
+            return new Node.Id(in.readInt());
         }
 
         public <V> Node.Id deserialize(V src, ValueAccessor<V> accessor, int offset)
         {
-            return new Node.Id(accessor.getLong(src, offset));
+            return new Node.Id(accessor.getInt(src, offset));
         }
 
         @Override
@@ -66,7 +66,7 @@ public class TopologySerializers
 
         public int serializedSize()
         {
-            return TypeSizes.LONG_SIZE;  // id.id
+            return TypeSizes.INT_SIZE;  // id.id
         }
     };
 }

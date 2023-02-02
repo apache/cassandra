@@ -25,6 +25,7 @@ import java.net.UnknownHostException;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.primitives.Ints;
 
 import accord.local.Node;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -36,33 +37,16 @@ public class EndpointMapping
     {
         Preconditions.checkArgument(endpoint.getAddress() instanceof Inet4Address);
         Inet4Address address = (Inet4Address) endpoint.getAddress();
-        byte[] bytes = address.getAddress();
-        long id = 0;
-        for (int i=0; i<4; i++)
-            id = (id * 1000) + Byte.toUnsignedLong(bytes[i]);
-        id = (id * 100000) + endpoint.getPort();
+        int id = Ints.fromByteArray(address.getAddress());
         return new Node.Id(id);
     }
 
     static InetAddressAndPort idToEndpoint(Node.Id node)
     {
-        long id = node.id;
-        Preconditions.checkArgument(id >= 0);
-
-        int port = (int) (id % 100000);
-        id = id / 100000;
-        byte[] bytes = new byte[4];
-        for (int i=0; i<4; i++)
-        {
-            long octet = id % 1000;
-            Preconditions.checkArgument(octet >= 0 && octet <= 255, "Malformed id");
-            bytes[3-i] = (byte) (octet);
-            id = id / 1000;
-        }
-        Preconditions.checkArgument(id == 0);
+        byte[] bytes = Ints.toByteArray(node.id);
         try
         {
-            return InetAddressAndPort.getByAddressOverrideDefaults(InetAddress.getByAddress(bytes), port);
+            return InetAddressAndPort.getByAddress(InetAddress.getByAddress(bytes));
         }
         catch (UnknownHostException e)
         {
