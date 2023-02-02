@@ -131,6 +131,7 @@ public class TableMetadata implements SchemaElement
     public final Kind kind;
     public final TableParams params;
     public final ImmutableSet<Flag> flags;
+    public final boolean implicitlyAllowsFiltering;
 
     @Nullable
     private final String indexName; // derived from table name
@@ -168,6 +169,7 @@ public class TableMetadata implements SchemaElement
         partitioner = builder.partitioner;
         kind = builder.kind;
         params = builder.params.build();
+        implicitlyAllowsFiltering = kind == Kind.VIRTUAL && builder.implicitlyAllowsFiltering;
 
         indexName = kind == Kind.INDEX ? name.substring(name.indexOf('.') + 1) : null;
 
@@ -637,7 +639,8 @@ public class TableMetadata implements SchemaElement
             && flags.equals(tm.flags)
             && droppedColumns.equals(tm.droppedColumns)
             && indexes.equals(tm.indexes)
-            && triggers.equals(tm.triggers);
+            && triggers.equals(tm.triggers)
+            && implicitlyAllowsFiltering == tm.implicitlyAllowsFiltering;
     }
 
     Optional<Difference> compare(TableMetadata other)
@@ -701,6 +704,7 @@ public class TableMetadata implements SchemaElement
                           .add("droppedColumns", droppedColumns.values())
                           .add("indexes", indexes)
                           .add("triggers", triggers)
+                          .add("implicitlyAllowsFiltering", implicitlyAllowsFiltering)
                           .toString();
     }
 
@@ -714,6 +718,7 @@ public class TableMetadata implements SchemaElement
         private IPartitioner partitioner;
         private Kind kind = Kind.REGULAR;
         private TableParams.Builder params = TableParams.builder();
+        private boolean implicitlyAllowsFiltering = false;
 
         // See the comment on Flag.COMPOUND definition for why we (still) inconditionally add this flag.
         private Set<Flag> flags = EnumSet.of(Flag.COMPOUND);
@@ -779,6 +784,12 @@ public class TableMetadata implements SchemaElement
         public Builder params(TableParams val)
         {
             params = val.unbuild();
+            return this;
+        }
+
+        public Builder implicitlyAllowsFiltering(boolean val)
+        {
+            implicitlyAllowsFiltering = val;
             return this;
         }
 
