@@ -29,7 +29,7 @@ public class TopologySerializersTest
     @Test
     public void nodeId()
     {
-        SerializerTestUtils.assertSerializerIOEquality(new Node.Id(1234567890123456L), TopologySerializers.nodeId);
+        SerializerTestUtils.assertSerializerIOEquality(new Node.Id(1234567890), TopologySerializers.nodeId);
     }
 
     @Test

@@ -92,17 +92,17 @@ public class AccordTestUtils
         @Override public void waiting(TxnId blockedBy, Known blockedUntil, Unseekables<?, ?> blockedOn) {}
     };
 
-    public static TxnId txnId(long epoch, long hlc, long node)
+    public static TxnId txnId(long epoch, long hlc, int node)
     {
         return new TxnId(epoch, hlc, Txn.Kind.Write, Key, new Node.Id(node));
     }
 
-    public static Timestamp timestamp(long epoch, long hlc, long node)
+    public static Timestamp timestamp(long epoch, long hlc, int node)
     {
         return Timestamp.fromValues(epoch, hlc, new Node.Id(node));
     }
 
-    public static Ballot ballot(long epoch, long hlc, long node)
+    public static Ballot ballot(long epoch, long hlc, int node)
     {
         return Ballot.fromValues(epoch, hlc, new Node.Id(node));
     }
