@@ -422,9 +422,14 @@ public class Murmur3Partitioner implements IPartitioner
         return new LongToken(Long.MAX_VALUE);
     }
 
-    public AbstractType<?> partitionOrdering(AbstractType<?> baseType)
+    public AbstractType<?> partitionOrdering()
     {
-        return ((PartitionerDefinedOrder)partitionOrdering).withBaseType(baseType);
+        return partitionOrdering;
+    }
+
+    public AbstractType<?> partitionOrdering(AbstractType<?> partitionKeyType)
+    {
+        return partitionOrdering.withPartitionKeyType(partitionKeyType);
     }
 
     public AbstractType<?> partitionOrdering(AbstractType<?> partitionKeyType)
