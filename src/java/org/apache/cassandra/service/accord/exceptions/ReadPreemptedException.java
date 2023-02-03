@@ -15,23 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.exceptions;
+
+package org.apache.cassandra.service.accord.exceptions;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 
-public class ReadTimeoutException extends RequestTimeoutException
+// shim to allow tests to tell the difference between preemption and other protocol timeouts
+public class ReadPreemptedException extends ReadTimeoutException
 {
-    public final boolean dataPresent;
-
-    public ReadTimeoutException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent)
+    public ReadPreemptedException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent)
     {
-        super(ExceptionCode.READ_TIMEOUT, consistency, received, blockFor);
-        this.dataPresent = dataPresent;
+        super(consistency, received, blockFor, dataPresent);
     }
 
-    public ReadTimeoutException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, String msg)
+    public ReadPreemptedException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, String msg)
     {
-        super(ExceptionCode.READ_TIMEOUT, consistency, received, blockFor, msg);
-        this.dataPresent = dataPresent;
+        super(consistency, received, blockFor, dataPresent, msg);
     }
 }
