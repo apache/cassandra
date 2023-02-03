@@ -15,23 +15,23 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.exceptions;
+
+package org.apache.cassandra.service.accord.exceptions;
 
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
 
-public class ReadTimeoutException extends RequestTimeoutException
+// quick hack to allow tests to tell the difference between preemption and other protocol timeouts
+public class WritePreemptedException extends WriteTimeoutException
 {
-    public final boolean dataPresent;
-
-    public ReadTimeoutException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent)
+    public WritePreemptedException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor)
     {
-        super(ExceptionCode.READ_TIMEOUT, consistency, received, blockFor);
-        this.dataPresent = dataPresent;
+        super(writeType, consistency, received, blockFor);
     }
 
-    public ReadTimeoutException(ConsistencyLevel consistency, int received, int blockFor, boolean dataPresent, String msg)
+    public WritePreemptedException(WriteType writeType, ConsistencyLevel consistency, int received, int blockFor, String msg)
     {
-        super(ExceptionCode.READ_TIMEOUT, consistency, received, blockFor, msg);
-        this.dataPresent = dataPresent;
+        super(writeType, consistency, received, blockFor, msg);
     }
 }

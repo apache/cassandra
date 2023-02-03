@@ -20,24 +20,34 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
-
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Result;
+import accord.impl.CommandsForKey;
+import accord.impl.CommandsForKey.CommandTimeseries;
+import accord.local.Command;
+import accord.local.CommandListener;
 import accord.local.CommandStore;
+import accord.local.CommonAttributes;
+import accord.local.Listeners;
 import accord.local.Node;
 import accord.local.SaveStatus;
 import accord.local.Status;
@@ -46,10 +56,9 @@ import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
-import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
-import accord.utils.DeterministicIdentitySet;
+import accord.utils.Invariants;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -78,7 +87,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
-import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.transform.FilteredPartitions;
@@ -96,21 +104,20 @@ import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.serializers.UUIDSerializer;
-import org.apache.cassandra.service.accord.AccordCommandsForKey.SeriesKind;
-import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandSerializers;
+import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.DepsSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
-import org.apache.cassandra.service.accord.store.StoredNavigableMap;
-import org.apache.cassandra.service.accord.store.StoredSet;
+import org.apache.cassandra.service.accord.serializers.ListenerSerializers;
 import org.apache.cassandra.service.accord.txn.TxnData;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Clock;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
-import static org.apache.cassandra.db.rows.BufferCell.*;
+import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
+import static org.apache.cassandra.db.rows.BufferCell.live;
+import static org.apache.cassandra.db.rows.BufferCell.tombstone;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -128,6 +135,28 @@ public class AccordKeyspace
 
     private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexSliceFilter(Slices.ALL, false);
 
+    public enum SeriesKind
+    {
+        BY_ID(CommandsForKey::byId),
+        BY_EXECUTE_AT(CommandsForKey::byExecuteAt);
+
+        private final Function<CommandsForKey, CommandTimeseries<?>> getSeries;
+
+        SeriesKind(Function<CommandsForKey, CommandTimeseries<?>> getSeries)
+        {
+            this.getSeries = getSeries;
+        }
+
+        ImmutableSortedMap<Timestamp, ByteBuffer> getValues(CommandsForKey cfk)
+        {
+            if (cfk == null)
+                return ImmutableSortedMap.of();
+
+            CommandTimeseries<?> series = getSeries.apply(cfk);
+            return (ImmutableSortedMap<Timestamp, ByteBuffer>) series.commands;
+        }
+    }
+
     // TODO: store timestamps as blobs (confirm there are no negative numbers, or offset)
     private static final TableMetadata Commands =
         parse(COMMANDS,
@@ -141,7 +170,6 @@ public class AccordKeyspace
               + "route blob,"
               + "durability int,"
               + "txn blob,"
-              + "kind int,"
               + format("execute_at %s,", TIMESTAMP_TUPLE)
               + format("promised_ballot %s,", TIMESTAMP_TUPLE)
               + format("accepted_ballot %s,", TIMESTAMP_TUPLE)
@@ -151,8 +179,6 @@ public class AccordKeyspace
               + format("waiting_on_commit set<%s>,", TIMESTAMP_TUPLE)
               + format("waiting_on_apply map<%s, blob>,", TIMESTAMP_TUPLE)
               + "listeners set<blob>, "
-              + format("blocking_commit_on set<%s>, ", TIMESTAMP_TUPLE)
-              + format("blocking_apply_on set<%s>, ", TIMESTAMP_TUPLE)
               + "PRIMARY KEY((store_id, txn_id))"
               + ')');
 
@@ -165,6 +191,7 @@ public class AccordKeyspace
         static final LocalVersionedSerializer<PartialDeps> partialDeps = localSerializer(DepsSerializer.partialDeps);
         static final LocalVersionedSerializer<Writes> writes = localSerializer(CommandSerializers.writes);
         static final LocalVersionedSerializer<TxnData> result = localSerializer(TxnData.serializer);
+        static final LocalVersionedSerializer<CommandListener> listeners = localSerializer(ListenerSerializers.listener);
 
         private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
         {
@@ -189,7 +216,6 @@ public class AccordKeyspace
         static final ColumnMetadata route = getColumn(Commands, "route");
         static final ColumnMetadata durability = getColumn(Commands, "durability");
         static final ColumnMetadata txn = getColumn(Commands, "txn");
-        static final ColumnMetadata kind = getColumn(Commands, "kind");
         static final ColumnMetadata execute_at = getColumn(Commands, "execute_at");
         static final ColumnMetadata promised_ballot = getColumn(Commands, "promised_ballot");
         static final ColumnMetadata accepted_ballot = getColumn(Commands, "accepted_ballot");
@@ -199,11 +225,9 @@ public class AccordKeyspace
         static final ColumnMetadata waiting_on_commit = getColumn(Commands, "waiting_on_commit");
         static final ColumnMetadata waiting_on_apply = getColumn(Commands, "waiting_on_apply");
         static final ColumnMetadata listeners = getColumn(Commands, "listeners");
-        static final ColumnMetadata blocking_commit_on = getColumn(Commands, "blocking_commit_on");
-        static final ColumnMetadata blocking_apply_on = getColumn(Commands, "blocking_apply_on");
     }
 
-    private static final TableMetadata CommandsForKey =
+    private static final TableMetadata CommandsForKeys =
         parse(COMMANDS_FOR_KEY,
               "accord commands per key",
               "CREATE TABLE %s ("
@@ -222,17 +246,17 @@ public class AccordKeyspace
 
     private static class CommandsForKeyColumns
     {
-        static final ClusteringComparator keyComparator = CommandsForKey.partitionKeyAsClusteringComparator();
-        static final ColumnFilter allColumns = ColumnFilter.all(CommandsForKey);
-        static final ColumnMetadata max_timestamp = getColumn(CommandsForKey, "max_timestamp");
-        static final ColumnMetadata last_executed_timestamp = getColumn(CommandsForKey, "last_executed_timestamp");
-        static final ColumnMetadata last_executed_micros = getColumn(CommandsForKey, "last_executed_micros");
-        static final ColumnMetadata last_write_timestamp = getColumn(CommandsForKey, "last_write_timestamp");
-        static final ColumnMetadata blind_witnessed = getColumn(CommandsForKey, "blind_witnessed");
+        static final ClusteringComparator keyComparator = CommandsForKeys.partitionKeyAsClusteringComparator();
+        static final ColumnFilter allColumns = ColumnFilter.all(CommandsForKeys);
+        static final ColumnMetadata max_timestamp = getColumn(CommandsForKeys, "max_timestamp");
+        static final ColumnMetadata last_executed_timestamp = getColumn(CommandsForKeys, "last_executed_timestamp");
+        static final ColumnMetadata last_executed_micros = getColumn(CommandsForKeys, "last_executed_micros");
+        static final ColumnMetadata last_write_timestamp = getColumn(CommandsForKeys, "last_write_timestamp");
+        static final ColumnMetadata blind_witnessed = getColumn(CommandsForKeys, "blind_witnessed");
 
-        static final ColumnMetadata series = getColumn(CommandsForKey, "series");
-        static final ColumnMetadata timestamp = getColumn(CommandsForKey, "timestamp");
-        static final ColumnMetadata data = getColumn(CommandsForKey, "data");
+        static final ColumnMetadata series = getColumn(CommandsForKeys, "series");
+        static final ColumnMetadata timestamp = getColumn(CommandsForKeys, "timestamp");
+        static final ColumnMetadata data = getColumn(CommandsForKeys, "data");
 
         static final Columns statics = Columns.from(Lists.newArrayList(max_timestamp, last_executed_timestamp, last_executed_micros, last_write_timestamp, blind_witnessed));
         static final Columns regulars = Columns.from(Lists.newArrayList(data));
@@ -240,25 +264,23 @@ public class AccordKeyspace
         private static final RegularAndStaticColumns justStatic = new RegularAndStaticColumns(statics, Columns.NONE);
         private static final RegularAndStaticColumns justRegular = new RegularAndStaticColumns(Columns.NONE, regulars);
 
-        static boolean hasStaticChanges(AccordCommandsForKey commandsForKey)
+        static boolean hasStaticChanges(CommandsForKey original, CommandsForKey current)
         {
-            return commandsForKey.maxTimestamp.hasModifications()
-                   || commandsForKey.lastExecutedTimestamp.hasModifications()
-                   || commandsForKey.lastExecutedMicros.hasModifications()
-                   || commandsForKey.lastWriteTimestamp.hasModifications()
-                   || commandsForKey.blindWitnessed.hasModifications();
+            return valueModified(CommandsForKey::max, original, current)
+                   || valueModified(CommandsForKey::lastExecutedTimestamp, original, current)
+                   || valueModified(CommandsForKey::lastWriteTimestamp, original, current);
         }
 
-        private static boolean hasRegularChanges(AccordCommandsForKey commandsForKey)
+        private static boolean hasRegularChanges(CommandsForKey original, CommandsForKey current)
         {
-            return commandsForKey.byId.map.hasModifications()
-                   || commandsForKey.byExecuteAt.map.hasModifications();
+            return valueModified(CommandsForKey::byId, original, current)
+                   || valueModified(CommandsForKey::byExecuteAt, original, current);
         }
 
-        static RegularAndStaticColumns columnsFor(AccordCommandsForKey commandsForKey)
+        static RegularAndStaticColumns columnsFor(CommandsForKey original, CommandsForKey current)
         {
-            boolean hasStaticChanges = hasStaticChanges(commandsForKey);
-            boolean hasRegularChanges = hasRegularChanges(commandsForKey);
+            boolean hasStaticChanges = hasStaticChanges(original, current);
+            boolean hasRegularChanges = hasRegularChanges(original, current);
 
             if (hasStaticChanges && hasRegularChanges)
                 return all;
@@ -267,7 +289,7 @@ public class AccordKeyspace
             else if (hasRegularChanges)
                 return justRegular;
             else
-                throw new IllegalArgumentException("CommandsForKey has_modifications=" + commandsForKey.hasModifications() + ", but no Static or Regular columns changed!");
+                throw new IllegalArgumentException("No Static or Regular columns changed for CFK " + current.key());
         }
     }
 
@@ -287,7 +309,7 @@ public class AccordKeyspace
 
     private static Tables tables()
     {
-        return Tables.of(Commands, CommandsForKey);
+        return Tables.of(Commands, CommandsForKeys);
     }
 
     private static <T> ByteBuffer serialize(T obj, LocalVersionedSerializer<T> serializer) throws IOException
@@ -320,190 +342,194 @@ public class AccordKeyspace
         return bytes != null && ! ByteBufferAccessor.instance.isEmpty(bytes) ? deserialize(bytes, serializer) : null;
     }
 
-    private static NavigableMap<Timestamp, TxnId> deserializeWaitingOnApply(Map<ByteBuffer, ByteBuffer> serialized)
+    private static ImmutableSortedMap<Timestamp, TxnId> deserializeWaitingOnApply(Map<ByteBuffer, ByteBuffer> serialized)
     {
         if (serialized == null || serialized.isEmpty())
-            return new TreeMap<>();
+            return ImmutableSortedMap.of();
 
         NavigableMap<Timestamp, TxnId> result = new TreeMap<>();
         for (Map.Entry<ByteBuffer, ByteBuffer> entry : serialized.entrySet())
             result.put(deserializeTimestampOrNull(entry.getKey(), Timestamp::fromBits), deserializeTimestampOrNull(entry.getValue(), TxnId::fromBits));
-        return result;
+        return ImmutableSortedMap.copyOf(result);
     }
 
-    private static <T extends Timestamp, S extends Set<T>> S deserializeTimestampSet(Set<ByteBuffer> serialized, Supplier<S> setFactory, TimestampFactory<T> timestampFactory)
+    private static <T extends Timestamp> ImmutableSortedSet<T> deserializeTimestampSet(Set<ByteBuffer> serialized, TimestampFactory<T> timestampFactory)
     {
-        S result = setFactory.get();
         if (serialized == null || serialized.isEmpty())
-            return result;
+            return ImmutableSortedSet.of();
 
+        List<T> result = new ArrayList<>(serialized.size());
         for (ByteBuffer bytes : serialized)
             result.add(deserializeTimestampOrNull(bytes, timestampFactory));
 
-        return result;
+        return ImmutableSortedSet.copyOf(result);
     }
 
-    private static NavigableSet<TxnId> deserializeTxnIdNavigableSet(UntypedResultSet.Row row, String name)
+    private static ImmutableSortedSet<TxnId> deserializeTxnIdNavigableSet(UntypedResultSet.Row row, String name)
     {
-        return deserializeTimestampSet(row.getSet(name, BytesType.instance), TreeSet::new, TxnId::fromBits);
+        return deserializeTimestampSet(row.getSet(name, BytesType.instance), TxnId::fromBits);
     }
 
-    private static DeterministicIdentitySet<ListenerProxy> deserializeListeners(Set<ByteBuffer> serialized) throws IOException
+    private static Listeners.Immutable deserializeListeners(Set<ByteBuffer> serialized) throws IOException
     {
         if (serialized == null || serialized.isEmpty())
-            return new DeterministicIdentitySet<>();
-        DeterministicIdentitySet<ListenerProxy> result = new DeterministicIdentitySet<>();
+            return Listeners.Immutable.EMPTY;
+        Listeners result = new Listeners();
         for (ByteBuffer bytes : serialized)
         {
-            result.add(ListenerProxy.deserialize(bytes, ByteBufferAccessor.instance, 0));
+            result.add(deserialize(bytes, CommandsSerializers.listeners));
         }
-        return result;
+        return new Listeners.Immutable(result);
     }
 
-    private static DeterministicIdentitySet<ListenerProxy> deserializeListeners(UntypedResultSet.Row row, String name) throws IOException
+    private static Listeners.Immutable deserializeListeners(UntypedResultSet.Row row, String name) throws IOException
     {
         return deserializeListeners(row.getSet(name, BytesType.instance));
     }
 
-    private static <K extends Comparable<?>, V> void addStoredMapChanges(Row.Builder builder,
-                                                                         ColumnMetadata column,
-                                                                         long timestamp,
-                                                                         int nowInSec,
-                                                                         StoredNavigableMap<K, V> map,
-                                                                         Function<K, ByteBuffer> serializeKey,
-                                                                         Function<V, ByteBuffer> serializeVal)
+    private interface SerializeFunction<V>
     {
-        if (map.wasCleared())
-        {
-            if (!map.hasAdditions())
-            {
-                builder.addComplexDeletion(column, new DeletionTime(timestamp, nowInSec));
-                return;
-            }
-            else
-                builder.addComplexDeletion(column, new DeletionTime(timestamp - 1, nowInSec));
-        }
-
-        map.forEachAddition((k, v) -> builder.addCell(live(column, timestamp, serializeVal.apply(v), CellPath.create(serializeKey.apply(k)))));
-
-        if (!map.wasCleared())
-            map.forEachDeletion(k -> builder.addCell(tombstone(column, timestamp, nowInSec, CellPath.create(serializeKey.apply(k)))));
+        ByteBuffer apply(V v) throws IOException;
     }
 
-    private static <T extends Comparable<?>> void addStoredSetChanges(Row.Builder builder,
-                                                                      ColumnMetadata column,
-                                                                      long timestamp,
-                                                                      int nowInSec,
-                                                                      StoredSet<T, ?> map,
-                                                                      Function<T, ByteBuffer> serialize)
+    private static <C, V> boolean valueModified(Function<C, V> get, C original, C current)
     {
-        if (map.wasCleared())
-        {
-            if (!map.hasAdditions())
-            {
-                builder.addComplexDeletion(column, new DeletionTime(timestamp, nowInSec));
-                return;
-            }
-            else
-                builder.addComplexDeletion(column, new DeletionTime(timestamp - 1, nowInSec));
-        }
+        V prev = original != null ? get.apply(original) : null;
+        V value = get.apply(current);
 
-        map.forEachAddition(i -> builder.addCell(live(column, timestamp, EMPTY_BYTE_BUFFER, CellPath.create(serialize.apply(i)))));
-
-        if (!map.wasCleared())
-            map.forEachDeletion(k -> builder.addCell(tombstone(column, timestamp, nowInSec, CellPath.create(serialize.apply(k)))));
+        return prev != value;
     }
 
-    public static Mutation getCommandMutation(AccordCommandStore commandStore, AccordCommand command, long timestampMicros)
+    private static <C, V> void addCellIfModified(ColumnMetadata column, Function<C, V> get, SerializeFunction<V> serialize, Row.Builder builder, long timestampMicros, C original, C current) throws IOException
+    {
+        if (valueModified(get, original, current))
+            builder.addCell(live(column, timestampMicros, serialize.apply(get.apply(current))));
+    }
+
+    private static <C extends Command, V> void addCellIfModified(ColumnMetadata column, Function<C, V> get, LocalVersionedSerializer<V> serializer, Row.Builder builder, long timestampMicros, C original, C command) throws IOException
+    {
+        addCellIfModified(column, get, v -> serializeOrNull(v, serializer), builder, timestampMicros, original, command);
+    }
+
+    private static <C extends Command, V> void addKeyCellIfModified(ColumnMetadata column, Function<C, V> get, Row.Builder builder, long timestampMicros, C original, C command) throws IOException
+    {
+        addCellIfModified(column, get, v -> serializeOrNull((AccordRoutingKey) v, CommandsSerializers.routingKey), builder, timestampMicros, original, command);
+    }
+
+    private static <C extends Command, V extends Enum<V>> void addEnumCellIfModified(ColumnMetadata column, Function<C, V> get, Row.Builder builder, long timestampMicros, C original, C command) throws IOException
+    {
+        // TODO: convert to byte arrays
+        ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
+        addCellIfModified(column, get, v -> accessor.valueOf(v.ordinal()), builder, timestampMicros, original, command);
+    }
+
+    private static <C, V> void addSetChanges(ColumnMetadata column, Function<C, Set<V>> get, SerializeFunction<V> serialize, Row.Builder builder, long timestampMicros, int nowInSec, C original, C command) throws IOException
+    {
+        Set<V> prev = original != null ? get.apply(original) : Collections.emptySet();
+        if (prev == null) prev = Collections.emptySet();
+        Set<V> value = get.apply(command);
+        if (value == null) value = Collections.emptySet();
+
+        if (value.isEmpty() && !prev.isEmpty())
+        {
+            builder.addComplexDeletion(column, new DeletionTime(timestampMicros, nowInSec));
+            return;
+        }
+
+        for (V item : Sets.difference(value, prev))
+            builder.addCell(live(column, timestampMicros, EMPTY_BYTE_BUFFER, CellPath.create(serialize.apply(item))));
+
+        for (V item : Sets.difference(prev, value))
+            builder.addCell(tombstone(column, timestampMicros, nowInSec, CellPath.create(serialize.apply(item))));
+    }
+
+    private static <C, K, V> void addMapChanges(ColumnMetadata column, Function<C, Map<K, V>> get, SerializeFunction<K> serializeKey, SerializeFunction<V> serializeVal, Row.Builder builder, long timestampMicros, int nowInSec, C original, C command) throws IOException
+    {
+        Map<K, V> prev = original != null ? get.apply(original) : Collections.emptyMap();
+        if (prev == null) prev = Collections.emptyMap();
+        Map<K, V> value = get.apply(command);
+        if (value == null) value = Collections.emptyMap();
+
+        if (value.isEmpty() && !prev.isEmpty())
+        {
+            builder.addComplexDeletion(column, new DeletionTime(timestampMicros, nowInSec));
+            return;
+        }
+
+        for (Map.Entry<K, V> entry : value.entrySet())
+        {
+            K key = entry.getKey();
+            V pVal = prev.get(key);
+            if (pVal != null && pVal.equals(entry.getValue()))
+                continue;
+            builder.addCell(live(column, timestampMicros, serializeVal.apply(entry.getValue()), CellPath.create(serializeKey.apply(key))));
+        }
+        for (K key : Sets.difference(prev.keySet(), value.keySet()))
+            builder.addCell(tombstone(column, timestampMicros, nowInSec, CellPath.create(serializeKey.apply(key))));
+    }
+
+    private static <K, V> int estimateMapChanges(Map<K, V> prev, Map<K, V> value)
+    {
+        return Math.abs(prev.size() - value.size());
+    }
+
+    private static <C, K, V> int estimateMapChanges(Function<C, Map<K, V>> get, C original, C command)
+    {
+        Map<K, V> prev = original != null ? get.apply(original) : Collections.emptyMap();
+        if (prev == null) prev = Collections.emptyMap();
+        Map<K, V> value = get.apply(command);
+        if (value == null) value = Collections.emptyMap();
+        return estimateMapChanges(prev, value);
+    }
+
+    public static Mutation getCommandMutation(AccordCommandStore commandStore, AccordSafeCommand liveCommand, long timestampMicros)
     {
         try
         {
-            Preconditions.checkArgument(command.hasModifications());
-
-            // TODO: convert to byte arrays
-            ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
+            Command command = liveCommand.current();
+            Command original = liveCommand.original();
+            Invariants.checkArgument(original != command);
 
             Row.Builder builder = BTreeRow.unsortedBuilder();
             builder.newRow(Clustering.EMPTY);
             int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
+            addEnumCellIfModified(CommandsColumns.status, Command::saveStatus, builder, timestampMicros, original, command);
+            addKeyCellIfModified(CommandsColumns.home_key, Command::homeKey, builder, timestampMicros, original, command);
+            addKeyCellIfModified(CommandsColumns.progress_key, Command::progressKey, builder, timestampMicros, original, command);
+            addCellIfModified(CommandsColumns.route, Command::route, CommandsSerializers.route, builder, timestampMicros, original, command);
+            addEnumCellIfModified(CommandsColumns.durability, Command::durability, builder, timestampMicros, original, command);
+            addCellIfModified(CommandsColumns.txn, Command::partialTxn, CommandsSerializers.partialTxn, builder, timestampMicros, original, command);
 
-            if (command.status.hasModifications())
-                builder.addCell(live(CommandsColumns.status, timestampMicros, accessor.valueOf(command.status.get().ordinal())));
+            addCellIfModified(CommandsColumns.execute_at, Command::executeAt, AccordKeyspace::serializeTimestamp, builder, timestampMicros, original, command);
+            addCellIfModified(CommandsColumns.promised_ballot, Command::promised, AccordKeyspace::serializeTimestamp, builder, timestampMicros, original, command);
+            addCellIfModified(CommandsColumns.accepted_ballot, Command::accepted, AccordKeyspace::serializeTimestamp, builder, timestampMicros, original, command);
 
-            if (command.homeKey.hasModifications())
-                builder.addCell(live(CommandsColumns.home_key, timestampMicros, serializeOrNull((AccordRoutingKey) command.homeKey.get(), CommandsSerializers.routingKey)));
+            addCellIfModified(CommandsColumns.dependencies, Command::partialDeps, CommandsSerializers.partialDeps, builder, timestampMicros, original, command);
 
-            if (command.progressKey.hasModifications())
-                builder.addCell(live(CommandsColumns.progress_key, timestampMicros, serializeOrNull((AccordRoutingKey) command.progressKey.get(), CommandsSerializers.routingKey)));
+            addSetChanges(CommandsColumns.listeners, cmd -> Sets.filter(cmd.listeners(), l -> !l.isTransient()), v -> serialize(v, CommandsSerializers.listeners), builder, timestampMicros, nowInSeconds, original, command);
 
-            if (command.route.hasModifications())
-                builder.addCell(live(CommandsColumns.route, timestampMicros, serializeOrNull(command.route.get(), CommandsSerializers.route)));
-
-            if (command.durability.hasModifications())
-                builder.addCell(live(CommandsColumns.durability, timestampMicros, accessor.valueOf(command.durability.get().ordinal())));
-
-            if (command.partialTxn.hasModifications())
-                builder.addCell(live(CommandsColumns.txn, timestampMicros, serializeOrNull(command.partialTxn.get(), CommandsSerializers.partialTxn)));
-
-            if (command.kind.hasModifications() && command.kind.get() != null) // initialize sets hasModification(), and don't want to persist null
-                builder.addCell(live(CommandsColumns.kind, timestampMicros, accessor.valueOf(command.kind.get().ordinal())));
-
-            if (command.executeAt.hasModifications())
-                builder.addCell(live(CommandsColumns.execute_at, timestampMicros, serializeTimestamp(command.executeAt.get())));
-
-            if (command.promised.hasModifications())
-                builder.addCell(live(CommandsColumns.promised_ballot, timestampMicros, serializeTimestamp(command.promised.get())));
-
-            if (command.accepted.hasModifications())
-                builder.addCell(live(CommandsColumns.accepted_ballot, timestampMicros, serializeTimestamp(command.accepted.get())));
-
-            if (command.partialDeps.hasModifications())
-                builder.addCell(live(CommandsColumns.dependencies, timestampMicros, serializeOrNull(command.partialDeps.get(), CommandsSerializers.partialDeps)));
-
-            if (command.writes.hasModifications())
-                builder.addCell(live(CommandsColumns.writes, timestampMicros, serialize(command.writes.get(), CommandsSerializers.writes)));
-
-            if (command.result.hasModifications())
-                builder.addCell(live(CommandsColumns.result, timestampMicros, serialize((TxnData) command.result.get(), CommandsSerializers.result)));
-
-            if (command.waitingOnCommit.hasModifications())
+            if (command.isCommitted())
             {
-                addStoredSetChanges(builder, CommandsColumns.waiting_on_commit,
-                                    timestampMicros, nowInSeconds, command.waitingOnCommit,
-                                    AccordKeyspace::serializeTimestamp);
+                Command.Committed committed = command.asCommitted();
+                Command.Committed originalCommitted = original != null && original.isCommitted() ? original.asCommitted() : null;
+                addSetChanges(CommandsColumns.waiting_on_commit, Command.Committed::waitingOnCommit, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, originalCommitted, committed);
+                addMapChanges(CommandsColumns.waiting_on_apply, Command.Committed::waitingOnApply, AccordKeyspace::serializeTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, originalCommitted, committed);
+                if (command.isExecuted())
+                {
+                    Command.Executed executed = command.asExecuted();
+                    Command.Executed originalExecuted = original != null && original.isExecuted() ? original.asExecuted() : null;
+                    addCellIfModified(CommandsColumns.writes, Command.Executed::writes, v -> serialize(v, CommandsSerializers.writes), builder, timestampMicros, originalExecuted, executed);
+                    addCellIfModified(CommandsColumns.result, Command.Executed::result, v -> serialize((TxnData) v, CommandsSerializers.result), builder, timestampMicros, originalExecuted, executed);
+                }
             }
 
-            if (command.blockingCommitOn.hasModifications())
-            {
-                addStoredSetChanges(builder, CommandsColumns.blocking_commit_on,
-                                    timestampMicros, nowInSeconds, command.blockingApplyOn,
-                                    AccordKeyspace::serializeTimestamp);
-            }
-
-            if (command.waitingOnApply.hasModifications())
-            {
-                addStoredMapChanges(builder, CommandsColumns.waiting_on_apply,
-                                    timestampMicros, nowInSeconds, command.waitingOnApply,
-                                    AccordKeyspace::serializeTimestamp, AccordKeyspace::serializeTimestamp);
-            }
-
-            if (command.blockingApplyOn.hasModifications())
-            {
-                addStoredSetChanges(builder, CommandsColumns.blocking_apply_on,
-                                    timestampMicros, nowInSeconds, command.blockingApplyOn,
-                                    AccordKeyspace::serializeTimestamp);
-            }
-
-            if (command.storedListeners.hasModifications())
-            {
-                addStoredSetChanges(builder, CommandsColumns.listeners,
-                                    timestampMicros, nowInSeconds, command.storedListeners,
-                                    ListenerProxy::identifier);
-            }
             ByteBuffer key = CommandsColumns.keyComparator.make(commandStore.id(),
                                                                 serializeTimestamp(command.txnId())).serializeAsPartitionKey();
-            PartitionUpdate update = PartitionUpdate.singleRowUpdate(Commands, key, builder.build());
+            Row row = builder.build();
+            if (row.isEmpty())
+                return null;
+            PartitionUpdate update = PartitionUpdate.singleRowUpdate(Commands, key, row);
             return new Mutation(update);
         }
         catch (IOException e)
@@ -511,6 +537,7 @@ public class AccordKeyspace
             throw new RuntimeException(e);
         }
     }
+
 
     private static ByteBuffer serializeKey(PartitionKey key)
     {
@@ -540,11 +567,21 @@ public class AccordKeyspace
         return deserializeTimestampOrNull(row.getBlob(name), factory);
     }
 
-    public static AccordCommand loadCommand(AccordCommandStore commandStore, TxnId txnId)
+    private static ByteBuffer bytesOrNull(Row row, ColumnMetadata column)
     {
-        AccordCommand command = new AccordCommand(txnId);
-        loadCommand(commandStore, command);
-        return command;
+        Cell<?> cell = row.getCell(column);
+        return cell != null && !cell.isTombstone() ? cell.buffer() : null;
+    }
+
+    private static <T extends Timestamp> T deserializeTimestampOrDefault(Row row, ColumnMetadata column, TimestampFactory<T> factory, T valIfNull)
+    {
+        ByteBuffer bytes = bytesOrNull(row, column);
+        if (bytes == null)
+            return valIfNull;
+        T result = deserializeTimestampOrNull(bytes, factory);
+        if (result == null)
+            return valIfNull;
+        return result;
     }
 
     private static <T> T deserializeWithVersionOr(UntypedResultSet.Row row, String dataColumn, LocalVersionedSerializer<T> serializer, Supplier<T> defaultSupplier) throws IOException
@@ -561,154 +598,180 @@ public class AccordKeyspace
                      "WHERE store_id = ? " +
                      "AND txn_id=(?, ?, ?)";
 
-        return executeOnceInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
-                                   commandStore.id(),
-                                   txnId.msb, txnId.lsb, txnId.node.id);
+        return executeInternal(String.format(cql, ACCORD_KEYSPACE_NAME, COMMANDS),
+                               commandStore.id(),
+                               txnId.msb, txnId.lsb, txnId.node.id);
     }
 
-    public static void loadCommand(AccordCommandStore commandStore, AccordCommand command)
+    public static Command loadCommand(AccordCommandStore commandStore, TxnId txnId)
     {
-        Preconditions.checkArgument(!command.isLoaded());
-        TxnId txnId = command.txnId();
         commandStore.checkNotInStoreThread();
 
-        UntypedResultSet result = loadCommandRow(commandStore, command.txnId());
+        UntypedResultSet rows = loadCommandRow(commandStore, txnId);
 
-        if (result.isEmpty())
+        if (rows.isEmpty())
         {
-            command.setEmpty();
-            return;
+            return null;
         }
 
         try
         {
-            UntypedResultSet.Row row = result.one();
-            Preconditions.checkState(deserializeTimestampOrNull(row, "txn_id", TxnId::fromBits).equals(txnId));
-            command.status.load(SaveStatus.values()[row.getInt("status")]);
-            command.homeKey.load(deserializeOrNull(row.getBlob("home_key"), CommandsSerializers.routingKey));
-            command.progressKey.load(deserializeOrNull(row.getBlob("progress_key"), CommandsSerializers.routingKey));
-            command.route.load(deserializeOrNull(row.getBlob("route"), CommandsSerializers.route));
+            UntypedResultSet.Row row = rows.one();
+            Invariants.checkState(deserializeTimestampOrNull(row, "txn_id", TxnId::fromBits).equals(txnId));
+            SaveStatus status = SaveStatus.values()[row.getInt("status")];
+            CommonAttributes.Mutable attributes = new CommonAttributes.Mutable(txnId);
             // TODO: something less brittle than ordinal, more efficient than values()
-            command.durability.load(Status.Durability.values()[row.getInt("durability", 0)]);
-            command.partialTxn.load(deserializeOrNull(row.getBlob("txn"), CommandsSerializers.partialTxn));
-            command.kind.load(row.has("kind") ? Txn.Kind.values()[row.getInt("kind")] : null);
-            command.executeAt.load(deserializeTimestampOrNull(row, "execute_at", Timestamp::fromBits));
-            command.promised.load(deserializeTimestampOrNull(row, "promised_ballot", Ballot::fromBits));
-            command.accepted.load(deserializeTimestampOrNull(row, "accepted_ballot", Ballot::fromBits));
-            command.partialDeps.load(deserializeOrNull(row.getBlob("dependencies"), CommandsSerializers.partialDeps));
-            command.writes.load(deserializeWithVersionOr(row, "writes", CommandsSerializers.writes, () -> null));
-            command.result.load(deserializeWithVersionOr(row, "result", CommandsSerializers.result, () -> null));
-            command.waitingOnCommit.load(deserializeTxnIdNavigableSet(row, "waiting_on_commit"));
-            command.blockingCommitOn.load(deserializeTxnIdNavigableSet(row, "blocking_commit_on"));
-            command.waitingOnApply.load(deserializeWaitingOnApply(row.getMap("waiting_on_apply", BytesType.instance, BytesType.instance)));
-            command.blockingApplyOn.load(deserializeTxnIdNavigableSet(row, "blocking_apply_on"));
-            command.storedListeners.load(deserializeListeners(row, "listeners"));
+            attributes.durability(Status.Durability.values()[row.getInt("durability", 0)]);
+            attributes.homeKey(deserializeOrNull(row.getBlob("home_key"), CommandsSerializers.routingKey));
+            attributes.progressKey(deserializeOrNull(row.getBlob("progress_key"), CommandsSerializers.routingKey));
+            attributes.route(deserializeOrNull(row.getBlob("route"), CommandsSerializers.route));
+            attributes.partialTxn(deserializeOrNull(row.getBlob("txn"), CommandsSerializers.partialTxn));
+            attributes.partialDeps(deserializeOrNull(row.getBlob("dependencies"), CommandsSerializers.partialDeps));
+            attributes.setListeners(deserializeListeners(row, "listeners"));
+
+            Timestamp executeAt = deserializeTimestampOrNull(row, "execute_at", Timestamp::fromBits);
+            Ballot promised = deserializeTimestampOrNull(row, "promised_ballot", Ballot::fromBits);
+            Ballot accepted = deserializeTimestampOrNull(row, "accepted_ballot", Ballot::fromBits);
+            ImmutableSortedSet<TxnId> waitingOnCommit = deserializeTxnIdNavigableSet(row, "waiting_on_commit");
+            ImmutableSortedMap<Timestamp, TxnId> waitingOnApply = deserializeWaitingOnApply(row.getMap("waiting_on_apply", BytesType.instance, BytesType.instance));
+            Writes writes = deserializeWithVersionOr(row, "writes", CommandsSerializers.writes, () -> null);
+            Result result = deserializeWithVersionOr(row, "result", CommandsSerializers.result, () -> null);
+
+            switch (status.status)
+            {
+                case NotWitnessed:
+                    return Command.SerializerSupport.notWitnessed(attributes, promised);
+                case PreAccepted:
+                    return Command.SerializerSupport.preaccepted(attributes, executeAt, promised);
+                case AcceptedInvalidate:
+                case Accepted:
+                case PreCommitted:
+                    return Command.SerializerSupport.accepted(attributes, status, executeAt, promised, accepted);
+                case Committed:
+                case ReadyToExecute:
+                    return Command.SerializerSupport.committed(attributes, status, executeAt, promised, accepted, waitingOnCommit, waitingOnApply);
+                case PreApplied:
+                case Applied:
+                case Invalidated:
+                    return Command.SerializerSupport.executed(attributes, status, executeAt, promised, accepted, waitingOnCommit, waitingOnApply, writes, result);
+                default:
+                    throw new IllegalStateException("Unhandled status " + status);
+            }
         }
         catch (IOException e)
         {
-            logger.error("Exception loading AccordCommand " + command.txnId(), e);
+            logger.error("Exception loading AccordCommand " + txnId, e);
             throw new RuntimeException(e);
         }
         catch (Throwable t)
         {
-            logger.error("Exception loading AccordCommand " + command.txnId(), t);
+            logger.error("Exception loading AccordCommand " + txnId, t);
             throw t;
         }
     }
 
-    private static void addSeriesMutations(AccordCommandsForKey.Series series,
+    private static void addSeriesMutations(ImmutableSortedMap<Timestamp, ByteBuffer> prev,
+                                           ImmutableSortedMap<Timestamp, ByteBuffer> value,
+                                           SeriesKind kind,
                                            PartitionUpdate.Builder partitionBuilder,
                                            Row.Builder rowBuilder,
                                            long timestampMicros,
                                            int nowInSeconds)
     {
-        if (!series.map.hasModifications())
+        if (prev == value)
             return;
 
-        Row.Deletion deletion = series.map.hasDeletions() ?
+        Set<Timestamp> deletions = Sets.difference(prev.keySet(), value.keySet());
+
+        Row.Deletion deletion = !deletions.isEmpty() ?
                                 Row.Deletion.regular(new DeletionTime(timestampMicros, nowInSeconds)) :
                                 null;
-        ByteBuffer ordinalBytes = bytes(series.kind.ordinal());
-        series.map.forEachAddition((timestamp, bytes) -> {
+        ByteBuffer ordinalBytes = bytes(kind.ordinal());
+        value.forEach((timestamp, bytes) -> {
+            if (bytes.equals(prev.get(timestamp)))
+                return;
             rowBuilder.newRow(Clustering.make(ordinalBytes, serializeTimestamp(timestamp)));
             rowBuilder.addCell(live(CommandsForKeyColumns.data, timestampMicros, bytes));
             partitionBuilder.add(rowBuilder.build());
         });
-        series.map.forEachDeletion(timestamp -> {
+        deletions.forEach(timestamp -> {
             rowBuilder.newRow(Clustering.make(ordinalBytes, serializeTimestamp(timestamp)));
             rowBuilder.addRowDeletion(deletion);
             partitionBuilder.add(rowBuilder.build());
         });
     }
 
+    private static void addSeriesMutations(CommandsForKey original,
+                                           CommandsForKey cfk,
+                                           SeriesKind kind,
+                                           PartitionUpdate.Builder partitionBuilder,
+                                           Row.Builder rowBuilder,
+                                           long timestampMicros,
+                                           int nowInSeconds)
+    {
+        addSeriesMutations(kind.getValues(original), kind.getValues(cfk), kind, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
+    }
+
     private static DecoratedKey makeKey(CommandStore commandStore, PartitionKey key)
     {
         ByteBuffer pk = CommandsForKeyColumns.keyComparator.make(commandStore.id(),
                                                                   serializeKey(key)).serializeAsPartitionKey();
-        return CommandsForKey.partitioner.decorateKey(pk);
+        return CommandsForKeys.partitioner.decorateKey(pk);
     }
 
-    private static DecoratedKey makeKey(AccordCommandsForKey cfk)
+    private static DecoratedKey makeKey(CommandStore commandStore, CommandsForKey cfk)
     {
-        return makeKey(cfk.commandStore(), cfk.key());
+        return makeKey(commandStore, (PartitionKey) cfk.key());
     }
 
-    public static Mutation getCommandsForKeyMutation(AccordCommandStore commandStore, AccordCommandsForKey cfk, long timestampMicros)
+    public static Mutation getCommandsForKeyMutation(AccordCommandStore commandStore, AccordSafeCommandsForKey liveCfk, long timestampMicros)
     {
-        Preconditions.checkArgument(cfk.hasModifications());
-
-        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
-
-        int expectedRows = (CommandsForKeyColumns.hasStaticChanges(cfk) ? 1 : 0)
-                           + cfk.byId.map.totalModifications()
-                           + cfk.byExecuteAt.map.totalModifications();
-
-        PartitionUpdate.Builder partitionBuilder = new PartitionUpdate.Builder(CommandsForKey,
-                                                                               makeKey(cfk),
-                                                                               CommandsForKeyColumns.columnsFor(cfk),
-                                                                               expectedRows);
-
-        Row.Builder rowBuilder = BTreeRow.unsortedBuilder();
-        boolean updateStaticRow = cfk.maxTimestamp.hasModifications()
-                                  || cfk.lastExecutedTimestamp.hasModifications()
-                                  || cfk.lastExecutedMicros.hasModifications()
-                                  || cfk.lastWriteTimestamp.hasModifications()
-                                  || cfk.blindWitnessed.hasModifications();
-        if (updateStaticRow)
+        try
         {
-            rowBuilder.newRow(Clustering.STATIC_CLUSTERING);
+            CommandsForKey cfk = liveCfk.current();
+            CommandsForKey original = liveCfk.original();
+            Invariants.checkArgument(original != cfk);
+            // TODO: convert to byte arrays
+            ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
 
-            if (cfk.maxTimestamp.hasModifications())
-                rowBuilder.addCell(live(CommandsForKeyColumns.max_timestamp, timestampMicros, serializeTimestamp(cfk.maxTimestamp.get())));
+            int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
-            if (cfk.lastExecutedTimestamp.hasModifications())
-                rowBuilder.addCell(live(CommandsForKeyColumns.last_executed_timestamp, timestampMicros, serializeTimestamp(cfk.lastExecutedTimestamp.get())));
+            boolean hasStaticChanges = CommandsForKeyColumns.hasStaticChanges(original, cfk);
+            int expectedRows = (hasStaticChanges ? 1 : 0)
+                               + estimateMapChanges(c -> c.byId().commands, original, cfk)
+                               + estimateMapChanges(c -> c.byExecuteAt().commands, original, cfk);
 
-            if (cfk.lastExecutedMicros.hasModifications())
-                rowBuilder.addCell(live(CommandsForKeyColumns.last_executed_micros, timestampMicros, ByteBufferUtil.bytes(cfk.lastExecutedMicros.get())));
+            PartitionUpdate.Builder partitionBuilder = new PartitionUpdate.Builder(CommandsForKeys,
+                                                                                   makeKey(commandStore, cfk),
+                                                                                   CommandsForKeyColumns.columnsFor(original, cfk),
+                                                                                   expectedRows);
 
-            if (cfk.lastWriteTimestamp.hasModifications())
-                rowBuilder.addCell(live(CommandsForKeyColumns.last_write_timestamp, timestampMicros, serializeTimestamp(cfk.lastWriteTimestamp.get())));
+            Row.Builder rowBuilder = BTreeRow.unsortedBuilder();
 
-            if (cfk.blindWitnessed.hasModifications())
-                addStoredSetChanges(rowBuilder, CommandsForKeyColumns.blind_witnessed,
-                                    timestampMicros, nowInSeconds, cfk.blindWitnessed,
-                                    AccordKeyspace::serializeTimestamp);
+            if (hasStaticChanges)
+            {
+                rowBuilder.newRow(Clustering.STATIC_CLUSTERING);
+                addCellIfModified(CommandsForKeyColumns.max_timestamp, CommandsForKey::max, AccordKeyspace::serializeTimestamp, rowBuilder, timestampMicros, original, cfk);
+                addCellIfModified(CommandsForKeyColumns.last_executed_timestamp, CommandsForKey::lastExecutedTimestamp, AccordKeyspace::serializeTimestamp, rowBuilder, timestampMicros, original, cfk);
+                addCellIfModified(CommandsForKeyColumns.last_executed_micros, CommandsForKey::lastExecutedMicros, accessor::valueOf, rowBuilder, timestampMicros, original, cfk);
+                addCellIfModified(CommandsForKeyColumns.last_write_timestamp, CommandsForKey::lastWriteTimestamp, AccordKeyspace::serializeTimestamp, rowBuilder, timestampMicros, original, cfk);
+                Row row = rowBuilder.build();
+                if (!row.isEmpty())
+                    partitionBuilder.add(row);
+            }
 
-            partitionBuilder.add(rowBuilder.build());
+            addSeriesMutations(original, cfk, SeriesKind.BY_ID, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
+            addSeriesMutations(original, cfk, SeriesKind.BY_EXECUTE_AT, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
+
+            PartitionUpdate update = partitionBuilder.build();
+            if (update.isEmpty())
+                return null;
+            return new Mutation(update);
         }
-
-        addSeriesMutations(cfk.byId, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
-        addSeriesMutations(cfk.byExecuteAt, partitionBuilder, rowBuilder, timestampMicros, nowInSeconds);
-
-        return new Mutation(partitionBuilder.build());
-    }
-
-    public static AccordCommandsForKey loadCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
-    {
-        AccordCommandsForKey commandsForKey = new AccordCommandsForKey(commandStore, key);
-        loadCommandsForKey(commandsForKey);
-        return commandsForKey;
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     private static <T> ByteBuffer cellValue(Cell<T> cell)
@@ -730,7 +793,7 @@ public class AccordKeyspace
 
     public static SinglePartitionReadCommand getCommandsForKeyRead(CommandStore commandStore, PartitionKey key, int nowInSeconds)
     {
-        return SinglePartitionReadCommand.create(CommandsForKey, nowInSeconds,
+        return SinglePartitionReadCommand.create(CommandsForKeys, nowInSeconds,
                                                  CommandsForKeyColumns.allColumns,
                                                  RowFilter.NONE,
                                                  DataLimits.NONE,
@@ -738,54 +801,43 @@ public class AccordKeyspace
                                                  FULL_PARTITION);
     }
 
-    public static void loadCommandsForKey(AccordCommandsForKey cfk)
+    public static CommandsForKey loadCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
     {
-        Preconditions.checkArgument(!cfk.isLoaded());
-        ((AccordCommandStore) cfk.commandStore()).checkNotInStoreThread();
+        commandStore.checkNotInStoreThread();
         long timestampMicros = TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
-        SinglePartitionReadCommand command = getCommandsForKeyRead(cfk.commandStore(), cfk.key(), nowInSeconds);
+        SinglePartitionReadCommand command = getCommandsForKeyRead(commandStore, key, nowInSeconds);
 
-        EnumMap<SeriesKind, TreeMap<Timestamp, ByteBuffer>> seriesMaps = new EnumMap<>(SeriesKind.class);
+        EnumMap<SeriesKind, ImmutableSortedMap.Builder<Timestamp, ByteBuffer>> seriesMaps = new EnumMap<>(SeriesKind.class);
         for (SeriesKind kind : SeriesKind.values())
-            seriesMaps.put(kind, new TreeMap<>());
+            seriesMaps.put(kind, new ImmutableSortedMap.Builder<>(Comparator.naturalOrder()));
 
         try(ReadExecutionController controller = command.executionController();
             FilteredPartitions partitions = FilteredPartitions.filter(command.executeLocally(controller), nowInSeconds))
         {
             if (!partitions.hasNext())
             {
-                cfk.setEmpty();
-                return;
+                return null;
             }
+
+            Timestamp max = Timestamp.NONE;
+            Timestamp lastExecutedTimestamp = Timestamp.NONE;
+            long lastExecutedMicros = 0;
+            Timestamp lastWriteTimestamp = Timestamp.NONE;
 
             try (RowIterator partition = partitions.next())
             {
                 // empty static row will be interpreted as all null cells which will cause everything to be initialized
                 Row staticRow = partition.staticRow();
-                Cell<?> cell = staticRow.getCell(CommandsForKeyColumns.max_timestamp);
-                cfk.maxTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::fromBits)
-                                                                          : AccordCommandsForKey.Defaults.maxTimestamp);
+                max = deserializeTimestampOrDefault(staticRow, CommandsForKeyColumns.max_timestamp, Timestamp::fromBits, max);
+                lastExecutedTimestamp = deserializeTimestampOrDefault(staticRow, CommandsForKeyColumns.last_executed_timestamp, Timestamp::fromBits, lastExecutedTimestamp);
 
-                cell = staticRow.getCell(CommandsForKeyColumns.last_executed_timestamp);
-                cfk.lastExecutedTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::fromBits)
-                                                                                   : AccordCommandsForKey.Defaults.lastExecutedTimestamp);
+                ByteBuffer microsBytes = bytesOrNull(staticRow, CommandsForKeyColumns.last_executed_micros);
+                if (microsBytes != null)
+                    lastExecutedMicros = microsBytes.getLong(microsBytes.position());
 
-                cell = staticRow.getCell(CommandsForKeyColumns.last_executed_micros);
-                ByteBuffer microsBytes = cell != null && !cell.isTombstone() ? cellValue(cell) : null;
-                cfk.lastExecutedMicros.load(microsBytes != null ? microsBytes.getLong(microsBytes.position())
-                                                                : AccordCommandsForKey.Defaults.lastExecutedMicros);
-
-                cell = staticRow.getCell(CommandsForKeyColumns.last_write_timestamp);
-                cfk.lastWriteTimestamp.load(cell != null && !cell.isTombstone() ? deserializeTimestampOrNull(cellValue(cell), Timestamp::fromBits)
-                                                                                   : AccordCommandsForKey.Defaults.lastWriteTimestamp);
-
-                TreeSet<Timestamp> blindWitnessed = new TreeSet<>();
-                ComplexColumnData cmplx = staticRow.getComplexColumnData(CommandsForKeyColumns.blind_witnessed);
-                if (cmplx != null)
-                    cmplx.forEach(c -> blindWitnessed.add(deserializeTimestampOrNull(c.path().get(0), Timestamp::fromBits)));
-                cfk.blindWitnessed.load(blindWitnessed);
+                lastWriteTimestamp = deserializeTimestampOrDefault(staticRow, CommandsForKeyColumns.last_write_timestamp, Timestamp::fromBits, lastWriteTimestamp);
 
                 while (partition.hasNext())
                 {
@@ -799,14 +851,16 @@ public class AccordKeyspace
                     seriesMaps.get(SeriesKind.values()[ordinal]).put(timestamp, data);
                 }
             }
-            Preconditions.checkState(!partitions.hasNext());
+            Invariants.checkState(!partitions.hasNext());
 
-            cfk.byId.map.load(seriesMaps.get(SeriesKind.BY_ID));
-            cfk.byExecuteAt.map.load(seriesMaps.get(SeriesKind.BY_EXECUTE_AT));
+            return CommandsForKey.SerializerSupport.create(key, max, lastExecutedTimestamp, lastExecutedMicros, lastWriteTimestamp,
+                                                           CommandsForKeySerializer.loader,
+                                                           seriesMaps.get(SeriesKind.BY_ID).build(),
+                                                           seriesMaps.get(SeriesKind.BY_EXECUTE_AT).build());
         }
         catch (Throwable t)
         {
-            logger.error("Exception loading AccordCommandsForKey " + cfk.key(), t);
+            logger.error("Exception loading AccordCommandsForKey " + key, t);
             throw t;
         }
     }

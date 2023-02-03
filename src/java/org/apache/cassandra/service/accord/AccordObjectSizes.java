@@ -18,11 +18,25 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.nio.ByteBuffer;
+import java.util.Map;
+import java.util.function.ToLongFunction;
+
+import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.ImmutableSortedSet;
+
 import accord.api.Key;
+import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.impl.CommandsForKey;
+import accord.local.Command;
+import accord.local.CommandListener;
+import accord.local.CommonAttributes;
 import accord.local.Node;
+import accord.local.SaveStatus;
 import accord.primitives.AbstractKeys;
 import accord.primitives.AbstractRanges;
+import accord.primitives.Ballot;
 import accord.primitives.Deps;
 import accord.primitives.FullKeyRoute;
 import accord.primitives.FullRangeRoute;
@@ -37,16 +51,21 @@ import accord.primitives.Ranges;
 import accord.primitives.RoutingKeys;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+
+import static org.apache.cassandra.utils.ObjectSizes.measure;
 
 public class AccordObjectSizes
 {
@@ -60,13 +79,13 @@ public class AccordObjectSizes
         return ((AccordRoutingKey) key).estimatedSizeOnHeap();
     }
 
-    private static final long EMPTY_RANGE_SIZE = ObjectSizes.measure(TokenRange.fullRange(""));
+    private static final long EMPTY_RANGE_SIZE = measure(TokenRange.fullRange(""));
     public static long range(Range range)
     {
         return EMPTY_RANGE_SIZE + key(range.start()) + key(range.end());
     }
 
-    private static final long EMPTY_RANGES_SIZE = ObjectSizes.measure(Ranges.of());
+    private static final long EMPTY_RANGES_SIZE = measure(Ranges.of());
     public static long ranges(Ranges ranges)
     {
         long size = EMPTY_RANGES_SIZE;
@@ -77,7 +96,7 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long EMPTY_KEYS_SIZE = ObjectSizes.measure(Keys.of());
+    private static final long EMPTY_KEYS_SIZE = measure(Keys.of());
     public static long keys(Keys keys)
     {
         long size = EMPTY_KEYS_SIZE;
@@ -106,13 +125,13 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long EMPTY_ROUTING_KEYS_SIZE = ObjectSizes.measure(RoutingKeys.of());
+    private static final long EMPTY_ROUTING_KEYS_SIZE = measure(RoutingKeys.of());
     public static long routingKeys(RoutingKeys keys)
     {
         return EMPTY_ROUTING_KEYS_SIZE + routingKeysOnly(keys);
     }
 
-    private static final long EMPTY_FULL_KEY_ROUTE_SIZE = ObjectSizes.measure(new FullKeyRoute(new TokenKey(null, null), new RoutingKey[0]));
+    private static final long EMPTY_FULL_KEY_ROUTE_SIZE = measure(new FullKeyRoute(new TokenKey(null, null), new RoutingKey[0]));
     public static long fullKeyRoute(FullKeyRoute route)
     {
         return EMPTY_FULL_KEY_ROUTE_SIZE
@@ -120,7 +139,7 @@ public class AccordObjectSizes
                + key(route.homeKey()); // TODO: we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
     }
 
-    private static final long EMPTY_PARTIAL_KEY_ROUTE_KEYS_SIZE = ObjectSizes.measure(new PartialKeyRoute(Ranges.EMPTY, new TokenKey(null, null), new RoutingKey[0]));
+    private static final long EMPTY_PARTIAL_KEY_ROUTE_KEYS_SIZE = measure(new PartialKeyRoute(Ranges.EMPTY, new TokenKey(null, null), new RoutingKey[0]));
     public static long partialKeyRoute(PartialKeyRoute route)
     {
         return EMPTY_PARTIAL_KEY_ROUTE_KEYS_SIZE
@@ -137,7 +156,7 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long EMPTY_FULL_RANGE_ROUTE_SIZE = ObjectSizes.measure(new FullRangeRoute(new TokenKey(null, null), new Range[0]));
+    private static final long EMPTY_FULL_RANGE_ROUTE_SIZE = measure(new FullRangeRoute(new TokenKey(null, null), new Range[0]));
     public static long fullRangeRoute(FullRangeRoute route)
     {
         return EMPTY_FULL_RANGE_ROUTE_SIZE
@@ -145,7 +164,7 @@ public class AccordObjectSizes
                + key(route.homeKey()); // TODO: we will probably dedup homeKey, serializer dependent, but perhaps this is an acceptable error
     }
 
-    private static final long EMPTY_PARTIAL_RANGE_ROUTE_KEYS_SIZE = ObjectSizes.measure(new PartialRangeRoute(Ranges.EMPTY, new TokenKey(null, null), new Range[0]));
+    private static final long EMPTY_PARTIAL_RANGE_ROUTE_KEYS_SIZE = measure(new PartialRangeRoute(Ranges.EMPTY, new TokenKey(null, null), new Range[0]));
     public static long partialRangeRoute(PartialRangeRoute route)
     {
         return EMPTY_PARTIAL_RANGE_ROUTE_KEYS_SIZE
@@ -168,7 +187,7 @@ public class AccordObjectSizes
         }
     }
 
-    private static final long EMPTY_TXN = ObjectSizes.measure(new PartialTxn.InMemory(null, null, null, null, null, null));
+    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(null, null, null, null, null, null));
     public static long txn(PartialTxn txn)
     {
         long size = EMPTY_TXN;
@@ -214,7 +233,7 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long EMPTY_WRITES_SIZE = ObjectSizes.measure(new Writes(null, null, null));
+    private static final long EMPTY_WRITES_SIZE = measure(new Writes(null, null, null));
     public static long writes(Writes writes)
     {
         long size = EMPTY_WRITES_SIZE;
@@ -225,4 +244,127 @@ public class AccordObjectSizes
         return size;
     }
 
+    private static final long EMPTY_COMMAND_LISTENER = measure(new Command.Listener(null));
+    private static final long EMPTY_CFK_LISTENER = measure(new CommandsForKey.Listener((Key) null));
+    public static long listener(CommandListener listener)
+    {
+        if (listener.isTransient())
+            return 0;
+        if (listener instanceof Command.Listener)
+            return EMPTY_COMMAND_LISTENER + timestamp(((Command.Listener) listener).txnId());
+        if (listener instanceof CommandsForKey.Listener)
+            return EMPTY_CFK_LISTENER + key(((CommandsForKey.Listener) listener).key());
+        throw new IllegalArgumentException("Unhandled listener type: " + listener.getClass());
+    }
+
+    private static class CommandEmptySizes
+    {
+        private static final CommonAttributes EMPTY_ATTRS = new CommonAttributes.Mutable((TxnId) null);
+        final static long NOT_WITNESSED = measure(Command.SerializerSupport.notWitnessed(EMPTY_ATTRS, Ballot.ZERO));
+        final static long PREACCEPTED = measure(Command.SerializerSupport.preaccepted(EMPTY_ATTRS, null, null));
+        final static long ACCEPTED = measure(Command.SerializerSupport.accepted(EMPTY_ATTRS, SaveStatus.Accepted, null, null, null));
+        final static long COMMITTED = measure(Command.SerializerSupport.committed(EMPTY_ATTRS, SaveStatus.Committed, null, null, null, ImmutableSortedSet.of(), ImmutableSortedMap.of()));
+        final static long EXECUTED = measure(Command.SerializerSupport.executed(EMPTY_ATTRS, SaveStatus.Applied, null, null, null, ImmutableSortedSet.of(), ImmutableSortedMap.of(), null, null));
+
+
+        private static long emptySize(Command command)
+        {
+            switch (command.status())
+            {
+                case NotWitnessed:
+                    return NOT_WITNESSED;
+                case PreAccepted:
+                    return PREACCEPTED;
+                case AcceptedInvalidate:
+                case Accepted:
+                case PreCommitted:
+                    return ACCEPTED;
+                case Committed:
+                case ReadyToExecute:
+                    return COMMITTED;
+                case PreApplied:
+                case Applied:
+                case Invalidated:
+                    return EXECUTED;
+                default:
+                    throw new IllegalStateException("Unhandled status " + command.status());
+            }
+        }
+    }
+
+    private static <T> long sizeNullable(T value, ToLongFunction<T> measure)
+    {
+        if (value == null)
+            return 0;
+        return measure.applyAsLong(value);
+    }
+
+    public static long command(Command command)
+    {
+        long size = CommandEmptySizes.emptySize(command);
+        size += sizeNullable(command.homeKey(), AccordObjectSizes::key);
+        size += sizeNullable(command.progressKey(), AccordObjectSizes::key);
+        size += sizeNullable(command.route(), AccordObjectSizes::route);
+        size += sizeNullable(command.promised(), AccordObjectSizes::timestamp);
+        for (CommandListener listener : command.listeners())
+            size += listener(listener);
+
+        if (!command.isWitnessed())
+            return size;
+
+        Command.PreAccepted preaccepted = command.asWitnessed();
+        size += timestamp(preaccepted.executeAt());
+        size += sizeNullable(preaccepted.partialTxn(), AccordObjectSizes::txn);
+        size += sizeNullable(preaccepted.partialDeps(), AccordObjectSizes::dependencies);
+
+        if (!command.isAccepted())
+            return size;
+
+        Command.Accepted accepted = command.asAccepted();
+        size += timestamp(accepted.accepted());
+
+        if (!command.isCommitted())
+            return size;
+
+        Command.Committed committed = command.asCommitted();
+        size += TIMESTAMP_SIZE * committed.waitingOnCommit().size();
+        size += TIMESTAMP_SIZE * 2 * committed.waitingOnApply().size();
+
+        if (!command.isExecuted())
+            return size;
+
+        Command.Executed executed = command.asExecuted();
+        size += sizeNullable(executed.writes(), AccordObjectSizes::writes);
+        Result result = executed.result();
+        if (result != null)
+            size += ((TxnData) result).estimatedSizeOnHeap();
+
+        return size;
+    }
+
+    private static long cfkSeriesSize(ImmutableSortedMap<Timestamp, ByteBuffer> series)
+    {
+        long size = 0;
+        for (Map.Entry<Timestamp, ByteBuffer> entry : series.entrySet())
+        {
+            size += timestamp(entry.getKey());
+            size += ByteBufferUtil.estimatedSizeOnHeap(entry.getValue());
+        }
+        return size;
+    }
+
+    private static long EMPTY_CFK_SIZE = measure(CommandsForKey.SerializerSupport.create(null, null, null, 0, null, null,
+                                                                                         ImmutableSortedMap.of(),
+                                                                                         ImmutableSortedMap.of()));
+    public static long commandsForKey(CommandsForKey cfk)
+    {
+        long size = EMPTY_CFK_SIZE;
+        size += key(cfk.key());
+        size += timestamp(cfk.max());
+        size += timestamp(cfk.lastExecutedTimestamp());
+        size += timestamp(cfk.lastWriteTimestamp());
+        size += cfkSeriesSize((ImmutableSortedMap<Timestamp, ByteBuffer>) cfk.byId().commands);
+        size += cfkSeriesSize((ImmutableSortedMap<Timestamp, ByteBuffer>) cfk.byExecuteAt().commands);
+        return size;
+    }
 }
