@@ -341,7 +341,7 @@ class Shell(cmd.Cmd):
                  username=None, encoding=None, stdin=None, tty=True,
                  completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
                  cqlver=None, keyspace=None,
-                 tracing_enabled=False, expand_enabled=False,
+                 tracing_enabled=False, expand_enabled=False, allow_filtering=False,
                  display_nanotime_format=DEFAULT_NANOTIME_FORMAT,
                  display_timestamp_format=DEFAULT_TIMESTAMP_FORMAT,
                  display_date_format=DEFAULT_DATE_FORMAT,
@@ -374,6 +374,7 @@ class Shell(cmd.Cmd):
         self.tracing_enabled = tracing_enabled
         self.page_size = self.default_page_size
         self.expand_enabled = expand_enabled
+        self.filtering_enabled = allow_filtering
         if use_conn:
             self.conn = use_conn
         else:
@@ -967,7 +968,10 @@ class Shell(cmd.Cmd):
         if not statement:
             return False, None
 
-        future = self.session.execute_async(statement, trace=self.tracing_enabled)
+        query_to_execute = statement.query_string
+        if self.filtering_enabled:
+            query_to_execute = statement.query_string[:-1] + " ALLOW FILTERING;"
+        future = self.session.execute_async(query_to_execute, trace=self.tracing_enabled)
         result = None
         try:
             result = future.result()
@@ -1671,6 +1675,11 @@ class Shell(cmd.Cmd):
           EXPAND with no arguments shows the current value of expand setting.
         """
         self.expand_enabled = SwitchCommand("EXPAND", "Expanded output").execute(self.expand_enabled, parsed, self.printerr)
+
+    def do_filtering(self, parsed):
+        """
+        """
+        self.filtering_enabled = SwitchCommand("FILTERING", "Allow filtering on tables").execute(self.filtering_enabled, parsed, self.printerr)
 
     def do_consistency(self, parsed):
         """
