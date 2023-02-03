@@ -90,4 +90,57 @@ public class DumpTest
 
         Assert.assertEquals(values.stream().filter(Objects::isNull).count(), nullcount);
     }
+
+    @Test
+    public void testDumpQueryValuesShouldHaveSeperator()
+    {
+        String keyspace = "ks1";
+        int value = 1;
+        List<ByteBuffer> values = Arrays.asList(ByteBuffer.wrap(new byte[]{ (byte) value }),
+                                                ByteBuffer.wrap(new byte[]{ (byte) value }),
+                                                ByteBuffer.wrap(new byte[]{ (byte) value }));
+
+        QueryOptions queryOptions = QueryOptions.create(
+        ConsistencyLevel.LOCAL_QUORUM,
+        values,
+        true,
+        1,
+        null,
+        null,
+        ProtocolVersion.CURRENT,
+        keyspace
+        );
+
+        ValueIn mockValueIn = Mockito.mock(ValueIn.class);
+        Mockito.when(mockValueIn.text()).thenReturn("INSERT INTO ks1.t1 (k, v1, v2) VALUES (?, ?, ?)");
+
+        WireIn mockWireIn = Mockito.mock(WireIn.class);
+        Mockito.when(mockWireIn.read(FullQueryLogger.QUERY)).thenReturn(mockValueIn);
+
+        StringBuilder sb = new StringBuilder();
+        Dump.dumpQuery(queryOptions, mockWireIn, sb);
+
+        String[] lines = sb.toString().split(System.lineSeparator());
+        boolean valuesStarted = false;
+        int valueCount = 0;
+        int separatorCount = 0;
+        for (String line : lines)
+        {
+            if (!valuesStarted && line.startsWith("Values:"))
+            {
+                valuesStarted = true;
+                continue;
+            }
+            if (valuesStarted)
+            {
+                valueCount++;
+                if (valueCount % 2 == 0)
+                {
+                    Assert.assertEquals("-----", line);
+                    separatorCount++;
+                }
+            }
+        }
+        Assert.assertEquals(values.size(), separatorCount);
+    }
 }
