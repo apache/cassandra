@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.disk;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
 
 import org.apache.cassandra.io.sstable.Descriptor;
 
@@ -32,6 +31,11 @@ public class FileUtils
     {
         File srcDir = new File("test/data/legacy-sai/" + version);
         copyDirectory(srcDir, descriptor.directory.toJavaIOFile());
-        Arrays.stream(descriptor.directory.tryListNames()).forEach(System.out::println);
+    }
+
+    public static void copySSTablesAndIndexes(File destination, String version) throws IOException
+    {
+        File srcDir = new File("test/data/legacy-sai/" + version);
+        copyDirectory(srcDir, destination);
     }
 }
