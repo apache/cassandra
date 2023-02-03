@@ -21,6 +21,8 @@ package org.apache.cassandra.service.accord;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.base.Preconditions;
+
 import accord.api.ConfigurationService;
 import accord.local.Node;
 import accord.topology.Topology;
@@ -59,9 +61,15 @@ public class AccordConfigurationService implements ConfigurationService
     }
 
     @Override
-    public void fetchTopologyForEpoch(long epoch)
+    public synchronized void fetchTopologyForEpoch(long epoch)
     {
-        throw new UnsupportedOperationException();
+        Topology current = currentTopology();
+        Preconditions.checkArgument(epoch > current.epoch(), "Requested to fetch epoch %d which is <= %d (current epoch)", epoch, current.epoch());
+        while (current.epoch() < epoch)
+        {
+            current = AccordTopologyUtils.createTopology(epochs.size());
+            unsafeAddEpoch(current);
+        }
     }
 
     @Override
@@ -77,9 +85,16 @@ public class AccordConfigurationService implements ConfigurationService
         }
     }
 
-    public void createEpochFromConfig()
+    public synchronized void createEpochFromConfig()
     {
+        Topology current = currentTopology();
         Topology topology = AccordTopologyUtils.createTopology(epochs.size());
+        if (current.equals(topology.withEpoch(current.epoch()))) return;
+        unsafeAddEpoch(topology);
+    }
+
+    private void unsafeAddEpoch(Topology topology)
+    {
         epochs.add(topology);
         for (Listener listener : listeners)
             listener.onTopologyUpdate(topology);

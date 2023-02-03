@@ -435,7 +435,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         }
         catch (Throwable t)
         {
-           logger.error("Unexpected error with transaction", t);
+            //TODO remove before merge to trunk
+           logger.error("Unexpected error with transaction: {}", t.toString());
            throw t;
         }
     }

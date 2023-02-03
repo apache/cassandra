@@ -33,5 +33,11 @@
         <arg value="-Paccord_artifactId=cassandra-accord" />
         <arg value="-Paccord_version=${version}" />
       </exec>
+      <!-- when dependencies are copied into the build dir they may be ignored if already present, so cleanup to pick up latest changes -->
+      <delete>
+        <!-- Why does this not use ${build.dir.lib}/jar and ${test.lib}/jar?  The reason is that filesets never finds files in that case -->
+        <!-- To handle the case that build or lib dirs do not exist yet, had to push the logic into includes, other solution was to create a task and use if conditions there -->
+        <fileset dir="${basedir}" includes="build/lib/jars/cassandra-accord-*.jar,build/test/lib/jars/cassandra-accord-*.jar" />
+      </delete>
     </target>
 </project>
