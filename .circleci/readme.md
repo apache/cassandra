@@ -78,6 +78,7 @@ generate.sh -m \
   -e REPEATED_JVM_DTESTS_COUNT=500 \
   -e REPEATED_JVM_UPGRADE_DTESTS_COUNT=500 \
   -e REPEATED_DTESTS_COUNT=500 \
+  -e REPEATED_LARGE_DTESTS_COUNT=100 \
   -e REPEATED_UPGRADE_DTESTS_COUNT=25 \
   -e REPEATED_ANT_TEST_COUNT=500
 ```
@@ -94,6 +95,7 @@ generate.sh -m \
   -e REPEATED_UTESTS_LONG=org.apache.cassandra.io.sstable.CQLSSTableWriterLongTest#testWideRow \
   -e REPEATED_UTESTS_STRESS=org.apache.cassandra.stress.generate.DistributionGaussianTest \
   -e REPEATED_DTESTS=cql_test.py,consistency_test.py::TestAvailability::test_simple_strategy \
+  -e REPEATED_LARGE_DTESTS=consistency_test.py::TestAvailability::test_network_topology_strategy \
   -e REPEATED_JVM_DTESTS=org.apache.cassandra.distributed.test.PagingTest#testPaging \
   -e REPEATED_UPGRADE_DTESTS=upgrade_tests/cql_tests.py \
   -e REPEATED_JVM_UPGRADE_DTESTS=org.apache.cassandra.distributed.upgrade.GroupByTest
@@ -121,6 +123,8 @@ generate.sh -m \
   -e REPEATED_UTESTS_STRESS_COUNT=500 \
   -e REPEATED_DTESTS=cql_test.py,consistency_test.py::TestAvailability::test_simple_strategy \
   -e REPEATED_DTESTS_COUNT=500 \
+  -e REPEATED_LARGE_DTESTS=consistency_test.py,materialized_views_test.py \
+  -e REPEATED_LARGE_DTESTS_COUNT=100 \
   -e REPEATED_JVM_DTESTS=org.apache.cassandra.distributed.test.PagingTest#testPaging \
   -e REPEATED_JVM_DTESTS_COUNT=500 \
   -e REPEATED_UPGRADE_DTESTS=upgrade_tests/cql_tests.py \
