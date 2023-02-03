@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.service.accord.async;
 
+import java.util.HashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -31,12 +31,16 @@ import org.slf4j.MDC;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
+import accord.primitives.RoutableKey;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
+import accord.utils.Invariants;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
-import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.AccordSafeCommand;
+import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
+import org.apache.cassandra.service.accord.AccordSafeCommandStore;
+import org.apache.cassandra.service.accord.AccordSafeState;
 
 public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements Runnable, Function<SafeCommandStore, R>
 {
@@ -48,29 +52,44 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         private static final String ASYNC_OPERATION = "async_op";
     }
 
+    static class Context
+    {
+        final HashMap<TxnId, AccordSafeCommand> commands = new HashMap<>();
+        final HashMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys = new HashMap<>();
+
+        void releaseResources(AccordCommandStore commandStore)
+        {
+            commands.values().forEach(commandStore.commandCache()::release);
+            commandsForKeys.values().forEach(commandStore.commandsForKeyCache()::release);
+        }
+
+        void revertChanges()
+        {
+            commands.values().forEach(AccordSafeState::revert);
+            commandsForKeys.values().forEach(AccordSafeState::revert);
+        }
+    }
+
     enum State
     {
         INITIALIZED,
-        SUBMITTED,
         LOADING,
+        PREPARING_OPERATION,  // setup safe store for RUNNING
         RUNNING,
-        SAVING,
-        AWAITING_SAVE,
+        SAVING,  // submits write to mutation stage
+        AWAITING_SAVE,  // wait for writes to complete
         COMPLETING,
         FINISHED,
         FAILED
     }
 
-    public interface Context
-    {
-
-    }
-
     private State state = State.INITIALIZED;
     private final AccordCommandStore commandStore;
+    private final PreLoadContext preLoadContext;
+    private final Context context = new Context();
+    private AccordSafeCommandStore safeStore;
     private final AsyncLoader loader;
     private final AsyncWriter writer;
-    private final AsyncContext context = new AsyncContext();
     private R result;
     private final String loggingId;
     private BiConsumer<? super R, Throwable> callback;
@@ -87,11 +106,12 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         MDC.remove(LoggingProps.ASYNC_OPERATION);
     }
 
-    public AsyncOperation(AccordCommandStore commandStore, Iterable<TxnId> commandsToLoad, Iterable<PartitionKey> keyCommandsToLoad)
+    public AsyncOperation(AccordCommandStore commandStore, PreLoadContext preLoadContext)
     {
         this.loggingId = "0x" + Integer.toHexString(System.identityHashCode(this));
         this.commandStore = commandStore;
-        this.loader = createAsyncLoader(commandStore, commandsToLoad, keyCommandsToLoad);
+        this.preLoadContext = preLoadContext;
+        this.loader = createAsyncLoader(commandStore, preLoadContext);
         setLoggingIds();
         this.writer = createAsyncWriter(commandStore);
         logger.trace("Created {} on {}", this, commandStore);
@@ -109,9 +129,9 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         return new AsyncWriter(commandStore);
     }
 
-    AsyncLoader createAsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys)
+    AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
     {
-        return new AsyncLoader(commandStore, txnIds, keys);
+        return new AsyncLoader(commandStore, preLoadContext.txnIds(), toRoutableKeys(preLoadContext.keys()));
     }
 
     @VisibleForTesting
@@ -131,30 +151,67 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         if (throwable != null)
         {
             logger.error(String.format("Operation %s failed", this), throwable);
-            state = State.FAILED;
             fail(throwable);
         }
         else
             run();
     }
 
+    private void finish(R result, Throwable failure)
+    {
+        try
+        {
+            if (callback != null)
+                callback.accept(result, failure);
+        }
+        finally
+        {
+            state = failure == null ? State.FINISHED : State.FAILED;
+        }
+    }
+
     private void finish(R result)
     {
-        Preconditions.checkArgument(state == State.COMPLETING);
-        callback.accept(result, null);
-        state = State.FINISHED;
+        Invariants.checkArgument(state == State.COMPLETING, "Unexpected state %s", state);
+        finish(result, null);
     }
 
     private void fail(Throwable throwable)
     {
-        Preconditions.checkArgument(state != State.FINISHED && state != State.FAILED);
-        callback.accept(null, throwable);
-        state = State.FAILED;
+        Invariants.nonNull(throwable);
+        Invariants.checkArgument(state != State.FINISHED && state != State.FAILED, "Unexpected state %s", state);
+        try
+        {
+            switch (state)
+            {
+                case INITIALIZED:
+                case COMPLETING:
+                    // nothing to cleanup, call callback
+                    break;
+                case RUNNING:
+                    context.revertChanges();
+                case PREPARING_OPERATION:
+                    commandStore.abortCurrentOperation();
+                case LOADING:
+                    context.releaseResources(commandStore);
+                    break;
+                case SAVING:
+                case AWAITING_SAVE:
+                    // TODO: revert changs
+                    // TODO: panic?
+                    break;
+            }
+        }
+        catch (Throwable cleanup)
+        {
+            commandStore.agent().onUncaughtException(cleanup);
+            throwable.addSuppressed(cleanup);
+        }
+        finish(null, throwable);
     }
 
     protected void runInternal()
     {
-        SafeAccordCommandStore safeStore = commandStore.safeStore(context);
         switch (state)
         {
             case INITIALIZED:
@@ -163,19 +220,23 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 if (!loader.load(context, this::callback))
                     return;
 
+                state = State.PREPARING_OPERATION;
+                safeStore = commandStore.beginOperation(preLoadContext, context.commands, context.commandsForKeys);
                 state = State.RUNNING;
                 result = apply(safeStore);
+                safeStore.postExecute(context.commands, context.commandsForKeys);
 
                 state = State.SAVING;
             case SAVING:
             case AWAITING_SAVE:
                 boolean updatesPersisted = writer.save(context, this::callback);
 
-                if (state != State.AWAITING_SAVE)
+                if (state == State.SAVING)
                 {
+                    context.releaseResources(commandStore);
+                    commandStore.completeOperation(safeStore, context.commands, context.commandsForKeys);
                     // with any updates on the way to disk, release resources so operations waiting
                     // to use these objects don't have issues with fields marked as unsaved
-                    context.releaseResources(commandStore);
                     state = State.AWAITING_SAVE;
                 }
 
@@ -185,9 +246,10 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 state = State.COMPLETING;
                 finish(result);
             case FINISHED:
+            case FAILED:
                 break;
             default:
-                throw new IllegalStateException();
+                throw new IllegalStateException("Unexpected state " + state);
         }
     }
 
@@ -200,7 +262,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         try
         {
             commandStore.checkInStoreThread();
-            commandStore.setContext(context);
+            commandStore.setCurrentOperation(this);
             try
             {
                 runInternal();
@@ -212,7 +274,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
             }
             finally
             {
-                commandStore.unsetContext(context);
+                commandStore.unsetCurrentOperation(this);
             }
         }
         finally
@@ -223,20 +285,20 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     }
 
     @Override
-    public void begin(BiConsumer<? super R, Throwable> callback)
+    public void start(BiConsumer<? super R, Throwable> callback)
     {
-        Preconditions.checkArgument(this.callback == null);
+        Invariants.checkArgument(this.callback == null);
         this.callback = callback;
         commandStore.executor().submit(this);
     }
 
-    private static Iterable<PartitionKey> toPartitionKeys(Seekables<?, ?> keys)
+    private static Iterable<RoutableKey> toRoutableKeys(Seekables<?, ?> keys)
     {
         switch (keys.domain())
         {
-            default: throw new AssertionError();
+            default: throw new AssertionError("Unexpected domain: " + keys.domain());
             case Key:
-                return (Iterable<PartitionKey>) keys;
+                return (Iterable<RoutableKey>) keys;
             case Range:
                 // TODO (required): implement
                 throw new UnsupportedOperationException();
@@ -247,9 +309,9 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     {
         private final Function<? super SafeCommandStore, R> function;
 
-        public ForFunction(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys, Function<? super SafeCommandStore, R> function)
+        public ForFunction(AccordCommandStore commandStore, PreLoadContext loadCtx, Function<? super SafeCommandStore, R> function)
         {
-            super(commandStore, txnIds, keys);
+            super(commandStore, loadCtx);
             this.function = function;
         }
 
@@ -262,16 +324,16 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
     public static <T> AsyncOperation<T> create(CommandStore commandStore, PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
-        return new ForFunction<>((AccordCommandStore) commandStore, loadCtx.txnIds(), AsyncOperation.toPartitionKeys(loadCtx.keys()), function);
+        return new ForFunction<>((AccordCommandStore) commandStore, loadCtx, function);
     }
 
     static class ForConsumer extends AsyncOperation<Void>
     {
         private final Consumer<? super SafeCommandStore> consumer;
 
-        public ForConsumer(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Iterable<PartitionKey> keys, Consumer<? super SafeCommandStore> consumer)
+        public ForConsumer(AccordCommandStore commandStore, PreLoadContext loadCtx, Consumer<? super SafeCommandStore> consumer)
         {
-            super(commandStore, txnIds, keys);
+            super(commandStore, loadCtx);
             this.consumer = consumer;
         }
 
@@ -285,6 +347,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
     public static AsyncOperation<Void> create(CommandStore commandStore, PreLoadContext loadCtx, Consumer<? super SafeCommandStore> consumer)
     {
-        return new ForConsumer((AccordCommandStore) commandStore, loadCtx.txnIds(), AsyncOperation.toPartitionKeys(loadCtx.keys()), consumer);
+        return new ForConsumer((AccordCommandStore) commandStore, loadCtx, consumer);
     }
 }

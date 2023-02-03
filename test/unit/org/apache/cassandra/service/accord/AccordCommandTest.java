@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import accord.api.Key;
 import accord.api.RoutingKey;
+import accord.impl.CommandsForKey;
 import accord.local.Command;
 import accord.local.Node;
 import accord.local.PreLoadContext;
@@ -47,11 +48,10 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static accord.utils.async.AsyncChains.awaitUninterruptibly;
+import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.*;
 
@@ -82,11 +82,10 @@ public class AccordCommandTest
      * disable cache and make sure correct values are coming in and out of the accord table
      */
     @Test
-    public void basicCycleTest()
+    public void basicCycleTest() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        awaitUninterruptibly(commandStore.execute(PreLoadContext.empty(), instance -> { ((SafeAccordCommandStore) instance).commandStore().setCacheSize(0); }));
-
+        getUninterruptibly(commandStore.execute(PreLoadContext.empty(), unused -> commandStore.setCacheSize(0)));
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createTxn(1);
@@ -98,7 +97,7 @@ public class AccordCommandTest
         PreAccept preAccept = PreAccept.SerializerSupport.create(txnId, route, 1, 1, false, 1, partialTxn, fullRoute);
 
         // Check preaccept
-        awaitUninterruptibly(commandStore.execute(preAccept, instance -> {
+        getUninterruptibly(commandStore.execute(preAccept, instance -> {
             PreAccept.PreAcceptReply reply = preAccept.apply(instance);
             Assert.assertTrue(reply.isOk());
             PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;
@@ -106,13 +105,13 @@ public class AccordCommandTest
             Assert.assertTrue(ok.deps.isEmpty());
         }));
 
-        awaitUninterruptibly(commandStore.execute(preAccept, instance -> {
-            Command command = instance.command(txnId);
+        getUninterruptibly(commandStore.execute(preAccept, instance -> {
+            Command command = instance.command(txnId).current();
             Assert.assertEquals(txnId, command.executeAt());
             Assert.assertEquals(Status.PreAccepted, command.status());
-            Assert.assertTrue(command.partialDeps().isEmpty());
+            Assert.assertTrue(command.partialDeps() == null || command.partialDeps().isEmpty());
 
-            AccordCommandsForKey cfk = ((SafeAccordCommandStore)instance).commandsForKey(key(1));
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
             Assert.assertEquals(txnId, cfk.max());
             Assert.assertNotNull((cfk.byId()).get(txnId));
             Assert.assertNotNull((cfk.byExecuteAt()).get(txnId));
@@ -129,19 +128,19 @@ public class AccordCommandTest
         }
         Accept accept = Accept.SerializerSupport.create(txnId, route, 1, 1, false, Ballot.ZERO, executeAt, partialTxn.keys(), deps);
 
-        awaitUninterruptibly(commandStore.execute(accept, instance -> {
+        getUninterruptibly(commandStore.execute(accept, instance -> {
             Accept.AcceptReply reply = accept.apply(instance);
             Assert.assertTrue(reply.isOk());
             Assert.assertTrue(reply.deps.isEmpty());
         }));
 
-        awaitUninterruptibly(commandStore.execute(accept, instance -> {
-            Command command = instance.command(txnId);
+        getUninterruptibly(commandStore.execute(accept, instance -> {
+            Command command = instance.command(txnId).current();
             Assert.assertEquals(executeAt, command.executeAt());
             Assert.assertEquals(Status.Accepted, command.status());
             Assert.assertEquals(deps, command.partialDeps());
 
-            AccordCommandsForKey cfk = ((SafeAccordCommandStore)instance).commandsForKey(key(1));
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
             Assert.assertEquals(executeAt, cfk.max());
             Assert.assertNotNull((cfk.byId()).get(txnId));
             Assert.assertNotNull((cfk.byExecuteAt()).get(txnId));
@@ -149,15 +148,15 @@ public class AccordCommandTest
 
         // check commit
         Commit commit = Commit.SerializerSupport.create(txnId, route, 1, executeAt, partialTxn, deps, fullRoute, null);
-        awaitUninterruptibly(commandStore.execute(commit, commit::apply));
+        getUninterruptibly(commandStore.execute(commit, commit::apply));
 
-        awaitUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key)), instance -> {
-            Command command = instance.command(txnId);
+        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key)), instance -> {
+            Command command = instance.command(txnId).current();
             Assert.assertEquals(commit.executeAt, command.executeAt());
             Assert.assertTrue(command.hasBeen(Status.Committed));
             Assert.assertEquals(commit.partialDeps, command.partialDeps());
 
-            AccordCommandsForKey cfk = ((SafeAccordCommandStore)instance).commandsForKey(key(1));
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
             Assert.assertNotNull((cfk.byId()).get(txnId));
             Assert.assertNotNull((cfk.byExecuteAt()).get(commit.executeAt));
         }));
@@ -167,7 +166,7 @@ public class AccordCommandTest
     public void computeDeps() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        awaitUninterruptibly(commandStore.execute(PreLoadContext.empty(), instance -> { ((SafeAccordCommandStore) instance).commandStore().setCacheSize(0); }));
+        getUninterruptibly(commandStore.execute(PreLoadContext.empty(), unused -> commandStore.setCacheSize(0)));
 
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
         Txn txn = createTxn(2);
@@ -178,12 +177,12 @@ public class AccordCommandTest
         PartialTxn partialTxn = txn.slice(route.covering(), true);
         PreAccept preAccept1 = PreAccept.SerializerSupport.create(txnId1, route, 1, 1, false, 1, partialTxn, fullRoute);
 
-        awaitUninterruptibly(commandStore.execute(preAccept1, preAccept1::apply));
+        getUninterruptibly(commandStore.execute(preAccept1, preAccept1::apply));
 
         // second preaccept should identify txnId1 as a dependency
         TxnId txnId2 = txnId(1, clock.incrementAndGet(), 1);
         PreAccept preAccept2 = PreAccept.SerializerSupport.create(txnId2, route, 1, 1, false, 1, partialTxn, fullRoute);
-        awaitUninterruptibly(commandStore.execute(preAccept2, instance -> {
+        getUninterruptibly(commandStore.execute(preAccept2, instance -> {
             PreAccept.PreAcceptReply reply = preAccept2.apply(instance);
             Assert.assertTrue(reply.isOk());
             PreAccept.PreAcceptOk ok = (PreAccept.PreAcceptOk) reply;

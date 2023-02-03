@@ -18,117 +18,114 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.Data;
+import accord.utils.Invariants;
+import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
-import accord.utils.async.AsyncResults;
 import org.apache.cassandra.utils.ObjectSizes;
+
+import static org.apache.cassandra.service.accord.AccordLoadingState.LoadingState.FAILED;
+import static org.apache.cassandra.service.accord.AccordLoadingState.LoadingState.LOADED;
 
 /**
  * Cache for AccordCommand and AccordCommandsForKey, available memory is shared between the two object types.
  *
  * Supports dynamic object sizes. After each acquire/free cycle, the cacheable objects size is recomputed to
  * account for data added/removed during txn processing if it's modified flag is set
- *
- * TODO: explain how items move to and from the active pool and are evicted
  */
 public class AccordStateCache
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordStateCache.class);
 
-    private static class WriteOnlyGroup<K, V extends AccordState<K>>
+    public static class Node<K, V> extends AccordLoadingState<K, V>
     {
-        private boolean locked = false;
-        private List<AccordState.WriteOnly<K, V>> items = new ArrayList<>();
+        static final long EMPTY_SIZE = ObjectSizes.measure(new AccordStateCache.Node(null));
 
-        @Override
-        public String toString()
-        {
-            return "WriteOnlyGroup{" +
-                   "locked=" + locked +
-                   ", items=" + items +
-                   '}';
-        }
-
-        void lock()
-        {
-            locked = true;
-        }
-
-        void add(AccordState.WriteOnly<K, V> item)
-        {
-            items.add(item);
-        }
-
-        void purge()
-        {
-            if (locked)
-                return;
-
-            while (!items.isEmpty())
-            {
-                AccordState.WriteOnly<K, V> item = items.get(0);
-
-                // we can't remove items out of order, so if we encounter a write is still pending, we stop
-                if (item.asyncResult() == null || !item.asyncResult().isDone())
-                    break;
-
-                items.remove(0);
-            }
-        }
-
-        boolean isEmpty()
-        {
-            return items.isEmpty();
-        }
-    }
-
-    static class Node<K, V extends AccordState<K>>
-    {
-        static final long EMPTY_SIZE = ObjectSizes.measure(new AccordStateCache.Node<>(null));
-
-        final V value;
         private Node<?, ?> prev;
         private Node<?, ?> next;
         private int references = 0;
         private long lastQueriedEstimatedSizeOnHeap = 0;
 
-        Node(V value)
+        public Node(K key)
         {
-            this.value = value;
+            super(key);
         }
 
-        long estimatedSizeOnHeap()
+        public int referenceCount()
         {
-            long result = EMPTY_SIZE + value.estimatedSizeOnHeap();
+            return references;
+        }
+
+        boolean isLoaded()
+        {
+            return state() == LOADED;
+        }
+
+        public boolean isComplete()
+        {
+            switch (state())
+            {
+                case PENDING:
+                case UNINITIALIZED:
+                    return false;
+                case FAILED:
+                case LOADED:
+                    return true;
+                default: throw new UnsupportedOperationException("Unknown state: " + state());
+            }
+        }
+
+        private boolean isInQueue()
+        {
+            return prev != null && next != null;
+        }
+
+        long estimatedSizeOnHeap(ToLongFunction<V> estimator)
+        {
+            long result = EMPTY_SIZE;
+            V v;
+            if (isLoaded() && (v = value()) != null)
+                result += estimator.applyAsLong(v);
             lastQueriedEstimatedSizeOnHeap = result;
             return result;
         }
 
-        long estimatedSizeOnHeapDelta()
+        long estimatedSizeOnHeapDelta(ToLongFunction<V> estimator)
         {
             long prevSize = lastQueriedEstimatedSizeOnHeap;
-            return estimatedSizeOnHeap() - prevSize;
+            return estimatedSizeOnHeap(estimator) - prevSize;
         }
 
-        K key()
+        boolean shouldUpdateSize()
         {
-            return value.key();
+            return isLoaded() && lastQueriedEstimatedSizeOnHeap == EMPTY_SIZE;
+        }
+
+        void maybeCleanupLoad()
+        {
+            state();
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Node{" + state() +
+                   ", key=" + key() +
+                   ", references=" + references +
+                   "}@" + Integer.toHexString(System.identityHashCode(this));
         }
     }
 
@@ -149,17 +146,12 @@ public class AccordStateCache
         }
     }
 
-    public final Map<Object, Node<?, ?>> active = new HashMap<>();
     private final Map<Object, Node<?, ?>> cache = new HashMap<>();
-    private final Map<Object, WriteOnlyGroup<?, ?>> pendingWriteOnly = new HashMap<>();
-    private final Set<Instance<?, ?>> instances = new HashSet<>();
+    private final Set<Instance<?, ?, ?>> instances = new HashSet<>();
 
-    private final NamedMap<Object, AsyncResult<Void>> loadResults = new NamedMap<>("loadResults");
     private final NamedMap<Object, AsyncResult<Void>> saveResults = new NamedMap<>("saveResults");
 
-    private final NamedMap<Object, AsyncResult<Data>> readResults = new NamedMap<>("readResults");
-    private final NamedMap<Object, AsyncResult<Void>> writeResults = new NamedMap<>("writeResults");
-
+    private int unreferenced = 0;
     Node<?, ?> head;
     Node<?, ?> tail;
     private long maxSizeInBytes;
@@ -175,6 +167,25 @@ public class AccordStateCache
     {
         maxSizeInBytes = size;
         maybeEvict();
+    }
+
+    public long getMaxSize()
+    {
+        return maxSizeInBytes;
+    }
+
+    @VisibleForTesting
+    public void clear()
+    {
+        head = tail = null;
+        cache.clear();
+        saveResults.clear();
+    }
+
+    @VisibleForTesting
+    public Map<Object, AsyncResult<Void>> saveResults()
+    {
+        return saveResults;
     }
 
     private void unlink(Node<?, ?> node)
@@ -204,6 +215,7 @@ public class AccordStateCache
 
         node.prev = null;
         node.next = null;
+        unreferenced--;
     }
 
     private void push(Node<?, ?> node)
@@ -220,20 +232,20 @@ public class AccordStateCache
             head = node;
             tail = node;
         }
+        unreferenced++;
     }
 
-    private void updateSize(Node<?, ?> node)
+    private <K, V> void updateSize(Node<K, V> node, ToLongFunction<V> estimator)
     {
-        bytesCached += node.estimatedSizeOnHeapDelta();
+        bytesCached += node.estimatedSizeOnHeapDelta(estimator);
     }
 
     // don't evict if there's an outstanding save result. If an item is evicted then reloaded
     // before it's mutation is applied, out of date info will be loaded
-    private boolean canEvict(Object key)
+    private boolean canEvict(Node<?, ?> node)
     {
-        // getResult only returns a result if it is running, so don't need to check if its still running
-        AsyncResult<?> result = getAsyncResult(saveResults, key);
-        return result == null || result.isDone();
+        Invariants.checkState(node.references == 0);
+        return node.state() == FAILED || !hasActiveAsyncResult(saveResults, node.key());
     }
 
     private void maybeEvict()
@@ -247,26 +259,36 @@ public class AccordStateCache
             Node<?, ?> evict = current;
             current = current.prev;
 
-            // if there are any dangling write only groups, apply them and
-            // move their results into write results so we don't evict
-            applyAndRemoveWriteOnlyGroup(evict.value);
-            if (!canEvict(evict.key()))
+            // TODO (expected, efficiency): can this be reworked so we're not skipping unevictable nodes everytime we try to evict?
+            if (!canEvict(evict))
                 continue;
 
-            logger.trace("Evicting {} {}", evict.value.getClass().getSimpleName(), evict.key());
-            unlink(evict);
-            cache.remove(evict.key());
-            bytesCached -= evict.estimatedSizeOnHeap();
+            evict(evict, true);
         }
     }
 
-    private static <K, F extends AsyncResult<?>> F getAsyncResult(NamedMap<Object, F> resultMap, K key)
+    private void evict(Node<?, ?> evict, boolean unlink)
+    {
+        logger.trace("Evicting {} {} - {}", evict.state(), evict.key(), evict.isLoaded() ? evict.value() : null);
+        if (unlink)
+            unlink(evict);
+        else
+            Invariants.checkState(!evict.isInQueue());
+
+        Node<?, ?> self = cache.get(evict.key());
+        Invariants.checkState(self == evict, "Leaked node detected; was attempting to remove %s but cache had %s", evict, self);
+        cache.remove(evict.key());
+        bytesCached -= evict.lastQueriedEstimatedSizeOnHeap;
+    }
+
+    private static <K, V, F extends AsyncResult<V>> F getAsyncResult(NamedMap<Object, F> resultMap, K key)
     {
         F r = resultMap.get(key);
         if (r == null)
             return null;
 
-        if (!r.isDone())
+        // if the result was a failure, can not remove from the map as this would allow eviction
+        if (!r.isSuccess())
             return r;
 
         if (logger.isTraceEnabled())
@@ -281,54 +303,53 @@ public class AccordStateCache
         resultsMap.put(key, result);
     }
 
+    private static <K, V> boolean hasActiveAsyncResult(NamedMap<Object, AsyncResult<V>> resultMap, K key)
+    {
+        // getResult only returns a result if it is not complete, so don't need to check if its been completed
+        return getAsyncResult(resultMap, key) != null;
+    }
+
     private static <K> void mergeAsyncResult(Map<Object, AsyncResult<Void>> resultMap, K key, AsyncResult<Void> result)
     {
         AsyncResult<Void> existing = resultMap.get(key);
         if (existing != null && !existing.isDone())
         {
             logger.trace("Merging result {} with existing {}", result, existing);
-            result = AsyncResults.reduce(ImmutableList.of(existing, result), (a, b) -> null).beginAsResult();
+            result = AsyncChains.reduce(existing, result, (a, b) -> null).beginAsResult();
         }
 
         resultMap.put(key, result);
     }
 
+    @VisibleForTesting
+    private <K> void maybeCleanupLoad(K key)
+    {
+        Node<?, ?> node = cache.get(key);
+        if (node != null)
+            node.maybeCleanupLoad();
+    }
+
     private <K> void maybeClearAsyncResult(K key)
     {
+        maybeCleanupLoad(key);
         // will clear if it's done
-        getAsyncResult(loadResults, key);
         getAsyncResult(saveResults, key);
-        getAsyncResult(readResults, key);
-        getAsyncResult(writeResults, key);
     }
 
-    public <K, V extends AccordState<K>> void applyAndRemoveWriteOnlyGroup(V instance)
-    {
-        WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.remove(instance.key());
-        if (group == null)
-            return;
-
-        logger.trace("Applying and removing write only group for {} ({})", instance.key(), group);
-        for (AccordState.WriteOnly<K, V> writeOnly : group.items)
-        {
-            writeOnly.applyChanges(instance);
-            if (!writeOnly.asyncResult().isDone())
-                mergeAsyncResult(saveResults, instance.key(), writeOnly.asyncResult());
-        }
-    }
-
-    public class Instance<K, V extends AccordState<K>>
+    public class Instance<K, V, S extends AccordSafeState<K, V>>
     {
         private final Class<K> keyClass;
         private final Class<V> valClass;
-        private final Function<K, V> factory;
+        private final Function<AccordLoadingState<K, V>, S> safeRefFactory;
+        private final ToLongFunction<V> heapEstimator;
         private final Stats stats = new Stats();
 
-        public Instance(Class<K> keyClass, Class<V> valClass, Function<K, V> factory)
+        public Instance(Class<K> keyClass, Class<V> valClass, Function<AccordLoadingState<K, V>, S> safeRefFactory, ToLongFunction<V> heapEstimator)
         {
             this.keyClass = keyClass;
             this.valClass = valClass;
-            this.factory = factory;
+            this.safeRefFactory = safeRefFactory;
+            this.heapEstimator = heapEstimator;
         }
 
         @Override
@@ -336,7 +357,7 @@ public class AccordStateCache
         {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Instance<?, ?> instance = (Instance<?, ?>) o;
+            Instance<?, ?, ?> instance = (Instance<?, ?, ?>) o;
             return keyClass.equals(instance.keyClass) && valClass.equals(instance.valClass);
         }
 
@@ -346,174 +367,138 @@ public class AccordStateCache
             return Objects.hash(keyClass, valClass);
         }
 
-        private V getOrCreate(K key, boolean createIfAbsent)
+        private Node<K, V> reference(K key, boolean createIfAbsent)
         {
             stats.queries++;
             AccordStateCache.this.stats.queries++;
 
-            Node<K, V> node = (Node<K, V>) active.get(key);
-            if (node != null)
-            {
-                stats.hits++;
-                AccordStateCache.this.stats.hits++;
-                node.references++;
-                return node.value;
-            }
-
-            node = (Node<K, V>) cache.remove(key);
-
+            Node<K, V> node = (Node<K, V>) cache.get(key);
             if (node == null)
             {
                 stats.misses++;
                 AccordStateCache.this.stats.misses++;
                 if (!createIfAbsent)
                     return null;
-                V value = factory.apply(key);
-                node = new Node<>(value);
-                updateSize(node);
+                node = new Node<>(key);
+                // need to store ref right away, so eviction can not remove
+                node.references++;
+                cache.put(key, node);
+                updateSize(node, heapEstimator);
+                maybeEvict();
             }
             else
             {
+                if (node.state() == FAILED)
+                {
+                    if (node.references != 0)
+                    {
+                        //TODO concurrent access to a failed node
+                        // the API does not return Node but instead what node points to, this is a problem in this case as
+                        // releasing 42 would attempt to release the retry and not the failed that is trying to cleanup
+                        throw new UnsupportedOperationException("Attempted to reference failed node " + node);
+                    }
+
+                    evict(node, true);
+                    return reference(key, createIfAbsent);
+                }
                 stats.hits++;
                 AccordStateCache.this.stats.hits++;
-                unlink(node);
+                if (node.references == 0)
+                    unlink(node);
+                else
+                    Invariants.checkState(!node.isInQueue());
+                node.references++;
             }
 
-            Preconditions.checkState(node.references == 0);
-            maybeEvict();
-
-            node.references++;
-            active.put(key, node);
-
-            return node.value;
+            return node;
         }
 
-        public V getOrCreate(K key)
+        public S reference(K key)
         {
-            return getOrCreate(key, true);
+            Node<K, V> node = reference(key, true);
+            return safeRefFactory.apply(node);
         }
 
-        public V getOrNull(K key)
+        public S referenceAndGetIfLoaded(K key)
         {
-            return getOrCreate(key, false);
+            Node<K, V> node = reference(key, false);
+            if (node == null || !node.isLoaded())
+                return null;
+            S safeRef = safeRefFactory.apply(node);
+            safeRef.preExecute();
+            return safeRef;
         }
 
-        public void release(V value)
+        @VisibleForTesting
+        public Node<K, V> getUnsafe(K key)
         {
-            K key = value.key();
-            logger.trace("Releasing resources for {}: {}", key, value);
+            return (Node<K, V>) cache.get(key);
+        }
+
+        @VisibleForTesting
+        public boolean isReferenced(K key)
+        {
+            Node<K, V> node = (Node<K, V>) cache.get(key);
+            return node != null && node.references > 0;
+        }
+
+        @VisibleForTesting
+        public boolean isLoaded(K key)
+        {
+            Node<K, V> node = (Node<K, V>) cache.get(key);
+            return node != null && node.isLoaded();
+        }
+
+        public void release(S safeRef)
+        {
+            K key = safeRef.global().key();
+            logger.trace("Releasing resources for {}: {}", key, safeRef);
             maybeClearAsyncResult(key);
-            Node<K, V> node = (Node<K, V>) active.get(key);
-            Preconditions.checkState(node != null && node.references > 0);
-            Preconditions.checkState(node.value == value);
+            Node<K, V> node = (Node<K, V>) cache.get(key);
+            Invariants.checkState(node != null, "node is null for %s", key);
+            Invariants.checkState(node.references > 0, "references (%d) are zero for %s (%s)", node.references, key, node);
+
+            Invariants.checkState(safeRef.global() == node);
+            if (node.isLoaded() && (safeRef.hasUpdate() || node.shouldUpdateSize()))
+            {
+                node.value(safeRef.current());
+                updateSize(node, heapEstimator);
+            }
+
             if (--node.references == 0)
             {
-                logger.trace("Moving {} from active pool to cache", key);
-                active.remove(key);
-                cache.put(key, node);
-                push(node);
+                if (node.state() == FAILED)
+                {
+                    logger.trace("Found failed node {}, evicting", key);
+                    evict(node, false);
+                }
+                else
+                {
+                    logger.trace("Moving {} from active pool to cache", key);
+                    Invariants.checkState(!node.isInQueue());
+                    push(node);
+                }
             }
 
-            if (value.hasModifications())
-            {
-                value.clearModifiedFlag();
-                updateSize(node);
-            }
             maybeEvict();
         }
 
         @VisibleForTesting
-        boolean canEvict(K key)
+        public boolean canEvict(K key)
         {
-            return AccordStateCache.this.canEvict(key);
-        }
-
-        @VisibleForTesting
-        boolean writeOnlyGroupIsLocked(K key)
-        {
-            WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.get(key);
-            return group != null && group.locked;
-        }
-
-        @VisibleForTesting
-        int pendingWriteOnlyOperations(K key)
-        {
-            WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.get(key);
-            return group != null ? group.items.size() : 0;
-        }
-
-        public void lockWriteOnlyGroupIfExists(K key)
-        {
-            WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.get(key);
-            if (group == null)
-                return;
-
-            logger.trace("Locking write only group for {} ({})", key, group);
-            group.purge();
-            if (!group.isEmpty())
-                group.lock();
-        }
-
-        public void applyAndRemoveWriteOnlyGroup(V instance)
-        {
-            AccordStateCache.this.applyAndRemoveWriteOnlyGroup(instance);
-        }
-
-        public void addWriteOnly(AccordState.WriteOnly<K, V> writeOnly)
-        {
-            K key = writeOnly.key();
-            Preconditions.checkArgument(writeOnly.asyncResult() != null);
-            WriteOnlyGroup<K, V> group = (WriteOnlyGroup<K, V>) pendingWriteOnly.computeIfAbsent(key, k -> new WriteOnlyGroup<>());
-
-            // if a load result exists for the key we're creating a write group for, we need to lock
-            // the group so the loading instance gets changes applied when it finishes loading
-            if (getLoadResult(key) != null)
-                group.lock();
-
-            group.add(writeOnly);
-        }
-
-        public void purgeWriteOnly(K key)
-        {
-            WriteOnlyGroup<?, ?> items = pendingWriteOnly.get(key);
-            if (items == null)
-                return;
-
-            items.purge();
-            if (items.isEmpty())
-                pendingWriteOnly.remove(key);
-        }
-
-        public boolean writeOnlyGroupExists(K key)
-        {
-            return pendingWriteOnly.get(key) != null;
-        }
-
-        public int getWriteOnlyGroupSize(K key)
-        {
-            WriteOnlyGroup<?, ?> group = pendingWriteOnly.get(key);
-            return group != null ? group.items.size() : 0;
-        }
-
-        public AsyncResult<Void> getLoadResult(K key)
-        {
-            return getAsyncResult(loadResults, key);
-        }
-
-        public void cleanupLoadResult(K key)
-        {
-            getLoadResult(key);
+            return AccordStateCache.this.canEvict(cache.get(key));
         }
 
         @VisibleForTesting
         public boolean hasLoadResult(K key)
         {
-            return loadResults.get(key) != null;
+            Node<?, ?> node = cache.get(key);
+            return node != null && !node.isLoaded();
         }
 
-        public void setLoadResult(K key, AsyncResult<Void> result)
+        public void cleanupLoadResult(K key)
         {
-            setAsyncResult(loadResults, key, result);
+            maybeCleanupLoad(key);
         }
 
         public AsyncResult<?> getSaveResult(K key)
@@ -538,36 +523,6 @@ public class AccordStateCache
             return saveResults.get(key) != null;
         }
 
-        public AsyncResult<Data> getReadResult(K key)
-        {
-            return getAsyncResult(readResults, key);
-        }
-
-        public void setReadResult(K key, AsyncResult<Data> result)
-        {
-            setAsyncResult(readResults, key, result);
-        }
-
-        public void cleanupReadResult(K key)
-        {
-            getReadResult(key);
-        }
-
-        public AsyncResult<Void> getWriteResult(K key)
-        {
-            return getAsyncResult(writeResults, key);
-        }
-
-        public void setWriteResult(K key, AsyncResult<Void> result)
-        {
-            setAsyncResult(writeResults, key, result);
-        }
-
-        public void cleanupWriteResult(K key)
-        {
-            getWriteResult(key);
-        }
-
         public long cacheQueries()
         {
             return stats.queries;
@@ -584,9 +539,11 @@ public class AccordStateCache
         }
     }
 
-    public <K, V extends AccordState<K>> Instance<K, V> instance(Class<K> keyClass, Class<V> valClass, Function<K, V> factory)
+    public <K, V, S extends AccordSafeState<K, V>> Instance<K, V, S> instance(Class<K> keyClass, Class<V> valClass,
+                                                                           Function<AccordLoadingState<K, V>, S> safeRefFactory,
+                                                                           ToLongFunction<V> heapEstimator)
     {
-        Instance<K, V> instance = new Instance<>(keyClass, valClass, factory);
+        Instance<K, V, S> instance = new Instance<>(keyClass, valClass, safeRefFactory, heapEstimator);
         if (!instances.add(instance))
             throw new IllegalArgumentException(String.format("Cache instances for types %s -> %s already exists",
                                                              keyClass.getName(), valClass.getName()));
@@ -594,13 +551,19 @@ public class AccordStateCache
     }
 
     @VisibleForTesting
-    int numActiveEntries()
+    int numReferencedEntries()
     {
-        return active.size();
+        return cache.size() - unreferenced;
     }
 
     @VisibleForTesting
-    int numCachedEntries()
+    int numUnreferencedEntries()
+    {
+        return unreferenced;
+    }
+
+    @VisibleForTesting
+    int totalNumEntries()
     {
         return cache.size();
     }
@@ -612,9 +575,10 @@ public class AccordStateCache
     }
 
     @VisibleForTesting
-    boolean keyIsActive(Object key)
+    boolean keyIsReferenced(Object key)
     {
-        return active.containsKey(key);
+        Node<?, ?> node = cache.get(key);
+        return node != null && node.references > 0;
     }
 
     @VisibleForTesting
@@ -626,7 +590,7 @@ public class AccordStateCache
     @VisibleForTesting
     int references(Object key)
     {
-        Node<?, ?> node = active.get(key);
+        Node<?, ?> node = cache.get(key);
         return node != null ? node.references : 0;
     }
 

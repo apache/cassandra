@@ -22,8 +22,12 @@ import java.util.stream.Stream;
 
 import com.google.common.base.Throwables;
 
+import org.assertj.core.api.AbstractThrowableAssert;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Condition;
+import org.assertj.core.api.ThrowableAssert;
+import org.assertj.core.error.BasicErrorMessageFactory;
+import org.assertj.core.internal.Failures;
 
 public class AssertionUtils
 {
@@ -164,5 +168,32 @@ public class AssertionUtils
                 return false;
             }
         };
+    }
+
+    public static ThrowableAssertPlus assertThatThrownBy(ThrowableAssert.ThrowingCallable fn)
+    {
+        return new ThrowableAssertPlus(Assertions.catchThrowable(fn)).hasBeenThrown();
+    }
+
+    public static class ThrowableAssertPlus extends AbstractThrowableAssert<ThrowableAssertPlus, Throwable>
+    {
+        public ThrowableAssertPlus(Throwable actual)
+        {
+            super(actual, ThrowableAssertPlus.class);
+        }
+
+        @Override
+        protected ThrowableAssertPlus hasBeenThrown()
+        {
+            return super.hasBeenThrown();
+        }
+
+        public ThrowableAssertPlus hasRootCause()
+        {
+            Throwable cause = Throwables.getRootCause(actual);
+            if (cause == actual)
+                throw Failures.instance().failure(this.info, new BasicErrorMessageFactory("%nExpected a root cause but cause was null", new Object[0]));
+            return new ThrowableAssertPlus(cause);
+        }
     }
 }

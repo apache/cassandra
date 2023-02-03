@@ -21,38 +21,28 @@ package org.apache.cassandra.service.accord.async;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.primitives.Seekable;
-import accord.primitives.Timestamp;
+import accord.impl.CommandsForKey;
+import accord.local.Command;
+import accord.primitives.RoutableKey;
 import accord.primitives.TxnId;
-import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.service.accord.AccordCommand;
 import org.apache.cassandra.service.accord.AccordCommandStore;
-import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.AccordKeyspace;
-import org.apache.cassandra.service.accord.AccordPartialCommand;
+import org.apache.cassandra.service.accord.AccordSafeCommand;
+import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
+import org.apache.cassandra.service.accord.AccordSafeState;
 import org.apache.cassandra.service.accord.AccordStateCache;
-import org.apache.cassandra.service.accord.AccordState;
-import org.apache.cassandra.service.accord.api.PartitionKey;
-import org.apache.cassandra.service.accord.store.StoredSet;
-
-import static accord.utils.async.AsyncResults.ofRunnable;
-
-import static accord.primitives.Routable.Domain.Range;
 
 public class AsyncWriter
 {
@@ -69,8 +59,8 @@ public class AsyncWriter
     private State state = State.INITIALIZED;
     protected AsyncResult<Void> writeResult;
     private final AccordCommandStore commandStore;
-    final AccordStateCache.Instance<TxnId, AccordCommand> commandCache;
-    final AccordStateCache.Instance<PartitionKey, AccordCommandsForKey> cfkCache;
+    final AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache;
+    final AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> cfkCache;
 
     public AsyncWriter(AccordCommandStore commandStore)
     {
@@ -79,213 +69,70 @@ public class AsyncWriter
         this.cfkCache = commandStore.commandsForKeyCache();
     }
 
-    private interface StateMutationFunction<K, V extends AccordState<K>>
+    public interface StateMutationFunction<V extends AccordSafeState<?, ?>>
     {
-        Mutation apply(AccordCommandStore commandStore, V state, long timestamp);
+        Mutation apply(AccordCommandStore commandStore, V value, long timestamp);
     }
 
-    private static <K, V extends AccordState<K>> List<AsyncChain<Void>> dispatchWrites(AsyncContext.Group<K, V> ctxGroup,
-                                                                                AccordStateCache.Instance<K, V> cache,
-                                                                                StateMutationFunction<K, V> mutationFunction,
-                                                                                long timestamp,
-                                                                                AccordCommandStore commandStore,
-                                                                                List<AsyncChain<Void>> results,
-                                                                                Object callback)
+    private static <K, V, S extends AccordSafeState<K, V>> void assembleWrites(Map<K, S> context,
+                                                                               AccordStateCache.Instance<K, V, S> cache,
+                                                                               StateMutationFunction<S> mutationFunction,
+                                                                               long timestamp,
+                                                                               AccordCommandStore commandStore,
+                                                                               List<AsyncResults.RunnableResult<Void>> chains)
     {
-        for (V item : ctxGroup.items.values())
-        {
-            if (!item.hasModifications())
-            {
-                if (logger.isTraceEnabled())
-                    logger.trace("No modifications for {} for {}, {}", item.key(), callback, item);
-                continue;
-            }
-
-            if (results == null)
-                results = new ArrayList<>();
-            K key = item.key();
-            Mutation mutation = mutationFunction.apply(commandStore, item, timestamp);
+        context.forEach((key, value) -> {
+            if (!value.hasUpdate())
+                return;
+            Mutation mutation = mutationFunction.apply(commandStore, value, timestamp);
+            if (mutation == null)
+                return;
             if (logger.isTraceEnabled())
-                logger.trace("Dispatching mutation for {} for {}, {} -> {}", key, callback, item, mutation);
-            AsyncResult<Void> result = ofRunnable(Stage.MUTATION.executor(), () -> {
-                try
-                {
-                    if (logger.isTraceEnabled())
-                        logger.trace("Applying mutation for {} for {}: {}", key, callback, mutation);
-                    mutation.apply();
-                    if (logger.isTraceEnabled())
-                        logger.trace("Completed applying mutation for {} for {}: {}", key, callback, mutation);
-                }
-                catch (Throwable t)
-                {
-                    logger.error(String.format("Exception applying mutation for %s for %s: %s", key, callback, mutation), t);
-                    throw t;
-                }
-            });
-            cache.addSaveResult(item.key(), result);
-            results.add(result);
-        }
-
-        for (AccordState.WriteOnly<K, V> item : ctxGroup.writeOnly.values())
-        {
-            Preconditions.checkState(item.hasModifications());
-            if (results == null) results = new ArrayList<>();
-            Mutation mutation = mutationFunction.apply(commandStore, (V) item, timestamp);
-            AsyncResult<Void> result = AsyncResults.ofRunnable(Stage.MUTATION.executor(), mutation::apply);
-            result.addListener(() -> cache.purgeWriteOnly(item.key()), commandStore.executor());
-            item.asyncResult(result);
-            results.add(result);
-        }
-
-        return results;
+                logger.trace("Dispatching mutation for {}, {} -> {}", key, value.current(), mutation);
+            AsyncResults.RunnableResult<Void> result = AsyncResults.runnableResult(() -> mutation.apply());
+            cache.addSaveResult(key, result);
+            chains.add(result);
+        });
     }
 
-    private AsyncResult<Void> maybeDispatchWrites(AsyncContext context, Object callback) throws IOException
+    protected StateMutationFunction<AccordSafeCommand> writeCommandFunction()
     {
-        List<AsyncChain<Void>> results = null;
+        return AccordKeyspace::getCommandMutation;
+    }
+
+    protected StateMutationFunction<AccordSafeCommandsForKey> writeCommandForKeysFunction()
+    {
+        return AccordKeyspace::getCommandsForKeyMutation;
+    }
+
+    private AsyncResult<Void> maybeDispatchWrites(AsyncOperation.Context context) throws IOException
+    {
+        if (context.commands.isEmpty() && context.commandsForKeys.isEmpty())
+            return null;
+
+        List<AsyncResults.RunnableResult<Void>> writes = new ArrayList<>(context.commands.size() + context.commandsForKeys.size());
 
         long timestamp = commandStore.nextSystemTimestampMicros();
-        results = dispatchWrites(context.commands,
-                                 commandStore.commandCache(),
-                                 AccordKeyspace::getCommandMutation,
-                                 timestamp,
-                                 commandStore,
-                                 results,
-                                 callback);
+        assembleWrites(context.commands,
+                       commandStore.commandCache(),
+                       writeCommandFunction(),
+                       timestamp,
+                       commandStore,
+                       writes);
 
-        results = dispatchWrites(context.commandsForKey,
-                                 commandStore.commandsForKeyCache(),
-                                 AccordKeyspace::getCommandsForKeyMutation,
-                                 timestamp,
-                                 commandStore,
-                                 results,
-                                 callback);
+        assembleWrites(context.commandsForKeys,
+                       commandStore.commandsForKeyCache(),
+                       writeCommandForKeysFunction(),
+                       timestamp,
+                       commandStore,
+                       writes);
 
-        return results != null ? AsyncResults.reduce(results, (a, b) -> null).beginAsResult() : null;
-    }
+        if (writes.isEmpty())
+            return null;
 
-    private void denormalizeBlockedOn(AccordCommand command,
-                                      AsyncContext context,
-                                      Function<AccordCommand, StoredSet.Changes<TxnId>> waitingField,
-                                      Function<AccordCommand, StoredSet.Navigable<TxnId>> blockingField)
-    {
-        StoredSet.Changes<TxnId> waitingOn = waitingField.apply(command);
-        waitingOn.forEachDeletion(deletedId -> {
-            AccordCommand blockedOn = commandForDenormalization(deletedId, context);
-            blockingField.apply(blockedOn).blindRemove(command.txnId());
-        });
+        AsyncChains.ofRunnables(Stage.MUTATION.executor(), writes).begin(commandStore.agent());
 
-        waitingOn.forEachAddition(addedId -> {
-            AccordCommand blockedOn = commandForDenormalization(addedId, context);
-            blockingField.apply(blockedOn).blindAdd(command.txnId());
-        });
-    }
-
-    private void denormalizeWaitingOnSummaries(AccordCommand command,
-                                               AsyncContext context,
-                                               Function<AccordCommand, BiConsumer<TxnId, Timestamp>> waitingField,
-                                               Function<AccordCommand, StoredSet.Navigable<TxnId>> blockingField)
-    {
-        blockingField.apply(command).getView().forEach(blockingId -> {
-            AccordCommand blocking = commandForDenormalization(blockingId, context);
-            waitingField.apply(blocking).accept(command.txnId(), command.executeAt());
-        });
-    }
-
-    private static <K, V extends AccordState<K>>
-            AccordState<K> getForDenormalization(K key,
-                                                 AccordCommandStore commandStore,
-                                                 AsyncContext.Group<K, V> ctxGroup,
-                                                 AccordStateCache.Instance<K, V> cache,
-                                                 BiFunction<AccordCommandStore, K, AccordState.WriteOnly<K, V>> factory)
-    {
-        V item = ctxGroup.get(key);
-        if (item != null)
-            return item;
-
-        item = cache.getOrNull(key);
-        if (item != null && !cache.hasLoadResult(key))
-        {
-            ctxGroup.items.put(key, item);
-            return item;
-        }
-
-        return ctxGroup.getOrCreateWriteOnly(key, factory, commandStore);
-    }
-
-    private AccordCommand commandForDenormalization(TxnId txnId, AsyncContext context)
-    {
-        return (AccordCommand) getForDenormalization(txnId, commandStore, context.commands, commandCache, (ignore, id) -> new AccordCommand.WriteOnly(id));
-    }
-
-    private AccordCommandsForKey cfkForDenormalization(PartitionKey key, AsyncContext context)
-    {
-        return (AccordCommandsForKey) getForDenormalization(key, commandStore, context.commandsForKey, cfkCache, AccordCommandsForKey.WriteOnly::new);
-    }
-
-    private void denormalize(AccordCommand command, AsyncContext context, Object callback)
-    {
-        if (!command.hasModifications())
-            return;
-
-        // notify commands we're waiting on that they need to update the summaries in our maps
-        if (command.waitingOnCommit.hasModifications())
-        {
-            denormalizeBlockedOn(command, context, cmd -> cmd.waitingOnCommit, cmd -> cmd.blockingCommitOn);
-        }
-        if (command.waitingOnApply.hasModifications())
-        {
-            denormalizeBlockedOn(command, context, cmd -> new StoredSet.Changes<TxnId>()
-            {
-                @Override
-                public void forEachAddition(Consumer<TxnId> consumer)
-                {
-                    cmd.waitingOnApply.forEachAddition((ignore, txnId) -> consumer.accept(txnId));
-                }
-
-                @Override
-                public void forEachDeletion(Consumer<TxnId> consumer)
-                {
-                    cmd.waitingOnApply.forEachDeletion((ignore, txnId) -> consumer.accept(txnId));
-
-                }
-            }, cmd -> cmd.blockingApplyOn);
-        }
-
-        if (command.shouldUpdateDenormalizedWaitingOn())
-        {
-            denormalizeWaitingOnSummaries(command, context, cmd -> (txnId, ignore) -> cmd.waitingOnCommit.blindAdd(txnId), cmd -> cmd.blockingCommitOn);
-            denormalizeWaitingOnSummaries(command, context, cmd -> (txnId, executeAt) -> cmd.waitingOnApply.blindPut(executeAt, txnId), cmd -> cmd.blockingApplyOn);
-        }
-
-        // There won't be a txn to denormalize against until the command has been preaccepted
-        // TODO (now): this maybe insufficient for correctness? on Accept we use the explicitly provided keys to register
-        //             the transaction here. It's possible a sequence of two Accept, with second taking a higher timestamp
-        //             might not reflect the update timestamp in the map? Probably best addressed following Blake's refactor.
-        if (command.known().isDefinitionKnown() && AccordPartialCommand.serializer.needsUpdate(command))
-        {
-            for (Seekable key : command.partialTxn().keys())
-            {
-                // TODO: implement
-                if (key.domain() == Range)
-                    throw new UnsupportedOperationException();
-                PartitionKey partitionKey = (PartitionKey) key;
-                AccordCommandsForKey cfk = cfkForDenormalization(partitionKey, context);
-                cfk.updateSummaries(command);
-            }
-        }
-
-        if (logger.isTraceEnabled())
-        {
-            context.commands.items.forEach((txnId, cmd) -> logger.trace("Denormalized command {} for {}: {}", txnId, callback, cmd));
-            context.commandsForKey.items.forEach((key, cfk) -> logger.trace("Denormalized cfk {} for {}: {}", key, callback, cfk));
-        }
-    }
-
-    private void denormalize(AsyncContext context, Object callback)
-    {
-        // need to clone "values" as denormalize will mutate it
-        new ArrayList<>(context.commands.items.values()).forEach(command -> denormalize(command, context, callback));
+        return AsyncChains.reduce(writes, (a, b) -> null).beginAsResult();
     }
 
     @VisibleForTesting
@@ -294,7 +141,7 @@ public class AsyncWriter
         this.state = state;
     }
 
-    public boolean save(AsyncContext context, BiConsumer<Object, Throwable> callback)
+    public boolean save(AsyncOperation.Context context, BiConsumer<Object, Throwable> callback)
     {
         logger.trace("Running save for {} with state {}", callback, state);
         commandStore.checkInStoreThread();
@@ -305,8 +152,7 @@ public class AsyncWriter
                 case INITIALIZED:
                     setState(State.SETUP);
                 case SETUP:
-                    denormalize(context, callback);
-                    writeResult = maybeDispatchWrites(context, callback);
+                    writeResult = maybeDispatchWrites(context);
 
                     setState(State.SAVING);
                 case SAVING:
@@ -316,8 +162,8 @@ public class AsyncWriter
                         writeResult.addCallback(callback, commandStore.executor());
                         break;
                     }
-                    context.commands.items.keySet().forEach(commandStore.commandCache()::cleanupSaveResult);
-                    context.commandsForKey.items.keySet().forEach(commandStore.commandsForKeyCache()::cleanupSaveResult);
+                    context.commands.keySet().forEach(commandStore.commandCache()::cleanupSaveResult);
+                    context.commandsForKeys.keySet().forEach(commandStore.commandsForKeyCache()::cleanupSaveResult);
                     setState(State.FINISHED);
                 case FINISHED:
                     break;
