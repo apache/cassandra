@@ -24,6 +24,7 @@ import accord.local.Command;
 import accord.local.Node;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
@@ -40,16 +41,20 @@ public class AccordAgent implements Agent
     public void onInconsistentTimestamp(Command command, Timestamp prev, Timestamp next)
     {
         // TODO: this
+        AssertionError error = new AssertionError("Inconsistent execution timestamp detected for txnId " + command.txnId() + ": " + prev + " != " + next);
+        onUncaughtException(error);
+        throw error;
     }
 
     @Override
     public void onUncaughtException(Throwable t)
     {
         // TODO: this
+        JVMStabilityInspector.uncaughtException(Thread.currentThread(), t);
     }
 
     @Override
-    public void onHandledException(Throwable throwable)
+    public void onHandledException(Throwable t)
     {
         // TODO: this
     }

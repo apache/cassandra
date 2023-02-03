@@ -22,31 +22,41 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
-
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.junit.Assert;
 
 import accord.api.Data;
+import accord.api.Key;
 import accord.api.ProgressLog;
+import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.api.Write;
+import accord.impl.CommandsForKey;
 import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
 import accord.local.CommandStores;
+import accord.local.CommonAttributes;
 import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.SaveStatus;
 import accord.local.Status.Known;
 import accord.primitives.Ballot;
-import accord.primitives.Ranges;
 import accord.primitives.Keys;
 import accord.primitives.PartialTxn;
+import accord.primitives.Ranges;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
@@ -58,18 +68,22 @@ import accord.utils.async.AsyncChains;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.primitives.Routable.Domain.Key;
-import static accord.utils.async.AsyncChains.awaitUninterruptibly;
+import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static java.lang.String.format;
 
 public class AccordTestUtils
@@ -79,19 +93,90 @@ public class AccordTestUtils
         return EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
     }
 
+    public static class Commands
+    {
+        public static Command notWitnessed(TxnId txnId, PartialTxn txn)
+        {
+            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
+            attrs.partialTxn(txn);
+            return Command.SerializerSupport.notWitnessed(attrs, Ballot.ZERO);
+        }
+
+        public static Command preaccepted(TxnId txnId, PartialTxn txn, Timestamp executeAt)
+        {
+            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
+            attrs.partialTxn(txn);
+            return Command.SerializerSupport.preaccepted(attrs, executeAt, Ballot.ZERO);
+        }
+
+        public static Command committed(TxnId txnId, PartialTxn txn, Timestamp executeAt)
+        {
+            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
+            attrs.partialTxn(txn);
+            return Command.SerializerSupport.committed(attrs,
+                                                       SaveStatus.Committed,
+                                                       executeAt,
+                                                       Ballot.ZERO,
+                                                       Ballot.ZERO,
+                                                       ImmutableSortedSet.of(),
+                                                       ImmutableSortedMap.of());
+        }
+    }
+
+    public static CommandsForKey commandsForKey(Key key)
+    {
+        return new CommandsForKey(key, CommandsForKeySerializer.loader);
+    }
+
+    public static <K, V> AccordLoadingState<K, V> loaded(K key, V value)
+    {
+        AccordLoadingState<K, V> global = new AccordLoadingState<>(key);
+        global.load(k -> {
+            Assert.assertEquals(key, k);
+            return value;
+        }).run();
+        Assert.assertEquals(AccordLoadingState.LoadingState.LOADED, global.state());
+        return global;
+    }
+
+    public static AccordSafeCommand safeCommand(Command command)
+    {
+        AccordLoadingState<TxnId, Command> global = loaded(command.txnId(), command);
+        return new AccordSafeCommand(global);
+    }
+
+    public static <K, V> Function<K, V> testableLoad(K key, V val)
+    {
+        return k -> {
+            Assert.assertEquals(key, k);
+            return val;
+        };
+    }
+
+    public static <K, V> void testLoad(AccordSafeState<K, V> safeState, V val)
+    {
+        Assert.assertEquals(AccordLoadingState.LoadingState.UNINITIALIZED, safeState.loadingState());
+        Runnable load = safeState.load(testableLoad(safeState.key(), val));
+        Assert.assertEquals(AccordLoadingState.LoadingState.PENDING, safeState.loadingState());
+        load.run();
+        Assert.assertEquals(AccordLoadingState.LoadingState.LOADED, safeState.loadingState());
+        safeState.preExecute();
+        Assert.assertEquals(val, safeState.current());
+    }
+
     public static final ProgressLog NOOP_PROGRESS_LOG = new ProgressLog()
     {
-        @Override public void unwitnessed(TxnId txnId, RoutingKey homeKey, ProgressShard shard) {}
+        @Override public void unwitnessed(TxnId txnId, RoutingKey routingKey, ProgressShard progressShard) {}
         @Override public void preaccepted(Command command, ProgressShard progressShard) {}
         @Override public void accepted(Command command, ProgressShard progressShard) {}
         @Override public void committed(Command command, ProgressShard progressShard) {}
         @Override public void readyToExecute(Command command, ProgressShard progressShard) {}
         @Override public void executed(Command command, ProgressShard progressShard) {}
         @Override public void invalidated(Command command, ProgressShard progressShard) {}
-        @Override public void durable(Command command, Set<Id> persistedOn) {}
-        @Override public void durable(TxnId txnId, @Nullable Unseekables<?, ?> someKeys, ProgressShard shard) {}
         @Override public void durableLocal(TxnId txnId) {}
-        @Override public void waiting(TxnId blockedBy, Known blockedUntil, Unseekables<?, ?> blockedOn) {}
+        @Override public void durable(Command command, @Nullable Set<Id> set) {}
+        @Override public void durable(TxnId txnId, @Nullable Unseekables<?, ?> unseekables, ProgressShard progressShard) {}
+        @Override public void waiting(TxnId txnId, Known known, Unseekables<?, ?> unseekables) {}
     };
 
     public static TxnId txnId(long epoch, long hlc, int node)
@@ -109,37 +194,34 @@ public class AccordTestUtils
         return Ballot.fromValues(epoch, hlc, new Node.Id(node));
     }
 
-    /**
-     * does the reads, writes, and results for a command without the consensus
-     */
-    public static void processCommandResult(AccordCommandStore commandStore, Command command) throws Throwable
+    public static Pair<Writes, Result> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
     {
-
-        awaitUninterruptibly(commandStore.execute(PreLoadContext.contextFor(Collections.emptyList(), command.partialTxn().keys()),
-                                       instance -> {
-            PartialTxn txn = command.partialTxn();
-            TxnRead read = (TxnRead) txn.read();
-            Data readData = read.keys().stream()
-                                .map(key -> {
-                                    try
-                                    {
-                                        return AsyncChains.getBlocking(read.read(key, command.txnId().rw(), instance, command.executeAt(), null));
-                                    }
-                                    catch (InterruptedException e)
-                                    {
-                                        throw new UncheckedInterruptedException(e);
-                                    }
-                                    catch (ExecutionException e)
-                                    {
-                                        throw new RuntimeException(e);
-                                    }
-                                })
-                                .reduce(null, TxnData::merge);
-            Write write = txn.update().apply(readData);
-            ((AccordCommand)command).setWrites(new Writes(command.executeAt(), (Keys)txn.keys(), write));
-            ((AccordCommand)command).setResult(txn.query().compute(command.txnId(), readData, txn.read(), txn.update()));
-        }));
+        AtomicReference<Pair<Writes, Result>> result = new AtomicReference<>();
+        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(Collections.emptyList(), txn.keys()),
+                              safeStore -> {
+                                  TxnRead read = (TxnRead) txn.read();
+                                  Data readData = read.keys().stream().map(key -> {
+                                                          try
+                                                          {
+                                                              return AsyncChains.getBlocking(read.read(key, txn.kind(), safeStore, executeAt, null));
+                                                          }
+                                                          catch (InterruptedException e)
+                                                          {
+                                                              throw new UncheckedInterruptedException(e);
+                                                          }
+                                                          catch (ExecutionException e)
+                                                          {
+                                                              throw new RuntimeException(e);
+                                                          }
+                                                      })
+                                                      .reduce(null, TxnData::merge);
+                                  Write write = txn.update().apply(readData);
+                                  result.set(Pair.create(new Writes(executeAt, (Keys)txn.keys(), write),
+                                                         txn.query().compute(txnId, readData, txn.read(), txn.update())));
+                              }));
+        return result.get();
     }
+
 
     public static Txn createTxn(String query)
     {
@@ -187,7 +269,12 @@ public class AccordTestUtils
 
     public static Ranges fullRange(Txn txn)
     {
-        PartitionKey key = (PartitionKey) txn.keys().get(0);
+        return fullRange(txn.keys());
+    }
+
+    public static Ranges fullRange(Seekables<?, ?> keys)
+    {
+        PartitionKey key = (PartitionKey) keys.get(0);
         return Ranges.of(TokenRange.fullRange(key.keyspace()));
     }
 
@@ -246,6 +333,7 @@ public class AccordTestUtils
                                       cs -> NOOP_PROGRESS_LOG,
                                       new SingleEpochRanges(topology.rangesForNode(node)));
     }
+
     public static AccordCommandStore createAccordCommandStore(LongSupplier now, String keyspace, String table)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
@@ -271,5 +359,16 @@ public class AccordTestUtils
         {
             throw new RuntimeException(e.getCause());
         }
+    }
+
+    public static PartitionKey key(TableMetadata table, int key)
+    {
+        DecoratedKey dk = table.partitioner.decorateKey(Int32Type.instance.decompose(key));
+        return new PartitionKey(table.keyspace, table.id, dk);
+    }
+
+    public static Keys keys(TableMetadata table, int... keys)
+    {
+        return Keys.of(IntStream.of(keys).mapToObj(key -> key(table, key)).collect(Collectors.toList()));
     }
 }
