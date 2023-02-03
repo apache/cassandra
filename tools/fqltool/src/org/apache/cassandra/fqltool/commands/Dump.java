@@ -219,7 +219,6 @@ public class Dump implements Runnable
 
     private static void appendValuesToStringBuilder(List<ByteBuffer> values, StringBuilder sb)
     {
-        boolean first = true;
         for (ByteBuffer value : values)
         {
             if (null == value)
@@ -237,14 +236,7 @@ public class Dump implements Runnable
                 }
             }
 
-            if (first)
-            {
-                first = false;
-            }
-            else
-            {
-                sb.append("-----").append(System.lineSeparator());
-            }
+            sb.append("-----").append(System.lineSeparator());
         }
     }
 
