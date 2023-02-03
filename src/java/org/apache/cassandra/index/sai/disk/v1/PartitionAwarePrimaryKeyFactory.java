@@ -88,6 +88,7 @@ public class PartitionAwarePrimaryKeyFactory implements PrimaryKey.Factory
         @Override
         public DecoratedKey partitionKey()
         {
+            loadDeferred();
             return partitionKey;
         }
 
