@@ -74,7 +74,7 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
         this.dataDirectories = dataDirs;
     }
 
-    public Set<TableSnapshot> loadSnapshots()
+    public synchronized Set<TableSnapshot> loadSnapshots()
     {
         for (Path dataDir : dataDirectories)
         {
@@ -82,7 +82,7 @@ public class SnapshotLoader extends SimpleFileVisitor<Path>
             {
                 if (new File(dataDir).exists())
                 {
-                    Files.walkFileTree(dataDir, Collections.EMPTY_SET, 5, this);
+                    Files.walkFileTree(dataDir, Collections.emptySet(), 5, this);
                 }
                 else
                 {

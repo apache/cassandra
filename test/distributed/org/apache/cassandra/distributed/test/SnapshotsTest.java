@@ -31,7 +31,6 @@ import org.junit.Test;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.WithProperties;
@@ -341,10 +340,8 @@ public class SnapshotsTest extends TestBaseImpl
 
     private void waitForSnapshot(String snapshotName, boolean expectPresent, boolean noTTL)
     {
-        if (waitForSnapshotInternal(snapshotName, expectPresent, noTTL))
-            return;
-
         await().timeout(20, SECONDS)
+               .pollDelay(0, SECONDS)
                .pollInterval(1, SECONDS)
                .until(() -> waitForSnapshotInternal(snapshotName, expectPresent, noTTL));
     }
