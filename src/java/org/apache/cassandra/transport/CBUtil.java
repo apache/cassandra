@@ -74,7 +74,7 @@ public abstract class CBUtil
         @Override
         protected ByteBuffer initialValue()
         {
-            return ByteBuffer.wrap(new byte[0]);
+            return MemoryUtil.getHollowDirectByteBuffer();
         }
     };
 
@@ -475,7 +475,7 @@ public abstract class CBUtil
         cb.writeBytes(bytes);
     }
 
-    public static void writeValue(ByteBuffer bytes, ByteBuf cb)
+    public static void writeValu(ByteBuffer bytes, ByteBuf cb)
     {
         if (bytes == null)
         {
@@ -487,7 +487,37 @@ public abstract class CBUtil
         cb.writeInt(remaining);
 
         if (remaining > 0)
+        {
             cb.writeBytes(MemoryUtil.duplicateHeapByteBuffer(bytes, getLocalBuffer()));
+        }
+    }
+
+    public static void writeValue(ByteBuffer src, ByteBuf dest)
+    {
+        if (src == null)
+        {
+            dest.writeInt(-1);
+            return;
+        }
+
+        int length = src.remaining();
+        dest.writeInt(length);
+
+        if (src.hasArray())
+        {
+            byte[] array = src.array();
+            dest.writeBytes(array, src.arrayOffset() + src.position(), length);
+        }
+        else if (src.isDirect())
+        {
+            ByteBuffer local = getLocalBuffer();
+            MemoryUtil.duplicateDirectByteBuffer(src, local);
+            dest.writeBytes(local);
+        }
+        else
+        {
+            dest.writeBytes(src.duplicate());
+        }
     }
 
     public static int sizeOfValue(byte[] bytes)

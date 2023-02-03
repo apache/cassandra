@@ -71,7 +71,7 @@ public class DuplicateHeapBufferTest
 
     private void directTest(int capacity, boolean readOnly)
     {
-        ByteBuffer hollowBuffer = CBUtil.getLocalBuffer();
+        ByteBuffer hollowBuffer = MemoryUtil.getHollowByteBuffer();
         ByteBuffer bb = readOnly ? ByteBuffer.allocateDirect(capacity).asReadOnlyBuffer() : ByteBuffer.allocateDirect(capacity);
 
         int size = bb.capacity();
@@ -87,7 +87,7 @@ public class DuplicateHeapBufferTest
 
     private void heapTest(int capacity, boolean readOnly)
     {
-        ByteBuffer hollowBuffer = CBUtil.getLocalBuffer();
+        ByteBuffer hollowBuffer = MemoryUtil.getHollowByteBuffer();
         ByteBuffer bb = readOnly ? ByteBuffer.allocate(capacity).asReadOnlyBuffer() : ByteBuffer.allocate(capacity);
 
         int size = bb.capacity();
