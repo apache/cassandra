@@ -63,7 +63,6 @@ import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.causedBy;
 import static org.apache.cassandra.utils.AssertionUtils.anyOf;
 import static org.apache.cassandra.utils.AssertionUtils.hasCause;
-import static org.apache.cassandra.utils.AssertionUtils.isThrowableInstanceof;
 
 public abstract class PaxosSimulation implements Simulation, ClusterActionListener
 {
@@ -99,12 +98,30 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
             return super.performAndRegister();
         }
 
+        private boolean wasInterrupted(Throwable failure)
+        {
+            if (failure instanceof UncheckedInterruptedException)
+                return true;
+
+            if (failure instanceof InterruptedException)
+                return true;
+
+            Throwable cause = failure.getCause();
+            while (cause != null && cause != failure)
+            {
+                if (cause instanceof InterruptedException)
+                    return true;
+                cause = cause.getCause();
+            }
+            return false;
+        }
+
         @Override
         public void accept(SimpleQueryResult success, Throwable failure)
         {
             if (failure != null && !expectedException(failure))
             {
-                if (!simulated.failures.hasFailure() || !(failure instanceof UncheckedInterruptedException))
+                if (!simulated.failures.hasFailure() || !wasInterrupted(failure))
                     logger.error("Unexpected exception", failure);
                 simulated.failures.accept(failure);
                 return;

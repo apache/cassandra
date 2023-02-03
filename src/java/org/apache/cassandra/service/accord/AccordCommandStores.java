@@ -21,13 +21,12 @@ package org.apache.cassandra.service.accord;
 import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.ProgressLog;
-import accord.local.AsyncCommandStores;
+import accord.local.CommandStores;
 import accord.local.NodeTimeService;
 import accord.local.ShardDistributor;
 import accord.topology.Topology;
-import org.apache.cassandra.service.accord.AccordCommandStore.SafeAccordCommandStore;
 
-public class AccordCommandStores extends AsyncCommandStores
+public class AccordCommandStores extends CommandStores<AccordCommandStore>
 {
     private long cacheSize;
     AccordCommandStores(NodeTimeService time, Agent agent, DataStore store,
@@ -49,7 +48,7 @@ public class AccordCommandStores extends AsyncCommandStores
             return;
         long perStore = cacheSize / count();
         // TODO (low priority, safety): we might transiently breach our limit if we increase one store before decreasing another
-        forEach(commandStore -> ((SafeAccordCommandStore) commandStore).commandStore().setCacheSize(perStore));
+        forEach(commandStore -> ((AccordSafeCommandStore) commandStore).commandStore().setCacheSize(perStore));
     }
 
     private static long maxCacheSize()
