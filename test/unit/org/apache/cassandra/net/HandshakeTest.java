@@ -19,6 +19,8 @@
 package org.apache.cassandra.net;
 
 import java.nio.channels.ClosedChannelException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -240,23 +242,23 @@ public class HandshakeTest
     {
         // Upgrade from Non-SSL -> Optional SSL
         // Outbound connection from Optional SSL(new node) -> Non-SSL (old node)
-        testOutboundFallbackOnSSLHandshakeFailure(SslFallbackConnectionType.SSL, true, SslFallbackConnectionType.NO_SSL, false);
+        testOutboundFallbackOnSSLHandshakeFailureAndDelivery(SslFallbackConnectionType.SSL, true, SslFallbackConnectionType.NO_SSL, false);
 
         // Upgrade from Optional SSL -> Strict SSL
         // Outbound connection from Strict SSL(new node) -> Optional SSL (old node)
-        testOutboundFallbackOnSSLHandshakeFailure(SslFallbackConnectionType.SSL, false, SslFallbackConnectionType.SSL, true);
+        testOutboundFallbackOnSSLHandshakeFailureAndDelivery(SslFallbackConnectionType.SSL, false, SslFallbackConnectionType.SSL, true);
 
         // Upgrade from Optional SSL -> Strict MTLS
         // Outbound connection from Strict MTLS(new node) -> Optional SSL (old node)
-        testOutboundFallbackOnSSLHandshakeFailure(SslFallbackConnectionType.MTLS, false, SslFallbackConnectionType.SSL, true);
+        testOutboundFallbackOnSSLHandshakeFailureAndDelivery(SslFallbackConnectionType.MTLS, false, SslFallbackConnectionType.SSL, true);
 
         // Upgrade from Strict SSL -> Optional MTLS
         // Outbound connection from Optional MTLS(new node) -> Strict SSL (old node)
-        testOutboundFallbackOnSSLHandshakeFailure(SslFallbackConnectionType.MTLS, true, SslFallbackConnectionType.SSL, false);
+        testOutboundFallbackOnSSLHandshakeFailureAndDelivery(SslFallbackConnectionType.MTLS, true, SslFallbackConnectionType.SSL, false);
 
         // Upgrade from Strict Optional MTLS -> Strict MTLS
         // Outbound connection from Strict TLS(new node) -> Optional TLS (old node)
-        testOutboundFallbackOnSSLHandshakeFailure(SslFallbackConnectionType.MTLS, false, SslFallbackConnectionType.MTLS, true);
+        testOutboundFallbackOnSSLHandshakeFailureAndDelivery(SslFallbackConnectionType.MTLS, false, SslFallbackConnectionType.MTLS, true);
     }
 
     @Test
@@ -264,27 +266,27 @@ public class HandshakeTest
     {
         // From Strict MTLS -> Optional MTLS
         // Outbound connection from Optional TLS(new node) -> Strict MTLS (old node)
-        testOutboundFallbackOnSSLHandshakeFailure(SslFallbackConnectionType.MTLS, true, SslFallbackConnectionType.MTLS, false);
+        testOutboundFallbackOnSSLHandshakeFailureAndDelivery(SslFallbackConnectionType.MTLS, true, SslFallbackConnectionType.MTLS, false);
 
         // From Optional MTLS -> Strict SSL
         // Outbound connection from Strict SSL(new node) -> Optional MTLS (old node)
-        testOutboundFallbackOnSSLHandshakeFailure(SslFallbackConnectionType.SSL, false, SslFallbackConnectionType.MTLS, true);
+        testOutboundFallbackOnSSLHandshakeFailureAndDelivery(SslFallbackConnectionType.SSL, false, SslFallbackConnectionType.MTLS, true);
 
         // From Strict MTLS -> Optional SSL
         // Outbound connection from Optional SSL(new node) -> Strict MTLS (old node)
-        testOutboundFallbackOnSSLHandshakeFailure(SslFallbackConnectionType.SSL, true, SslFallbackConnectionType.MTLS, false);
+        testOutboundFallbackOnSSLHandshakeFailureAndDelivery(SslFallbackConnectionType.SSL, true, SslFallbackConnectionType.MTLS, false);
 
         // From Strict SSL -> Optional SSL
         // Outbound connection from Optional SSL(new node) -> Strict SSL (old node)
-        testOutboundFallbackOnSSLHandshakeFailure(SslFallbackConnectionType.SSL, true, SslFallbackConnectionType.SSL, false);
+        testOutboundFallbackOnSSLHandshakeFailureAndDelivery(SslFallbackConnectionType.SSL, true, SslFallbackConnectionType.SSL, false);
 
         // From Optional SSL -> Non-SSL
         // Outbound connection from Non-SSL(new node) -> Optional SSL (old node)
-        testOutboundFallbackOnSSLHandshakeFailure(SslFallbackConnectionType.NO_SSL, false, SslFallbackConnectionType.SSL, true);
+        testOutboundFallbackOnSSLHandshakeFailureAndDelivery(SslFallbackConnectionType.NO_SSL, false, SslFallbackConnectionType.SSL, true);
     }
 
     @Test
-    public void testOutboundConnectionDoesntFallbackWhenErrorIsNotSSLRelated() throws ClosedChannelException, InterruptedException
+    public void testOutboundConnectionDoesntFallbackWhenErrorIsNotSSLRelatedAndDelivery() throws ClosedChannelException, InterruptedException
     {
         // Configuring nodes in Optional SSL mode
         // when optional mode is enabled, if the connection error is SSL related, fallback to another SSL strategy should happen,
@@ -307,9 +309,8 @@ public class HandshakeTest
             assertFalse(outboundConnection.isConnected());
             inbound.open();
             // As soon as the node accepts inbound connections, the connection must be established with right SSL context
-            waitForConnection(outboundConnection);
-            assertTrue(outboundConnection.isConnected());
-            assertFalse(outboundConnection.hasPending());
+            // But we also want to confirm that delivery of the test message succeeded
+            confirmDelivery(outboundConnection);
         }
         finally
         {
@@ -367,7 +368,7 @@ public class HandshakeTest
         return outboundConnection;
     }
 
-    private void testOutboundFallbackOnSSLHandshakeFailure(SslFallbackConnectionType fromConnectionType, boolean fromOptional,
+    private void testOutboundFallbackOnSSLHandshakeFailureAndDelivery(SslFallbackConnectionType fromConnectionType, boolean fromOptional,
                                                            SslFallbackConnectionType toConnectionType, boolean toOptional) throws ClosedChannelException, InterruptedException
     {
         // Configures inbound connections to be optional mTLS
@@ -377,11 +378,9 @@ public class HandshakeTest
             InetAddressAndPort endpoint = inbound.sockets().stream().map(s -> s.settings.bindAddress).findFirst().get();
             inbound.open();
 
-            // Open outbound connections, and wait until connection is established
+            // Open outbound connections, and wait until connection is established and the initial message is delivered
             OutboundConnection outboundConnection = initiateOutbound(endpoint, fromConnectionType, fromOptional);
-            waitForConnection(outboundConnection);
-            assertTrue(outboundConnection.isConnected());
-            assertFalse(outboundConnection.hasPending());
+            confirmDelivery(outboundConnection);
         }
         finally
         {
@@ -389,12 +388,25 @@ public class HandshakeTest
         }
     }
 
-    private void waitForConnection(OutboundConnection outboundConnection) throws InterruptedException
+    private final static Duration DELIVERY_WAIT_DURATION = Duration.ofSeconds(60);
+
+    private void confirmDelivery(OutboundConnection outboundConnection) throws InterruptedException
     {
-        long startTime = System.currentTimeMillis();
-        while (!outboundConnection.isConnected() && System.currentTimeMillis() - startTime < 60000)
+        Instant endTime = Instant.now().plus(DELIVERY_WAIT_DURATION);
+
+        while (!outboundConnection.isConnected() && Instant.now().isBefore(endTime))
         {
             Thread.sleep(1000);
+        }
+
+        // Now that we're connected, we also want to ensure that the delivery thread succeeded
+        while (outboundConnection.hasPending() && Instant.now().isBefore(endTime)) {
+            Thread.sleep(1000);
+        }
+
+        if (Instant.now().isAfter(endTime)) {
+            throw new IllegalStateException(String
+                    .format("Exceeded timeout of %s waiting for connection and/or delivery", DELIVERY_WAIT_DURATION));
         }
     }
 }
