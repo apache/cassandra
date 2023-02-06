@@ -106,6 +106,24 @@
       <property name="message" value="Avoid Path#toFile(), as some implementations may not support it." />
     </module>
 
+    <module name="SuppressionCommentFilter">
+      <property name="offCommentFormat" value="checkstyle: suppress below '([\w\|]+)'"/>
+      <property name="idFormat" value="$1"/>
+    </module>
+
+    <module name="SuppressWithNearbyCommentFilter">
+      <property name="commentFormat" value="checkstyle: suppress nearby '([\w\|]+)'"/>
+      <property name="idFormat" value="$1"/>
+      <property name="influenceFormat" value="0"/>
+    </module>
+
+    <module name="RegexpSinglelineJava">
+      <property name="id" value="blockSystemPropertyUsage"/>
+      <property name="format" value="(System\.getenv)|(System\.(getProperty|setProperty))|(Integer\.getInteger)|(Long\.getLong)|(Boolean\.getBoolean)"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Use the CassandraRelevantProperties or CassandraRelevantEnv instead." />
+    </module>
+
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
   </module>

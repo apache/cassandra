@@ -56,13 +56,13 @@ import org.yaml.snakeyaml.nodes.Node;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_DUPLICATE_CONFIG_KEYS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_NEW_OLD_CONFIG_KEYS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.apache.cassandra.config.Replacements.getNameReplacements;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(YamlConfigurationLoader.class);
 
-    private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
     /**
      * This is related to {@link Config#PROPERTY_PREFIX} but is different to make sure Config properties updated via
      * system properties do not conflict with other system properties; the name "settings" matches system_views.settings.
@@ -74,9 +74,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      */
     private static URL getStorageConfigURL() throws ConfigurationException
     {
-        String configUrl = System.getProperty("cassandra.config");
-        if (configUrl == null)
-            configUrl = DEFAULT_CONFIGURATION;
+        String configUrl = CASSANDRA_CONFIG.getString();
 
         URL url;
         try

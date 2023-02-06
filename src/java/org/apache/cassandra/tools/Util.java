@@ -49,11 +49,12 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 
 @SuppressWarnings("serial")
 public final class Util
 {
-    public static final String ALLOW_TOOL_REINIT_FOR_TEST = Util.class.getName() + "ALLOW_TOOL_REINIT_FOR_TEST"; // Necessary for testing
+    public static final String ALLOW_TOOL_REINIT_FOR_TEST = TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.getKey(); // Necessary for testing
     static final String RESET = "\u001B[0m";
     static final String BLUE = "\u001B[34m";
     static final String CYAN = "\u001B[36m";

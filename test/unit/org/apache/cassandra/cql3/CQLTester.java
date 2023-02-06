@@ -110,6 +110,12 @@ import org.awaitility.Awaitility;
 
 import static com.datastax.driver.core.SocketOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 import static com.datastax.driver.core.SocketOptions.DEFAULT_READ_TIMEOUT_MILLIS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_CONNECTION_TIMEOUT_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_READ_TIMEOUT_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_REUSE_PREPARED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_ROW_CACHE_SIZE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_USE_PREPARED;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertFalse;
@@ -130,9 +136,9 @@ public abstract class CQLTester
 
     public static final String KEYSPACE = "cql_test_keyspace";
     public static final String KEYSPACE_PER_TEST = "cql_test_keyspace_alt";
-    protected static final boolean USE_PREPARED_VALUES = Boolean.valueOf(System.getProperty("cassandra.test.use_prepared", "true"));
-    protected static final boolean REUSE_PREPARED = Boolean.valueOf(System.getProperty("cassandra.test.reuse_prepared", "true"));
-    protected static final long ROW_CACHE_SIZE_IN_MIB = new DataStorageSpec.LongMebibytesBound(System.getProperty("cassandra.test.row_cache_size", "0MiB")).toMebibytes();
+    protected static final boolean USE_PREPARED_VALUES = TEST_USE_PREPARED.getBoolean();
+    protected static final boolean REUSE_PREPARED = TEST_REUSE_PREPARED.getBoolean();
+    protected static final long ROW_CACHE_SIZE_IN_MIB = new DataStorageSpec.LongMebibytesBound(TEST_ROW_CACHE_SIZE.getString("0MiB")).toMebibytes();
     private static final AtomicInteger seqNumber = new AtomicInteger();
     protected static final ByteBuffer TOO_BIG = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT + 1024);
     public static final String DATA_CENTER = ServerTestUtils.DATA_CENTER;
@@ -440,7 +446,7 @@ public abstract class CQLTester
 
     public static List<String> buildNodetoolArgs(List<String> args)
     {
-        int port = jmxPort == 0 ? Integer.getInteger("cassandra.jmx.local.port", 7199) : jmxPort;
+        int port = jmxPort == 0 ? CASSANDRA_JMX_LOCAL_PORT.getInt(7199) : jmxPort;
         String host = jmxHost == null ? "127.0.0.1" : jmxHost;
         List<String> allArgs = new ArrayList<>();
         allArgs.add("bin/nodetool");
@@ -573,10 +579,8 @@ public abstract class CQLTester
     private static Cluster initClientCluster(User user, ProtocolVersion version)
     {
         SocketOptions socketOptions =
-                new SocketOptions().setConnectTimeoutMillis(Integer.getInteger("cassandra.test.driver.connection_timeout_ms",
-                                                                               DEFAULT_CONNECT_TIMEOUT_MILLIS)) // default is 5000
-                                   .setReadTimeoutMillis(Integer.getInteger("cassandra.test.driver.read_timeout_ms",
-                                                                            DEFAULT_READ_TIMEOUT_MILLIS)); // default is 12000
+                new SocketOptions().setConnectTimeoutMillis(TEST_DRIVER_CONNECTION_TIMEOUT_MS.getInt(DEFAULT_CONNECT_TIMEOUT_MILLIS)) // default is 5000
+                                   .setReadTimeoutMillis(TEST_DRIVER_READ_TIMEOUT_MS.getInt(DEFAULT_READ_TIMEOUT_MILLIS)); // default is 12000
 
         logger.info("Timeouts: {} / {}", socketOptions.getConnectTimeoutMillis(), socketOptions.getReadTimeoutMillis());
 

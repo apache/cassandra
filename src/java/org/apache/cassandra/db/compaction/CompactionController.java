@@ -33,11 +33,11 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.AbstractCompactionController;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -55,8 +55,7 @@ import static org.apache.cassandra.db.lifecycle.SSTableIntervalTree.buildInterva
 public class CompactionController extends AbstractCompactionController
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionController.class);
-    private static final String NEVER_PURGE_TOMBSTONES_PROPERTY = Config.PROPERTY_PREFIX + "never_purge_tombstones";
-    static final boolean NEVER_PURGE_TOMBSTONES = Boolean.getBoolean(NEVER_PURGE_TOMBSTONES_PROPERTY);
+    static final boolean NEVER_PURGE_TOMBSTONES = CassandraRelevantProperties.NEVER_PURGE_TOMBSTONES.getBoolean();
 
     private final boolean compactingRepaired;
     // note that overlapIterator and overlappingSSTables will be null if NEVER_PURGE_TOMBSTONES is set - this is a
@@ -99,7 +98,7 @@ public class CompactionController extends AbstractCompactionController
         if (NEVER_PURGE_TOMBSTONES)
         {
             logger.debug("not refreshing overlaps - running with -D{}=true",
-                    NEVER_PURGE_TOMBSTONES_PROPERTY);
+                    CassandraRelevantProperties.NEVER_PURGE_TOMBSTONES.getKey());
             return;
         }
 

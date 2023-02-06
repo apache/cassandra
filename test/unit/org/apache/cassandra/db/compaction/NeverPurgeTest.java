@@ -33,6 +33,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.NEVER_PURGE_TOMBSTONES;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -40,7 +41,7 @@ public class NeverPurgeTest extends CQLTester
 {
     static
     {
-        System.setProperty("cassandra.never_purge_tombstones", "true");
+        NEVER_PURGE_TOMBSTONES.setBoolean(true);
     }
 
     @Test

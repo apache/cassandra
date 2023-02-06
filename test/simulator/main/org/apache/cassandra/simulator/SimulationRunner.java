@@ -54,6 +54,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BATCH_COMMIT_LOG_SYNC_INTERVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
@@ -63,9 +64,11 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINIS
 import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_UNSAFE_UUID_NODE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_API_LOG_TOPOLOGY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_SKIP_WAITING_TO_SETTLE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IS_DISABLED_MBEAN_REGISTRATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LIBJEMALLOC;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_OVERHEAD_SIZE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MIGRATION_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS;
@@ -99,12 +102,12 @@ public class SimulationRunner
         try { Clock.Global.nanoTime(); } catch (IllegalStateException e) {} // make sure static initializer gets called
 
         // TODO (cleanup): disable unnecessary things like compaction logger threads etc
-        System.setProperty("cassandra.libjemalloc", "-");
-        System.setProperty("cassandra.dtest.api.log.topology", "false");
+        LIBJEMALLOC.setString("-");
+        DTEST_API_LOG_TOPOLOGY.setBoolean(false);
 
         // this property is used to allow non-members of the ring to exist in gossip without breaking RF changes
         // it would be nice not to rely on this, but hopefully we'll have consistent range movements before it matters
-        System.setProperty("cassandra.allow_alter_rf_during_range_movement", "true");
+        ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT.setBoolean(true);
 
         for (CassandraRelevantProperties property : Arrays.asList(CLOCK_GLOBAL, CLOCK_MONOTONIC_APPROX, CLOCK_MONOTONIC_PRECISE))
             property.setString("org.apache.cassandra.simulator.systems.SimulatedTime$Global");

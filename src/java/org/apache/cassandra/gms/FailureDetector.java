@@ -39,7 +39,10 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.FD_INITIAL_VALUE_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.FD_MAX_INTERVAL_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.MAX_LOCAL_PAUSE_IN_MS;
 import static org.apache.cassandra.config.DatabaseDescriptor.newFailureDetector;
 import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
 
@@ -62,14 +65,13 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     private static long getMaxLocalPause()
     {
-        if (System.getProperty("cassandra.max_local_pause_in_ms") != null)
-        {
-            long pause = Long.parseLong(System.getProperty("cassandra.max_local_pause_in_ms"));
-            logger.warn("Overriding max local pause time to {}ms", pause);
-            return pause * 1000000L;
-        }
-        else
-            return DEFAULT_MAX_PAUSE;
+        long pause = MAX_LOCAL_PAUSE_IN_MS.getLong();
+
+        if (!String.valueOf(pause).equals(MAX_LOCAL_PAUSE_IN_MS.getDefaultValue()))
+            logger.warn("Overriding {} max local pause time from {}ms to {}ms",
+                        MAX_LOCAL_PAUSE_IN_MS.getKey(), MAX_LOCAL_PAUSE_IN_MS.getDefaultValue(), pause);
+
+        return pause * 1000000L;
     }
 
     public static final IFailureDetector instance = newFailureDetector();
@@ -93,16 +95,14 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
 
     private static long getInitialValue()
     {
-        String newvalue = System.getProperty("cassandra.fd_initial_value_ms");
-        if (newvalue == null)
-        {
+        Long newValue = FD_INITIAL_VALUE_MS.getLong();
+        if (newValue == null)
             return Gossiper.intervalInMillis * 2;
-        }
-        else
-        {
-            logger.info("Overriding FD INITIAL_VALUE to {}ms", newvalue);
-            return Integer.parseInt(newvalue);
-        }
+
+        if (newValue != Gossiper.intervalInMillis * 2)
+            logger.info("Overriding {} from {}ms to {}ms", FD_INITIAL_VALUE_MS.getKey(), Gossiper.intervalInMillis * 2, newValue);
+
+        return newValue;
     }
 
     public String getAllEndpointStates()
@@ -476,16 +476,14 @@ class ArrivalWindow
 
     private static long getMaxInterval()
     {
-        String newvalue = System.getProperty("cassandra.fd_max_interval_ms");
-        if (newvalue == null)
-        {
+        Long newValue = FD_MAX_INTERVAL_MS.getLong();
+        if (newValue == null)
             return FailureDetector.INITIAL_VALUE_NANOS;
-        }
-        else
-        {
-            logger.info("Overriding FD MAX_INTERVAL to {}ms", newvalue);
-            return TimeUnit.NANOSECONDS.convert(Integer.parseInt(newvalue), TimeUnit.MILLISECONDS);
-        }
+
+        if (newValue != FailureDetector.INITIAL_VALUE_NANOS)
+            logger.info("Overriding {} from {}ms to {}ms", FD_MAX_INTERVAL_MS.getKey(), FailureDetector.INITIAL_VALUE_NANOS, newValue);
+
+        return TimeUnit.NANOSECONDS.convert(newValue, TimeUnit.MILLISECONDS);
     }
 
     synchronized void add(long value, InetAddressAndPort ep)

@@ -76,7 +76,9 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_GOSSIP_ENDPOINT_REMOVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_SKIP_WAITING_TO_SETTLE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SHUTDOWN_ANNOUNCE_DELAY_IN_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.VERY_LONG_TIME_MS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getClusterName;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitionerName;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -106,9 +108,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=Gossiper";
 
+    /** @deprecated Use CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION instead. */
+    @Deprecated
     public static class Props
     {
-        public static final String DISABLE_THREAD_VALIDATION = "cassandra.gossip.disable_thread_validation";
+        @Deprecated
+        public static final String DISABLE_THREAD_VALIDATION = GOSSIP_DISABLE_THREAD_VALIDATION.getKey();
     }
 
     private static final ScheduledExecutorPlus executor = executorFactory().scheduled("GossipTasks");
@@ -257,18 +262,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         ((ExpiringMemoizingSupplier<CassandraVersion>) upgradeFromVersionMemoized).expire();
     }
 
-    private static final boolean disableThreadValidation = Boolean.getBoolean(Props.DISABLE_THREAD_VALIDATION);
+    private static final boolean disableThreadValidation = GOSSIP_DISABLE_THREAD_VALIDATION.getBoolean();
     private static volatile boolean disableEndpointRemoval = DISABLE_GOSSIP_ENDPOINT_REMOVAL.getBoolean();
 
     private static long getVeryLongTime()
     {
-        String newVLT =  System.getProperty("cassandra.very_long_time_ms");
-        if (newVLT != null)
-        {
-            logger.info("Overriding aVeryLongTime to {}ms", newVLT);
-            return Long.parseLong(newVLT);
-        }
-        return 259200 * 1000; // 3 days
+        long time = VERY_LONG_TIME_MS.getLong();
+        String defaultValue = VERY_LONG_TIME_MS.getDefaultValue();
+
+        if (!String.valueOf(time).equals(defaultValue))
+            logger.info("Overriding {} from {} to {}ms",
+                        VERY_LONG_TIME_MS.getKey(), defaultValue, time);
+
+        return time;
     }
 
     private static boolean isInGossipStage()

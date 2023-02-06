@@ -38,26 +38,21 @@ public final class WithProperties implements AutoCloseable
 
     public WithProperties(String... kvs)
     {
-        with(kvs);
+        set(kvs);
     }
 
-    public void with(String... kvs)
+    public void set(String... kvs)
     {
         assert kvs.length % 2 == 0 : "Input must have an even amount of inputs but given " + kvs.length;
         for (int i = 0; i <= kvs.length - 2; i = i + 2)
         {
-            with(kvs[i], kvs[i + 1]);
+            set(CassandraRelevantProperties.getProperty(kvs[i]), kvs[i + 1]);
         }
-    }
-
-    public void setProperty(String key, String value)
-    {
-        with(key, value);
     }
 
     public void set(CassandraRelevantProperties prop, String value)
     {
-        with(prop.getKey(), value);
+        properties.add(new Property(prop, prop.setString(value)));
     }
 
     public void set(CassandraRelevantProperties prop, String... values)
@@ -80,35 +75,28 @@ public final class WithProperties implements AutoCloseable
         set(prop, Long.toString(value));
     }
 
-    public void with(String key, String value)
-    {
-        String previous = System.setProperty(key, value);
-        properties.add(new Property(key, previous));
-    }
-
-
     @Override
     public void close()
     {
         Collections.reverse(properties);
         properties.forEach(s -> {
-            if (s.value == null)
-                System.getProperties().remove(s.key);
+            if (s.prevValue == null)
+                s.prop.clearValue();
             else
-                System.setProperty(s.key, s.value);
+                s.prop.setString(s.prevValue);
         });
         properties.clear();
     }
 
     private static final class Property
     {
-        private final String key;
-        private final String value;
+        private final CassandraRelevantProperties prop;
+        private final String prevValue;
 
-        private Property(String key, String value)
+        private Property(CassandraRelevantProperties prop, String prevValue)
         {
-            this.key = key;
-            this.value = value;
+            this.prop = prop;
+            this.prevValue = prevValue;
         }
     }
 }

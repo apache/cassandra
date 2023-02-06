@@ -41,6 +41,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.distributed.action.GossipHelper.bootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.disseminateGossipState;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToBootstrap;
@@ -65,8 +66,7 @@ public class PendingWritesTest extends TestBaseImpl
             BootstrapTest.populate(cluster, 0, 100);
             IInstanceConfig config = cluster.newInstanceConfig();
             IInvokableInstance newInstance = cluster.bootstrap(config);
-            withProperty("cassandra.join_ring", false,
-                         () -> newInstance.startup(cluster));
+            withProperty(JOIN_RING, false, () -> newInstance.startup(cluster));
 
             cluster.forEach(statusToBootstrap(newInstance));
             cluster.run(bootstrap(false, Duration.ofSeconds(60), Duration.ofSeconds(60)), newInstance.config().num());

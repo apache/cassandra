@@ -41,6 +41,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.net.ParamType.SNAPSHOT_RANGES;
@@ -139,7 +140,7 @@ public class DiagnosticSnapshotService
         long now = nanoTime();
         AtomicLong cached = lastSnapshotTimes.computeIfAbsent(metadata.id, u -> new AtomicLong(0));
         long last = cached.get();
-        long interval = Long.getLong("cassandra.diagnostic_snapshot_interval_nanos", SNAPSHOT_INTERVAL_NANOS);
+        long interval = DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS.getLong(SNAPSHOT_INTERVAL_NANOS);
         if (now - last > interval && cached.compareAndSet(last, now))
         {
             Message<SnapshotCommand> msg = Message.out(Verb.SNAPSHOT_REQ,

@@ -35,9 +35,14 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 import org.yaml.snakeyaml.error.YAMLException;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_SETTINGS_CLIENT_ENCRYPTION_OPTIONS_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_SETTINGS_CLIENT_ENCRYPTION_OPTIONS_OPTIONAL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_SETTINGS_COMMITLOG_SYNC;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_SETTINGS_DOES_NOT_EXIST;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_SETTINGS_SEED_PROVIDER_CLASS_NAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_SETTINGS_STORAGE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
-import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERTY_PREFIX;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
@@ -92,13 +97,12 @@ public class YamlConfigurationLoaderTest
         // It is possible that we define a common string representation for these types so they can be written to; this
         // is an issue that SettingsTable may need to worry about.
         try (WithProperties ignore = new WithProperties(CONFIG_ALLOW_SYSTEM_PROPERTIES.getKey(), "true",
-                                                        SYSTEM_PROPERTY_PREFIX + "storage_port", "123",
-                                                        SYSTEM_PROPERTY_PREFIX + "commitlog_sync", "batch",
-                                                        SYSTEM_PROPERTY_PREFIX + "seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider",
-//                                                        PROPERTY_PREFIX + "client_encryption_options.cipher_suites", "[\"FakeCipher\"]",
-                                                        SYSTEM_PROPERTY_PREFIX + "client_encryption_options.optional", "false",
-                                                        SYSTEM_PROPERTY_PREFIX + "client_encryption_options.enabled", "true",
-                                                        SYSTEM_PROPERTY_PREFIX + "doesnotexist", "true"
+                                                        CASSANDRA_SETTINGS_STORAGE_PORT.getKey(), "123",
+                                                        CASSANDRA_SETTINGS_COMMITLOG_SYNC.getKey(), "batch",
+                                                        CASSANDRA_SETTINGS_SEED_PROVIDER_CLASS_NAME.getKey(), "org.apache.cassandra.locator.SimpleSeedProvider",
+                                                        CASSANDRA_SETTINGS_CLIENT_ENCRYPTION_OPTIONS_OPTIONAL.getKey(), "false",
+                                                        CASSANDRA_SETTINGS_CLIENT_ENCRYPTION_OPTIONS_ENABLED.getKey(), "true",
+                                                        CASSANDRA_SETTINGS_DOES_NOT_EXIST.getKey(), "true"
         ))
         {
             Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);

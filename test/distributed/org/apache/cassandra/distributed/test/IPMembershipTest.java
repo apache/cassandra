@@ -34,6 +34,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.ToolRunner;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getDirectories;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
@@ -64,7 +65,8 @@ public class IPMembershipTest extends TestBaseImpl
                 nodeToReplace.config().set("auto_bootstrap", auto_bootstrap);
 
                 Assertions.assertThatThrownBy(() -> nodeToReplace.startup())
-                          .hasMessage("A node with address /127.0.0.3:7012 already exists, cancelling join. Use cassandra.replace_address if you want to replace this node.");
+                          .hasMessage("A node with address /127.0.0.3:7012 already exists, cancelling join. Use -D" +
+                                      REPLACE_ADDRESS.getKey() + " property if you want to replace this node.");
             }
         }
     }

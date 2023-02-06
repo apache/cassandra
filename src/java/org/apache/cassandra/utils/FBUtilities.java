@@ -97,7 +97,12 @@ import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.objectweb.asm.Opcodes;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_AVAILABLE_PROCESSORS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GIT_SHA;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.OS_NAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RELEASE_VERSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TRIGGERS_DIR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
 import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -122,7 +127,7 @@ public class FBUtilities
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
-    private static final String OPERATING_SYSTEM = System.getProperty("os.name").toLowerCase();
+    private static final String OPERATING_SYSTEM = OS_NAME.getString().toLowerCase();
     public static final boolean isLinux = OPERATING_SYSTEM.contains("linux");
 
     private static volatile InetAddress localInetAddress;
@@ -134,7 +139,7 @@ public class FBUtilities
 
     private static volatile String previousReleaseVersionString;
 
-    private static int availableProcessors = Integer.getInteger("cassandra.available_processors", DatabaseDescriptor.getAvailableProcessors());
+    private static int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
 
     public static void setAvailableProcessors(int value)
     {
@@ -406,9 +411,9 @@ public class FBUtilities
     public static File cassandraTriggerDir()
     {
         File triggerDir = null;
-        if (System.getProperty("cassandra.triggers_dir") != null)
+        if (TRIGGERS_DIR.getString() != null)
         {
-            triggerDir = new File(System.getProperty("cassandra.triggers_dir"));
+            triggerDir = new File(TRIGGERS_DIR.getString());
         }
         else
         {
@@ -458,7 +463,7 @@ public class FBUtilities
     {
         Properties props = getVersionProperties();
         if (props == null)
-            return System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
+            return RELEASE_VERSION.getString();
         return props.getProperty("CassandraVersion");
     }
 
@@ -466,7 +471,7 @@ public class FBUtilities
     {
         Properties props = getVersionProperties();
         if (props == null)
-            return System.getProperty("cassandra.gitSHA", UNKNOWN_GIT_SHA);
+            return GIT_SHA.getString();
         return props.getProperty("GitSHA", UNKNOWN_GIT_SHA);
     }
 

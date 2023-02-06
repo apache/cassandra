@@ -37,6 +37,8 @@ import org.apache.cassandra.cql3.CQLTester;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 
+// checkstyle: suppress below 'blockSystemPropertyUsage'
+
 public class SystemPropertiesTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";

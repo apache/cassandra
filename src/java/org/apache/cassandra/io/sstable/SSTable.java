@@ -37,7 +37,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.ChunkCache;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
@@ -56,6 +55,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.SharedCloseable;
 
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.apache.cassandra.config.CassandraRelevantProperties.STREAMING_HISTOGRAM_ROUND_SECONDS;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 
@@ -69,7 +69,7 @@ public abstract class SSTable
 
     public static final int TOMBSTONE_HISTOGRAM_BIN_SIZE = 100;
     public static final int TOMBSTONE_HISTOGRAM_SPOOL_SIZE = 100000;
-    public static final int TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS = CassandraRelevantProperties.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS.getInt();
+    public static final int TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS = STREAMING_HISTOGRAM_ROUND_SECONDS.getInt();
 
     public final Descriptor descriptor;
     protected final Set<Component> components;

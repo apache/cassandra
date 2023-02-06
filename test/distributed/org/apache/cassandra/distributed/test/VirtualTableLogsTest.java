@@ -33,6 +33,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.logging.VirtualTableAppender;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOGBACK_CONFIGURATION_FILE;
 import static org.apache.cassandra.db.virtual.LogMessagesTable.LEVEL_COLUMN_NAME;
 import static org.apache.cassandra.db.virtual.LogMessagesTable.LOGGER_COLUMN_NAME;
 import static org.apache.cassandra.db.virtual.LogMessagesTable.MESSAGE_COLUMN_NAME;
@@ -49,7 +50,7 @@ public class VirtualTableLogsTest extends TestBaseImpl
     @Test
     public void testVTableOutput() throws Throwable
     {
-        System.setProperty("logback.configurationFile", "test/conf/logback-dtest_with_vtable_appender.xml");
+        LOGBACK_CONFIGURATION_FILE.setString("test/conf/logback-dtest_with_vtable_appender.xml");
 
         try (Cluster cluster = Cluster.build(1)
                                       .withConfig(c -> c.with(Feature.values()))
@@ -62,14 +63,14 @@ public class VirtualTableLogsTest extends TestBaseImpl
         }
         finally
         {
-            System.clearProperty("logback.configurationFile");
+            LOGBACK_CONFIGURATION_FILE.clearValue();
         }
     }
 
     @Test
     public void testMultipleAppendersFailToStartNode() throws Throwable
     {
-        System.setProperty("logback.configurationFile", "test/conf/logback-dtest_with_vtable_appender_invalid.xml");
+        LOGBACK_CONFIGURATION_FILE.setString("test/conf/logback-dtest_with_vtable_appender_invalid.xml");
 
         try (Cluster ignored = Cluster.build(1)
                                       .withConfig(c -> c.with(Feature.values()))
@@ -86,7 +87,7 @@ public class VirtualTableLogsTest extends TestBaseImpl
         }
         finally
         {
-            System.clearProperty("logback.configurationFile");
+            LOGBACK_CONFIGURATION_FILE.clearValue();
         }
     }
 

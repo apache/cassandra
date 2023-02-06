@@ -31,6 +31,8 @@ import java.util.function.Function;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Strings;
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,7 +83,7 @@ public class BinLog implements Runnable
     {
         // Avoid the chronicle announcement which is commercial advertisement, and debug info we already print at startup
         // https://github.com/OpenHFT/Chronicle-Core/blob/chronicle-core-2.23.36/src/main/java/net/openhft/chronicle/core/announcer/Announcer.java#L32-L33
-        System.setProperty("chronicle.announcer.disable", "true");
+        CassandraRelevantProperties.CHRONICLE_ANNOUNCER_DISABLE.setString("true");
     }
 
     private ChronicleQueue queue;

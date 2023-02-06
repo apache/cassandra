@@ -55,6 +55,8 @@ import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -63,7 +65,7 @@ public class StorageServiceServerTest
     @BeforeClass
     public static void setUp() throws ConfigurationException
     {
-        System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
+        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
         IEndpointSnitch snitch = new PropertyFileSnitch();
@@ -643,20 +645,20 @@ public class StorageServiceServerTest
             Gossiper.instance.initializeNodeUnsafe(FBUtilities.getBroadcastAddressAndPort(), localHostId, 1);
 
             // Check detects replacing the same host address with the same hostid
-            System.setProperty("cassandra.replace_address", hostAddress);
+            REPLACE_ADDRESS.setString(hostAddress);
             Assert.assertTrue(StorageService.instance.isReplacingSameHostAddressAndHostId(localHostId));
 
             // Check detects replacing the same host address with a different host id
-            System.setProperty("cassandra.replace_address", hostAddress);
+            REPLACE_ADDRESS.setString(hostAddress);
             Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
 
             // Check tolerates the DNS entry going away for the replace_address
-            System.setProperty("cassandra.replace_address", "unresolvable.host.local.");
+            REPLACE_ADDRESS.setString("unresolvable.host.local.");
             Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
         }
         finally
         {
-            System.clearProperty("cassandra.replace_address");
+            REPLACE_ADDRESS.clearValue();
         }
     }
 }

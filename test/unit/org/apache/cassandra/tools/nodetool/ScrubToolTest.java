@@ -60,6 +60,7 @@ import static org.apache.cassandra.io.sstable.ScrubTest.assertOrderedAll;
 import static org.apache.cassandra.io.sstable.ScrubTest.fillCF;
 import static org.apache.cassandra.io.sstable.ScrubTest.fillCounterCF;
 import static org.apache.cassandra.io.sstable.ScrubTest.overrideWithGarbage;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -92,7 +93,7 @@ public class ScrubToolTest
         keyspace = Keyspace.open(ksName);
 
         CompactionManager.instance.disableAutoCompaction();
-        System.setProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
+        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
     }
 
     @Test

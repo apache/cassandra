@@ -29,13 +29,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Hex;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_STRICT_LCS_CHECKS;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class LongLeveledCompactionStrategyCQLTest extends CQLTester
@@ -44,7 +44,7 @@ public class LongLeveledCompactionStrategyCQLTest extends CQLTester
     @Test
     public void stressTestCompactionStrategyManager() throws ExecutionException, InterruptedException
     {
-        System.setProperty(Config.PROPERTY_PREFIX + "test.strict_lcs_checks", "true");
+        TEST_STRICT_LCS_CHECKS.setBoolean(true);
         // flush/compact tons of sstables, invalidate token metadata in a loop to make CSM reload the strategies
         createTable("create table %s (id int primary key, i text) with compaction = {'class':'LeveledCompactionStrategy', 'sstable_size_in_mb':1}");
         ExecutorService es = Executors.newSingleThreadExecutor();

@@ -28,16 +28,29 @@ public class CassandraRelevantPropertiesTest
     private static final CassandraRelevantProperties TEST_PROP = CassandraRelevantProperties.ORG_APACHE_CASSANDRA_CONF_CASSANDRA_RELEVANT_PROPERTIES_TEST;
 
     @Test
+    public void testSystemPropertyisSet() {
+        try
+        {
+            TEST_PROP.setString("test");
+            Assertions.assertThat(System.getProperty(TEST_PROP.getKey())).isEqualTo("test"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+        }
+        finally
+        {
+            TEST_PROP.clearValue();
+        }
+    }
+
+    @Test
     public void testString()
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "some-string");
+            TEST_PROP.setString("some-string");
             Assertions.assertThat(TEST_PROP.getString()).isEqualTo("some-string");
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            TEST_PROP.clearValue();
         }
     }
 
@@ -46,18 +59,18 @@ public class CassandraRelevantPropertiesTest
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "true");
+            TEST_PROP.setString("true");
             Assertions.assertThat(TEST_PROP.getBoolean()).isEqualTo(true);
-            System.setProperty(TEST_PROP.getKey(), "false");
+            TEST_PROP.setString("false");
             Assertions.assertThat(TEST_PROP.getBoolean()).isEqualTo(false);
-            System.setProperty(TEST_PROP.getKey(), "junk");
+            TEST_PROP.setString("junk");
             Assertions.assertThat(TEST_PROP.getBoolean()).isEqualTo(false);
-            System.setProperty(TEST_PROP.getKey(), "");
+            TEST_PROP.setString("");
             Assertions.assertThat(TEST_PROP.getBoolean()).isEqualTo(false);
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            TEST_PROP.clearValue();
         }
     }
 
@@ -70,7 +83,7 @@ public class CassandraRelevantPropertiesTest
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            TEST_PROP.clearValue();
         }
     }
 
@@ -79,12 +92,12 @@ public class CassandraRelevantPropertiesTest
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "123456789");
+            TEST_PROP.setString("123456789");
             Assertions.assertThat(TEST_PROP.getInt()).isEqualTo(123456789);
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            TEST_PROP.clearValue();
         }
     }
 
@@ -93,12 +106,12 @@ public class CassandraRelevantPropertiesTest
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "0x1234567a");
+            TEST_PROP.setString("0x1234567a");
             Assertions.assertThat(TEST_PROP.getInt()).isEqualTo(305419898);
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            TEST_PROP.clearValue();
         }
     }
 
@@ -107,12 +120,12 @@ public class CassandraRelevantPropertiesTest
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "01234567");
+            TEST_PROP.setString("01234567");
             Assertions.assertThat(TEST_PROP.getInt()).isEqualTo(342391);
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            TEST_PROP.clearValue();
         }
     }
 
@@ -121,16 +134,16 @@ public class CassandraRelevantPropertiesTest
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "");
+            TEST_PROP.setString("");
             Assertions.assertThat(TEST_PROP.getInt()).isEqualTo(342391);
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            TEST_PROP.clearValue();
         }
     }
 
-    @Test(expected = NullPointerException.class)
+    @Test
     public void testInteger_null()
     {
         try
@@ -139,7 +152,7 @@ public class CassandraRelevantPropertiesTest
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            TEST_PROP.clearValue();
         }
     }
 }

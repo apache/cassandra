@@ -51,6 +51,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
@@ -157,7 +158,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 public class StreamSession
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
-    private static final int DEBUG_STACKTRACE_LIMIT = Integer.parseInt(System.getProperty("cassandra.streaming.debug_stacktrace_limit", "2"));
+    private static final int DEBUG_STACKTRACE_LIMIT = CassandraRelevantProperties.STREAMING_DEBUG_STACKTRACE_LIMIT.getInt(2);
 
     public enum PrepareDirection { SEND, ACK }
 

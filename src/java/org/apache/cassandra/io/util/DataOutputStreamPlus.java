@@ -23,8 +23,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
 import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.DATA_OUTPUT_STREAM_PLUS_TEMP_BUFFER_SIZE;
 
 /**
  * Abstract base class for DataOutputStreams that accept writes from ByteBuffer or Memory and also provide
@@ -47,8 +48,7 @@ public abstract class DataOutputStreamPlus extends OutputStream implements DataO
         this.channel = channel;
     }
 
-    private static int MAX_BUFFER_SIZE =
-            Integer.getInteger(Config.PROPERTY_PREFIX + "data_output_stream_plus_temp_buffer_size", 8192);
+    private static final int MAX_BUFFER_SIZE = DATA_OUTPUT_STREAM_PLUS_TEMP_BUFFER_SIZE.getInt();
 
     /*
      * Factored out into separate method to create more flexibility around inlining

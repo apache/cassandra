@@ -103,6 +103,9 @@ import static org.apache.cassandra.SchemaLoader.createKeyspace;
 import static org.apache.cassandra.SchemaLoader.getCompressionParameters;
 import static org.apache.cassandra.SchemaLoader.loadSchema;
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_COMPRESSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_INVALID_LEGACY_SSTABLE_ROOT_PROP;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -160,13 +163,13 @@ public class ScrubTest
         keyspace = Keyspace.open(ksName);
 
         CompactionManager.instance.disableAutoCompaction();
-        System.setProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
+        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
     }
 
     @AfterClass
     public static void clearClassEnv()
     {
-        System.clearProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST);
+        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.clearValue();
     }
 
     @Test
@@ -251,7 +254,7 @@ public class ScrubTest
 
         assertNotNull(scrubResult);
 
-        boolean compression = sstable.compression;
+        boolean compression = TEST_COMPRESSION.getBoolean();
         assertEquals(0, scrubResult.emptyPartitions);
         if (compression)
         {
@@ -280,6 +283,9 @@ public class ScrubTest
     @Test
     public void testScrubCorruptedRowInSmallFile() throws Throwable
     {
+        // cannot test this with compression
+        Assume.assumeTrue(!TEST_COMPRESSION.getBoolean());
+
         // overwrite one row with garbage
         testCorruptionInSmallFile((sstable, keys) ->
                                   overrideWithGarbage(sstable,
@@ -384,6 +390,8 @@ public class ScrubTest
     @Test
     public void testScrubOneRowWithCorruptedKey() throws IOException, ConfigurationException
     {
+        // cannot test this with compression
+        Assume.assumeTrue(!TEST_COMPRESSION.getBoolean());
         CompactionManager.instance.disableAutoCompaction();
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
 
@@ -541,7 +549,7 @@ public class ScrubTest
 
     public static void overrideWithGarbage(SSTableReader sstable, ByteBuffer key1, ByteBuffer key2, byte junk) throws IOException
     {
-        boolean compression = sstable.metadata().params.compression.isEnabled();
+        boolean compression = TEST_COMPRESSION.getBoolean();
         long startPosition, endPosition;
 
         if (compression)
@@ -860,7 +868,7 @@ public class ScrubTest
 
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("cf_with_duplicates_3_0");
 
-            Path legacySSTableRoot = Paths.get(System.getProperty(INVALID_LEGACY_SSTABLE_ROOT_PROP),
+            Path legacySSTableRoot = Paths.get(TEST_INVALID_LEGACY_SSTABLE_ROOT_PROP.getString(),
                                                "Keyspace1",
                                                "cf_with_duplicates_3_0");
 

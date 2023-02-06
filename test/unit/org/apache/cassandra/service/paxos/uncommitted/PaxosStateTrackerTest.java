@@ -52,6 +52,7 @@ import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.FORCE_PAXOS_STATE_REBUILD;
 import static org.apache.cassandra.service.paxos.uncommitted.PaxosStateTracker.stateDirectory;
 import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.*;
 import static org.apache.cassandra.service.paxos.uncommitted.UncommittedTableDataTest.assertIteratorContents;
@@ -92,38 +93,6 @@ public class PaxosStateTrackerTest
         directory1 = new File(Files.createTempDir());
         directory2 = new File(Files.createTempDir());
         directories = new File[]{directory1, directory2};
-    }
-
-    private static class SystemProp implements AutoCloseable
-    {
-        private final String prop;
-        private final String prev;
-
-        public SystemProp(String prop, String prev)
-        {
-            this.prop = prop;
-            this.prev = prev;
-        }
-
-        public void close()
-        {
-            if (prev == null)
-                System.clearProperty(prop);
-            else
-                System.setProperty(prop, prev);
-        }
-
-        public static SystemProp set(String prop, String val)
-        {
-            String prev = System.getProperty(prop);
-            System.setProperty(prop, val);
-            return new SystemProp(prop, prev);
-        }
-
-        public static SystemProp set(String prop, boolean val)
-        {
-            return set(prop, Boolean.toString(val));
-        }
     }
 
     private static PartitionUpdate update(TableMetadata cfm, int k, Ballot ballot)
@@ -206,7 +175,8 @@ public class PaxosStateTrackerTest
         SystemKeyspace.savePaxosWritePromise(dk(0), cfm1, ballots[2]);
         SystemKeyspace.savePaxosProposal(commit(cfm1, 2, ballots[3]));
 
-        try (SystemProp forceRebuild = SystemProp.set(PaxosStateTracker.FORCE_REBUILD_PROP, true))
+        Boolean prev = FORCE_PAXOS_STATE_REBUILD.setBoolean(true);
+        try
         {
             PaxosStateTracker tracker = PaxosStateTracker.create(directories);
             Assert.assertTrue(tracker.isRebuildNeeded());
@@ -218,6 +188,13 @@ public class PaxosStateTrackerTest
                                                                         uncommitted(2, ballots[3])));
             Assert.assertEquals(ballots[1], tracker.ballots().getLowBound());
             Assert.assertEquals(ballots[3], tracker.ballots().getHighBound());
+        }
+        finally
+        {
+            if (prev == null)
+                FORCE_PAXOS_STATE_REBUILD.clearValue();
+            else
+                FORCE_PAXOS_STATE_REBUILD.setBoolean(prev);
         }
     }
 
