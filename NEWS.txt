@@ -122,6 +122,8 @@ New features
       - `mask_inner` replaces every character but the first and last ones by a fixed character.
       - `mask_outer` replaces the first and last characters by a fixed character.
       - `mask_hash` replaces the data by its hash, according to the specified algorithm.
+    - On virtual tables, it is not strictly necessary to specify `ALLOW FILTERING` for select statements which would
+      normally require it, except `system_views.system_logs`.
 
 Upgrading
 ---------
