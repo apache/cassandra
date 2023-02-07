@@ -53,7 +53,7 @@ print_help()
   echo "                   -e REPEATED_JVM_UPGRADE_DTESTS_COUNT=500"
   echo "                   -e REPEATED_DTESTS=cdc_test.py cqlsh_tests/test_cqlsh.py::TestCqlshSmoke"
   echo "                   -e REPEATED_DTESTS_COUNT=500"
-  echo "                   -e REPEATED_LARGE_DTESTS=consistency_test.py::TestAvailability::test_network_topology_strategy"
+  echo "                   -e REPEATED_LARGE_DTESTS=replace_address_test.py::TestReplaceAddress::test_replace_stopped_node"
   echo "                   -e REPEATED_LARGE_DTESTS=100"
   echo "                   -e REPEATED_UPGRADE_DTESTS=upgrade_tests/cql_tests.py upgrade_tests/paging_test.py"
   echo "                   -e REPEATED_UPGRADE_DTESTS_COUNT=25"
