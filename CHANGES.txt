@@ -107,6 +107,7 @@ Merged from 4.1:
  * Streaming progress virtual table lock contention can trigger TCP_USER_TIMEOUT and fail streaming (CASSANDRA-18110)
  * Fix perpetual load of denylist on read in cases where denylist can never be loaded (CASSANDRA-18116)
 Merged from 4.0:
+ * Log warning message on aggregation queries without key or on multiple keys (CASSANDRA-18219)
  * Fix the output of FQL dump tool to properly separate entries (CASSANDRA-18215)
  * Add cache type information for maximum memory usage warning message (CASSANDRA-18184)
  * Fix NPE in fqltool dump on null value (CASSANDRA-18113)
