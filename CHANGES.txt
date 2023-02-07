@@ -1,4 +1,5 @@
 4.0.8
+ * Log warning message on aggregation queries without key or on multiple keys (CASSANDRA-18219)
  * Fix the output of FQL dump tool to properly separate entries (CASSANDRA-18215)
  * Add cache type information for maximum memory usage warning message (CASSANDRA-18184)
  * Fix NPE in fqltool dump on null value (CASSANDRA-18113)
