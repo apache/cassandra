@@ -182,7 +182,7 @@ public class CassandraDaemon
         }
         catch (IOException e)
         {
-            exitOrFail(1, e.getMessage(), e.getCause());
+            exitOrFail(StartupException.ERR_WRONG_MACHINE_STATE, e.getMessage(), e.getCause());
         }
     }
 
@@ -418,7 +418,7 @@ public class CassandraDaemon
         catch (ConfigurationException e)
         {
             System.err.println(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.");
-            exitOrFail(1, "Fatal configuration error", e);
+            exitOrFail(StartupException.ERR_WRONG_MACHINE_STATE, "Fatal configuration error", e);
         }
 
         // Because we are writing to the system_distributed keyspace, this should happen after that is created, which
@@ -794,7 +794,7 @@ public class CassandraDaemon
                     logger.error("Exception encountered during startup", e);
                 // try to warn user on stdout too, if we haven't already detached
                 e.printStackTrace();
-                exitOrFail(3, "Exception encountered during startup", e);
+                exitOrFail(StartupException.ERR_WRONG_DISK_STATE, "Exception encountered during startup", e);
             }
             else
             {
@@ -802,7 +802,7 @@ public class CassandraDaemon
                     logger.error("Exception encountered during startup: {}", e.getMessage());
                 // try to warn user on stdout too, if we haven't already detached
                 System.err.println(e.getMessage());
-                exitOrFail(3, "Exception encountered during startup: " + e.getMessage());
+                exitOrFail(StartupException.ERR_WRONG_DISK_STATE, "Exception encountered during startup: " + e.getMessage());
             }
         }
     }
