@@ -225,16 +225,6 @@ public abstract class MemoryUtil
         return hollowBuffer;
     }
 
-    public static ByteBuffer duplicateHeapByteBuffer(ByteBuffer source, ByteBuffer hollowBuffer)
-    {
-        assert source.getClass() == HEAP_BYTE_BUFFER_CLASS || source.getClass() == RO_HEAP_BYTE_BUFFER_CLASS;
-        unsafe.putLong(hollowBuffer, HEAP_BYTE_BUFFER_HB_OFFSET, unsafe.getLong(source, HEAP_BYTE_BUFFER_HB_OFFSET));
-        unsafe.putInt(hollowBuffer, BUFFER_POSITION_OFFSET, unsafe.getInt(source, BUFFER_POSITION_OFFSET));
-        unsafe.putInt(hollowBuffer, BUFFER_LIMIT_OFFSET, unsafe.getInt(source, BUFFER_LIMIT_OFFSET));
-        unsafe.putInt(hollowBuffer, BUFFER_CAPACITY_OFFSET, unsafe.getInt(source, BUFFER_CAPACITY_OFFSET));
-        return hollowBuffer;
-    }
-
     public static ByteBuffer sliceDirectByteBuffer(ByteBuffer source, ByteBuffer hollowBuffer, int offset, int length)
     {
         assert source.getClass() == DIRECT_BYTE_BUFFER_CLASS || source.getClass() == RO_DIRECT_BYTE_BUFFER_CLASS;

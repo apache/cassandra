@@ -475,7 +475,7 @@ public abstract class CBUtil
         cb.writeBytes(bytes);
     }
 
-    public static void writeValu(ByteBuffer bytes, ByteBuf cb)
+    public static void writeValue(ByteBuffer bytes, ByteBuf cb)
     {
         if (bytes == null)
         {
@@ -488,20 +488,18 @@ public abstract class CBUtil
 
         if (remaining > 0)
         {
-            cb.writeBytes(MemoryUtil.duplicateHeapByteBuffer(bytes, getLocalBuffer()));
+            addBytes(bytes, cb);
         }
     }
 
-    public static void writeValue(ByteBuffer src, ByteBuf dest)
+    public static void addBytes(ByteBuffer src, ByteBuf dest)
     {
         if (src == null)
         {
-            dest.writeInt(-1);
             return;
         }
 
         int length = src.remaining();
-        dest.writeInt(length);
 
         if (src.hasArray())
         {
