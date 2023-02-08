@@ -1528,6 +1528,7 @@ The full set of available permissions is:
 * @AUTHORIZE@
 * @DESCRIBE@
 * @EXECUTE@
+* @UNMASK@
 
 Not all permissions are applicable to every type of resource. For instance, @EXECUTE@ is only relevant in the context of functions or mbeans; granting @EXECUTE@ on a resource representing a table is nonsensical. Attempting to @GRANT@ a permission on resource to which it cannot be applied results in an error response. The following illustrates which permissions can be granted on which types of resource, and which statements are enabled by that permission.
 
@@ -1587,6 +1588,9 @@ Not all permissions are applicable to every type of resource. For instance, @EXE
 | @EXECUTE@    | @ALL MBEANS@                 |Execute operations on any mbean|
 | @EXECUTE@    | @MBEANS@                     |Execute operations on any mbean matching a wildcard pattern|
 | @EXECUTE@    | @MBEAN@                      |Execute operations on named mbean|
+| @UNMASK@     | @ALL KEYSPACES@              |See the clear contents of masked columns on any table|
+| @UNMASK@     | @KEYSPACE@                   |See the clear contents of masked columns on any table in keyspace|
+| @UNMASK@     | @TABLE@                      |See the clear contents of masked columns on specified table|
 
 
 h3(#grantPermissionsStmt). GRANT PERMISSION
@@ -1596,7 +1600,7 @@ __Syntax:__
 bc(syntax).. 
 <grant-permission-stmt> ::= GRANT ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> TO <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE | UNMASK
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
@@ -1653,7 +1657,7 @@ __Syntax:__
 bc(syntax).. 
 <revoke-permission-stmt> ::= REVOKE ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> FROM <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE | UNMASK
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
@@ -2547,6 +2551,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @TUPLE@        | no  |
 | @TYPE@         | no  |
 | @UNLOGGED@     | yes |
+| @UNMASK@       | yes |
 | @UNSET@        | yes |
 | @UPDATE@       | yes |
 | @USE@          | yes |

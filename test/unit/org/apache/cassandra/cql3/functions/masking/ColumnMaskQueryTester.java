@@ -23,7 +23,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import org.apache.cassandra.cql3.UntypedResultSet;
+import com.datastax.driver.core.ResultSet;
 
 import static java.lang.String.format;
 
@@ -64,65 +64,65 @@ public abstract class ColumnMaskQueryTester extends ColumnMaskTester
                    "AND r1 IS NOT NULL AND r2 IS NOT NULL " +
                    "PRIMARY KEY ((c2, c1), k2, k1)");
 
-        execute("INSERT INTO %s(k1, k2, c1, c2, r1, r2, s1, s2) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                columnValue, columnValue, columnValue, columnValue, columnValue, columnValue, columnValue, columnValue);
+        executeNet("INSERT INTO %s(k1, k2, c1, c2, r1, r2, s1, s2) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                   columnValue, columnValue, columnValue, columnValue, columnValue, columnValue, columnValue, columnValue);
     }
 
     @Test
     public void testSelectWithWilcard() throws Throwable
     {
-        UntypedResultSet rs = execute("SELECT * FROM %s");
+        ResultSet rs = executeNet("SELECT * FROM %s");
         assertColumnNames(rs, "k1", "k2", "c1", "c2", "s1", "s2", "r1", "r2");
-        assertRows(rs, row(columnValue, maskedValue,
-                           columnValue, maskedValue,
-                           columnValue, maskedValue,
-                           columnValue, maskedValue));
+        assertRowsNet(rs, row(columnValue, maskedValue,
+                              columnValue, maskedValue,
+                              columnValue, maskedValue,
+                              columnValue, maskedValue));
 
-        rs = execute(format("SELECT * FROM %s.%s", KEYSPACE, currentView()));
+        rs = executeNet(format("SELECT * FROM %s.%s", KEYSPACE, currentView()));
         assertColumnNames(rs, "c2", "c1", "k2", "k1", "r1", "r2");
-        assertRows(rs, row(maskedValue, columnValue,
-                           maskedValue, columnValue,
-                           columnValue, maskedValue));
+        assertRowsNet(rs, row(maskedValue, columnValue,
+                              maskedValue, columnValue,
+                              columnValue, maskedValue));
     }
 
     @Test
     public void testSelectWithAllColumnNames() throws Throwable
     {
-        UntypedResultSet rs = execute("SELECT c2, c1, k2, k1, r2, r1, s2, s1 FROM %s");
+        ResultSet rs = executeNet("SELECT c2, c1, k2, k1, r2, r1, s2, s1 FROM %s");
         assertColumnNames(rs, "c2", "c1", "k2", "k1", "r2", "r1", "s2", "s1");
-        assertRows(rs, row(maskedValue, columnValue,
-                           maskedValue, columnValue,
-                           maskedValue, columnValue,
-                           maskedValue, columnValue));
+        assertRowsNet(rs, row(maskedValue, columnValue,
+                              maskedValue, columnValue,
+                              maskedValue, columnValue,
+                              maskedValue, columnValue));
 
-        rs = execute(format("SELECT c2, c1, k2, k1, r2, r1 FROM %s.%s", KEYSPACE, currentView()));
+        rs = executeNet(format("SELECT c2, c1, k2, k1, r2, r1 FROM %s.%s", KEYSPACE, currentView()));
         assertColumnNames(rs, "c2", "c1", "k2", "k1", "r2", "r1");
-        assertRows(rs, row(maskedValue, columnValue,
-                           maskedValue, columnValue,
-                           maskedValue, columnValue));
+        assertRowsNet(rs, row(maskedValue, columnValue,
+                              maskedValue, columnValue,
+                              maskedValue, columnValue));
     }
 
     @Test
     public void testSelectOnlyMaskedColumns() throws Throwable
     {
-        UntypedResultSet rs = execute("SELECT k2, c2, s2, r2 FROM %s");
+        ResultSet rs = executeNet("SELECT k2, c2, s2, r2 FROM %s");
         assertColumnNames(rs, "k2", "c2", "s2", "r2");
-        assertRows(rs, row(maskedValue, maskedValue, maskedValue, maskedValue));
+        assertRowsNet(rs, row(maskedValue, maskedValue, maskedValue, maskedValue));
 
-        rs = execute(format("SELECT k2, c2, r2 FROM %s.%s", KEYSPACE, currentView()));
+        rs = executeNet(format("SELECT k2, c2, r2 FROM %s.%s", KEYSPACE, currentView()));
         assertColumnNames(rs, "k2", "c2", "r2");
-        assertRows(rs, row(maskedValue, maskedValue, maskedValue));
+        assertRowsNet(rs, row(maskedValue, maskedValue, maskedValue));
     }
 
     @Test
     public void testSelectOnlyNotMaskedColumns() throws Throwable
     {
-        UntypedResultSet rs = execute("SELECT k1, c1, s1, r1 FROM %s");
+        ResultSet rs = executeNet("SELECT k1, c1, s1, r1 FROM %s");
         assertColumnNames(rs, "k1", "c1", "s1", "r1");
-        assertRows(rs, row(columnValue, columnValue, columnValue, columnValue));
+        assertRowsNet(rs, row(columnValue, columnValue, columnValue, columnValue));
 
-        rs = execute(format("SELECT k1, c1, r1 FROM %s.%s", KEYSPACE, currentView()));
+        rs = executeNet(format("SELECT k1, c1, r1 FROM %s.%s", KEYSPACE, currentView()));
         assertColumnNames(rs, "k1", "c1", "r1");
-        assertRows(rs, row(columnValue, columnValue, columnValue));
+        assertRowsNet(rs, row(columnValue, columnValue, columnValue));
     }
 }

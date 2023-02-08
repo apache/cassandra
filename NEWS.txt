@@ -126,6 +126,8 @@ New features
       functions can be attached to or dettached from columns with CREATE/ALTER TABLE statements. The functions obscure
       the masked data during queries, but they don't change the stored data. Masking functions shouldn't be attached to
       columns during rolling upgrades, because the older nodes aren't aware of this feature.
+    - Added new UNMASK permission. It allows to see the clear data of columns with an attached mask. Superusers have it
+      by default, whereas regular users don't have it by default.
 
 Upgrading
 ---------

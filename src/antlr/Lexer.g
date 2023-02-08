@@ -219,6 +219,7 @@ K_UNSET:       U N S E T;
 K_LIKE:        L I K E;
 
 K_MASKED:      M A S K E D;
+K_UNMASK:      U N M A S K;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

@@ -234,14 +234,14 @@ public class ColumnMaskTest extends ColumnMaskTester
                                  "WHERE k IS NOT NULL AND c IS NOT NULL AND v IS NOT NULL " +
                                  "PRIMARY KEY (v, k, c)");
         waitForViewMutations();
-        assertRows(execute(String.format("SELECT v FROM %s.%s", KEYSPACE, view)), row("redacted"));
-        assertRows(execute(String.format("SELECT v FROM %s.%s WHERE v='sensitive'", KEYSPACE, view)), row("redacted"));
-        assertEmpty(execute(String.format("SELECT v FROM %s.%s WHERE v='redacted'", KEYSPACE, view)));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s", KEYSPACE, view)), row("redacted"));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s WHERE v='sensitive'", KEYSPACE, view)), row("redacted"));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s WHERE v='redacted'", KEYSPACE, view)));
 
         alterTable("ALTER TABLE %s ALTER v DROP MASKED");
-        assertRows(execute(String.format("SELECT v FROM %s.%s", KEYSPACE, view)), row("sensitive"));
-        assertRows(execute(String.format("SELECT v FROM %s.%s WHERE v='sensitive'", KEYSPACE, view)), row("sensitive"));
-        assertEmpty(execute(String.format("SELECT v FROM %s.%s WHERE v='redacted'", KEYSPACE, view)));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s", KEYSPACE, view)), row("sensitive"));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s WHERE v='sensitive'", KEYSPACE, view)), row("sensitive"));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s WHERE v='redacted'", KEYSPACE, view)));
     }
 
     @Test
@@ -255,25 +255,25 @@ public class ColumnMaskTest extends ColumnMaskTester
 
         // without masks
         String query = "SELECT * FROM %s GROUP BY k";
-        assertRows(execute(query), row(1, 0, "sensitive"), row(0, 0, "sensitive"));
+        assertRowsNet(executeNet(query), row(1, 0, "sensitive"), row(0, 0, "sensitive"));
 
         // with masked regular column
         alterTable("ALTER TABLE %s ALTER v MASKED WITH mask_replace('redacted')");
-        assertRows(execute(query), row(1, 0, "redacted"), row(0, 0, "redacted"));
+        assertRowsNet(executeNet(query), row(1, 0, "redacted"), row(0, 0, "redacted"));
 
         // with masked clustering key
         alterTable("ALTER TABLE %s ALTER c MASKED WITH mask_replace(-1)");
-        assertRows(execute(query), row(1, -1, "redacted"), row(0, -1, "redacted"));
+        assertRowsNet(executeNet(query), row(1, -1, "redacted"), row(0, -1, "redacted"));
 
         // with masked partition key
         alterTable("ALTER TABLE %s ALTER k MASKED WITH mask_replace(-1)");
-        assertRows(execute(query), row(-1, -1, "redacted"), row(-1, -1, "redacted"));
+        assertRowsNet(executeNet(query), row(-1, -1, "redacted"), row(-1, -1, "redacted"));
 
         // again without masks
         alterTable("ALTER TABLE %s ALTER k DROP MASKED");
         alterTable("ALTER TABLE %s ALTER c DROP MASKED");
         alterTable("ALTER TABLE %s ALTER v DROP MASKED");
-        assertRows(execute(query), row(1, 0, "sensitive"), row(0, 0, "sensitive"));
+        assertRowsNet(executeNet(query), row(1, 0, "sensitive"), row(0, 0, "sensitive"));
     }
 
     @Test

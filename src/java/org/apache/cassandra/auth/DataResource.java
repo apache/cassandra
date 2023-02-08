@@ -46,7 +46,8 @@ public class DataResource implements IResource
                                                                                          Permission.DROP,
                                                                                          Permission.SELECT,
                                                                                          Permission.MODIFY,
-                                                                                         Permission.AUTHORIZE);
+                                                                                         Permission.AUTHORIZE,
+                                                                                         Permission.UNMASK);
 
     // permissions which may be granted on all tables of a given keyspace
     private static final Set<Permission> ALL_TABLES_LEVEL_PERMISSIONS = Sets.immutableEnumSet(Permission.CREATE,
@@ -54,7 +55,8 @@ public class DataResource implements IResource
                                                                                               Permission.DROP,
                                                                                               Permission.SELECT,
                                                                                               Permission.MODIFY,
-                                                                                              Permission.AUTHORIZE);
+                                                                                              Permission.AUTHORIZE,
+                                                                                              Permission.UNMASK);
 
     // permissions which may be granted on one or all keyspaces
     private static final Set<Permission> KEYSPACE_LEVEL_PERMISSIONS = Sets.immutableEnumSet(Permission.CREATE,
@@ -62,7 +64,8 @@ public class DataResource implements IResource
                                                                                             Permission.DROP,
                                                                                             Permission.SELECT,
                                                                                             Permission.MODIFY,
-                                                                                            Permission.AUTHORIZE);
+                                                                                            Permission.AUTHORIZE,
+                                                                                            Permission.UNMASK);
     private static final String ROOT_NAME = "data";
     private static final DataResource ROOT_RESOURCE = new DataResource(Level.ROOT, null, null);
 

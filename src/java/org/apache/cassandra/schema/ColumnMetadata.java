@@ -36,7 +36,6 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.github.jamm.Unmetered;
 
 @Unmetered
@@ -281,11 +280,6 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
     public ColumnMask getMask()
     {
         return mask;
-    }
-
-    public ByteBuffer maybeMask(ProtocolVersion version, ByteBuffer value)
-    {
-        return mask == null ? value : mask.mask(version, value);
     }
 
     @Override

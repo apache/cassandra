@@ -139,7 +139,7 @@ public final class SimpleSelector extends Selector
         if (!isSet)
         {
             isSet = true;
-            current = column.maybeMask(input.getProtocolVersion(), input.getValue(idx));
+            current = input.getValue(idx);
             writetimes = input.getWritetimes(idx);
             ttls = input.getTtls(idx);
         }
