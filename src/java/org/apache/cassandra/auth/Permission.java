@@ -63,9 +63,11 @@ public enum Permission
     // UDF permissions
     EXECUTE,  // required to invoke any user defined function or aggregate
 
-    UNMASK; // required to see masked data
+    UNMASK, // required to see masked data
+
+    SELECT_MASKED; // required for SELECT on a table with restictions on masked columns
 
     public static final Set<Permission> ALL =
-            Sets.immutableEnumSet(EnumSet.range(Permission.CREATE, Permission.UNMASK));
+            Sets.immutableEnumSet(EnumSet.range(Permission.CREATE, Permission.SELECT_MASKED));
     public static final Set<Permission> NONE = ImmutableSet.of();
 }

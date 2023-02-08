@@ -890,7 +890,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("GR",
                             immediate='ANT ')
         self.trycompletions("GRANT ",
-                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT', 'UNMASK'],
+                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT', 'UNMASK', 'SELECT_MASKED'],
                             other_choices_ok=True)
         self.trycompletions("GRANT MODIFY ",
                             choices=[',', 'ON', 'PERMISSION'])
@@ -899,7 +899,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("GRANT MODIFY PERMISSION ",
                             choices=[',', 'ON'])
         self.trycompletions("GRANT MODIFY PERMISSION, ",
-                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT', 'UNMASK'])
+                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT', 'UNMASK', 'SELECT_MASKED'])
         self.trycompletions("GRANT MODIFY PERMISSION, D",
                             choices=['DESCRIBE', 'DROP'])
         self.trycompletions("GRANT MODIFY PERMISSION, DR",
@@ -921,7 +921,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("RE",
                             immediate='VOKE ')
         self.trycompletions("REVOKE ",
-                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT', 'UNMASK'],
+                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT', 'UNMASK', 'SELECT_MASKED'],
                             other_choices_ok=True)
         self.trycompletions("REVOKE MODIFY ",
                             choices=[',', 'ON', 'PERMISSION'])
@@ -930,7 +930,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("REVOKE MODIFY PERMISSION ",
                             choices=[',', 'ON'])
         self.trycompletions("REVOKE MODIFY PERMISSION, ",
-                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT', 'UNMASK'])
+                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT', 'UNMASK', 'SELECT_MASKED'])
         self.trycompletions("REVOKE MODIFY PERMISSION, D",
                             choices=['DESCRIBE', 'DROP'])
         self.trycompletions("REVOKE MODIFY PERMISSION, DR",
@@ -1019,7 +1019,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
 
     def test_complete_in_list(self):
-        self.trycompletions('LIST ', choices=['ALL', 'AUTHORIZE', 'DESCRIBE', 'EXECUTE', 'ROLES', 'USERS', 'ALTER', 'CREATE', 'DROP', 'MODIFY', 'SELECT', 'UNMASK'])
+        self.trycompletions('LIST ', choices=['ALL', 'AUTHORIZE', 'DESCRIBE', 'EXECUTE', 'ROLES', 'USERS', 'ALTER', 'CREATE', 'DROP', 'MODIFY', 'SELECT', 'UNMASK', 'SELECT_MASKED'])
 
 
     # Non-CQL Shell Commands

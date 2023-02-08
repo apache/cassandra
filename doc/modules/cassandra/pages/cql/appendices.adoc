@@ -107,6 +107,7 @@ or not.
 |`ROLES` |no
 |`SCHEMA` |yes
 |`SELECT` |yes
+|`SELECT_MASKED` |yes
 |`SET` |yes
 |`SFUNC` |no
 |`SMALLINT` |no

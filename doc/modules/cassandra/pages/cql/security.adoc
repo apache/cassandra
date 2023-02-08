@@ -353,6 +353,7 @@ The full set of available permissions is:
 * `DESCRIBE`
 * `EXECUTE`
 * `UNMASK`
+* `SELECT_MASKED`
 
 Not all permissions are applicable to every type of resource. For
 instance, `EXECUTE` is only relevant in the context of functions or
@@ -484,6 +485,12 @@ and use of any function in keyspace in `CREATE AGGREGATE`
 |`UNMASK` |`KEYSPACE` | See the clear contents of masked columns on any table in keyspace
 
 |`UNMASK` |`TABLE` | See the clear contents of masked columns on specified table
+
+|`SELECT_MASKED` | `ALL KEYSPACES` | `SELECT` restricting masked columns on any table
+
+|`SELECT_MASKED` | `KEYSPACE` | `SELECT` restricting masked columns on any table in specified keyspace
+
+|`SELECT_MASKED` | `TABLE` | `SELECT` restricting masked columns on specified table
 |===
 
 [[grant-permission-statement]]

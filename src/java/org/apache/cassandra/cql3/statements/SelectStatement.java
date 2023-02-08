@@ -77,6 +77,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
@@ -238,7 +239,21 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         for (Function function : getFunctions())
             state.ensurePermission(Permission.EXECUTE, function);
 
-        unmask = state.hasUnmaskPermission(table);
+        unmask = state.hasTablePermission(table, Permission.UNMASK);
+
+        if (!unmask && !state.hasTablePermission(table, Permission.SELECT_MASKED))
+        {
+            List<ColumnMetadata> queriedMaskedColumns = table.columns()
+                                                             .stream()
+                                                             .filter(ColumnMetadata::isMasked)
+                                                             .filter(restrictions::isRestricted)
+                                                             .collect(Collectors.toList());
+
+            if (!queriedMaskedColumns.isEmpty())
+                throw new UnauthorizedException(format("User %s has no UNMASK nor SELECT_MASKED permission on table %s.%s, " +
+                                                       "cannot query masked columns %s",
+                                                       state.getUser().getName(), keyspace(), table(), queriedMaskedColumns));
+        }
     }
 
     public void validate(ClientState state) throws InvalidRequestException
