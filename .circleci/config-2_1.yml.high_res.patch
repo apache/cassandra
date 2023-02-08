@@ -1,5 +1,5 @@
---- config-2_1.yml	2023-02-02 21:03:34.000000000 -0500
-+++ config-2_1.yml.HIGHRES	2023-02-02 21:03:38.000000000 -0500
+--- config-2_1.yml	2023-02-07 20:47:06.000000000 -0500
++++ config-2_1.yml.HIGHRES	2023-02-07 20:49:38.000000000 -0500
 @@ -40,8 +40,8 @@
      CASSANDRA_SKIP_SYNC: true
      DTEST_REPO: https://github.com/apache/cassandra-dtest.git
@@ -76,3 +76,21 @@
  
  separate_jobs: &separate_jobs
    jobs:
+@@ -675,7 +679,7 @@
+           pytest_extra_args: '--skip-resource-intensive-tests'
+ 
+   j8_dtests_large_vnode:
+-    <<: *j8_par_executor
++    <<: *j8_seq_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -689,7 +693,7 @@
+           pytest_extra_args: '--use-vnodes --num-tokens=32 --only-resource-intensive-tests --force-resource-intensive-tests'
+ 
+   j8_dtests_large:
+-    <<: *j8_par_executor
++    <<: *j8_seq_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
