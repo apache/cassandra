@@ -1,5 +1,5 @@
---- config-2_1.yml	2023-02-02 20:59:17.000000000 -0500
-+++ config-2_1.yml.HIGHRES	2023-02-02 21:00:20.000000000 -0500
+--- config-2_1.yml	2023-02-07 19:05:10.000000000 -0500
++++ config-2_1.yml.HIGHRES	2023-02-07 19:25:03.000000000 -0500
 @@ -40,8 +40,8 @@
      CASSANDRA_SKIP_SYNC: true
      DTEST_REPO: https://github.com/apache/cassandra-dtest.git
@@ -76,6 +76,24 @@
  
  separate_jobs: &separate_jobs
    jobs:
+@@ -579,7 +583,7 @@
+           pytest_extra_args: '--skip-resource-intensive-tests'
+ 
+   j8_dtests_large_vnode:
+-    <<: *j8_par_executor
++    <<: *j8_seq_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -593,7 +597,7 @@
+           pytest_extra_args: '--use-vnodes --num-tokens=32 --only-resource-intensive-tests --force-resource-intensive-tests'
+ 
+   j8_dtests_large:
+-    <<: *j8_par_executor
++    <<: *j8_seq_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
 @@ -1187,7 +1191,7 @@
              # Put manually specified tests and automatically detected tests together, removing duplicates
              tests=$(echo <<parameters.tests>> | sed -e "s/<nil>//" | sed -e "s/ //" | tr "," "\n" | tr " " "\n" | sort -n | uniq -u)
