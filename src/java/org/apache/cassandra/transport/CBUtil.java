@@ -69,7 +69,7 @@ public abstract class CBUtil
         }
     };
 
-    private final static FastThreadLocal<ByteBuffer> localBuffer = new FastThreadLocal<ByteBuffer>()
+    private final static FastThreadLocal<ByteBuffer> localDirectBuffer = new FastThreadLocal<ByteBuffer>()
     {
         @Override
         protected ByteBuffer initialValue()
@@ -487,17 +487,13 @@ public abstract class CBUtil
         cb.writeInt(remaining);
 
         if (remaining > 0)
-        {
             addBytes(bytes, cb);
-        }
     }
 
     public static void addBytes(ByteBuffer src, ByteBuf dest)
     {
-        if (src == null || src.remaining() == 0)
-        {
+        if (src.remaining() == 0)
             return;
-        }
 
         int length = src.remaining();
 
@@ -508,7 +504,7 @@ public abstract class CBUtil
         }
         else if (src.isDirect())
         {
-            ByteBuffer local = getLocalBuffer();
+            ByteBuffer local = getLocalDirectBuffer();
             MemoryUtil.duplicateDirectByteBuffer(src, local);
             dest.writeBytes(local);
         }
@@ -651,9 +647,8 @@ public abstract class CBUtil
         return bytes;
     }
 
-    public static ByteBuffer getLocalBuffer()
+    private static ByteBuffer getLocalDirectBuffer()
     {
-        return localBuffer.get();
+        return localDirectBuffer.get();
     }
-
 }

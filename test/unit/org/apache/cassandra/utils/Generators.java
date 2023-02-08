@@ -308,7 +308,7 @@ public final class Generators
         return bytes(min, max, SourceDSL.arbitrary().enumValues(BBCases.class));
     }
 
-    public static Gen<ByteBuffer> bytes(int min, int max, Gen<BBCases> cases)
+    private static Gen<ByteBuffer> bytes(int min, int max, Gen<BBCases> cases)
     {
         if (min < 0)
             throw new IllegalArgumentException("Asked for negative bytes; given " + min);
@@ -324,30 +324,34 @@ public final class Generators
             // to add more randomness, also shift offset in the array so the same size doesn't yield the same bytes
             int offset = (int) rnd.next(Constraint.between(0, MAX_BLOB_LENGTH - size));
 
-            switch (cases.generate(rnd))
-            {
-                case HEAP: return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size);
-                case READ_ONLY_HEAP: return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size).asReadOnlyBuffer();
-                case DIRECT:
-                {
-                    ByteBuffer bb = ByteBuffer.allocateDirect(size);
-                    bb.put(LazySharedBlob.SHARED_BYTES, offset, size);
-                    bb.flip();
-                    return bb;
-                }
-                case READ_ONLY_DIRECT:
-                {
-                    ByteBuffer bb = ByteBuffer.allocateDirect(size);
-                    bb.put(LazySharedBlob.SHARED_BYTES, offset, size);
-                    bb.flip();
-                    return bb.asReadOnlyBuffer();
-                }
-                default: throw new AssertionError("cann't wait for jdk 17!");
-            }
+            return handleCases(cases, rnd, offset, size);
         };
     };
 
     private enum BBCases { HEAP, READ_ONLY_HEAP, DIRECT, READ_ONLY_DIRECT }
+
+    private static ByteBuffer handleCases(Gen<BBCases> cases, RandomnessSource rnd, int offset, int size) {
+        switch (cases.generate(rnd))
+        {
+            case HEAP: return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size);
+            case READ_ONLY_HEAP: return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size).asReadOnlyBuffer();
+            case DIRECT:
+            {
+                ByteBuffer bb = ByteBuffer.allocateDirect(size);
+                bb.put(LazySharedBlob.SHARED_BYTES, offset, size);
+                bb.flip();
+                return bb;
+            }
+            case READ_ONLY_DIRECT:
+            {
+                ByteBuffer bb = ByteBuffer.allocateDirect(size);
+                bb.put(LazySharedBlob.SHARED_BYTES, offset, size);
+                bb.flip();
+                return bb.asReadOnlyBuffer();
+            }
+            default: throw new AssertionError("cann't wait for jdk 17!");
+        }
+    }
 
      /**
      * Implements a valid utf-8 generator.
