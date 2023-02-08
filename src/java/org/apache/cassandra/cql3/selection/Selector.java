@@ -26,6 +26,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.cql3.selection.ColumnTimestamps.TimestampsType;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.context.CounterContext;
@@ -306,6 +307,7 @@ public abstract class Selector
     {
         private final ProtocolVersion protocolVersion;
         private final List<ColumnMetadata> columns;
+        private final boolean unmask;
         private final boolean collectWritetimes;
         private final boolean collectTTLs;
 
@@ -314,18 +316,20 @@ public abstract class Selector
         private RowTimestamps ttls;
         private int index;
 
-        public InputRow(ProtocolVersion protocolVersion, List<ColumnMetadata> columns)
+        public InputRow(ProtocolVersion protocolVersion, List<ColumnMetadata> columns, boolean unmask)
         {
-            this(protocolVersion, columns, false, false);
+            this(protocolVersion, columns, unmask, false, false);
         }
 
         public InputRow(ProtocolVersion protocolVersion,
                         List<ColumnMetadata> columns,
+                        boolean unmask,
                         boolean collectWritetimes,
                         boolean collectTTLs)
         {
             this.protocolVersion = protocolVersion;
             this.columns = columns;
+            this.unmask = unmask;
             this.collectWritetimes = collectWritetimes;
             this.collectTTLs = collectTTLs;
 
@@ -443,14 +447,21 @@ public abstract class Selector
         }
 
         /**
-         * Return the value of the column with the specified index.
+         * Return the value of the column with the specified index. If the column the value belongs to is masked with a
+         * {@link ColumnMask} and {@link #unmask} hasn't been specified, such mask will be applied to the value.
          *
          * @param index the column index
-         * @return the value of the column with the specified index
+         * @return the value of the column with the specified index, masked if its column is masked
          */
         public ByteBuffer getValue(int index)
         {
-            return values[index];
+            ByteBuffer value = values[index];
+
+            if (unmask)
+                return value;
+
+            ColumnMask mask = columns.get(index).getMask();
+            return mask == null ? value : mask.mask(protocolVersion, value);
         }
 
         /**

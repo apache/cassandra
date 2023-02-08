@@ -125,6 +125,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
      */
     private final Comparator<List<ByteBuffer>> orderingComparator;
 
+    /**
+     * Whether masked columns should be unmasked.
+     */
+    private boolean unmask = true;
+
     // Used by forSelection below
     private static final Parameters defaultParameters = new Parameters(Collections.emptyMap(),
                                                                        Collections.emptyList(),
@@ -236,6 +241,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         for (Function function : getFunctions())
             state.ensurePermission(Permission.EXECUTE, function);
+
+        unmask = state.hasUnmaskPermission(table);
     }
 
     public void validate(ClientState state) throws InvalidRequestException
@@ -897,7 +904,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                               AggregationSpecification aggregationSpec) throws InvalidRequestException
     {
         GroupMaker groupMaker = aggregationSpec == null ? null : aggregationSpec.newGroupMaker();
-        ResultSetBuilder result = new ResultSetBuilder(getResultMetadata(), selectors, groupMaker);
+        ResultSetBuilder result = new ResultSetBuilder(getResultMetadata(), selectors, unmask, groupMaker);
 
         while (partitions.hasNext())
         {
@@ -1170,10 +1177,14 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             if (hasGroupBy)
                 Guardrails.groupByEnabled.ensureEnabled(state);
 
+            boolean isJson = parameters.isJson;
+            boolean returnStaticContentOnPartitionWithNoRows = restrictions.returnStaticContentOnPartitionWithNoRows();
+
             if (selectables.isEmpty()) // wildcard query
             {
-                return hasGroupBy ? Selection.wildcardWithGroupBy(table, boundNames, parameters.isJson, restrictions.returnStaticContentOnPartitionWithNoRows())
-                                  : Selection.wildcard(table, parameters.isJson, restrictions.returnStaticContentOnPartitionWithNoRows());
+                return hasGroupBy || table.columns().stream().anyMatch(ColumnMetadata::isMasked)
+                       ? Selection.wildcardWithGroupByOrMaskedColumns(table, boundNames, isJson, returnStaticContentOnPartitionWithNoRows)
+                       : Selection.wildcard(table, isJson, returnStaticContentOnPartitionWithNoRows);
             }
 
             return Selection.fromSelectors(table,
@@ -1182,8 +1193,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                            resultSetOrderingColumns,
                                            restrictions.nonPKRestrictedColumns(false),
                                            hasGroupBy,
-                                           parameters.isJson,
-                                           restrictions.returnStaticContentOnPartitionWithNoRows());
+                                           isJson,
+                                           returnStaticContentOnPartitionWithNoRows);
         }
 
         /**

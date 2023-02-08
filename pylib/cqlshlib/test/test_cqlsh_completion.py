@@ -620,7 +620,12 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions(prefix + ' new_table (col_a ine',
                             immediate='t ')
         self.trycompletions(prefix + ' new_table (col_a int ',
-                            choices=[',', 'PRIMARY'])
+                            choices=[',', 'MASKED', 'PRIMARY'])
+        self.trycompletions(prefix + ' new_table (col_a int M',
+                            immediate='ASKED WITH ')
+        self.trycompletions(prefix + ' new_table (col_a int MASKED WITH ',
+                            choices=['DEFAULT', self.cqlsh.keyspace + '.', 'system.'],
+                            other_choices_ok=True)
         self.trycompletions(prefix + ' new_table (col_a int P',
                             immediate='RIMARY KEY ')
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY ',
@@ -885,7 +890,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("GR",
                             immediate='ANT ')
         self.trycompletions("GRANT ",
-                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT'],
+                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT', 'UNMASK'],
                             other_choices_ok=True)
         self.trycompletions("GRANT MODIFY ",
                             choices=[',', 'ON', 'PERMISSION'])
@@ -894,7 +899,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("GRANT MODIFY PERMISSION ",
                             choices=[',', 'ON'])
         self.trycompletions("GRANT MODIFY PERMISSION, ",
-                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT'])
+                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT', 'UNMASK'])
         self.trycompletions("GRANT MODIFY PERMISSION, D",
                             choices=['DESCRIBE', 'DROP'])
         self.trycompletions("GRANT MODIFY PERMISSION, DR",
@@ -916,7 +921,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("RE",
                             immediate='VOKE ')
         self.trycompletions("REVOKE ",
-                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT'],
+                            choices=['ALL', 'ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'MODIFY', 'SELECT', 'UNMASK'],
                             other_choices_ok=True)
         self.trycompletions("REVOKE MODIFY ",
                             choices=[',', 'ON', 'PERMISSION'])
@@ -925,7 +930,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("REVOKE MODIFY PERMISSION ",
                             choices=[',', 'ON'])
         self.trycompletions("REVOKE MODIFY PERMISSION, ",
-                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT'])
+                            choices=['ALTER', 'AUTHORIZE', 'CREATE', 'DESCRIBE', 'DROP', 'EXECUTE', 'SELECT', 'UNMASK'])
         self.trycompletions("REVOKE MODIFY PERMISSION, D",
                             choices=['DESCRIBE', 'DROP'])
         self.trycompletions("REVOKE MODIFY PERMISSION, DR",
@@ -963,9 +968,23 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('ALTER TABLE IF EXISTS new_table ADD ', choices=['<new_column_name>', 'IF'])
         self.trycompletions('ALTER TABLE IF EXISTS new_table ADD IF NOT EXISTS ', choices=['<new_column_name>'])
         self.trycompletions('ALTER TABLE new_table ADD IF NOT EXISTS ', choices=['<new_column_name>'])
+        self.trycompletions('ALTER TABLE new_table ADD col int ', choices=[';', 'MASKED', 'static'])
+        self.trycompletions('ALTER TABLE new_table ADD col int M', immediate='ASKED WITH ')
+        self.trycompletions('ALTER TABLE new_table ADD col int MASKED WITH ',
+                            choices=['DEFAULT', self.cqlsh.keyspace + '.', 'system.'],
+                            other_choices_ok=True)
         self.trycompletions('ALTER TABLE IF EXISTS new_table RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
         self.trycompletions('ALTER TABLE new_table RENAME ', choices=['IF', '<quotedName>', '<identifier>'])
         self.trycompletions('ALTER TABLE IF EXISTS new_table DROP ', choices=['IF', '<quotedName>', '<identifier>'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ALTER ', choices=['IF', '<quotedName>', '<identifier>'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ALTER IF E', immediate='XISTS ')
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ALTER IF EXISTS col ', choices=['MASKED', 'DROP'])
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ALTER IF EXISTS col M', immediate='ASKED WITH ')
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ALTER IF EXISTS col MASKED WITH ',
+                            choices=['DEFAULT', self.cqlsh.keyspace + '.', 'system.'],
+                            other_choices_ok=True)
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ALTER IF EXISTS col D', immediate='ROP MASKED ;')
+        self.trycompletions('ALTER TABLE IF EXISTS new_table ALTER IF EXISTS col DROP M', immediate='ASKED ;')
 
     def test_complete_in_alter_type(self):
         self.trycompletions('ALTER TYPE I', immediate='F EXISTS ')
@@ -1000,7 +1019,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
 
     def test_complete_in_list(self):
-        self.trycompletions('LIST ', choices=['ALL', 'AUTHORIZE', 'DESCRIBE', 'EXECUTE', 'ROLES', 'USERS', 'ALTER', 'CREATE', 'DROP', 'MODIFY', 'SELECT'])
+        self.trycompletions('LIST ', choices=['ALL', 'AUTHORIZE', 'DESCRIBE', 'EXECUTE', 'ROLES', 'USERS', 'ALTER', 'CREATE', 'DROP', 'MODIFY', 'SELECT', 'UNMASK'])
 
 
     # Non-CQL Shell Commands

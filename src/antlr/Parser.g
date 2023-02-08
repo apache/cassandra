@@ -782,9 +782,19 @@ tableDefinition[CreateTableStatement.Raw stmt]
 
 tableColumns[CreateTableStatement.Raw stmt]
     @init { boolean isStatic = false; }
-    : k=ident v=comparatorType (K_STATIC { isStatic = true; })? { $stmt.addColumn(k, v, isStatic); }
+    : k=ident v=comparatorType (K_STATIC { isStatic = true; })? (mask=columnMask)? { $stmt.addColumn(k, v, isStatic, mask); }
         (K_PRIMARY K_KEY { $stmt.setPartitionKeyColumn(k); })?
     | K_PRIMARY K_KEY '(' tablePartitionKey[stmt] (',' c=ident { $stmt.markClusteringColumn(c); } )* ')'
+    ;
+
+columnMask returns [ColumnMask.Raw mask]
+    @init { List<Term.Raw> arguments = new ArrayList<>(); }
+    : K_MASKED K_WITH name=functionName columnMaskArguments[arguments] { $mask = new ColumnMask.Raw(name, arguments); }
+    | K_MASKED K_WITH K_DEFAULT { $mask = new ColumnMask.Raw(FunctionName.nativeFunction("mask_default"), arguments); }
+    ;
+
+columnMaskArguments[List<Term.Raw> arguments]
+    : '('  ')' | '(' c=term { arguments.add(c); } (',' cn=term { arguments.add(cn); })* ')'
     ;
 
 tablePartitionKey[CreateTableStatement.Raw stmt]
@@ -929,7 +939,9 @@ alterKeyspaceStatement returns [AlterKeyspaceStatement.Raw stmt]
 
 /**
  * ALTER TABLE <table> ALTER <column> TYPE <newtype>;
- * ALTER TABLE [IF EXISTS] <table> ADD [IF NOT EXISTS] <column> <newtype>; | ALTER TABLE [IF EXISTS] <table> ADD [IF NOT EXISTS] (<column> <newtype>,<column1> <newtype1>..... <column n> <newtype n>)
+ * ALTER TABLE [IF EXISTS] <table> ALTER [IF EXISTS] <column> MASKED WITH <maskFunction>);
+ * ALTER TABLE [IF EXISTS] <table> ALTER [IF EXISTS] <column> DROP MASKED;
+ * ALTER TABLE [IF EXISTS] <table> ADD [IF NOT EXISTS] <column> <newtype> <maskFunction>; | ALTER TABLE [IF EXISTS] <table> ADD [IF NOT EXISTS] (<column> <newtype> <maskFunction>, <column1> <newtype1>  <maskFunction1>..... <column n> <newtype n>  <maskFunction n>)
  * ALTER TABLE [IF EXISTS] <table> DROP [IF EXISTS] <column>; | ALTER TABLE [IF EXISTS] <table> DROP [IF EXISTS] ( <column>,<column1>.....<column n>)
  * ALTER TABLE [IF EXISTS] <table> RENAME [IF EXISTS] <column> TO <column>;
  * ALTER TABLE [IF EXISTS] <table> WITH <property> = <value>;
@@ -941,10 +953,14 @@ alterTableStatement returns [AlterTableStatement.Raw stmt]
       (
         K_ALTER id=cident K_TYPE v=comparatorType { $stmt.alter(id, v); }
 
+      | K_ALTER ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )? id=cident
+              ( mask=columnMask { $stmt.mask(id, mask); }
+              | K_DROP K_MASKED { $stmt.mask(id, null); } )
+
       | K_ADD ( K_IF K_NOT K_EXISTS { $stmt.ifColumnNotExists(true); } )?
-              (        id=ident  v=comparatorType  b=isStaticColumn { $stmt.add(id,  v,  b);  }
-               | ('('  id1=ident v1=comparatorType b1=isStaticColumn { $stmt.add(id1, v1, b1); }
-                 ( ',' idn=ident vn=comparatorType bn=isStaticColumn { $stmt.add(idn, vn, bn); } )* ')') )
+              (        id=ident  v=comparatorType  b=isStaticColumn (m=columnMask)? { $stmt.add(id,  v,  b, m);  }
+               | ('('  id1=ident v1=comparatorType b1=isStaticColumn (m1=columnMask)? { $stmt.add(id1, v1, b1, m1); }
+                 ( ',' idn=ident vn=comparatorType bn=isStaticColumn (mn=columnMask)? { $stmt.add(idn, vn, bn, mn); mn=null; } )* ')') )
 
       | K_DROP ( K_IF K_EXISTS { $stmt.ifColumnExists(true); } )?
                (       id=ident { $stmt.drop(id);  }
@@ -1112,7 +1128,7 @@ listPermissionsStatement returns [ListPermissionsStatement stmt]
     ;
 
 permission returns [Permission perm]
-    : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE | K_DESCRIBE | K_EXECUTE)
+    : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE | K_DESCRIBE | K_EXECUTE | K_UNMASK)
     { $perm = Permission.valueOf($p.text.toUpperCase()); }
     ;
 
@@ -1940,5 +1956,6 @@ basic_unreserved_keyword returns [String str]
         | K_MBEANS
         | K_REPLACE
         | K_UNSET
+        | K_MASKED
         ) { $str = $k.text; }
     ;

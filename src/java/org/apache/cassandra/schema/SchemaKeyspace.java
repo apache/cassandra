@@ -35,6 +35,8 @@ import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.cql3.functions.masking.ColumnMask;
+import org.apache.cassandra.cql3.functions.masking.MaskingFunction;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -137,6 +139,11 @@ public final class SchemaKeyspace
               + "kind text,"
               + "position int,"
               + "type text,"
+              + "mask_keyspace text,"
+              + "mask_name text,"
+              + "mask_argument_types frozen<list<text>>,"
+              + "mask_argument_values frozen<list<blob>>,"
+              + "mask_argument_nulls frozen<list<boolean>>," // arguments that are null
               + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
 
     private static final TableMetadata DroppedColumns =
@@ -688,15 +695,58 @@ public final class SchemaKeyspace
     {
         AbstractType<?> type = column.type;
         if (type instanceof ReversedType)
-            type = ((ReversedType) type).baseType;
+            type = ((ReversedType<?>) type).baseType;
 
-        builder.update(Columns)
+        Row.SimpleBuilder rowBuilder = builder.update(Columns)
                .row(table.name, column.name.toString())
                .add("column_name_bytes", column.name.bytes)
                .add("kind", column.kind.toString().toLowerCase())
                .add("position", column.position())
                .add("clustering_order", column.clusteringOrder().toString().toLowerCase())
                .add("type", type.asCQL3Type().toString());
+
+        // Dynamic data masking functions shouldn't be attached to columns during rolling upgrades
+        // to avoid sending mutations with columns that are unknown to the old nodes.
+        ColumnMask mask = column.getMask();
+        if (ColumnMask.clusterSupportsMaskedColumns())
+        {
+            if (mask == null)
+            {
+                rowBuilder.delete("mask_keyspace")
+                          .delete("mask_name")
+                          .delete("mask_argument_types")
+                          .delete("mask_argument_values")
+                          .delete("mask_argument_nulls");
+            }
+            else
+            {
+                FunctionName maskFunctionName = mask.function.name();
+
+                // Some arguments of the masking function can be null, but the CQL's list type that stores them doesn't
+                // accept nulls, so we use a parallel list of booleans to store what arguments are null.
+                List<String> types = new ArrayList<>(mask.partialArgumentValues.size());
+                List<ByteBuffer> values = new ArrayList<>(mask.partialArgumentValues);
+                List<Boolean> nulls = new ArrayList<>(mask.partialArgumentValues.size());
+                for (int i = 0; i < values.size(); i++)
+                {
+                    types.add(mask.partialArgumentTypes().get(i).asCQL3Type().toString());
+                    boolean isNull = values.get(i) == null;
+                    nulls.add(isNull);
+                    if (isNull)
+                        values.set(i, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+                }
+
+                rowBuilder.add("mask_keyspace", maskFunctionName.keyspace)
+                          .add("mask_name", maskFunctionName.name)
+                          .add("mask_argument_types", types)
+                          .add("mask_argument_values", values)
+                          .add("mask_argument_nulls", nulls);
+            }
+        }
+        else
+        {
+            assert mask == null : "Dynamic data masking shouldn't be used on the schema during rolling upgrades";
+        }
     }
 
     private static void dropColumnFromSchemaMutation(TableMetadata table, ColumnMetadata column, Mutation.SimpleBuilder builder)
@@ -1019,7 +1069,7 @@ public final class SchemaKeyspace
     }
 
     @VisibleForTesting
-    static ColumnMetadata createColumnFromRow(UntypedResultSet.Row row, Types types)
+    public static ColumnMetadata createColumnFromRow(UntypedResultSet.Row row, Types types)
     {
         String keyspace = row.getString("keyspace_name");
         String table = row.getString("table_name");
@@ -1035,7 +1085,41 @@ public final class SchemaKeyspace
 
         ColumnIdentifier name = new ColumnIdentifier(row.getBytes("column_name_bytes"), row.getString("column_name"));
 
-        return new ColumnMetadata(keyspace, table, name, type, position, kind);
+        ColumnMask mask = null;
+        if (row.has("mask_keyspace") && row.has("mask_name"))
+        {
+            FunctionName functionName = new FunctionName(row.getString("mask_keyspace"), row.getString("mask_name"));
+
+            List<String> partialArgumentTypes = row.getFrozenList("mask_argument_types", UTF8Type.instance);
+            List<AbstractType<?>> argumentTypes = new ArrayList<>(1 + partialArgumentTypes.size());
+            argumentTypes.add(type);
+            for (String argumentType : partialArgumentTypes)
+            {
+                argumentTypes.add(CQLTypeParser.parse(keyspace, argumentType, types));
+            }
+
+            Function function = FunctionResolver.get(keyspace, functionName, argumentTypes, null, null, null);
+            if (!(function instanceof MaskingFunction))
+            {
+                throw new AssertionError(format("Column %s.%s.%s is unexpectedly masked with function %s " +
+                                                "which is not a known native masking function",
+                                                keyspace, table, name, function));
+            }
+
+            // Some arguments of the masking function can be null, but the CQL's list type that stores them doesn't
+            // accept nulls, so we use a parallel list of booleans to store what arguments are null.
+            List<ByteBuffer> values = row.getFrozenList("mask_argument_values", BytesType.instance);
+            List<Boolean> nulls = row.getFrozenList("mask_argument_nulls", BooleanType.instance);
+            for (int i = 0; i < values.size(); i++)
+            {
+                if (nulls.get(i))
+                    values.set(i, null);
+            }
+
+            mask = new ColumnMask((MaskingFunction) function, values);
+        }
+
+        return new ColumnMetadata(keyspace, table, name, type, position, kind, mask);
     }
 
     private static Map<ByteBuffer, DroppedColumn> fetchDroppedColumns(String keyspace, String table)
@@ -1067,7 +1151,7 @@ public final class SchemaKeyspace
         assert kind == ColumnMetadata.Kind.REGULAR || kind == ColumnMetadata.Kind.STATIC
             : "Unexpected dropped column kind: " + kind;
 
-        ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, ColumnMetadata.NO_POSITION, kind);
+        ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, ColumnMetadata.NO_POSITION, kind, null);
         long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getLong("dropped_time"));
         return new DroppedColumn(column, droppedTime);
     }
