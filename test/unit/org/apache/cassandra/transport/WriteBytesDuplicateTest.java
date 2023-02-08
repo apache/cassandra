@@ -22,6 +22,7 @@ import org.junit.Test;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Generators;
 import org.assertj.core.api.Assertions;
 
@@ -50,6 +51,7 @@ public class WriteBytesDuplicateTest
             Assertions.assertThat(buf.writerIndex()).isEqualTo(size);
             for (int i = 0; i < size; i++)
                 Assertions.assertThat(buf.getByte(buf.readerIndex() + i)).describedAs("byte mismatch at index %d", i).isEqualTo(bb.get(bb.position() + i));
+            FileUtils.clean(bb);
         });
     }
 

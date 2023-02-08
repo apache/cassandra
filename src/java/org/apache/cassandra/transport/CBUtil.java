@@ -494,7 +494,7 @@ public abstract class CBUtil
 
     public static void addBytes(ByteBuffer src, ByteBuf dest)
     {
-        if (src == null)
+        if (src == null || src.remaining() == 0)
         {
             return;
         }

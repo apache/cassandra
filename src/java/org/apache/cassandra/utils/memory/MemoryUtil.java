@@ -47,7 +47,6 @@ public abstract class MemoryUtil
     private static final boolean BIG_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
 
     public static final boolean INVERTED_ORDER = Architecture.IS_UNALIGNED && !BIG_ENDIAN;
-    private static final Class<?> RO_HEAP_BYTE_BUFFER_CLASS;
 
     static
     {
@@ -69,7 +68,6 @@ public abstract class MemoryUtil
             BYTE_BUFFER_OFFSET_OFFSET = unsafe.objectFieldOffset(ByteBuffer.class.getDeclaredField("offset"));
             HEAP_BYTE_BUFFER_HB_OFFSET = unsafe.objectFieldOffset(ByteBuffer.class.getDeclaredField("hb"));
             HEAP_BYTE_BUFFER_CLASS = clazz;
-            RO_HEAP_BYTE_BUFFER_CLASS = ByteBuffer.allocate(0).asReadOnlyBuffer().getClass();
 
             BYTE_ARRAY_BASE_OFFSET = unsafe.arrayBaseOffset(byte[].class);
         }
