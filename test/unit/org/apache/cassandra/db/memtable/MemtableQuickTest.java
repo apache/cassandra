@@ -25,6 +25,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameter;
+import org.junit.runners.Parameterized.Parameters;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,10 +51,10 @@ public class MemtableQuickTest extends CQLTester
     static final int deletedRowsStart = 40_000;
     static final int deletedRowsEnd = deletedRowsStart + 5_000;
 
-    @Parameterized.Parameter()
+    @Parameter()
     public String memtableClass;
 
-    @Parameterized.Parameters(name = "{0}")
+    @Parameters(name = "{0}")
     public static List<Object> parameters()
     {
         return ImmutableList.of("skiplist",
@@ -64,8 +66,6 @@ public class MemtableQuickTest extends CQLTester
     @BeforeClass
     public static void setUp()
     {
-        CQLTester.setUpClass();
-        CQLTester.prepareServer();
         CQLTester.disablePreparedReuseForTest();
         logger.info("setupClass done.");
     }

@@ -162,6 +162,7 @@ public abstract class CQLTester
                                                                    "(\\((?:\\s*\\w+\\s*\\()?%<s\\))?",
                                                                    CREATE_INDEX_NAME_REGEX);
     private static final Pattern CREATE_INDEX_PATTERN = Pattern.compile(CREATE_INDEX_REGEX, Pattern.CASE_INSENSITIVE);
+    private static boolean serverStarted = false;
 
     public static final NettyOptions IMMEDIATE_CONNECTION_SHUTDOWN_NETTY_OPTIONS = new NettyOptions()
     {
@@ -321,9 +322,6 @@ public abstract class CQLTester
         if (ROW_CACHE_SIZE_IN_MIB > 0)
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
-
-        // Once per-JVM is enough
-        prepareServer();
     }
 
     @AfterClass
@@ -361,6 +359,12 @@ public abstract class CQLTester
     @Before
     public void beforeTest() throws Throwable
     {
+        if (!serverStarted)
+        {
+            // Once per-JVM is enough
+            prepareServer();
+            serverStarted = true;
+        }
         schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE));
         schemaChange(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}", KEYSPACE_PER_TEST));
     }

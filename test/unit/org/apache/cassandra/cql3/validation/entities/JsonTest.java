@@ -46,7 +46,6 @@ import static org.junit.Assert.fail;
 
 public class JsonTest extends CQLTester
 {
-    // This method will be run instead of the CQLTester#setUpClass
     @BeforeClass
     public static void setUpClass()
     {
@@ -54,9 +53,6 @@ public class JsonTest extends CQLTester
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
 
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-
-        // Once per-JVM is enough
-        prepareServer();
     }
 
     @Test

@@ -67,7 +67,6 @@ public class StreamSessionTest extends CQLTester
     @BeforeClass
     public static void before()
     {
-        DatabaseDescriptor.daemonInitialization();
         ByteBuddyAgent.install();
         new ByteBuddy().redefine(ColumnFamilyStore.class)
                        .method(named("getIfExists").and(takesArguments(1)))
