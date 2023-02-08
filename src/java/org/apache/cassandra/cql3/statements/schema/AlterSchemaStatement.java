@@ -26,6 +26,7 @@ import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -148,6 +149,12 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
             && !SchemaConstants.isSystemKeyspace(keyspaceName)
             && TimeWindowCompactionStrategy.class.isAssignableFrom(params.compaction.klass()))
             Guardrails.zeroTTLOnTWCSEnabled.ensureEnabled(state);
+    }
+
+    protected void validateMasking(String what)
+    {
+        if (!ColumnMask.clusterSupportsMaskedColumns())
+            throw ire("Cannot %s during rolling upgrade involving nodes <= 4.1", what);
     }
 
     private void grantPermissionsOnResource(IResource resource, AuthenticatedUser user)

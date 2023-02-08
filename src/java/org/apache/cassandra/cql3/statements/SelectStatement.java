@@ -80,6 +80,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
@@ -124,6 +125,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
      * The comparator used to orders results when multiple keys are selected (using IN).
      */
     private final Comparator<List<ByteBuffer>> orderingComparator;
+
+    /**
+     * Whether masked columns should be unmasked.
+     */
+    private boolean unmask = true;
 
     // Used by forSelection below
     private static final Parameters defaultParameters = new Parameters(Collections.emptyMap(),
@@ -236,6 +242,22 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         for (Function function : getFunctions())
             state.ensurePermission(Permission.EXECUTE, function);
+
+        unmask = state.hasTablePermission(table, Permission.UNMASK);
+
+        if (!unmask && !state.hasTablePermission(table, Permission.SELECT_MASKED))
+        {
+            List<ColumnMetadata> queriedMaskedColumns = table.columns()
+                                                             .stream()
+                                                             .filter(ColumnMetadata::isMasked)
+                                                             .filter(restrictions::isRestricted)
+                                                             .collect(Collectors.toList());
+
+            if (!queriedMaskedColumns.isEmpty())
+                throw new UnauthorizedException(format("User %s has no UNMASK nor SELECT_MASKED permission on table %s.%s, " +
+                                                       "cannot query masked columns %s",
+                                                       state.getUser().getName(), keyspace(), table(), queriedMaskedColumns));
+        }
     }
 
     public void validate(ClientState state) throws InvalidRequestException
@@ -897,7 +919,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                               AggregationSpecification aggregationSpec) throws InvalidRequestException
     {
         GroupMaker groupMaker = aggregationSpec == null ? null : aggregationSpec.newGroupMaker();
-        ResultSetBuilder result = new ResultSetBuilder(getResultMetadata(), selectors, groupMaker);
+        ResultSetBuilder result = new ResultSetBuilder(getResultMetadata(), selectors, unmask, groupMaker);
 
         while (partitions.hasNext())
         {
@@ -1170,10 +1192,14 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             if (hasGroupBy)
                 Guardrails.groupByEnabled.ensureEnabled(state);
 
+            boolean isJson = parameters.isJson;
+            boolean returnStaticContentOnPartitionWithNoRows = restrictions.returnStaticContentOnPartitionWithNoRows();
+
             if (selectables.isEmpty()) // wildcard query
             {
-                return hasGroupBy ? Selection.wildcardWithGroupBy(table, boundNames, parameters.isJson, restrictions.returnStaticContentOnPartitionWithNoRows())
-                                  : Selection.wildcard(table, parameters.isJson, restrictions.returnStaticContentOnPartitionWithNoRows());
+                return hasGroupBy || table.columns().stream().anyMatch(ColumnMetadata::isMasked)
+                       ? Selection.wildcardWithGroupByOrMaskedColumns(table, boundNames, isJson, returnStaticContentOnPartitionWithNoRows)
+                       : Selection.wildcard(table, isJson, returnStaticContentOnPartitionWithNoRows);
             }
 
             return Selection.fromSelectors(table,
@@ -1182,8 +1208,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                            resultSetOrderingColumns,
                                            restrictions.nonPKRestrictedColumns(false),
                                            hasGroupBy,
-                                           parameters.isJson,
-                                           restrictions.returnStaticContentOnPartitionWithNoRows());
+                                           isJson,
+                                           returnStaticContentOnPartitionWithNoRows);
         }
 
         /**

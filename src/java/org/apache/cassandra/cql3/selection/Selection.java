@@ -133,10 +133,10 @@ public abstract class Selection
         return new SimpleSelection(table, all, Collections.emptySet(), true, isJson, returnStaticContentOnPartitionWithNoRows);
     }
 
-    public static Selection wildcardWithGroupBy(TableMetadata table,
-                                                VariableSpecifications boundNames,
-                                                boolean isJson,
-                                                boolean returnStaticContentOnPartitionWithNoRows)
+    public static Selection wildcardWithGroupByOrMaskedColumns(TableMetadata table,
+                                                               VariableSpecifications boundNames,
+                                                               boolean isJson,
+                                                               boolean returnStaticContentOnPartitionWithNoRows)
     {
         return fromSelectors(table,
                              Lists.newArrayList(table.allColumnsInSelectOrder()),
@@ -187,7 +187,9 @@ public abstract class Selection
                                                                             factories,
                                                                             isJson);
 
-        return (processesSelection(selectables) || selectables.size() != selectedColumns.size() || hasGroupBy)
+        boolean hasMaskedColumns = selectedColumns.stream().anyMatch(ColumnMetadata::isMasked);
+
+        return (processesSelection(selectables) || selectables.size() != selectedColumns.size() || hasGroupBy || hasMaskedColumns)
             ? new SelectionWithProcessing(table,
                                           selectedColumns,
                                           filteredOrderingColumns,

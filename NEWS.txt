@@ -122,6 +122,14 @@ New features
       - `mask_inner` replaces every character but the first and last ones by a fixed character.
       - `mask_outer` replaces the first and last characters by a fixed character.
       - `mask_hash` replaces the data by its hash, according to the specified algorithm.
+    - Added support for attaching CQL dynamic data masking functions to table columns on the schema. These masking
+      functions can be attached to or dettached from columns with CREATE/ALTER TABLE statements. The functions obscure
+      the masked data during queries, but they don't change the stored data. Masking functions shouldn't be attached to
+      columns during rolling upgrades, because the older nodes aren't aware of this feature.
+    - Added new UNMASK permission. It allows to see the clear data of columns with an attached mask. Superusers have it
+      by default, whereas regular users don't have it by default.
+    - Added new SELECT_MASKED permission. It allows to run SELECT queries selecting the clear values of masked columns.
+      Superusers have it by default, whereas regular users don't have it by default.
 
 Upgrading
 ---------

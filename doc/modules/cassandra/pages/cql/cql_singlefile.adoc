@@ -2262,6 +2262,8 @@ The full set of available permissions is:
 * `AUTHORIZE`
 * `DESCRIBE`
 * `EXECUTE`
+* `UNMASK`
+* `SELECT_MASKED`
 
 Not all permissions are applicable to every type of resource. For
 instance, `EXECUTE` is only relevant in the context of functions or
@@ -2420,6 +2422,18 @@ use of function in `CREATE AGGREGATE` | | |
 wildcard pattern | | |
 
 |`EXECUTE` |`MBEAN` |Execute operations on named mbean | | |
+
+|`UNMASK` |`ALL KEYSPACES` |See the clear contents of masked columns on any table | | |
+
+|`UNMASK` |`KEYSPACE` |See the clear contents of masked columns on any table in keyspace | | |
+
+|`UNMASK` |`TABLE` |See the clear contents of masked columns on specified table | | |
+
+|`SELECT_MASKED` | `ALL KEYSPACES` | `SELECT` restricting masked columns on any table | | |
+
+|`SELECT_MASKED` | `KEYSPACE` | `SELECT` restricting masked columns on any table in specified keyspace | | |
+
+|`SELECT_MASKED` | `TABLE` | `SELECT` restricting masked columns on specified table | | |
 |===
 
 [[grantPermissionsStmt]]
@@ -2430,7 +2444,7 @@ _Syntax:_
 bc(syntax).. +
 ::= GRANT ( ALL ( PERMISSIONS )? | ( PERMISSION )? ) ON TO
 
-::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE |
+::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | UNMASK | SELECT_MASKED
 EXECUTE
 
 ::= ALL KEYSPACES +
@@ -2502,7 +2516,7 @@ _Syntax:_
 bc(syntax).. +
 ::= REVOKE ( ALL ( PERMISSIONS )? | ( PERMISSION )? ) ON FROM
 
-::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE |
+::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | UNMASK | SELECT_MASKED
 EXECUTE
 
 ::= ALL KEYSPACES +
@@ -3611,6 +3625,7 @@ or not.
 |`LIST` |no
 |`LOGIN` |no
 |`MAP` |no
+|`MASKED` |no
 |`MATERIALIZED` |yes
 |`MBEAN` |yes
 |`MBEANS` |yes
