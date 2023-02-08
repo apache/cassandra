@@ -701,7 +701,7 @@ jobs:
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 100
+    parallelism: 1
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2175,7 +2175,7 @@ jobs:
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 100
+    parallelism: 1
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2606,7 +2606,7 @@ jobs:
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 100
+    parallelism: 1
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4282,7 +4282,7 @@ jobs:
     resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 100
+    parallelism: 1
     steps:
     - attach_workspace:
         at: /home/cassandra
