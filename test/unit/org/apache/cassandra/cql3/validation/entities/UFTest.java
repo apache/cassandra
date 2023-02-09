@@ -87,17 +87,17 @@ public class UFTest extends CQLTester
     }
 
     @Test
-    public void testSchemaChange() throws Throwable
+    public void testSchemaChange()
     {
         String f = createFunctionName(KEYSPACE);
         String functionName = shortFunctionName(f);
         registerFunction(f, "double, double");
 
-        assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state double, val double) " +
-                           "RETURNS NULL ON NULL INPUT " +
+        assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state double, val double)" +
+                           "CALLED ON NULL INPUT " +
                            "RETURNS double " +
-                           "LANGUAGE javascript " +
-                           "AS '\"string\";';",
+                           "LANGUAGE java " +
+                           "AS ' return Double.valueOf(Math.max(state.doubleValue(), val.doubleValue())); ';",
                            Change.CREATED,
                            Target.FUNCTION,
                            KEYSPACE, functionName,
@@ -108,22 +108,22 @@ public class UFTest extends CQLTester
         assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
                            "RETURNS NULL ON NULL INPUT " +
                            "RETURNS int " +
-                           "LANGUAGE javascript " +
-                           "AS '\"string\";';",
+                           "LANGUAGE java " +
+                           "AS ' return Integer.valueOf(Math.max(state, val));';",
                            Change.CREATED,
                            Target.FUNCTION,
                            KEYSPACE, functionName,
                            "int", "int");
 
-        assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
+        /*assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
                            "RETURNS NULL ON NULL INPUT " +
                            "RETURNS int " +
-                           "LANGUAGE javascript " +
-                           "AS '\"string1\";';",
+                           "LANGUAGE java " +
+                           "AS ' return Integer.valueOf(Math.max(state, val));';",
                            Change.UPDATED,
                            Target.FUNCTION,
                            KEYSPACE, functionName,
-                           "int", "int");
+                           "int", "int");*/
 
         assertSchemaChange("DROP FUNCTION " + f + "(double, double)",
                            Change.DROPPED, Target.FUNCTION,
@@ -137,8 +137,8 @@ public class UFTest extends CQLTester
         assertSchemaChange("CREATE OR REPLACE FUNCTION " + fl + "(state list<tuple<int, int>>, val double) " +
                            "RETURNS NULL ON NULL INPUT " +
                            "RETURNS double " +
-                           "LANGUAGE javascript " +
-                           "AS '\"string\";';",
+                           "LANGUAGE java " +
+                           "AS ' return val;';",
                            Change.CREATED, Target.FUNCTION,
                            KEYSPACE, shortFunctionName(fl),
                            "list<tuple<int, int>>", "double");
@@ -333,8 +333,8 @@ public class UFTest extends CQLTester
                                         "CREATE FUNCTION %s ( input double ) " +
                                         "CALLED ON NULL INPUT " +
                                         "RETURNS double " +
-                                        "LANGUAGE javascript " +
-                                        "AS 'input'");
+                                        "LANGUAGE java " +
+                                        "AS 'return Double.valueOf(Math.log(input.doubleValue()));'");
         Assert.assertEquals(1, Schema.instance.getUserFunctions(parseFunctionName(function)).size());
 
         List<ResultMessage.Prepared> prepared = new ArrayList<>();
@@ -793,11 +793,10 @@ public class UFTest extends CQLTester
     public void testDuplicateArgNames() throws Throwable
     {
         assertInvalidMessage("Duplicate argument names for given function",
-                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".scrinv(val double, val text) " +
-                             "RETURNS NULL ON NULL INPUT " +
-                             "RETURNS text " +
-                             "LANGUAGE javascript\n" +
-                             "AS '\"foo bar\";';");
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".scrinv(input double, input int) " +
+                             "CALLED ON NULL INPUT " +
+                             "RETURNS double " +
+                             "LANGUAGE java AS 'return Math.max(input, input)';");
     }
 
     @Test

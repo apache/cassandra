@@ -564,6 +564,8 @@ public class Config
 
     @Replaces(oldName = "enable_user_defined_functions", converter = Converters.IDENTITY, deprecated = true)
     public boolean user_defined_functions_enabled = false;
+
+    @Deprecated
     @Replaces(oldName = "enable_scripted_user_defined_functions", converter = Converters.IDENTITY, deprecated = true)
     public boolean scripted_user_defined_functions_enabled = false;
 
