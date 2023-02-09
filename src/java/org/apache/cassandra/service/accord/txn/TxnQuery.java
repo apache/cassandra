@@ -31,6 +31,8 @@ import accord.api.Update;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
+import org.apache.cassandra.config.Config.LegacyPaxosStrategy;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -134,6 +136,10 @@ public abstract class TxnQuery implements Query
         Epoch epoch = Epoch.create(0, executeAt.epoch());
         if (transactionIsInMigratingOrMigratedRange(epoch, keys))
         {
+            // Fail fast because we can't be sure where this request should really run or what was intended
+            if (DatabaseDescriptor.getLegacyPaxosStrategy() == LegacyPaxosStrategy.accord)
+                throw new IllegalStateException("Mixing a hard coded strategy with migration is unsupported");
+
             if (txnId.isWrite())
                 ClientRequestsMetricsHolder.accordWriteMetrics.accordMigrationRejects.mark();
             else

@@ -2885,6 +2885,10 @@ public class DatabaseDescriptor
         return conf.paxos_topology_repair_strict_each_quorum;
     }
 
+    // TODO imperative that at startup we check that the legacy paxos strategy is compatible
+    // with cluster metadata for consensus migration
+    // If another node updates the CM with consensus migration and we don't support it that is a serious issue as well
+    // Ideally this config could only ever exist in CM so that the cluster always agrees on what it is
     public static Config.LegacyPaxosStrategy getLegacyPaxosStrategy()
     {
         return conf.legacy_paxos_strategy;

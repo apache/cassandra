@@ -41,6 +41,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config.LegacyPaxosStrategy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -139,6 +140,9 @@ public class ConsensusMigrationStateStore
         checkArgument(keyspaceNames.size() == 1 || !maybeTables.isPresent(), "Can't specify tables with multiple keyspaces");
         checkArgument(!maybeTables.isPresent() || !maybeTables.get().isEmpty(), "Must provide at least 1 table if Optional is not empty");
         ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(targetProtocolName);
+
+        if (DatabaseDescriptor.getLegacyPaxosStrategy() == LegacyPaxosStrategy.accord)
+            throw new IllegalStateException("Mixing a hard coded strategy with migration is unsupported");
 
         if (!Paxos.useV2())
             throw new IllegalStateException("Can't do any consensus migrations from/to PaxosV1, switch to V2 first");
@@ -570,6 +574,9 @@ public class ConsensusMigrationStateStore
         checkArgument(keyspaceNames.size() == 1 || !maybeTables.isPresent(), "Can't specify tables with multiple keyspaces");
         checkArgument(!maybeTables.isPresent() || !maybeTables.get().isEmpty(), "Must provide at least 1 table if Optional is not empty");
         ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(targetProtocolName);
+
+        if (DatabaseDescriptor.getLegacyPaxosStrategy() == LegacyPaxosStrategy.accord)
+            throw new IllegalStateException("Mixing a hard coded strategy with migration is unsupported");
 
         if (!Paxos.useV2())
             throw new IllegalStateException("Can't do any consensus migrations to/from PaxosV1, switch to V2 first");
