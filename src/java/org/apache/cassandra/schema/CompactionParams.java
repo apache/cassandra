@@ -30,6 +30,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
@@ -85,8 +87,23 @@ public final class CompactionParams
         ImmutableMap.of(Option.MIN_THRESHOLD.toString(), Integer.toString(DEFAULT_MIN_THRESHOLD),
                         Option.MAX_THRESHOLD.toString(), Integer.toString(DEFAULT_MAX_THRESHOLD));
 
-    public static final CompactionParams DEFAULT =
-        new CompactionParams(SizeTieredCompactionStrategy.class, DEFAULT_THRESHOLDS, DEFAULT_ENABLED, DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES_PROPERTY_VALUE);
+    public static final CompactionParams DEFAULT;
+    static
+    {
+        ParameterizedClass defaultCompaction = DatabaseDescriptor.getDefaultCompaction();
+        if (defaultCompaction == null)
+        {
+            DEFAULT = new CompactionParams(SizeTieredCompactionStrategy.class,
+                                           DEFAULT_THRESHOLDS,
+                                           DEFAULT_ENABLED,
+                                           DEFAULT_PROVIDE_OVERLAPPING_TOMBSTONES_PROPERTY_VALUE);
+        }
+        else
+        {
+            DEFAULT = create(classFromName(defaultCompaction.class_name),
+                             defaultCompaction.parameters);
+        }
+    }
 
     private final Class<? extends AbstractCompactionStrategy> klass;
     private final ImmutableMap<String, String> options;
