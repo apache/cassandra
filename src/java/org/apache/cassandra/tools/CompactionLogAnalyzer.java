@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.Table;
@@ -51,6 +50,7 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.json.simple.JSONArray;
@@ -144,8 +144,6 @@ public class CompactionLogAnalyzer
 
 
     final static Pattern CSVNamePattern = Pattern.compile("compaction-(\\w+)-(.*?)-(.*?)-(.*)\\.csv");
-    final static Pattern HumanReadablePattern = Pattern.compile("(\\d+(\\.\\d+)?)([ KMGTP])iB(/s)?");
-    final static String HumanReadablePowers = " KMGTP";
     private static final String fullDateFormatter = "yyyy-MM-dd' 'HH:mm:ss.SSS";
 
     static int reportResolutionInMs;
@@ -161,7 +159,6 @@ public class CompactionLogAnalyzer
     static int readPerSecIndex;
     static int writePerSecIndex;
     static int sizesIndex;
-    static int Tindex;
     static int Windex;
 
     private static void initializeIndexes(String header)
@@ -187,7 +184,6 @@ public class CompactionLogAnalyzer
                     writePerSecIndex = indexMap.get("Write (bytes/sec)");
                     sizesIndex = indexMap.getOrDefault("Tot/Read/Written", -1);
                     sizesIndex = indexMap.get("Tot. comp. size/Read/Written (bytes)");
-                    Tindex = indexMap.get("T");
                     Windex = indexMap.get("W");
                 }
             }
@@ -202,17 +198,17 @@ public class CompactionLogAnalyzer
         dp.timestamp = getTimestamp(data[timestampIndex]);
         dp.bucket = Integer.parseInt(data[bucketIndex]);
         dp.sstables = Integer.parseInt(data[sstablesIndex]);
-        dp.size = parseHumanReadable(data[sizeIndex]);
+        dp.size = parseHumanReadableSize(data[sizeIndex]);
         final String[] compactions = data[compactionsIndex].split("/");
         dp.compactionsInProgress = Integer.parseInt(compactions[1]);
         dp.compactionsPending = Integer.parseInt(compactions[0]);
-        dp.readBytesPerSecond = parseHumanReadable(data[readPerSecIndex]);
-        dp.writeBytesPerSecond = parseHumanReadable(data[writePerSecIndex]);
+        dp.readBytesPerSecond = parseHumanReadableRate(data[readPerSecIndex]);
+        dp.writeBytesPerSecond = parseHumanReadableRate(data[writePerSecIndex]);
         String[] sizes = data[sizesIndex].split("/");
-        dp.totalBytes = parseHumanReadable(sizes[0]);
-        dp.remainingReadBytes = dp.totalBytes - parseHumanReadable(sizes[1]);
-        int T = Integer.parseInt(data[Tindex]);
-        dp.scalingParameter = Integer.parseInt(data[Windex]);
+        dp.totalBytes = parseHumanReadableSize(sizes[0]);
+        dp.remainingReadBytes = dp.totalBytes - parseHumanReadableSize(sizes[1]);
+        dp.scalingParameter = Controller.parseScalingParameter(data[Windex]);
+        int T = dp.scalingParameter > 0 ? dp.scalingParameter + 2 : 2;
         int compactingSSTables = Integer.parseInt(data[compactingSstablesIndex].split("/")[1]);
         int nonCompacting = dp.sstables - compactingSSTables;
         dp.bucketsAboveT = nonCompacting > T ? 1 : 0;
@@ -226,15 +222,14 @@ public class CompactionLogAnalyzer
         return date.getTime();
     }
 
-    private static long parseHumanReadable(String datum)
+    private static long parseHumanReadableSize(String datum)
     {
-        Matcher m = HumanReadablePattern.matcher(datum);
-        if (!m.matches())
-            throw new AssertionError();
-        double v = Double.parseDouble(m.group(1));
-        int power = HumanReadablePowers.indexOf(m.group(3).charAt(0));
+        return (long) FBUtilities.parseHumanReadable(datum, null, "B");
+    }
 
-        return (long) Math.scalb(v, 10 * power);
+    private static long parseHumanReadableRate(String datum)
+    {
+        return (long) FBUtilities.parseHumanReadable(datum, null, "B/s");
     }
 
     public static void generateGraph(File htmlFile, JSONObject stats)

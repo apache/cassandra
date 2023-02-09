@@ -406,7 +406,7 @@ public class StressMetrics implements MeasurementSink
         output.println(String.format("Total partitions          : %,10d %s",   history.partitionCount, opHistory.partitionCounts()));
         output.println(String.format("Total errors              : %,10d %s",   history.errorCount, opHistory.errorCounts()));
         output.println(String.format("Total GC count            : %,1.0f", totalGcStats.count));
-        output.println(String.format("Total GC memory           : %s", FBUtilities.prettyPrintMemory((long)totalGcStats.bytes, true)));
+        output.println(String.format("Total GC memory           : %s", FBUtilities.prettyPrintMemory((long)totalGcStats.bytes, " ")));
         output.println(String.format("Total GC time             : %,6.1f seconds", totalGcStats.summs / 1000));
         output.println(String.format("Avg GC time               : %,6.1f ms", totalGcStats.summs / totalGcStats.count));
         output.println(String.format("StdDev GC time            : %,6.1f ms", totalGcStats.sdvms));

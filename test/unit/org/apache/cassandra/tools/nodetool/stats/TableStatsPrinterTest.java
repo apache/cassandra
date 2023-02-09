@@ -50,9 +50,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal write latency: 0.050 ms\n" +
         "\tPending flushes: 11111\n" +
         "\tPercent repaired: 100.0\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 30\n" +
         "\tBloom filter false ratio: 0.40000\n" +
         "\tBloom filter space used: 789\n" +
@@ -87,9 +87,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal write latency: 0.000 ms\n" +
         "\tPending flushes: 222222\n" +
         "\tPercent repaired: 99.9\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 600\n" +
         "\tBloom filter false ratio: 0.01000\n" +
         "\tBloom filter space used: 161718\n" +
@@ -125,9 +125,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal write latency: NaN ms\n" +
         "\tPending flushes: 333\n" +
         "\tPercent repaired: 99.8\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 20\n" +
         "\tBloom filter false ratio: 0.50000\n" +
         "\tBloom filter space used: 456\n" +
@@ -162,9 +162,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal write latency: 2.000 ms\n" +
         "\tPending flushes: 4444\n" +
         "\tPercent repaired: 50.0\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 500\n" +
         "\tBloom filter false ratio: 0.02000\n" +
         "\tBloom filter space used: 131415\n" +
@@ -200,9 +200,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal write latency: 1.000 ms\n" +
         "\tPending flushes: 5\n" +
         "\tPercent repaired: 93.0\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 10\n" +
         "\tBloom filter false ratio: 0.60000\n" +
         "\tBloom filter space used: 123\n" +
@@ -237,9 +237,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal write latency: 0.500 ms\n" +
         "\tPending flushes: 66\n" +
         "\tPercent repaired: 0.0\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 400\n" +
         "\tBloom filter false ratio: 0.03000\n" +
         "\tBloom filter space used: 101112\n" +

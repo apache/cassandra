@@ -26,6 +26,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -151,6 +153,10 @@ public abstract class Controller
      * True if L0 data may be coming from different replicas.
      */
     public final static String SHARED_STORAGE = "shared_storage";
+    private final static Pattern SCALING_PARAMETER_PATTERN = Pattern.compile("(N)|L(\\d+)|T(\\d+)|([+-]?\\d+)");
+    private final static String SCALING_PARAMETER_PATTERN_SIMPLIFIED = SCALING_PARAMETER_PATTERN.pattern()
+                                                                                                .replaceAll("[()]", "")
+                                                                                                .replaceAll("\\\\d", "[0-9]");
 
     protected final MonotonicClock clock;
     protected final Environment env;
@@ -841,6 +847,66 @@ public abstract class Controller
     public Random random()
     {
         return ThreadLocalRandom.current();
+    }
+
+    public static int[] parseScalingParameters(String str)
+    {
+        String[] vals = str.split(",");
+        int[] ret = new int[vals.length];
+        for (int i = 0; i < vals.length; i++)
+        {
+            String value = vals[i].trim();
+            int W = parseScalingParameter(value);
+            ret[i] = W;
+        }
+
+        return ret;
+    }
+
+    public static int parseScalingParameter(String value)
+    {
+        Matcher m = SCALING_PARAMETER_PATTERN.matcher(value);
+        if (!m.matches())
+            throw new ConfigurationException("Scaling parameter " + value + " must match " + SCALING_PARAMETER_PATTERN_SIMPLIFIED);
+
+        if (m.group(1) != null)
+            return 0;
+        else if (m.group(2) != null)
+            return 2 - atLeast2(Integer.parseInt(m.group(2)), value);
+        else if (m.group(3) != null)
+            return atLeast2(Integer.parseInt(m.group(3)), value) - 2;
+        else
+            return Integer.parseInt(m.group(4));
+    }
+
+    private static int atLeast2(int value, String str)
+    {
+        if (value < 2)
+            throw new ConfigurationException("Fan factor cannot be lower than 2 in " + str);
+        return value;
+    }
+
+    public static String printScalingParameters(int[] parameters)
+    {
+        StringBuilder builder = new StringBuilder();
+        int i;
+        for (i = 0; i < parameters.length - 1; ++i)
+        {
+            builder.append(printScalingParameter(parameters[i]));
+            builder.append(", ");
+        }
+        builder.append(printScalingParameter(parameters[i]));
+        return builder.toString();
+    }
+
+    public static String printScalingParameter(int W)
+    {
+        if (W < 0)
+            return "L" + Integer.toString(2 - W);
+        else if (W > 0)
+            return "T" + Integer.toString(W + 2);
+        else
+            return "N";
     }
 
     public List<CompactionAggregate.UnifiedAggregate> maybeSort(List<CompactionAggregate.UnifiedAggregate> pending)

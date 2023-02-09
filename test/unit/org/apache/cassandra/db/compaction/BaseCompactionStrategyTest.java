@@ -297,7 +297,7 @@ public class BaseCompactionStrategyTest
         List<SSTableReader> sstables = new ArrayList<>(numSSTables);
         for (int i = 0; i < numSSTables; i++)
         {
-            DecoratedKey first = new BufferDecoratedKey(boundaries.get(i).increaseSlightly(), emptyBuffer);
+            DecoratedKey first = new BufferDecoratedKey(boundaries.get(i).nextValidToken(), emptyBuffer);
             DecoratedKey last =  new BufferDecoratedKey(boundaries.get(i+1), emptyBuffer);
             sstables.add(mockSSTable(level, bytesOnDisk, timestamp, 0., first, last));
 

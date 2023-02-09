@@ -1469,7 +1469,7 @@ public class CompactionSimulationTest extends BaseCompactionStrategyTest
                 when(sstable.keyCardinalityEstimator()).thenReturn(cardinality);
                 sstables.add(sstable);
 
-                min = boundaries.get(max).getToken().increaseSlightly();
+                min = boundaries.get(max).getToken().nextValidToken();
                 max += numShardsCoveredByEachSStable;
             }
 
