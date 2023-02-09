@@ -534,8 +534,8 @@ public class SelectionColumnMappingTest extends CQLTester
                                                         " CREATE FUNCTION %s (a int, b int)" +
                                                         " RETURNS NULL ON NULL INPUT" +
                                                         " RETURNS int" +
-                                                        " LANGUAGE javascript" +
-                                                        " AS 'a + b'")).name;
+                                                        " LANGUAGE java" +
+                                                        " AS ' return a + b;'")).name;
 
         String aFunc = createAggregate(KEYSPACE, "int, int",
                                        " CREATE AGGREGATE %s (int)" +
@@ -547,15 +547,15 @@ public class SelectionColumnMappingTest extends CQLTester
                                         " CREATE FUNCTION %s (a int)" +
                                         " RETURNS NULL ON NULL INPUT" +
                                         " RETURNS int" +
-                                        " LANGUAGE javascript" +
-                                        " AS 'a+1'");
+                                        " LANGUAGE java" +
+                                        " AS ' return a + 1;'");
 
         String sqFunc = createFunction(KEYSPACE, "int",
                                        " CREATE FUNCTION %s (a int)" +
                                        " RETURNS NULL ON NULL INPUT" +
                                        " RETURNS int" +
-                                       " LANGUAGE javascript" +
-                                       " AS 'a*a'");
+                                       " LANGUAGE java" +
+                                       " AS ' return a * a;'");
 
         ColumnMetadata v1 = columnDefinition("v1");
         SelectionColumns expected = SelectionColumnMapping.newMapping()

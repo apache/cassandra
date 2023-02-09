@@ -495,7 +495,7 @@ public class AuditLoggerTest extends CQLTester
     {
         String tblName = createTableName();
 
-        String cql = "CREATE FUNCTION IF NOT EXISTS  " + KEYSPACE + "." + tblName + " (column TEXT,num int) RETURNS NULL ON NULL INPUT RETURNS text LANGUAGE javascript AS $$ column.substring(0,num) $$";
+        String cql = "CREATE FUNCTION IF NOT EXISTS  " + KEYSPACE + "." + tblName + " (column TEXT,num int) RETURNS NULL ON NULL INPUT RETURNS text LANGUAGE java AS $$ return column.substring(0,num); $$";
         executeAndAssert(cql, AuditLogEntryType.CREATE_FUNCTION);
 
         cql = "DROP FUNCTION " + KEYSPACE + "." + tblName;

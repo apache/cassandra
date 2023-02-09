@@ -266,13 +266,7 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
     {
         assertUdfsEnabled(language);
 
-        switch (language)
-        {
-            case "java":
-                return new JavaBasedUDFunction(name, argNames, argTypes, returnType, calledOnNullInput, body);
-            default:
-                return new ScriptBasedUDFunction(name, argNames, argTypes, returnType, calledOnNullInput, language, body);
-        }
+        return new JavaBasedUDFunction(name, argNames, argTypes, returnType, calledOnNullInput, body);
     }
 
     /**
@@ -448,8 +442,8 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
     {
         if (!DatabaseDescriptor.enableUserDefinedFunctions())
             throw new InvalidRequestException("User-defined functions are disabled in cassandra.yaml - set user_defined_functions_enabled=true to enable");
-        if (!"java".equalsIgnoreCase(language) && !DatabaseDescriptor.enableScriptedUserDefinedFunctions())
-            throw new InvalidRequestException("Scripted user-defined functions are disabled in cassandra.yaml - set scripted_user_defined_functions_enabled=true to enable if you are aware of the security risks");
+        if (!"java".equalsIgnoreCase(language))
+            throw new InvalidRequestException("Currently only Java UDFs are available in Cassandra. For more information - CASSANDRA-18252 and CASSANDRA-17281");
     }
 
     static void initializeThread()
