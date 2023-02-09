@@ -4677,4 +4677,9 @@ public class DatabaseDescriptor
     {
         return Objects.requireNonNull(sstableFormatFactories, "Forgot to initialize DatabaseDescriptor?");
     }
+
+    public static ParameterizedClass getDefaultCompaction()
+    {
+        return conf != null ? conf.default_compaction : null;
+    }
 }
