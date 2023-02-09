@@ -32,6 +32,7 @@ CQL does *not* execute joins or sub-queries and a select statement only apply to
 A select statement can also have a xref:cql/dml.adoc#where-clause[where clause] that can further narrow the query results.
 Additional clauses can xref:cql/dml.adoc#ordering-clause[order] or xref:cql/dml.adoc#limit-clause[limit] the results. 
 Lastly, xref:cql/dml.adoc#allow-filtering[queries that require full cluster filtering] can append `ALLOW FILTERING` to any query.
+For virtual tables, from https://issues.apache.org/jira/browse/CASSANDRA-18238[CASSANDRA-18238], it is not necessary to specify `ALLOW FILTERING` when a query would normally require that. Please consult the documentation for virtual tables to know more.
 
 [[selection-clause]]
 === Selection clause
