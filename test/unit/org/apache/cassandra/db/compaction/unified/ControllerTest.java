@@ -16,29 +16,32 @@
 
 package org.apache.cassandra.db.compaction.unified;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
+import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionStrategyOptions;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.ReplicationFactor;
-import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import static junit.framework.TestCase.assertNull;
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -195,6 +198,62 @@ public abstract class ControllerTest
         assertNotNull(controller.getCalculator());
 
         controller.startup(strategy, executorService);
+    }
+
+    @Test
+    public void testScalingParameterConversion()
+    {
+        testScalingParameterConversion("T4", 2);
+        testScalingParameterConversion("L4", -2);
+        testScalingParameterConversion("N", 0);
+        testScalingParameterConversion("L2, T2, N", 0, 0, 0);
+        testScalingParameterConversion("T10, T8, T4, N, L4, L6", 8, 6, 2, 0, -2, -4);
+        testScalingParameterConversion("T10000, T1000, T100, T10, T2, L10, L100, L1000, L10000", 9998, 998, 98, 8, 0, -8, -98, -998, -9998);
+
+        testScalingParameterParsing("-50 ,  T5  ,  3 ,  N  ,  L7 ,  +5 , -12  ,T9,L4,6,-7,+0,-0", -50, 3, 3, 0, -5, 5, -12, 7, -2, 6, -7, 0, 0);
+
+        testScalingParameterError("Q6");
+        testScalingParameterError("L4,,T5");
+        testScalingParameterError("L1");
+        testScalingParameterError("T1");
+        testScalingParameterError("L0");
+        testScalingParameterError("T0");
+        testScalingParameterError("T-5");
+        testScalingParameterError("T+5");
+        testScalingParameterError("L-5");
+        testScalingParameterError("L+5");
+        testScalingParameterError("N3");
+        testScalingParameterError("7T");
+        testScalingParameterError("T,5");
+        testScalingParameterError("L,5");
+    }
+
+    void testScalingParameterConversion(String definition, int... parameters)
+    {
+        testScalingParameterParsing(definition, parameters);
+
+        String normalized = definition.replaceAll("T2|L2", "N");
+        assertEquals(normalized, Controller.printScalingParameters(parameters));
+
+        testScalingParameterParsing(Arrays.toString(parameters).replaceAll("[\\[\\]]", ""), parameters);
+    }
+
+    void testScalingParameterParsing(String definition, int... parameters)
+    {
+        assertArrayEquals(parameters, Controller.parseScalingParameters(definition));
+    }
+
+    void testScalingParameterError(String definition)
+    {
+        try
+        {
+            Controller.parseScalingParameters(definition);
+            Assert.fail("Expected error on " + definition);
+        }
+        catch (ConfigurationException e)
+        {
+            // expected
+        }
     }
 
     void testValidateCompactionStrategyOptions(boolean testLogType)

@@ -52,6 +52,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 import javax.annotation.Nonnull;
@@ -938,27 +940,97 @@ public class FBUtilities
         }
     }
 
+    final static String UNIT_PREFIXES = "qryzafpnum kMGTPEZYRQ";
+    final static int UNIT_PREFIXES_BASE = UNIT_PREFIXES.indexOf(' ');
+    final static Pattern BASE_NUMBER_PATTERN = Pattern.compile("NaN|[+-]?Infinity|[+-]?\\d+(\\.\\d+)?([eE]([+-]?)\\d+)?");
+    final static Pattern BINARY_EXPONENT = Pattern.compile("\\*2\\^([+-]?\\d+)");
+
+    /**
+     * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
+     * For example, 1.000kiB, 2.100GiB etc., up to 8.000 EiB.
+     * @param size      Number to convert.
+     */
     public static String prettyPrintMemory(long size)
     {
-        return prettyPrintMemory(size, false);
+        return prettyPrintMemory(size, "");
     }
 
-    public static String prettyPrintMemory(long size, boolean includeSpace)
+    /**
+     * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
+     * For example, 1.000kiB, 2.100GiB etc., up to 8.000 EiB.
+     * @param size      Number to convert.
+     * @param separator Separator between the number and the (modified) unit.
+     */
+    public static String prettyPrintMemory(long size, String separator)
     {
-        if (size >= 1 << 30)
-            return String.format("%.3f%sGiB", size / (double) (1 << 30), includeSpace ? " " : "");
-        if (size >= 1 << 20)
-            return String.format("%.3f%sMiB", size / (double) (1 << 20), includeSpace ? " " : "");
-        return String.format("%.3f%sKiB", size / (double) (1 << 10), includeSpace ? " " : "");
+        int prefixIndex = (63 - Long.numberOfLeadingZeros(Math.abs(size))) / 10;
+        if (prefixIndex == 0)
+            return String.format("%d%sB", size, separator);
+        else
+            return String.format("%.3f%s%ciB",
+                                 Math.scalb(size, -prefixIndex * 10),
+                                 separator,
+                                 UNIT_PREFIXES.charAt(UNIT_PREFIXES_BASE + prefixIndex));
+    }
+
+    /**
+     * Convert the given value to a human-readable string using binary (i.e. 2^10-based) modifiers.
+     * If the number is outside the modifier range (i.e. < 1 qi or > 1 Qi), it will be printed as v*2^e where e is a
+     * multiple of 10 with sign.
+     * For example, 1.000kiB, 2.100 miB/s, 7.006*2^+150, -Infinity.
+     * @param value     Number to convert.
+     * @param separator Separator between the number and the (modified) unit.
+     */
+    public static String prettyPrintBinary(double value, String unit, String separator)
+    {
+        int prefixIndex = Math.floorDiv(Math.getExponent(value), 10);
+        if (prefixIndex == 0 || !Double.isFinite(value) || value == 0)
+            return String.format("%.3f%s%s", value, separator, unit);
+        else if (prefixIndex > UNIT_PREFIXES_BASE || prefixIndex < -UNIT_PREFIXES_BASE)
+            return String.format("%.3f*2^%+d%s%s",
+                                 Math.scalb(value, -prefixIndex * 10),
+                                 prefixIndex * 10,
+                                 separator,
+                                 unit);
+        else
+            return String.format("%.3f%s%ci%s",
+                                 Math.scalb(value, -prefixIndex * 10),
+                                 separator,
+                                 UNIT_PREFIXES.charAt(UNIT_PREFIXES_BASE + prefixIndex),
+                                 unit);
+    }
+
+    /**
+     * Convert the given value to a human-readable string using decimal (i.e. 10^3-based) modifiers.
+     * If the number is outside the modifier range (i.e. < 1 qi or > 1 Qi), it will be printed as vEe where e is a
+     * multiple of 3 with sign.
+     * For example, 1.000km, 2.100 ms, 10E+45, NaN.
+     * @param value     Number to convert.
+     * @param separator Separator between the number and the (modified) unit.
+     */
+    public static String prettyPrintDecimal(double value, String unit, String separator)
+    {
+        int prefixIndex = (int) Math.floor(Math.log10(Math.abs(value)) / 3);
+        double base = value * Math.pow(1000.0, -prefixIndex);
+        if (prefixIndex == 0 || !Double.isFinite(value) || !Double.isFinite(base) || value == 0)
+            return String.format("%.3f%s%s", value, separator, unit);
+        else if (prefixIndex > UNIT_PREFIXES_BASE || prefixIndex < -UNIT_PREFIXES_BASE)
+            return String.format("%.3fe%+d%s%s",
+                                 base,
+                                 prefixIndex * 3,
+                                 separator,
+                                 unit);
+        else
+            return String.format("%.3f%s%c%s",
+                                 base,
+                                 separator,
+                                 UNIT_PREFIXES.charAt(UNIT_PREFIXES_BASE + prefixIndex),
+                                 unit);
     }
 
     public static String prettyPrintMemoryPerSecond(long rate)
     {
-        if (rate >= 1 << 30)
-            return String.format("%.3fGiB/s", rate / (double) (1 << 30));
-        if (rate >= 1 << 20)
-            return String.format("%.3fMiB/s", rate / (double) (1 << 20));
-        return String.format("%.3fKiB/s", rate / (double) (1 << 10));
+        return prettyPrintMemory(rate) + "/s";
     }
 
     public static String prettyPrintMemoryPerSecond(long bytes, long timeInNano)
@@ -970,6 +1042,82 @@ public class FBUtilities
         long rate = (long) (((double) bytes / timeInNano) * 1000 * 1000 * 1000);
 
         return prettyPrintMemoryPerSecond(rate);
+    }
+
+    /**
+     * Parse a human-readable value printed using one of the methods above. Understands both binary and decimal
+     * modifiers, as well as decimal exponents using the E notation and binary exponents using *2^e.
+     *
+     * @param datum     The human-readable number.
+     * @param separator Expected separator, null to accept any amount of whitespace.
+     * @param unit      Expected unit.
+     * @return The parsed value.
+     */
+    public static double parseHumanReadable(String datum, String separator, String unit)
+    {
+        int end = datum.length();
+        if (unit != null)
+        {
+            if (!datum.endsWith(unit))
+                throw new NumberFormatException(datum + " does not end in unit " + unit);
+            end -= unit.length();
+        }
+
+        Matcher m = BASE_NUMBER_PATTERN.matcher(datum);
+        m.region(0, end);
+        if (!m.lookingAt())
+            throw new NumberFormatException();
+        double v = Double.parseDouble(m.group(0));
+
+        int pos = m.end();
+        if (m.group(2) == null) // possible binary exponent, parse
+        {
+            m = BINARY_EXPONENT.matcher(datum);
+            m.region(pos, end);
+            if (m.lookingAt())
+            {
+                int power = Integer.parseInt(m.group(1));
+                v = Math.scalb(v, power);
+                pos = m.end();
+            }
+        }
+
+        if (separator != null)
+        {
+            if (!datum.startsWith(separator, pos))
+                throw new NumberFormatException("Missing separator " + separator + " in " + datum);
+            pos += separator.length();
+        }
+        else
+        {
+            while (pos < end && Character.isWhitespace(datum.charAt(pos)))
+                ++pos;
+        }
+
+        if (pos < end)
+        {
+            char prefixChar = datum.charAt(pos);
+            int prefixIndex = UNIT_PREFIXES.indexOf(prefixChar);
+            if (prefixIndex >= 0)
+            {
+                prefixIndex -= UNIT_PREFIXES_BASE;
+                ++pos;
+                if (pos < end && datum.charAt(pos) == 'i')
+                {
+                    ++pos;
+                    v = Math.scalb(v, prefixIndex * 10);
+                }
+                else
+                {
+                    v *= Math.exp(Math.log(1000.0) * prefixIndex);
+                }
+            }
+        }
+
+        if (pos != end && unit != null)
+            throw new NumberFormatException("Unexpected characters between pos " + pos + " and " + end + " in " + datum);
+
+        return v;
     }
 
     /**

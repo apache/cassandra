@@ -700,8 +700,6 @@ public abstract class CompactionAggregate
                                                    bucket.index,
                                                    bucket.survivalFactor,
                                                    bucket.scalingParameter,
-                                                   bucket.threshold,
-                                                   bucket.fanout,
                                                    bucket.min,
                                                    bucket.max,
                                                    shard.name());

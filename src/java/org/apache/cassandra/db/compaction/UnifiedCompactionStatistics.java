@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -33,7 +34,7 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
 {
-    private static final Collection<String> HEADER = ImmutableList.copyOf(Iterables.concat(ImmutableList.of("Bucket", "W", "T", "F", "min size", "max size"),
+    private static final Collection<String> HEADER = ImmutableList.copyOf(Iterables.concat(ImmutableList.of("Bucket", "W", "min size", "max size"),
                                                                                            CompactionAggregateStatistics.HEADER));
 
     private static final long serialVersionUID = 3695927592357345266L;
@@ -46,12 +47,6 @@ public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
 
     /** The scaling parameter W */
     private final int scalingParameter;
-
-    /** The number of SSTables T that trigger a compaction */
-    private final int threshold;
-
-    /** The fanout size F */
-    private final int fanout;
 
     /** The minimum size for an SSTable that belongs to this bucket */
     private final long minSizeBytes;
@@ -66,8 +61,6 @@ public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
                                 int bucketIndex,
                                 double survivalFactor,
                                 int scalingParameter,
-                                int threshold,
-                                int fanout,
                                 long minSizeBytes,
                                 long maxSizeBytes,
                                 String shard)
@@ -77,8 +70,6 @@ public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
         this.bucket = bucketIndex;
         this.survivalFactor = survivalFactor;
         this.scalingParameter = scalingParameter;
-        this.threshold = threshold;
-        this.fanout = fanout;
         this.minSizeBytes = minSizeBytes;
         this.maxSizeBytes = maxSizeBytes;
         this.shard = shard;
@@ -103,20 +94,6 @@ public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
     public int scalingParameter()
     {
         return scalingParameter;
-    }
-
-    /** The number of SSTables T that trigger a compaction */
-    @JsonProperty
-    public int threshold()
-    {
-        return threshold;
-    }
-
-    /** The fanout size F */
-    @JsonProperty
-    public int fanout()
-    {
-        return fanout;
     }
 
     /** The minimum size for an SSTable that belongs to this bucket */
@@ -152,9 +129,7 @@ public class UnifiedCompactionStatistics extends CompactionAggregateStatistics
     {
         List<String> data = new ArrayList<>(HEADER.size());
         data.add(Integer.toString(bucket()));
-        data.add(Integer.toString(scalingParameter));
-        data.add(Integer.toString(threshold));
-        data.add(Integer.toString(fanout));
+        data.add(Controller.printScalingParameter(scalingParameter));
         data.add(FBUtilities.prettyPrintMemory(minSizeBytes));
         data.add(FBUtilities.prettyPrintMemory(maxSizeBytes));
 

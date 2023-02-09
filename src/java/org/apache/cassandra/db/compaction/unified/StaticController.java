@@ -37,7 +37,7 @@ public class StaticController extends Controller
      */
     static final String STATIC_SCALING_PARAMETERS_OPTION = "scaling_parameters";
     static final String STATIC_SCALING_FACTORS_OPTION = "static_scaling_factors";
-    private final static String DEFAULT_STATIC_SCALING_PARAMETERS = System.getProperty(PREFIX + STATIC_SCALING_PARAMETERS_OPTION, "2");
+    private final static String DEFAULT_STATIC_SCALING_PARAMETERS = System.getProperty(PREFIX + STATIC_SCALING_PARAMETERS_OPTION, "T4");
 
     private final int[] scalingParameters;
 
@@ -102,17 +102,6 @@ public class StaticController extends Controller
                                     l0ShardsEnabled);
     }
 
-    @VisibleForTesting
-    static int[] parseScalingParameters(String str)
-    {
-        String[] vals = str.split(",");
-        int[] ret = new int[vals.length];
-        for (int i = 0; i < vals.length; i++)
-            ret[i] = Integer.parseInt(vals[i].trim());
-
-        return ret;
-    }
-
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
     {
         String parameters = options.remove(STATIC_SCALING_PARAMETERS_OPTION);
@@ -151,6 +140,6 @@ public class StaticController extends Controller
     @Override
     public String toString()
     {
-        return String.format("Static controller, m: %d, o: %s, scalingParameters: %s, cost: %s", minSstableSizeMB, Arrays.toString(survivalFactors), Arrays.toString(scalingParameters), calculator);
+        return String.format("Static controller, m: %d, o: %s, scalingParameters: %s, cost: %s", minSstableSizeMB, Arrays.toString(survivalFactors), printScalingParameters(scalingParameters), calculator);
     }
 }
