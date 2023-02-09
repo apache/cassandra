@@ -30,6 +30,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
@@ -274,7 +276,7 @@ public final class StatementRestrictions
             }
             if (hasQueriableIndex)
                 usesSecondaryIndexing = true;
-            else if (!allowFiltering)
+            else if (!allowFiltering && requiresAllowFilteringIfNotSpecified())
                 throw invalidRequest(allowFilteringMessage(state));
 
             filterRestrictions.add(nonPrimaryKeyRestrictions);
@@ -282,6 +284,16 @@ public final class StatementRestrictions
 
         if (usesSecondaryIndexing)
             validateSecondaryIndexSelections();
+    }
+
+    private boolean requiresAllowFilteringIfNotSpecified()
+    {
+        if (!table.isVirtual())
+            return true;
+
+        VirtualTable tableNullable = VirtualKeyspaceRegistry.instance.getTableNullable(table.id);
+        assert tableNullable != null;
+        return !tableNullable.allowFilteringImplicitly();
     }
 
     private void addRestriction(Restriction restriction)
@@ -500,7 +512,7 @@ public final class StatementRestrictions
             // components must have a EQ. Only the last partition key component can be in IN relation.
             if (partitionKeyRestrictions.needFiltering(table))
             {
-                if (!allowFiltering && !forView && !hasQueriableIndex)
+                if (!allowFiltering && !forView && !hasQueriableIndex && requiresAllowFilteringIfNotSpecified())
                     throw new InvalidRequestException(allowFilteringMessage(state));
 
                 isKeyRange = true;
