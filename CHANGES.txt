@@ -1,4 +1,5 @@
 4.2
+ * Remove Scripted UDFs internals; hooks to be added later in CASSANDRA-17281 (CASSANDRA-18252)
  * Update JNA to 5.13.0 (CASSANDRA-18050)
  * Make virtual tables decide if they implicitly enable ALLOW FILTERING (CASSANDRA-18238)
  * Add row, tombstone, and sstable count to nodetool profileload (CASSANDRA-18022)

@@ -43,7 +43,7 @@ compaction_throughput_mb_per_sec: 64
 row_cache_class_name: org.apache.cassandra.cache.OHCProvider
 row_cache_size_in_mb: 16
 enable_user_defined_functions: true
-enable_scripted_user_defined_functions: true
+enable_scripted_user_defined_functions: false
 prepared_statements_cache_size_mb:
 corrupted_tombstone_strategy: exception
 stream_entire_sstables: true
