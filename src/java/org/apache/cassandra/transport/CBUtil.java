@@ -497,9 +497,9 @@ public abstract class CBUtil
 
         int length = src.remaining();
 
-        //heap buffers are copied this way in order to avoid JVM crashing
         if (src.hasArray())
         {
+            //heap buffers are copied this way to avoid improper memory managment that causes a CMS bug and the JVM to crash
             byte[] array = src.array();
             dest.writeBytes(array, src.arrayOffset() + src.position(), length);
         }
