@@ -151,8 +151,7 @@
                                           -Dcassandra.storagedir=$PROJECT_DIR$/data
                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml
-                                          -ea
-                                          -Didea.click.expand.for.rest.of.options" />
+                                          -ea" />
       <option name="PROGRAM_PARAMETERS" value="" />
       <option name="WORKING_DIRECTORY" value="" />
       <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
@@ -187,11 +186,11 @@
                                           -Dcassandra.logdir=$PROJECT_DIR$/build/test/logs
                                           -Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true
                                           -Dcassandra.ring_delay_ms=1000
-                                          -Dcassandra.tolerate_sstable_size=true
                                           -Dcassandra.skip_sync=true
                                           -Dcassandra.strict.runtime.checks=true
                                           -Dcassandra.test.flush_local_schema_changes=false
                                           -Dcassandra.test.messagingService.nonGracefulShutdown=true
+                                          -Dcassandra.tolerate_sstable_size=true
                                           -Dcassandra.use_nix_recursive_delete=true
                                           -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables
                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
@@ -199,9 +198,9 @@
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/test/conf/logback-test.xml
                                           -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables
                                           -XX:ActiveProcessorCount=2
+                                          -XX:MaxMetaspaceSize=384M
                                           -XX:SoftRefLRUPolicyMSPerMB=0
-                                          -ea -XX:MaxMetaspaceSize=384M
-                                          -Didea.click.expand.for.rest.of.options" />
+                                          -ea" />
       <option name="PARAMETERS" value="" />
       <fork_mode value="class" />
       <option name="WORKING_DIRECTORY" value="" />
@@ -231,8 +230,7 @@
                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml
                                           -Xmx1G
-                                          -ea
-                                          -Didea.click.expand.for.rest.of.options" />
+                                          -ea" />
       <option name="PROGRAM_PARAMETERS" value="" />
       <option name="WORKING_DIRECTORY" value="file://$PROJECT_DIR$" />
       <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
