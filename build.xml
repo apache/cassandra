@@ -145,7 +145,7 @@
     <!-- When updating ASM, please, do consider whether you might need to update also FBUtilities#ASM_BYTECODE_VERSION
       and the simulator InterceptClasses#BYTECODE_VERSION, in particular if we are looking to provide Cassandra support
       for newer JDKs (CASSANDRA-17873). -->
-    <property name="asm.version" value="9.3"/>
+    <property name="asm.version" value="9.4"/>
     <property name="allocation-instrumenter.version" value="3.1.0"/>
 
     <condition property="is.source.artifact">

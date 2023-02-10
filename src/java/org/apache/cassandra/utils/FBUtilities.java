@@ -151,7 +151,7 @@ public class FBUtilities
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
 
-    public static final int ASM_BYTECODE_VERSION = Opcodes.ASM7;
+    public static final int ASM_BYTECODE_VERSION = Opcodes.ASM9;
 
     public static MessageDigest newMessageDigest(String algorithm)
     {
