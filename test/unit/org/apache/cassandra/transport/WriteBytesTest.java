@@ -29,7 +29,7 @@ import org.assertj.core.api.Assertions;
 import static org.quicktheories.QuickTheory.qt;
 
 
-public class WriteBytesDuplicateTest
+public class WriteBytesTest
 {
     @Test
     public void test()
