@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -31,6 +32,8 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.distributed.Cluster;
 import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
@@ -242,28 +245,133 @@ public class AccordCQLTest extends AccordTestBase
              cluster ->
              {
                  String insertNull = "BEGIN TRANSACTION\n" +
-                                     "  LET row0 = (SELECT v FROM " + currentTable + " WHERE k = 0 LIMIT 1);\n" +
-                                     "  SELECT row0.v;\n" +
+                                     "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = 0 LIMIT 1);\n" +
+                                     "  SELECT row0.k, row0.v;\n" +
                                      "  IF row0.v IS NULL THEN\n" +
                                      "    INSERT INTO " + currentTable + " (k, c, v) VALUES (?, ?, null);\n" +
                                      "  END IF\n" +
                                      "COMMIT TRANSACTION";
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null }, insertNull, 0, 0);
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null, null }, insertNull, 0, 0);
 
                  String insert = "BEGIN TRANSACTION\n" +
-                                 "  LET row0 = (SELECT v FROM " + currentTable + " WHERE k = 0 LIMIT 1);\n" +
-                                 "  SELECT row0.v;\n" +
+                                 "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = 0 LIMIT 1);\n" +
+                                 "  SELECT row0.k, row0.v;\n" +
                                  "  IF row0.v IS NULL THEN\n" +
                                  "    INSERT INTO " + currentTable + " (k, c, v) VALUES (?, ?, ?);\n" +
                                  "  END IF\n" +
                                  "COMMIT TRANSACTION";
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { null }, insert, 0, 0, 1);
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, null }, insert, 0, 0, 1);
 
                  String check = "BEGIN TRANSACTION\n" +
                                 "  SELECT k, c, v  FROM " + currentTable + " WHERE k=0 AND c=0;\n" +
                                 "COMMIT TRANSACTION";
                  assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 0, 0, 1 }, check);
              });
+    }
+
+    @Test
+    public void testQueryStaticColumn() throws Exception
+    {
+        test("CREATE TABLE " + currentTable + " (k int, c int, s int static, v int, primary key (k, c))",
+             cluster ->
+             {
+                 // select partition key, clustering key and static column, restrict on partition and clustering
+                 testQueryStaticColumn(cluster,
+                                       "LET row0 = (SELECT k, c, s, v FROM " + currentTable + " WHERE k = ? AND c = 0);\n" +
+                                       "SELECT row0.k, row0.c, row0.s, row0.v;\n",
+
+                                       "SELECT k, c, s, v FROM " + currentTable + " WHERE k = ? AND c = 0");
+
+                 // select partition key, clustering key and static column, restrict on partition and limit to 1 row
+                 testQueryStaticColumn(cluster,
+                                       "LET row0 = (SELECT k, c, s, v FROM " + currentTable + " WHERE k = ? LIMIT 1);\n" +
+                                       "SELECT row0.k, row0.c, row0.s, row0.v;\n",
+
+                                       "SELECT k, c, s, v FROM " + currentTable + " WHERE k = ? LIMIT 1");
+
+                 // select static column and regular column, restrict on partition and clustering
+                 testQueryStaticColumn(cluster,
+                                       "LET row0 = (SELECT s, v FROM " + currentTable + " WHERE k = ? AND c = 0);\n" +
+                                       "SELECT row0.s, row0.v;\n",
+
+                                       "SELECT s, v FROM " + currentTable + " WHERE k = ? AND c = 0");
+
+                 // select just static column, restrict on partition and limit to 1 row
+                 testQueryStaticColumn(cluster,
+                                       "LET row0 = (SELECT s FROM " + currentTable + " WHERE k = ? LIMIT 1);\n" +
+                                       "SELECT row0.s;\n",
+
+                                       "SELECT s FROM " + currentTable + " WHERE k = ? LIMIT 1");
+             });
+    }
+
+    private void testQueryStaticColumn(Cluster cluster, String accordReadQuery, String simpleReadQuery)
+    {
+        logger().info("Empty table");
+        int key = 10;
+        assertResultsFromAccordMatches(cluster, accordReadQuery, simpleReadQuery, key++);
+
+        cluster.get(1).coordinator().execute("INSERT INTO " + currentTable + " (k, s) VALUES (?, null);", ConsistencyLevel.ALL, key);
+        logger().info("null -> static column");
+        assertResultsFromAccordMatches(cluster, accordReadQuery, simpleReadQuery, key++);
+
+        cluster.get(1).coordinator().execute("INSERT INTO " + currentTable + " (k, s) VALUES (?, 1);", ConsistencyLevel.ALL, key);
+        logger().info("Inserted 1 -> static column");
+        assertResultsFromAccordMatches(cluster, accordReadQuery, simpleReadQuery, key++);
+
+        cluster.get(1).coordinator().execute("INSERT INTO " + currentTable + " (k, c) VALUES (?, 0);", ConsistencyLevel.ALL, key);
+        logger().info("Inserted 0 -> clustering");
+        assertResultsFromAccordMatches(cluster, accordReadQuery, simpleReadQuery, key);
+    }
+
+    @Test
+    public void testUpdateStaticColumn() throws Exception {
+        test("CREATE TABLE " + currentTable + " (k int, c int, s int static, v int, primary key (k, c))",
+             cluster ->
+             {
+                 checkUpdateStatic(cluster, "SET s=1 WHERE k=?", 101, "[[101, null, 1, null]]", "[]");
+                 checkUpdateStatic(cluster, "SET s=1, v=11 WHERE k=? AND c=0", 101, "[[101, 0, 1, 11]]", "[[101, 0, 1, 11]]");
+
+                 // commented out until org.apache.cassandra.cql3.statements.ModificationStatement.createSelectForTxn is fixed
+                 // checkUpdateStatic(cluster, "SET s+=1 WHERE k=?", 101, "[]", "[]");
+
+                 checkUpdateStatic(cluster, "SET s+=1, v+=11 WHERE k=? AND c=0", 101, "[]", "[]");
+             });
+    }
+
+    private void checkUpdateStatic(Cluster cluster, String update, int key, String expPart, String expClust)
+    {
+        Object[][] r1, r2, r3, r4, r;
+        r = cluster.get(1).coordinator().execute("UPDATE " + currentTable + " " + update + " IF s = NULL;", ConsistencyLevel.QUORUM, key);
+        Assertions.assertThat(Arrays.deepToString(r)).isEqualTo("[[true]]");
+        r1 = cluster.get(1).coordinator().execute("SELECT * FROM " + currentTable + " WHERE k = ? LIMIT 1;", ConsistencyLevel.SERIAL, key);
+        r2 = cluster.get(1).coordinator().execute("SELECT * FROM " + currentTable + " WHERE k = ? AND c = 0;", ConsistencyLevel.SERIAL, key);
+        cluster.get(1).coordinator().execute("TRUNCATE " + currentTable, ConsistencyLevel.ALL);
+
+        executeAsTxn(cluster, "UPDATE " + currentTable + " " + update + ";", key);
+        r3 = executeAsTxn(cluster, "SELECT * FROM " + currentTable + " WHERE k = ? LIMIT 1;", key).toObjectArrays();
+        r4 = executeAsTxn(cluster, "SELECT * FROM " + currentTable + " WHERE k = ? AND c = 0;", key).toObjectArrays();
+        cluster.get(1).coordinator().execute("TRUNCATE " + currentTable, ConsistencyLevel.ALL);
+
+        Assertions.assertThat(Arrays.deepToString(r1)).isEqualTo(expPart);
+        Assertions.assertThat(Arrays.deepToString(r2)).isEqualTo(expClust);
+        Assertions.assertThat(Arrays.deepToString(r3)).isEqualTo(expPart);
+        Assertions.assertThat(Arrays.deepToString(r4)).isEqualTo(expClust);
+    }
+
+    private void assertResultsFromAccordMatches(Cluster cluster, String accordRead, String simpleRead, int key)
+    {
+        Object[][] simpleReadResult = cluster.get(1).executeInternal(simpleRead, key);
+        Object[][] accordReadResult = executeWithRetry(cluster, accordRead, key).toObjectArrays();
+
+        Assertions.assertThat(withRemovedNullOnlyRows(accordReadResult)).isEqualTo(withRemovedNullOnlyRows(simpleReadResult));
+    }
+
+    private static Object[][] withRemovedNullOnlyRows(Object[][] results)
+    {
+        return Arrays.stream(results)
+                     .filter(row -> !Arrays.stream(row).allMatch(Objects::isNull))
+                     .toArray(Object[][]::new);
     }
 
     @Test
@@ -2305,7 +2413,7 @@ public class AccordCQLTest extends AccordTestBase
                         "  LET existing = (SELECT * FROM demo_ks.org_docs WHERE org_name='demo' AND doc_id=101);\n" +
                         "  SELECT members_version FROM demo_ks.org_users WHERE org_name='demo' LIMIT 1;\n" +
                         "  IF demo_user.members_version = 5 AND existing IS NULL THEN\n" +
-                        "    UPDATE demo_ks.org_docs SET title='slides.key', permissions=777, contents_version += 1 WHERE org_name='demo' AND doc_id=101;\n" +
+                        "    UPDATE demo_ks.org_docs SET title='slides.key', permissions=777, contents_version = 6 WHERE org_name='demo' AND doc_id=101;\n" +
                         "    UPDATE demo_ks.user_docs SET title='slides.key', permissions=777 WHERE user='blake' AND doc_id=101;\n" +
                         "    UPDATE demo_ks.user_docs SET title='slides.key', permissions=777 WHERE user='scott' AND doc_id=101;\n" +
                         "  END IF\n" +
