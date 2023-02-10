@@ -31,7 +31,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import com.google.common.collect.Iterators;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -56,7 +56,6 @@ import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -70,14 +69,18 @@ public class ThrottledUnfilteredIteratorTest extends CQLTester
 {
     private static final String KSNAME = "ThrottledUnfilteredIteratorTest";
     private static final String CFNAME = "StandardInteger1";
+    private static boolean schemasCreated = false;
 
-    @BeforeClass
-    public static void defineSchema() throws ConfigurationException
+    @Before
+    public void setupSchemas()
     {
-        SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KSNAME,
-                                    KeyspaceParams.simple(1),
-                                    standardCFMD(KSNAME, CFNAME, 1, UTF8Type.instance, Int32Type.instance, Int32Type.instance));
+        if (!schemasCreated)
+        {
+            SchemaLoader.createKeyspace(KSNAME,
+                                        KeyspaceParams.simple(1),
+                                        standardCFMD(KSNAME, CFNAME, 1, UTF8Type.instance, Int32Type.instance, Int32Type.instance));
+            schemasCreated = true;
+        }
     }
 
     static final TableMetadata metadata;

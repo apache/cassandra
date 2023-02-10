@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -33,10 +33,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class VerifyTest extends CQLTester
 {
-    @BeforeClass
-    public static void setup() throws Exception
+    @Before
+    public void setup() throws Exception
     {
-        SchemaLoader.prepareServer();
         AuthTestUtils.LocalCassandraRoleManager roleManager = new AuthTestUtils.LocalCassandraRoleManager();
         SchemaLoader.setupAuth(roleManager,
                                new AuthTestUtils.LocalPasswordAuthenticator(),

@@ -22,7 +22,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.statements.BatchStatement;
@@ -40,10 +40,9 @@ import static org.junit.Assert.assertEquals;
 
 public class CustomNowInSecondsTest extends CQLTester
 {
-    @BeforeClass
-    public static void setUpClass()
+    @Before
+    public void setUpTest()
     {
-        prepareServer();
         requireNetwork();
     }
 

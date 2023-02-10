@@ -41,12 +41,11 @@ import static org.junit.Assert.assertEquals;
 public class FrozenCollectionsTest extends CQLTester
 {
     @BeforeClass
-    public static void setUpClass()     // overrides CQLTester.setUpClass()
+    public static void setUpClass()
     {
         // Selecting partitioner for a table is not exposed on CREATE TABLE.
+        // overrides CQLTester.setUpClass()
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-
-        prepareServer();
     }
 
     @Test

@@ -30,12 +30,11 @@ import org.apache.cassandra.service.StorageService;
 public class UserTypesTest extends CQLTester
 {
     @BeforeClass
-    public static void setUpClass()     // overrides CQLTester.setUpClass()
+    public static void setUpClass()
     {
         // Selecting partitioner for a table is not exposed on CREATE TABLE.
+        // overrides CQLTester.setUpClass()
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
-
-        prepareServer();
     }
 
     @Test
