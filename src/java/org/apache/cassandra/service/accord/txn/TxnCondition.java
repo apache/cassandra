@@ -337,7 +337,7 @@ public abstract class TxnCondition
         {
             checkNotNull(data);
             FilteredPartition partition = data.get(SERIAL_READ);
-            Row row = partition.getRow(clustering);
+            Row row = partition != null ? partition.getRow(clustering) : null;
             for (Bound bound : bounds)
             {
                 if (!bound.appliesTo(row))
