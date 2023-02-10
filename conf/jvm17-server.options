@@ -73,6 +73,7 @@
 
 #chronicle, AuditLog https://chronicle.software/chronicle-support-java-17/
 --add-exports java.base/java.lang.ref=ALL-UNNAMED
+--add-exports java.base/jdk.internal.util=ALL-UNNAMED
 --add-exports jdk.unsupported/sun.misc=ALL-UNNAMED
 --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED
 
