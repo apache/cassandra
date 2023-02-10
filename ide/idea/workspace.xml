@@ -151,9 +151,8 @@
                                           -Dcassandra.storagedir=$PROJECT_DIR$/data
                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml
-                                          -ea
                                           -XX:HeapDumpPath=build/test
-                                          -Didea.click.expand.for.rest.of.options" />
+                                          -ea" />
       <option name="PROGRAM_PARAMETERS" value="" />
       <option name="WORKING_DIRECTORY" value="" />
       <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
@@ -203,8 +202,7 @@
                                           -XX:HeapDumpPath=build/test
                                           -XX:MaxMetaspaceSize=1G
                                           -XX:SoftRefLRUPolicyMSPerMB=0
-                                          -ea
-                                          -Didea.click.expand.for.rest.of.options" />
+                                          -ea" />
       <option name="PARAMETERS" value="" />
       <fork_mode value="class" />
       <option name="WORKING_DIRECTORY" value="" />
@@ -230,12 +228,13 @@
                                           -Dcassandra.jmx.local.port=7199
                                           -Dcassandra.logdir=$PROJECT_DIR$/data/logs
                                           -Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true
+                                          -Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true
                                           -Dcassandra.storagedir=$PROJECT_DIR$/data
                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml
+                                          -XX:HeapDumpPath=build/test
                                           -Xmx1G
-                                          -ea
-                                          -Didea.click.expand.for.rest.of.options" />
+                                          -ea" />
       <option name="PROGRAM_PARAMETERS" value="" />
       <option name="WORKING_DIRECTORY" value="file://$PROJECT_DIR$" />
       <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
