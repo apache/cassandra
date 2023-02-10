@@ -337,22 +337,23 @@ public final class Generators
             case READ_ONLY_HEAP: return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size).asReadOnlyBuffer();
             case DIRECT:
             {
-                ByteBuffer bb = ByteBuffer.allocateDirect(size);
-                bb.put(LazySharedBlob.SHARED_BYTES, offset, size);
-                bb.flip();
+                ByteBuffer bb = directBufferFromSharedBlob(offset, size);
                 return bb;
             }
             case READ_ONLY_DIRECT:
             {
-                ByteBuffer bb = ByteBuffer.allocateDirect(size);
-                bb.put(LazySharedBlob.SHARED_BYTES, offset, size);
-                bb.flip();
+                ByteBuffer bb = directBufferFromSharedBlob(offset, size);
                 return bb.asReadOnlyBuffer();
             }
             default: throw new AssertionError("cann't wait for jdk 17!");
         }
     }
-
+    private static ByteBuffer directBufferFromSharedBlob(int offset, int size) {
+        ByteBuffer bb = ByteBuffer.allocateDirect(size);
+        bb.put(LazySharedBlob.SHARED_BYTES, offset, size);
+        bb.flip();
+        return bb;
+    }
      /**
      * Implements a valid utf-8 generator.
      *
