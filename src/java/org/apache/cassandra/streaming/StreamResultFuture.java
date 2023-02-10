@@ -241,10 +241,10 @@ public final class StreamResultFuture extends AsyncFuture<StreamState>
             {
                 StringBuilder stringBuilder = new StringBuilder();
                 stringBuilder.append("Stream failed: ");
-                for (SessionInfo info : finalState.getAllSessionInfo())
+                for (SessionInfo info : finalState.sessions())
                 {
                     if (info.isFailed())
-                        stringBuilder.append("\nSession peer ").append(info.peer).append(" ").append(info.failureReason);
+                        stringBuilder.append("\nSession peer ").append(info.peer).append(' ').append(info.failureReason);
                 }
                 String message = stringBuilder.toString();
                 logger.warn("[Stream #{}] {}", planId, message);
