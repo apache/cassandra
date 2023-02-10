@@ -32,7 +32,6 @@ import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -130,9 +129,13 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
                  UnfilteredPartitionIterator partition = read.executeLocally(controller);
                  PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec()))
             {
-                FilteredPartition filtered = FilteredPartition.create(PartitionIterators.getOnlyElement(iterator, read));
                 TxnData result = new TxnData();
-                result.put(name, filtered);
+                if (iterator.hasNext())
+                {
+                    FilteredPartition filtered = FilteredPartition.create(iterator.next());
+                    if (filtered.hasRows() || read.selectsFullPartition())
+                        result.put(name, filtered);
+                }
                 return result;
             }
         });

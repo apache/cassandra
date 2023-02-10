@@ -59,6 +59,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.CounterMutation;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.MessageParams;
@@ -1908,7 +1909,11 @@ public class StorageProxy implements StorageProxyMBean
         TxnRead read = TxnRead.createSerialRead(group.queries.get(0));
         Txn txn = new Txn.InMemory(read.keys(), read, TxnQuery.ALL);
         TxnData data = AccordService.instance().coordinate(txn, consistencyLevel);
-        return PartitionIterators.singletonIterator(data.get(TxnRead.SERIAL_READ).rowIterator());
+        FilteredPartition partition = data.get(TxnRead.SERIAL_READ);
+        if (partition != null)
+            return PartitionIterators.singletonIterator(partition.rowIterator());
+        else
+            return EmptyIterators.partition();
     }
 
     private static PartitionIterator legacyReadWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)

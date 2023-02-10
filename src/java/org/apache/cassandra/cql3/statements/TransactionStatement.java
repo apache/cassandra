@@ -342,7 +342,8 @@ public class TransactionStatement implements CQLStatement
                 if (selectQuery.queries.size() == 1)
                 {
                     FilteredPartition partition = data.get(TxnDataName.returning());
-                    returningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
+                    if (partition != null)
+                        returningSelect.select.processPartition(partition.rowIterator(), options, result, FBUtilities.nowInSeconds());
                 }
                 else
                 {
@@ -350,7 +351,8 @@ public class TransactionStatement implements CQLStatement
                     for (int i = 0; i < selectQuery.queries.size(); i++)
                     {
                         FilteredPartition partition = data.get(TxnDataName.returning(i));
-                        returningSelect.select.processPartition(partition.rowIterator(), options, result, nowInSec);
+                        if (partition != null)
+                            returningSelect.select.processPartition(partition.rowIterator(), options, result, nowInSec);
                     }
                 }
                 return new ResultMessage.Rows(result.build());
