@@ -19,11 +19,13 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -60,12 +62,14 @@ import static org.junit.Assert.assertArrayEquals;
 
 public abstract class AccordTestBase extends TestBaseImpl
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordTestBase.class);
+    private static final int MAX_RETRIES = 10;
+
     protected static final AtomicInteger COUNTER = new AtomicInteger(0);
 
     protected static Cluster SHARED_CLUSTER;
-    
+
     protected String currentTable;
-    private final Logger logger = LoggerFactory.getLogger(getClass());
 
     @BeforeClass
     public static void setupClass() throws IOException
@@ -140,8 +144,16 @@ public abstract class AccordTestBase extends TestBaseImpl
                            .start());
     }
 
-    private static SimpleQueryResult execute(Cluster cluster, String check, Object... boundValues)
+    protected static SimpleQueryResult executeAsTxn(Cluster cluster, String check, Object... boundValues)
     {
+        String normalized = wrapInTxn(check);
+        logger.info("Executing transaction statement:\n{}", normalized);
+        return cluster.coordinator(1).executeWithResult(normalized, ConsistencyLevel.ANY, boundValues);
+    }
+
+    protected static SimpleQueryResult execute(Cluster cluster, String check, Object... boundValues)
+    {
+        logger.info("Executing statement:\n{}", check);
         return cluster.coordinator(1).executeWithResult(check, ConsistencyLevel.ANY, boundValues);
     }
 
@@ -181,27 +193,46 @@ public abstract class AccordTestBase extends TestBaseImpl
         {
             return execute(cluster, check, boundValues);
         }
-        catch (Throwable t)
+        catch (RuntimeException ex)
         {
-            if (AssertionUtils.rootCauseIs(Preempted.class).matches(t))
+            if (count <= MAX_RETRIES && AssertionUtils.rootCauseIs(Preempted.class).matches(ex))
             {
-                logger.warn("[Retry attempt={}] Preempted failure for {}", count, check);
+                logger.warn("[Retry attempt={}] Preempted failure for\n{}", count, check);
                 return executeWithRetry0(count + 1, cluster, check, boundValues);
             }
 
-            throw t;
+            throw ex;
         }
     }
 
     protected SimpleQueryResult executeWithRetry(Cluster cluster, String check, Object... boundValues)
     {
+        check = wrapInTxn(check);
+
         // is this method safe?
-        cluster.get(1).runOnInstance(() -> {
-            TransactionStatement stmt = AccordTestUtils.parse(check);
-            if (!isIdempotent(stmt))
-                throw new AssertionError("Unable to retry txn that is not idempotent: cql=" + check);
-        });
+
+        if (!isIdempotent(cluster, check))
+            throw new AssertionError("Unable to retry txn that is not idempotent: cql=\n" + check);
+
         return executeWithRetry0(0, cluster, check, boundValues);
+    }
+
+    private boolean isIdempotent(Cluster cluster, String cql)
+    {
+        return cluster.get(1).callOnInstance(() -> {
+            TransactionStatement stmt = AccordTestUtils.parse(cql);
+            return isIdempotent(stmt);
+        });
+    }
+
+    private static String wrapInTxn(String statement)
+    {
+        if (!statement.trim().toUpperCase().startsWith("BEGIN TRANSACTION"))
+        {
+            statement = statement.trim();
+            statement = Arrays.stream(statement.split("\\n")).collect(Collectors.joining("\n  ", "BEGIN TRANSACTION\n  ", "\nCOMMIT TRANSACTION"));
+        }
+        return statement;
     }
 
     public static boolean isIdempotent(TransactionStatement statement)
