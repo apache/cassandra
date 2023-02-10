@@ -32,7 +32,6 @@ public class RowsMergingTest extends CQLTester
     public static void setUpClass()
     {
         System.setProperty("cassandra.btree.branchshift", "2");
-        CQLTester.setUpClass();
     }
 
     @Test

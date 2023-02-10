@@ -45,11 +45,8 @@ public abstract class ViewAbstractParameterizedTest extends ViewAbstractTest
     }
 
     @Before
-    @Override
     public void beforeTest() throws Throwable
     {
-        super.beforeTest();
-
         executeNet("USE " + keyspace());
     }
 

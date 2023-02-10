@@ -71,15 +71,11 @@ public class CachingBenchTest extends CQLTester
     static final int EXTRA_SIZE = 1025;
     static final boolean CONCURRENT_COMPACTIONS = true;
 
-    // The name of this method is important!
-    // CommitLog settings must be applied before CQLTester sets up; by using the same name as its @BeforeClass method we
-    // are effectively overriding it.
     @BeforeClass
     public static void setUpClass()
     {
         DatabaseDescriptor.setCommitLogSync(CommitLogSync.periodic);
         DatabaseDescriptor.setCommitLogSyncPeriod(100);
-        CQLTester.setUpClass();
     }
     
     String hashQuery;

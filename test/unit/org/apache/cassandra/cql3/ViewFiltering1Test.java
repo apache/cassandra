@@ -45,7 +45,6 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
     @BeforeClass
     public static void startup()
     {
-        ViewAbstractParameterizedTest.startup();
         System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "true");
     }
 

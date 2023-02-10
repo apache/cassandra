@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang3.StringUtils;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.auth.AuthCacheService;
@@ -51,10 +51,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class InvalidatePermissionsCacheTest extends CQLTester
 {
-    @BeforeClass
-    public static void setup() throws Exception
+    @Before
+    public void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();

@@ -27,9 +27,9 @@ import org.apache.cassandra.utils.memory.NativePool;
 
 public class MemtableSizeOffheapObjectsTest extends MemtableSizeTestBase
 {
-    // Overrides CQLTester.setUpClass to run before it
+    // Overrides CQLTester.setUpClassBase to run before it
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpClassBase()
     {
         setup(Config.MemtableAllocationType.offheap_objects);
     }

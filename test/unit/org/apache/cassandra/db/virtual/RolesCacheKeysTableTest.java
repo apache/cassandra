@@ -38,6 +38,7 @@ import static org.apache.cassandra.auth.AuthTestUtils.ROLE_C;
 
 public class RolesCacheKeysTableTest extends CQLTester
 {
+    private static boolean initialised = false;
     private static final String KS_NAME = "vts";
 
     @SuppressWarnings("FieldCanBeLocal")
@@ -48,22 +49,24 @@ public class RolesCacheKeysTableTest extends CQLTester
     {
         // high value is used for convenient debugging
         DatabaseDescriptor.setRolesValidity(20_000);
-
-        CQLTester.setUpClass();
-        CQLTester.requireAuthentication();
-
-        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_C, AuthTestUtils.getLoginRoleOptions());
-
-        AuthTestUtils.grantRolesTo(roleManager, ROLE_A, ROLE_C);
-        AuthTestUtils.grantRolesTo(roleManager, ROLE_B, ROLE_C);
     }
 
     @Before
     public void config()
     {
+        CQLTester.requireAuthentication();
+        if (!initialised)
+        {
+            IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+            roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
+            roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
+            roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_C, AuthTestUtils.getLoginRoleOptions());
+
+            AuthTestUtils.grantRolesTo(roleManager, ROLE_A, ROLE_C);
+            AuthTestUtils.grantRolesTo(roleManager, ROLE_B, ROLE_C);
+
+            initialised = true;
+        }
         table = new RolesCacheKeysTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
 

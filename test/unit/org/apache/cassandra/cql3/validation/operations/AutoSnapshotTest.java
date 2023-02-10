@@ -72,9 +72,9 @@ public class AutoSnapshotTest extends CQLTester
     public DurationSpec.IntSecondsBound autoSnapshotTTl;
 
     @Before
-    public void beforeTest() throws Throwable
+    public void beforeTestBase() throws Throwable
     {
-        super.beforeTest();
+        super.beforeTestBase();
         // Make sure we're testing the correct parameterized settings
         DatabaseDescriptor.setAutoSnapshot(autoSnapshotEnabled);
         DatabaseDescriptor.setAutoSnapshotTtl(autoSnapshotTTl);

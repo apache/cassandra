@@ -46,7 +46,7 @@ public class ReadWriteTest extends CQLTester
     @Setup(Level.Trial)
     public void setup() throws Throwable
     {
-        CQLTester.setUpClass();
+        CQLTester.setUpClassBase();
         keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
         table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))");
         execute("use "+keyspace+";");

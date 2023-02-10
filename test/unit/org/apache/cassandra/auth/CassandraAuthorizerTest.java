@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.auth;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -33,11 +33,10 @@ public class CassandraAuthorizerTest extends CQLTester
     private static final String OTHER = "other";
     private static final String PASSWORD = "secret";
 
-    @BeforeClass
-    public static void setupClass()
+    @Before
+    public void beforeTest()
     {
         CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
-        CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
     }

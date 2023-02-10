@@ -97,7 +97,6 @@ public class KeyCacheCqlTest extends CQLTester
     public static void setUpClass()
     {
         CachingParams.DEFAULT = CachingParams.CACHE_NOTHING;
-        CQLTester.setUpClass();
     }
 
     /**

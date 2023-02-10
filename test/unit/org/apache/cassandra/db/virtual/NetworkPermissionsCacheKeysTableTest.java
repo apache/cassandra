@@ -48,8 +48,11 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
     {
         // high value is used for convenient debugging
         DatabaseDescriptor.setPermissionsValidity(20_000);
+    }
 
-        CQLTester.setUpClass();
+    @Before
+    public void config()
+    {
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
@@ -59,11 +62,7 @@ public class NetworkPermissionsCacheKeysTableTest extends CQLTester
         INetworkAuthorizer networkAuthorizer = DatabaseDescriptor.getNetworkAuthorizer();
         networkAuthorizer.setRoleDatacenters(ROLE_A, DCPermissions.all());
         networkAuthorizer.setRoleDatacenters(ROLE_B, DCPermissions.subset(DATA_CENTER, DATA_CENTER_REMOTE));
-    }
 
-    @Before
-    public void config()
-    {
         table = new NetworkPermissionsCacheKeysTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
 

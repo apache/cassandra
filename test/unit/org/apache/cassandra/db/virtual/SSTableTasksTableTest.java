@@ -24,7 +24,6 @@ import java.util.stream.IntStream;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -46,16 +45,10 @@ public class SSTableTasksTableTest extends CQLTester
     @SuppressWarnings("FieldCanBeLocal")
     private SSTableTasksTable table;
 
-    @BeforeClass
-    public static void setUpClass()
-    {
-        CQLTester.setUpClass();
-        CompactionManager.instance.disableAutoCompaction();
-    }
-
     @Before
     public void config()
     {
+        CompactionManager.instance.disableAutoCompaction();
         table = new SSTableTasksTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();

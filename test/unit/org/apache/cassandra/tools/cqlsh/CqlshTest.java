@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.tools.cqlsh;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -31,8 +31,8 @@ import static org.junit.Assert.assertThat;
 
 public class CqlshTest extends CQLTester
 {
-    @BeforeClass
-    public static void setUp()
+    @Before
+    public void setUp()
     {
         requireNetwork();
     }

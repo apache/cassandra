@@ -49,41 +49,44 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
     private static final AuthorizationProxy authorizationProxy = new AuthTestUtils.NoAuthSetupAuthorizationProxy();
+    private boolean initialized = false;
 
     @SuppressWarnings("FieldCanBeLocal")
     private JmxPermissionsCacheKeysTable table;
 
-    // this method is intentionally not called "setUpClass" to let it throw exception brought by startJMXServer method 
     @BeforeClass
     public static void setup() throws Exception {
         // high value is used for convenient debugging
         DatabaseDescriptor.setPermissionsValidity(20_000);
-
-        CQLTester.setUpClass();
-        CQLTester.requireAuthentication();
-
-        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
-
-        List<IResource> resources = Arrays.asList(
-                JMXResource.root(),
-                JMXResource.mbean("org.apache.cassandra.db:type=Tables,*"));
-
-        IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
-        for (IResource resource : resources)
-        {
-            Set<Permission> permissions = resource.applicablePermissions();
-            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A);
-            authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
-        }
-
-        startJMXServer();
     }
 
     @Before
-    public void config()
+    public void config() throws Exception
     {
+        if (!initialized)
+        {
+            CQLTester.requireAuthentication();
+
+            IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+            roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
+            roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
+
+            List<IResource> resources = Arrays.asList(
+            JMXResource.root(),
+            JMXResource.mbean("org.apache.cassandra.db:type=Tables,*"));
+
+            IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
+            for (IResource resource : resources)
+            {
+                Set<Permission> permissions = resource.applicablePermissions();
+                authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A);
+                authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
+            }
+
+            startJMXServer();
+            initialized = true;
+        }
+
         table = new JmxPermissionsCacheKeysTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
 

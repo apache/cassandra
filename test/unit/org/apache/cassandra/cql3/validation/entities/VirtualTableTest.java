@@ -344,8 +344,6 @@ public class VirtualTableTest extends CQLTester
         };
 
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3, vt4)));
-
-        CQLTester.setUpClass();
     }
 
     @Test

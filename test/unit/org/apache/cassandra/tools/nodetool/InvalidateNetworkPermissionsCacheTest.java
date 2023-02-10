@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.auth.AuthCacheService;
@@ -36,10 +36,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class InvalidateNetworkPermissionsCacheTest extends CQLTester
 {
-    @BeforeClass
-    public static void setup() throws Exception
+    @Before
+    public void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();

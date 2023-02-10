@@ -18,6 +18,7 @@
 package org.apache.cassandra.auth;
 
 import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -37,7 +38,11 @@ public class GrantAndRevokeTest extends CQLTester
     public static void setUpClass()
     {
         DatabaseDescriptor.setPermissionsValidity(0);
-        CQLTester.setUpClass();
+    }
+
+    @Before
+    public void setup()
+    {
         requireAuthentication();
         requireNetwork();
     }

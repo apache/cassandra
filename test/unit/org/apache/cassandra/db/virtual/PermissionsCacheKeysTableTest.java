@@ -54,8 +54,11 @@ public class PermissionsCacheKeysTableTest extends CQLTester
     {
         // high value is used for convenient debugging
         DatabaseDescriptor.setPermissionsValidity(20_000);
+    }
 
-        CQLTester.setUpClass();
+    @Before
+    public void config()
+    {
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
@@ -63,9 +66,9 @@ public class PermissionsCacheKeysTableTest extends CQLTester
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
 
         List<IResource> resources = Arrays.asList(
-                DataResource.root(),
-                DataResource.keyspace(KEYSPACE),
-                DataResource.table(KEYSPACE, "t1"));
+        DataResource.root(),
+        DataResource.keyspace(KEYSPACE),
+        DataResource.table(KEYSPACE, "t1"));
 
         IAuthorizer authorizer = DatabaseDescriptor.getAuthorizer();
         for (IResource resource : resources)
@@ -74,11 +77,7 @@ public class PermissionsCacheKeysTableTest extends CQLTester
             authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_A);
             authorizer.grant(AuthenticatedUser.SYSTEM_USER, permissions, resource, ROLE_B);
         }
-    }
 
-    @Before
-    public void config()
-    {
         table = new PermissionsCacheKeysTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
 

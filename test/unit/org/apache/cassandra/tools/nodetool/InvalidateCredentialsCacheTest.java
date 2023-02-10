@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.datastax.driver.core.EndPoint;
@@ -42,10 +42,9 @@ public class InvalidateCredentialsCacheTest extends CQLTester
     private static IAuthenticator.SaslNegotiator roleANegotiator;
     private static IAuthenticator.SaslNegotiator roleBNegotiator;
 
-    @BeforeClass
-    public static void setup() throws Exception
+    @Before
+    public void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();

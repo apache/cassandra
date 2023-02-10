@@ -48,7 +48,7 @@ public class StandaloneSplitterWithCQLTesterTest extends CQLTester
     public void before() throws Throwable
     {
         setupTestSstables();
-        tearDownClass();
+        tearDownClassBase();
         SSTableReader.resetTidying();
     }
 

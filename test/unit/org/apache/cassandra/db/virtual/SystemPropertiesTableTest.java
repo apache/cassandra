@@ -27,7 +27,6 @@ import java.util.stream.Stream;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
@@ -44,12 +43,6 @@ public class SystemPropertiesTableTest extends CQLTester
     private static final String TEST_PROP = "org.apache.cassandra.db.virtual.SystemPropertiesTableTest";
 
     private SystemPropertiesTable table;
-
-    @BeforeClass
-    public static void setUpClass()
-    {
-        CQLTester.setUpClass();
-    }
 
     @Before
     public void config()

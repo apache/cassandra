@@ -64,12 +64,12 @@ public class AuditLoggerTest extends CQLTester
         options.enabled = true;
         options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
         DatabaseDescriptor.setAuditLoggingOptions(options);
-        requireNetwork();
     }
 
     @Before
     public void beforeTestMethod()
     {
+        requireNetwork();
         AuditLogOptions options = new AuditLogOptions();
         enableAuditLogOptions(options);
     }

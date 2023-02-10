@@ -52,7 +52,7 @@ public class SelectionColumnMappingTest extends CQLTester
     String functionName;
 
     @BeforeClass
-    public static void setUpClass() // overrides CQLTester.setUpClass()
+    public static void setUpClass() // overrides CQLTester.setUpClassBase()
     {
         DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
     }

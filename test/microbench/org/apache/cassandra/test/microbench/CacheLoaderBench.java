@@ -124,7 +124,7 @@ public class CacheLoaderBench extends CQLTester
     public void teardown()
     {
         CQLTester.cleanup();
-        CQLTester.tearDownClass();
+        CQLTester.tearDownClassBase();
     }
 
     @Benchmark

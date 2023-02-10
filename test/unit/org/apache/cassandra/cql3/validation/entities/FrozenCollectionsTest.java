@@ -44,7 +44,7 @@ public class FrozenCollectionsTest extends CQLTester
     public static void setUpClass()
     {
         // Selecting partitioner for a table is not exposed on CREATE TABLE.
-        // overrides CQLTester.setUpClass()
+        // overrides CQLTester.setUpClassBase()
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
     }
 

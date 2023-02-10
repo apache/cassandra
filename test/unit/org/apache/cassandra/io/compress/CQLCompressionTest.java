@@ -41,8 +41,6 @@ public class CQLCompressionTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
-        CQLTester.setUpClass();
-
         defaultFlush = DatabaseDescriptor.getFlushCompression();
     }
 

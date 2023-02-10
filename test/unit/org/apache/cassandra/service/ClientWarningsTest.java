@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.StringUtils;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -60,8 +61,13 @@ public class ClientWarningsTest extends CQLTester
     @BeforeClass
     public static void setUp()
     {
-        requireNetwork();
         DatabaseDescriptor.setBatchSizeWarnThresholdInKiB(1);
+    }
+
+    @Before
+    public void beforeTest()
+    {
+        requireNetwork();
     }
 
     @Test

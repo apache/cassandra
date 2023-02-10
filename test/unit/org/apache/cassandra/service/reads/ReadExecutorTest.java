@@ -26,7 +26,6 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -62,25 +61,27 @@ public class ReadExecutorTest
     static EndpointsForToken targets;
     static Token dummy;
 
-    @BeforeClass
-    public static void setUpClass() throws Throwable
-    {
-        SchemaLoader.loadSchema();
-        SchemaLoader.createKeyspace("Foo", KeyspaceParams.simple(3), SchemaLoader.standardCFMD("Foo", "Bar"));
-        ks = Keyspace.open("Foo");
-        cfs = ks.getColumnFamilyStore("Bar");
-        dummy = Murmur3Partitioner.instance.getMinimumToken();
-        targets = EndpointsForToken.of(dummy,
-                full(InetAddressAndPort.getByName("127.0.0.255")),
-                full(InetAddressAndPort.getByName("127.0.0.254")),
-                full(InetAddressAndPort.getByName("127.0.0.253"))
-        );
-        cfs.sampleReadLatencyMicros = 0;
-    }
+    private static boolean initialised = false;
 
     @Before
     public void resetCounters() throws Throwable
     {
+        if (!initialised)
+        {
+            SchemaLoader.loadSchema();
+            SchemaLoader.createKeyspace("Foo", KeyspaceParams.simple(3), SchemaLoader.standardCFMD("Foo", "Bar"));
+            ks = Keyspace.open("Foo");
+            cfs = ks.getColumnFamilyStore("Bar");
+            dummy = Murmur3Partitioner.instance.getMinimumToken();
+            targets = EndpointsForToken.of(dummy,
+                                           full(InetAddressAndPort.getByName("127.0.0.255")),
+                                           full(InetAddressAndPort.getByName("127.0.0.254")),
+                                           full(InetAddressAndPort.getByName("127.0.0.253"))
+            );
+            cfs.sampleReadLatencyMicros = 0;
+
+            initialised = true;
+        }
         cfs.metric.speculativeInsufficientReplicas.dec(cfs.metric.speculativeInsufficientReplicas.getCount());
         cfs.metric.speculativeRetries.dec(cfs.metric.speculativeRetries.getCount());
         cfs.metric.speculativeFailedRetries.dec(cfs.metric.speculativeFailedRetries.getCount());

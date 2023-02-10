@@ -89,7 +89,7 @@ public abstract class MemtableSizeTestBase extends CQLTester
             throw new RuntimeException(e);
         }
 
-        CQLTester.setUpClass();
+        CQLTester.setUpClassBase();
         CQLTester.prepareServer();
         logger.info("setupClass done, allocation type {}", allocationType);
     }

@@ -53,13 +53,13 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     {
         DatabaseDescriptor.setCDCEnabled(true);
         DatabaseDescriptor.setCDCTotalSpaceInMiB(1024);
-        CQLTester.setUpClass();
+        CQLTester.setUpClassBase();
     }
 
     @Before
-    public void beforeTest() throws Throwable
+    public void beforeTestBase() throws Throwable
     {
-        super.beforeTest();
+        super.beforeTestBase();
         // Need to clean out any files from previous test runs. Prevents flaky test failures.
         CommitLog.instance.stopUnsafe(true);
         CommitLog.instance.start();

@@ -54,10 +54,12 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class SchemaLoader
 {
+    private static boolean serverPrepared = false;
+
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {
-        //prepareServer();
+        prepareServer();
 
         // Migrations aren't happy if gossiper is not started.  Even if we don't use migrations though,
         // some tests now expect us to start gossip for them.
@@ -75,8 +77,12 @@ public class SchemaLoader
 
     public static void prepareServer()
     {
-        ServerTestUtils.daemonInitialization();
-        ServerTestUtils.prepareServer();
+        if (!serverPrepared)
+        {
+            ServerTestUtils.daemonInitialization();
+            ServerTestUtils.prepareServer();
+            serverPrepared = true;
+        }
     }
 
     public static void startGossiper()

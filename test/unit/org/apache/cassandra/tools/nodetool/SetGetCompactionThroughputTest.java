@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -35,8 +35,8 @@ public class SetGetCompactionThroughputTest extends CQLTester
 {
     private static final int MAX_INT_CONFIG_VALUE_IN_MBIT = Integer.MAX_VALUE - 1;
 
-    @BeforeClass
-    public static void setup() throws Exception
+    @Before
+    public void setup() throws Exception
     {
         requireNetwork();
         startJMXServer();

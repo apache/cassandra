@@ -38,7 +38,6 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.CassandraRoleManager;
@@ -109,26 +108,26 @@ public abstract class GuardrailTester extends CQLTester
         this.listener = new Listener();
     }
 
-    @BeforeClass
-    public static void setUpClass()
-    {
-        CQLTester.setUpClass();
-        requireAuthentication();
-        requireNetwork();
-        DatabaseDescriptor.setDiagnosticEventsEnabled(true);
-
-        systemClientState = ClientState.forInternalCalls();
-        userClientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 123));
-        superClientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 321));
-        superClientState.login(new AuthenticatedUser(CassandraRoleManager.DEFAULT_SUPERUSER_NAME));
-    }
-
     /**
      * Creates an ordinary user that is not excluded from guardrails, that is, a user that is not super not internal.
      */
     @Before
     public void beforeGuardrailTest() throws Throwable
     {
+        requireAuthentication();
+        requireNetwork();
+        DatabaseDescriptor.setDiagnosticEventsEnabled(true);
+
+        if (systemClientState == null)
+            systemClientState = ClientState.forInternalCalls();
+        if (userClientState == null)
+            userClientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 123));
+        if (superClientState == null)
+        {
+            superClientState = ClientState.forExternalCalls(InetSocketAddress.createUnresolved("127.0.0.1", 321));
+            superClientState.login(new AuthenticatedUser(CassandraRoleManager.DEFAULT_SUPERUSER_NAME));
+        }
+
         useSuperUser();
         executeNet(format("CREATE USER IF NOT EXISTS %s WITH PASSWORD '%s'", USERNAME, PASSWORD));
         executeNet(format("GRANT ALL ON KEYSPACE %s TO %s", KEYSPACE, USERNAME));

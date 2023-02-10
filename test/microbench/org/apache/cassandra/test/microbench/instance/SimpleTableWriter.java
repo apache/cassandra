@@ -70,7 +70,7 @@ public abstract class SimpleTableWriter extends CQLTester
     {
         rand = new Random(1);
         executorService = Executors.newFixedThreadPool(threadCount);
-        CQLTester.setUpClass();
+        CQLTester.setUpClassBase();
         CQLTester.prepareServer();
         DatabaseDescriptor.setAutoSnapshot(false);
         System.err.println("setupClass done.");
@@ -202,7 +202,7 @@ public abstract class SimpleTableWriter extends CQLTester
         cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.USER_FORCED);
 
         CommitLog.instance.shutdownBlocking();
-        CQLTester.tearDownClass();
+        CQLTester.tearDownClassBase();
         CQLTester.cleanup();
     }
 

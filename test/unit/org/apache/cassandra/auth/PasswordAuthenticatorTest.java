@@ -58,8 +58,9 @@ public class PasswordAuthenticatorTest extends CQLTester
     private final static PasswordAuthenticator authenticator = new PasswordAuthenticator();
 
     @BeforeClass
-    public static void setupClass() throws Exception
+    public static void setUpClassBase()
     {
+        SchemaLoader.prepareServer();
         SchemaLoader.loadSchema();
         DatabaseDescriptor.daemonInitialization();
         StorageService.instance.initServer(0);

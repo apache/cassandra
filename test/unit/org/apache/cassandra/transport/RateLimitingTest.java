@@ -83,13 +83,13 @@ public class RateLimitingTest extends CQLTester
         // If we don't exceed the queue capacity, we won't actually use the global/endpoint 
         // bytes-in-flight limits, and the assertions we make below around releasing them would be useless.
         DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(1);
-
-        requireNetwork();
     }
 
     @Before
     public void resetLimits()
     {
+        requireNetwork();
+
         // Reset to the original start time in case a test advances the clock.
         tick = new AtomicLong(ClientResourceLimits.GLOBAL_REQUEST_LIMITER.getStartedNanos());
 

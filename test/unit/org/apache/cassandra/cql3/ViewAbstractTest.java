@@ -19,24 +19,15 @@
 package org.apache.cassandra.cql3;
 
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Ignore;
 
 @Ignore
 public abstract class ViewAbstractTest extends CQLTester
 {
-    @BeforeClass
-    public static void startup()
+    @Before
+    public void beforeTestViewAbstractBase() throws Throwable
     {
         requireNetwork();
-    }
-
-    @Before
-    @Override
-    public void beforeTest() throws Throwable
-    {
-        super.beforeTest();
-
         execute("USE " + keyspace());
         executeNet("USE " + keyspace());
     }

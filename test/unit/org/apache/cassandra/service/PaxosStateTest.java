@@ -62,6 +62,7 @@ public class PaxosStateTest
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
+        SchemaLoader.prepareServer();
         SchemaLoader.loadSchema();
         SchemaLoader.schemaDefinition("PaxosStateTest");
     }

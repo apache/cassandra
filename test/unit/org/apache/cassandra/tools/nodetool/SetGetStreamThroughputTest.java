@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DataRateSpec;
@@ -44,8 +44,8 @@ public class SetGetStreamThroughputTest extends CQLTester
                                                                       .toBytesPerSecond();
     private static final double MEBIBYTES_PER_MEGABIT = 0.11920928955078125;
 
-    @BeforeClass
-    public static void setup() throws Exception
+    @Before
+    public void setup() throws Exception
     {
         requireNetwork();
         startJMXServer();

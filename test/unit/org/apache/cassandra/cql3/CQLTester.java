@@ -317,7 +317,7 @@ public abstract class CQLTester
     }
 
     @BeforeClass
-    public static void setUpClass()
+    public static void setUpClassBase()
     {
         if (ROW_CACHE_SIZE_IN_MIB > 0)
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
@@ -325,7 +325,7 @@ public abstract class CQLTester
     }
 
     @AfterClass
-    public static void tearDownClass()
+    public static void tearDownClassBase()
     {
         for (Session sess : sessions.values())
                 sess.close();
@@ -357,7 +357,7 @@ public abstract class CQLTester
     }
 
     @Before
-    public void beforeTest() throws Throwable
+    public void beforeTestBase() throws Throwable
     {
         if (!serverStarted)
         {
@@ -370,7 +370,7 @@ public abstract class CQLTester
     }
 
     @After
-    public void afterTest() throws Throwable
+    public void afterTestBase() throws Throwable
     {
         dropPerTestKeyspace();
 
@@ -480,32 +480,38 @@ public abstract class CQLTester
         return allArgs;
     }
 
+    private static boolean requiredAuthenticationSetUp = false;
+
     protected static void requireAuthentication()
     {
-        DatabaseDescriptor.setAuthenticator(new AuthTestUtils.LocalPasswordAuthenticator());
-        DatabaseDescriptor.setAuthorizer(new AuthTestUtils.LocalCassandraAuthorizer());
-        DatabaseDescriptor.setNetworkAuthorizer(new AuthTestUtils.LocalCassandraNetworkAuthorizer());
-
-        // The CassandraRoleManager constructor set the supported and alterable options based on
-        // DatabaseDescriptor authenticator type so it needs to be created only after the authenticator is set.
-        IRoleManager roleManager =  new AuthTestUtils.LocalCassandraRoleManager()
+        if (!requiredAuthenticationSetUp)
         {
-            public void setup()
+            DatabaseDescriptor.setAuthenticator(new AuthTestUtils.LocalPasswordAuthenticator());
+            DatabaseDescriptor.setAuthorizer(new AuthTestUtils.LocalCassandraAuthorizer());
+            DatabaseDescriptor.setNetworkAuthorizer(new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+
+            // The CassandraRoleManager constructor set the supported and alterable options based on
+            // DatabaseDescriptor authenticator type so it needs to be created only after the authenticator is set.
+            IRoleManager roleManager =  new AuthTestUtils.LocalCassandraRoleManager()
             {
-                loadRoleStatement();
-                QueryProcessor.executeInternal(createDefaultRoleQuery());
-            }
-        };
+                public void setup()
+                {
+                    loadRoleStatement();
+                    QueryProcessor.executeInternal(createDefaultRoleQuery());
+                }
+            };
 
-        DatabaseDescriptor.setRoleManager(roleManager);
-        SchemaTestUtil.addOrUpdateKeyspace(AuthKeyspace.metadata(), true);
-        DatabaseDescriptor.getRoleManager().setup();
-        DatabaseDescriptor.getAuthenticator().setup();
-        DatabaseDescriptor.getAuthorizer().setup();
-        DatabaseDescriptor.getNetworkAuthorizer().setup();
-        Schema.instance.registerListener(new AuthSchemaChangeListener());
+            DatabaseDescriptor.setRoleManager(roleManager);
+            SchemaTestUtil.addOrUpdateKeyspace(AuthKeyspace.metadata(), true);
+            DatabaseDescriptor.getRoleManager().setup();
+            DatabaseDescriptor.getAuthenticator().setup();
+            DatabaseDescriptor.getAuthorizer().setup();
+            DatabaseDescriptor.getNetworkAuthorizer().setup();
+            Schema.instance.registerListener(new AuthSchemaChangeListener());
 
-        AuthCacheService.initializeAndRegisterCaches();
+            AuthCacheService.initializeAndRegisterCaches();
+            requiredAuthenticationSetUp = true;
+        }
     }
 
     /**

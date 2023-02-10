@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.auth;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.AuthenticationException;
@@ -31,10 +31,9 @@ import static org.mindrot.jbcrypt.BCrypt.hashpw;
 
 public class CreateAndAlterRoleTest extends CQLTester
 {
-    @BeforeClass
-    public static void setUpClass()
+    @Before
+    public void setUpClass()
     {
-        CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
     }

@@ -21,7 +21,7 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.Set;
 import javax.security.auth.Subject;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.auth.AuthCacheService;
@@ -46,10 +46,9 @@ public class InvalidateJmxPermissionsCacheTest extends CQLTester
 {
     private static final AuthorizationProxy authorizationProxy = new AuthTestUtils.NoAuthSetupAuthorizationProxy();
 
-    @BeforeClass
-    public static void setup() throws Exception
+    @Before
+    public void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();

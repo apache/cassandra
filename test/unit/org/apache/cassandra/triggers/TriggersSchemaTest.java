@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.triggers;
 
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -42,8 +42,8 @@ public class TriggersSchemaTest
     String triggerName = "trigger_" + nanoTime();
     String triggerClass = "org.apache.cassandra.triggers.NoSuchTrigger.class";
 
-    @BeforeClass
-    public static void beforeTest() throws ConfigurationException
+    @Before
+    public void beforeTest() throws ConfigurationException
     {
         SchemaLoader.loadSchema();
     }

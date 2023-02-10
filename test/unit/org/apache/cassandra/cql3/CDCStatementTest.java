@@ -30,7 +30,6 @@ public class CDCStatementTest extends CQLTester
     public static void setUpClass()
     {
         DatabaseDescriptor.setCDCEnabled(true);
-        CQLTester.setUpClass();
     }
 
     @Test

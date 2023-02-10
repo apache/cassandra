@@ -19,7 +19,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.junit.After;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -35,15 +35,15 @@ public class GetFullQueryLogTest extends CQLTester
     @ClassRule
     public static TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    @BeforeClass
-    public static void setup() throws Exception
+    @Before
+    public void setup() throws Exception
     {
         requireNetwork();
         startJMXServer();
     }
 
     @After
-    public void afterTest() throws InterruptedException
+    public void afterTestBase() throws InterruptedException
     {
         disableFullQueryLog();
     }

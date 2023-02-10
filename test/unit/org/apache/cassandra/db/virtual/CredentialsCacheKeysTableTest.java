@@ -40,7 +40,7 @@ import static org.apache.cassandra.auth.AuthTestUtils.ROLE_B;
 public class CredentialsCacheKeysTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
-    private static AuthTestUtils.LocalPasswordAuthenticator passwordAuthenticator;
+    private AuthTestUtils.LocalPasswordAuthenticator passwordAuthenticator;
 
     @SuppressWarnings("FieldCanBeLocal")
     private CredentialsCacheKeysTable table;
@@ -50,23 +50,21 @@ public class CredentialsCacheKeysTableTest extends CQLTester
     {
         // high value is used for convenient debugging
         DatabaseDescriptor.setCredentialsValidity(20_000);
-
-        CQLTester.setUpClass();
-        CQLTester.requireAuthentication();
-        passwordAuthenticator = (AuthTestUtils.LocalPasswordAuthenticator) DatabaseDescriptor.getAuthenticator();
-
-        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
-        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
     }
 
     @Before
     public void config()
     {
+        CQLTester.requireAuthentication();
+        IRoleManager roleManager = DatabaseDescriptor.getRoleManager();
+        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_A, AuthTestUtils.getLoginRoleOptions());
+        roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
+
         table = new CredentialsCacheKeysTable(KS_NAME);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
 
         // ensure nothing keeps cached between tests
+        passwordAuthenticator = (AuthTestUtils.LocalPasswordAuthenticator) DatabaseDescriptor.getAuthenticator();
         passwordAuthenticator.getCredentialsCache().invalidate();
         disablePreparedReuseForTest();
     }

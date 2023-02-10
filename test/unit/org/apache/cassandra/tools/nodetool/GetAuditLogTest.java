@@ -19,7 +19,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import org.junit.After;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -29,15 +29,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class GetAuditLogTest extends CQLTester
 {
-    @BeforeClass
-    public static void setup() throws Exception
+    @Before
+    public void setup() throws Exception
     {
         requireNetwork();
         startJMXServer();
     }
 
     @After
-    public void afterTest()
+    public void afterTestBase()
     {
         disableAuditLog();
     }

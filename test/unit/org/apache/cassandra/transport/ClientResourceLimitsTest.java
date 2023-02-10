@@ -71,8 +71,6 @@ public class ClientResourceLimitsTest extends CQLTester
         DatabaseDescriptor.setNativeTransportReceiveQueueCapacityInBytes(1);
         DatabaseDescriptor.setNativeTransportMaxRequestDataInFlightPerIpInBytes(LOW_LIMIT);
         DatabaseDescriptor.setNativeTransportConcurrentRequestDataInFlightInBytes(LOW_LIMIT);
-
-        requireNetwork();
     }
 
     @AfterClass
@@ -85,6 +83,7 @@ public class ClientResourceLimitsTest extends CQLTester
     @Before
     public void setLimits()
     {
+        requireNetwork();
         ClientResourceLimits.setGlobalLimit(LOW_LIMIT);
         ClientResourceLimits.setEndpointLimit(LOW_LIMIT);
     }

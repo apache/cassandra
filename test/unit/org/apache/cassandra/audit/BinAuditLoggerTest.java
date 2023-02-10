@@ -19,6 +19,7 @@ package org.apache.cassandra.audit;
 
 import java.nio.file.Path;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -55,6 +56,11 @@ public class BinAuditLoggerTest extends CQLTester
         options.roll_cycle = "TEST_SECONDLY";
         options.audit_logs_dir = tempDir.toString();
         DatabaseDescriptor.setAuditLoggingOptions(options);
+    }
+
+    @Before
+    public void beforeTest()
+    {
         AuditLogManager.instance.enable(DatabaseDescriptor.getAuditLoggingOptions());
         requireNetwork();
     }
