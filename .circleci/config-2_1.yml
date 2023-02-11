@@ -115,10 +115,10 @@ default_env_vars: &default_env_vars
     REPEATED_DTESTS_COUNT: 500
 
     # Comma-separated list of Python large dtests that should be repeatedly run, for example:
-    # REPEATED_LARGE_DTESTS: consistency_test.py
-    # REPEATED_LARGE_DTESTS: consistency_test.py::TestAvailability
-    # REPEATED_LARGE_DTESTS: consistency_test.py::TestAvailability::test_network_topology_strategy
-    # REPEATED_LARGE_DTESTS: consistency_test.py,materialized_views_test.py
+    # REPEATED_LARGE_DTESTS: replace_address_test.py
+    # REPEATED_LARGE_DTESTS: replace_address_test.py::TestReplaceAddress
+    # REPEATED_LARGE_DTESTS: replace_address_test.py::TestReplaceAddress::test_replace_stopped_node
+    # REPEATED_LARGE_DTESTS: replace_address_test.py,materialized_views_test.py
     REPEATED_LARGE_DTESTS:
     # The number of times that the manually specified Python large dtests should be run.
     REPEATED_LARGE_DTESTS_COUNT: 100
@@ -1042,23 +1042,17 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
         requires:
           - start_j8_dtests_large
           - j8_build
-    - start_j8_dtests_large_repeat:
-        type: approval
     - j8_dtests_large_repeat:
         requires:
-          - start_j8_dtests_large_repeat
+          - start_j8_dtests_large
           - j8_build
-    - start_j8_dtests_large_vnode:
-        type: approval
     - j8_dtests_large_vnode:
         requires:
-          - start_j8_dtests_large_vnode
+          - start_j8_dtests_large
           - j8_build
-    - start_j8_dtests_large_vnode_repeat:
-        type: approval
     - j8_dtests_large_vnode_repeat:
         requires:
-          - start_j8_dtests_large_vnode_repeat
+          - start_j8_dtests_large
           - j8_build
     - start_j11_dtests_large:
         type: approval
@@ -1066,23 +1060,17 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
         requires:
           - start_j11_dtests_large
           - j8_build
-    - start_j11_dtests_large_repeat:
-        type: approval
     - j11_dtests_large_repeat:
         requires:
-          - start_j11_dtests_large_repeat
+          - start_j11_dtests_large
           - j8_build
-    - start_j11_dtests_large_vnode:
-        type: approval
     - j11_dtests_large_vnode:
         requires:
-          - start_j11_dtests_large_vnode
+          - start_j11_dtests_large
           - j8_build
-    - start_j11_dtests_large_vnode_repeat:
-        type: approval
     - j11_dtests_large_vnode_repeat:
         requires:
-          - start_j11_dtests_large_vnode_repeat
+          - start_j11_dtests_large
           - j8_build
     # Java 8 upgrade tests (on request)
     - start_upgrade_dtests:
@@ -1494,23 +1482,17 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
         requires:
           - start_j11_dtests_large
           - j11_build
-    - start_j11_dtests_large_repeat:
-        type: approval
     - j11_dtests_large_repeat:
         requires:
-          - start_j11_dtests_large_repeat
+          - start_j11_dtests_large
           - j11_build
-    - start_j11_dtests_large_vnode:
-        type: approval
     - j11_dtests_large_vnode:
         requires:
-          - start_j11_dtests_large_vnode
+          - start_j11_dtests_large
           - j11_build
-    - start_j11_dtests_large_vnode_repeat:
-        type: approval
     - j11_dtests_large_vnode_repeat:
         requires:
-          - start_j11_dtests_large_vnode_repeat
+          - start_j11_dtests_large
           - j11_build
     - j11_cqlsh_dtests_py3:
         requires:
