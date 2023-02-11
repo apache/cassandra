@@ -1,9 +1,10 @@
---- config-2_1.yml	2022-12-23 09:43:57.000000000 -0500
-+++ config-2_1.yml.MIDRES	2022-12-23 09:45:18.000000000 -0500
-@@ -126,45 +126,65 @@
+--- config-2_1.yml	2023-02-02 21:03:34.000000000 -0500
++++ config-2_1.yml.MIDRES	2023-02-02 21:04:03.000000000 -0500
+@@ -134,14 +134,14 @@
+ j8_par_executor: &j8_par_executor
    executor:
      name: java8-executor
-     #exec_resource_class: xlarge
+-    #exec_resource_class: xlarge
 -  parallelism: 4
 +    exec_resource_class: medium
 +  parallelism: 25
@@ -11,17 +12,20 @@
  j8_small_par_executor: &j8_small_par_executor
    executor:
      name: java8-executor
-     #exec_resource_class: xlarge
+-    #exec_resource_class: xlarge
 -  parallelism: 1
 +    exec_resource_class: large
 +  parallelism: 10
  
+ j8_small_executor: &j8_small_executor
+   executor:
+@@ -152,34 +152,51 @@
  j8_medium_par_executor: &j8_medium_par_executor
    executor:
      name: java8-executor
-     #exec_resource_class: xlarge
+-    #exec_resource_class: xlarge
 -  parallelism: 1
-+    exec_resource_class: large
++    exec_resource_class: xlarge
 +  parallelism: 4
 +
 +j8_large_par_executor: &j8_large_par_executor
@@ -73,7 +77,7 @@
  
  separate_jobs: &separate_jobs
    jobs:
-@@ -555,7 +575,7 @@
+@@ -647,7 +664,7 @@
            target: stress-test
  
    j8_dtests_vnode:
@@ -82,7 +86,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -569,7 +589,7 @@
+@@ -661,7 +678,7 @@
            pytest_extra_args: '--use-vnodes --num-tokens=32 --skip-resource-intensive-tests'
  
    j8_dtests:
@@ -91,8 +95,26 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -583,7 +603,7 @@
+@@ -675,7 +692,7 @@
            pytest_extra_args: '--skip-resource-intensive-tests'
+ 
+   j8_dtests_large_vnode:
+-    <<: *j8_par_executor
++    <<: *j8_medium_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -689,7 +706,7 @@
+           pytest_extra_args: '--use-vnodes --num-tokens=32 --only-resource-intensive-tests --force-resource-intensive-tests'
+ 
+   j8_dtests_large:
+-    <<: *j8_par_executor
++    <<: *j8_medium_par_executor
+     steps:
+       - attach_workspace:
+           at: /home/cassandra
+@@ -703,7 +720,7 @@
+           pytest_extra_args: '--num-tokens=32 --only-resource-intensive-tests --force-resource-intensive-tests'
  
    j8_upgrade_dtests:
 -    <<: *j8_par_executor
@@ -100,7 +122,7 @@
      steps:
        - attach_workspace:
            at: /home/cassandra
-@@ -708,7 +728,7 @@
+@@ -858,7 +875,7 @@
            count: ${REPEATED_UPGRADE_DTESTS_COUNT}
  
    j8_dtests_offheap:
