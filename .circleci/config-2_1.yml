@@ -106,6 +106,15 @@ default_env_vars: &default_env_vars
     # The number of times that the manually specified Python dtests should be run.
     REPEATED_DTESTS_COUNT: 500
 
+    # Comma-separated list of Python large dtests that should be repeatedly run, for example:
+    # REPEATED_LARGE_DTESTS: replace_address_test.py
+    # REPEATED_LARGE_DTESTS: replace_address_test.py::TestReplaceAddress
+    # REPEATED_LARGE_DTESTS: replace_address_test.py::TestReplaceAddress::test_replace_stopped_node
+    # REPEATED_LARGE_DTESTS: replace_address_test.py,materialized_views_test.py
+    REPEATED_LARGE_DTESTS:
+    # The number of times that the manually specified Python large dtests should be run.
+    REPEATED_LARGE_DTESTS_COUNT: 100
+
     # Comma-separated list of Python dtests that should be repeatedly run, for example:
     # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py
     # REPEATED_UPGRADE_DTESTS: upgrade_tests/cql_tests.py::TestCQLNodes2RF1_Upgrade_current_4_0_x_To_indev_4_0_x
@@ -179,6 +188,12 @@ j11_small_executor: &j11_small_executor
   executor:
     name: java11-executor
     #exec_resource_class: medium
+  parallelism: 1
+
+j11_medium_par_executor: &j11_medium_par_executor
+  executor:
+    name: java11-executor
+    #exec_resource_class: xlarge
   parallelism: 1
 
 j11_seq_executor: &j11_seq_executor
@@ -469,6 +484,31 @@ j8_separate_jobs: &j8_separate_jobs
         requires:
           - start_j8_dtests_offheap_repeat
           - j8_build
+    # Java 8 large DTests
+    - start_j8_dtests_large:
+        type: approval
+    - j8_dtests_large:
+        requires:
+          - start_j8_dtests_large
+          - j8_build
+    - start_j8_dtests_large_repeat:
+        type: approval
+    - j8_dtests_large_repeat:
+        requires:
+          - start_j8_dtests_large_repeat
+          - j8_build
+    - start_j8_dtests_large_vnode:
+        type: approval
+    - j8_dtests_large_vnode:
+        requires:
+          - start_j8_dtests_large_vnode
+          - j8_build
+    - start_j8_dtests_large_vnode_repeat:
+        type: approval
+    - j8_dtests_large_vnode_repeat:
+        requires:
+          - start_j8_dtests_large_vnode_repeat
+          - j8_build
     # Java 11 dtests
     - start_j11_dtests:
         type: approval
@@ -506,6 +546,29 @@ j8_separate_jobs: &j8_separate_jobs
     - j11_dtests_offheap_repeat:
         requires:
           - start_j11_dtests_offheap_repeat
+          - j8_build
+    # Java 11 Python large DTests
+    - start_j11_dtests_large:
+        type: approval
+    - j11_dtests_large:
+        requires:
+          - start_j11_dtests_large
+          - j8_build
+    - start_j11_dtests_large_repeat:
+        type: approval
+    - j11_dtests_large_repeat:
+        requires:
+          - start_j11_dtests_large_repeat
+          - j8_build
+    - start_j11_dtests_large_vnode:
+        type: approval
+    - j11_dtests_large_vnode:
+        requires:
+          - start_j11_dtests_large_vnode
+          - j8_build
+    - j11_dtests_large_vnode_repeat:
+        requires:
+          - start_j11_dtests_large_repeat
           - j8_build
     # Java 8 upgrade tests
     - start_upgrade_tests:
@@ -838,6 +901,44 @@ j8_pre-commit_jobs: &j8_pre-commit_jobs
         requires:
           - start_j11_dtests_offheap
           - j8_build
+    # Java 8 large DTests
+    - start_j8_dtests_large:
+        type: approval
+    - j8_dtests_large:
+        requires:
+          - start_j8_dtests_large
+          - j8_build
+    - j8_dtests_large_repeat:
+        requires:
+          - start_j8_dtests_large
+          - j8_build
+    - j8_dtests_large_vnode:
+        requires:
+          - start_j8_dtests_large
+          - j8_build
+    - j8_dtests_large_vnode_repeat:
+        requires:
+          - start_j8_dtests_large
+          - j8_build
+    # Java 11 large DTests
+    - start_j11_dtests_large:
+        type: approval
+    - j11_dtests_large:
+        requires:
+          - start_j11_dtests_large
+          - j8_build
+    - j11_dtests_large_repeat:
+        requires:
+          - start_j11_dtests_large
+          - j8_build
+    - j11_dtests_large_vnode:
+        requires:
+          - start_j11_dtests_large
+          - j8_build
+    - j11_dtests_large_vnode_repeat:
+        requires:
+          - start_j11_dtests_large
+          - j8_build
     # Java 8 upgrade tests (on request)
     - start_upgrade_tests:
         type: approval
@@ -1065,6 +1166,31 @@ j11_separate_jobs: &j11_separate_jobs
         requires:
           - start_j11_cqlsh-dtests-offheap
           - j11_build
+    # Python large DTests
+    - start_j11_dtests_large:
+        type: approval
+    - j11_dtests_large:
+        requires:
+          - start_j11_dtests_large
+          - j11_build
+    - start_j11_dtests_large_repeat:
+        type: approval
+    - j11_dtests_large_repeat:
+        requires:
+          - start_j11_dtests_large_repeat
+          - j11_build
+    - start_j11_dtests_large_vnode:
+        type: approval
+    - j11_dtests_large_vnode:
+        requires:
+          - start_j11_dtests_large_vnode
+          - j11_build
+    - start_j11_dtests_large_vnode_repeat:
+        type: approval
+    - j11_dtests_large_vnode_repeat:
+        requires:
+          - start_j11_dtests_large_vnode_repeat
+          - j11_build
     # specialized unit tests (all run on request)
     - start_j11_utests_long:
         type: approval
@@ -1239,6 +1365,25 @@ j11_pre-commit_jobs: &j11_pre-commit_jobs
     - j11_cqlsh_dtests_py311_offheap:
         requires:
           - start_j11_cqlsh-dtests-offheap
+          - j11_build
+    # Large Python DTests
+    - start_j11_dtests_large:
+        type: approval
+    - j11_dtests_large:
+        requires:
+          - start_j11_dtests_large
+          - j11_build
+    - j11_dtests_large_repeat:
+        requires:
+          - start_j11_dtests_large
+          - j11_build
+    - j11_dtests_large_vnode:
+        requires:
+          - start_j11_dtests_large
+          - j11_build
+    - j11_dtests_large_vnode_repeat:
+        requires:
+          - start_j11_dtests_large
           - j11_build
     # specialized unit tests (all run on request)
     - start_utests_long:
@@ -1640,6 +1785,62 @@ jobs:
     - run_dtests:
         file_tag: j11_without_vnodes
         pytest_extra_args: '--skip-resource-intensive-tests'
+
+  j8_dtests_large_vnode:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j8_large_with_vnodes
+          run_dtests_extra_args: '--use-vnodes --only-resource-intensive-tests --force-resource-intensive-tests'
+      - run_dtests:
+          file_tag: j8_large_with_vnodes
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests'
+
+  j8_dtests_large:
+    <<: *j8_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j8_large_without_vnodes
+          run_dtests_extra_args: '--only-resource-intensive-tests --force-resource-intensive-tests'
+      - run_dtests:
+          file_tag: j8_large_without_vnodes
+          pytest_extra_args: '--num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests'
+
+  j11_dtests_large_vnode:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j11_large_with_vnodes
+          run_dtests_extra_args: '--use-vnodes --only-resource-intensive-tests --force-resource-intensive-tests'
+      - run_dtests:
+          file_tag: j11_large_with_vnodes
+          pytest_extra_args: '--use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests'
+
+  j11_dtests_large:
+    <<: *j11_par_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - create_dtest_containers:
+          file_tag: j11_large_without_vnodes
+          run_dtests_extra_args: '--only-resource-intensive-tests --force-resource-intensive-tests'
+      - run_dtests:
+          file_tag: j11_large_without_vnodes
+          pytest_extra_args: '--num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests'
 
   j8_upgrade_dtests:
     <<: *j8_par_executor
@@ -2171,6 +2372,67 @@ jobs:
       - log_environment
       - run_jvm_dtests_repeat
 
+
+  j8_dtests_large_repeat:
+    <<: *j8_repeated_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest:
+          tests: ${REPEATED_LARGE_DTESTS}
+          vnodes: "false"
+          upgrade: "false"
+          count: ${REPEATED_LARGE_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          extra_dtest_args: "--only-resource-intensive-tests --force-resource-intensive-tests"
+
+  j8_dtests_large_vnode_repeat:
+    <<: *j8_repeated_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest:
+          tests: ${REPEATED_LARGE_DTESTS}
+          vnodes: "true"
+          upgrade: "false"
+          count: ${REPEATED_LARGE_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          extra_dtest_args: "--only-resource-intensive-tests --force-resource-intensive-tests"
+
+  j11_dtests_large_repeat:
+    <<: *j11_repeated_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest:
+          tests: ${REPEATED_LARGE_DTESTS}
+          vnodes: "false"
+          upgrade: "false"
+          count: ${REPEATED_LARGE_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          extra_dtest_args: "--only-resource-intensive-tests --force-resource-intensive-tests"
+
+  j11_dtests_large_vnode_repeat:
+    <<: *j11_repeated_dtest_executor
+    steps:
+      - attach_workspace:
+          at: /home/cassandra
+      - clone_dtest
+      - create_venv
+      - run_repeated_dtest:
+          tests: ${REPEATED_LARGE_DTESTS}
+          vnodes: "true"
+          upgrade: "false"
+          count: ${REPEATED_LARGE_DTESTS_COUNT}
+          stop_on_failure: ${REPEATED_TESTS_STOP_ON_FAILURE}
+          extra_dtest_args: "--only-resource-intensive-tests --force-resource-intensive-tests"
+
   j8_jvm_upgrade_dtests_repeat:
     <<: *j8_repeated_jvm_upgrade_dtest_executor
     steps:
@@ -2650,7 +2912,12 @@ commands:
             mkdir -p /tmp/results/dtests
             # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
             export SPLIT_TESTS=`cat /tmp/split_dtest_tests_<<parameters.file_tag>>_final.txt`
-            set -o pipefail && cd ~/cassandra-dtest && pytest <<parameters.pytest_extra_args>> --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result_<<parameters.file_tag>>.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            if [ ! -z "$SPLIT_TESTS" ]; then
+              set -o pipefail && cd ~/cassandra-dtest && pytest <<parameters.pytest_extra_args>> --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result_<<parameters.file_tag>>.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt
+            else
+              echo "Tune your parallelism, there are more containers than test classes. Nothing to do in this container"
+              (exit 1)
+            fi
       - store_test_results:
           path: /tmp/results
       - store_artifacts:
