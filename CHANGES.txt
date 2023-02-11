@@ -1,4 +1,5 @@
 4.2
+ * Remove Scripted UDFs internals; hooks to be added later in CASSANDRA-17281 (CASSANDRA-18252)
  * Make virtual tables decide if they implicitly enable ALLOW FILTERING (CASSANDRA-18238)
  * Add row, tombstone, and sstable count to nodetool profileload (CASSANDRA-18022)
  * Coordinator level metrics for read response and mutation row and column counts (CASSANDRA-18155)

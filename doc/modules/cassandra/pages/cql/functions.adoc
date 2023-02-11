@@ -351,8 +351,7 @@ Examples:
 ==== User-defined functions
 
 User-defined functions (UDFs) execute user-provided code in Cassandra. 
-By default, Cassandra supports defining functions in _Java_ and _JavaScript_.
-Support for other JSR 223 compliant scripting languages, such as Python, Ruby, and Scala, is possible by adding a JAR to the classpath.
+By default, Cassandra supports defining functions in _Java_.
 
 UDFs are part of the Cassandra schema, and are automatically propagated to all nodes in the cluster.  
 UDFs can be _overloaded_, so that multiple UDFs with different argument types can have the same function name.
@@ -361,8 +360,8 @@ UDFs can be _overloaded_, so that multiple UDFs with different argument types ca
 [NOTE]
 .Note
 ====
-_JavaScript_ user-defined functions have been deprecated. They are planned for removal
-in the next major release.
+_JavaScript_ user-defined functions have been deprecated in Cassandra 4.1. In preparation for Cassandra 5.0, their removal is
+already in progress. For more information - CASSANDRA-17281, CASSANDRA-18252.
 ====
 
 For example:
