@@ -150,8 +150,7 @@
                                           -Dcassandra.storagedir=$PROJECT_DIR$/data
                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml
-                                          -ea
-                                          -Didea.click.expand.for.rest.of.options" />
+                                          -ea" />
       <option name="PROGRAM_PARAMETERS" value="" />
       <option name="WORKING_DIRECTORY" value="" />
       <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
@@ -199,8 +198,7 @@
                                           -XX:ActiveProcessorCount=4
                                           -XX:MaxMetaspaceSize=384M
                                           -XX:SoftRefLRUPolicyMSPerMB=0
-                                          -ea
-                                          -Didea.click.expand.for.rest.of.options" />
+                                          -ea" />
       <option name="PARAMETERS" value="" />
       <fork_mode value="class" />
       <option name="WORKING_DIRECTORY" value="" />
@@ -229,8 +227,7 @@
                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml
                                           -Xmx1G
-                                          -ea
-                                          -Didea.click.expand.for.rest.of.options" />
+                                          -ea" />
       <option name="PROGRAM_PARAMETERS" value="" />
       <option name="WORKING_DIRECTORY" value="file://$PROJECT_DIR$" />
       <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
