@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
 
-public class StreamingMetricsTest extends TestBaseImpl
+public class StreamingMetricsTestUtils extends TestBaseImpl
 {
 
     private static InetAddressAndPort getNodeAddress(Cluster cluster, int num)
@@ -58,19 +58,7 @@ public class StreamingMetricsTest extends TestBaseImpl
                                                                broadcastAddress.getPort());
     }
 
-    @Test
-    public void testMetricsWithRepairAndStreamingFromTwoNodes() throws Exception
-    {
-        testMetricsWithStreamingFromTwoNodes(true);
-    }
-
-    @Test
-    public void testMetricsWithRebuildAndStreamingFromTwoNodes() throws Exception
-    {
-        testMetricsWithStreamingFromTwoNodes(false);
-    }
-
-    public void testMetricsWithStreamingFromTwoNodes(boolean useRepair) throws Exception
+    public static void testMetricsWithStreamingFromTwoNodes(boolean useRepair) throws Exception
     {
         try(Cluster cluster = init(Cluster.build(3)
                                           .withDataDirCount(1)
@@ -156,102 +144,6 @@ public class StreamingMetricsTest extends TestBaseImpl
         testMetricsWithStreamingToTwoNodes(true);
     }
 
-    @Test
-    public void testMetricsUpdateIncrementallyWithRepairAndStreamingBetweenNodes() throws Exception
-    {
-        boolean streamEntireSstables = false;
-        boolean compressionEnabled = false;
-        try (Cluster cluster = init(Cluster.build(2)
-                                           .withDataDirCount(1)
-                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
-                                                                       .set("stream_entire_sstables", streamEntireSstables)
-                                                                       .set("hinted_handoff_enabled", false))
-                                           .start(), 2))
-        {
-            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("repair", "--full"), compressionEnabled);
-        }
-    }
-
-    @Test
-    public void testMetricsUpdateIncrementallyWithRebuildAndStreamingBetweenNodes() throws Exception
-    {
-        boolean streamEntireSstables = false;
-        boolean compressionEnabled = false;
-        try (Cluster cluster = init(Cluster.build(2)
-                                           .withDataDirCount(1)
-                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
-                                                                       .set("stream_entire_sstables", streamEntireSstables)
-                                                                       .set("hinted_handoff_enabled", false))
-                                           .start(), 2))
-        {
-            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("rebuild"), compressionEnabled);
-        }
-    }
-
-    @Test
-    public void testMetricsUpdateIncrementallyWithRebuildAndStreamEntireSstableAndStreamingBetweenNodes() throws Exception
-    {
-        boolean streamEntireSstables = true;
-        boolean compressionEnabled = false;
-        try (Cluster cluster = init(Cluster.build(2)
-                                           .withDataDirCount(1)
-                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
-                                                                       .set("stream_entire_sstables", streamEntireSstables)
-                                                                       .set("hinted_handoff_enabled", false))
-                                           .start(), 2))
-        {
-            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("rebuild"), compressionEnabled);
-        }
-    }
-
-    @Test
-    public void testMetricsUpdateIncrementallyWithRepairAndStreamEntireSstableAndStreamingBetweenNodes() throws Exception
-    {
-        boolean streamEntireSstables = true;
-        boolean compressionEnabled = false;
-        try (Cluster cluster = init(Cluster.build(2)
-                                           .withDataDirCount(1)
-                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
-                                                                       .set("stream_entire_sstables", streamEntireSstables)
-                                                                       .set("hinted_handoff_enabled", false))
-                                           .start(), 2))
-        {
-            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("repair"), compressionEnabled);
-        }
-    }
-
-    @Test
-    public void testMetricsUpdateIncrementallyWithRepairCompressionEnabled() throws Exception
-    {
-        boolean streamEntireSstables = false;
-        boolean compressionEnabled = true;
-        try (Cluster cluster = init(Cluster.build(2)
-                                           .withDataDirCount(1)
-                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
-                                                                       .set("stream_entire_sstables", streamEntireSstables)
-                                                                       .set("hinted_handoff_enabled", false))
-                                           .start(), 2))
-        {
-            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("repair"), compressionEnabled);
-        }
-    }
-
-    @Test
-    public void testMetricsUpdateIncrementallyWithRebuildCompressionEnabled() throws Exception
-    {
-        boolean streamEntireSstables = false;
-        boolean compressionEnabled = true;
-        try (Cluster cluster = init(Cluster.build(2)
-                                           .withDataDirCount(1)
-                                           .withConfig(config -> config.with(NETWORK, GOSSIP)
-                                                                       .set("stream_entire_sstables", streamEntireSstables)
-                                                                       .set("hinted_handoff_enabled", false))
-                                           .start(), 2))
-        {
-            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("rebuild"), compressionEnabled);
-        }
-    }
-
     /**
      * Test to verify that streaming metrics are updated incrementally
      * - Create 2 node cluster with RF=2
@@ -264,7 +156,7 @@ public class StreamingMetricsTest extends TestBaseImpl
      *      * @param compressionEnabled Dictates if we should use compression when creating the testing table.
      *      * @throws Exception
      */
-    public void runStreamingOperationAndCheckIncrementalMetrics(Cluster cluster, Callable<Integer> streamingOperation, boolean compressionEnabled) throws Exception
+    public static void runStreamingOperationAndCheckIncrementalMetrics(Cluster cluster, Callable<Integer> streamingOperation, boolean compressionEnabled) throws Exception
     {
         assertThat(cluster.size())
             .describedAs("The minimum cluster size to check streaming metrics is 2 nodes.")
@@ -320,7 +212,7 @@ public class StreamingMetricsTest extends TestBaseImpl
         nodetoolExecutor.shutdown();
     }
 
-    private void checkMetricsUpdatedIncrementally(Cluster cluster, Future<Integer> streamingOperationExecution, int dst, int src, boolean entireSstable)
+    private static void checkMetricsUpdatedIncrementally(Cluster cluster, Future<Integer> streamingOperationExecution, int dst, int src, boolean entireSstable)
     {
         InetAddressAndPort srcAddress = getNodeAddress(cluster, src);
         InetAddressAndPort dstAddress = getNodeAddress(cluster, dst);
@@ -376,18 +268,18 @@ public class StreamingMetricsTest extends TestBaseImpl
         return instance.callOnInstance(() -> StreamingMetrics.totalOutgoingBytes.getCount());
     }
 
-    private int getNumberOfSSTables(Cluster cluster, int node)
+    private static int getNumberOfSSTables(Cluster cluster, int node)
     {
         return cluster.get(node).callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, "cf").getLiveSSTables().size());
     }
 
-    private long getSingleSSTableSize(Cluster cluster, int node)
+    private static long getSingleSSTableSize(Cluster cluster, int node)
     {
         assert cluster.get(node).callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, "cf").getLiveSSTables().size()) == 1;
         return cluster.get(node).callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, "cf").getLiveSSTables().iterator().next().onDiskLength());
     }
 
-    private long getSstableSizeForEntireFileStreaming(Cluster cluster, int node)
+    private static long getSstableSizeForEntireFileStreaming(Cluster cluster, int node)
     {
         return cluster.get(node)
                       .callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, "cf")
@@ -551,7 +443,7 @@ public class StreamingMetricsTest extends TestBaseImpl
         }
     }
 
-    private void checkThatNoStreamingOccured(Cluster cluster, int nodeCount)
+    private static void checkThatNoStreamingOccured(Cluster cluster, int nodeCount)
     {
         for (int src = 1; src <= nodeCount; src++)
         {
@@ -564,7 +456,7 @@ public class StreamingMetricsTest extends TestBaseImpl
         }
     }
 
-    private void checkThatNoStreamingOccured(Cluster cluster, int node, int peer)
+    private static void checkThatNoStreamingOccured(Cluster cluster, int node, int peer)
     {
         InetAddressAndPort address = getNodeAddress(cluster, peer);
         cluster.get(node).runOnInstance(() -> {
@@ -585,7 +477,7 @@ public class StreamingMetricsTest extends TestBaseImpl
         });
     }
 
-    private long checkDataSent(Cluster cluster, int node, int peer)
+    private static long checkDataSent(Cluster cluster, int node, int peer)
     {
         InetAddressAndPort address = getNodeAddress(cluster, peer);
         return cluster.get(node).callOnInstance(() -> {
@@ -601,7 +493,7 @@ public class StreamingMetricsTest extends TestBaseImpl
         });
     }
 
-    private void checkDataReceived(Cluster cluster, int node, int peer, long receivedBytes, int files)
+    private static void checkDataReceived(Cluster cluster, int node, int peer, long receivedBytes, int files)
     {
         InetAddressAndPort address = getNodeAddress(cluster, peer);
         cluster.get(node).runOnInstance(() -> {
@@ -628,11 +520,11 @@ public class StreamingMetricsTest extends TestBaseImpl
         });
     }
 
-    private void checkTotalDataSent(Cluster cluster,
-                                    int node,
-                                    long outgoingBytes,
-                                    long outgoingRepairBytes,
-                                    long outgoingRepairSSTables)
+    private static void checkTotalDataSent(Cluster cluster,
+                                           int node,
+                                           long outgoingBytes,
+                                           long outgoingRepairBytes,
+                                           long outgoingRepairSSTables)
     {
         cluster.get(node).runOnInstance(() -> {
 
@@ -653,7 +545,7 @@ public class StreamingMetricsTest extends TestBaseImpl
         });
     }
 
-    private void checkTotalDataReceived(Cluster cluster, int node, long incomingBytes)
+    private static void checkTotalDataReceived(Cluster cluster, int node, long incomingBytes)
     {
         cluster.get(node).runOnInstance(() -> {
 
