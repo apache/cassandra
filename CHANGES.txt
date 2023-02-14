@@ -1,6 +1,6 @@
 4.2
  * More accurate skipping of sstables in read path (CASSANDRA-18134)
- * Prepare for JDK17 experimental support (CASSANDRA-18179)
+ * Prepare for JDK17 experimental support (CASSANDRA-18179, CASSANDRA-18258)
  * Remove Scripted UDFs internals; hooks to be added later in CASSANDRA-17281 (CASSANDRA-18252)
  * Update JNA to 5.13.0 (CASSANDRA-18050)
  * Make virtual tables decide if they implicitly enable ALLOW FILTERING (CASSANDRA-18238)
