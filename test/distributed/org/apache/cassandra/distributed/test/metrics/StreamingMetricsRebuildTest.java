@@ -20,13 +20,25 @@ package org.apache.cassandra.distributed.test.metrics;
 
 import org.junit.Test;
 
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.test.TestBaseImpl;
+
+import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.test.metrics.StreamingMetricsTestUtils.testMetricsWithStreamingFromTwoNodes;
 
-public class StreamingMetricsRebuildTest
+public class StreamingMetricsRebuildTest extends TestBaseImpl
 {
     @Test
     public void testMetricsWithRebuildAndStreamingFromTwoNodes() throws Exception
     {
-        testMetricsWithStreamingFromTwoNodes(false);
+        try(Cluster cluster = init(Cluster.build(3)
+                                          .withDataDirCount(1)
+                                          .withConfig(config -> config.with(NETWORK)
+                                                                      .set("stream_entire_sstables", false)
+                                                                      .set("hinted_handoff_enabled", false))
+                                          .start(), 2))
+        {
+            testMetricsWithStreamingFromTwoNodes(false, cluster);
+        }
     }
 }

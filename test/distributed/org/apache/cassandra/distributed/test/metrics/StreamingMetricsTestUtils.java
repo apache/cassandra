@@ -58,78 +58,70 @@ public class StreamingMetricsTestUtils extends TestBaseImpl
                                                                broadcastAddress.getPort());
     }
 
-    public static void testMetricsWithStreamingFromTwoNodes(boolean useRepair) throws Exception
+    public static void testMetricsWithStreamingFromTwoNodes(boolean useRepair, Cluster cluster) throws Exception
     {
-        try(Cluster cluster = init(Cluster.build(3)
-                                          .withDataDirCount(1)
-                                          .withConfig(config -> config.with(NETWORK)
-                                                                      .set("stream_entire_sstables", false)
-                                                                      .set("hinted_handoff_enabled", false))
-                                          .start(), 2))
+        cluster.schemaChange(String.format("CREATE TABLE %s.cf (k text, c1 text, c2 text, PRIMARY KEY (k)) WITH compaction = {'class': '%s', 'enabled': 'false'}", KEYSPACE, "LeveledCompactionStrategy"));
+
+        IMessageFilters.Filter drop1to3 = cluster.filters().verbs(MUTATION_REQ.id).from(1).to(3).drop();
+
+        final int rowsPerFile = 500;
+        final int files = 5;
+        for (int k = 0; k < files; k++)
         {
-            cluster.schemaChange(String.format("CREATE TABLE %s.cf (k text, c1 text, c2 text, PRIMARY KEY (k)) WITH compaction = {'class': '%s', 'enabled': 'false'}", KEYSPACE, "LeveledCompactionStrategy"));
-
-            IMessageFilters.Filter drop1to3 = cluster.filters().verbs(MUTATION_REQ.id).from(1).to(3).drop();
-
-            final int rowsPerFile = 500;
-            final int files = 5;
-            for (int k = 0; k < files; k++)
+            for (int i = k * rowsPerFile; i < k * rowsPerFile + rowsPerFile; ++i)
             {
-                for (int i = k * rowsPerFile; i < k * rowsPerFile + rowsPerFile; ++i)
-                {
-                    cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.cf (k, c1, c2) VALUES (?, 'value1', 'value2');"),
-                                                   ConsistencyLevel.ONE,
-                                                   Integer.toString(i));
-                }
-                cluster.get(1).flush(KEYSPACE);
-                cluster.get(2).flush(KEYSPACE);
+                cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.cf (k, c1, c2) VALUES (?, 'value1', 'value2');"),
+                                               ConsistencyLevel.ONE,
+                                               Integer.toString(i));
             }
-
-            drop1to3.off();
-
-            // Checks that the table is empty on node 3
-            Object[][] results = cluster.get(3).executeInternal(withKeyspace("SELECT k, c1, c2 FROM %s.cf;"));
-            assertThat(results.length).isEqualTo(0);
-
-            checkThatNoStreamingOccured(cluster, 3);
-
-            // Trigger streaming from node 3
-            if (useRepair)
-                cluster.get(3).nodetool("repair", "--full");
-            else
-                cluster.get(3).nodetool("rebuild", "--keyspace", KEYSPACE);
-
-
-            // Check streaming metrics on node 1
-            checkThatNoStreamingOccured(cluster, 1, 2);
-            long bytesFrom1 = checkDataSent(cluster, 1, 3);
-            checkDataReceived(cluster, 1, 3, 0, 0);
-
-            if (useRepair)
-                checkTotalDataSent(cluster, 1, bytesFrom1, bytesFrom1, files);
-            else
-                checkTotalDataSent(cluster, 1, bytesFrom1, 0, 0);
-
-            checkTotalDataReceived(cluster, 1, 0);
-
-            // Check streaming metrics on node 2
-            checkThatNoStreamingOccured(cluster, 2, 1);
-            long bytesFrom2 = checkDataSent(cluster, 2, 3);
-            checkDataReceived(cluster, 1, 2, 0, 0);
-
-            if (useRepair)
-                checkTotalDataSent(cluster, 2, bytesFrom2, bytesFrom2, files);
-            else
-                checkTotalDataSent(cluster, 2, bytesFrom2, 0, 0);
-
-            checkTotalDataReceived(cluster, 2, 0);
-
-            // Check streaming metrics on node 3
-            checkDataReceived(cluster, 3, 1, bytesFrom1, files);
-            checkDataReceived(cluster, 3, 2, bytesFrom2, files);
-            checkTotalDataSent(cluster, 3, 0, 0, 0);
-            checkTotalDataReceived(cluster, 3, bytesFrom1 + bytesFrom2);
+            cluster.get(1).flush(KEYSPACE);
+            cluster.get(2).flush(KEYSPACE);
         }
+
+        drop1to3.off();
+
+        // Checks that the table is empty on node 3
+        Object[][] results = cluster.get(3).executeInternal(withKeyspace("SELECT k, c1, c2 FROM %s.cf;"));
+        assertThat(results.length).isEqualTo(0);
+
+        checkThatNoStreamingOccured(cluster, 3);
+
+        // Trigger streaming from node 3
+        if (useRepair)
+            cluster.get(3).nodetool("repair", "--full");
+        else
+            cluster.get(3).nodetool("rebuild", "--keyspace", KEYSPACE);
+
+
+        // Check streaming metrics on node 1
+        checkThatNoStreamingOccured(cluster, 1, 2);
+        long bytesFrom1 = checkDataSent(cluster, 1, 3);
+        checkDataReceived(cluster, 1, 3, 0, 0);
+
+        if (useRepair)
+            checkTotalDataSent(cluster, 1, bytesFrom1, bytesFrom1, files);
+        else
+            checkTotalDataSent(cluster, 1, bytesFrom1, 0, 0);
+
+        checkTotalDataReceived(cluster, 1, 0);
+
+        // Check streaming metrics on node 2
+        checkThatNoStreamingOccured(cluster, 2, 1);
+        long bytesFrom2 = checkDataSent(cluster, 2, 3);
+        checkDataReceived(cluster, 1, 2, 0, 0);
+
+        if (useRepair)
+            checkTotalDataSent(cluster, 2, bytesFrom2, bytesFrom2, files);
+        else
+            checkTotalDataSent(cluster, 2, bytesFrom2, 0, 0);
+
+        checkTotalDataReceived(cluster, 2, 0);
+
+        // Check streaming metrics on node 3
+        checkDataReceived(cluster, 3, 1, bytesFrom1, files);
+        checkDataReceived(cluster, 3, 2, bytesFrom2, files);
+        checkTotalDataSent(cluster, 3, 0, 0, 0);
+        checkTotalDataReceived(cluster, 3, bytesFrom1 + bytesFrom2);
     }
 
     @Test
