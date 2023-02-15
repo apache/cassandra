@@ -19,11 +19,10 @@ package org.apache.cassandra.triggers;
  * under the License.
  *
  */
-
-
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
@@ -39,15 +38,15 @@ import static java.nio.file.Files.*;
 
 /**
  * Custom class loader will load the classes from the class path, CCL will load
- * the classes from the the URL first, if it cannot find the required class it
- * will let the parent class loader do the its job.
+ * the classes from the URL first, if it cannot find the required class it
+ * will let the parent class loader do its job.
  *
  * Note: If the CCL is GC'ed then the associated classes will be unloaded.
  */
 public class CustomClassLoader extends URLClassLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(CustomClassLoader.class);
-    private final Map<String, Class<?>> cache = new ConcurrentHashMap<String, Class<?>>();
+    private final Map<String, Class<?>> cache = new ConcurrentHashMap<>();
     private final ClassLoader parent;
 
     public CustomClassLoader(ClassLoader parent)
@@ -83,7 +82,7 @@ public class CustomClassLoader extends URLClassLoader
             logger.info("Loading new jar {}", inputJar.absolutePath());
             try
             {
-                copy(inputJar.toPath(), out.toPath());
+                copy(inputJar.toPath(), out.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 addURL(out.toPath().toUri().toURL());
             }
             catch (IOException ex)
