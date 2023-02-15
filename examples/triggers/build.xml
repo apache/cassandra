@@ -57,7 +57,12 @@
 		</jar>
 	</target>
 
+	<target name="install" depends="jar">
+		<copy verbose="true" file="${build.dir}/${final.name}.jar" todir="${cassandra.dir}/conf/triggers" overwrite="true"/>
+	</target>
+
 	<target name="clean">
 		<delete dir="${build.dir}" />
+		<delete file="${cassandra.dir}/conf/triggers/${final.name}.jar"/>
 	</target>
 </project>
