@@ -227,6 +227,7 @@
                                           -Dcassandra.logdir=$PROJECT_DIR$/data/logs
                                           -Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true
                                           -Dcassandra.storagedir=$PROJECT_DIR$/data
+                                          -Dcassandra.triggers_dir=$PROJECT_DIR$/conf/triggers
                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml
                                           -Xmx1G
