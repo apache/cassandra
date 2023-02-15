@@ -105,7 +105,7 @@ public class AccordIntegrationTest extends AccordTestBase
             cluster.filters().verbs(Verb.ACCORD_COMMIT_REQ.id).messagesMatching((from, to, iMessage) -> cluster.get(from).callOnInstance(() -> {
                 Message<?> msg = Instance.deserializeMessage(iMessage);
                 if (msg.payload instanceof Commit)
-                    return ((Commit) msg.payload).read != null;
+                    return ((Commit) msg.payload).toExecute != null;
                 return false;
             })).drop();
 

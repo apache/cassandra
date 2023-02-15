@@ -493,24 +493,18 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 
     // TODO need validation this works correctly with wrap arounds
     private static final Comparator NORMALIZED_TOKEN_RANGE_COMPARATOR = (o1, o2) -> {
-        if (o1 instanceof RingPosition)
-        {
-            RingPosition rp = (RingPosition) o1;
-            Range range = (Range)o2;
-            int lc = rp.compareTo(range.left);
-            int rc = rp.compareTo(range.right);
-            if (lc <= 0) return -1;
-            if (rc > 0 && !range.right.isMinimum()) return 1;
-        }
-        else
-        {
-            Range range = (Range)o1;
-            RingPosition rp = (RingPosition) o2;
-            int lc = rp.compareTo(range.left);
-            int rc = rp.compareTo(range.right);
-            if (lc <= 0) return 1;
-            if (rc > 0 && !range.right.isMinimum()) return -1;
-        }
+        Range range = (Range)o1;
+        RingPosition key = (RingPosition) o2;
+        boolean rangeRightIsMin = range.right.isMinimum();
+        boolean keyIsMinimum = key.isMinimum();
+
+        if (keyIsMinimum & rangeRightIsMin)
+            return 0;
+
+        int lc = key.compareTo(range.left);
+        int rc = key.compareTo(range.right);
+        if ((lc < 0 & !keyIsMinimum) | lc == 0) return 1;
+        if (rc > 0 & !rangeRightIsMin) return -1;
         return 0;
     };
 

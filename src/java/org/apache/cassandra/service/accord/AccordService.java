@@ -34,6 +34,8 @@ import accord.impl.SizeOfIntersectionSorter;
 import accord.local.Node;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.messages.Request;
+import accord.primitives.Seekable;
+import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.topology.TopologyManager;
 import org.apache.cassandra.concurrent.Shutdownable;
@@ -41,6 +43,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
 import org.apache.cassandra.net.IVerbHandler;
@@ -79,6 +82,12 @@ public class AccordService implements IAccordService, Shutdownable
 
         @Override
         public void createEpochFromConfigUnsafe() { }
+
+        @Override
+        public long barrier(Seekable keyOrRange, long minEpoch, long queryStartNanos, boolean global, boolean isForWrite)
+        {
+            throw new UnsupportedOperationException("No accord barriers should be executed when accord_transactions_enabled = false in cassandra.yaml");
+        }
 
         @Override
         public TxnResult coordinate(Txn txn, ConsistencyLevel consistencyLevel, long queryStartNanos)
@@ -155,6 +164,53 @@ public class AccordService implements IAccordService, Shutdownable
         configService.createEpochFromConfig();
     }
 
+    @Override
+    public long barrier(Seekable keyOrRange, long epoch, long queryStartNanos, boolean global, boolean isForWrite)
+    {
+        AccordClientRequestMetrics metrics = isForWrite ? accordWriteMetrics : accordReadMetrics;
+        try
+        {
+            Future<Timestamp> future = node.barrier(keyOrRange, epoch, global);
+            long deadlineNanos = queryStartNanos + DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS);
+            Timestamp barrierExecuteAt = future.get(deadlineNanos - nanoTime(), TimeUnit.NANOSECONDS);
+            return barrierExecuteAt.epoch();
+        }
+        catch (ExecutionException e)
+        {
+            Throwable cause = e.getCause();
+            if (cause instanceof Timeout)
+            {
+                metrics.timeouts.mark();
+                throw newBarrierTimeout(global);
+            }
+            if (cause instanceof Preempted)
+            {
+                metrics.preempts.mark();
+                //TODO need to improve
+                // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
+                // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
+                throw newBarrierTimeout(global);
+            }
+            metrics.failures.mark();
+            throw new RuntimeException(cause);
+        }
+        catch (InterruptedException e)
+        {
+            metrics.failures.mark();
+            throw new UncheckedInterruptedException(e);
+        }
+        catch (TimeoutException e)
+        {
+            e.printStackTrace();
+            metrics.timeouts.mark();
+            throw newBarrierTimeout(global);
+        }
+        finally
+        {
+            metrics.addNano(nanoTime() - queryStartNanos);
+        }
+    }
+
     public static long nowInMicros()
     {
         return TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
@@ -194,7 +250,7 @@ public class AccordService implements IAccordService, Shutdownable
             if (cause instanceof Timeout)
             {
                 metrics.timeouts.mark();
-                throw throwTimeout(txn, consistencyLevel);
+                throw newTimeout(txn, consistencyLevel);
             }
             if (cause instanceof Preempted)
             {
@@ -202,7 +258,7 @@ public class AccordService implements IAccordService, Shutdownable
                 //TODO need to improve
                 // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
                 // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
-                throw throwTimeout(txn, consistencyLevel);
+                throw newTimeout(txn, consistencyLevel);
             }
             metrics.failures.mark();
             throw new RuntimeException(cause);
@@ -215,7 +271,7 @@ public class AccordService implements IAccordService, Shutdownable
         catch (TimeoutException e)
         {
             metrics.timeouts.mark();
-            throw throwTimeout(txn, consistencyLevel);
+            throw newTimeout(txn, consistencyLevel);
         }
         finally
         {
@@ -223,11 +279,17 @@ public class AccordService implements IAccordService, Shutdownable
         }
     }
 
-    private static RuntimeException throwTimeout(Txn txn, ConsistencyLevel consistencyLevel)
+    private static RequestTimeoutException newTimeout(Txn txn, ConsistencyLevel consistencyLevel)
     {
-        throw txn.isWrite() ? new WriteTimeoutException(WriteType.TRANSACTION, consistencyLevel, 0, 0)
+        return txn.isWrite() ? new WriteTimeoutException(WriteType.TRANSACTION, consistencyLevel, 0, 0)
                             : new ReadTimeoutException(consistencyLevel, 0, 0, false);
     }
+
+    private static ReadTimeoutException newBarrierTimeout(boolean global)
+    {
+        return new ReadTimeoutException(global ? ConsistencyLevel.ANY : ConsistencyLevel.QUORUM, 0, 0, false);
+    }
+
 
     @VisibleForTesting
     AccordMessageSink messageSink()

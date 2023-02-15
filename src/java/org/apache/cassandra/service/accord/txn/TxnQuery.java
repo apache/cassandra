@@ -160,7 +160,7 @@ public abstract class TxnQuery implements Query
         @Override
         public void serialize(TxnQuery query, DataOutputPlus out, int version) throws IOException
         {
-            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION);
+            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == EMPTY);
             out.writeByte(query == null ? 0 : query.type());
         }
 
@@ -181,7 +181,7 @@ public abstract class TxnQuery implements Query
         @Override
         public long serializedSize(TxnQuery query, int version)
         {
-            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION);
+            Preconditions.checkArgument(query == null | query == ALL | query == NONE | query == CONDITION | query == EMPTY);
             return TypeSizes.sizeof((byte)2);
         }
     };

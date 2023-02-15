@@ -482,6 +482,17 @@ public class ConsensusMigrationStateStore
             }
         }
 
+        public Epoch minMigrationEpoch(Token token)
+        {
+            for (Map.Entry<Epoch, List<Range<Token>>> e : migratingRangesByEpoch.entrySet())
+            {
+                if (Range.isInNormalizedRanges(token, e.getValue()))
+                    return e.getKey();
+            }
+            return Epoch.EMPTY;
+        }
+
+
         public @Nonnull TableId getTableId()
         {
             return tableId;

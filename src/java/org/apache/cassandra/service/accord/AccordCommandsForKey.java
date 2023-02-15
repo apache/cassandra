@@ -24,18 +24,17 @@ import java.util.Objects;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.CommandsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
-import accord.impl.CommandsForKey;
 import accord.local.SafeCommandStore;
 import accord.local.SafeCommandStore.TestDep;
 import accord.local.SafeCommandStore.TestKind;
@@ -144,10 +143,11 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
             return map.getView().isEmpty();
         }
 
+        @Override
         public <T> T mapReduce(TestKind testKind, TestTimestamp testTimestamp, Timestamp timestamp,
                         TestDep testDep, @Nullable TxnId depId,
                         @Nullable Status minStatus, @Nullable Status maxStatus,
-                        SafeCommandStore.CommandFunction<T, T> map, T initialValue, T terminalValue)
+                        SafeCommandStore.CommandFunction<T, T> map, T initialValue, Predicate<T> terminate)
         {
 
             for (ByteBuffer buffer : (testTimestamp == TestTimestamp.BEFORE ? this.map.getView().headMap(timestamp, false) : this.map.getView().tailMap(timestamp, false)).values())
@@ -161,8 +161,8 @@ public class AccordCommandsForKey extends CommandsForKey implements AccordState<
                     continue;
                 if (maxStatus != null && maxStatus.compareTo(cmd.status()) < 0)
                     continue;
-                initialValue = map.apply(key, cmd.txnId(), cmd.executeAt(), initialValue);
-                if (initialValue.equals(terminalValue))
+                initialValue = map.apply(key, cmd.txnId(), cmd.executeAt(), cmd.status(), initialValue);
+                if (terminate.test(initialValue))
                     break;
             }
             return initialValue;

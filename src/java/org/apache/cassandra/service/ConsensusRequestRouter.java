@@ -53,6 +53,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ConsensusMigrationStateStore.ConsensusMigratedAt;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.paxos.AbstractPaxosRepair.Failure;
 import org.apache.cassandra.service.paxos.AbstractPaxosRepair.Result;
@@ -122,7 +123,7 @@ public class ConsensusRequestRouter
 
         // TODO better query start time?
         TableMigrationState tms = keyMigrationStatus.tableMigrationState;
-        repairKeyAccord(keyMigrationStatus.key, tms.tableId, nanoTime(), true, isForWrite);
+        repairKeyAccord(keyMigrationStatus.key, tms.keyspaceName, tms.tableId, tms.minMigrationEpoch(keyMigrationStatus.key.getToken()).getEpoch(), nanoTime(), false, isForWrite);
     }
 
     public void maybeSaveAccordKeyMigrationLocally(PartitionKey partitionKey, Epoch epoch)
@@ -167,7 +168,7 @@ public class ConsensusRequestRouter
             this.consensusMigratedAt = consensusMigratedAt;
         }
 
-        public static final IVersionedSerializer<ConsensusKeyMigrationFinished> serializer = new IVersionedSerializer<ConsensusKeyMigrationFinished>()
+        public static final IVersionedSerializer<ConsensusKeyMigrationFinished> serializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(ConsensusKeyMigrationFinished t, DataOutputPlus out, int version) throws IOException
@@ -290,7 +291,7 @@ public class ConsensusRequestRouter
                 // barrier transactions to accomplish the migration
                 // They will still need to go through the fast path for barrier txns
                 // at each replica but won't need to send any messages in the happy path
-                repairKeyAccord(key, tms.tableId, queryStartNanos, false, isForWrite);
+                repairKeyAccord(key, tms.keyspaceName, tms.tableId, tms.minMigrationEpoch(key.getToken()).getEpoch(), queryStartNanos, false, isForWrite);
                 return paxosV2;
             }
             // Fall through for repairKeyPaxos
@@ -334,7 +335,7 @@ public class ConsensusRequestRouter
     /*
      * Trigger a distributed repair of Accord state for this key.
      */
-    private static void repairKeyAccord(DecoratedKey key, TableId tableId, long queryStartNanos, boolean onlyBlockOnLocalRepair, boolean isForWrite)
+    private static void repairKeyAccord(DecoratedKey key, String keyspace, TableId tableId, long minEpoch, long queryStartNanos, boolean global, boolean isForWrite)
     {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
         if (isForWrite)
@@ -344,8 +345,8 @@ public class ConsensusRequestRouter
         long start = nanoTime();
         try
         {
-            // Pretend we did it LOL
-            saveConsensusKeyMigrationLocally(new ConsensusKeyMigrationFinished(tableId.asUUID(), key.getKey(), new ConsensusMigratedAt(ClusterMetadata.current().epoch, paxos)));
+            AccordService.instance().barrier(new PartitionKey(keyspace, tableId, key), minEpoch, queryStartNanos, global, isForWrite);
+            // We don't save the state to the cache here. Accord will notify the agent every time a barrier happens.
         }
         finally
         {

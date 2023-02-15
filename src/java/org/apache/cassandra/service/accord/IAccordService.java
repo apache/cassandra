@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import accord.messages.Request;
+import accord.primitives.Seekable;
 import accord.primitives.Txn;
 import accord.topology.TopologyManager;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -33,6 +34,8 @@ public interface IAccordService
     IVerbHandler<? extends Request> verbHandler();
 
     void createEpochFromConfigUnsafe();
+
+    long barrier(Seekable keyOrRange, long minEpoch, long queryStartNanos, boolean global, boolean isForWrite);
 
     TxnResult coordinate(Txn txn, ConsistencyLevel consistencyLevel, long queryStartNanos);
 

@@ -43,6 +43,7 @@ import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.Util.range;
+import static org.apache.cassandra.dht.Range.fromString;
 import static org.apache.cassandra.dht.Range.intersectionOfNormalizedRanges;
 import static org.apache.cassandra.dht.Range.invertNormalizedRanges;
 import static org.apache.cassandra.dht.Range.isInNormalizedRanges;
@@ -753,6 +754,40 @@ public class RangeTest
     }
 
     @Test
+    public void testIsInNormalizedRanges()
+    {
+        List<Range<Token>> ranges = ImmutableList.of(fromString("(1,10]"), fromString("(10,20]"), fromString("(30,40]"), fromString("(50,60]"), fromString("(60,70]"), fromString("(80,90]"), fromString("(" + Long.MAX_VALUE + ",-9223372036854775808]"));
+        for (int ii = 0; ii < 100; ii++)
+        {
+            boolean isIn = isInNormalizedRanges(new LongToken(ii), ranges);
+            if (ii > 1 && ii <= 20)
+                assertTrue("Index " + ii, isIn);
+            else if (ii > 30 && ii <= 40)
+                assertTrue("Index " + ii, isIn);
+            else if (ii > 50 && ii <= 70)
+                assertTrue("Index " + ii, isIn);
+            else if (ii > 80 && ii <= 90)
+                assertTrue("Index " + ii, isIn);
+            else
+                assertFalse("Index " + ii, isIn);
+        }
+        assertFalse(isInNormalizedRanges(new LongToken(Long.MAX_VALUE), ranges));
+        assertTrue(isInNormalizedRanges(new LongToken(Long.MIN_VALUE), ranges));
+        ranges = ImmutableList.of(fromString("(-9223372036854775808,-9223372036854775807]"));
+        assertFalse(isInNormalizedRanges(new LongToken(Long.MIN_VALUE), ranges));
+        assertTrue(isInNormalizedRanges(new LongToken(Long.MIN_VALUE + 1), ranges));
+        ranges = ImmutableList.of(fromString("(" + (Long.MAX_VALUE - 1) + ",-9223372036854775808]"));
+        assertFalse(isInNormalizedRanges(new LongToken(Long.MAX_VALUE - 1), ranges));
+        assertTrue(isInNormalizedRanges(new LongToken(Long.MAX_VALUE), ranges));
+        assertTrue(isInNormalizedRanges(new LongToken(Long.MIN_VALUE), ranges));
+        assertFalse(isInNormalizedRanges(new LongToken(Long.MAX_VALUE - 1), normalize(ranges)));
+        assertTrue(isInNormalizedRanges(new LongToken(Long.MAX_VALUE), normalize(ranges)));
+        assertTrue(isInNormalizedRanges(new LongToken(Long.MIN_VALUE), normalize(ranges)));
+    }
+
+    // TOD Burn test works surprisingly well at generating relevant scenarios for collections of ranges because
+    // after normalization there isn't less diversity, but it does seem like like the min/max cases should be tested
+    @Test
     public void testExpensiveChecksBurn() throws Exception
     {
         long seed = System.nanoTime();
@@ -761,8 +796,7 @@ public class RangeTest
         Random r = new java.util.Random(seed);
 
         Stopwatch elapsed = Stopwatch.createStarted();
-        int iteration = 0;
-        while (elapsed.elapsed(SECONDS) != 30)
+        while (elapsed.elapsed(SECONDS) != 10)
         {
             int numRanges = 3;
             List<Range<Token>> a = new ArrayList();

@@ -28,6 +28,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.ConsensusMigrationStateStore.ConsensusMigrationRepairResult;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -124,7 +125,7 @@ public class AccordRepairJob extends AbstractRepairJob
                 checkState(lastRepaired == null || toRepair.start().equals(lastRepaired.end()), "Next range should directly follow previous range");
                 lastRepaired = toRepair;
                 System.out.println("Repairing " + toRepair);
-
+                AccordService.instance().barrier(toRepair, minEpoch.getEpoch(), nanoTime(), true, false);
                 remainingStart = toRepair.end();
             }
             catch (RuntimeException e)
