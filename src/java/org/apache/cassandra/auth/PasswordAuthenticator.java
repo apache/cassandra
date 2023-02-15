@@ -41,6 +41,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.AuthMetricsManager;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Dispatcher;
@@ -73,6 +74,9 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     public static final String USERNAME_KEY = "username";
     public static final String PASSWORD_KEY = "password";
 
+    public static final String EMPTY_USER_USERNAME = "empty_user";
+    public static final String EMPTY_PWD_USERNAME = "empty_password";
+
     static final byte NUL = 0;
     private SelectStatement authenticateStatement;
 
@@ -83,6 +87,11 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         cache = new CredentialsCache(this);
         AuthCacheService.instance.register(cache);
     }
+
+    public boolean authEnabled = requireAuthentication();
+    public String authEnforcementFlag = DatabaseDescriptor.getAuthEnforcementFlag();
+
+    public boolean emitAuthMetricsAndLogs = !authEnforcementFlag.equalsIgnoreCase("none");
 
     // No anonymous access.
     public boolean requireAuthentication()
@@ -113,6 +122,11 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     {
         return cache;
     }
+    public void setAuthEnforcementFlag(String authEnforcementFlag)
+    {
+        this.authEnforcementFlag = authEnforcementFlag;
+        this.emitAuthMetricsAndLogs = !authEnforcementFlag.equalsIgnoreCase("none");
+    }
 
     protected static boolean checkpw(String password, String hash)
     {
@@ -139,32 +153,45 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
 
     private AuthenticatedUser authenticate(String username, String password) throws AuthenticationException
     {
-        String hash = cache.get(username);
-
-        // intentional use of object equality
-        if (hash == NO_SUCH_CREDENTIAL)
+        try
         {
-            // The cache was unable to load credentials via queryHashedPassword, probably because the supplied
-            // rolename doesn't exist. If caching is enabled we will have now cached the sentinel value for that key
-            // so we should invalidate it otherwise the cache will continue to serve that until it expires which
-            // will be a problem if the role is added in the meantime.
-            //
-            // We can't just throw the AuthenticationException directly from queryHashedPassword for a similar reason:
-            // if an existing role is dropped and active updates are enabled for the cache, the refresh in
-            // CacheRefresher::run will log and swallow the exception and keep serving the stale credentials until they
-            // eventually expire.
-            //
-            // So whenever we encounter the sentinal value, here and also in CacheRefresher (if active updates are
-            // enabled), we manually expunge the key from the cache. If caching is not enabled, AuthCache::invalidate
-            // is a safe no-op.
-            cache.invalidateCredentials(username);
-            throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
+            String hash = cache.get(username);
+
+            // intentional use of object equality
+            if (hash == NO_SUCH_CREDENTIAL)
+            {
+                // The cache was unable to load credentials via queryHashedPassword, probably because the supplied
+                // rolename doesn't exist. If caching is enabled we will have now cached the sentinel value for that key
+                // so we should invalidate it otherwise the cache will continue to serve that until it expires which
+                // will be a problem if the role is added in the meantime.
+                //
+                // We can't just throw the AuthenticationException directly from queryHashedPassword for a similar reason:
+                // if an existing role is dropped and active updates are enabled for the cache, the refresh in
+                // CacheRefresher::run will log and swallow the exception and keep serving the stale credentials until they
+                // eventually expire.
+                //
+                // So whenever we encounter the sentinal value, here and also in CacheRefresher (if active updates are
+                // enabled), we manually expunge the key from the cache. If caching is not enabled, AuthCache::invalidate
+                // is a safe no-op.
+                cache.invalidateCredentials(username);
+                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
+            }
+
+            if (!checkpw(password, hash))
+                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
+
+            AuthenticatedUser authUser = new AuthenticatedUser(username);
+            if (emitAuthMetricsAndLogs){
+                AuthMetricsManager.getMetrics(username, authEnabled, authEnforcementFlag).userSuccessMetrics.inc();
+            }
+            return authUser;
+        } catch (AuthenticationException e) {
+            if (emitAuthMetricsAndLogs) {
+                logger.warn("Error: Wrong credentials for username:" + username);
+                AuthMetricsManager.getMetrics(username, authEnabled, authEnforcementFlag).userFailureMetrics.inc();
+            }
+            throw e;
         }
-
-        if (!checkpw(password, hash))
-            throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
-
-        return new AuthenticatedUser(username);
     }
 
     private String queryHashedPassword(String username)
@@ -223,12 +250,24 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     public AuthenticatedUser legacyAuthenticate(Map<String, String> credentials) throws AuthenticationException
     {
         String username = credentials.get(USERNAME_KEY);
-        if (username == null)
-            throw new AuthenticationException(String.format("Required key '%s' is missing", USERNAME_KEY));
-
         String password = credentials.get(PASSWORD_KEY);
-        if (password == null)
+        if (username == null || username.isEmpty())
+        {
+            if (emitAuthMetricsAndLogs) {
+                logger.warn("Error: Empty user provided!");
+                AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.inc();
+            }
+            throw new AuthenticationException(String.format("Required key '%s' is missing", USERNAME_KEY));
+        }
+
+        if (password == null || password.isEmpty())
+        {
+            if (emitAuthMetricsAndLogs) {
+                logger.warn("Error: Empty password with user: " + username);
+                AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.inc();
+            }
             throw new AuthenticationException(String.format("Required key '%s' is missing for provided username %s", PASSWORD_KEY, username));
+        }
 
         return authenticate(username, password);
     }
@@ -302,9 +341,23 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
             }
 
             if (pass == null || pass.length == 0)
+            {
+                if (emitAuthMetricsAndLogs)
+                {
+                    logger.warn("Error: Empty password for user: " + username);
+                    AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.inc();
+                }
                 throw new AuthenticationException("Password must not be null");
+            }
+
             if (user == null || user.length == 0)
+            {
+                if (emitAuthMetricsAndLogs)
+                {
+                    AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.inc();
+                }
                 throw new AuthenticationException("Authentication ID must not be null");
+            }
 
             username = new String(user, StandardCharsets.UTF_8);
             password = new String(pass, StandardCharsets.UTF_8);

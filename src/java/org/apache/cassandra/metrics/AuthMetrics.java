@@ -19,6 +19,7 @@
 package org.apache.cassandra.metrics;
 
 import com.codahale.metrics.Counter;
+
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class AuthMetrics
@@ -27,4 +28,16 @@ public class AuthMetrics
 
     public static final Counter successes = Metrics.counter(factory.createMetricName("Successes"));
     public static final Counter failures = Metrics.counter(factory.createMetricName("Failures"));
+
+    public Counter userSuccessMetrics;
+    public Counter userFailureMetrics;
+    public UserMetricsFactory userMetricsFactory;
+
+    public AuthMetrics(String userName, boolean authEnabled, String authEnforcementFlag) {
+        userMetricsFactory = new UserMetricsFactory(userName, authEnabled, authEnforcementFlag);
+
+        userSuccessMetrics = Metrics.counter(userMetricsFactory.createMetricName("AuthSuccesses"));
+        userFailureMetrics = Metrics.counter(userMetricsFactory.createMetricName("AuthFailures"));
+    }
+
 }

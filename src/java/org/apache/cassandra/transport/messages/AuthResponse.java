@@ -19,9 +19,13 @@ package org.apache.cassandra.transport.messages;
 
 import java.nio.ByteBuffer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.AuthMetrics;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.exceptions.AuthenticationException;
@@ -36,6 +40,7 @@ import org.apache.cassandra.transport.*;
  */
 public class AuthResponse extends Message.Request
 {
+    private static final Logger logger = LoggerFactory.getLogger(AuthResponse.class);
     public static final Message.Codec<AuthResponse> codec = new Message.Codec<AuthResponse>()
     {
         public AuthResponse decode(ByteBuf body, ProtocolVersion version)
@@ -72,6 +77,7 @@ public class AuthResponse extends Message.Request
     @Override
     protected Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
+        boolean emitAuthMetricsAndLogs = !DatabaseDescriptor.getAuthEnforcementFlag().equalsIgnoreCase("none");
         try
         {
             IAuthenticator.SaslNegotiator negotiator = ((ServerConnection) connection).getSaslNegotiator(queryState);
@@ -93,6 +99,12 @@ public class AuthResponse extends Message.Request
         }
         catch (AuthenticationException e)
         {
+            if (emitAuthMetricsAndLogs && queryState.getClientAddress() != null)
+            {
+                logger.warn ("Error: Host info for AuthenticationException");
+                logger.warn("Host address: " + queryState.getClientAddress().getHostAddress());
+                logger.warn("Host name: " + queryState.getClientAddress().getHostName());
+            }
             ClientMetrics.instance.markAuthFailure();
             AuthEvents.instance.notifyAuthFailure(queryState, e);
             AuthMetrics.failures.inc();

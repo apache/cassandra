@@ -664,6 +664,8 @@ public class Config
 
     public String bad_query_ignore_keyspaces = "system.*|.*staging.*|.*test.*|health|pingless";
 
+    public String auth_enforcement_flag = "none";
+
     public Boolean auto_repair_enabled = true;
 
     // This should be false for production, this is only set to true for Cassandra dtest so auto repair won't be triggerd

@@ -4797,6 +4797,10 @@ public class DatabaseDescriptor
         return conf.bad_query_ignore_keyspaces;
     }
 
+    public static String getAuthEnforcementFlag() {
+        return conf.auth_enforcement_flag;
+    }
+
     public static Boolean isAutoRepairEnabled()
     {
         return conf.auto_repair_enabled;

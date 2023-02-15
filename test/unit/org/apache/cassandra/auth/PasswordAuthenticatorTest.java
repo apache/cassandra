@@ -37,6 +37,8 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.AuthMetricsManager;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 
@@ -47,6 +49,7 @@ import static org.apache.cassandra.auth.PasswordAuthenticator.SaslNegotiator;
 import static org.apache.cassandra.auth.PasswordAuthenticator.checkpw;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mindrot.jbcrypt.BCrypt.gensalt;
 import static org.mindrot.jbcrypt.BCrypt.hashpw;
@@ -56,6 +59,8 @@ import static org.apache.cassandra.auth.CassandraRoleManager.GENSALT_LOG2_ROUNDS
 public class PasswordAuthenticatorTest extends CQLTester
 {
     private final static PasswordAuthenticator authenticator = new PasswordAuthenticator();
+    private static final boolean authEnabled = DatabaseDescriptor.getAuthenticator().requireAuthentication();
+    private static final String authEnforcementFlag = DatabaseDescriptor.getAuthEnforcementFlag();
 
     @BeforeClass
     public static void setupClass() throws Exception
@@ -141,10 +146,41 @@ public class PasswordAuthenticatorTest extends CQLTester
         testDecodeIllegalUserAndPwd("", "pwd");
     }
 
+    @Test
+    public void testEmptyUsername01()
+    {
+        AuthenticationException authException = null;
+        long empty_pwd_failure_count_old = AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.getCount();
+        try {
+            testDecodeIllegalUserAndPwd("", "pwd");
+        } catch (AuthenticationException e) {
+            authException = e;
+            long empty_pwd_failure_count_new = AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.getCount();
+            assertEquals(empty_pwd_failure_count_new - empty_pwd_failure_count_old,1);
+        }
+        assertNotNull(authException);
+    }
+
     @Test(expected = AuthenticationException.class)
     public void testEmptyPassword()
     {
         testDecodeIllegalUserAndPwd("user", "");
+    }
+
+    @Test
+    public void testEmptyPassword01()
+    {
+        AuthenticationException authException = null;
+        long empty_pwd_failure_count_old = AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.getCount();
+        try {
+            testDecodeIllegalUserAndPwd("user", "");
+        } catch (AuthenticationException e) {
+            authException = e;
+            long empty_pwd_failure_count_new = AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.getCount();
+            assertEquals(empty_pwd_failure_count_new - empty_pwd_failure_count_old,1);
+        }
+        assertNotNull(authException);
+
     }
 
     @Test(expected = AuthenticationException.class)
