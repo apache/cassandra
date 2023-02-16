@@ -588,4 +588,23 @@ public final class Generators
             return qt.generate(r);
         };
     }
+
+    public static Gen<TimeUUID> timeUUID()
+    {
+        ZonedDateTime now = ZonedDateTime.of(2020, 8, 20,
+                                             0, 0, 0, 0, ZoneOffset.UTC);
+        ZonedDateTime startOfTime = now.minusYears(50);
+        ZonedDateTime endOfDays = now.plusYears(50);
+        Constraint micros = Constraint.between(toMicros(startOfTime), toMicros(endOfDays));
+        return rs -> {
+            long nowMicro = rs.next(micros);
+            long lsb = rs.next(Constraint.none());
+            return new TimeUUID(TimeUUID.unixMicrosToRawTimestamp(nowMicro), lsb);
+        };
+    }
+
+    private static long toMicros(ZonedDateTime zdt)
+    {
+        return zdt.toInstant().toEpochMilli() * 1000 + zdt.getNano() / 1000;
+    }
 }

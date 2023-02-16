@@ -335,6 +335,14 @@ public class DatabaseDescriptor
         clientInitialization(failIfDaemonOrTool, Config::new);
     }
 
+    // For simulator tests
+    public static void clientWithDaemonConfig()
+    {
+        clientInitialization(true, DatabaseDescriptor::loadConfig);
+        applyAll();
+        AuthConfig.applyAuth();
+    }
+
     /**
      * Initializes this class as a client, which means that just an empty configuration will
      * be used.
@@ -645,6 +653,11 @@ public class DatabaseDescriptor
         if (commitLogWriteDiskAccessMode != conf.commitlog_disk_access_mode)
             logger.info("commitlog_disk_access_mode resolved to: {}", commitLogWriteDiskAccessMode);
 
+        if (conf.accord_journal_directory == null)
+        {
+            conf.accord_journal_directory = storagedirFor("accord_journal");
+        }
+
         if (conf.hints_directory == null)
         {
             conf.hints_directory = storagedirFor("hints");
@@ -720,6 +733,8 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("local_system_data_file_directory must not be the same as any data_file_directories", false);
             if (datadir.equals(conf.commitlog_directory))
                 throw new ConfigurationException("commitlog_directory must not be the same as any data_file_directories", false);
+            if (datadir.equals(conf.accord_journal_directory))
+                throw new ConfigurationException("accord_journal_directory must not be the same as any data_file_directories", false);
             if (datadir.equals(conf.hints_directory))
                 throw new ConfigurationException("hints_directory must not be the same as any data_file_directories", false);
             if (datadir.equals(conf.saved_caches_directory))
@@ -735,6 +750,8 @@ public class DatabaseDescriptor
         {
             if (conf.local_system_data_file_directory.equals(conf.commitlog_directory))
                 throw new ConfigurationException("local_system_data_file_directory must not be the same as the commitlog_directory", false);
+            if (conf.local_system_data_file_directory.equals(conf.accord_journal_directory))
+                throw new ConfigurationException("local_system_data_file_directory must not be the same as the accord_journal_directory", false);
             if (conf.local_system_data_file_directory.equals(conf.saved_caches_directory))
                 throw new ConfigurationException("local_system_data_file_directory must not be the same as the saved_caches_directory", false);
             if (conf.local_system_data_file_directory.equals(conf.hints_directory))
@@ -747,10 +764,18 @@ public class DatabaseDescriptor
                             FBUtilities.prettyPrintMemory(freeBytes));
         }
 
-        if (conf.commitlog_directory.equals(conf.saved_caches_directory))
-            throw new ConfigurationException("saved_caches_directory must not be the same as the commitlog_directory", false);
+        if (conf.commitlog_directory.equals(conf.accord_journal_directory))
+            throw new ConfigurationException("accord_journal_directory must not be the same as the commitlog_directory", false);
         if (conf.commitlog_directory.equals(conf.hints_directory))
             throw new ConfigurationException("hints_directory must not be the same as the commitlog_directory", false);
+        if (conf.commitlog_directory.equals(conf.saved_caches_directory))
+            throw new ConfigurationException("saved_caches_directory must not be the same as the commitlog_directory", false);
+
+        if (conf.accord_journal_directory.equals(conf.hints_directory))
+            throw new ConfigurationException("hints_directory must not be the same as the accord_journal_directory", false);
+        if (conf.accord_journal_directory.equals(conf.saved_caches_directory))
+            throw new ConfigurationException("saved_caches_directory must not be the same as the accord_journal_directory", false);
+
         if (conf.hints_directory.equals(conf.saved_caches_directory))
             throw new ConfigurationException("saved_caches_directory must not be the same as the hints_directory", false);
 
@@ -1928,6 +1953,10 @@ public class DatabaseDescriptor
                 throw new ConfigurationException("commitlog_directory must be specified", false);
             FileUtils.createDirectory(conf.commitlog_directory);
 
+            if (conf.accord_journal_directory == null)
+                throw new ConfigurationException("accord_journal_directory must be specified", false);
+            FileUtils.createDirectory(conf.accord_journal_directory);
+
             if (conf.hints_directory == null)
                 throw new ConfigurationException("hints_directory must be specified", false);
             FileUtils.createDirectory(conf.hints_directory);
@@ -2682,6 +2711,16 @@ public class DatabaseDescriptor
     public static void setCommitLogCompression(ParameterizedClass compressor)
     {
         conf.commitlog_compression = compressor;
+    }
+
+    public static String getAccordJournalDirectory()
+    {
+        return conf.accord_journal_directory;
+    }
+
+    public static void setAccordJournalDirectory(String path)
+    {
+        conf.accord_journal_directory = path;
     }
 
     public static Config.FlushCompression getFlushCompression()
