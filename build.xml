@@ -170,6 +170,9 @@
         </sequential>
     </macrodef>
 
+    <condition property="java.version.8">
+      <equals arg1="${ant.java.version}" arg2="1.8"/>
+    </condition>
     <fail message="Unsupported JDK version used: ${ant.java.version}">
         <condition><not><contains string="${java.supported}" substring="${ant.java.version}"/></not></condition>
     </fail>
@@ -1732,13 +1735,13 @@
       </java>
   </target>
 
-  <target name="_maybe_update_idea_to_java11" if="java.version.11">
+  <target name="_maybe_update_idea_to_java11" unless="java.version.8">
     <replace file="${eclipse.project.name}.iml" token="JDK_1_8" value="JDK_11"/>
     <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_11"/>
     <replace file=".idea/misc.xml" token="1.8" value="11"/>
     <replaceregexp file=".idea/workspace.xml"
-                   match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)&quot;"
-                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java11-jvmargs}&quot;"
+                   match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)"
+                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java11-jvmargs}"
                    byline="true"/>
 
       <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
