@@ -135,7 +135,7 @@ public class FBUtilities
 
     private static volatile String previousReleaseVersionString;
 
-    private static int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
+    private static final int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
 
     private static volatile Supplier<SystemInfo> systemInfoSupplier = Suppliers.memoize(SystemInfo::new);
 
@@ -1188,18 +1188,24 @@ public class FBUtilities
             {
                 process.destroyForcibly();
                 logger.error("Command {} did not complete in {}, killed forcibly:\noutput:\n{}\n(truncated {} bytes)\nerror:\n{}\n(truncated {} bytes)",
-                            Arrays.toString(cmd), timeout, out.asString(), outOverflow, err.asString(), errOverflow);
+                             Arrays.toString(cmd), timeout, out.asString(), outOverflow, err.asString(), errOverflow);
                 throw new TimeoutException("Command " + Arrays.toString(cmd) + " did not complete in " + timeout);
             }
             int r = process.exitValue();
             if (r != 0)
             {
                 logger.error("Command {} failed with exit code {}:\noutput:\n{}\n(truncated {} bytes)\nerror:\n{}\n(truncated {} bytes)",
-                            Arrays.toString(cmd), r, out.asString(), outOverflow, err.asString(), errOverflow);
+                             Arrays.toString(cmd), r, out.asString(), outOverflow, err.asString(), errOverflow);
                 throw new IOException("Command " + Arrays.toString(cmd) + " failed with exit code " + r);
             }
             return out.asString();
         }
+    }
+
+    public static void updateChecksumShort(Checksum checksum, short v)
+    {
+        checksum.update((v >>> 8) & 0xFF);
+        checksum.update((v >>> 0) & 0xFF);
     }
 
     public static void updateChecksumInt(Checksum checksum, int v)
@@ -1208,6 +1214,12 @@ public class FBUtilities
         checksum.update((v >>> 16) & 0xFF);
         checksum.update((v >>> 8) & 0xFF);
         checksum.update((v >>> 0) & 0xFF);
+    }
+
+    public static void updateChecksumLong(Checksum checksum, long v)
+    {
+        updateChecksumInt(checksum, (int) (v >>> 32));
+        updateChecksumInt(checksum, (int) (v & 0xFFFFFFFFL));
     }
 
     /**
@@ -1454,5 +1466,22 @@ public class FBUtilities
     public static SystemInfo getSystemInfo()
     {
         return systemInfoSupplier.get();
+    }
+
+    public enum Order { LT, EQ, GT }
+    public static <T> Order compare(T a, T b, Comparator<T> comparator)
+    {
+        int rc = comparator.compare(a, b);
+        if (rc < 0) return Order.LT;
+        if (rc == 0) return Order.EQ;
+        return Order.GT;
+    }
+
+    public static <A, B> Order compare(A a, B b, AsymmetricOrdering<A, B> comparator)
+    {
+        int rc = comparator.compareAsymmetric(a, b);
+        if (rc < 0) return Order.LT;
+        if (rc == 0) return Order.EQ;
+        return Order.GT;
     }
 }

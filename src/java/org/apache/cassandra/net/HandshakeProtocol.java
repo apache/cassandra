@@ -35,7 +35,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.Message.validateLegacyProtocolMagic;
-import static org.apache.cassandra.net.Crc.*;
+import static org.apache.cassandra.utils.Crc.*;
 import static org.apache.cassandra.net.OutboundConnectionSettings.*;
 
 /**

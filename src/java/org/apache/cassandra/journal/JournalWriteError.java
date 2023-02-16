@@ -15,20 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.cassandra.journal;
 
-package org.apache.cassandra.exceptions;
+import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 
-import java.io.IOException;
-
-public class ChecksumMismatchException extends IOException
+public class JournalWriteError extends FSWriteError
 {
-    public ChecksumMismatchException()
+    public final Descriptor descriptor;
+
+    JournalWriteError(Descriptor descriptor, File file, Throwable throwable)
     {
-        super();
+        super(throwable, file);
+        this.descriptor = descriptor;
     }
 
-    public ChecksumMismatchException(String s)
+    JournalWriteError(Descriptor descriptor, Component component, Throwable throwable)
     {
-        super(s);
+        super(throwable, descriptor.fileFor(component));
+        this.descriptor = descriptor;
     }
 }
