@@ -131,7 +131,7 @@ public class FBUtilities
 
     private static volatile String previousReleaseVersionString;
 
-    private static int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
+    private static final int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
 
     public static void setAvailableProcessors(int value)
     {
@@ -1086,12 +1086,24 @@ public class FBUtilities
         }
     }
 
+    public static void updateChecksumShort(Checksum checksum, short v)
+    {
+        checksum.update((v >>> 8) & 0xFF);
+        checksum.update((v >>> 0) & 0xFF);
+    }
+
     public static void updateChecksumInt(Checksum checksum, int v)
     {
         checksum.update((v >>> 24) & 0xFF);
         checksum.update((v >>> 16) & 0xFF);
         checksum.update((v >>> 8) & 0xFF);
         checksum.update((v >>> 0) & 0xFF);
+    }
+
+    public static void updateChecksumLong(Checksum checksum, long v)
+    {
+        updateChecksumInt(checksum, (int) (v >>> 32));
+        updateChecksumInt(checksum, (int) (v & 0xFFFFFFFFL));
     }
 
     /**
@@ -1325,5 +1337,22 @@ public class FBUtilities
         {
             logger.warn("Closing {} had an unexpected exception", o, e);
         }
+    }
+
+    public enum Order { LT, EQ, GT }
+    public static <T> Order compare(T a, T b, Comparator<T> comparator)
+    {
+        int rc = comparator.compare(a, b);
+        if (rc < 0) return Order.LT;
+        if (rc == 0) return Order.EQ;
+        return Order.GT;
+    }
+
+    public static <A, B> Order compare(A a, B b, AsymmetricOrdering<A, B> comparator)
+    {
+        int rc = comparator.compareAsymmetric(a, b);
+        if (rc < 0) return Order.LT;
+        if (rc == 0) return Order.EQ;
+        return Order.GT;
     }
 }

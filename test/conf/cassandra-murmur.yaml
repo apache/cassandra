@@ -7,6 +7,7 @@ memtable_allocation_type: heap_buffers
 commitlog_sync: batch
 commitlog_segment_size: 5MiB
 commitlog_directory: build/test/cassandra/commitlog
+accord_journal_directory: build/test/cassandra/accord_journal
 cdc_raw_directory: build/test/cassandra/cdc_raw
 cdc_enabled: false
 hints_directory: build/test/cassandra/hints

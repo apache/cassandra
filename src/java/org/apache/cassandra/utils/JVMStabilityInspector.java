@@ -30,9 +30,6 @@ import java.util.function.Consumer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
-import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.tracing.Tracing;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,10 +37,14 @@ import net.nicoulaj.compilecommand.annotations.Exclude;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.journal.Params.FailurePolicy;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PRINT_HEAP_HISTOGRAM_ON_OUT_OF_MEMORY_ERROR;
@@ -94,6 +95,11 @@ public final class JVMStabilityInspector
         inspectThrowable(t, JVMStabilityInspector::inspectCommitLogError);
     }
 
+    public static void inspectJournalThrowable(Throwable t, String journalName, FailurePolicy failurePolicy)
+    {
+        inspectThrowable(t, th -> inspectJournalError(th, journalName, failurePolicy));
+    }
+
     private static void inspectDiskError(Throwable t)
     {
         if (t instanceof CorruptSSTableException)
@@ -136,7 +142,14 @@ public final class JVMStabilityInspector
         }
 
         // Anything other than an OOM, we should try and heap dump to capture what's going on if configured to do so
-        HeapUtils.maybeCreateHeapDump();
+        try
+        {
+            HeapUtils.maybeCreateHeapDump();
+        }
+        catch (Throwable sub)
+        {
+            t.addSuppressed(sub);
+        }
 
         if (t instanceof InterruptedException)
             throw new UncheckedInterruptedException((InterruptedException) t);
@@ -203,6 +216,19 @@ public final class JVMStabilityInspector
         }
         else if (DatabaseDescriptor.getCommitFailurePolicy() == Config.CommitFailurePolicy.die)
             killer.killCurrentJVM(t);
+    }
+
+    private static void inspectJournalError(Throwable t, String journalName, FailurePolicy failurePolicy)
+    {
+        if (!StorageService.instance.isDaemonSetupCompleted())
+        {
+            logger.error("Exiting due to error while processing journal {} during initialization.", journalName, t);
+            killer.killCurrentJVM(t, true);
+        }
+        else if (failurePolicy == FailurePolicy.DIE)
+        {
+            killer.killCurrentJVM(t);
+        }
     }
 
     public static void killCurrentJVM(Throwable t, boolean quiet)
