@@ -86,13 +86,14 @@ public class TransactionStatement implements CQLStatement
     private static final Logger logger = LoggerFactory.getLogger(TransactionStatement.class);
 
     public static final String DUPLICATE_TUPLE_NAME_MESSAGE = "The name '%s' has already been used by a LET assignment.";
-    public static final String INCOMPLETE_PRIMARY_KEY_LET_MESSAGE = "SELECT in LET assignment without LIMIT 1 must specify all primary key elements; CQL %s";
-    public static final String INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE = "Normal SELECT without LIMIT 1 must specify all primary key elements; CQL %s";
+    public static final String INCOMPLETE_PRIMARY_KEY_LET_MESSAGE = "SELECT in LET assignment must specify either all primary key elements or all partition key elements and LIMIT 1. In both cases partition key elements must be always specified with equality operators; CQL %s";
+    public static final String INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE = "Normal SELECT must specify either all primary key elements or all partition key elements and LIMIT 1. In both cases partition key elements must be always specified with equality operators; CQL %s";
     public static final String NO_CONDITIONS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify their own conditions.";
     public static final String NO_TIMESTAMPS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify custom timestamps.";
     public static final String EMPTY_TRANSACTION_MESSAGE = "Transaction contains no reads or writes";
     public static final String SELECT_REFS_NEED_COLUMN_MESSAGE = "SELECT references must specify a column.";
     public static final String TRANSACTIONS_DISABLED_MESSAGE = "Accord transactions are disabled. (See accord_transactions_enabled in cassandra.yaml)";
+    public static final String ILLEGAL_RANGE_QUERY_MESSAGE = "Range queries are not allowed for reads within a transaction";
 
     static class NamedSelect
     {
@@ -167,10 +168,11 @@ public class TransactionStatement implements CQLStatement
             statement.validate(state);
     }
 
-    TxnNamedRead createNamedRead(NamedSelect namedSelect, QueryOptions options)
+    TxnNamedRead createNamedRead(NamedSelect namedSelect, QueryOptions options, ClientState state)
     {
         SelectStatement select = namedSelect.select;
         ReadQuery readQuery = select.getQuery(options, 0);
+        checkTrue(readQuery instanceof  SinglePartitionReadQuery.Group, ILLEGAL_RANGE_QUERY_MESSAGE, select.asCQL(options, state));
 
         // We reject reads from both LET and SELECT that do not specify a single row.
         @SuppressWarnings("unchecked")
@@ -182,10 +184,11 @@ public class TransactionStatement implements CQLStatement
         return new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries));
     }
 
-    List<TxnNamedRead> createNamedReads(NamedSelect namedSelect, QueryOptions options)
+    List<TxnNamedRead> createNamedReads(NamedSelect namedSelect, QueryOptions options, ClientState state)
     {
         SelectStatement select = namedSelect.select;
         ReadQuery readQuery = select.getQuery(options, 0);
+        checkTrue(readQuery instanceof  SinglePartitionReadQuery.Group, ILLEGAL_RANGE_QUERY_MESSAGE, select.asCQL(options, state));
 
         // We reject reads from both LET and SELECT that do not specify a single row.
         @SuppressWarnings("unchecked")
@@ -200,20 +203,20 @@ public class TransactionStatement implements CQLStatement
         return list;
     }
 
-    private List<TxnNamedRead> createNamedReads(QueryOptions options, Consumer<Key> keyConsumer)
+    private List<TxnNamedRead> createNamedReads(QueryOptions options, ClientState state, Consumer<Key> keyConsumer)
     {
         List<TxnNamedRead> reads = new ArrayList<>(assignments.size() + 1);
 
         for (NamedSelect select : assignments)
         {
-            TxnNamedRead read = createNamedRead(select, options);
+            TxnNamedRead read = createNamedRead(select, options, state);
             keyConsumer.accept(read.key());
             reads.add(read);
         }
 
         if (returningSelect != null)
         {
-            for (TxnNamedRead read : createNamedReads(returningSelect, options))
+            for (TxnNamedRead read : createNamedReads(returningSelect, options, state))
             {
                 keyConsumer.accept(read.key());
                 reads.add(read);
@@ -222,7 +225,7 @@ public class TransactionStatement implements CQLStatement
 
         for (NamedSelect select : autoReads.values())
             // don't need keyConsumer as the keys are known to exist due to Modification
-            reads.add(createNamedRead(select, options));
+            reads.add(createNamedRead(select, options, state));
 
         return reads;
     }
@@ -284,7 +287,7 @@ public class TransactionStatement implements CQLStatement
         {
             // TODO: Test case around this...
             Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
-            List<TxnNamedRead> reads = createNamedReads(options, keySet::add);
+            List<TxnNamedRead> reads = createNamedReads(options, state, keySet::add);
             Keys txnKeys = toKeys(keySet);
             TxnRead read = new TxnRead(reads, txnKeys);
             return new Txn.InMemory(txnKeys, read, TxnQuery.ALL);
@@ -292,7 +295,7 @@ public class TransactionStatement implements CQLStatement
         else
         {
             TxnUpdate update = createUpdate(state, options, keySet::add);
-            List<TxnNamedRead> reads = createNamedReads(options, keySet::add);
+            List<TxnNamedRead> reads = createNamedReads(options, state, keySet::add);
             Keys txnKeys = toKeys(keySet);
             TxnRead read = new TxnRead(reads, txnKeys);
             return new Txn.InMemory(txnKeys, read, TxnQuery.ALL, update);
@@ -301,7 +304,7 @@ public class TransactionStatement implements CQLStatement
 
     private static void checkAtMostOneRowSpecified(ClientState clientState, @Nullable QueryOptions options, SelectStatement select, String failureMessage)
     {
-        if (select.getRestrictions().hasAllPKColumnsRestrictedByEqualities())
+        if (select.getRestrictions().hasAllPrimaryKeyColumnsRestrictedByEqualities())
             return;
 
         if (options == null)
@@ -316,7 +319,7 @@ public class TransactionStatement implements CQLStatement
 
         int limit = select.getLimit(options);
         QueryOptions finalOptions = options; // javac thinks this is mutable so requires a copy
-        checkTrue(limit == 1, failureMessage, LazyToString.lazy(() -> select.asCQL(finalOptions, clientState)));
+        checkTrue(limit == 1 && select.getRestrictions().hasAllPartitionKeyColumnsRestrictedByEqualities(), failureMessage, LazyToString.lazy(() -> select.asCQL(finalOptions, clientState)));
     }
 
     @Override
@@ -336,7 +339,11 @@ public class TransactionStatement implements CQLStatement
 
             if (returningSelect != null)
             {
-                SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) returningSelect.select.getQuery(options, 0);
+                ReadQuery readQuery = returningSelect.select.getQuery(options, 0);
+                checkTrue(readQuery instanceof  SinglePartitionReadQuery.Group, ILLEGAL_RANGE_QUERY_MESSAGE, returningSelect.select.asCQL(options, state.getClientState()));
+
+                @SuppressWarnings("unchecked")
+                SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
                 Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
                 ResultSetBuilder result = new ResultSetBuilder(returningSelect.select.getResultMetadata(), selectors, null);
                 if (selectQuery.queries.size() == 1)
