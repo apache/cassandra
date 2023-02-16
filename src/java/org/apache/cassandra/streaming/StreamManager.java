@@ -31,6 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.Weigher;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
@@ -44,6 +45,7 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.management.StreamEventJMXNotifier;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
 
 /**
@@ -252,6 +254,13 @@ public class StreamManager implements StreamManagerMBean
         }
     };
 
+    protected void readdStreamingState(StreamingState state)
+    {
+        if (!DatabaseDescriptor.getStreamingStatsEnabled())
+            return;
+        states.put(state.id(), state);
+    }
+
     public StreamManager()
     {
         DurationSpec.LongNanosecondsBound duration = DatabaseDescriptor.getStreamingStateExpires();
@@ -260,8 +269,18 @@ public class StreamManager implements StreamManagerMBean
         logger.info("Storing streaming state for {} or for {} elements", duration, numElements);
         states = CacheBuilder.newBuilder()
                              .expireAfterWrite(duration.quantity(), duration.unit())
-                             .maximumSize(numElements)
+                             .maximumWeight(10 * 1024 *1024)
+                             .weigher(new streamingStateWeigher())
                              .build();
+    }
+
+    private class streamingStateWeigher implements Weigher<TimeUUID,StreamingState>
+    {
+        public int weigh(TimeUUID key, StreamingState val) {
+            long weight = ObjectSizes.measureDeep(val);
+            int finalWeight = Math.toIntExact(weight);
+            return finalWeight;
+        }
     }
 
     public void start()
