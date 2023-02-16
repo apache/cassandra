@@ -39,7 +39,7 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
 import static org.apache.cassandra.net.MessagingService.VERSION_30;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.Message.validateLegacyProtocolMagic;
-import static org.apache.cassandra.net.Crc.*;
+import static org.apache.cassandra.utils.Crc.*;
 import static org.apache.cassandra.net.OutboundConnectionSettings.*;
 
 /**
