@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.net;
+package org.apache.cassandra.concurrent;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -37,12 +37,12 @@ import java.util.function.Consumer;
  * In addition to that, provides a {@link #relaxedPeekLastAndOffer(Object)} method that we use to avoid a CAS when
  * putting message handlers onto the wait queue.
  */
-class ManyToOneConcurrentLinkedQueue<E> extends ManyToOneConcurrentLinkedQueueHead<E> implements Queue<E>
+public class ManyToOneConcurrentLinkedQueue<E> extends ManyToOneConcurrentLinkedQueueHead<E> implements Queue<E>
 {
     @SuppressWarnings("unused") // pad two cache lines after the head to prevent false sharing
     protected long p31, p32, p33, p34, p35, p36, p37, p38, p39, p40, p41, p42, p43, p44, p45;
 
-    ManyToOneConcurrentLinkedQueue()
+    public ManyToOneConcurrentLinkedQueue()
     {
         head = tail = new Node<>(null);
     }
@@ -63,7 +63,7 @@ class ManyToOneConcurrentLinkedQueue<E> extends ManyToOneConcurrentLinkedQueueHe
      *  - {@code false} result indicates that the queue <em>MIGHT BE</em> non-empty - the value of {@code head} might
      *    not yet have been made externally visible by the consumer thread.
      */
-    boolean relaxedIsEmpty()
+    public boolean relaxedIsEmpty()
     {
         return null == head.next;
     }
@@ -156,7 +156,7 @@ class ManyToOneConcurrentLinkedQueue<E> extends ManyToOneConcurrentLinkedQueueHe
      * Yields no performance benefit over invoking {@link #poll()} manually - there just isn't
      * anything to meaningfully amortise on the consumer side of this queue.
      */
-    void drain(Consumer<E> consumer)
+    public void drain(Consumer<E> consumer)
     {
         E item;
         while ((item = poll()) != null)
@@ -181,7 +181,7 @@ class ManyToOneConcurrentLinkedQueue<E> extends ManyToOneConcurrentLinkedQueueHe
      *
      * @return previously last tail item in the queue, potentially stale
      */
-    E relaxedPeekLastAndOffer(E e)
+    public E relaxedPeekLastAndOffer(E e)
     {
         return internalOffer(e);
     }

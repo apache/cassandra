@@ -33,6 +33,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.EventLoop;
+import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameDecoder.CorruptFrame;
 import org.apache.cassandra.net.FrameDecoder.Frame;
@@ -43,7 +44,7 @@ import org.apache.cassandra.net.ResourceLimits.Limit;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static org.apache.cassandra.net.Crc.InvalidCrc;
+import static org.apache.cassandra.utils.Crc.InvalidCrc;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 /**

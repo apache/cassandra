@@ -27,6 +27,7 @@ import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

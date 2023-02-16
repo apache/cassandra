@@ -40,6 +40,7 @@ import org.apache.cassandra.net.ResourceLimits.Limit;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 
