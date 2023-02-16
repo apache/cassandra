@@ -26,7 +26,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.test.metrics.StreamingMetricsTestUtils.testMetricsWithStreamingFromTwoNodes;
 
-public class StreamingMetricsRepairTest extends TestBaseImpl
+public class StreamingMetricsFromTwoNodesRepairTest extends TestBaseImpl
 {
     @Test
     public void testMetricsWithRepairAndStreamingFromTwoNodes() throws Exception
