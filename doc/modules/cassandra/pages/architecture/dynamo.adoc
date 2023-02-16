@@ -340,7 +340,7 @@ The following consistency levels are available:
   A majority of the replicas in each datacenter must respond.
 `LOCAL_ONE`::
   Only a single replica must respond. In a multi-datacenter cluster,
-  this also gaurantees that read requests are not sent to replicas in a
+  this also guarantees that read requests are not sent to replicas in a
   remote datacenter.
 `ANY`::
   A single replica may respond, or the coordinator may store a hint. If
