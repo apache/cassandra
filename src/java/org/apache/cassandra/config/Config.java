@@ -377,6 +377,9 @@ public class Config
     public DataStorageSpec.IntMebibytesBound commitlog_total_space;
     public CommitLogSync commitlog_sync;
 
+    // Accord Journal
+    public String accord_journal_directory;
+
     /**
      * @deprecated since 4.0 This value was near useless, and we're not using it anymore
      */

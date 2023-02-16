@@ -24,7 +24,7 @@ import java.util.zip.CRC32;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 
-import static org.apache.cassandra.net.Crc.*;
+import static org.apache.cassandra.utils.Crc.*;
 
 /**
  * Please see {@link FrameDecoderCrc} for description of the framing produced by this encoder.

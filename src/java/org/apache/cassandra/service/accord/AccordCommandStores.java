@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.accord;
 
 import accord.api.Agent;
@@ -23,19 +22,92 @@ import accord.api.DataStore;
 import accord.api.ProgressLog;
 import accord.local.CommandStores;
 import accord.local.NodeTimeService;
+import accord.local.PreLoadContext;
+import accord.local.SafeCommandStore;
 import accord.local.ShardDistributor;
+import accord.primitives.Routables;
 import accord.topology.Topology;
+import accord.utils.MapReduceConsume;
 import accord.utils.RandomSource;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.journal.AsyncWriteCallback;
 
 public class AccordCommandStores extends CommandStores<AccordCommandStore>
 {
-    private long cacheSize;
+    private final AccordJournal journal;
+
     AccordCommandStores(NodeTimeService time, Agent agent, DataStore store, RandomSource random,
-                        ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory)
+                        ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory, AccordJournal journal)
     {
         super(time, agent, store, random, shardDistributor, progressLogFactory, AccordCommandStore::new);
+        this.journal = journal;
         setCacheSize(maxCacheSize());
     }
+
+    static Factory factory(AccordJournal journal)
+    {
+        return (time, agent, store, random, shardDistributor, progressLogFactory) ->
+               new AccordCommandStores(time, agent, store, random, shardDistributor, progressLogFactory, journal);
+    }
+
+    @Override
+    public synchronized void shutdown()
+    {
+        super.shutdown();
+        journal.shutdown();
+        //TODO shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
+    }
+
+    @Override
+    protected <O> void mapReduceConsume(
+        PreLoadContext context,
+        Routables<?, ?> keys,
+        long minEpoch,
+        long maxEpoch,
+        MapReduceConsume<? super SafeCommandStore, O> mapReduceConsume)
+    {
+        // append PreAccept, Accept, Commit, and Apply messages durably to AccordJournal before processing
+        if (journal.mustMakeDurable(context))
+            mapReduceConsumeDurable(context, keys, minEpoch, maxEpoch, mapReduceConsume);
+        else
+            super.mapReduceConsume(context, keys, minEpoch, maxEpoch, mapReduceConsume);
+    }
+
+    private <O> void mapReduceConsumeDurable(
+        PreLoadContext context,
+        Routables<?, ?> keys,
+        long minEpoch,
+        long maxEpoch,
+        MapReduceConsume<? super SafeCommandStore, O> mapReduceConsume)
+    {
+        journal.append(context, ImmediateExecutor.INSTANCE, new AsyncWriteCallback()
+        {
+            @Override
+            public void run()
+            {
+                // TODO (performance, expected): do not retain references to messages beyond a certain total
+                //      cache threshold; in case of flush lagging behind, read the messages from journal and
+                //      deserialize instead before processing, to prevent memory pressure buildup from messages
+                //      pending flush to disk.
+                AccordCommandStores.super.mapReduceConsume(context, keys, minEpoch, maxEpoch, mapReduceConsume);
+            }
+
+            @Override
+            public void onFailure(Throwable error)
+            {
+                mapReduceConsume.accept(null, error);
+            }
+        });
+    }
+
+    @Override
+    public synchronized void updateTopology(Topology newTopology)
+    {
+        super.updateTopology(newTopology);
+        refreshCacheSizes();
+    }
+
+    private long cacheSize;
 
     synchronized void setCacheSize(long bytes)
     {
@@ -55,19 +127,5 @@ public class AccordCommandStores extends CommandStores<AccordCommandStore>
     private static long maxCacheSize()
     {
         return 5 << 20; // TODO (required): make configurable
-    }
-
-    @Override
-    public synchronized void updateTopology(Topology newTopology)
-    {
-        super.updateTopology(newTopology);
-        refreshCacheSizes();
-    }
-
-    @Override
-    public synchronized void shutdown()
-    {
-        super.shutdown();
-        //TODO shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
     }
 }

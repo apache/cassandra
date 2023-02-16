@@ -218,6 +218,11 @@ public class NoSpamLogger
         minIntervalNanos = timeUnit.toNanos(minInterval);
     }
 
+    public static NoSpamLogger wrap(Logger wrapped, long minInterval, TimeUnit timeUnit)
+    {
+        return new NoSpamLogger(wrapped, minInterval, timeUnit);
+    }
+
     public boolean info(long nowNanos, String s, Object... objects)
     {
         return NoSpamLogger.this.log( Level.INFO, s, nowNanos, objects);
