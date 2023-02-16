@@ -53,6 +53,7 @@ public class TransactionStatementTest
     private static final TableId TABLE2_ID = TableId.fromString("00000000-0000-0000-0000-000000000002");
     private static final TableId TABLE3_ID = TableId.fromString("00000000-0000-0000-0000-000000000003");
     private static final TableId TABLE4_ID = TableId.fromString("00000000-0000-0000-0000-000000000004");
+    private static final TableId TABLE5_ID = TableId.fromString("00000000-0000-0000-0000-000000000005");
 
     @BeforeClass
     public static void beforeClass() throws Exception
@@ -62,7 +63,8 @@ public class TransactionStatementTest
                                     parse("CREATE TABLE tbl1 (k int, c int, v int, primary key (k, c))", "ks").id(TABLE1_ID),
                                     parse("CREATE TABLE tbl2 (k int, c int, v int, primary key (k, c))", "ks").id(TABLE2_ID),
                                     parse("CREATE TABLE tbl3 (k int PRIMARY KEY, \"with spaces\" int, \"with\"\"quote\" int, \"MiXeD_CaSe\" int)", "ks").id(TABLE3_ID),
-                                    parse("CREATE TABLE tbl4 (k int PRIMARY KEY, int_list list<int>)", "ks").id(TABLE4_ID));
+                                    parse("CREATE TABLE tbl4 (k int PRIMARY KEY, int_list list<int>)", "ks").id(TABLE4_ID),
+                                    parse("CREATE TABLE tbl5 (k int PRIMARY KEY, v int)", "ks").id(TABLE5_ID));
     }
 
     @Test
@@ -330,6 +332,30 @@ public class TransactionStatementTest
                   .hasMessageContaining(String.format(CANNOT_SET_KEY_WITH_REFERENCE_MESSAGE, "row0.k", "k"));
     }
 
+    @Test
+    public void shouldRejectNormalSelectWithIncompletePartitionKey()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  SELECT k, v FROM ks.tbl5 LIMIT 1;\n" +
+                       "COMMIT TRANSACTION;\n";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "SELECT v FROM ks.tbl5 LIMIT 1"));
+    }
+
+    @Test
+    public void shouldRejectLetSelectWithIncompletePartitionKey()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT k, v FROM ks.tbl5 WHERE token(k) > token(123) LIMIT 1); \n" +
+                       "  SELECT row1.k, row1.v;\n" +
+                       "COMMIT TRANSACTION;\n";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_LET_MESSAGE, "SELECT v FROM ks.tbl5 WHERE token(k) > 0000007b LIMIT 1"));
+    }
 
     private static CQLStatement prepare(String query)
     {

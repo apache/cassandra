@@ -176,7 +176,7 @@ public class DeleteStatement extends ModificationStatement
                                                        conditions,
                                                        attrs);
 
-            if (stmt.hasConditions() && !restrictions.hasAllPKColumnsRestrictedByEqualities())
+            if (stmt.hasConditions() && !restrictions.hasAllPrimaryKeyColumnsRestrictedByEqualities())
             {
                 checkFalse(stmt.isVirtual(), "DELETE statements must restrict all PRIMARY KEY columns with equality relations");
 
