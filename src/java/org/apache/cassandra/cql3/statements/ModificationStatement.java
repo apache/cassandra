@@ -1156,7 +1156,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     public SelectStatement createSelectForTxn()
     {
         // TODO: get working with static-only updates that don't specify any/all primary key columns
-        Preconditions.checkState(getRestrictions().hasAllPKColumnsRestrictedByEqualities());
+        Preconditions.checkState(getRestrictions().hasAllPrimaryKeyColumnsRestrictedByEqualities());
         Selection selection = Selection.forColumns(metadata, Lists.newArrayList(requiresRead), false);
         return new SelectStatement(metadata,
                                    bindVariables,
