@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.net;
+package org.apache.cassandra.utils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -48,26 +48,31 @@ public class Crc
     public static CRC32 crc32()
     {
         CRC32 crc = crc32.get();
+        return initialize(crc);
+    }
+
+    public static CRC32 initialize(CRC32 crc)
+    {
         crc.reset();
-        crc.update(initialBytes);
+        crc.update(initialBytes, 0, initialBytes.length);
         return crc;
     }
 
-    static int computeCrc32(ByteBuf buffer, int startReaderIndex, int endReaderIndex)
+    public static int computeCrc32(ByteBuf buffer, int startReaderIndex, int endReaderIndex)
     {
         CRC32 crc = crc32();
         crc.update(buffer.internalNioBuffer(startReaderIndex, endReaderIndex - startReaderIndex));
         return (int) crc.getValue();
     }
 
-    static int computeCrc32(ByteBuffer buffer, int start, int end)
+    public static int computeCrc32(ByteBuffer buffer, int start, int end)
     {
         CRC32 crc = crc32();
         updateCrc32(crc, buffer, start, end);
         return (int) crc.getValue();
     }
 
-    static void updateCrc32(CRC32 crc, ByteBuffer buffer, int start, int end)
+    public static void updateCrc32(CRC32 crc, ByteBuffer buffer, int start, int end)
     {
         int savePosition = buffer.position();
         int saveLimit = buffer.limit();
@@ -116,7 +121,7 @@ public class Crc
      * @param len   the number of bytes, greater than 0 and fewer than 9, to be read from bytes
      * @return      the least-significant bit AND byte order crc24 using the CRC24_POLY polynomial
      */
-    static int crc24(long bytes, int len)
+    public static int crc24(long bytes, int len)
     {
         int crc = CRC24_INIT;
         while (len-- > 0)

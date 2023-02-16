@@ -9,6 +9,7 @@ commitlog_sync: batch
 commitlog_segment_size: 5MiB
 commitlog_directory: build/test/cassandra/commitlog
 commitlog_disk_access_mode: legacy
+accord_journal_directory: build/test/cassandra/accord_journal
 # commitlog_compression:
 # - class_name: LZ4Compressor
 cdc_raw_directory: build/test/cassandra/cdc_raw

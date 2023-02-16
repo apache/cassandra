@@ -163,11 +163,7 @@ public class ColumnConditionTest extends CQLTester
     {
         if (definition.type.isFrozenCollection())
         {
-<<<<<<< HEAD
             ByteBuffer cellValue = setType.pack(new ArrayList<>(values));
-=======
-            ByteBuffer cellValue = SetSerializer.pack(values, values.size());
->>>>>>> 54e38fca9f (Post-rebase fixes around CASSANDRA-18099 and CASSANDRA-18114 (among other things))
             Cell<ByteBuffer> cell = new BufferCell(definition, 0L, Cell.NO_TTL, Cell.NO_DELETION_TIME, cellValue, null);
             return BTreeRow.singleCellRow(Clustering.EMPTY, cell);
         }
