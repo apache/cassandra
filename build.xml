@@ -162,17 +162,12 @@
          Debug level output still needs to be retrieved from the log file.  -->
     <macrodef name="keepbrief">
         <sequential>
-                <javac srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true"/>
+                <javac srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" excludes="**/JdkProperties.java" />
                 <taskdef name="KeepBriefBrief" classname="org.apache.cassandra.anttasks.KeepBriefBrief" classpath="${test.classes}"/>
                 <KeepBriefBrief property="cassandra.keepBriefBrief"/>
-                <taskdef name="JdkProperties" classname="org.apache.cassandra.anttasks.JdkProperties" classpath="${test.classes}"/>
-                <JdkProperties/>
         </sequential>
     </macrodef>
 
-    <condition property="java.version.8">
-      <equals arg1="${ant.java.version}" arg2="1.8"/>
-    </condition>
     <fail message="Unsupported JDK version used: ${ant.java.version}">
         <condition><not><contains string="${java.supported}" substring="${ant.java.version}"/></not></condition>
     </fail>
@@ -325,6 +320,13 @@
         <mkdir dir="${build.dir.lib}"/>
         <mkdir dir="${jacoco.export.dir}"/>
         <mkdir dir="${jacoco.partials.dir}"/>
+
+        <!-- Set up jdk specific properties -->
+        <javac includes="**/JdkProperties.java" srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" source="${java.default}" target="${java.default}">
+          <compilerarg value="-Xlint:-options"/>
+        </javac>
+        <taskdef name="JdkProperties" classname="org.apache.cassandra.anttasks.JdkProperties" classpath="${test.classes}"/>
+        <JdkProperties/>
     </target>
 
     <target name="clean" description="Remove all locally created artifacts">
@@ -1735,7 +1737,7 @@
       </java>
   </target>
 
-  <target name="_maybe_update_idea_to_java11" unless="java.version.8">
+  <target name="_maybe_update_idea_to_java11" depends="init" if="java.version.11">
     <replace file="${eclipse.project.name}.iml" token="JDK_1_8" value="JDK_11"/>
     <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_11"/>
     <replace file=".idea/misc.xml" token="1.8" value="11"/>
