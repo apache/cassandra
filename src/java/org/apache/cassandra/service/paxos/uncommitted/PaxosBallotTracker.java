@@ -38,7 +38,7 @@ import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
 
 import static org.apache.cassandra.io.util.SequentialWriterOption.FINISH_ON_CLOSE;
-import static org.apache.cassandra.net.Crc.crc32;
+import static org.apache.cassandra.utils.Crc.crc32;
 
 /**
  * Tracks the highest paxos ballot we've seen, and the lowest ballot we can accept.

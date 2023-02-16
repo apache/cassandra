@@ -143,7 +143,12 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
 
     public static TimeUUID deserialize(ByteBuffer buffer)
     {
-        return fromBytes(buffer.getLong(buffer.position()), buffer.getLong(buffer.position() + 8));
+        return deserialize(buffer, buffer.position());
+    }
+
+    public static TimeUUID deserialize(ByteBuffer buffer, int position)
+    {
+        return fromBytes(buffer.getLong(position), buffer.getLong(position + 8));
     }
 
     public static TimeUUID deserialize(DataInput in) throws IOException

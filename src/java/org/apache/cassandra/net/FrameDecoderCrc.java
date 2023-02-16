@@ -24,7 +24,7 @@ import java.util.zip.CRC32;
 
 import io.netty.channel.ChannelPipeline;
 
-import static org.apache.cassandra.net.Crc.*;
+import static org.apache.cassandra.utils.Crc.*;
 
 /**
  * Framing format that protects integrity of data in movement with CRCs (of both header and payload).
