@@ -892,13 +892,23 @@ public final class StatementRestrictions
      *
      * @return <code>true</code> if all the primary key columns are restricted by an equality relation.
      */
-    public boolean hasAllPKColumnsRestrictedByEqualities()
+    public boolean hasAllPrimaryKeyColumnsRestrictedByEqualities()
+    {
+        return hasAllPartitionKeyColumnsRestrictedByEqualities()
+               && !hasUnrestrictedClusteringColumns()
+               && (clusteringColumnsRestrictions.hasOnlyEqualityRestrictions());
+    }
+
+    /**
+     * Checks that all the partition key columns are restricted by an equality relation ('=' or 'IN').
+     *
+     * @return <code>true</code> if all the partition key columns are restricted by an equality relation.
+     */
+    public boolean hasAllPartitionKeyColumnsRestrictedByEqualities()
     {
         return !isPartitionKeyRestrictionsOnToken()
-                && !partitionKeyRestrictions.hasUnrestrictedPartitionKeyComponents(table)
-                && (partitionKeyRestrictions.hasOnlyEqualityRestrictions())
-                && !hasUnrestrictedClusteringColumns()
-                && (clusteringColumnsRestrictions.hasOnlyEqualityRestrictions());
+               && !partitionKeyRestrictions.hasUnrestrictedPartitionKeyComponents(table)
+               && (partitionKeyRestrictions.hasOnlyEqualityRestrictions());
     }
 
     /**
