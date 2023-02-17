@@ -35,7 +35,7 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
  */
 public class SyncNodePair
 {
-    public static IVersionedSerializer<SyncNodePair> serializer = new NodePairSerializer();
+    public static final IVersionedSerializer<SyncNodePair> serializer = new NodePairSerializer();
 
     public final InetAddressAndPort coordinator;
     public final InetAddressAndPort peer;

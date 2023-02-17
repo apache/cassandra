@@ -78,7 +78,7 @@ public class SessionSummary
         return result;
     }
 
-    public static IVersionedSerializer<SessionSummary> serializer = new IVersionedSerializer<SessionSummary>()
+    public static final IVersionedSerializer<SessionSummary> serializer = new IVersionedSerializer<SessionSummary>()
     {
         public void serialize(SessionSummary summary, DataOutputPlus out, int version) throws IOException
         {

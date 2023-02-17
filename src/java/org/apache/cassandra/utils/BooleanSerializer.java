@@ -25,7 +25,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class BooleanSerializer implements IVersionedSerializer<Boolean>
 {
-    public static BooleanSerializer serializer = new BooleanSerializer();
+    public static final BooleanSerializer serializer = new BooleanSerializer();
 
     public void serialize(Boolean b, DataOutputPlus out, int version) throws IOException
     {

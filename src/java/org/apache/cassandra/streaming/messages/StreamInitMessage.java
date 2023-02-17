@@ -38,7 +38,7 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
  */
 public class StreamInitMessage extends StreamMessage
 {
-    public static Serializer<StreamInitMessage> serializer = new StreamInitMessageSerializer();
+    public static final Serializer<StreamInitMessage> serializer = new StreamInitMessageSerializer();
 
     public final InetAddressAndPort from;
     public final int sessionIndex;

@@ -503,6 +503,12 @@
         <version>8.40</version>
         <scope>test</scope>
       </dependency>
+			<dependency>
+				<groupId>com.github.spotbugs</groupId>
+				<artifactId>spotbugs-ant</artifactId>
+				<version>4.7.3</version>
+				<scope>test</scope>
+			</dependency>
       <dependency>
         <groupId>org.apache.hadoop</groupId>
         <artifactId>hadoop-core</artifactId>

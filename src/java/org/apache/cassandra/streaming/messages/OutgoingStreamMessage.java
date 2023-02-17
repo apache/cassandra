@@ -30,7 +30,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class OutgoingStreamMessage extends StreamMessage
 {
-    public static Serializer<OutgoingStreamMessage> serializer = new Serializer<OutgoingStreamMessage>()
+    public static final Serializer<OutgoingStreamMessage> serializer = new Serializer<OutgoingStreamMessage>()
     {
         public OutgoingStreamMessage deserialize(DataInputPlus in, int version)
         {

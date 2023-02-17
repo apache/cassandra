@@ -187,7 +187,7 @@ public class CassandraDaemon
     }
 
     @VisibleForTesting
-    public static Runnable SPECULATION_THRESHOLD_UPDATER = 
+    public static final Runnable SPECULATION_THRESHOLD_UPDATER =
         () -> 
         {
             try

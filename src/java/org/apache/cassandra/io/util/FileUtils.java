@@ -389,27 +389,27 @@ public final class FileUtils
         }
         if (value.endsWith(" TiB"))
         {
-            result = Math.round(Double.valueOf(value.replace(" TiB", "")) * ONE_TIB);
+            result = Math.round(Double.parseDouble(value.replace(" TiB", "")) * ONE_TIB);
             return result;
         }
         else if (value.endsWith(" GiB"))
         {
-            result = Math.round(Double.valueOf(value.replace(" GiB", "")) * ONE_GIB);
+            result = Math.round(Double.parseDouble(value.replace(" GiB", "")) * ONE_GIB);
             return result;
         }
         else if (value.endsWith(" KiB"))
         {
-            result = Math.round(Double.valueOf(value.replace(" KiB", "")) * ONE_KIB);
+            result = Math.round(Double.parseDouble(value.replace(" KiB", "")) * ONE_KIB);
             return result;
         }
         else if (value.endsWith(" MiB"))
         {
-            result = Math.round(Double.valueOf(value.replace(" MiB", "")) * ONE_MIB);
+            result = Math.round(Double.parseDouble(value.replace(" MiB", "")) * ONE_MIB);
             return result;
         }
         else if (value.endsWith(" bytes"))
         {
-            result = Math.round(Double.valueOf(value.replace(" bytes", "")));
+            result = Math.round(Double.parseDouble(value.replace(" bytes", "")));
             return result;
         }
         else

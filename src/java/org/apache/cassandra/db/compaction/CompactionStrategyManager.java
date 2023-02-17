@@ -145,7 +145,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     private volatile long maxSSTableSizeBytes;
     private volatile String name;
 
-    public static int TWCS_BUCKET_COUNT_MAX = 128;
+    public static final int TWCS_BUCKET_COUNT_MAX = 128;
 
     public CompactionStrategyManager(ColumnFamilyStore cfs)
     {

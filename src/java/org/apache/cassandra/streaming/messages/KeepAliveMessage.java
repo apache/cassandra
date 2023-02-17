@@ -35,7 +35,7 @@ public class KeepAliveMessage extends StreamMessage
         return "keep-alive";
     }
 
-    public static Serializer<KeepAliveMessage> serializer = new Serializer<KeepAliveMessage>()
+    public static final Serializer<KeepAliveMessage> serializer = new Serializer<KeepAliveMessage>()
     {
         public KeepAliveMessage deserialize(DataInputPlus in, int version)
         {

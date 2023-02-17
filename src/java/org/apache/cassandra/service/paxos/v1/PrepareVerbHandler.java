@@ -26,7 +26,7 @@ import org.apache.cassandra.service.paxos.PrepareResponse;
 
 public class PrepareVerbHandler implements IVerbHandler<Commit>
 {
-    public static PrepareVerbHandler instance = new PrepareVerbHandler();
+    public static final PrepareVerbHandler instance = new PrepareVerbHandler();
 
     public static PrepareResponse doPrepare(Commit toPrepare)
     {

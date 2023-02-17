@@ -50,7 +50,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
  */
 public abstract class CollectionType<T> extends AbstractType<T>
 {
-    public static CellPath.Serializer cellPathSerializer = new CollectionPathSerializer();
+    public static final CellPath.Serializer cellPathSerializer = new CollectionPathSerializer();
 
     public enum Kind
     {

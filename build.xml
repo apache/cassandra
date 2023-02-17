@@ -48,6 +48,7 @@
 
     <!-- directory details -->
     <property name="basedir" value="."/>
+    <property name="ant.build.src" value="${basedir}/.build" />
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.src.java" value="${basedir}/src/java"/>
     <property name="build.src.antlr" value="${basedir}/src/antlr"/>
@@ -281,6 +282,18 @@
         <fileset dir="${test.lib}/jars">
             <include name="**/*.jar" />
             <exclude name="**/ant-*.jar"/>
+        </fileset>
+    </path>
+    <path id="cassandra.classpath.test.nologgers">
+        <file file="${build.dir}/${final.name}.jar"/> <!-- we need the jar for tests and benchmarks (multi-version jar) -->
+        <fileset dir="${build.dir.lib}">
+            <include name="**/*.jar" />
+            <exclude name="**/*logback*.jar"/>
+        </fileset>
+        <fileset dir="${test.lib}/jars">
+            <include name="**/*.jar" />
+            <exclude name="**/ant-*.jar"/>
+            <exclude name="**/*logback*.jar"/>
         </fileset>
     </path>
 
@@ -1979,8 +1992,9 @@
 
   </target>
 
-  <import file="${basedir}/.build/build-resolver.xml"/>
-  <import file="${basedir}/.build/build-rat.xml"/>
-  <import file="${basedir}/.build/build-owasp.xml"/>
-  <import file="${basedir}/.build/build-git.xml"/>
+  <import file="${ant.build.src}/build-resolver.xml"/>
+  <import file="${ant.build.src}/build-rat.xml"/>
+  <import file="${ant.build.src}/build-owasp.xml"/>
+  <import file="${ant.build.src}/build-git.xml"/>
+  <import file="${ant.build.src}/build-linter.xml"/>
 </project>

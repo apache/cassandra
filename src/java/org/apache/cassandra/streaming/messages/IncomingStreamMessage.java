@@ -32,7 +32,7 @@ import org.apache.cassandra.streaming.StreamSession;
 
 public class IncomingStreamMessage extends StreamMessage
 {
-    public static Serializer<IncomingStreamMessage> serializer = new Serializer<IncomingStreamMessage>()
+    public static final Serializer<IncomingStreamMessage> serializer = new Serializer<IncomingStreamMessage>()
     {
         public IncomingStreamMessage deserialize(DataInputPlus input, int version) throws IOException
         {

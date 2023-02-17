@@ -480,7 +480,7 @@ public class Envelope
     @ChannelHandler.Sharable
     public static class Decompressor extends MessageToMessageDecoder<Envelope>
     {
-        public static Decompressor instance = new Envelope.Decompressor();
+        public static final Decompressor instance = new Envelope.Decompressor();
         private Decompressor(){}
 
         public void decode(ChannelHandlerContext ctx, Envelope source, List<Object> results)
@@ -508,7 +508,7 @@ public class Envelope
     @ChannelHandler.Sharable
     public static class Compressor extends MessageToMessageEncoder<Envelope>
     {
-        public static Compressor instance = new Compressor();
+        public static final Compressor instance = new Compressor();
         private Compressor(){}
 
         public void encode(ChannelHandlerContext ctx, Envelope source, List<Object> results)

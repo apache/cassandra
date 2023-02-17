@@ -475,7 +475,10 @@ public class CacheService implements CacheServiceMBean
                         generationToSSTableReader.put(ssTableReader.descriptor.id, ssTableReader);
                     }
 
-                    cachedSSTableReaders.putIfAbsent(qualifiedName, generationToSSTableReader);
+                    Map<SSTableId, SSTableReader> race = cachedSSTableReaders.putIfAbsent(qualifiedName, generationToSSTableReader);
+                    // Found by SpotBugs: RV_RETURN_VALUE_OF_PUTIFABSENT_IGNORED
+                    if (race != null)
+                        generationToSSTableReader = race;
                 }
                 reader = generationToSSTableReader.get(generationId);
             }

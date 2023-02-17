@@ -27,7 +27,7 @@ import org.apache.cassandra.service.StorageService;
 
 public class ReplicationDoneVerbHandler implements IVerbHandler
 {
-    public static ReplicationDoneVerbHandler instance = new ReplicationDoneVerbHandler();
+    public static final ReplicationDoneVerbHandler instance = new ReplicationDoneVerbHandler();
 
     private static final Logger logger = LoggerFactory.getLogger(ReplicationDoneVerbHandler.class);
 

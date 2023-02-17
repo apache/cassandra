@@ -36,8 +36,8 @@ import io.netty.handler.ssl.SslHandler;
  */
 public class InternodeConnectionUtils
 {
-    public static String SSL_HANDLER_NAME = "ssl";
-    public static String DISCARD_HANDLER_NAME = "discard";
+    public static final String SSL_HANDLER_NAME = "ssl";
+    public static final String DISCARD_HANDLER_NAME = "discard";
     private static final Logger logger = LoggerFactory.getLogger(InternodeConnectionUtils.class);
 
     public static Certificate[] certificates(Channel channel)

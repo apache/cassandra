@@ -26,7 +26,7 @@ import org.apache.cassandra.streaming.StreamSession;
 
 public class PrepareAckMessage extends StreamMessage
 {
-    public static Serializer<PrepareAckMessage> serializer = new Serializer<PrepareAckMessage>()
+    public static final Serializer<PrepareAckMessage> serializer = new Serializer<PrepareAckMessage>()
     {
         public void serialize(PrepareAckMessage message, StreamingDataOutputPlus out, int version, StreamSession session) throws IOException
         {

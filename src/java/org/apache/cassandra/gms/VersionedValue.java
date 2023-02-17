@@ -85,7 +85,7 @@ public class VersionedValue implements Comparable<VersionedValue>
     // values for ApplicationState.REMOVAL_COORDINATOR
     public final static String REMOVAL_COORDINATOR = "REMOVER";
 
-    public static Set<String> BOOTSTRAPPING_STATUS = ImmutableSet.of(STATUS_BOOTSTRAPPING, STATUS_BOOTSTRAPPING_REPLACE);
+    public static final Set<String> BOOTSTRAPPING_STATUS = ImmutableSet.of(STATUS_BOOTSTRAPPING, STATUS_BOOTSTRAPPING_REPLACE);
 
     public final int version;
     public final String value;

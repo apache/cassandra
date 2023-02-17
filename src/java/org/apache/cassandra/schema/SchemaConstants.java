@@ -19,6 +19,7 @@
 package org.apache.cassandra.schema;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -69,7 +70,7 @@ public final class SchemaConstants
     // 59adb24e-f3cd-3e02-97f0-5b395827453f
     public static final UUID emptyVersion;
 
-    public static final List<String> LEGACY_AUTH_TABLES = Arrays.asList("credentials", "users", "permissions");
+    public static final List<String> LEGACY_AUTH_TABLES = Collections.unmodifiableList(Arrays.asList("credentials", "users", "permissions"));
 
     public static boolean isValidName(String name)
     {

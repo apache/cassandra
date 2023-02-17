@@ -27,7 +27,7 @@ public class ClockAndCount implements IMeasurableMemory
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(new ClockAndCount(0, 0));
 
-    public static ClockAndCount BLANK = ClockAndCount.create(0L, 0L);
+    public static final ClockAndCount BLANK = ClockAndCount.create(0L, 0L);
 
     public final long clock;
     public final long count;

@@ -30,7 +30,7 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
  */
 public abstract class CBuilder
 {
-    public static CBuilder STATIC_BUILDER = new CBuilder()
+    public static final CBuilder STATIC_BUILDER = new CBuilder()
     {
         public int count()
         {

@@ -26,9 +26,9 @@ import org.apache.cassandra.utils.MBeanWrapper;
 
 public class AuthProperties implements AuthPropertiesMXBean
 {
-    public static AuthProperties instance = new AuthProperties(DatabaseDescriptor.getAuthWriteConsistencyLevel(),
-                                                               DatabaseDescriptor.getAuthReadConsistencyLevel(),
-                                                               true);
+    public static final AuthProperties instance = new AuthProperties(DatabaseDescriptor.getAuthWriteConsistencyLevel(),
+                                                                     DatabaseDescriptor.getAuthReadConsistencyLevel(),
+                                                                     true);
 
     public AuthProperties(ConsistencyLevel writeConsistencyLevel, ConsistencyLevel readConsistencyLevel, boolean registerMBean)
     {

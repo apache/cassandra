@@ -196,7 +196,7 @@ public class ZstdCompressor implements ICompressor
         if (val == null)
             return DEFAULT_COMPRESSION_LEVEL;
 
-        return Integer.valueOf(val);
+        return Integer.parseInt(val);
     }
 
     /**

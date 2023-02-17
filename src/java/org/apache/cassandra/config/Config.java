@@ -22,7 +22,6 @@ import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -1163,10 +1162,7 @@ public class Config
         exception
     }
 
-    private static final Set<String> SENSITIVE_KEYS = new HashSet<String>() {{
-        add("client_encryption_options");
-        add("server_encryption_options");
-    }};
+    private static final Set<String> SENSITIVE_KEYS = ImmutableSet.of("client_encryption_options", "server_encryption_options");
 
     public static void log(Config config)
     {

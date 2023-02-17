@@ -53,7 +53,7 @@ public class DiskUsageMonitor
 {
     private static final Logger logger = LoggerFactory.getLogger(DiskUsageMonitor.class);
 
-    public static DiskUsageMonitor instance = new DiskUsageMonitor();
+    public static final DiskUsageMonitor instance = new DiskUsageMonitor();
 
     private final Supplier<GuardrailsConfig> guardrailsConfigSupplier = () -> Guardrails.CONFIG_PROVIDER.getOrCreate(null);
     private final Supplier<Multimap<FileStore, Directories.DataDirectory>> dataDirectoriesSupplier;
