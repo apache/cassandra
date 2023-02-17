@@ -144,8 +144,8 @@
       <artifactId>randomizedtesting-runner</artifactId>
     </dependency>
     <dependency>
-      <groupId>accord</groupId>
-      <artifactId>accord</artifactId>
+      <groupId>org.apache.cassandra</groupId>
+      <artifactId>cassandra-accord</artifactId>
       <classifier>tests</classifier>
     </dependency>
   </dependencies>
