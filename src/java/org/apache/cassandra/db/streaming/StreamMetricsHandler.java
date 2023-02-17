@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.db.streaming;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.streaming.ProgressInfo;
 import org.apache.cassandra.streaming.StreamEvent;
@@ -27,6 +30,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class StreamMetricsHandler implements StreamEventHandler
 {
+    private static final Logger logger = LoggerFactory.getLogger(StreamMetricsHandler.class);
     @Override
     public void handleStreamEvent(StreamEvent event)
     {
@@ -46,6 +50,7 @@ public class StreamMetricsHandler implements StreamEventHandler
     private void handleProgressEvent(StreamEvent.ProgressEvent progressEvent)
     {
         long delta = progressEvent.progress.deltaBytes;
+        logger.debug("Adding {} bytes to stream counters in direction {}", delta, progressEvent.progress.direction);
         if (delta == 0)
             return;
 
