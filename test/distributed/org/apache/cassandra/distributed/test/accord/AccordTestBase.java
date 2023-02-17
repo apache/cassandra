@@ -196,9 +196,6 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected static int getAccordMigrationSkippedReads()
     {
-        for (String name : getMetrics(1).getNames())
-            if (name.contains("Accord"))
-                System.out.println(name);
         // Skipped reads can occur at any node so sum them
         long sum = 0;
         for (IInvokableInstance instance : SHARED_CLUSTER)

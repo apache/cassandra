@@ -28,7 +28,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.ConsensusMigrationStateStore.ConsensusMigrationRepairResult;
-import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -65,7 +64,6 @@ public class AccordRepairJob extends AbstractRepairJob
     {
         try
         {
-            // TODO exception handling here needed?
             for (accord.primitives.Range range : ranges)
                 repairRange((TokenRange)range);
             state.phase.success();
@@ -104,8 +102,6 @@ public class AccordRepairJob extends AbstractRepairJob
             long start = nanoTime();
             try
             {
-                // TODO do repair here once there is something in Accord to invoke
-                // minEpoch = repair
                 // Splitter is approximate so it can't work right up to the end
                 TokenRange toRepair;
                 if (splitter.compare(offset, rangeSize) >= 0)
@@ -124,8 +120,8 @@ public class AccordRepairJob extends AbstractRepairJob
                 checkState(!toRepair.equals(lastRepaired), "Shouldn't repair the same range twice");
                 checkState(lastRepaired == null || toRepair.start().equals(lastRepaired.end()), "Next range should directly follow previous range");
                 lastRepaired = toRepair;
-                System.out.println("Repairing " + toRepair);
-                AccordService.instance().barrier(toRepair, minEpoch.getEpoch(), nanoTime(), true, false);
+                // TODO Won't work until range transactions work
+//                AccordService.instance().barrier(toRepair, minEpoch.getEpoch(), nanoTime(), BarrierType.global_sync, false);
                 remainingStart = toRepair.end();
             }
             catch (RuntimeException e)

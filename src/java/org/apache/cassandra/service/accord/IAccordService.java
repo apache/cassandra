@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import accord.api.BarrierType;
 import accord.messages.Request;
 import accord.primitives.Seekable;
 import accord.primitives.Txn;
@@ -35,7 +36,7 @@ public interface IAccordService
 
     void createEpochFromConfigUnsafe();
 
-    long barrier(Seekable keyOrRange, long minEpoch, long queryStartNanos, boolean global, boolean isForWrite);
+    long barrier(Seekable keyOrRange, long minEpoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite);
 
     TxnResult coordinate(Txn txn, ConsistencyLevel consistencyLevel, long queryStartNanos);
 

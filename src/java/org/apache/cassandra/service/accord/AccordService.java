@@ -25,7 +25,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import accord.api.BarrierType;
 import accord.api.Result;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
@@ -65,6 +68,8 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class AccordService implements IAccordService, Shutdownable
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
+
     public final Node node;
     private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
@@ -84,7 +89,7 @@ public class AccordService implements IAccordService, Shutdownable
         public void createEpochFromConfigUnsafe() { }
 
         @Override
-        public long barrier(Seekable keyOrRange, long minEpoch, long queryStartNanos, boolean global, boolean isForWrite)
+        public long barrier(Seekable keyOrRange, long minEpoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite)
         {
             throw new UnsupportedOperationException("No accord barriers should be executed when accord_transactions_enabled = false in cassandra.yaml");
         }
@@ -165,14 +170,16 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public long barrier(Seekable keyOrRange, long epoch, long queryStartNanos, boolean global, boolean isForWrite)
+    public long barrier(Seekable keyOrRange, long epoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite)
     {
         AccordClientRequestMetrics metrics = isForWrite ? accordWriteMetrics : accordReadMetrics;
         try
         {
-            Future<Timestamp> future = node.barrier(keyOrRange, epoch, global);
+            logger.info("Starting barrier key: {} epoch: {} barrierType: {} isForWrite {}", keyOrRange, epoch, barrierType, isForWrite);
+            Future<Timestamp> future = node.barrier(keyOrRange, epoch, barrierType);
             long deadlineNanos = queryStartNanos + DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS);
             Timestamp barrierExecuteAt = future.get(deadlineNanos - nanoTime(), TimeUnit.NANOSECONDS);
+            logger.info("Completed barrier");
             return barrierExecuteAt.epoch();
         }
         catch (ExecutionException e)
@@ -181,7 +188,7 @@ public class AccordService implements IAccordService, Shutdownable
             if (cause instanceof Timeout)
             {
                 metrics.timeouts.mark();
-                throw newBarrierTimeout(global);
+                throw newBarrierTimeout(barrierType.global);
             }
             if (cause instanceof Preempted)
             {
@@ -189,7 +196,7 @@ public class AccordService implements IAccordService, Shutdownable
                 //TODO need to improve
                 // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
                 // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
-                throw newBarrierTimeout(global);
+                throw newBarrierTimeout(barrierType.global);
             }
             metrics.failures.mark();
             throw new RuntimeException(cause);
@@ -201,12 +208,13 @@ public class AccordService implements IAccordService, Shutdownable
         }
         catch (TimeoutException e)
         {
-            e.printStackTrace();
             metrics.timeouts.mark();
-            throw newBarrierTimeout(global);
+            throw newBarrierTimeout(barrierType.global);
         }
         finally
         {
+            // TODO Should barriers have a dedicated latency metric? Should it be a read/write metric?
+            // Waht about counts for timers/failures/preempts?
             metrics.addNano(nanoTime() - queryStartNanos);
         }
     }

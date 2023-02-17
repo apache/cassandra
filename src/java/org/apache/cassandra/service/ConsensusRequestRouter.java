@@ -28,6 +28,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
+import accord.api.BarrierType;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
@@ -81,7 +82,6 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 /**
  * Helper class to decide where to route a request that requires consensus, migrating a key if necessary
  * before rerouting.
- *
  */
 public class ConsensusRequestRouter
 {
@@ -263,8 +263,7 @@ public class ConsensusRequestRouter
 
     /**
      * If the key was already migrated then we can pick the target protocol otherwise
-     * we have to run on Paxos which might trigger migration or find out if it was migrated (such as
-     * when token aware routing is not used)
+     * we have to run a repair operation on the key to migrate it.
      */
     private static ConsensusRoutingDecision pickBasedOnKeyMigrationStatus(Epoch currentEpoch, TableMigrationState tms, DecoratedKey key, ColumnFamilyStore cfs, ConsistencyLevel consistencyLevel, long queryStartNanos, long timeoutNanos, boolean isForWrite)
     {
@@ -280,8 +279,7 @@ public class ConsensusRequestRouter
             // for the range
             // Be aware that for Accord->Paxos the cache only tells us if the key was repaired locally
             // This ends up still being safe because every single Paxos read (in a migrating range) during migration will check
-            // locally to see if the local Accord repair occurred and trigger it if necessary
-            // TODO Lookup efficiency?
+            // locally to see if repair is necessary
             if (consensusMigratedAt != null && tms.satisfiedByKeyMigrationAtEpoch(key, consensusMigratedAt))
                 return pickMigrated(tms.targetProtocol);
 
@@ -289,9 +287,14 @@ public class ConsensusRequestRouter
             {
                 // Run the Accord barrier txn now so replicas don't start independent
                 // barrier transactions to accomplish the migration
-                // They will still need to go through the fast path for barrier txns
-                // at each replica but won't need to send any messages in the happy path
-                repairKeyAccord(key, tms.keyspaceName, tms.tableId, tms.minMigrationEpoch(key.getToken()).getEpoch(), queryStartNanos, false, isForWrite);
+                // They still might need to go through the fast local path for barrier txns
+                // at each replica, but they won't create their own txn since we created it here
+                // TODO this returns after the transaction commit message is sent, but without waiting for a response
+                // so that Paxos can send the first round at the same time. But... this could result in the commit
+                // not being visible to Paxos and it thinking it needs to create one.
+                // One way around this would be to allow the local barrier to listen to a transaction with an outcome
+                // that might end up being invalidated, and then repeat the barrier process until we find one that works?
+                repairKeyAccord(key, tms.keyspaceName, tms.tableId, tms.minMigrationEpoch(key.getToken()).getEpoch(), queryStartNanos, true, isForWrite);
                 return paxosV2;
             }
             // Fall through for repairKeyPaxos
@@ -301,14 +304,10 @@ public class ConsensusRequestRouter
         // Accord -> Paxos - Paxos will ask Accord to migrate in the read at each replica if necessary
         // Paxos -> Accord - Paxos needs to be repaired before Accord runs so do it here
         if (tms.targetProtocol == paxos)
-        {
             return paxosV2;
-        }
         else
-        {
             // Should exit exceptionally if the repair is not done
             repairKeyPaxos(naturalReplicas, currentEpoch, key, cfs, consistencyLevel, queryStartNanos, timeoutNanos, isLocallyReplicated, isForWrite);
-        }
 
         return pickMigrated(tms.targetProtocol);
     }
@@ -345,26 +344,17 @@ public class ConsensusRequestRouter
         long start = nanoTime();
         try
         {
-            AccordService.instance().barrier(new PartitionKey(keyspace, tableId, key), minEpoch, queryStartNanos, global, isForWrite);
+            // Global will always create a transaction to effect the barrier so all replicas
+            // will soon be ready to execute, but only waits for the local replica to be ready
+            // Local will only create a transaction if it can't find an existing one to wait on
+            BarrierType barrierType = global ? BarrierType.global_async : BarrierType.local;
+            AccordService.instance().barrier(new PartitionKey(keyspace, tableId, key), minEpoch, queryStartNanos, barrierType, isForWrite);
             // We don't save the state to the cache here. Accord will notify the agent every time a barrier happens.
         }
         finally
         {
             cfs.metric.keyMigration.addNano(nanoTime() - start);
         }
-//        Seekables keys = null;
-//        TableMetadata metadata = cfs.metadata();
-//        // We don't actually intend to read the data, it should be skipped automatically by Accord,
-//        // but if migration is cancelled it might actually execute so create a limit 1 read here
-//        // TODO Is there a better way to create a dummy read that does no work?
-//        SinglePartitionReadCommand command = SinglePartitionReadCommand.create(metadata, 0, ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.LIMIT_ONE, key, ALL);
-//        // Don't need barrier all read because we are only trying to bring this node up to date
-//        Read read = TxnRead.createSerialRead(command, consistencyLevel);
-//        // Create a barrier txn
-//        Txn.InMemory barrierTxn = new Txn.InMemory(keys, read, TxnQuery.ALL);
-//        // TODO add proper timeout
-//        // TODO support only blocking on the local repair
-//        AccordService.instance().coordinate(barrierTxn, consistencyLevel, queryStartNanos);
     }
 
     private static void repairKeyPaxos(EndpointsForToken naturalReplicas, Epoch currentEpoch, DecoratedKey key, ColumnFamilyStore cfs, ConsistencyLevel consistencyLevel, long queryStartNanos, long timeoutNanos, boolean isLocallyReplicated, boolean isForWrite)
@@ -443,14 +433,12 @@ public class ConsensusRequestRouter
     }
 
     // Allows tests to inject specific responses
-    @VisibleForTesting
     public boolean isKeyInMigratingOrMigratedRangeDuringPaxosBegin(TableId tableId, DecoratedKey key)
     {
         return isKeyInMigratingOrMigratedRangeFromPaxos(tableId, key);
     }
 
     // Allows tests to inject specific responses
-    @VisibleForTesting
     public boolean isKeyInMigratingOrMigratedRangeDuringPaxosAccept(TableId tableId, DecoratedKey key)
     {
         return isKeyInMigratingOrMigratedRangeFromPaxos(tableId, key);
@@ -470,9 +458,7 @@ public class ConsensusRequestRouter
             return false;
 
         if (Range.isInNormalizedRanges(key.getToken(), tms.migratingRanges))
-        {
             return true;
-        }
 
         return false;
     }
@@ -494,9 +480,7 @@ public class ConsensusRequestRouter
         // The coordinator will need to retry either on Accord if they are trying
         // to propose their own value, or by setting the consensus migration epoch to recover an incomplete transaction
         if (Range.isInNormalizedRanges(key.getToken(), tms.migratingAndMigratedRanges))
-        {
             return true;
-        }
 
         return false;
     }
@@ -533,9 +517,7 @@ public class ConsensusRequestRouter
         // The coordinator will need to retry either on Accord if they are trying
         // to propose their own value, or by setting the consensus migration epoch to recover an incomplete transaction
         if (Range.isInNormalizedRanges(key.getToken(), tms.migratingAndMigratedRanges))
-        {
             return true;
-        }
 
         return false;
     }

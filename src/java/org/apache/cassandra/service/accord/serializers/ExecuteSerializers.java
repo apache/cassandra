@@ -76,6 +76,7 @@ public class ExecuteSerializers
             KeySerializers.seekables.serialize(waitAndApply.scope, out, version);
             CommandSerializers.writes.serialize(waitAndApply.writes, out, version);
             TxnResult.serializer.serialize((TxnResult) waitAndApply.result, out, version);
+            out.writeBoolean(waitAndApply.notifyAgent);
         }
 
         @Override
@@ -87,18 +88,20 @@ public class ExecuteSerializers
                 DepsSerializer.partialDeps.deserialize(in, version),
                 KeySerializers.seekables.deserialize(in, version),
                 CommandSerializers.writes.deserialize(in, version),
-                TxnResult.serializer.deserialize(in, version));
+                TxnResult.serializer.deserialize(in, version),
+                in.readBoolean());
         }
 
         @Override
-        public long serializedSize(WaitForDependenciesThenApply read, int version)
+        public long serializedSize(WaitForDependenciesThenApply notifyAgent, int version)
         {
-            return CommandSerializers.txnId.serializedSize(read.txnId, version)
-                + KeySerializers.partialRoute.serializedSize(read.route, version)
-                + DepsSerializer.partialDeps.serializedSize(read.deps, version)
-                + KeySerializers.seekables.serializedSize(read.scope, version)
-                + CommandSerializers.writes.serializedSize(read.writes, version)
-                + TxnResult.serializer.serializedSize((TxnData)read.result, version);
+            return CommandSerializers.txnId.serializedSize(notifyAgent.txnId, version)
+                + KeySerializers.partialRoute.serializedSize(notifyAgent.route, version)
+                + DepsSerializer.partialDeps.serializedSize(notifyAgent.deps, version)
+                + KeySerializers.seekables.serializedSize(notifyAgent.scope, version)
+                + CommandSerializers.writes.serializedSize(notifyAgent.writes, version)
+                + TxnResult.serializer.serializedSize((TxnData)notifyAgent.result, version)
+                + sizeof(notifyAgent.notifyAgent);
         }
     }
 

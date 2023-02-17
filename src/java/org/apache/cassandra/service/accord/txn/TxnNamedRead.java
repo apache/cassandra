@@ -151,13 +151,9 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
 
         if (ConsensusRequestRouter.instance.isKeyInMigratingRangeFromPaxos(tms, key))
-        {
             return performCoordinatedRead(consistencyLevel, command, nowInSeconds, metrics);
-        }
         else
-        {
             return performLocalRead(command, nowInSeconds);
-        }
     }
 
     private Future<Data> performCoordinatedRead(ConsistencyLevel consistencyLevel, SinglePartitionReadCommand command, int nowInSeconds, AccordClientRequestMetrics metrics)

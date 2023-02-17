@@ -35,7 +35,6 @@ import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.tcm.Epoch;
 
 import static accord.primitives.Routable.Domain.Key;
-import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
 
@@ -54,9 +53,8 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges,@Nonnull TxnId executeAt)
+    public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges,@Nonnull Timestamp executeAt)
     {
-        checkArgument(keysOrRanges.size() == 1, "Expect only ask for single key/range barriers");
         if (keysOrRanges.domain() == Key)
         {
             PartitionKey key = (PartitionKey)keysOrRanges.get(0);
