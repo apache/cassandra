@@ -1,4 +1,5 @@
 accord
+ * CEP-15: (C*) Add git submodule for Accord (CASSANDRA-18204)
  * Fix null value handling for static columns (CASSANDRA-18241)
  * Feature Flag for Accord Transactions (CASSANDRA-18195)
  * CEP-15: Multi-Partition Transaction CQL Support (Alpha) (CASSANDRA-17719)
