@@ -121,8 +121,8 @@
       <artifactId>jbcrypt</artifactId>
     </dependency>
     <dependency>
-      <groupId>accord</groupId>
-      <artifactId>accord</artifactId>
+      <groupId>org.apache.cassandra</groupId>
+      <artifactId>cassandra-accord</artifactId>
     </dependency>
     <dependency>
       <groupId>io.airlift</groupId>
