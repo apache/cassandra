@@ -39,7 +39,7 @@ public class IndexSummaryBuilder implements AutoCloseable
     private static final Logger logger = LoggerFactory.getLogger(IndexSummaryBuilder.class);
 
     static final String defaultExpectedKeySizeName = Config.PROPERTY_PREFIX + "index_summary_expected_key_size";
-    static long defaultExpectedKeySize = Long.valueOf(System.getProperty(defaultExpectedKeySizeName, "64"));
+    static long defaultExpectedKeySize = Long.parseLong(System.getProperty(defaultExpectedKeySizeName, "64"));
 
     // the offset in the keys memory region to look for a given summary boundary
     private final SafeMemoryWriter offsets;
