@@ -489,6 +489,9 @@ public final class FileUtils
      */
     public static long folderSize(File folder)
     {
+        if (!folder.exists())
+            return 0;
+
         final long [] sizeArr = {0L};
         try
         {
@@ -499,6 +502,15 @@ public final class FileUtils
                 {
                     sizeArr[0] += attrs.size();
                     return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path path, IOException e) throws IOException
+                {
+                    if (e instanceof NoSuchFileException)
+                        return FileVisitResult.CONTINUE;
+                    else
+                        throw e;
                 }
             });
         }
