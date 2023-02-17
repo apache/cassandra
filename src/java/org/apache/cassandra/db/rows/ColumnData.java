@@ -98,13 +98,13 @@ public abstract class ColumnData
     public static class Reconciler implements UpdateFunction<ColumnData, ColumnData>, AutoCloseable
     {
         private static final TinyThreadLocalPool<Reconciler> POOL = new TinyThreadLocalPool<>();
-        private PostReconciliationFunction modifier;
+        private PostReconciliationFunction postReconcile;
         private DeletionTime activeDeletion;
         private TinyThreadLocalPool.TinyPool<Reconciler> pool;
 
-        private void init(PostReconciliationFunction modifier, DeletionTime activeDeletion)
+        private void init(PostReconciliationFunction postReconcile, DeletionTime activeDeletion)
         {
-            this.modifier = modifier;
+            this.postReconcile = postReconcile;
             this.activeDeletion = activeDeletion;
         }
 
@@ -112,11 +112,10 @@ public abstract class ColumnData
         {
             if (!(existing instanceof ComplexColumnData))
             {
-                Cell<?> existingCell = (Cell) existing, updateCell = (Cell) update;
-
+                Cell<?> existingCell = (Cell<?>) existing, updateCell = (Cell<?>) update;
                 Cell<?> result = Cells.reconcile(existingCell, updateCell);
 
-                return modifier.merge(existingCell, result);
+                return postReconcile.merge(existingCell, result);
             }
             else
             {
@@ -132,17 +131,22 @@ public abstract class ColumnData
 
                 Object[] cells;
 
-                try (Reconciler reconciler = reconciler(modifier, maxComplexDeletion))
+                try (Reconciler reconciler = reconciler(postReconcile, maxComplexDeletion))
                 {
                     if (!maxComplexDeletion.isLive())
                     {
                         if (maxComplexDeletion == existingDeletion)
                         {
-                            updateTree = BTree.transformAndFilter(updateTree, reconciler::retain);
+                            updateTree = BTree.<ColumnData, ColumnData>transformAndFilter(updateTree, reconciler::removeShadowed);
                         }
                         else
                         {
-                            existingTree = BTree.transformAndFilter(existingTree, reconciler::retain);
+                            Object[] retained = BTree.transformAndFilter(existingTree, reconciler::retain);
+                            if (existingTree != retained)
+                            {
+                                onAllocatedOnHeap(BTree.sizeOnHeapOf(retained) - BTree.sizeOnHeapOf(existingTree));
+                                existingTree = retained;
+                            }
                         }
                     }
                     cells = BTree.update(existingTree, updateTree, existingComplex.column.cellComparator(), (UpdateFunction) reconciler);
@@ -154,13 +158,13 @@ public abstract class ColumnData
         @Override
         public void onAllocatedOnHeap(long heapSize)
         {
-            modifier.onAllocatedOnHeap(heapSize);
+            postReconcile.onAllocatedOnHeap(heapSize);
         }
 
         @Override
         public ColumnData insert(ColumnData insert)
         {
-            return modifier.insert(insert);
+            return postReconcile.insert(insert);
         }
 
         /**
@@ -171,21 +175,36 @@ public abstract class ColumnData
          */
         public ColumnData retain(ColumnData existing)
         {
+            return removeShadowed(existing, postReconcile);
+        }
+
+        private ColumnData removeShadowed(ColumnData existing)
+        {
+            return removeShadowed(existing, ColumnData.noOp);
+        }
+
+        /**
+         * Checks if the specified value  should be deleted or not.
+         *
+         * @param existing the existing value to check
+         * @return {@code null} if the value should be removed from the BTree or the existing value if it should not.
+         */
+        private ColumnData removeShadowed(ColumnData existing, PostReconciliationFunction recordDeletion)
+        {
             if (!(existing instanceof ComplexColumnData))
             {
                 if (activeDeletion.deletes((Cell) existing))
                 {
-                    modifier.delete(existing);
+                    recordDeletion.delete(existing);
                     return null;
                 }
             }
             else
             {
                 ComplexColumnData existingComplex = (ComplexColumnData) existing;
-
                 if (activeDeletion.supersedes(existingComplex.complexDeletion()))
                 {
-                    Object[] cells = BTree.transformAndFilter(existingComplex.tree(), this::retain);
+                    Object[] cells = BTree.transformAndFilter(existingComplex.tree(), (ColumnData cd) -> removeShadowed(cd, recordDeletion));
                     return BTree.isEmpty(cells) ? null : new ComplexColumnData(existingComplex.column, cells, DeletionTime.LIVE);
                 }
             }
@@ -196,7 +215,7 @@ public abstract class ColumnData
         public void close()
         {
             activeDeletion = null;
-            modifier = null;
+            postReconcile = null;
 
             TinyThreadLocalPool.TinyPool<Reconciler> tmp = pool;
             pool = null;
