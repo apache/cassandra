@@ -32,11 +32,14 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.ClearableHistogram;
+import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.schema.CachingParams.CACHE_EVERYTHING;
 import static org.junit.Assert.assertEquals;
 
 public class PartitionRangeReadTest
@@ -53,7 +56,7 @@ public class PartitionRangeReadTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1).caching(CACHE_EVERYTHING),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDINT,
                                                               0,
                                                               AsciiType.instance,
@@ -162,30 +165,57 @@ public class PartitionRangeReadTest
         ColumnMetadata cDef = cfs.metadata().getColumn(ByteBufferUtil.bytes("val"));
 
         List<FilteredPartition> partitions;
+        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear();
+        cfs.metric.topReadPartitionFrequency.beginSampling(10, 1000);
 
         // Start and end inclusive
         partitions = Util.getAll(Util.cmd(cfs).fromKeyIncl("2").toKeyIncl("7").build());
         assertEquals(6, partitions.size());
         assertEquals(ByteBufferUtil.bytes("2"), partitions.get(0).iterator().next().getCell(cDef).buffer());
         assertEquals(ByteBufferUtil.bytes("7"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
+        assertEquals(1, cfs.metric.sstablesPerReadHistogram.cf.getCount());
 
         // Start and end excluded
         partitions = Util.getAll(Util.cmd(cfs).fromKeyExcl("2").toKeyExcl("7").build());
         assertEquals(4, partitions.size());
         assertEquals(ByteBufferUtil.bytes("3"), partitions.get(0).iterator().next().getCell(cDef).buffer());
         assertEquals(ByteBufferUtil.bytes("6"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
-
+        assertEquals(2, cfs.metric.sstablesPerReadHistogram.cf.getCount());
+        
         // Start excluded, end included
         partitions = Util.getAll(Util.cmd(cfs).fromKeyExcl("2").toKeyIncl("7").build());
         assertEquals(5, partitions.size());
         assertEquals(ByteBufferUtil.bytes("3"), partitions.get(0).iterator().next().getCell(cDef).buffer());
         assertEquals(ByteBufferUtil.bytes("7"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
+        assertEquals(3, cfs.metric.sstablesPerReadHistogram.cf.getCount());
 
         // Start included, end excluded
         partitions = Util.getAll(Util.cmd(cfs).fromKeyIncl("2").toKeyExcl("7").build());
         assertEquals(5, partitions.size());
         assertEquals(ByteBufferUtil.bytes("2"), partitions.get(0).iterator().next().getCell(cDef).buffer());
         assertEquals(ByteBufferUtil.bytes("6"), partitions.get(partitions.size() - 1).iterator().next().getCell(cDef).buffer());
+        assertEquals(4, cfs.metric.sstablesPerReadHistogram.cf.getCount());
+        assertEquals(20, cfs.metric.rowCacheMiss.getCount());
+        
+        // Load cache through single partition read command, and try again.
+        DecoratedKey dk = partitions.get(0).partitionKey();
+        Util.getAll(Util.cmd(cfs, dk).build());
+        assertEquals(0, cfs.metric.rowCacheHit.getCount());
+        Util.getAll(Util.cmd(cfs).fromKeyIncl("2").toKeyExcl("7").build());
+        assertEquals(1, cfs.metric.rowCacheHit.getCount());
+        final List<Sampler.Sample<ByteBuffer>> samples = cfs.metric.topReadPartitionFrequency.finishSampling(10);
+        assertEquals(ByteBufferUtil.bytes("3").get(), samples.get(0).value.get());
+        assertEquals(5, samples.get(0).count);
+        assertEquals(ByteBufferUtil.bytes("4").get(), samples.get(1).value.get());
+        assertEquals(5, samples.get(1).count);
+        assertEquals(ByteBufferUtil.bytes("5").get(), samples.get(2).value.get());
+        assertEquals(5, samples.get(2).count);
+        assertEquals(ByteBufferUtil.bytes("6").get(), samples.get(3).value.get());
+        assertEquals(5, samples.get(3).count);
+        assertEquals(ByteBufferUtil.bytes("2").get(), samples.get(4).value.get());
+        assertEquals(4, samples.get(4).count);
+        assertEquals(ByteBufferUtil.bytes("7").get(), samples.get(5).value.get());
+        assertEquals(2, samples.get(5).count);
     }
 }
 
