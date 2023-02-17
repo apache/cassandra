@@ -84,7 +84,8 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, int protocolVersion)
     {
-        throw new UnsupportedOperationException();
+        // See CASSANDRA-17698 for more details.
+        return "\"0x" + ByteBufferUtil.bytesToHex(buffer) + '"';
     }
 
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
