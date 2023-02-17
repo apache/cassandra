@@ -19,7 +19,10 @@
 package org.apache.cassandra.distributed.test.metrics;
 
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -28,6 +31,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -36,6 +40,8 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
+import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.StreamingMetrics;
@@ -136,7 +142,7 @@ public class StreamingMetricsTestUtils
      *      * @param compressionEnabled Dictates if we should use compression when creating the testing table.
      *      * @throws Exception
      */
-    public static void runStreamingOperationAndCheckIncrementalMetrics(Cluster cluster, Callable<Integer> streamingOperation, boolean compressionEnabled) throws Exception
+    public static void runStreamingOperationAndCheckIncrementalMetrics(Cluster cluster, Callable<Integer> streamingOperation, boolean compressionEnabled, int numSSTables) throws Exception
     {
         assertThat(cluster.size())
         .describedAs("The minimum cluster size to check streaming metrics is 2 nodes.")
@@ -159,23 +165,34 @@ public class StreamingMetricsTestUtils
 
         // Drop all messages from node1 to node2 so node2 will be empty
         IMessageFilters.Filter drop1to2 = cluster.filters().verbs(MUTATION_REQ.id).from(1).to(2).drop();
-        final int totalRows = 10000; // total size: 10K x 1KB ~= 10MB
-        for (int i = 0; i < totalRows; ++i)
+        Set<String> existingSSTables = new HashSet<>();
+        for (int i = 0; i < numSSTables; ++i)
         {
-            // write rows with timestamp 1 to have deterministic transfer size
-            cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.cf (k, c1) VALUES (?, ?) USING TIMESTAMP 1;"),
-                                           ConsistencyLevel.ONE,
-                                           Integer.toString(i),
-                                           random1kbString.toString());
-        }
+            final int totalRows = 10000; // total size: 10K x 1KB ~= 10MB
+            for (int j = 0; j < totalRows; ++j)
+            {
+                // write rows with timestamp 1 to have deterministic transfer size
+                cluster.coordinator(1).execute(withKeyspace("INSERT INTO %s.cf (k, c1) VALUES (?, ?) USING TIMESTAMP 1;"),
+                                               ConsistencyLevel.ONE,
+                                               i + ":" + j,
+                                               random1kbString.toString());
+            }
 
-        // Flush and compact all nodes to generate a single sstable
-        cluster.forEach(node -> {
-            node.flush(KEYSPACE);
-            node.forceCompact(KEYSPACE, "cf");
-        });
+            // Flush and compact all nodes to generate a single sstable
+            cluster.forEach(node -> {
+                node.flush(KEYSPACE);
+            });
+            compactNewSSTables(cluster, existingSSTables);
+            existingSSTables = cluster.get(1)
+                                             .callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, "cf")
+                                                                                    .getLiveSSTables()
+                                                                                    .stream()
+                                                                                    .map(SSTableReader::getFilename)
+                                                                                    .collect(Collectors.toSet())
+                                             );
+        }
         // Check that node 1 only has 1 sstable after flush + compaction
-        assertThat(getNumberOfSSTables(cluster, 1)).isEqualTo(1);
+        assertThat(getNumberOfSSTables(cluster, 1)).isEqualTo(numSSTables);
         // Node 2 should have 0 sstables since messages from node1 were dropped
         assertThat(getNumberOfSSTables(cluster, 2)).isEqualTo(0);
 
@@ -190,6 +207,25 @@ public class StreamingMetricsTestUtils
         checkMetricsUpdatedIncrementally(cluster, streamingOperationExecution, 2, 1, entireSstable);
         streamingOperationExecution.get();
         nodetoolExecutor.shutdown();
+    }
+
+    private static void compactNewSSTables(Cluster cluster, Set<String> existingSSTables)
+    {
+        Set<String> nodeSSTables = cluster.get(1)
+                                          .callOnInstance(() -> ColumnFamilyStore.getIfExists(KEYSPACE, "cf")
+                                                                                 .getLiveSSTables()
+                                                                                 .stream()
+                                                                                 .map(SSTableReader::getFilename)
+                                                                                 .collect(Collectors.toSet())
+                                          );
+        nodeSSTables.removeAll(existingSSTables);
+        List<String> compactCommand = new ArrayList<>();
+        compactCommand.add("compact");
+        compactCommand.add("--user-defined");
+        compactCommand.addAll(nodeSSTables);
+        String[] commandArray = new String[compactCommand.size()];
+        compactCommand.toArray(commandArray);
+        cluster.get(1).nodetoolResult(commandArray);
     }
 
     private static void checkMetricsUpdatedIncrementally(Cluster cluster, Future<Integer> streamingOperationExecution, int dst, int src, boolean entireSstable)

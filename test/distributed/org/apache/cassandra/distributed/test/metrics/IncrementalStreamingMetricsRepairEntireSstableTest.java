@@ -38,10 +38,11 @@ public class IncrementalStreamingMetricsRepairEntireSstableTest extends TestBase
                                            .withDataDirCount(1)
                                            .withConfig(config -> config.with(NETWORK, GOSSIP)
                                                                        .set("stream_entire_sstables", streamEntireSstables)
-                                                                       .set("hinted_handoff_enabled", false))
+                                                                       .set("hinted_handoff_enabled", false)
+                                                                       .set("stream_throughput_outbound_megabits_per_sec", 1))
                                            .start(), 2))
         {
-            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("repair"), compressionEnabled);
+            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("repair"), compressionEnabled, 2);
         }
     }
 }

@@ -41,7 +41,7 @@ public class IncrementalStreamingMetricsRepairCompressionTest extends TestBaseIm
                                                                        .set("hinted_handoff_enabled", false))
                                            .start(), 2))
         {
-            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("repair"), compressionEnabled);
+            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("repair"), compressionEnabled, 1);
         }
     }
 }

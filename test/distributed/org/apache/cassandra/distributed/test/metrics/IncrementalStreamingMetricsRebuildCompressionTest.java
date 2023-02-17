@@ -42,7 +42,7 @@ public class IncrementalStreamingMetricsRebuildCompressionTest extends TestBaseI
                                                                        .set("hinted_handoff_enabled", false))
                                            .start(), 2))
         {
-            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("rebuild"), compressionEnabled);
+            runStreamingOperationAndCheckIncrementalMetrics(cluster, () -> cluster.get(2).nodetool("rebuild"), compressionEnabled, 1);
         }
     }
 
