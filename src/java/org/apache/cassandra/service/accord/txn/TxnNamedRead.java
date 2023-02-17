@@ -43,8 +43,9 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.ConsensusMigrationStateStore.TableMigrationState;
 import org.apache.cassandra.service.ConsensusRequestRouter;
+import org.apache.cassandra.service.ConsensusTableMigrationState;
+import org.apache.cassandra.service.ConsensusTableMigrationState.TableMigrationState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -130,7 +131,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         DecoratedKey key = command.partitionKey();
         TableId tableId = command.metadata().id;
         AccordClientRequestMetrics metrics = isForWriteTxn ? accordWriteMetrics : accordReadMetrics;
-        TableMigrationState tms = ConsensusRequestRouter.instance.getTableMigrationState(executeAt.epoch(), tableId);
+        TableMigrationState tms = ConsensusTableMigrationState.getTableMigrationState(executeAt.epoch(), tableId);
 
         // This should only rarely occur when coordinators start a transaction in a migrating range
         // because they haven't yet updated their cluster metadata.

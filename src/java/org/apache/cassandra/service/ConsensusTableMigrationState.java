@@ -23,9 +23,11 @@ import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -35,6 +37,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMap.Builder;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.primitives.SignedBytes;
 import com.google.common.util.concurrent.FutureCallback;
@@ -88,18 +91,15 @@ import static org.apache.cassandra.utils.CollectionSerializers.serializedCollect
 import static org.apache.cassandra.utils.CollectionSerializers.serializedMapSize;
 
 /**
- * With TM and transformations doing most of the heavy lifting this ends up acting as an integration point
- * for tracking what is migrating/migrated.
- *
- * TODO make safe with concurrent schema changes
+ * Track and update the migration state of individual table and ranges within those tables
  */
-public class ConsensusMigrationStateStore
+public abstract class ConsensusTableMigrationState
 {
+    private static final Logger logger = LoggerFactory.getLogger(ConsensusTableMigrationState.class);
+
     public static final IPartitionerDependentSerializer<List<Range<Token>>> rangesSerializer = newCollectionSerializer(rangeSerializer);
 
-    private static final Logger logger = LoggerFactory.getLogger(ConsensusMigrationStateStore.class);
-
-    public final FutureCallback<RepairResult> completedRepairJobHandler = new FutureCallback<RepairResult>()
+    public static final FutureCallback<RepairResult> completedRepairJobHandler = new FutureCallback<>()
     {
         @Override
         public void onSuccess(@Nullable RepairResult repairResult)
@@ -114,7 +114,10 @@ public class ConsensusMigrationStateStore
                 return;
 
             RepairJobDesc desc = repairResult.desc;
-            ClusterMetadataService.instance.commit(new MaybeFinishConsensusMigrationForTableAndRange(desc.keyspace, desc.columnFamily, ImmutableList.copyOf(desc.ranges), migrationResult.minEpoch, migrationResult.consensusMigrationRepairType));
+            ClusterMetadataService.instance.commit(
+                new MaybeFinishConsensusMigrationForTableAndRange(
+                    desc.keyspace, desc.columnFamily, ImmutableList.copyOf(desc.ranges),
+                    migrationResult.minEpoch, migrationResult.consensusMigrationRepairType));
         }
 
         @Override
@@ -128,55 +131,6 @@ public class ConsensusMigrationStateStore
     public static void resetMigrationState()
     {
         ClusterMetadataService.reset();
-    }
-
-    /*
-     * Set or change the migration target for the keyspaces and tables. Can be used to reverse the direction of a migration
-     * or instantly migrate a table to a new protocol.
-     */
-    public void setMigrationTargetProtocol(String targetProtocolName, List<String> keyspaceNames, Optional<List<String>> maybeTables)
-    {
-        checkArgument(!keyspaceNames.isEmpty(), "At least one keyspace must be specified");
-        checkArgument(keyspaceNames.size() == 1 || !maybeTables.isPresent(), "Can't specify tables with multiple keyspaces");
-        checkArgument(!maybeTables.isPresent() || !maybeTables.get().isEmpty(), "Must provide at least 1 table if Optional is not empty");
-        ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(targetProtocolName);
-
-        if (DatabaseDescriptor.getLegacyPaxosStrategy() == LegacyPaxosStrategy.accord)
-            throw new IllegalStateException("Mixing a hard coded strategy with migration is unsupported");
-
-        if (!Paxos.useV2())
-            throw new IllegalStateException("Can't do any consensus migrations from/to PaxosV1, switch to V2 first");
-
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        List<TableId> tableIds = keyspacesAndTablesToTableIds(keyspaceNames, maybeTables);
-
-        ClusterMetadataService.instance.commit(new SetConsensusMigrationTargetProtocol(targetProtocol, tableIds));
-    }
-
-    private List<TableId> keyspacesAndTablesToTableIds(List<String> keyspaceNames, Optional<List<String>> maybeTables)
-    {
-        List<TableId> tableIds = new ArrayList<>();
-        // TODO What about indexes, any CFS that should/shouldn't participate?
-        for (String keyspaceName : keyspaceNames)
-        {
-            Optional<Collection<TableId>> maybeTableIds = maybeTables.map(tableNames ->
-                                                                          tableNames
-                                                                          .stream()
-                                                                          .map(tableName -> {
-                                                                              TableMetadata tm = Schema.instance.getTableMetadata(keyspaceName, tableName);
-                                                                              if (tm == null)
-                                                                                  throw new IllegalArgumentException("Unknown table %s.%s".format(keyspaceName, tableName));
-                                                                              return tm.id;
-                                                                          })
-                                                                          .collect(toImmutableList()));
-            tableIds.addAll(
-            maybeTableIds.orElseGet(() ->
-                                    Schema.instance.getKeyspaceInstance(keyspaceName).getColumnFamilyStores()
-                                                   .stream()
-                                                   .map(ColumnFamilyStore::getTableId)
-                                                   .collect(toImmutableList())));
-        }
-        return tableIds;
     }
 
     public enum ConsensusMigrationRepairType
@@ -211,33 +165,6 @@ public class ConsensusMigrationStateStore
         }
     }
 
-    public static class ConsensusMigrationRepairResult
-    {
-        private final ConsensusMigrationRepairType consensusMigrationRepairType;
-        private final Epoch minEpoch;
-
-        private ConsensusMigrationRepairResult(ConsensusMigrationRepairType consensusMigrationRepairType, Epoch minEpoch)
-        {
-            this.consensusMigrationRepairType = consensusMigrationRepairType;
-            this.minEpoch = minEpoch;
-        }
-
-        public static ConsensusMigrationRepairResult fromCassandraRepair(Epoch minEpoch, boolean didPaxosAndRegularRepair)
-        {
-            checkArgument(!didPaxosAndRegularRepair || minEpoch.isAfter(Epoch.EMPTY), "Epoch should not be empty if Paxos and regular repairs were performed");
-            if (didPaxosAndRegularRepair)
-                return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.paxos, minEpoch);
-            else
-                return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.ineligible, Epoch.EMPTY);
-        }
-
-        public static ConsensusMigrationRepairResult fromAccordRepair(Epoch minEpoch)
-        {
-            checkArgument(minEpoch.isAfter(Epoch.EMPTY), "Accord repairs should always occur at an Epoch");
-            return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.accord, minEpoch);
-        }
-    }
-
     public enum ConsensusMigrationTarget {
         paxos(0),
         accord(1);
@@ -265,6 +192,33 @@ public class ConsensusMigrationStateStore
                 case 1:
                     return accord;
             }
+        }
+    }
+
+    public static class ConsensusMigrationRepairResult
+    {
+        private final ConsensusMigrationRepairType consensusMigrationRepairType;
+        private final Epoch minEpoch;
+
+        private ConsensusMigrationRepairResult(ConsensusMigrationRepairType consensusMigrationRepairType, Epoch minEpoch)
+        {
+            this.consensusMigrationRepairType = consensusMigrationRepairType;
+            this.minEpoch = minEpoch;
+        }
+
+        public static ConsensusMigrationRepairResult fromCassandraRepair(Epoch minEpoch, boolean didPaxosAndRegularRepair)
+        {
+            checkArgument(!didPaxosAndRegularRepair || minEpoch.isAfter(Epoch.EMPTY), "Epoch should not be empty if Paxos and regular repairs were performed");
+            if (didPaxosAndRegularRepair)
+                return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.paxos, minEpoch);
+            else
+                return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.ineligible, Epoch.EMPTY);
+        }
+
+        public static ConsensusMigrationRepairResult fromAccordRepair(Epoch minEpoch)
+        {
+            checkArgument(minEpoch.isAfter(Epoch.EMPTY), "Accord repairs should always occur at an Epoch");
+            return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.accord, minEpoch);
         }
     }
 
@@ -309,8 +263,7 @@ public class ConsensusMigrationStateStore
         }
     }
 
-    // TODO should this be stored in ColumnFamilyStore since we seem to always be looking the two
-    // up together?
+    // TODO Move this into the schema for the table once this is based off of TrM
     public static class TableMigrationState
     {
         @Nonnull
@@ -392,8 +345,6 @@ public class ConsensusMigrationStateStore
             this.migratingAndMigratedRanges = ImmutableList.copyOf(normalize(ImmutableList.<Range<Token>>builder().addAll(migratedRanges).addAll(migratingRanges).build()));
         }
 
-        // TODO these strict checks are probably just a pain in the neck for the operator and they should succeed as
-        // long as the end state is what they asked for and maybe just log
         public TableMigrationState withRangesMigrating(@Nonnull Collection<Range<Token>> ranges, @Nonnull  ConsensusMigrationTarget target, Epoch epoch)
         {
             checkArgument(epoch.isAfter(Epoch.EMPTY), "Epoch shouldn't be empty");
@@ -425,7 +376,7 @@ public class ConsensusMigrationStateStore
 
             List<Range<Token>> normalizedRepairedRanges = Range.normalize(ranges);
             // This should be inclusive because the epoch we store in the map is the epoch in which the range has been marked migrating
-            // in BeginConsensusMigrationForTableAndRange
+            // in startMigrationToConsensusProtocol
             NavigableMap<Epoch, List<Range<Token>>> coveredEpochs = migratingRangesByEpoch.headMap(epoch, true);
             List<Range<Token>> normalizedMigratingRanges = normalize(coveredEpochs.values().stream().flatMap(Collection::stream).collect(Collectors.toList()));
             List<Range<Token>> normalizedRepairedIntersection = intersectionOfNormalizedRanges(normalizedRepairedRanges, normalizedMigratingRanges);
@@ -484,6 +435,7 @@ public class ConsensusMigrationStateStore
 
         public Epoch minMigrationEpoch(Token token)
         {
+            // TODO should there be an index to make this more efficient?
             for (Map.Entry<Epoch, List<Range<Token>>> e : migratingRangesByEpoch.entrySet())
             {
                 if (Range.isInNormalizedRanges(token, e.getValue()))
@@ -516,8 +468,26 @@ public class ConsensusMigrationStateStore
 
             return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, migratedRanges, migratingRangesByEpoch);
         }
+
+        public Map<String, Object> toMap()
+        {
+            Builder<String, Object> builder = ImmutableMap.builder();
+            builder.put("keyspace", keyspaceName);
+            builder.put("table", tableName);
+            builder.put("tableId", tableId.toString());
+            builder.put("targetProtocol", targetProtocol.toString());
+            builder.put("migratedRanges", migratedRanges.stream().map(Objects::toString).collect(toImmutableList()));
+            Map<Long, List<String>> rangesByEpoch = new LinkedHashMap<>();
+            for (Map.Entry<Epoch, List<Range<Token>>> entry : migratingRangesByEpoch.entrySet())
+            {
+                rangesByEpoch.put(entry.getKey().getEpoch(), entry.getValue().stream().map(Objects::toString).collect(toImmutableList()));
+            }
+            builder.put("migratingRangesByEpoch", rangesByEpoch);
+            return builder.build();
+        }
     }
 
+    // TODO this will go away once we can move TableMigrationState into the table schema
     public static class MigrationStateSnapshot
     {
         @Nonnull
@@ -570,16 +540,64 @@ public class ConsensusMigrationStateStore
             }
         };
 
-
-
         public MigrationStateSnapshot(@Nonnull Map<TableId, TableMigrationState> tableStates, Epoch epoch)
         {
             this.tableStates = ImmutableMap.copyOf(tableStates);
             this.epoch = epoch;
         }
+
+        public Map<String, Object> toMap(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames)
+        {
+            return ImmutableMap.of("epoch", epoch.getEpoch(), "tableStates", tableStatesAsMaps(keyspaceNames, tableNames));
+        }
+
+        private List<Map<String, Object>> tableStatesAsMaps(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames)
+        {
+            ImmutableList.Builder<Map<String, Object>> builder = ImmutableList.builder();
+            for (TableMigrationState tms : tableStates.values())
+            {
+                if (keyspaceNames != null && !keyspaceNames.contains(tms.keyspaceName))
+                    continue;
+                if (tableNames != null && !tableNames.contains(tms.tableName))
+                    continue;
+                builder.add(tms.toMap());
+            }
+            return builder.build();
+        }
     }
 
-    public void startMigrationToConsensusProtocol(@Nonnull  String targetProtocolName, @Nonnull List<String> keyspaceNames, @Nonnull Optional<List<String>> maybeTables, @Nonnull Optional<String> maybeRangesStr)
+    private ConsensusTableMigrationState() {}
+
+    // Used by callers to avoid looking up the TMS multiple times
+    public static @Nullable TableMigrationState getTableMigrationState(long epoch, TableId tableId)
+    {
+        ClusterMetadata cm = ClusterMetadataService.instance.maybeCatchup(Epoch.create(0, epoch));
+        TableMigrationState tms = cm.migrationStateSnapshot.tableStates.get(tableId);
+        return tms;
+    }
+
+    /*
+     * Set or change the migration target for the keyspaces and tables. Can be used to reverse the direction of a migration
+     * or instantly migrate a table to a new protocol.
+     */
+    public static void setConsensusMigrationTargetProtocol(String targetProtocolName, List<String> keyspaceNames, Optional<List<String>> maybeTables)
+    {
+        checkArgument(!keyspaceNames.isEmpty(), "At least one keyspace must be specified");
+        checkArgument(keyspaceNames.size() == 1 || !maybeTables.isPresent(), "Can't specify tables with multiple keyspaces");
+        checkArgument(!maybeTables.isPresent() || !maybeTables.get().isEmpty(), "Must provide at least 1 table if Optional is not empty");
+        ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(targetProtocolName);
+
+        if (DatabaseDescriptor.getLegacyPaxosStrategy() == LegacyPaxosStrategy.accord)
+            throw new IllegalStateException("Mixing a hard coded strategy with migration is unsupported");
+
+        if (!Paxos.useV2())
+            throw new IllegalStateException("Can't do any consensus migrations from/to PaxosV1, switch to V2 first");
+
+        List<TableId> tableIds = keyspacesAndTablesToTableIds(keyspaceNames, maybeTables);
+        ClusterMetadataService.instance.commit(new SetConsensusMigrationTargetProtocol(targetProtocol, tableIds));
+    }
+
+    public static void startMigrationToConsensusProtocol(@Nonnull String targetProtocolName, @Nonnull List<String> keyspaceNames, @Nonnull Optional<List<String>> maybeTables, @Nonnull Optional<String> maybeRangesStr)
     {
         checkArgument(!keyspaceNames.isEmpty(), "At least one keyspace must be specified");
         checkArgument(keyspaceNames.size() == 1 || !maybeTables.isPresent(), "Can't specify tables with multiple keyspaces");
@@ -602,19 +620,29 @@ public class ConsensusMigrationStateStore
         ClusterMetadataService.instance.commit(new BeginConsensusMigrationForTableAndRange(targetProtocol, ranges, tableIds));
     }
 
-    /**
-     * Check if a key in a table needs to be migrated between consensus protocols and the caller
-     * should not propose new values for this key and should migrate it and then mark it as migrated.
-     * @param key Key that potentially needs to be migrated
-     * @param tableMetadata Table containing the key
-     * @return The current epoch if the key should be migrated or null
-     */
-    public static Epoch maybeConsensusMigrationEpoch(DecoratedKey key, TableMetadata tableMetadata)
+    private static List<TableId> keyspacesAndTablesToTableIds(List<String> keyspaceNames, Optional<List<String>> maybeTables)
     {
-        ClusterMetadata cm = ClusterMetadata.current();
-        TableMigrationState tms = cm.migrationStateSnapshot.tableStates.get(tableMetadata.id);
-        if (tms != null && tms.migratingRanges.contains(key.getToken()))
-            return cm.epoch;
-        return null;
+        List<TableId> tableIds = new ArrayList<>();
+        // TODO What about indexes, any CFS that should/shouldn't participate?
+        for (String keyspaceName : keyspaceNames)
+        {
+            Optional<Collection<TableId>> maybeTableIds = maybeTables.map(tableNames ->
+                                                                          tableNames
+                                                                          .stream()
+                                                                          .map(tableName -> {
+                                                                              TableMetadata tm = Schema.instance.getTableMetadata(keyspaceName, tableName);
+                                                                              if (tm == null)
+                                                                                  throw new IllegalArgumentException("Unknown table %s.%s".format(keyspaceName, tableName));
+                                                                              return tm.id;
+                                                                          })
+                                                                          .collect(toImmutableList()));
+            tableIds.addAll(
+            maybeTableIds.orElseGet(() ->
+                                    Schema.instance.getKeyspaceInstance(keyspaceName).getColumnFamilyStores()
+                                                   .stream()
+                                                   .map(ColumnFamilyStore::getTableId)
+                                                   .collect(toImmutableList())));
+        }
+        return tableIds;
     }
 }

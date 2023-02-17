@@ -76,9 +76,9 @@ import org.apache.cassandra.schema.SchemaMutationsSerializer;
 import org.apache.cassandra.schema.SchemaPullVerbHandler;
 import org.apache.cassandra.schema.SchemaPushVerbHandler;
 import org.apache.cassandra.schema.SchemaVersionVerbHandler;
-import org.apache.cassandra.service.ConsensusMigrationStateStore.MigrationStateSnapshot;
-import org.apache.cassandra.service.ConsensusRequestRouter;
-import org.apache.cassandra.service.ConsensusRequestRouter.ConsensusKeyMigrationFinished;
+import org.apache.cassandra.service.ConsensusKeyMigrationState;
+import org.apache.cassandra.service.ConsensusKeyMigrationState.ConsensusKeyMigrationFinished;
+import org.apache.cassandra.service.ConsensusTableMigrationState.MigrationStateSnapshot;
 import org.apache.cassandra.service.EchoVerbHandler;
 import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.service.accord.AccordService;
@@ -288,7 +288,7 @@ public enum Verb
     ACCORD_GET_DEPS_RSP         (148, P2, writeTimeout, REQUEST_RESPONSE, () -> GetDepsSerializers.reply, RESPONSE_HANDLER),
     ACCORD_GET_DEPS_REQ         (147, P2, writeTimeout, ACCORD,               () -> GetDepsSerializers.request,       () -> AccordService.instance().verbHandler(), ACCORD_GET_DEPS_RSP),
 
-    CONSENSUS_KEY_MIGRATION_FINISHED(149, P1, writeTimeout, MUTATION, () -> ConsensusKeyMigrationFinished.serializer, () -> ConsensusRequestRouter.consensusKeyMigrationFinishedHandler),
+    CONSENSUS_KEY_MIGRATION_FINISHED(149, P1, writeTimeout, MUTATION, () -> ConsensusKeyMigrationFinished.serializer, () -> ConsensusKeyMigrationState.consensusKeyMigrationFinishedHandler),
 
     UPDATE_CM_RSP(151, P1, writeTimeout, REQUEST_RESPONSE, () -> NoPayload.serializer, () -> ResponseVerbHandler.instance),
     UPDATE_CM(150, P1, writeTimeout, GOSSIP, () -> MigrationStateSnapshot.messagingSerializer, () -> ClusterMetadataService.updateHandler, UPDATE_CM_RSP),

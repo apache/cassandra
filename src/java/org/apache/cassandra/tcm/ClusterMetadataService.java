@@ -33,8 +33,8 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
-import org.apache.cassandra.service.ConsensusMigrationStateStore;
-import org.apache.cassandra.service.ConsensusMigrationStateStore.MigrationStateSnapshot;
+import org.apache.cassandra.service.ConsensusTableMigrationState;
+import org.apache.cassandra.service.ConsensusTableMigrationState.MigrationStateSnapshot;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -51,12 +51,12 @@ public class ClusterMetadataService
 
     public static final ClusterMetadataService instance = new ClusterMetadataService();
 
-    public volatile ClusterMetadata metadata = new ClusterMetadata(Epoch.FIRST, new ConsensusMigrationStateStore.MigrationStateSnapshot(ImmutableMap.of(), Epoch.FIRST));
+    public volatile ClusterMetadata metadata = new ClusterMetadata(Epoch.FIRST, new ConsensusTableMigrationState.MigrationStateSnapshot(ImmutableMap.of(), Epoch.FIRST));
 
     @VisibleForTesting
     public static void reset()
     {
-        instance.metadata = new ClusterMetadata(instance.metadata.epoch.nextEpoch(false), new ConsensusMigrationStateStore.MigrationStateSnapshot(ImmutableMap.of(), Epoch.FIRST));
+        instance.metadata = new ClusterMetadata(instance.metadata.epoch.nextEpoch(false), new ConsensusTableMigrationState.MigrationStateSnapshot(ImmutableMap.of(), Epoch.FIRST));
         AccordService.instance().createEpochFromConfigUnsafe();
     }
 

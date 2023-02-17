@@ -47,8 +47,8 @@ import org.apache.cassandra.tcm.serialization.Version;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.collect.ImmutableList.toImmutableList;
-import static org.apache.cassandra.service.ConsensusMigrationStateStore.ConsensusMigrationTarget;
-import static org.apache.cassandra.service.ConsensusMigrationStateStore.TableMigrationState;
+import static org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationTarget;
+import static org.apache.cassandra.service.ConsensusTableMigrationState.TableMigrationState;
 import static org.apache.cassandra.tcm.ClusterMetadata.Transformer;
 import static org.apache.cassandra.utils.Collectors3.toImmutableMap;
 

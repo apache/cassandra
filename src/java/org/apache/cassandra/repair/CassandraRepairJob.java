@@ -50,7 +50,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.service.ConsensusMigrationStateStore.ConsensusMigrationRepairResult;
+import org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationRepairResult;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanup;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tcm.Epoch;

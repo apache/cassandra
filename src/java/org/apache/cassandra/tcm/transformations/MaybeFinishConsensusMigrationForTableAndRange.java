@@ -35,9 +35,9 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.ConsensusMigrationStateStore;
-import org.apache.cassandra.service.ConsensusMigrationStateStore.ConsensusMigrationRepairType;
-import org.apache.cassandra.service.ConsensusMigrationStateStore.ConsensusMigrationTarget;
+import org.apache.cassandra.service.ConsensusTableMigrationState;
+import org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationRepairType;
+import org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationTarget;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
@@ -50,8 +50,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static java.lang.String.format;
 import static org.apache.cassandra.dht.Range.intersects;
 import static org.apache.cassandra.dht.Range.normalize;
-import static org.apache.cassandra.service.ConsensusMigrationStateStore.MigrationStateSnapshot;
-import static org.apache.cassandra.service.ConsensusMigrationStateStore.TableMigrationState;
+import static org.apache.cassandra.service.ConsensusTableMigrationState.MigrationStateSnapshot;
+import static org.apache.cassandra.service.ConsensusTableMigrationState.TableMigrationState;
 
 
 public class MaybeFinishConsensusMigrationForTableAndRange implements Transformation
@@ -106,7 +106,7 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
             return new Rejected(format("Table %s is not currently performing consensus migration", ksAndCF));
 
         MigrationStateSnapshot migrationStateSnapshot = metadata.migrationStateSnapshot;
-        ConsensusMigrationStateStore.TableMigrationState tms = migrationStateSnapshot.tableStates.get(tbm.id);
+        ConsensusTableMigrationState.TableMigrationState tms = migrationStateSnapshot.tableStates.get(tbm.id);
         if (tms == null)
             return new Rejected(format("Table %s is not currently performing consensus migration", ksAndCF));
 

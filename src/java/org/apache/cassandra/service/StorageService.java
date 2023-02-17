@@ -190,6 +190,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.service.ConsensusTableMigrationState.MigrationStateSnapshot;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Paxos;
@@ -206,6 +207,7 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -229,6 +231,7 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
+import org.yaml.snakeyaml.Yaml;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -252,6 +255,7 @@ import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
+import static org.apache.cassandra.service.ConsensusTableMigrationState.startMigrationToConsensusProtocol;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -321,8 +325,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     @VisibleForTesting // this is used for dtests only, see CASSANDRA-18152
     public volatile boolean skipNotificationListeners = false;
-
-    public final ConsensusMigrationStateStore consensusMigrationState = new ConsensusMigrationStateStore();
 
     @Deprecated
     public boolean isInShutdownHook()
@@ -2224,7 +2226,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         checkNotNull(maybeTableNames, "maybeTableNames is null");
         checkNotNull(maybeRangesStr, "maybeRangesStr is null");
 
-        consensusMigrationState.startMigrationToConsensusProtocol(targetProtocol, keyspaceNames, maybeTableNames, maybeRangesStr);
+        startMigrationToConsensusProtocol(targetProtocol, keyspaceNames, maybeTableNames, maybeRangesStr);
     }
 
     @Override
@@ -2234,7 +2236,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         checkNotNull(keyspaceNames, "keyspaceNames is null");
         checkNotNull(maybeTableNames, "maybeTableNames is null");
 
-        consensusMigrationState.setMigrationTargetProtocol(targetProtocol, keyspaceNames, maybeTableNames);
+        ConsensusTableMigrationState.setConsensusMigrationTargetProtocol(targetProtocol, keyspaceNames, maybeTableNames);
+    }
+
+    @Override
+    public String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, String format)
+    {
+        checkArgument(format == null || format.toLowerCase().equals("yaml"), "YAML is the only supported format");
+        ClusterMetadata cm = ClusterMetadata.current();
+        MigrationStateSnapshot snapshot = cm.migrationStateSnapshot;
+        // TODO wanted something human and machine readable, but didn't expend a lot of thought
+        // on what human readable conventions should be, also couldn't get snakeyaml
+        // to output YAML containing only primitives without going through the goofy mapping process
+        // it adds tags that clutter the output up badly
+        Map<String, Object> snapshotAsMap = snapshot.toMap(keyspaceNames, tableNames);
+        return new Yaml().dump(snapshotAsMap);
     }
 
     public Map<String,List<Integer>> getConcurrency(List<String> stageNames)
@@ -7302,10 +7318,4 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         AccordService.instance().createEpochFromConfigUnsafe();
     }
-
-    public ConsensusMigrationStateStore getConsensusMigrationState()
-    {
-        return consensusMigrationState;
-    }
-
 }

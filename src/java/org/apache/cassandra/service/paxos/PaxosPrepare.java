@@ -59,7 +59,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.ConsensusRequestRouter;
+import org.apache.cassandra.service.ConsensusKeyMigrationState.KeyMigrationState;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -71,7 +71,8 @@ import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_RSP;
-import static org.apache.cassandra.service.ConsensusMigrationStateStore.ConsensusMigratedAt;
+import static org.apache.cassandra.service.ConsensusKeyMigrationState.getKeyMigrationState;
+import static org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigratedAt;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.Commit.Accepted;
 import static org.apache.cassandra.service.paxos.Commit.Committed;
@@ -1070,7 +1071,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         static Response execute(AbstractRequest<?> request, PaxosState state)
         {
             MaybePromise result = state.promiseIfNewer(request.ballot, request.isForWrite);
-            ConsensusRequestRouter.KeyMigrationState keyMigrationStatus = ConsensusRequestRouter.instance.getKeyMigrationState(request.table.id, request.partitionKey);
+            KeyMigrationState keyMigrationState = getKeyMigrationState(request.table.id, request.partitionKey);
             switch (result.outcome)
             {
                 case PROMISE:
@@ -1100,7 +1101,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                     if (request.read != null)
                     {
                         // Make sure the read is safe and there is no Accord state that needs application
-                        ConsensusRequestRouter.instance.maybePerformAccordToPaxosKeyMigration(keyMigrationStatus, request.isForWrite);
+                        keyMigrationState.maybePerformAccordToPaxosKeyMigration(request.isForWrite);
                         try (ReadExecutionController executionController = request.read.executionController();
                              UnfilteredPartitionIterator iterator = request.read.executeLocally(executionController))
                         {
@@ -1122,10 +1123,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
                     ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(request.table.id);
                     long lowBound = cfs.getPaxosRepairLowBound(request.partitionKey).uuidTimestamp();
-                    return new Permitted(result.outcome, keyMigrationStatus.consensusMigratedAt, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, supersededBy);
+                    return new Permitted(result.outcome, keyMigrationState.consensusMigratedAt, lowBound, acceptedButNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, supersededBy);
 
                 case REJECT:
-                    return new Rejected(result.supersededBy(), keyMigrationStatus.consensusMigratedAt);
+                    return new Rejected(result.supersededBy(), keyMigrationState.consensusMigratedAt);
 
                 default:
                     throw new IllegalStateException();

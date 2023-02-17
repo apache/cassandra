@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import javax.annotation.Nonnull;
@@ -50,21 +52,24 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.ConsensusMigrationStateStore;
-import org.apache.cassandra.service.ConsensusMigrationStateStore.ConsensusMigrationTarget;
-import org.apache.cassandra.service.ConsensusMigrationStateStore.MigrationStateSnapshot;
-import org.apache.cassandra.service.ConsensusMigrationStateStore.TableMigrationState;
 import org.apache.cassandra.service.ConsensusRequestRouter;
+import org.apache.cassandra.service.ConsensusTableMigrationState;
+import org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationTarget;
+import org.apache.cassandra.service.ConsensusTableMigrationState.MigrationStateSnapshot;
+import org.apache.cassandra.service.ConsensusTableMigrationState.TableMigrationState;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Ballot.Flag;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.yaml.snakeyaml.Yaml;
 
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.lang.String.format;
 import static java.util.Collections.emptyList;
 import static org.apache.cassandra.Util.spinUntilSuccess;
@@ -79,6 +84,7 @@ import static org.apache.cassandra.service.ConsensusRequestRouter.ConsensusRouti
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PROMISE;
 import static org.assertj.core.api.Fail.fail;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 /*
  * This test suite is intended to serve as an integration test with some pretty good visibility into actual execution
@@ -142,19 +148,23 @@ public class AccordMigrationTest extends AccordTestBase
         // Reset migration state
         forEach(() -> {
             ConsensusRequestRouter.resetInstance();
-            ConsensusMigrationStateStore.resetMigrationState();
+            ConsensusTableMigrationState.resetMigrationState();
         });
         SHARED_CLUSTER.coordinators().forEach(coordinator -> coordinator.execute(format("TRUNCATE TABLE %s.%s", SYSTEM_KEYSPACE_NAME, CONSENSUS_MIGRATION_STATE), ALL));
         SHARED_CLUSTER.coordinators().forEach(coordinator -> coordinator.execute(format("TRUNCATE TABLE %s.%s", SYSTEM_KEYSPACE_NAME, PAXOS), ALL));
     }
 
-    private static void nodetool(ICoordinator coordinator, String... commandAndArgs)
+    private static String nodetool(ICoordinator coordinator, String... commandAndArgs)
     {
         NodeToolResult nodetoolResult = coordinator.instance().nodetoolResult(commandAndArgs);
-        System.out.println(nodetoolResult.getStdout());
-        System.err.println(nodetoolResult.getStderr());
+        if (!nodetoolResult.getStdout().isEmpty())
+            System.out.println(nodetoolResult.getStdout());
+        if (!nodetoolResult.getStderr().isEmpty())
+            System.err.println(nodetoolResult.getStderr());
         if (nodetoolResult.getError() != null)
             fail("Failed nodetool " + Arrays.asList(commandAndArgs), nodetoolResult.getError());
+        // TODO why does standard out end up in stderr in nodetool?
+        return nodetoolResult.getStdout();
     }
 
     private static int getKeyBetweenTokens(Token left, Token right)
@@ -518,6 +528,27 @@ public class AccordMigrationTest extends AccordTestBase
 
     private static void assertMigrationState(String tableName, ConsensusMigrationTarget target, List<Range<Token>> migratedRanges, List<Range<Token>> migratingRanges, int numMigratingEpochs)
     {
+        // Validate nodetool consensus admin list output
+        String listResult = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list");
+        Map<String, Object> migrationStateMap = new Yaml().load(listResult);
+        assertTrue(Epoch.EMPTY.getEpoch() < ((Number)migrationStateMap.get("epoch")).longValue());
+        List<Map<String, Object>> tableStates = (List<Map<String, Object>>)migrationStateMap.get("tableStates");
+        assertEquals(tableStates.size(), 1);
+        Map<String, Object> tableStateMap = tableStates.get(0);
+        assertEquals(tableName, tableStateMap.get("table"));
+        assertEquals(KEYSPACE, tableStateMap.get("keyspace"));
+        String tableId = (String)tableStateMap.get("tableId");
+        List<Range<Token>> migratedRangesFromStateMap = ((List<String>)tableStateMap.get("migratedRanges")).stream().map(Range::fromString).collect(toImmutableList());
+        assertEquals(migratedRangesFromStateMap, migratedRanges);
+        Map<Long, List<Range<Token>>> migratingRangesByEpochFromStateMap = new LinkedHashMap<>();
+        for (Map.Entry<Number, List<String>> entry : ((Map<Number, List<String>>)tableStateMap.get("migratingRangesByEpoch")).entrySet())
+            migratingRangesByEpochFromStateMap.put(entry.getKey().longValue(), entry.getValue().stream().map(Range::fromString).collect(toImmutableList()));
+        if (migratingRanges.isEmpty())
+            assertEquals(0, migratingRangesByEpochFromStateMap.size());
+        else
+            assertEquals(migratingRanges, migratingRangesByEpochFromStateMap.values().iterator().next());
+
+        // Validate in memory state at each node
         List<Range<Token>> migratingAndMigratedRanges = normalize(ImmutableList.<Range<Token>>builder().addAll(migratedRanges).addAll(migratingRanges).build());
         spinUntilSuccess(() -> {
             for (IInvokableInstance instance : SHARED_CLUSTER)
@@ -527,6 +558,7 @@ public class AccordMigrationTest extends AccordTestBase
                 TableMigrationState state = snapshot.tableStates.values().iterator().next();
                 assertEquals(KEYSPACE, state.keyspaceName);
                 assertEquals(tableName, state.tableName);
+                assertEquals(tableId, state.tableId.toString());
                 assertEquals(target, state.targetProtocol);
                 assertEquals("Migrated ranges:", migratedRanges, state.migratedRanges);
                 assertEquals("Migrating ranges:", migratingRanges, state.migratingRanges);
@@ -537,7 +569,7 @@ public class AccordMigrationTest extends AccordTestBase
                 else
                     assertEquals(migratingRanges, state.migratingRangesByEpoch.values().iterator().next());
             }
-        }, 1);
+        });
     }
 
     /**
@@ -547,7 +579,6 @@ public class AccordMigrationTest extends AccordTestBase
     {
         String committedBallotString = BallotGenerator.Global.nextBallot(Flag.GLOBAL).toString();
         String promisedBallotString = BallotGenerator.Global.nextBallot(Flag.GLOBAL).toString();
-        System.out.println("committed ballot string is " + committedBallotString);
         forEach(() -> {
             TableMetadata metadata = ColumnFamilyStore.getIfExists(KEYSPACE, tableName).metadata();
             ByteBuffer lowMidMigratingKeyBuffer = ByteBuffer.wrap(ByteArrayUtil.bytes(key));

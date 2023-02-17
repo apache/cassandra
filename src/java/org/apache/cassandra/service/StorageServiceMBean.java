@@ -997,7 +997,9 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     void migrateConsensusProtocol(@Nonnull String targetProtocol, @Nonnull List<String> keyspaceNames, @Nonnull Optional<List<String>> maybeTableNames, @Nonnull Optional<String> maybeRangesStr);
 
-    void setConsensusMigrationTargetProtocol(String targetProtocol, List<String> keyspaces, Optional<List<String>> maybeTables);
+    void setConsensusMigrationTargetProtocol(String targetProtocol, List<String> keyspaceNames, Optional<List<String>> maybeTableNames);
+
+    String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, String format);
 
     /** Gets the concurrency settings for processing stages*/
     static class StageConcurrency implements Serializable

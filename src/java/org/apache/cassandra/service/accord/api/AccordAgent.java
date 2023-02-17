@@ -29,7 +29,6 @@ import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
-import org.apache.cassandra.service.ConsensusRequestRouter;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.tcm.Epoch;
@@ -37,6 +36,7 @@ import org.apache.cassandra.tcm.Epoch;
 import static accord.primitives.Routable.Domain.Key;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
+import static org.apache.cassandra.service.ConsensusKeyMigrationState.maybeSaveAccordKeyMigrationLocally;
 
 public class AccordAgent implements Agent
 {
@@ -58,7 +58,7 @@ public class AccordAgent implements Agent
         if (keysOrRanges.domain() == Key)
         {
             PartitionKey key = (PartitionKey)keysOrRanges.get(0);
-            ConsensusRequestRouter.instance.maybeSaveAccordKeyMigrationLocally(key, Epoch.create(0, executeAt.epoch()));
+            maybeSaveAccordKeyMigrationLocally(key, Epoch.create(0, executeAt.epoch()));
         }
     }
 
