@@ -22,7 +22,9 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -32,9 +34,14 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.DefaultFSErrorHandler;
 
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.service.snapshot.TableSnapshotTest.createFolders;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.junit.Assert.assertTrue;
 
 public class SnapshotManagerTest
 {
@@ -50,17 +57,23 @@ public class SnapshotManagerTest
     @ClassRule
     public static TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    private TableSnapshot generateSnapshotDetails(String tag, Instant expiration, boolean ephemeral) throws Exception {
-        return new TableSnapshot(
-        "ks",
-        "tbl",
-        UUID.randomUUID(),
-        tag,
-        Instant.EPOCH,
-        expiration,
-        createFolders(temporaryFolder),
-        ephemeral
-        );
+    private TableSnapshot generateSnapshotDetails(String tag, Instant expiration, boolean ephemeral)
+    {
+        try
+        {
+            return new TableSnapshot("ks",
+                                     "tbl",
+                                     UUID.randomUUID(),
+                                     tag,
+                                     Instant.EPOCH,
+                                     expiration,
+                                     createFolders(temporaryFolder),
+                                     ephemeral);
+        }
+        catch (Exception ex)
+        {
+            throw new RuntimeException(ex);
+        }
     }
 
     @Test
@@ -162,5 +175,50 @@ public class SnapshotManagerTest
         // Then
         assertThat(manager.getExpiringSnapshots()).doesNotContain(expiringSnapshot);
         assertThat(expiringSnapshot.exists()).isFalse();
+    }
+
+    @Test // see CASSANDRA-18211
+    public void testConcurrentClearingOfSnapshots() throws Exception
+    {
+
+        AtomicReference<Long> firstInvocationTime = new AtomicReference<>(0L);
+        AtomicReference<Long> secondInvocationTime = new AtomicReference<>(0L);
+
+        SnapshotManager manager = new SnapshotManager(0, 5)
+        {
+            @Override
+            public synchronized void clearSnapshot(TableSnapshot snapshot)
+            {
+                if (snapshot.getTag().equals("mysnapshot"))
+                {
+                    firstInvocationTime.set(currentTimeMillis());
+                    Uninterruptibles.sleepUninterruptibly(10, SECONDS);
+                }
+                else if (snapshot.getTag().equals("mysnapshot2"))
+                {
+                    secondInvocationTime.set(currentTimeMillis());
+                }
+                super.clearSnapshot(snapshot);
+            }
+        };
+
+        TableSnapshot expiringSnapshot = generateSnapshotDetails("mysnapshot", Instant.now().plusSeconds(15), false);
+        manager.addSnapshot(expiringSnapshot);
+
+        manager.resumeSnapshotCleanup();
+
+        Thread nonExpiringSnapshotCleanupThred = new Thread(() -> manager.clearSnapshot(generateSnapshotDetails("mysnapshot2", null, false)));
+
+        // wait until the first snapshot expires
+        await().pollInterval(1, SECONDS)
+               .pollDelay(0, SECONDS)
+               .timeout(1, MINUTES)
+               .until(() -> firstInvocationTime.get() > 0);
+
+        // this will block until the first snapshot is cleaned up
+        nonExpiringSnapshotCleanupThred.start();
+        nonExpiringSnapshotCleanupThred.join();
+
+        assertTrue(secondInvocationTime.get() - firstInvocationTime.get() > 10_000);
     }
 }
