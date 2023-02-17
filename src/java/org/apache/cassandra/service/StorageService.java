@@ -93,6 +93,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AuthCacheService;
@@ -231,6 +233,8 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.DumperOptions.FlowStyle;
 import org.yaml.snakeyaml.Yaml;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -2242,7 +2246,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, String format)
     {
-        checkArgument(format == null || format.toLowerCase().equals("yaml"), "YAML is the only supported format");
+        format = format.toLowerCase();
+        boolean concise = format.startsWith("minified_");
+        if (concise)
+            format = format.substring("minified_".length());
+        checkArgument(format.equals("yaml") || format.equals("json"), "YAML and JSON are the only supported format");
         ClusterMetadata cm = ClusterMetadata.current();
         MigrationStateSnapshot snapshot = cm.migrationStateSnapshot;
         // TODO wanted something human and machine readable, but didn't expend a lot of thought
@@ -2250,7 +2258,34 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // to output YAML containing only primitives without going through the goofy mapping process
         // it adds tags that clutter the output up badly
         Map<String, Object> snapshotAsMap = snapshot.toMap(keyspaceNames, tableNames);
-        return new Yaml().dump(snapshotAsMap);
+        if (format.equals("yaml"))
+        {
+            DumperOptions dumperOptions = new DumperOptions();
+            if (concise)
+            {
+                dumperOptions.setDefaultFlowStyle(FlowStyle.FLOW);
+                dumperOptions.setIndent(1);
+                dumperOptions.setWidth(Integer.MAX_VALUE);
+                dumperOptions.setSplitLines(false);
+            }
+            // TODO How do you get snake yaml to produce minified output?
+            return new Yaml(dumperOptions).dump(snapshotAsMap);
+        }
+        else
+        {
+            try
+            {
+                ObjectMapper om = new ObjectMapper();
+                if (concise)
+                    return om.writeValueAsString(snapshotAsMap);
+                else
+                    return om.writerWithDefaultPrettyPrinter().writeValueAsString(snapshotAsMap);
+            }
+            catch (JsonProcessingException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     public Map<String,List<Integer>> getConcurrency(List<String> stageNames)

@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -36,6 +37,8 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
@@ -526,28 +529,44 @@ public class AccordMigrationTest extends AccordTestBase
              });
     }
 
-    private static void assertMigrationState(String tableName, ConsensusMigrationTarget target, List<Range<Token>> migratedRanges, List<Range<Token>> migratingRanges, int numMigratingEpochs)
+    private static void assertMigrationState(String tableName, ConsensusMigrationTarget target, List<Range<Token>> migratedRanges, List<Range<Token>> migratingRanges, int numMigratingEpochs) throws Throwable
     {
         // Validate nodetool consensus admin list output
-        String listResult = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list");
-        Map<String, Object> migrationStateMap = new Yaml().load(listResult);
-        assertTrue(Epoch.EMPTY.getEpoch() < ((Number)migrationStateMap.get("epoch")).longValue());
-        List<Map<String, Object>> tableStates = (List<Map<String, Object>>)migrationStateMap.get("tableStates");
-        assertEquals(tableStates.size(), 1);
-        Map<String, Object> tableStateMap = tableStates.get(0);
-        assertEquals(tableName, tableStateMap.get("table"));
-        assertEquals(KEYSPACE, tableStateMap.get("keyspace"));
-        String tableId = (String)tableStateMap.get("tableId");
-        List<Range<Token>> migratedRangesFromStateMap = ((List<String>)tableStateMap.get("migratedRanges")).stream().map(Range::fromString).collect(toImmutableList());
-        assertEquals(migratedRangesFromStateMap, migratedRanges);
-        Map<Long, List<Range<Token>>> migratingRangesByEpochFromStateMap = new LinkedHashMap<>();
-        for (Map.Entry<Number, List<String>> entry : ((Map<Number, List<String>>)tableStateMap.get("migratingRangesByEpoch")).entrySet())
-            migratingRangesByEpochFromStateMap.put(entry.getKey().longValue(), entry.getValue().stream().map(Range::fromString).collect(toImmutableList()));
-        if (migratingRanges.isEmpty())
-            assertEquals(0, migratingRangesByEpochFromStateMap.size());
-        else
-            assertEquals(migratingRanges, migratingRangesByEpochFromStateMap.values().iterator().next());
+        String yamlResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list");
+        Map<String, Object> yamlStateMap = new Yaml().load(yamlResultString);
+        String minifiedYamlResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified_yaml");
+        Map<String, Object> minifiedYamlStateMap = new Yaml().load(minifiedYamlResultString);
+        String jsonResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "json");
+        Map<String, Object> jsonStateMap = new ObjectMapper().readValue(jsonResultString, new TypeReference<>(){});
+        String minifiedJsonResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified_json");
+        Map<String, Object> minifiedJsonStateMap = new ObjectMapper().readValue(minifiedJsonResultString, new TypeReference<>(){});
 
+
+        List<String> tableIds = new ArrayList<>();
+        for (Map<String, Object> migrationStateMap : ImmutableList.of(yamlStateMap, jsonStateMap, minifiedYamlStateMap, minifiedJsonStateMap))
+        {
+            assertTrue(Epoch.EMPTY.getEpoch() < ((Number) migrationStateMap.get("epoch")).longValue());
+            List<Map<String, Object>> tableStates = (List<Map<String, Object>>) migrationStateMap.get("tableStates");
+            assertEquals(tableStates.size(), 1);
+            Map<String, Object> tableStateMap = tableStates.get(0);
+            assertEquals(tableName, tableStateMap.get("table"));
+            assertEquals(KEYSPACE, tableStateMap.get("keyspace"));
+            tableIds.add((String) tableStateMap.get("tableId"));
+            List<Range<Token>> migratedRangesFromStateMap = ((List<String>) tableStateMap.get("migratedRanges")).stream().map(Range::fromString).collect(toImmutableList());
+            assertEquals(migratedRangesFromStateMap, migratedRanges);
+            Map<Long, List<Range<Token>>> migratingRangesByEpochFromStateMap = new LinkedHashMap<>();
+            for (Map.Entry<Object, List<String>> entry : ((Map<Object, List<String>>) tableStateMap.get("migratingRangesByEpoch")).entrySet())
+            {
+                long epoch = entry.getKey() instanceof Number ? ((Number)entry.getKey()).longValue() : Long.valueOf((String)entry.getKey());
+                migratingRangesByEpochFromStateMap.put(epoch, entry.getValue().stream().map(Range::fromString).collect(toImmutableList()));
+            }
+            if (migratingRanges.isEmpty())
+                assertEquals(0, migratingRangesByEpochFromStateMap.size());
+            else
+                assertEquals(migratingRanges, migratingRangesByEpochFromStateMap.values().iterator().next());
+        }
+
+        // Also check JSON format at least loads without error
         // Validate in memory state at each node
         List<Range<Token>> migratingAndMigratedRanges = normalize(ImmutableList.<Range<Token>>builder().addAll(migratedRanges).addAll(migratingRanges).build());
         spinUntilSuccess(() -> {
@@ -558,7 +577,8 @@ public class AccordMigrationTest extends AccordTestBase
                 TableMigrationState state = snapshot.tableStates.values().iterator().next();
                 assertEquals(KEYSPACE, state.keyspaceName);
                 assertEquals(tableName, state.tableName);
-                assertEquals(tableId, state.tableId.toString());
+                for (String tableId : tableIds)
+                    assertEquals(tableId, state.tableId.toString());
                 assertEquals(target, state.targetProtocol);
                 assertEquals("Migrated ranges:", migratedRanges, state.migratedRanges);
                 assertEquals("Migrating ranges:", migratingRanges, state.migratingRanges);
