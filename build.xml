@@ -97,6 +97,8 @@
          the user specifies the tmp.dir property -->
     <property name="tmp.dir" value="${build.dir}/tmp"/>
 
+    <property name="ant.build.src" value="${basedir}/.build" />
+
     <property name="doc.dir" value="${basedir}/doc"/>
 
     <condition property="version" value="${base.version}">
@@ -106,8 +108,12 @@
     <property name="version.properties.dir"
               value="${build.src.resources}/org/apache/cassandra/config/" />
     <property name="final.name" value="${ant.project.name}-${version}"/>
+    <property name="accord.dir" value="modules/accord" />
+    <!-- The reason not to use ant.project.name is we publish as "cassandra-accord" so the file names won't be named apache-cassandra-accord -->
+    <property name="accord.final.name" value="cassandra-accord-${version}"/>
 
     <property name="local.repository" value="${user.home}/.m2/repository" />
+    <property name="accord.local.repository" value="${local.repository}/org/apache/cassandra/cassandra-accord/${version}" />
 
     <!-- details of how and which Maven repository we publish to -->
     <property name="maven.version" value="3.0.3" />
@@ -357,11 +363,6 @@
         </fileset>
     </path>
 
-    <target name="_build-accord">
-      <echo unless:set="env.ACCORD_LOCAL_DEV">building Accord, set ACCORD_LOCAL_DEV environment variable to skip</echo>
-      <exec unless:set="env.ACCORD_LOCAL_DEV" executable=".build/include-accord.sh" dir="${basedir}" logError="true" failonerror="true" failifexecutionfails="true" />
-      <echo if:set="env.ACCORD_LOCAL_DEV">ACCORD_LOCAL_DEV environment variable is set, skipping pull/install</echo>
-    </target>
   <macrodef name="create-javadoc">
     <attribute name="destdir"/>
     <element name="filesets"/>
@@ -398,6 +399,7 @@
         <mkdir dir="${build.dir.lib}"/>
         <mkdir dir="${jacoco.export.dir}"/>
         <mkdir dir="${jacoco.partials.dir}"/>
+        <exec executable="${ant.build.src}/git/install-git-defaults.sh" osfamily="unix" dir="${basedir}" logError="true" failonerror="true" failifexecutionfails="true" />
 
         <!-- Set up jdk specific properties -->
         <javac includes="**/JdkProperties.java,**/SetSystemProperty.java" srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" source="${java.default}" target="${java.default}">
@@ -519,7 +521,8 @@
     <!--
         The build target builds all the .class files
     -->
-    <target name="build" depends="resolver-retrieve-build,build-project" description="Compile Cassandra classes"/>
+    <target name="_build_subprojects" depends="_build-accord" description="Builds all subprojects needed for the build" />
+    <target name="build" depends="resolver-retrieve-build,_build_subprojects,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
     <target name="_build_java">
@@ -963,6 +966,9 @@
           <exclude name=".externalToolBuilders/**" />
           <!-- exclude NetBeans files -->
           <exclude name="ide/nbproject/private/**" />
+          <!-- Accord build -->
+          <exclude name="${accord.dir}/*/build/**" />
+          <exclude name="${accord.dir}/**/.gradle/**" />
         </tarfileset>
 
         <!-- python driver -->
@@ -981,6 +987,9 @@
           <exclude name="bin/*.in.sh" />
           <include name="tools/bin/*"/>
           <exclude name="tools/bin/*.in.sh" />
+          <include name=".build/git/*" />
+          <include name=".build/sh/*" />
+          <include name="${accord.dir}/gradlew" />
         </tarfileset>
       </tar>
 
@@ -2026,6 +2035,7 @@
   <target name="mvn-install"
           depends="jar,sources-jar,javadoc-jar"
           description="Installs the artifacts in the Maven Local Repository">
+    <!-- This logic does not install cassandra-accord as the accord submodule already did so -->
 
     <!-- the parent -->
     <install pomFile="${build.dir}/${final.name}-parent.pom"
@@ -2047,6 +2057,18 @@
   <target name="publish"
           depends="mvn-install,artifacts"
           description="Publishes the artifacts to the Maven repository">
+    <!-- Accord -->
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}.pom"
+            packaging="pom"/>
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}.jar" />
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}-sources.jar"
+            classifier="sources"/>
+    <deploy pomFile="${accord.local.repository}/${accord.final.name}.pom"
+            file="${accord.local.repository}/${accord.final.name}-javadoc.jar"
+            classifier="javadoc"/>
 
     <!-- the parent -->
     <deploy pomFile="${build.dir}/${final.name}-parent.pom"
@@ -2077,4 +2099,5 @@
   <import file="${build.helpers.dir}/build-cqlsh.xml"/>
   <import file="${build.helpers.dir}/build-bench.xml"/>
   <import file="${build.helpers.dir}/build-sonar.xml"/>
+  <import file="${build.helpers.dir}/build-accord.xml" />
 </project>

@@ -27,6 +27,39 @@ In fact, this repository is a GitHub mirror of [the official repo](https://gitbo
 
 Use [Cassandra JIRA](https://issues.apache.org/jira/browse/CASSANDRA/) to create an issue, then either attach a patch or post a link to a GitHub branch with your changes.
 
+# Working with submodules
+
+Apache Cassandra uses git submodules for a set of dependencies, this is to make cross cutting changes easier for developers.  When working on such changes, there are a set of scripts to help with the process.
+
+## Local Development
+
+When starting a development branch, the following will change all submodules to a new branch based off the JIRA
+
+```
+$ .build/sh/development-switch.sh --jira CASSANDRA-<number>
+```
+
+When changes are made to a submodule (such as to accord), you need to commit and update the reference in Apache Cassandra
+
+```
+$ (cd modules/accord ; git commit -am 'Saving progress')
+$ .build/sh/bump-accord.sh
+```
+
+During this step you may be asked for github credentials, github removed password auth for `https` endpoints in 2021 so you will need to generate a auth token to support pushing, this can be done by going to https://github.com/settings/tokens/new and creating a token with the "repo" scope.
+
+## Commit and Merge Process
+
+Due to the nature of submodules, the changes to the submodules must be committed and pushed before the changes to Apache Cassandra; these are different repositories so git's `--atomic` does not prevent conflicts from concurrent merges; the basic process is as follows:
+
+* Follow the normal merge process for the submodule
+* Update Apache Cassandra's submodule entry to point to the newly committed change; follow the Accord example below for an example
+
+```
+$ .build/sh/change-submodule-accord.sh
+$ .build/sh/bump-accord.sh
+```
+
 # Useful Links
 
 - How you can contribute to Apache Cassandra [presentation](http://www.slideshare.net/yukim/cassandrasummit2013) by Yuki Morishita
