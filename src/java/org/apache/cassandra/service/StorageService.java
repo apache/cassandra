@@ -74,7 +74,6 @@ import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
-import org.apache.cassandra.service.snapshot.SnapshotLoader;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -1061,8 +1060,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             DiskUsageBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
             BatchlogManager.instance.start();
-            snapshotManager.start();
+            startSnapshotManager();
         }
+    }
+
+    @VisibleForTesting
+    public void startSnapshotManager()
+    {
+        snapshotManager.start();
     }
 
     public void waitForSchema(long schemaTimeoutMillis, long ringTimeoutMillis)
@@ -4340,10 +4345,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private void clearKeyspaceSnapshot(String keyspace, String tag, long olderThanTimestamp)
     {
-        Set<TableSnapshot> snapshotsToClear = new SnapshotLoader().loadSnapshots(keyspace)
-                                                                  .stream()
-                                                                  .filter(TableSnapshot.shouldClearSnapshot(tag, olderThanTimestamp))
-                                                                  .collect(Collectors.toSet());
+        Set<TableSnapshot> snapshotsToClear = snapshotManager.loadSnapshots(keyspace)
+                                                             .stream()
+                                                             .filter(TableSnapshot.shouldClearSnapshot(tag, olderThanTimestamp))
+                                                             .collect(Collectors.toSet());
         for (TableSnapshot snapshot : snapshotsToClear)
             snapshotManager.clearSnapshot(snapshot);
     }
@@ -4353,10 +4358,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         boolean skipExpiring = options != null && Boolean.parseBoolean(options.getOrDefault("no_ttl", "false"));
         boolean includeEphemeral = options != null && Boolean.parseBoolean(options.getOrDefault("include_ephemeral", "false"));
 
-        SnapshotLoader loader = new SnapshotLoader();
         Map<String, TabularData> snapshotMap = new HashMap<>();
 
-        for (TableSnapshot snapshot : loader.loadSnapshots())
+        for (TableSnapshot snapshot : snapshotManager.loadSnapshots())
         {
             if (skipExpiring && snapshot.isExpiring())
                 continue;

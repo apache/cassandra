@@ -709,6 +709,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     StorageService.instance.setUpDistributedSystemKeyspaces();
                     StorageService.instance.setNormalModeUnsafe();
                     Gossiper.instance.register(StorageService.instance);
+                    StorageService.instance.startSnapshotManager();
                 }
 
                 // Populate tokenMetadata for the second time,
