@@ -22,7 +22,7 @@ if [ "`basename "$0"`" = 'nodeprobe' ]; then
     echo "***************************************************************" >&2
 fi
 
-ENV_PRESERVE="$ENV_PRESERVE MAX_HEAP_SIZE JVM_OPTS"
+CASSANDRA_ENV_PRESERVE="$CASSANDRA_ENV_PRESERVE MAX_HEAP_SIZE JVM_OPTS"
 . ./cassandra-conf.sh
 
 # JMX Port passed via cmd line args (-p 9999 / --port 9999 / --port=9999)
