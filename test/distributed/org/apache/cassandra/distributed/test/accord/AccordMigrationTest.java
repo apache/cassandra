@@ -534,11 +534,11 @@ public class AccordMigrationTest extends AccordTestBase
         // Validate nodetool consensus admin list output
         String yamlResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list");
         Map<String, Object> yamlStateMap = new Yaml().load(yamlResultString);
-        String minifiedYamlResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified_yaml");
+        String minifiedYamlResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified-yaml");
         Map<String, Object> minifiedYamlStateMap = new Yaml().load(minifiedYamlResultString);
         String jsonResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "json");
         Map<String, Object> jsonStateMap = new ObjectMapper().readValue(jsonResultString, new TypeReference<>(){});
-        String minifiedJsonResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified_json");
+        String minifiedJsonResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified-json");
         Map<String, Object> minifiedJsonStateMap = new ObjectMapper().readValue(minifiedJsonResultString, new TypeReference<>(){});
 
 

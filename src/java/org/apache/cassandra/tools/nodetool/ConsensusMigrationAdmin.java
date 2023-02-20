@@ -49,7 +49,7 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
         @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
         private List<String> schemaArgs = new ArrayList<>();
 
-        @Option(title = "format", name = {"-f", "--format"}, description = "Output format, YAML and JSON are the only supported formats, default YAML, prefix with `minified_` to turn off pretty printing")
+        @Option(title = "format", name = {"-f", "--format"}, description = "Output format, YAML and JSON are the only supported formats, default YAML, prefix with `minified-` to turn off pretty printing")
         private String format = "yaml";
 
         protected void execute(NodeProbe probe)
