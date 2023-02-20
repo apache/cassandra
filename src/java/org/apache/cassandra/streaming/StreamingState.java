@@ -19,7 +19,9 @@ package org.apache.cassandra.streaming;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
@@ -47,7 +49,9 @@ public class StreamingState implements StreamEventHandler
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingState.class);
 
-    public static final long ELEMENT_SIZE = ObjectSizes.measureDeep(new StreamingState(nextTimeUUID(), StreamOperation.OTHER, false));
+    public static final long EMPTY = ObjectSizes.measureDeep(new StreamingState(nextTimeUUID(), StreamOperation.OTHER, false));
+
+    public static final long IPV6_SIZE = ObjectSizes.measureDeep(new InetSocketAddress(getIpvAddress(16), 42));
 
     public enum Status
     {INIT, START, SUCCESS, FAILURE}
@@ -104,6 +108,11 @@ public class StreamingState implements StreamEventHandler
         return this.peers;
     }
 
+    public String completeMessage()
+    {
+        return this.completeMessage;
+    }
+
     public Status status()
     {
         return status;
@@ -123,6 +132,19 @@ public class StreamingState implements StreamEventHandler
                 return true;
             default:
                 return false;
+        }
+    }
+
+    public static InetAddress getIpvAddress(int size)
+    {
+        try
+        {
+            return InetAddress.getByAddress(new byte[size]);
+        }
+        catch (UnknownHostException e)
+        {
+            e.printStackTrace();
+            return null;
         }
     }
 

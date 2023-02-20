@@ -265,19 +265,21 @@ public class StreamManager implements StreamManagerMBean
     {
         DurationSpec.LongNanosecondsBound duration = DatabaseDescriptor.getStreamingStateExpires();
         long sizeBytes = DatabaseDescriptor.getStreamingStateSize().toBytes();
-        long numElements = sizeBytes / StreamingState.ELEMENT_SIZE;
-        logger.info("Storing streaming state for {} or for {} elements", duration, numElements);
+        logger.info("Storing streaming state for {} or for weight {}", duration, sizeBytes);
         states = CacheBuilder.newBuilder()
                              .expireAfterWrite(duration.quantity(), duration.unit())
-                             .maximumWeight(10 * 1024 *1024)
+                             .maximumWeight(sizeBytes)
                              .weigher(new streamingStateWeigher())
                              .build();
     }
 
     private class streamingStateWeigher implements Weigher<TimeUUID,StreamingState>
     {
-        public int weigh(TimeUUID key, StreamingState val) {
-            long weight = ObjectSizes.measureDeep(val);
+        public int weigh(TimeUUID key, StreamingState val)
+        {
+            long costOfPeers = val.peers().size() * (val.IPV6_SIZE + 48); // 48 represents the datastructure cost computed by the JOL
+            long costOfCompleteMessage = ObjectSizes.sizeOf(val.completeMessage());
+            long weight = costOfPeers + costOfCompleteMessage + val.EMPTY;
             int finalWeight = Math.toIntExact(weight);
             return finalWeight;
         }
