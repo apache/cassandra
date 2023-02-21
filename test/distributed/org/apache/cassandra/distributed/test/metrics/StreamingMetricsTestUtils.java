@@ -40,7 +40,6 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessageFilters;
-import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
