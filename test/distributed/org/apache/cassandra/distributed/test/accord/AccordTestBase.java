@@ -137,10 +137,9 @@ public abstract class AccordTestBase extends TestBaseImpl
             DataOutputBuffer output = new DataOutputBuffer();
             try
             {
-                // TODO messaging service version
                 MigrationStateSnapshot.serializer.serialize(
                     ClusterMetadata.current().migrationStateSnapshot,
-                    output, MessagingService.VERSION_42);
+                    output, MessagingService.current_version);
             }
             catch (IOException e)
             {
@@ -150,8 +149,7 @@ public abstract class AccordTestBase extends TestBaseImpl
         });
         DataInputPlus input = new DataInputBuffer(serializedBytes);
         IPartitioner partitioner = FBUtilities.newPartitioner(instance.callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
-        // TODO messaging service version
-        return MigrationStateSnapshot.serializer.deserialize(input, partitioner, MessagingService.VERSION_42);
+        return MigrationStateSnapshot.serializer.deserialize(input, partitioner, MessagingService.current_version);
     }
 
     protected static int getAccordCoordinateCount()

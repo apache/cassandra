@@ -28,8 +28,6 @@ import org.apache.cassandra.utils.ObjectSizes;
 /**
  * Potentially returned by any transaction that tries to execute in an Epoch
  * where the range has migrated away from Accord
- *
- * Returned by explicit migration transactions as well.
  */
 public class RetryWithNewProtocolResult extends TxnResult
 {

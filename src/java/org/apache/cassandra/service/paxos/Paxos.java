@@ -81,7 +81,6 @@ import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ConsensusRequestRouter;
 import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
-import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteAccepted;
 import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteCommitted;
@@ -614,42 +613,16 @@ public class Paxos
      * @return null if the operation succeeds in updating the row, or the current values corresponding to conditions.
      * (since, if the CAS doesn't succeed, it means the current value do not match the conditions).
      */
-    public static StorageProxy.ConsensusAttemptResult cas(DecoratedKey key,
-                                                          CASRequest request,
-                                                          ConsistencyLevel consistencyForConsensus,
-                                                          ConsistencyLevel consistencyForCommit,
-                                                          ClientState clientState,
-                                                          long queryStartNanos)
+    public static ConsensusAttemptResult cas(DecoratedKey partitionKey,
+                                             CASRequest request,
+                                             ConsistencyLevel consistencyForConsensus,
+                                             ConsistencyLevel consistencyForCommit,
+                                             ClientState clientState,
+                                             long queryStartNanos)
             throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
         final long proposeDeadline = queryStartNanos + getCasContentionTimeout(NANOSECONDS);
         final long commitDeadline = Math.max(proposeDeadline, queryStartNanos + getWriteRpcTimeout(NANOSECONDS));
-        return cas(key, request, consistencyForConsensus, consistencyForCommit, clientState, queryStartNanos, proposeDeadline, commitDeadline);
-    }
-    // TODO Unused?
-    public static ConsensusAttemptResult cas(DecoratedKey key,
-                                  CASRequest request,
-                                  ConsistencyLevel consistencyForConsensus,
-                                  ConsistencyLevel consistencyForCommit,
-                                  ClientState clientState,
-                                  long proposeDeadline,
-                                  long commitDeadline
-                                  )
-            throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
-    {
-        return cas(key, request, consistencyForConsensus, consistencyForCommit, clientState, nanoTime(), proposeDeadline, commitDeadline);
-    }
-    private static ConsensusAttemptResult cas(DecoratedKey partitionKey,
-                                  CASRequest request,
-                                  ConsistencyLevel consistencyForConsensus,
-                                  ConsistencyLevel consistencyForCommit,
-                                  ClientState clientState,
-                                  long start,
-                                  long proposeDeadline,
-                                  long commitDeadline
-                                  )
-            throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
-    {
         SinglePartitionReadCommand readCommand = request.readCommand(FBUtilities.nowInSeconds());
         TableMetadata metadata = readCommand.metadata();
 
@@ -740,7 +713,6 @@ public class Paxos
                 }
 
                 PaxosPropose.Status propose = propose(proposal, participants, conditionMet, false).awaitUntil(proposeDeadline);
-                logger.info("Propose outcome " + propose);
                 switch (propose.outcome)
                 {
                     default: throw new IllegalStateException();
@@ -805,7 +777,7 @@ public class Paxos
         }
         finally
         {
-            final long latency = nanoTime() - start;
+            final long latency = nanoTime() - queryStartNanos;
 
             if (failedAttemptsDueToContention > 0)
             {
@@ -826,26 +798,12 @@ public class Paxos
         return read.rowIterator();
     }
 
-    // TODO unused?
-    public static ConsensusAttemptResult read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyForConsensus)
-            throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
-    {
-        long start = nanoTime();
-        return read(group, consistencyForConsensus, start, start);
-    }
-
     public static ConsensusAttemptResult read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyForConsensus, long queryStartNanos)
-            throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
-    {
-        long deadline = queryStartNanos + DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);
-        return read(group, consistencyForConsensus, queryStartNanos, deadline);
-    }
-
-    private static ConsensusAttemptResult read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyForConsensus, long start, long deadline)
             throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
         if (group.queries.size() > 1)
             throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one partition at a time");
+        long deadline = queryStartNanos + DatabaseDescriptor.getReadRpcTimeout(NANOSECONDS);
 
         int failedAttemptsDueToContention = 0;
         Ballot minimumBallot = null;
@@ -880,7 +838,6 @@ public class Paxos
 
                 Proposal proposal = Proposal.empty(begin.ballot, read.partitionKey(), read.metadata());
                 PaxosPropose.Status propose = propose(proposal, begin.participants, true, false).awaitUntil(deadline);
-                logger.info("Consensus read propose result " + propose);
                 switch (propose.outcome)
                 {
                     default: throw new IllegalStateException();
@@ -893,21 +850,16 @@ public class Paxos
 
                     case SUPERSEDED:
                         Superseded superseded = propose.superseded();
-                        // TODO Supersede doesn't seem like side effects should matter for an empty proposal
-                        // and we should be able to retry, this could reduce unnecessary timeouts
-                        // from reads during contention
-                        // It's also buggy because propose is done without waiting to check for side effects
-                        // so it will almost always think there are side effects, and the propose method actually
-                        // flips wait for side effects to false when the update is empty!
                         // For consensus migration we are going to bail out earlier if migration is needed
                         // otherwise it it will fail every single query that races with migration being started
-                        // during the propose step
+                        // during the propose step. Necessary because of CASSANDRA-18276
                         // Shouldn't retry again on this protocol
                         if (superseded.needsConsensusMigration)
                         {
                             casReadMetrics.acceptMigrationRejects.mark();
                             return new ConsensusAttemptResult();
                         }
+                        // TODO https://issues.apache.org/jira/browse/CASSANDRA-18276 side effects shouldn't matter for reads
                         switch (superseded.hadSideEffects)
                         {
                             default: throw new IllegalStateException();
@@ -932,7 +884,7 @@ public class Paxos
         }
         finally
         {
-            long latency = nanoTime() - start;
+            long latency = nanoTime() - queryStartNanos;
             readMetrics.addNano(latency);
             casReadMetrics.addNano(latency);
             readMetricsMap.get(consistencyForConsensus).addNano(latency);
@@ -1017,9 +969,6 @@ public class Paxos
 
             // After performing the prepare phase we may discover that we can't propose
             // our own transaction on this protocol by discovering a new CM Epoch
-            // Recovery could finish here in begin, but as a simplification we throw away the prepare
-            // and return so that ConsensusRequestRouter can do the recovery using PaxosRepair.
-            // It's rare this will race with CM updates and have contention/unrecovered transactions
             if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeDuringPaxosBegin(query.metadata().id, query.partitionKey()))
             {
                 return BeginResult.retryOnNewProtocol();
@@ -1080,9 +1029,6 @@ public class Paxos
                     // sleep a random amount to give the other proposer a chance to finish
                     if (!waitForContention(deadline, ++failedAttemptsDueToContention, query.metadata(), query.partitionKey(), consistencyForConsensus, isWrite ? WRITE : READ))
                         throw MaybeFailure.noResponses(prepare.participants).markAndThrowAsTimeoutOrFailure(true, consistencyForConsensus, failedAttemptsDueToContention);
-                    // TODO are we preparing to propose our own new value?
-                    // Is it guaranteed the state of the old in progress proposal is now superseded because when we repropose it
-                    // we don't give it a new ballot?
                     retry = prepare(prepare.retryWithAtLeast(), prepare.participants, query, isWrite, acceptEarlyReadPermission);
                     break;
                 }

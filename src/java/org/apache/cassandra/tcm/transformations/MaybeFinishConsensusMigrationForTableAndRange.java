@@ -73,7 +73,11 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
     @Nonnull
     public final ConsensusMigrationRepairType repairType;
 
-    public MaybeFinishConsensusMigrationForTableAndRange(@Nonnull String keyspace, @Nonnull String cf, List<Range<Token>> repairedRanges, @Nonnull Epoch minEpoch, @Nonnull ConsensusMigrationRepairType repairType)
+    public MaybeFinishConsensusMigrationForTableAndRange(@Nonnull String keyspace,
+                                                         @Nonnull String cf,
+                                                         @Nonnull List<Range<Token>> repairedRanges,
+                                                         @Nonnull Epoch minEpoch,
+                                                         @Nonnull ConsensusMigrationRepairType repairType)
     {
         checkNotNull(keyspace, "keyspace should not be null");
         checkNotNull(cf, "cf should not be null");
@@ -99,8 +103,6 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
     {
         checkNotNull(metadata, "clusterMetadata should not be null");
         String ksAndCF = keyspace + "." + cf;
-        // TODO Should this be accessed via TM?
-        // Is there an epoch I should wait for (min or max from the repair job?)
         TableMetadata tbm = Schema.instance.getTableMetadata(keyspace, cf);
         if (tbm == null)
             return new Rejected(format("Table %s is not currently performing consensus migration", ksAndCF));
@@ -129,7 +131,6 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
 
     static class Serializer implements AsymmetricMetadataSerializer<Transformation, MaybeFinishConsensusMigrationForTableAndRange>
     {
-
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
         {
             MaybeFinishConsensusMigrationForTableAndRange v = (MaybeFinishConsensusMigrationForTableAndRange)t;
@@ -150,7 +151,6 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
             String keyspace = in.readUTF();
             String cf = in.readUTF();
             int numRepairedRanges = in.readInt();
-            // TODO get partitioner the right way
             IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
             List<Range<Token>> repairedRanges = new ArrayList<>(numRepairedRanges);
             for (int i = 0; i < numRepairedRanges; i++)

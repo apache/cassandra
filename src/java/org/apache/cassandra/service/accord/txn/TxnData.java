@@ -43,16 +43,12 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.concurrent.Future;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 
 public class TxnData extends TxnResult implements Data, Iterable<FilteredPartition>
 {
-    public static final TxnData EMPTY = new TxnData();
-    public static final Future<Data> EMPTY_FUTURE = ImmediateFuture.success(EMPTY);
-    private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY);
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnData());
 
     private final Map<TxnDataName, FilteredPartition> data;
 

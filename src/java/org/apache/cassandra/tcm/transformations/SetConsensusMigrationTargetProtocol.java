@@ -61,7 +61,8 @@ public class SetConsensusMigrationTargetProtocol implements Transformation
     @Nonnull
     public final List<TableId> tables;
 
-    public SetConsensusMigrationTargetProtocol(ConsensusMigrationTarget targetProtocol, List<TableId> tables)
+    public SetConsensusMigrationTargetProtocol(@Nonnull ConsensusMigrationTarget targetProtocol,
+                                               @Nonnull List<TableId> tables)
     {
         this.targetProtocol = targetProtocol;
         this.tables = tables;

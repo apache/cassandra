@@ -52,7 +52,6 @@ import static org.apache.cassandra.service.ConsensusTableMigrationState.TableMig
 import static org.apache.cassandra.tcm.ClusterMetadata.Transformer;
 import static org.apache.cassandra.utils.Collectors3.toImmutableMap;
 
-
 public class BeginConsensusMigrationForTableAndRange implements Transformation
 {
     public static Serializer serializer = new Serializer();
@@ -66,7 +65,9 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
     @Nonnull
     public final List<TableId> tables;
 
-    public BeginConsensusMigrationForTableAndRange(@Nonnull ConsensusMigrationTarget targetProtocol, @Nonnull List<Range<Token>> ranges, @Nonnull List<TableId> tables)
+    public BeginConsensusMigrationForTableAndRange(@Nonnull ConsensusMigrationTarget targetProtocol,
+                                                   @Nonnull List<Range<Token>> ranges,
+                                                   @Nonnull List<TableId> tables)
     {
         checkNotNull(targetProtocol, "targetProtocol should not be null");
         checkNotNull(ranges, "ranges should not be null");
@@ -123,7 +124,6 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
         {
             ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(in.readUTF());
             int numRanges = in.readInt();
-            // TODO get partitioner the right way
             IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
             List<Range<Token>> ranges = new ArrayList<>(numRanges);
             for (int i = 0; i < numRanges; i++)
@@ -132,7 +132,7 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
                                        Token.metadataSerializer.deserialize(in, partitioner, version)));
             }
             int numTables = in.readInt();
-            List<TableId> tables = new ArrayList(numTables);
+            List<TableId> tables = new ArrayList<>(numTables);
             for (int i = 0; i < numTables; i++)
                 tables.add(TableId.deserialize(in));
             return new BeginConsensusMigrationForTableAndRange(targetProtocol, ranges, tables);

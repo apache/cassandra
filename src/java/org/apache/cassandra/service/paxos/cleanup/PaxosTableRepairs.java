@@ -28,6 +28,7 @@ import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -88,7 +89,6 @@ public class PaxosTableRepairs implements AbstractPaxosRepair.Listener
                 queued.remove().cancelUnexceptionally();
         }
 
-        // TODO It looks like this sufficiently ensures the inflight repair already covers the incompleteBallot we are trying to repair
         AbstractPaxosRepair startOrGetOrQueue(PaxosTableRepairs tableRepairs, DecoratedKey key, Ballot incompleteBallot, ConsistencyLevel consistency, TableMetadata table, Consumer<PaxosRepair.Result> onComplete)
         {
             Preconditions.checkArgument(this.key.equals(key));

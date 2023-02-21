@@ -172,7 +172,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         this.required = required;
         this.onDone = onDone;
         this.isForRepair = isForRepair;
-        logger.info("Propose required {}", required);
     }
 
     /**
@@ -208,7 +207,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
                     return new MaybeFailure(new Paxos.MaybeFailure(true, participants, required, 0, emptyMap()));
                 }
 
-                logger.info("Invoking status for propose result");
                 return status();
             }
         }
@@ -253,22 +251,14 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         long responses = this.responses;
 
         if (isSuccessful(responses))
-        {
-            logger.info("Returning successful with responses {}", responses);
             return STATUS_SUCCESS;
-        }
 
-        boolean canSucceed = canSucceed(responses);
-        int refusals = refusals(responses);
         if (!canSucceed(responses) && (supersededBy != null || needsConsensusMigration))
         {
-            logger.info("Returning superseded response refusals " + refusals);
             Superseded.SideEffects sideEffects = hasNoSideEffects(responses) ? NO : MAYBE;
-            Superseded superseded = new Superseded(supersededBy, sideEffects, needsConsensusMigration);
-            return superseded;
+            return new Superseded(supersededBy, sideEffects, needsConsensusMigration);
         }
 
-        logger.info("Returning maybe failure response");
         return new MaybeFailure(new Paxos.MaybeFailure(participants, required, accepts(responses), failureReasonsAsMap()));
     }
 
@@ -287,7 +277,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         if (supersededBy != null)
             supersededByUpdater.accumulateAndGet(this, supersededBy, (a, b) -> a == null ? b : b.uuidTimestamp() > a.uuidTimestamp() ? b : a);
 
-        logger.info("Accept result " + acceptResult);
         long increment = supersededBy == null && !acceptResult.rejectedDueToConsensusMigration
                 ? ACCEPT_INCREMENT
                 : REFUSAL_INCREMENT;
@@ -324,7 +313,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     @VisibleForTesting
     public static <T> boolean shouldSignal(long responses, int required, int participants, boolean waitForNoSideEffect, AtomicLongFieldUpdater<T> responsesUpdater, T update)
     {
-        logger.info("Should signal done accepts {}, refusals {}, failures {}, required {}, participants {}, waitForNoSideEffects {}", accepts(responses), refusals(responses), failures(responses), required, participants, waitForNoSideEffect);
         if (responses <= 0L) // already signalled via ambiguous signal bit
             return false;
 
@@ -343,10 +331,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     private void signalDone()
     {
         if (onDone != null)
-        {
-            logger.info("Creating status for onDone");
             onDone.accept(status());
-        }
     }
 
     private boolean isSuccessful(long responses)
@@ -481,7 +466,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         {
             Proposal propose = Proposal.serializer.deserialize(in, version);
             boolean isForRepair = false;
-            // TODO this doesn't seem like the right version
             if (version >= MessagingService.VERSION_42)
                 isForRepair = in.readBoolean();
             return new Request(propose, isForRepair);
@@ -491,7 +475,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         public long serializedSize(Request request, int version)
         {
             long size = Proposal.serializer.serializedSize(request.proposal, version);
-            // TODO this doesn't seem like the right version
             if (version >= MessagingService.VERSION_42)
                 size += TypeSizes.sizeof(request.isForRepair);
             return size;
@@ -505,7 +488,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             out.writeBoolean(acceptResult.supersededBy != null);
             if (acceptResult.supersededBy != null)
                 acceptResult.supersededBy.serialize(out);
-            // TODO this doesn't seem like the right version
             if (version >= MessagingService.VERSION_42)
                 out.writeBoolean(acceptResult.rejectedDueToConsensusMigration);
         }
@@ -517,10 +499,8 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             if (isSuperseded)
                 supersededBy = Ballot.deserialize(in);
             boolean rejectedDueToConsensusMigration = false;
-            // TODO this doesn't seem like the right version
             if (version >= MessagingService.VERSION_42)
                 rejectedDueToConsensusMigration = in.readBoolean();
-            logger.info("Deserialized accept result {}", new AcceptResult(supersededBy, rejectedDueToConsensusMigration));
             return new AcceptResult(supersededBy, rejectedDueToConsensusMigration);
         }
 
@@ -529,7 +509,6 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             long size = acceptResult.supersededBy != null
                     ? TypeSizes.sizeof(true) + Ballot.sizeInBytes()
                     : TypeSizes.sizeof(false);
-            // TODO this doesn't seem like the right version
             if (version >= MessagingService.VERSION_42)
                size += TypeSizes.sizeof(acceptResult.rejectedDueToConsensusMigration);
             return size;

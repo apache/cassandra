@@ -44,11 +44,13 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.ConsensusRequestRouter;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosBallotTracker;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosStateTracker;
@@ -274,7 +276,6 @@ public class PaxosState implements PaxosOperationLock
             if (!isAcceptedExpired && !isCommittedExpired)
                 return this;
 
-            // TODO how should expiration interact with consensusMigratedAtEpoch?
             return new Snapshot(promised, promisedWrite,
                                 isAcceptedExpired ? null : accepted,
                                 isCommittedExpired
@@ -654,20 +655,21 @@ public class PaxosState implements PaxosOperationLock
             Snapshot realBefore = current;
             before = realBefore.removeExpired((int)proposal.ballot.unix(SECONDS));
             Ballot latest = before.latestWitnessedOrLowBound();
-            shouldRejectDueToConsensusMigration = isForRepair ? false : ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeDuringPaxosAccept(proposal.update.metadata().id, proposal.update.partitionKey());
+            if (isForRepair)
+                shouldRejectDueToConsensusMigration = false;
+            else
+                shouldRejectDueToConsensusMigration = ConsensusRequestRouter.instance
+                                                          .isKeyInMigratingOrMigratedRangeDuringPaxosAccept(proposal.update.metadata().id,
+                                                                                                            proposal.update.partitionKey());
             if (!proposal.isSameOrAfter(latest))
             {
-                logger.info("Rejecting proposal consensus migration {} isForRepair {}", shouldRejectDueToConsensusMigration, isForRepair);
                 Tracing.trace("Rejecting proposal {}; latest is now {}", proposal.ballot, latest);
                 return new AcceptResult(latest, shouldRejectDueToConsensusMigration);
             }
 
             // TODO: Consider not answering in the committed ballot case where there is no need to save anything or answer at all
             if (proposal.hasSameBallot(before.committed) || shouldRejectDueToConsensusMigration)
-            {
-                logger.info("Rejecting proposal consensusMigration {}, isForRepair {}", shouldRejectDueToConsensusMigration, isForRepair);
                 return new AcceptResult(null, shouldRejectDueToConsensusMigration);
-            }
 
             after = new Snapshot(realBefore.promised, realBefore.promisedWrite, proposal.accepted(), realBefore.committed);
             if (currentUpdater.compareAndSet(this, realBefore, after))
@@ -683,7 +685,6 @@ public class PaxosState implements PaxosOperationLock
         // be persisted by the re-proposer, and so it remains a non-issue
         // though this
         Tracing.trace("Accepting proposal {}", proposal);
-        logger.info("Accepting proposal {}", proposal);
         SystemKeyspace.savePaxosProposal(proposal);
         checkState(!shouldRejectDueToConsensusMigration);
         return new AcceptResult();
@@ -763,7 +764,6 @@ public class PaxosState implements PaxosOperationLock
                     Ballot latest = before.latestWitnessedOrLowBound();
                     if (toPrepare.isAfter(latest))
                     {
-                        // TODO assert that migration isn't being attempted/done
                         Snapshot after = new Snapshot(toPrepare.ballot, toPrepare.ballot, realBefore.accepted, realBefore.committed);
                         if (currentUpdater.compareAndSet(unsafeState, realBefore, after))
                         {
@@ -809,7 +809,8 @@ public class PaxosState implements PaxosOperationLock
                     boolean accept = proposal.isSameOrAfter(before.latestWitnessedOrLowBound());
                     if (accept)
                     {
-                        // TODO assert migration isn't being attempted/done?
+                        PartitionUpdate partitionUpdate = proposal.update;
+                        checkState(ConsensusKeyMigrationState.getKeyMigrationState(partitionUpdate.metadata().id, partitionUpdate.partitionKey()).tableMigrationState == null, "Using PaxosV1 while consensus migration is in progress is not supported");
                         if (proposal.hasSameBallot(before.committed) ||
                             currentUpdater.compareAndSet(unsafeState, realBefore,
                                                          new Snapshot(realBefore.promised, realBefore.promisedWrite,

@@ -1246,8 +1246,6 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 serializeMap(promised.gossipInfo, out, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer);
                 if (promised.outcome == PERMIT_READ)
                     promised.supersededBy.serialize(out);
-                // TODO for both of these if it was already migrated should it be a rejected response?
-                // If that is the case do we need to include it in an accepted promise at all?
                 if (version >= MessagingService.VERSION_42)
                     ConsensusMigratedAt.serializer.serialize(response.maybeConsenusMigratedAt, out, version);
             }

@@ -259,11 +259,9 @@ public class PaxosRepair extends AbstractPaxosRepair
             {
                 if (logger.isTraceEnabled())
                     logger.trace("PaxosRepair witnessed {} newer than success criteria {} (oldest: {})", latestCommitted, Ballot.toString(successCriteria), Ballot.toString(oldestCommitted));
-                logger.info("PaxosRepair witnessed {} newer than success criteria {} (oldest: {})", latestCommitted, Ballot.toString(successCriteria), Ballot.toString(oldestCommitted));
 
                 // we have a new enough commit, but it might not have reached enough participants; make sure it has before terminating
                 // note: we could send to only those we know haven't witnessed it, but this is a rare operation so a small amount of redundant work is fine
-                // note2: Now that we use this commit to mark it as migrated for consensus we want to commit again just to populate the consenus migration epoch
                 return oldestCommitted.equals(latestCommitted.ballot)
                         ? DONE
                         : PaxosCommit.commit(latestCommitted, participants, paxosConsistency, commitConsistency(), true,
@@ -273,7 +271,6 @@ public class PaxosRepair extends AbstractPaxosRepair
             {
                 if (logger.isTraceEnabled())
                     logger.trace("PaxosRepair of {} completing {}", partitionKey(), latestAccepted);
-                logger.info("PaxosRepair of {} completing {}", partitionKey(), latestAccepted);
 
                 // We need to complete this in-progress accepted proposal, which may not have been seen by a majority
                 // However, since we have not sought any promises, we can simply complete the existing proposal
@@ -295,7 +292,6 @@ public class PaxosRepair extends AbstractPaxosRepair
                 // Since this operation is not urgent, and we can piggy-back on other paxos operations
                 if (logger.isTraceEnabled())
                     logger.trace("PaxosRepair of {} found incomplete promise or proposal; preparing stale ballot {}", partitionKey(), Ballot.toString(ballot));
-                logger.info("PaxosRepair of {} found incomplete promise or proposal; preparing stale ballot {}", partitionKey(), Ballot.toString(ballot));
 
                 return prepareWithBallot(ballot, participants, partitionKey(), table, false, false,
                         new PoisonProposals());
@@ -446,9 +442,9 @@ public class PaxosRepair extends AbstractPaxosRepair
         return new PaxosRepair(partitionKey, incompleteBallot, table, consistency, RETRY_TIMEOUT_NANOS);
     }
 
-    public static PaxosRepair create(ConsistencyLevel consistency, DecoratedKey partitionKey, Ballot incompleteBallot, TableMetadata table, long retryTimeoutNanos)
+    public static PaxosRepair create(ConsistencyLevel consistency, DecoratedKey partitionKey, TableMetadata table, long retryTimeoutNanos)
     {
-        return new PaxosRepair(partitionKey, incompleteBallot, table, consistency, retryTimeoutNanos);
+        return new PaxosRepair(partitionKey, null, table, consistency, retryTimeoutNanos);
     }
 
     private State retry(State state)

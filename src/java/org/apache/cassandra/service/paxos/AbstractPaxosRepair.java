@@ -164,8 +164,7 @@ public abstract class AbstractPaxosRepair
     }
 
     // Shouldn't be null when used by PaxosRepairs, but will be null when used by ConsensusRequestRouter
-    @Nullable
-    public Ballot incompleteBallot()
+    public @Nullable Ballot incompleteBallot()
     {
         return incompleteBallot;
     }

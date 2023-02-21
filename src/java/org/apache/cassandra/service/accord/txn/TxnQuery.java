@@ -134,6 +134,8 @@ public abstract class TxnQuery implements Query
             return new TxnData();
 
         Epoch epoch = Epoch.create(0, executeAt.epoch());
+        // TODO This isn't attempting to block transaction statements although it will catch the single key ones
+        // That will need to be tackled as part of interoperability
         if (transactionIsInMigratingOrMigratedRange(epoch, keys))
         {
             // Fail fast because we can't be sure where this request should really run or what was intended
@@ -195,7 +197,7 @@ public abstract class TxnQuery implements Query
         if (keys.size() > 1)
             // It has to be a transaction statement and we don't support migration with those
             return false;
-        // Could be a transaction statement, but this check does no addtional harm
+        // Could be a transaction statement, but this check does no additional harm
         // and transaction statement will generate an error when it sees
         // the RetryOnNewProtocolResult
         PartitionKey partitionKey = (PartitionKey)keys.get(0);

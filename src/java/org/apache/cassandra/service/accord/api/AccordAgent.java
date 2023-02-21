@@ -53,7 +53,7 @@ public class AccordAgent implements Agent
     }
 
     @Override
-    public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges,@Nonnull Timestamp executeAt)
+    public void onLocalBarrier(@Nonnull Seekables<?, ?> keysOrRanges, @Nonnull Timestamp executeAt)
     {
         if (keysOrRanges.domain() == Key)
         {

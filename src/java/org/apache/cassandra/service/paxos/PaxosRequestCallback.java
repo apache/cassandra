@@ -71,7 +71,7 @@ public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T
         onResponse(response, getBroadcastAddressAndPort());
     }
 
-    public static interface TriFunction<A, B, C, D> {
+    public interface TriFunction<A, B, C, D> {
         D apply(A var1, B var2, C var3);
     }
 

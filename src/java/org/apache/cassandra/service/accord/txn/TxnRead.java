@@ -63,9 +63,6 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     public static final String SERIAL_READ_NAME = "SERIAL_READ";
     public static final TxnDataName SERIAL_READ = TxnDataName.user(SERIAL_READ_NAME);
 
-    public static final String BARRIER_ALL_READ_NAME = "BARRIER_ALL_READ";
-    public static final TxnDataName BARRIER_ALL_READ = TxnDataName.user(BARRIER_ALL_READ_NAME);
-
     public static final TxnRead EMPTY_READ = new TxnRead(new TxnNamedRead[0], Keys.EMPTY, ConsistencyLevel.ANY);
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnRead(new TxnNamedRead[0], null, null));
 
@@ -73,7 +70,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     private final Keys txnKeys;
 
     // Used if the read is in a migrating range to do a coordinated C* read
-    // Not clear this should be nullable if you only ever read/write using Accord
+    // Likely has uses with interoperability in the future
     @Nonnull
     private final ConsistencyLevel consistencyLevel;
 

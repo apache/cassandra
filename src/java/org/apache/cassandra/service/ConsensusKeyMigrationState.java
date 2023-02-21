@@ -298,7 +298,7 @@ public abstract class ConsensusKeyMigrationState
         else
             ClientRequestsMetricsHolder.accordReadMetrics.paxosKeyMigrations.mark();
         TableMetadata tableMetadata = cfs.metadata();
-        PaxosRepair repair = PaxosRepair.create(consistencyLevel, key, null, tableMetadata, timeoutNanos);
+        PaxosRepair repair = PaxosRepair.create(consistencyLevel, key, tableMetadata, timeoutNanos);
         long start = nanoTime();
         repair.start(queryStartNanos);
         Result result;

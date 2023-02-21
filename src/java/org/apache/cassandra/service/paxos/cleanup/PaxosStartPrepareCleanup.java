@@ -203,7 +203,6 @@ public class PaxosStartPrepareCleanup extends AsyncFuture<PaxosCleanupHistory> i
         maybeUpdateTopology(in.from(), in.payload.epState);
         Ballot highBound = newBallot(ballotTracker().getHighBound(), ConsistencyLevel.SERIAL);
         PaxosRepairHistory history = table.getPaxosRepairHistoryForRanges(in.payload.ranges);
-        // TODO get the real epoch from TM
         Message<PaxosCleanupHistory> out = in.responseWith(new PaxosCleanupHistory(table.metadata.id, highBound, history, ClusterMetadata.current().epoch));
         MessagingService.instance().send(out, in.respondTo());
     };
