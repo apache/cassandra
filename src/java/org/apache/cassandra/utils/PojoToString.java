@@ -32,12 +32,18 @@ import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.DumperOptions.FlowStyle;
 import org.yaml.snakeyaml.Yaml;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 /**
  * Helper to format POJOs that are easy to convert (primitives, nonnull, and built in collections)
  * in various human + machine readable formats. Useful for JMX and nodetool.
  */
 public class PojoToString
 {
+    public static final Integer VERSION_42 = 0;
+
+    public static final Integer CURRENT_VERSION = VERSION_42;
+
     enum Format
     {
         YAML,
@@ -101,11 +107,20 @@ public class PojoToString
      *
      * This doesn't enforce what objects are serialized so you can get error or messy output if you try and serialize
      * things that aren't primitive or collections.
-     * @param obj POJO that must be restricted to easily representable types (map, set , list, primitives)
+     *
+     * The map must contain a 'version' key set to CURRENT_VERSION
+     * @param map Map POJO that must be restricted to easily representable types (map, set , list, primitives), and contains the 'version' key set to CURRENT_VERSION
      * @param formatString Human/machine readable format name, can be YAML or JSON, prefix with MINIFIED- to get a minified version
      * @return The map formatted in the requested format
+     * @throws IllegalArgumentException If the 'version' key is not present and set to CURRENT_VERSION
      */
-    public static String pojoToString(Object obj, String formatString)
+    public static String pojoMapToString(Map<String, Object> map, String formatString)
+    {
+        checkArgument(CURRENT_VERSION.equals(map.get("version")));
+        return pojoToString(map, formatString);
+    }
+
+    private static String pojoToString(Object obj, String formatString)
     {
         validateAllowedTypes(obj);
         Format format = Format.fromString(formatString);
@@ -141,7 +156,6 @@ public class PojoToString
 
     private static void validateAllowedTypes(Object o)
     {
-        Class<?> clazz = o.getClass();
         if (o == null)
             throw new NullPointerException("Null objects are unsupported");
         if (o instanceof Map)
@@ -166,13 +180,4 @@ public class PojoToString
             throw new IllegalArgumentException("Scalar " + o + " with " + o.getClass() + " is not in allow list " + ALLOWED_PRIMITIVES);
 
     }
-
-    public static void main(String args[]) throws Throwable
-    {
-        Class<?> clazz1 = "foo".getClass();
-        Class<?> clazz2 = String.class;
-        Class<?> clazz3 = Class.forName("java.lang.String");
-        System.out.println("hello");
-    }
-
 }

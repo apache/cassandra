@@ -70,6 +70,7 @@ import org.apache.cassandra.tcm.transformations.BeginConsensusMigrationForTableA
 import org.apache.cassandra.tcm.transformations.MaybeFinishConsensusMigrationForTableAndRange;
 import org.apache.cassandra.tcm.transformations.SetConsensusMigrationTargetProtocol;
 import org.apache.cassandra.utils.NullableSerializer;
+import org.apache.cassandra.utils.PojoToString;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -548,7 +549,9 @@ public abstract class ConsensusTableMigrationState
 
         public Map<String, Object> toMap(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames)
         {
-            return ImmutableMap.of("epoch", epoch.getEpoch(), "tableStates", tableStatesAsMaps(keyspaceNames, tableNames));
+            return ImmutableMap.of("epoch", epoch.getEpoch(),
+                                   "tableStates", tableStatesAsMaps(keyspaceNames, tableNames),
+                                   "version", PojoToString.CURRENT_VERSION);
         }
 
         private List<Map<String, Object>> tableStatesAsMaps(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames)

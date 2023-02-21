@@ -82,7 +82,7 @@ public class TableMetrics
     public final static LatencyMetrics GLOBAL_KEY_MIGRATION_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "KeyMigration");
 
     public final static LatencyMetrics GLOBAL_RANGE_MIGRATION_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "RangeMigration");
-    
+
     /** Total amount of data stored in the memtable that resides on-heap, including column related overhead and partitions overwritten. */
     public final Gauge<Long> memtableOnHeapDataSize;
     /** Total amount of data stored in the memtable that resides off-heap, including column related overhead and partitions overwritten. */

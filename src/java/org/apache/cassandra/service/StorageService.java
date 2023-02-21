@@ -259,7 +259,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.now;
-import static org.apache.cassandra.utils.PojoToString.pojoToString;
+import static org.apache.cassandra.utils.PojoToString.pojoMapToString;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -2247,9 +2247,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // TODO wanted something human and machine readable, but didn't expend a lot of thought
         // on what human readable conventions should be, also couldn't get snakeyaml
         // to output YAML containing only primitives without going through the goofy mapping process
-        // it adds tags that clutter the output up badly
+        // it adds tags and references that clutter the output up badly
         Map<String, Object> snapshotAsMap = snapshot.toMap(keyspaceNames, tableNames);
-        return pojoToString(snapshotAsMap, format);
+        return pojoMapToString(snapshotAsMap, format);
     }
 
     public Map<String,List<Integer>> getConcurrency(List<String> stageNames)
