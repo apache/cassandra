@@ -198,8 +198,6 @@ public class RepairOption
         boolean ignoreUnreplicatedKeyspaces = Boolean.parseBoolean(options.get(IGNORE_UNREPLICATED_KS));
         boolean repairPaxos = Boolean.parseBoolean(options.get(REPAIR_PAXOS_KEY));
         boolean paxosOnly = Boolean.parseBoolean(options.get(PAXOS_ONLY_KEY));
-        // TODO need to be prety confident that an Accord repair doesn't accidentally
-        // pass as a regular repair
         boolean accordRepair = Boolean.parseBoolean(options.get(ACCORD_REPAIR_KEY));
 
         if (previewKind != PreviewKind.NONE)
@@ -209,19 +207,11 @@ public class RepairOption
             Preconditions.checkArgument(!accordRepair, "accordRepair must be set to false for preview repairs");
         }
 
-
         if (accordRepair)
         {
-            // TODO Repair paxos is the default, and if they asked for an Accord repair it doesn't make sense to error
-            // out and require them to explicitly set it to false
-            // Preconditions.checkArgument(!repairPaxos, "repairPaxos must be set to false for Accord repairs");
             Preconditions.checkArgument(!paxosOnly, "paxosOnly must be set to false for Accord repairs");
             Preconditions.checkArgument(previewKind == PreviewKind.NONE, "Can't perform preview repair with an Accord repair");
-            // Incremental repair is the default so don't error on it
-            // Preconditions.checkArgument(!incremental, "There is no incremental repair of Accord");
-            // The prepare/propose plumbing isn't needed for Accord repair and it errors out
             incremental = false;
-            // TODO there are a lot of other options to reject on, but they seem safe to ignore
         }
 
         int jobThreads = 1;

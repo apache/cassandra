@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -77,8 +76,6 @@ public class Message<T> implements ReplyContext
 {
     private static final Logger logger = LoggerFactory.getLogger(Message.class);
     private static final NoSpamLogger noSpam1m = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
-
-    private static final Supplier<Epoch> epochSupplier = () -> ClusterMetadata.current().epoch;
 
     public final Header header;
     public final T payload;

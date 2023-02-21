@@ -23,6 +23,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -70,7 +71,7 @@ public class AccordService implements IAccordService, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
 
-    public final Node node;
+    private final Node node;
     private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
     private final AccordConfigurationService configService;
@@ -89,13 +90,13 @@ public class AccordService implements IAccordService, Shutdownable
         public void createEpochFromConfigUnsafe() { }
 
         @Override
-        public long barrier(Seekable keyOrRange, long minEpoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite)
+        public long barrier(@Nonnull Seekable keyOrRange, long minEpoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite)
         {
             throw new UnsupportedOperationException("No accord barriers should be executed when accord_transactions_enabled = false in cassandra.yaml");
         }
 
         @Override
-        public TxnResult coordinate(Txn txn, ConsistencyLevel consistencyLevel, long queryStartNanos)
+        public @Nonnull TxnResult coordinate(@Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, @Nonnull long queryStartNanos)
         {
             throw new UnsupportedOperationException("No accord transaction should be executed when accord_transactions_enabled = false in cassandra.yaml");
         }
@@ -170,16 +171,18 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public long barrier(Seekable keyOrRange, long epoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite)
+    public long barrier(@Nonnull Seekable keyOrRange, long epoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite)
     {
         AccordClientRequestMetrics metrics = isForWrite ? accordWriteMetrics : accordReadMetrics;
         try
         {
-            logger.info("Starting barrier key: {} epoch: {} barrierType: {} isForWrite {}", keyOrRange, epoch, barrierType, isForWrite);
+            logger.debug("Starting barrier key: {} epoch: {} barrierType: {} isForWrite {}", keyOrRange, epoch, barrierType, isForWrite);
             Future<Timestamp> future = node.barrier(keyOrRange, epoch, barrierType);
             long deadlineNanos = queryStartNanos + DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS);
             Timestamp barrierExecuteAt = future.get(deadlineNanos - nanoTime(), TimeUnit.NANOSECONDS);
-            logger.info("Completed barrier");
+            logger.debug("Completed in {}ms barrier key: {} epoch: {} barrierType: {} isForWrite {}",
+                         TimeUnit.NANOSECONDS.toMillis(nanoTime() - queryStartNanos),
+                         keyOrRange, epoch, barrierType, isForWrite);
             return barrierExecuteAt.epoch();
         }
         catch (ExecutionException e)
@@ -214,14 +217,9 @@ public class AccordService implements IAccordService, Shutdownable
         finally
         {
             // TODO Should barriers have a dedicated latency metric? Should it be a read/write metric?
-            // Waht about counts for timers/failures/preempts?
+            // What about counts for timeouts/failures/preempts?
             metrics.addNano(nanoTime() - queryStartNanos);
         }
-    }
-
-    public static long nowInMicros()
-    {
-        return TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
     }
 
     @Override
@@ -241,7 +239,7 @@ public class AccordService implements IAccordService, Shutdownable
      * with non-Accord operations.
      */
     @Override
-    public TxnResult coordinate(Txn txn, ConsistencyLevel consistencyLevel, long queryStartNanos)
+    public @Nonnull TxnResult coordinate(@Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, long queryStartNanos)
     {
         AccordClientRequestMetrics metrics = txn.isWrite() ? accordWriteMetrics : accordReadMetrics;
         try

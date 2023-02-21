@@ -995,11 +995,16 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public boolean resumeBootstrap();
 
-    void migrateConsensusProtocol(@Nonnull String targetProtocol, @Nonnull List<String> keyspaceNames, @Nonnull Optional<List<String>> maybeTableNames, @Nonnull Optional<String> maybeRangesStr);
+    void migrateConsensusProtocol(@Nonnull String targetProtocol,
+                                  @Nonnull List<String> keyspaceNames,
+                                  @Nonnull Optional<List<String>> maybeTableNames,
+                                  @Nonnull Optional<String> maybeRangesStr);
 
-    void setConsensusMigrationTargetProtocol(String targetProtocol, List<String> keyspaceNames, Optional<List<String>> maybeTableNames);
+    void setConsensusMigrationTargetProtocol(@Nonnull String targetProtocol,
+                                             @Nonnull List<String> keyspaceNames,
+                                             @Nonnull Optional<List<String>> maybeTableNames);
 
-    String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, String format);
+    String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, @Nonnull String format);
 
     /** Gets the concurrency settings for processing stages*/
     static class StageConcurrency implements Serializable

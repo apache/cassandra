@@ -326,21 +326,42 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         ConsensusAttemptResult lastAttemptResult;
-        // TODO will this time out correctly?
         do
         {
-            ConsensusRoutingDecision decision = ConsensusRequestRouter.instance.routeAndMaybeMigrate(key, keyspaceName, cfName, consistencyForPaxos, queryStartNanoTime, DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS), true);
-            logger.info("Consensus routing decision {}", decision);
+            ConsensusRoutingDecision decision = ConsensusRequestRouter.instance.routeAndMaybeMigrate(key,
+                                                                                                     keyspaceName,
+                                                                                                     cfName,
+                                                                                                     consistencyForPaxos,
+                                                                                                     queryStartNanoTime,
+                                                                                                     DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS),
+                                                                                                     true);
             switch (decision)
             {
                 case paxosV2:
-                    lastAttemptResult = Paxos.cas(key, request, consistencyForPaxos, consistencyForCommit, clientState, queryStartNanoTime);
+                    lastAttemptResult = Paxos.cas(key,
+                                                  request,
+                                                  consistencyForPaxos,
+                                                  consistencyForCommit,
+                                                  clientState,
+                                                  queryStartNanoTime);
                     break;
                 case paxosV1:
-                    lastAttemptResult = legacyCas(keyspaceName, cfName, key, request, consistencyForPaxos, consistencyForCommit, clientState, nowInSeconds, queryStartNanoTime);
+                    lastAttemptResult = legacyCas(keyspaceName,
+                                                  cfName,
+                                                  key,
+                                                  request,
+                                                  consistencyForPaxos,
+                                                  consistencyForCommit,
+                                                  clientState,
+                                                  nowInSeconds,
+                                                  queryStartNanoTime);
                     break;
                 case accord:
-                    TxnResult txnResult = AccordService.instance().coordinate(request.toAccordTxn(consistencyForPaxos, clientState, nowInSeconds), consistencyForPaxos, queryStartNanoTime);
+                    TxnResult txnResult = AccordService.instance().coordinate(request.toAccordTxn(consistencyForPaxos,
+                                                                                                  clientState,
+                                                                                                  nowInSeconds),
+                                                                              consistencyForPaxos,
+                                                                              queryStartNanoTime);
                     lastAttemptResult = request.toCasResult(txnResult);
                     break;
                 default:
@@ -540,9 +561,6 @@ public class StorageProxy implements StorageProxyMBean
                 if (proposalPair == null)
                     return null;
 
-                // TODO can't always set null here for migration from V1 which isn't supported yet
-                // It's possible we need to switch to Accord here as well since a key migration Paxos transaction
-                // may have already have committed in beginAndRepairPaxos
                 Commit proposal = Commit.newProposal(ballot, proposalPair.left);
                 Tracing.trace("CAS precondition is met; proposing client-requested updates for {}", ballot);
                 if (proposePaxos(proposal, replicaPlan, true, queryStartNanoTime))
@@ -659,8 +677,6 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     Tracing.trace("Finishing incomplete paxos round {}", inProgress);
                     casMetrics.unfinishedCommit.inc();
-                    // TODO can't use null for migration epoch here, should check the result of prepare
-                    // and then based on that set it here to perform the key migration
                     Commit refreshedInProgress = Commit.newProposal(ballot, inProgress.update);
                     if (proposePaxos(refreshedInProgress, paxosPlan, false, queryStartNanoTime))
                     {
@@ -1910,8 +1926,12 @@ public class StorageProxy implements StorageProxyMBean
         do
         {
             SinglePartitionReadCommand command = group.queries.get(0);
-            ConsensusRoutingDecision decision = ConsensusRequestRouter.instance.routeAndMaybeMigrate(command.partitionKey(), command.metadata().id, consistencyLevel, queryStartNanoTime, DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS), false);
-            logger.info("Consensus read decision " + decision);
+            ConsensusRoutingDecision decision = ConsensusRequestRouter.instance.routeAndMaybeMigrate(command.partitionKey(),
+                                                                                                     command.metadata().id,
+                                                                                                     consistencyLevel,
+                                                                                                     queryStartNanoTime,
+                                                                                                     DatabaseDescriptor.getCasContentionTimeout(NANOSECONDS),
+                                                                                                     false);
             switch (decision)
             {
                 case paxosV2:

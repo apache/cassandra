@@ -55,6 +55,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ConsensusKeyMigrationState;
 import org.apache.cassandra.service.ConsensusRequestRouter;
 import org.apache.cassandra.service.ConsensusTableMigrationState;
 import org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationTarget;
@@ -153,7 +154,8 @@ public class AccordMigrationTest extends AccordTestBase
         // Reset migration state
         forEach(() -> {
             ConsensusRequestRouter.resetInstance();
-            ConsensusTableMigrationState.resetMigrationState();
+            ConsensusTableMigrationState.reset();
+            ConsensusKeyMigrationState.reset();
         });
         SHARED_CLUSTER.coordinators().forEach(coordinator -> coordinator.execute(format("TRUNCATE TABLE %s.%s", SYSTEM_KEYSPACE_NAME, CONSENSUS_MIGRATION_STATE), ALL));
         SHARED_CLUSTER.coordinators().forEach(coordinator -> coordinator.execute(format("TRUNCATE TABLE %s.%s", SYSTEM_KEYSPACE_NAME, PAXOS), ALL));

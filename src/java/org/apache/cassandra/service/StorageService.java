@@ -62,6 +62,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.management.ListenerNotFoundException;
 import javax.management.NotificationBroadcasterSupport;
@@ -2219,7 +2220,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void migrateConsensusProtocol(String targetProtocol, List<String> keyspaceNames, Optional<List<String>> maybeTableNames, Optional<String> maybeRangesStr)
+    public void migrateConsensusProtocol(@Nonnull String targetProtocol,
+                                         @Nonnull List<String> keyspaceNames,
+                                         @Nonnull Optional<List<String>> maybeTableNames,
+                                         @Nonnull Optional<String> maybeRangesStr)
     {
         checkNotNull(targetProtocol, "targetProtocol is null");
         checkNotNull(keyspaceNames, "keyspaceNames is null");
@@ -2230,7 +2234,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public void setConsensusMigrationTargetProtocol(String targetProtocol, List<String> keyspaceNames, Optional<List<String>> maybeTableNames)
+    public void setConsensusMigrationTargetProtocol(@Nonnull String targetProtocol,
+                                                    @Nonnull List<String> keyspaceNames,
+                                                    @Nonnull Optional<List<String>> maybeTableNames)
     {
         checkNotNull(targetProtocol, "targetProtocol is null");
         checkNotNull(keyspaceNames, "keyspaceNames is null");
@@ -2240,7 +2246,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     @Override
-    public String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, String format)
+    public String listConsensusMigrations(@Nullable Set<String> keyspaceNames,
+                                          @Nullable Set<String> tableNames,
+                                          @Nonnull String format)
     {
         ClusterMetadata cm = ClusterMetadata.current();
         MigrationStateSnapshot snapshot = cm.migrationStateSnapshot;

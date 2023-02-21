@@ -129,7 +129,7 @@ public abstract class ConsensusTableMigrationState
     };
 
     @VisibleForTesting
-    public static void resetMigrationState()
+    public static void reset()
     {
         ClusterMetadataService.reset();
     }
@@ -333,20 +333,30 @@ public abstract class ConsensusTableMigrationState
         @Nonnull
         public final List<Range<Token>> migratingAndMigratedRanges;
 
-        public TableMigrationState(@Nonnull String keyspaceName, @Nonnull String tableName, @Nonnull TableId tableId, @Nonnull ConsensusMigrationTarget targetProtocol, @Nonnull Collection<Range<Token>> migratedRanges, @Nonnull Map<Epoch, List<Range<Token>>> migratingRangesByEpoch)
+        public TableMigrationState(@Nonnull String keyspaceName,
+                                   @Nonnull String tableName,
+                                   @Nonnull TableId tableId,
+                                   @Nonnull ConsensusMigrationTarget targetProtocol,
+                                   @Nonnull Collection<Range<Token>> migratedRanges,
+                                   @Nonnull Map<Epoch, List<Range<Token>>> migratingRangesByEpoch)
         {
             this.keyspaceName = keyspaceName;
             this.tableName = tableName;
             this.tableId = tableId;
             this.targetProtocol = targetProtocol;
             this.migratedRanges = ImmutableList.copyOf(normalize(migratedRanges));
-            // Do a bunch of work to get an immutable map with immutable list of ranges that are normalized
-            this.migratingRangesByEpoch = ImmutableSortedMap.copyOf(migratingRangesByEpoch.entrySet().stream().map( entry -> new SimpleEntry<>(entry.getKey(), ImmutableList.copyOf(normalize(entry.getValue())))).collect(Collectors.toList()));
+            this.migratingRangesByEpoch = ImmutableSortedMap.copyOf(
+            migratingRangesByEpoch.entrySet()
+                                  .stream()
+                                  .map( entry -> new SimpleEntry<>(entry.getKey(), ImmutableList.copyOf(normalize(entry.getValue()))))
+                                  .collect(Collectors.toList()));
             this.migratingRanges = ImmutableList.copyOf(normalize(migratingRangesByEpoch.values().stream().flatMap(Collection::stream).collect(Collectors.toList())));
             this.migratingAndMigratedRanges = ImmutableList.copyOf(normalize(ImmutableList.<Range<Token>>builder().addAll(migratedRanges).addAll(migratingRanges).build()));
         }
 
-        public TableMigrationState withRangesMigrating(@Nonnull Collection<Range<Token>> ranges, @Nonnull  ConsensusMigrationTarget target, Epoch epoch)
+        public TableMigrationState withRangesMigrating(@Nonnull Collection<Range<Token>> ranges,
+                                                       @Nonnull ConsensusMigrationTarget target,
+                                                       @Nonnull Epoch epoch)
         {
             checkArgument(epoch.isAfter(Epoch.EMPTY), "Epoch shouldn't be empty");
 
@@ -360,7 +370,6 @@ public abstract class ConsensusTableMigrationState
             Set<Range<Token>> withoutBoth = subtract(withoutAlreadyMigrated, migratingRanges);
             checkArgument(!withoutBoth.isEmpty(), "Range " + ranges + " is already migrating/migrated");
 
-            // Message needs to include a bunch more info
             if (!Range.equals(normalizedRanges, withoutBoth))
                 logger.warn("Ranges " + normalizedRanges + " to start migrating is already partially migrating/migrated " + withoutBoth);
 
@@ -371,11 +380,12 @@ public abstract class ConsensusTableMigrationState
             return new TableMigrationState(keyspaceName, tableName, tableId, targetProtocol, migratedRanges, newMigratingRanges);
         }
 
-        public TableMigrationState withRangesRepairedAtEpoch(@Nonnull Collection<Range<Token>> ranges, Epoch epoch)
+        public TableMigrationState withRangesRepairedAtEpoch(@Nonnull Collection<Range<Token>> ranges,
+                                                             @Nonnull Epoch epoch)
         {
             checkArgument(epoch.isAfter(Epoch.EMPTY), "Epoch shouldn't be empty");
 
-            List<Range<Token>> normalizedRepairedRanges = Range.normalize(ranges);
+            List<Range<Token>> normalizedRepairedRanges = normalize(ranges);
             // This should be inclusive because the epoch we store in the map is the epoch in which the range has been marked migrating
             // in startMigrationToConsensusProtocol
             NavigableMap<Epoch, List<Range<Token>>> coveredEpochs = migratingRangesByEpoch.headMap(epoch, true);
@@ -462,7 +472,6 @@ public abstract class ConsensusTableMigrationState
             Map<Epoch, List<Range<Token>>> migratingRangesByEpoch = ImmutableMap.of(epoch, migratingRanges);
 
             Token minToken = ColumnFamilyStore.getIfExists(tableId).getPartitioner().getMinimumToken();
-            Token maxToken = ColumnFamilyStore.getIfExists(tableId).getPartitioner().getMaximumToken();
             Range<Token> fullRange = new Range(minToken, minToken);
             // What is migrated already is anything that was never migrated/migrating before (untouched)
             List<Range<Token>> migratedRanges = ImmutableList.copyOf(normalize(fullRange.subtractAll(migratingAndMigratedRanges)));
@@ -488,7 +497,7 @@ public abstract class ConsensusTableMigrationState
         }
     }
 
-    // TODO this will go away once we can move TableMigrationState into the table schema
+    // TODO this will mostly go away once we can move TableMigrationState into the table schema
     public static class MigrationStateSnapshot
     {
         @Nonnull
@@ -496,7 +505,7 @@ public abstract class ConsensusTableMigrationState
 
         public final Epoch epoch;
 
-        public static final IVersionedSerializer<MigrationStateSnapshot> messagingSerializer = new IVersionedSerializer<MigrationStateSnapshot>()
+        public static final IVersionedSerializer<MigrationStateSnapshot> messagingSerializer = new IVersionedSerializer<>()
         {
             @Override
             public void serialize(MigrationStateSnapshot t, DataOutputPlus out, int version) throws IOException
@@ -517,7 +526,7 @@ public abstract class ConsensusTableMigrationState
             }
         };
 
-        public static final IPartitionerDependentSerializer<MigrationStateSnapshot> serializer = new IPartitionerDependentSerializer<MigrationStateSnapshot>()
+        public static final IPartitionerDependentSerializer<MigrationStateSnapshot> serializer = new IPartitionerDependentSerializer<>()
         {
             @Override
             public void serialize(MigrationStateSnapshot migrationStateSnapshot, DataOutputPlus out, int version) throws IOException
@@ -541,8 +550,10 @@ public abstract class ConsensusTableMigrationState
             }
         };
 
-        public MigrationStateSnapshot(@Nonnull Map<TableId, TableMigrationState> tableStates, Epoch epoch)
+        public MigrationStateSnapshot(@Nonnull Map<TableId, TableMigrationState> tableStates, @Nonnull Epoch epoch)
         {
+            checkNotNull(tableStates, "tableStates is null");
+            checkNotNull(epoch, "epoch is null");
             this.tableStates = ImmutableMap.copyOf(tableStates);
             this.epoch = epoch;
         }
@@ -554,7 +565,8 @@ public abstract class ConsensusTableMigrationState
                                    "version", PojoToString.CURRENT_VERSION);
         }
 
-        private List<Map<String, Object>> tableStatesAsMaps(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames)
+        private List<Map<String, Object>> tableStatesAsMaps(@Nullable Set<String> keyspaceNames,
+                                                            @Nullable Set<String> tableNames)
         {
             ImmutableList.Builder<Map<String, Object>> builder = ImmutableList.builder();
             for (TableMigrationState tms : tableStates.values())
@@ -583,7 +595,9 @@ public abstract class ConsensusTableMigrationState
      * Set or change the migration target for the keyspaces and tables. Can be used to reverse the direction of a migration
      * or instantly migrate a table to a new protocol.
      */
-    public static void setConsensusMigrationTargetProtocol(String targetProtocolName, List<String> keyspaceNames, Optional<List<String>> maybeTables)
+    public static void setConsensusMigrationTargetProtocol(@Nonnull String targetProtocolName,
+                                                           @Nonnull List<String> keyspaceNames,
+                                                           @Nonnull Optional<List<String>> maybeTables)
     {
         checkArgument(!keyspaceNames.isEmpty(), "At least one keyspace must be specified");
         checkArgument(keyspaceNames.size() == 1 || !maybeTables.isPresent(), "Can't specify tables with multiple keyspaces");
@@ -600,7 +614,10 @@ public abstract class ConsensusTableMigrationState
         ClusterMetadataService.instance.commit(new SetConsensusMigrationTargetProtocol(targetProtocol, tableIds));
     }
 
-    public static void startMigrationToConsensusProtocol(@Nonnull String targetProtocolName, @Nonnull List<String> keyspaceNames, @Nonnull Optional<List<String>> maybeTables, @Nonnull Optional<String> maybeRangesStr)
+    public static void startMigrationToConsensusProtocol(@Nonnull String targetProtocolName,
+                                                         @Nonnull List<String> keyspaceNames,
+                                                         @Nonnull Optional<List<String>> maybeTables,
+                                                         @Nonnull Optional<String> maybeRangesStr)
     {
         checkArgument(!keyspaceNames.isEmpty(), "At least one keyspace must be specified");
         checkArgument(keyspaceNames.size() == 1 || !maybeTables.isPresent(), "Can't specify tables with multiple keyspaces");
@@ -615,8 +632,8 @@ public abstract class ConsensusTableMigrationState
 
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
         Optional<List<Range<Token>>> maybeParsedRanges = maybeRangesStr.map(rangesStr -> ImmutableList.copyOf(RepairOption.parseRanges(rangesStr, partitioner)));
-        // TODO is this the correct way to get full range?
-        List<Range<Token>> ranges = maybeParsedRanges.orElse(ImmutableList.of(new Range(partitioner.getMinimumToken(), partitioner.getMinimumToken())));
+        Token minToken = partitioner.getMinimumToken();
+        List<Range<Token>> ranges = maybeParsedRanges.orElse(ImmutableList.of(new Range(minToken, minToken)));
 
         List<TableId> tableIds = keyspacesAndTablesToTableIds(keyspaceNames, maybeTables);
 

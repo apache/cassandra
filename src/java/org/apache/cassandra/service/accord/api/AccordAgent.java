@@ -65,14 +65,12 @@ public class AccordAgent implements Agent
     @Override
     public void onUncaughtException(Throwable t)
     {
-        t.printStackTrace();
         // TODO: this
     }
 
     @Override
     public void onHandledException(Throwable throwable)
     {
-        throwable.printStackTrace();
         // TODO: this
     }
 

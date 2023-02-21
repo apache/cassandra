@@ -34,9 +34,13 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 
 import static com.google.common.base.Preconditions.checkState;
-import static java.lang.System.nanoTime;
 import static java.util.Collections.emptyList;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
+/*
+ * Accord repair consists of creating a barrier transaction for all the ranges which ensure that all Accord transactions
+ * before the Epoch and point in time at which the repair started have their side effects visible to Paxos and regular quorum reads.
+ */
 public class AccordRepairJob extends AbstractRepairJob
 {
     private final Ranges ranges;
@@ -100,6 +104,7 @@ public class AccordRepairJob extends AbstractRepairJob
             BigInteger length = remaining.min(rangeStep);
 
             long start = nanoTime();
+            boolean dependencyOverflow = false;
             try
             {
                 // Splitter is approximate so it can't work right up to the end
@@ -126,7 +131,8 @@ public class AccordRepairJob extends AbstractRepairJob
             }
             catch (RuntimeException e)
             {
-                // Dependency limit
+                // TODO Placeholder for dependency limit overflow
+//                dependencyOverflow = true;
                 cfs.metric.rangeMigrationDependencyLimitFailures.mark();
                 throw e;
             }
@@ -141,8 +147,8 @@ public class AccordRepairJob extends AbstractRepairJob
                 cfs.metric.rangeMigration.addNano(start);
             }
 
-            boolean repairOverflow = false;
-            if (repairOverflow)
+            // TODO when dependency limits are added to Accord need to test repair overflow
+            if (dependencyOverflow)
             {
                 offset = offset.subtract(rangeStep);
                 if (rangeStep == BigInteger.ONE)

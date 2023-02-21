@@ -113,11 +113,6 @@ public class ConsensusRequestRouter
         if (Range.isInNormalizedRanges(key.getToken(), tms.migratedRanges))
             return pickMigrated(tms.targetProtocol);
 
-        // If we arrive here because an Accord operation was rejected we don't actually need to run repair if we
-        // know the epoch the Accord txn ran at since it might satisfy the migration for the key
-        // This should be pretty rare since it can only occur for requests that race with the range beginning
-        // migration so didn't bother plumbing through the Epoch.
-        // Paxos transactions as currently implemented don't guarantee repair before returning so we have to do it here.
         if (Range.isInNormalizedRanges(key.getToken(), tms.migratingRanges))
             return pickBasedOnKeyMigrationStatus(cm.epoch, tms, key, cfs, consistencyLevel, queryStartNanoTime, timeoutNanos, isForWrite);
 

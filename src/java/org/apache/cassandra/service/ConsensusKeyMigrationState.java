@@ -72,11 +72,19 @@ import static org.apache.cassandra.service.ConsensusTableMigrationState.TableMig
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
- * Helper class to decide where to route a request that requires consensus, migrating a key if necessary
- * before rerouting.
+ * Tracks the migration state of individual keys storing the migration (or not) in system.consensus_migration_state
+ * with an in-memory cache in front. Only locally replicated keys are tracked here to avoid storing too much
+ * state when token aware routing is not used.
+ *
+ * It is safe to migrate keys multiple times so no effort is made to ensure exactly once behavior and the system table
+ * expires key migration state after 7 days.
  */
 public abstract class ConsensusKeyMigrationState
 {
+    /*
+     * Used to notify other replicas when key migration has occurred so they can
+     * also cache that the key migration was done
+     */
     public static class ConsensusKeyMigrationFinished
     {
         @Nonnull
@@ -86,7 +94,9 @@ public abstract class ConsensusKeyMigrationState
         @Nonnull
         private final ConsensusMigratedAt consensusMigratedAt;
 
-        private ConsensusKeyMigrationFinished(@Nonnull UUID tableId, @Nonnull ByteBuffer partitionKey, @Nonnull ConsensusMigratedAt consensusMigratedAt)
+        private ConsensusKeyMigrationFinished(@Nonnull UUID tableId,
+                                              @Nonnull ByteBuffer partitionKey,
+                                              @Nonnull ConsensusMigratedAt consensusMigratedAt)
         {
             this.tableId = tableId;
             this.partitionKey = partitionKey;
@@ -122,6 +132,10 @@ public abstract class ConsensusKeyMigrationState
         };
     }
 
+    /*
+     * Bundles various aspects of key migration state together to avoid multiple lookups
+     * and to communicate multiple result values and state
+     */
     public static class KeyMigrationState
     {
         static final KeyMigrationState MIGRATION_NOT_NEEDED = new KeyMigrationState(null, null, null, null);
@@ -134,7 +148,8 @@ public abstract class ConsensusKeyMigrationState
 
         public final DecoratedKey key;
 
-        private KeyMigrationState(ConsensusMigratedAt consensusMigratedAt, Epoch currentEpoch, TableMigrationState tableMigrationState, DecoratedKey key)
+        private KeyMigrationState(ConsensusMigratedAt consensusMigratedAt, Epoch currentEpoch,
+                                  TableMigrationState tableMigrationState, DecoratedKey key)
         {
             this.consensusMigratedAt = consensusMigratedAt;
             this.currentEpoch = currentEpoch;
@@ -168,24 +183,16 @@ public abstract class ConsensusKeyMigrationState
 
     private static final int EMPTY_KEY_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(Pair.create(null, UUID.randomUUID())));
     private static final int VALUE_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(new ConsensusMigratedAt(Epoch.EMPTY, ConsensusMigrationTarget.accord)));
-    private static final Cache<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> MIGRATION_STATE_CACHE = Caffeine.newBuilder()
-                                                                                                                                         .maximumWeight(DatabaseDescriptor.getConsensusMigrationCacheSizeInMiB() << 20)
-                                                                                                                                         .<Pair<ByteBuffer, UUID>, ConsensusMigratedAt>weigher((k, v) -> EMPTY_KEY_SIZE + Ints.checkedCast(ByteBufferUtil.estimatedSizeOnHeap(k.left)) + VALUE_SIZE)
-                                                                                                                                         .executor(ImmediateExecutor.INSTANCE)
-                                                                                                                                         .build();
+    private static final Cache<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> MIGRATION_STATE_CACHE =
+        Caffeine.newBuilder()
+                .maximumWeight(DatabaseDescriptor.getConsensusMigrationCacheSizeInMiB() << 20)
+                .<Pair<ByteBuffer, UUID>, ConsensusMigratedAt>weigher((k, v) -> EMPTY_KEY_SIZE + Ints.checkedCast(ByteBufferUtil.estimatedSizeOnHeap(k.left)) + VALUE_SIZE)
+                .executor(ImmediateExecutor.INSTANCE)
+                .build();
     private static final Function<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> LOADING_FUNCTION = k -> SystemKeyspace.loadConsensusKeyMigrationState(k.left, k.right);
 
-    public static final IVerbHandler<ConsensusKeyMigrationFinished> consensusKeyMigrationFinishedHandler = new IVerbHandler<>()
-    {
-        @Override
-        public void doVerb(Message<ConsensusKeyMigrationFinished> message)
-        {
-            // Order doesn't matter, existing values don't matter, version doesn't matter
-            // If any of this races or goes backwards the result is that key migration is
-            // reattempted and it should be very rare
-            MIGRATION_STATE_CACHE.put(Pair.create(message.payload.partitionKey, message.payload.tableId), message.payload.consensusMigratedAt);
-            SystemKeyspace.saveConsensusKeyMigrationState(message.payload.partitionKey, message.payload.tableId, message.payload.consensusMigratedAt);
-        }
+    public static final IVerbHandler<ConsensusKeyMigrationFinished> consensusKeyMigrationFinishedHandler = message -> {
+        saveConsensusKeyMigrationLocally(message.payload.partitionKey, message.payload.tableId, message.payload.consensusMigratedAt);
     };
 
     private ConsensusKeyMigrationState() {}
@@ -211,8 +218,7 @@ public abstract class ConsensusKeyMigrationState
         if (!tms.paxosReadSatisfiedByKeyMigrationAtEpoch(dk, migratedAt))
             return;
 
-        MIGRATION_STATE_CACHE.put(Pair.create(key, tableUUID), migratedAt);
-        Stage.MUTATION.execute(() -> SystemKeyspace.saveConsensusKeyMigrationState(key, tableUUID, migratedAt));
+        saveConsensusKeyMigrationLocally(key, tableUUID, migratedAt);
     }
 
     /*
@@ -229,8 +235,6 @@ public abstract class ConsensusKeyMigrationState
         if (tms == null)
             return KeyMigrationState.MIGRATION_NOT_NEEDED;
 
-        // The coordinator will need to retry either on Accord if they are trying
-        // to propose their own value, or by setting the consensus migration epoch to recover an incomplete transaction
         if (Range.isInNormalizedRanges(key.getToken(), tms.migratingRanges))
         {
             ConsensusMigratedAt consensusMigratedAt = getConsensusMigratedAt(tableId, key);
@@ -250,7 +254,13 @@ public abstract class ConsensusKeyMigrationState
     /*
      * Trigger a distributed repair of Accord state for this key.
      */
-    static void repairKeyAccord(DecoratedKey key, String keyspace, TableId tableId, long minEpoch, long queryStartNanos, boolean global, boolean isForWrite)
+    static void repairKeyAccord(DecoratedKey key,
+                                String keyspace,
+                                TableId tableId,
+                                long minEpoch,
+                                long queryStartNanos,
+                                boolean global,
+                                boolean isForWrite)
     {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
         if (isForWrite)
@@ -273,7 +283,15 @@ public abstract class ConsensusKeyMigrationState
         }
     }
 
-    static void repairKeyPaxos(EndpointsForToken naturalReplicas, Epoch currentEpoch, DecoratedKey key, ColumnFamilyStore cfs, ConsistencyLevel consistencyLevel, long queryStartNanos, long timeoutNanos, boolean isLocallyReplicated, boolean isForWrite)
+    static void repairKeyPaxos(EndpointsForToken naturalReplicas,
+                               Epoch currentEpoch,
+                               DecoratedKey key,
+                               ColumnFamilyStore cfs,
+                               ConsistencyLevel consistencyLevel,
+                               long queryStartNanos,
+                               long timeoutNanos,
+                               boolean isLocallyReplicated,
+                               boolean isForWrite)
     {
         if (isForWrite)
             ClientRequestsMetricsHolder.accordWriteMetrics.paxosKeyMigrations.mark();
@@ -283,8 +301,6 @@ public abstract class ConsensusKeyMigrationState
         PaxosRepair repair = PaxosRepair.create(consistencyLevel, key, null, tableMetadata, timeoutNanos);
         long start = nanoTime();
         repair.start(queryStartNanos);
-        // TODO Migration makes a mess of metrics because it changes the type of operation as it goes, and only
-        // some of the operations attempted actually record latency
         Result result;
         try
         {
@@ -297,12 +313,13 @@ public abstract class ConsensusKeyMigrationState
                 case DONE:
                     // Don't want to repeatedly save this in the non-token aware case
                     if (isLocallyReplicated)
-                        saveConsensusKeyMigration(naturalReplicas, new ConsensusKeyMigrationFinished(tableMetadata.id.asUUID(), key.getKey(), new ConsensusMigratedAt(currentEpoch, ConsensusMigrationTarget.accord)));
+                        saveConsensusKeyMigration(naturalReplicas,
+                                                  new ConsensusKeyMigrationFinished(tableMetadata.id.asUUID(),
+                                                                                    key.getKey(),
+                                                                                    new ConsensusMigratedAt(currentEpoch, ConsensusMigrationTarget.accord)));
                     return;
                 case FAILURE:
                     Failure failure = (Failure)result;
-                    // TODO better error handling and more accurate exception values
-                    // null is the way it populates timeouts
                     if (failure.failure == null)
                         throw new CasWriteTimeoutException(WriteType.CAS, consistencyLevel, 0, 0, 0);
                     throw new RuntimeException(failure.failure);
@@ -325,15 +342,18 @@ public abstract class ConsensusKeyMigrationState
         for (Replica replica : replicas)
         {
             if (replica.isSelf())
-                saveConsensusKeyMigrationLocally(finished);
+                saveConsensusKeyMigrationLocally(finished.partitionKey, finished.tableId, finished.consensusMigratedAt);
             else
                 MessagingService.instance().send(out, replica.endpoint());
         }
     }
 
-    private static void saveConsensusKeyMigrationLocally(ConsensusKeyMigrationFinished finished)
+    private static void saveConsensusKeyMigrationLocally(ByteBuffer partitionKey, UUID tableId, ConsensusMigratedAt consensusMigratedAt)
     {
-        MIGRATION_STATE_CACHE.put(Pair.create(finished.partitionKey, finished.tableId), finished.consensusMigratedAt);
-        Stage.MUTATION.execute(() -> SystemKeyspace.saveConsensusKeyMigrationState(finished.partitionKey, finished.tableId, finished.consensusMigratedAt));
+        // Order doesn't matter, existing values don't matter, version doesn't matter
+        // If any of this races or goes backwards the result is that key migration is
+        // reattempted and it should be very rare
+        MIGRATION_STATE_CACHE.put(Pair.create(partitionKey, tableId), consensusMigratedAt);
+        Stage.MUTATION.execute(() -> SystemKeyspace.saveConsensusKeyMigrationState(partitionKey, tableId, consensusMigratedAt));
     }
 }
