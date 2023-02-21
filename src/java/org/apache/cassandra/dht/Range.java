@@ -37,8 +37,9 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 import org.apache.commons.lang3.ObjectUtils;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.Pair;
@@ -879,12 +880,18 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         return normalize(a).equals(normalize(b));
     }
 
-    // Helper to convert a LongToken string to POJO so you can copy toString from a debugger
+    // Helper to convert a range string to POJO so you can copy toString from a debugger
     public static Range<Token> fromString(String value)
     {
+        return fromString(value, DatabaseDescriptor.getPartitioner());
+    }
+
+    public static Range<Token> fromString(String value, IPartitioner partitioner)
+    {
+        TokenFactory tokenFactory = partitioner.getTokenFactory();
         String[] parts = value.split(",");
-        LongToken left = new LongToken(Long.valueOf(parts[0].substring(1, parts[0].length())));
-        LongToken right = new LongToken(Long.valueOf(parts[1].substring(0, parts[1].length() -1)));
+        Token left = tokenFactory.fromString(parts[0].substring(1, parts[0].length()));
+        Token right = tokenFactory.fromString(parts[1].substring(0, parts[1].length() -1));
         return new Range<>(left, right);
     }
 

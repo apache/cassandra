@@ -70,6 +70,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.PojoToString;
 import org.yaml.snakeyaml.Yaml;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
@@ -137,6 +138,7 @@ public class AccordMigrationTest extends AccordTestBase
                                         builder.appendConfig(config ->
                                                              config.set("paxos_variant", PaxosVariant.v2.name())));
         partitioner = FBUtilities.newPartitioner(SHARED_CLUSTER.get(1).callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
+        DatabaseDescriptor.setPartitionerUnsafe(partitioner);
         minToken = partitioner.getMinimumToken();
         maxToken = partitioner.getMaximumToken();
         midToken = partitioner.midpoint(minToken, maxToken);
@@ -545,6 +547,7 @@ public class AccordMigrationTest extends AccordTestBase
         List<String> tableIds = new ArrayList<>();
         for (Map<String, Object> migrationStateMap : ImmutableList.of(yamlStateMap, jsonStateMap, minifiedYamlStateMap, minifiedJsonStateMap))
         {
+            assertEquals(PojoToString.CURRENT_VERSION, migrationStateMap.get("version"));
             assertTrue(Epoch.EMPTY.getEpoch() < ((Number) migrationStateMap.get("epoch")).longValue());
             List<Map<String, Object>> tableStates = (List<Map<String, Object>>) migrationStateMap.get("tableStates");
             assertEquals(tableStates.size(), 1);

@@ -34,7 +34,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -57,14 +58,14 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 
-public class RangeTest
+@DDDaemonInitialization
+public class RangeTest extends CassandraTestBase
 {
     @BeforeClass
-    public static void setupDD()
+    public static void enableExpensiveRangeChecks()
     {
         System.setProperty("org.apache.cassandra.dht.Range.expensive_checks", "true");
         assertTrue(Range.EXPENSIVE_CHECKS);
-        DatabaseDescriptor.daemonInitialization();
     }
 
     @Test
@@ -755,6 +756,7 @@ public class RangeTest
     }
 
     @Test
+    @UseMurmur3Partitioner
     public void testIsInNormalizedRanges()
     {
         List<Range<Token>> ranges = ImmutableList.of(fromString("(1,10]"), fromString("(10,20]"), fromString("(30,40]"), fromString("(50,60]"), fromString("(60,70]"), fromString("(80,90]"), fromString("(" + Long.MAX_VALUE + ",-9223372036854775808]"));
@@ -787,6 +789,7 @@ public class RangeTest
     }
 
     @Test
+    @UseMurmur3Partitioner
     public void testSubtractNormalizedRanges()
     {
         List<Range<Token>> ranges = ImmutableList.of(fromString("(1,10]"), fromString("(10,20]"), fromString("(30,40]"), fromString("(50,60]"), fromString("(60,70]"), fromString("(80,90]"), fromString("(" + Long.MAX_VALUE + ",-9223372036854775808]"));
