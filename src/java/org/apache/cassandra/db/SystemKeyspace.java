@@ -223,7 +223,6 @@ public final class SystemKeyspace
                 + "proposal blob,"
                 + "proposal_ballot timeuuid,"
                 + "proposal_version int,"
-                + "consensus_migrated_at_epoch blob,"
                 + "PRIMARY KEY ((row_key), cf_id))")
                 .compaction(CompactionParams.lcs(emptyMap()))
                 .indexes(PaxosUncommittedIndex.indexes())
@@ -235,11 +234,10 @@ public final class SystemKeyspace
                   "CREATE TABLE %s ("
                   + "row_key blob, "
                   + "cf_id UUID, "
-                  + "consensus_migrated_at_epoch_period bigint, "
-                  + "consensus_migrated_at_epoch_epoch bigint, "
+                  + "consensus_migrated_at_epoch bigint, "
                   + "consensus_target tinyint, "
-                  + "PRIMARY KEY ((row_key), cf_id, consensus_migrated_at_epoch_period, consensus_migrated_at_epoch_epoch)) "
-                  + "WITH CLUSTERING ORDER BY (cf_id ASC, consensus_migrated_at_epoch_period DESC, consensus_migrated_at_epoch_epoch DESC)")
+                  + "PRIMARY KEY ((row_key), cf_id, consensus_migrated_at_epoch)) "
+                  + "WITH CLUSTERING ORDER BY (cf_id ASC, consensus_migrated_at_epoch DESC)")
             .compaction(CompactionParams.twcs(
                 ImmutableMap.of(
                 "compaction_window_unit", "MINUTES",
@@ -1451,38 +1449,6 @@ public final class SystemKeyspace
         }
     }
 
-    /**
-     * After commit is done everywhere record that key was migrated for consensus
-     * This avoids having to do the first round of Paxos to find out if the migration occurred
-     * assuming token aware routing
-     */
-    public static void savePaxosConsensusMigratedAtEpoch(Committed lastCommitted, Epoch epoch)
-    {
-        if (lastCommitted instanceof Commit.CommittedWithTTL)
-        {
-            int localDeletionTime = ((Commit.CommittedWithTTL) lastCommitted).localDeletionTime;
-            int ttlInSec = legacyPaxosTtlSec(lastCommitted.update.metadata());
-            int nowInSec = localDeletionTime - ttlInSec;
-            String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? AND TTL ? SET consensus_migrated_at_epoch = ? WHERE row_key = ? AND cf_id = ?";
-            executeInternalWithNowInSec(cql,
-                                        nowInSec,
-                                        lastCommitted.ballot.unixMicros(),
-                                        ttlInSec,
-                                        epoch.toVersionedBytes(),
-                                        lastCommitted.update.partitionKey().getKey(),
-                                        lastCommitted.update.metadata().id.asUUID());
-        }
-        else
-        {
-            String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? SET consensus_migrated_at_epoch = ? WHERE row_key = ? AND cf_id = ?";
-            executeInternal(cql,
-                            lastCommitted.ballot.unixMicros(),
-                            epoch.toVersionedBytes(),
-                            lastCommitted.update.partitionKey().getKey(),
-                            lastCommitted.update.metadata().id.asUUID());
-        }
-    }
-
     @VisibleForTesting
     public static void savePaxosRepairHistory(String keyspace, String table, PaxosRepairHistory history, boolean flush)
     {
@@ -1515,20 +1481,21 @@ public final class SystemKeyspace
 
     public static void saveConsensusKeyMigrationState(ByteBuffer partitionKey, UUID cfId, ConsensusMigratedAt consensusMigratedAt)
     {
-        String cql = "UPDATE system." + CONSENSUS_MIGRATION_STATE + " SET consensus_target = ? WHERE row_key = ? AND cf_id = ? AND consensus_migrated_at_epoch_period = ? AND consensus_migrated_at_epoch_epoch = ?";
-        executeInternal(cql, consensusMigratedAt.migratedAtTarget.value, partitionKey, cfId, consensusMigratedAt.migratedAtEpoch.getPeriod(), consensusMigratedAt.migratedAtEpoch.getEpoch());
+        String cql = "UPDATE system." + CONSENSUS_MIGRATION_STATE + " SET consensus_target = ? WHERE row_key = ? AND cf_id = ? AND consensus_migrated_at_epoch = ?";
+        executeInternal(cql, consensusMigratedAt.migratedAtTarget.value, partitionKey, cfId, consensusMigratedAt.migratedAtEpoch.getEpoch());
     }
 
     public static ConsensusMigratedAt loadConsensusKeyMigrationState(ByteBuffer partitionKey, UUID cfId)
     {
-        String cql = "SELECT consensus_migrated_at_epoch_period, consensus_migrated_at_epoch_epoch, consensus_target FROM system." + CONSENSUS_MIGRATION_STATE + " WHERE row_key = ? AND cf_id = ? LIMIT 1";
+        String cql = "SELECT consensus_migrated_at_epoch, consensus_target FROM system." + CONSENSUS_MIGRATION_STATE + " WHERE row_key = ? AND cf_id = ? LIMIT 1";
         UntypedResultSet results = executeInternal(cql, partitionKey, cfId);
 
         if (results.isEmpty())
             return null;
 
         UntypedResultSet.Row row = results.one();
-        Epoch migratedAtEpoch = Epoch.create(row.getLong("consensus_migrated_at_epoch_period"), row.getLong("consensus_migrated_at_epoch_target"));
+        // TODO Period won't be necessary eventually
+        Epoch migratedAtEpoch = Epoch.create(Epoch.FIRST.getPeriod(), row.getLong("consensus_migrated_at_epoch"));
         ConsensusMigrationTarget target = ConsensusMigrationTarget.fromValue(row.getByte("consensus_target"));
         return new ConsensusMigratedAt(migratedAtEpoch, target);
     }

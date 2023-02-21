@@ -333,10 +333,11 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
     }
 
     /*
+     * Compares ranges by right token. Used for intersecting normalized ranges.
+     *
      * Assumes no wrap around ranges except for RHS = minValue which is essentialy synonymous with the maximal value.
      * This shows up coming out of unwrap because Range is not left inclusive so the only way to include minValue
      * in the range is by wrapping from maxValue.
-     *
      */
     private int compareNormalized(Range<T> rhs)
     {
@@ -491,7 +492,6 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         return false;
     }
 
-    // TODO need validation this works correctly with wrap arounds
     private static final Comparator NORMALIZED_TOKEN_RANGE_COMPARATOR = (o1, o2) -> {
         Range range = (Range)o1;
         RingPosition key = (RingPosition) o2;
@@ -577,9 +577,6 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         }
 
         List<Range<T>> result = ImmutableList.copyOf(normalize(remaining));
-        List<Range<T>> check = normalize(subtract(a, b));
-        if (!check.equals(result))
-            System.out.println("oops");
         if (EXPENSIVE_CHECKS)
             checkState(result.equals(normalize(subtract(a, b))));
         return result;
@@ -614,12 +611,6 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
             result.add(new Range<>(last.right, minValue));
 
         result = normalize(result);
-        List<Range<T>> check = normalize(subtract(ImmutableList.of(new Range<>(minValue, minValue)), ranges));
-        boolean equals = result.equals(check);
-        if (!equals)
-            System.out.println("Oops");
-        checkState(result.equals(normalize(subtract(ImmutableList.of(new Range<>(minValue, minValue)), ranges))));
-
         if (EXPENSIVE_CHECKS)
             checkState(result.equals(normalize(subtract(ImmutableList.of(new Range<>(minValue, minValue)), ranges))));
         return result;
@@ -679,9 +670,6 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
                     expensiveResult.addAll(r1.intersectionWith(r2));
                 }
             }
-            boolean equals = result.equals(normalize(expensiveResult));
-            if (!equals)
-                System.out.println("oops");
             checkState(result.equals(normalize(expensiveResult)));
         }
 

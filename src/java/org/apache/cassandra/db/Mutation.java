@@ -322,7 +322,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
     }
 
     private int serializedSize40;
-    private int serializedSize50;
+    private int serializedSize42;
 
     public int serializedSize(int version)
     {
@@ -334,9 +334,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
                 return serializedSize40;
                 // TODO should we reuse 40 or is that fragile? Discard 30?
             case VERSION_42:
-                if (serializedSize50 == 0)
-                    serializedSize50 = (int) serializer.serializedSize(this, VERSION_42);
-                return serializedSize50;
+                if (serializedSize42 == 0)
+                    serializedSize42 = (int) serializer.serializedSize(this, VERSION_42);
+                return serializedSize42;
             default:
                 throw new IllegalStateException("Unknown serialization version: " + version);
         }

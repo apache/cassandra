@@ -55,11 +55,6 @@ public abstract class AccordSplitter implements ShardDistributor.EvenSplit.Split
         BigInteger sizeOfRange = end.subtract(start);
 
         String keyspace = startBound.keyspace();
-        AccordRoutingKey startTokenKey = startOffset.equals(ZERO) ? startBound : new TokenKey(keyspace, tokenForValue(start.add(startOffset)));
-        AccordRoutingKey endTokenKey = endOffset.equals(sizeOfRange) ? endBound : new TokenKey(keyspace, tokenForValue(start.add(endOffset)));
-        if (startTokenKey.compareTo(endTokenKey) >= 0)
-            System.out.println("oops");
-
         return new TokenRange(startOffset.equals(ZERO) ? startBound : new TokenKey(keyspace, tokenForValue(start.add(startOffset))),
                               endOffset.equals(sizeOfRange) ? endBound : new TokenKey(keyspace, tokenForValue(start.add(endOffset))));
     }

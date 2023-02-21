@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.Util.range;
 import static org.apache.cassandra.dht.Range.fromString;
@@ -785,10 +786,42 @@ public class RangeTest
         assertTrue(isInNormalizedRanges(new LongToken(Long.MIN_VALUE), normalize(ranges)));
     }
 
-    // TOD Burn test works surprisingly well at generating relevant scenarios for collections of ranges because
-    // after normalization there isn't less diversity, but it does seem like like the min/max cases should be tested
     @Test
-    public void testExpensiveChecksBurn() throws Exception
+    public void testSubtractNormalizedRanges()
+    {
+        List<Range<Token>> ranges = ImmutableList.of(fromString("(1,10]"), fromString("(10,20]"), fromString("(30,40]"), fromString("(50,60]"), fromString("(60,70]"), fromString("(80,90]"), fromString("(" + Long.MAX_VALUE + ",-9223372036854775808]"));
+        for (int ii = 0; ii < 100; ii++)
+        {
+            boolean isIn = isInNormalizedRanges(new LongToken(ii), ranges);
+            if (ii > 1 && ii <= 20)
+                assertTrue("Index " + ii, isIn);
+            else if (ii > 30 && ii <= 40)
+                assertTrue("Index " + ii, isIn);
+            else if (ii > 50 && ii <= 70)
+                assertTrue("Index " + ii, isIn);
+            else if (ii > 80 && ii <= 90)
+                assertTrue("Index " + ii, isIn);
+            else
+                assertFalse("Index " + ii, isIn);
+        }
+        List<Range<Token>> rightMostRange = ImmutableList.of(r(Long.MAX_VALUE, Long.MIN_VALUE));
+        List<Range<Token>> maxLongRange = ImmutableList.of(r(Long.MAX_VALUE - 1, Long.MAX_VALUE));
+
+        assertEquals(emptyList(),  subtractNormalizedRanges(ranges, ranges));
+        assertEquals(emptyList(), subtractNormalizedRanges(rightMostRange, ranges));
+        assertEquals(maxLongRange, subtractNormalizedRanges(maxLongRange, ranges));
+        ranges = maxLongRange;
+        assertEquals(emptyList(), subtractNormalizedRanges(ranges, ranges));
+        assertEquals(rightMostRange, subtractNormalizedRanges(rightMostRange, ranges));
+        assertEquals(emptyList(), subtractNormalizedRanges(maxLongRange, ranges));
+        ranges = ImmutableList.of(fromString("(" + (Long.MAX_VALUE - 1) + ",-9223372036854775808]"));
+        assertEquals(emptyList(), subtractNormalizedRanges(ranges, ranges));
+        assertEquals(emptyList(), subtractNormalizedRanges(rightMostRange, ranges));
+        assertEquals(emptyList(), subtractNormalizedRanges(maxLongRange, ranges));
+    }
+
+    @Test
+    public void testExpensiveChecksBurn()
     {
         long seed = System.nanoTime();
 //        seed = 88435571424041L;
