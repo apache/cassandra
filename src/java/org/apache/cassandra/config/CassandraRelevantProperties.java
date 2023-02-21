@@ -569,16 +569,11 @@ public enum CassandraRelevantProperties
         System.setProperty(key, value.name());
     }
 
-    public interface PropertyConverter<T>
-    {
-        T convert(String value);
-    }
+    public static final PropertyConverter<String> STRING_CONVERTER = value -> value;
 
-    private static final PropertyConverter<String> STRING_CONVERTER = value -> value;
+    public static final PropertyConverter<Boolean> BOOLEAN_CONVERTER = Boolean::parseBoolean;
 
-    private static final PropertyConverter<Boolean> BOOLEAN_CONVERTER = Boolean::parseBoolean;
-
-    private static final PropertyConverter<Integer> INTEGER_CONVERTER = value ->
+    public static final PropertyConverter<Integer> INTEGER_CONVERTER = value ->
     {
         try
         {
@@ -591,7 +586,7 @@ public enum CassandraRelevantProperties
         }
     };
 
-    private static final PropertyConverter<Long> LONG_CONVERTER = value ->
+    public static final PropertyConverter<Long> LONG_CONVERTER = value ->
     {
         try
         {

@@ -20,37 +20,48 @@ package org.apache.cassandra.db.virtual;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.Loader;
 import org.apache.cassandra.config.Properties;
+import org.apache.cassandra.config.PropertyConverter;
 import org.apache.cassandra.config.Replacement;
 import org.apache.cassandra.config.Replacements;
+import org.apache.cassandra.config.registry.ConfigurationRegistry;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.yaml.snakeyaml.introspector.Property;
 
-final class SettingsTable extends AbstractVirtualTable
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+
+final class SettingsTable extends AbstractMutableVirtualTable
 {
     private static final String NAME = "name";
     private static final String VALUE = "value";
 
     private static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
     protected static final Map<String, Property> PROPERTIES = ImmutableMap.copyOf(getProperties());
-
+    private final Map<Class<?>, PropertyConverter<?>> converters = new HashMap<>();
     private final Config config;
+    private final Map<Class<?>, PropertyConverter<?>> converterRegistry = new HashMap<>();
+    private final ConfigurationRegistry configurationRegistry;
 
     SettingsTable(String keyspace)
     {
-        this(keyspace, DatabaseDescriptor.getRawConfig());
+        this(keyspace, DatabaseDescriptor.getRawConfig(), ConfigurationRegistry.instance);
     }
 
-    SettingsTable(String keyspace, Config config)
+    SettingsTable(String keyspace, Config config, ConfigurationRegistry configurationRegistry)
     {
         super(TableMetadata.builder(keyspace, "settings")
                            .comment("current settings")
@@ -60,6 +71,39 @@ final class SettingsTable extends AbstractVirtualTable
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
         this.config = config;
+        registerConverters();
+        this.configurationRegistry = configurationRegistry;
+    }
+
+    private void registerConverters()
+    {
+        converters.put(Boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
+        converters.put(boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
+        converters.put(Integer.class, CassandraRelevantProperties.INTEGER_CONVERTER);
+        converters.put(int.class, CassandraRelevantProperties.INTEGER_CONVERTER);
+        converters.put(DurationSpec.LongNanosecondsBound.class, DurationSpec.LongNanosecondsBound::new);
+        converters.put(DurationSpec.LongMillisecondsBound.class, DurationSpec.LongMillisecondsBound::new);
+        converters.put(DurationSpec.LongSecondsBound.class, DurationSpec.LongSecondsBound::new);
+        converters.put(DurationSpec.IntMinutesBound.class, DurationSpec.IntMinutesBound::new);
+        converters.put(DurationSpec.IntSecondsBound.class, DurationSpec.IntSecondsBound::new);
+        converters.put(DurationSpec.IntMillisecondsBound.class, DurationSpec.IntMillisecondsBound::new);
+    }
+
+    @Override
+    protected void applyColumnDeletion(ColumnValues partitionKey, ColumnValues clusteringColumns, String columnName)
+    {
+        String key = partitionKey.value(0);
+        setProperty(key, null);
+    }
+
+    @Override
+    protected void applyColumnUpdate(ColumnValues partitionKey,
+                                     ColumnValues clusteringColumns,
+                                     Optional<ColumnValue> columnValue)
+    {
+        String key = partitionKey.value(0);
+        String value = columnValue.map(v -> v.value().toString()).orElse(null);
+        setProperty(key, value);
     }
 
     @Override
@@ -81,6 +125,45 @@ final class SettingsTable extends AbstractVirtualTable
         for (Map.Entry<String, Property> e : PROPERTIES.entrySet())
             result.row(e.getKey()).column(VALUE, getValue(e.getValue()));
         return result;
+    }
+
+    /**
+     * Covers the case where nested value converters throw internal C* exceptions, but we want to throw an  input
+     * request validation exception instead.
+     * @param converter Converter to use to convert the value.
+     * @param name Property name.
+     * @param value String representation of the value.
+     * @return The converted value.
+     * @param <T> Type of the resulted value.
+     */
+    private static <T> T convertExceptionally(PropertyConverter<T> converter, String name, String value)
+    {
+        try
+        {
+            return converter.convert(value);
+        }
+        catch (Exception e)
+        {
+            throw invalidRequest("Invalid request for property '%s'; exception: '%s'", name, e.getMessage());
+        }
+    }
+
+    /**
+     * Setter for the property.
+     * @param name the name of the property.
+     * @param value the string representation of the value of the property to set.
+     */
+    private void setProperty(String name, String value)
+    {
+        Class<?> propertyType = configurationRegistry.getType(name);
+        PropertyConverter<?> converter = converters.get(propertyType);
+        if (converter == null)
+            throw new ConfigurationException(String.format("Unknown converter for property with name '%s' and type '%s'", name, propertyType));
+
+        if (!configurationRegistry.isWritable(name))
+            throw invalidRequest("Property '%s' is not writable", name);
+
+        configurationRegistry.update(name, value == null ? null : convertExceptionally(converter, name, value));
     }
 
     private String getValue(Property prop)
