@@ -46,8 +46,6 @@ $ (cd modules/accord ; git commit -am 'Saving progress')
 $ .build/sh/bump-accord.sh
 ```
 
-During this step you may be asked for github credentials, github removed password auth for `https` endpoints in 2021 so you will need to generate a auth token to support pushing, this can be done by going to https://github.com/settings/tokens/new and creating a token with the "repo" scope.
-
 ## Commit and Merge Process
 
 Due to the nature of submodules, the changes to the submodules must be committed and pushed before the changes to Apache Cassandra; these are different repositories so git's `--atomic` does not prevent conflicts from concurrent merges; the basic process is as follows:
