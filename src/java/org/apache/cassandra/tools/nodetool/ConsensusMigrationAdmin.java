@@ -21,7 +21,6 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 import io.airlift.airline.Arguments;
@@ -82,9 +81,9 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
             checkNotNull(endToken, "End token must be specified");
             checkArgument(schemaArgs.size() >= 2, "Must specify a keyspace and at least one table");
             checkArgument((endToken != null && startToken != null) || (endToken == null && startToken == null), "Must specify start and end token together");
-            Optional<String> maybeRangesStr = startToken != null ? Optional.of(startToken + ":" + endToken) : Optional.empty();
+            String maybeRangesStr = startToken != null ? startToken + ":" + endToken : null;
             List<String> keyspaceNames = schemaArgs.size() > 0 ? singletonList(schemaArgs.get(0)) : emptyList();
-            Optional<List<String>> maybeTableNames = schemaArgs.size() > 1 ? Optional.of(schemaArgs.subList(1, schemaArgs.size())) : Optional.empty();
+            List<String> maybeTableNames = schemaArgs.size() > 1 ? schemaArgs.subList(1, schemaArgs.size()) : null;
             probe.getStorageService().migrateConsensusProtocol(targetProtocol, keyspaceNames, maybeTableNames, maybeRangesStr);
         }
     }
@@ -105,7 +104,7 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
         {
             checkArgument(schemaArgs.size() >= 2, "Must specify a keyspace and at least one table");
             List<String> keyspaceNames = schemaArgs.size() > 0 ? singletonList(schemaArgs.get(0)) : emptyList();
-            Optional<List<String>> maybeTableNames = schemaArgs.size() > 1 ? Optional.of(schemaArgs.subList(1, schemaArgs.size())) : Optional.empty();
+            List<String> maybeTableNames = schemaArgs.size() > 1 ? schemaArgs.subList(1, schemaArgs.size()) : null;
             probe.getStorageService().setConsensusMigrationTargetProtocol(targetProtocol, keyspaceNames, maybeTableNames);
         }
     }

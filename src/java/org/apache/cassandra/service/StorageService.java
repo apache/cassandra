@@ -2222,27 +2222,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public void migrateConsensusProtocol(@Nonnull String targetProtocol,
                                          @Nonnull List<String> keyspaceNames,
-                                         @Nonnull Optional<List<String>> maybeTableNames,
-                                         @Nonnull Optional<String> maybeRangesStr)
+                                         @Nonnull List<String> maybeTableNames,
+                                         @Nullable String maybeRangesStr)
     {
         checkNotNull(targetProtocol, "targetProtocol is null");
         checkNotNull(keyspaceNames, "keyspaceNames is null");
-        checkNotNull(maybeTableNames, "maybeTableNames is null");
-        checkNotNull(maybeRangesStr, "maybeRangesStr is null");
 
-        startMigrationToConsensusProtocol(targetProtocol, keyspaceNames, maybeTableNames, maybeRangesStr);
+        startMigrationToConsensusProtocol(targetProtocol, keyspaceNames, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr));
     }
 
     @Override
     public void setConsensusMigrationTargetProtocol(@Nonnull String targetProtocol,
                                                     @Nonnull List<String> keyspaceNames,
-                                                    @Nonnull Optional<List<String>> maybeTableNames)
+                                                    @Nullable List<String> maybeTableNames)
     {
         checkNotNull(targetProtocol, "targetProtocol is null");
         checkNotNull(keyspaceNames, "keyspaceNames is null");
-        checkNotNull(maybeTableNames, "maybeTableNames is null");
 
-        ConsensusTableMigrationState.setConsensusMigrationTargetProtocol(targetProtocol, keyspaceNames, maybeTableNames);
+        ConsensusTableMigrationState.setConsensusMigrationTargetProtocol(targetProtocol, keyspaceNames, Optional.ofNullable(maybeTableNames));
     }
 
     @Override

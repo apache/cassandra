@@ -49,6 +49,7 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
@@ -217,7 +218,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         {
             KeySerializers.keys.serialize(read.txnKeys, out, version);
             serializeArray(read.items, out, version, TxnNamedRead.serializer);
-            serializeNullable(read.consistencyLevel, out, version, ConsistencyLevel.serializer);
+            serializeNullable(read.consistencyLevel, out, version, consistencyLevelSerializer);
         }
 
         @Override
@@ -225,7 +226,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         {
             Keys keys = KeySerializers.keys.deserialize(in, version);
             TxnNamedRead[] items = deserializeArray(in, version, TxnNamedRead.serializer, TxnNamedRead[]::new);
-            ConsistencyLevel consistencyLevel = deserializeNullable(in, version, ConsistencyLevel.serializer);
+            ConsistencyLevel consistencyLevel = deserializeNullable(in, version, consistencyLevelSerializer);
             return new TxnRead(items, keys, consistencyLevel);
         }
 
@@ -234,7 +235,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         {
             long size = KeySerializers.keys.serializedSize(read.txnKeys, version);
             size += serializedArraySize(read.items, version, TxnNamedRead.serializer);
-            size += serializedNullableSize(read.consistencyLevel, version, ConsistencyLevel.serializer);
+            size += serializedNullableSize(read.consistencyLevel, version, consistencyLevelSerializer);
             return size;
         }
     };

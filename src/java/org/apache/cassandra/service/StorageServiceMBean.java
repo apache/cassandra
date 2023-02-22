@@ -24,7 +24,6 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -997,12 +996,12 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     void migrateConsensusProtocol(@Nonnull String targetProtocol,
                                   @Nonnull List<String> keyspaceNames,
-                                  @Nonnull Optional<List<String>> maybeTableNames,
-                                  @Nonnull Optional<String> maybeRangesStr);
+                                  @Nullable List<String> maybeTableNames,
+                                  @Nullable String maybeRangesStr);
 
     void setConsensusMigrationTargetProtocol(@Nonnull String targetProtocol,
                                              @Nonnull List<String> keyspaceNames,
-                                             @Nonnull Optional<List<String>> maybeTableNames);
+                                             @Nullable List<String> maybeTableNames);
 
     String listConsensusMigrations(@Nullable Set<String> keyspaceNames, @Nullable Set<String> tableNames, @Nonnull String format);
 

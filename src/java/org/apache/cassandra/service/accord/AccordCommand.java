@@ -373,7 +373,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
                && waitingOnApply.equals(command.waitingOnApply)
                && blockingApplyOn.equals(command.blockingApplyOn)
                && storedListeners.equals(command.storedListeners)
-               && maybeTransientListeners().equals(command.maybeTransientListeners());
+               && ((maybeTransientListeners() == null && command.maybeTransientListeners() == null) || maybeTransientListeners().equals(command.maybeTransientListeners()));
     }
 
     boolean isReadOnly()

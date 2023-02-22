@@ -34,7 +34,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,6 +61,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosRepairEnabled;
 import static org.apache.cassandra.service.paxos.Paxos.useV2;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -217,7 +217,8 @@ public class CassandraRepairJob extends AbstractRepairJob
                     SystemDistributedKeyspace.successfulRepairJob(session.getId(), desc.keyspace, desc.columnFamily);
                 }
                 cfs.metric.repairsCompleted.inc();
-                Epoch minEpoch = Futures.getUnchecked(paxosRepair);
+                Epoch minEpoch = paxosRepair.getNow();
+                checkNotNull(minEpoch, "Future should be completed and return nonnull epoch");
                 trySuccess(new RepairResult(desc, stats, ConsensusMigrationRepairResult.fromCassandraRepair(minEpoch, doPaxosRepair)));
             }
 
