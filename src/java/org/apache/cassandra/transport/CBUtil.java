@@ -46,6 +46,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.memory.MemoryUtil;
+
 /**
  * ByteBuf utility methods.
  * Note that contrarily to ByteBufferUtil, these method do "read" the
@@ -498,7 +499,9 @@ public abstract class CBUtil
 
         if (src.hasArray())
         {
-            //heap buffers are copied this way to avoid improper memory managment that causes a CMS bug and the JVM to crash
+            // Heap buffers are copied this way to avoid a CMS bug, which causes the JVM to crash.
+            // If we copy heap buffers using MemoryUtil.unsafe, as seen in MemoryUtil.duplicateDirectByteBuffer, the GC (Garbage Collector) will crash depending on the enviroment it is running in.
+            // Example of a log file showing where the crash occured:
             byte[] array = src.array();
             dest.writeBytes(array, src.arrayOffset() + src.position(), length);
         }

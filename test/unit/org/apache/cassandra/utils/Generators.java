@@ -335,17 +335,9 @@ public final class Generators
         {
             case HEAP: return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size);
             case READ_ONLY_HEAP: return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size).asReadOnlyBuffer();
-            case DIRECT:
-            {
-                ByteBuffer bb = directBufferFromSharedBlob(offset, size);
-                return bb;
-            }
-            case READ_ONLY_DIRECT:
-            {
-                ByteBuffer bb = directBufferFromSharedBlob(offset, size);
-                return bb.asReadOnlyBuffer();
-            }
-            default: throw new AssertionError("cann't wait for jdk 17!");
+            case DIRECT: return directBufferFromSharedBlob(offset, size);
+            case READ_ONLY_DIRECT: return directBufferFromSharedBlob(offset, size).asReadOnlyBuffer();
+            default: throw new AssertionError("can't wait for jdk 17!");
         }
     }
 
