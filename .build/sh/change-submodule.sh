@@ -23,6 +23,11 @@ set -o nounset
 _usage() {
   cat <<EOF
 Usage: $(basename $0) [submodule path] [git repo URL] [git branch]
+
+Examples:
+
+Switch to branch "immutable-state"
+  .build/sh/change-submodule.sh modules/accord ../cassandra-accord.git immutable-state
 EOF
  exit 1
 }
