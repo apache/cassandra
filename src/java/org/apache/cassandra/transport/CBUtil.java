@@ -499,9 +499,10 @@ public abstract class CBUtil
 
         if (src.hasArray())
         {
-            // Heap buffers are copied this way to avoid a CMS bug, which causes the JVM to crash.
-            // If we copy heap buffers using MemoryUtil.unsafe, as seen in MemoryUtil.duplicateDirectByteBuffer, the GC (Garbage Collector) will crash depending on the enviroment it is running in.
-            // Example of a log file showing where the crash occured:
+            // Heap buffers are copied using a raw array instead of shared heap buffer and MemoryUtil.unsafe to avoid a CMS bug, which causes the JVM to crash with the follwing:
+            // # Problematic frame:
+            // # V  [libjvm.dylib+0x63e858]  void ParScanClosure::do_oop_work<unsigned int>(unsigned int*, bool, bool)+0x94
+            // More details can be found here: https://bugs.openjdk.org/browse/JDK-8222798
             byte[] array = src.array();
             dest.writeBytes(array, src.arrayOffset() + src.position(), length);
         }
