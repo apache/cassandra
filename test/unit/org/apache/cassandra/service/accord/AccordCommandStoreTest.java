@@ -102,7 +102,7 @@ public class AccordCommandStoreTest
         command.setAccepted(ballot(1, clock.incrementAndGet(), 1));
         command.setExecuteAt(timestamp(1, clock.incrementAndGet(), 1));
         command.setPartialDeps(dependencies);
-        command.setStatus(Status.Accepted);
+        command.setStatus(Status.Accepted, null);
         command.addWaitingOnCommit(oldTxnId1);
         command.addWaitingOnApplyIfAbsent(oldTxnId2, oldTimestamp);
         command.storedListeners.clear();

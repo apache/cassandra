@@ -90,14 +90,14 @@ public class AsyncWriterTest
         AccordCommand blocking = new AccordCommand(blockingId).initialize();
         blocking.setPartialTxn(txn.slice(ranges, true));
         blocking.setExecuteAt(blockingId);
-        blocking.setStatus(Status.Committed);
+        blocking.setStatus(Status.Committed, null);
         AccordKeyspace.getCommandMutation(commandStore, blocking, commandStore.nextSystemTimestampMicros()).apply();
         blocking.clearModifiedFlag();
 
         AccordCommand waiting = new AccordCommand(waitingId).initialize();
         waiting.setPartialTxn(txn.slice(ranges, true));
         waiting.setExecuteAt(waitingId);
-        waiting.setStatus(Status.Committed);
+        waiting.setStatus(Status.Committed, null);
         AccordKeyspace.getCommandMutation(commandStore, waiting, commandStore.nextSystemTimestampMicros()).apply();
         waiting.clearModifiedFlag();
 
@@ -112,7 +112,7 @@ public class AsyncWriterTest
 
         // now change the blocking command and check its changes are reflected in the waiting command
         context = new AsyncContext();
-        blocking.setStatus(Status.ReadyToExecute);
+        blocking.setStatus(Status.ReadyToExecute, null);
         context.commands.add(blocking);
         save(commandStore, context);
 
@@ -165,7 +165,7 @@ public class AsyncWriterTest
         });
 
         // commit, summary should be moved to committed maps
-        command.setStatus(Status.Committed);
+        command.setStatus(Status.Committed, null);
         context = new AsyncContext();
         context.commands.add(command);
         save(commandStore, context);
@@ -202,12 +202,12 @@ public class AsyncWriterTest
             AccordCommand blocking = new AccordCommand(blockingId).initialize();
             blocking.setPartialTxn(txn.slice(ranges, true));
             blocking.setExecuteAt(blockingId);
-            blocking.setStatus(Status.Committed);
+            blocking.setStatus(Status.Committed, null);
 
             AccordCommand waiting = new AccordCommand(waitingId).initialize();
             waiting.setPartialTxn(txn.slice(ranges, true));
             waiting.setExecuteAt(waitingId);
-            waiting.setStatus(Status.Committed);
+            waiting.setStatus(Status.Committed, null);
             waiting.addWaitingOnApplyIfAbsent(blocking.txnId(), blocking.executeAt());
 
             blocking.addListener(waiting);

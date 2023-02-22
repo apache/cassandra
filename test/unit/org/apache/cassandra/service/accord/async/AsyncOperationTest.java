@@ -129,7 +129,7 @@ public class AsyncOperationTest
         AccordCommand command = new AccordCommand(txnId).initialize();
         command.setPartialTxn(createPartialTxn(0));
         command.setExecuteAt(executeAt);
-        command.setStatus(Status.Committed);
+        command.setStatus(Status.Committed, null);
         AccordKeyspace.getCommandMutation(commandStore, command, commandStore.nextSystemTimestampMicros()).apply();
         command.clearModifiedFlag();
         return command;
@@ -163,7 +163,7 @@ public class AsyncOperationTest
 
         AccordCommand command = createCommittedAndPersist(commandStore, txnId);
 
-        Consumer<SafeCommandStore> consumer = instance -> ((AccordCommand)instance.command(txnId)).setStatus(Status.PreApplied);
+        Consumer<SafeCommandStore> consumer = instance -> (instance.command(txnId)).setStatus(Status.PreApplied, null);
         AsyncOperation<Void> operation = new AsyncOperation.ForConsumer(commandStore, singleton(txnId), emptyList(), consumer)
         {
 

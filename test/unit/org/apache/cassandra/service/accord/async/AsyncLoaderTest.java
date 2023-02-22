@@ -246,7 +246,7 @@ public class AsyncLoaderTest
         AccordCommand command = new AccordCommand(txnId).initialize();
         command.setPartialTxn(txn);
         command.setExecuteAt(txnId);
-        command.setStatus(Status.Committed);
+        command.setStatus(Status.Committed, null);
         AccordKeyspace.getCommandMutation(commandStore, command, commandStore.nextSystemTimestampMicros()).apply();
         command.clearModifiedFlag();
 
