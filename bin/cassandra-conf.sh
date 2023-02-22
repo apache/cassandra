@@ -44,7 +44,6 @@
 validate_env() {
     retval=0
     if [ -n "$CASSANDRA_ENV_DEBUG" ] ; then
-        echo ""
         echo "ENVIRONMENT"
         echo "-----------"
         echo "PWD=$PWD"
@@ -95,7 +94,6 @@ validate_env() {
             done
         fi
         echo "-----------"
-        echo ""
     fi
     if [ $retval -ne 0 ] ; then
         exit $retval
