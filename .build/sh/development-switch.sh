@@ -30,7 +30,6 @@ _usage() {
 Usage: $(basename $0) (options)* (submodule)*
 
 Options:
-  --github-user Github user/org where the fork exists; defaults to $USER
   --jira        JIRA used for development, will checkout if not done yet
   -h|--help     This help page
 EOF
@@ -41,36 +40,8 @@ _is_main_branch() {
   local -r name="$1"
   [[ "$name" == cassandra-* ]] && return 0
   [[ "$name" == "trunk" ]] && return 0
+  [[ "$name" == "cep-15-accord" ]] && return 0
   return 1
-}
-
-_get_gh_user() {
-  # was the GitHub user set?
-  local gh_user
-  gh_user="$(git config --get 'cassandra.github.user' || true)"
-  if [[ ! -z "${gh_user:-}" ]]; then
-    echo "${gh_user}"
-    return 0
-  fi
-
-  # can it be inferred from remote?
-  local current_branch
-  current_branch="$(git rev-parse --abbrev-ref HEAD)"
-  local url
-  url="$(git config --local --get branch."${current_branch}".url || true)"
-  local inferred_name="$USER"
-  if [[ ! -z "${url:-}" ]]; then
-    inferred_name="$(echo "$url" | awk -F/ '{print $(NF-1)}' | awk -F: '{print $NF}')"
-  fi
-  echo "What is the github user/org used?  Inferred ${inferred_name}, enter new name or empty to accept:" 1>&2
-  read user_input
-  if [[ ! -z "${user_input:-}" ]]; then
-    gh_user="${user_input}"
-  else
-    gh_user="${inferred_name}"
-  fi
-  git config --local 'cassandra.github.user' "$gh_user"
-  echo "${gh_user}"
 }
 
 _main() {
@@ -78,8 +49,6 @@ _main() {
   home="$(git rev-parse --show-toplevel)"
   cd "$home"
 
-  local gh_user
-  gh_user="$(_get_gh_user)"
   local branch
   branch="$(git rev-parse --abbrev-ref HEAD)"
   # loop over args, executing as in order of execution
@@ -87,10 +56,6 @@ _main() {
     case "$1" in
       -h|--help)
         _usage
-        ;;
-      --github-user)
-        gh_user="$2"
-        shift 2
         ;;
       --jira)
         if [[ "$2" != "$branch" ]]; then
@@ -138,8 +103,7 @@ _main() {
   local name
   for path in "${to_change[@]}"; do
     name="$(basename "$path")"
-    # why use https rather than git@?  This is to make sure CI works, as CI will fail to clone with git@
-    git submodule set-url "${path}" "https://github.com/${gh_user}/cassandra-${name}.git"
+    git submodule set-url "${path}" "../cassandra-${name}.git"
     git submodule set-branch --branch "${branch}" "${path}"
     cd "$path"
       submodule_branch="$(git rev-parse --abbrev-ref HEAD)"
