@@ -111,11 +111,19 @@ public abstract class TxnQuery implements Query
         {
             return 4;
         }
+        
+        @Override
+        public Result compute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
+        {
+            // Skip the migration checks in the base class for empty transactions, we don't
+            // want/need the RetryWithNewProtocolResult
+            return new TxnData();
+        }
 
         @Override
         protected Result doCompute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
         {
-            return null;
+            throw new UnsupportedOperationException();
         }
     };
 
@@ -130,9 +138,6 @@ public abstract class TxnQuery implements Query
     @Override
     public Result compute(TxnId txnId, Timestamp executeAt, Seekables<?, ?> keys, @Nullable Data data, @Nullable Read read, @Nullable Update update)
     {
-        if (this == EMPTY)
-            return new TxnData();
-
         Epoch epoch = Epoch.create(0, executeAt.epoch());
         // TODO This isn't attempting to block transaction statements although it will catch the single key ones
         // That will need to be tackled as part of interoperability
