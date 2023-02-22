@@ -52,7 +52,7 @@ public class RetryWithNewProtocolResult extends TxnResult
         return SIZE;
     }
 
-    public static final TxnResultSerializer<RetryWithNewProtocolResult> serializer = new TxnResultSerializer<>()
+    public static final TxnResultSerializer<RetryWithNewProtocolResult> serializer = new TxnResultSerializer<RetryWithNewProtocolResult>()
     {
         @Override
         public void serialize(RetryWithNewProtocolResult retry, DataOutputPlus out, int version) throws IOException

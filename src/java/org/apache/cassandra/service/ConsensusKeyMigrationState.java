@@ -103,7 +103,7 @@ public abstract class ConsensusKeyMigrationState
             this.consensusMigratedAt = consensusMigratedAt;
         }
 
-        public static final IVersionedSerializer<ConsensusKeyMigrationFinished> serializer = new IVersionedSerializer<>()
+        public static final IVersionedSerializer<ConsensusKeyMigrationFinished> serializer = new IVersionedSerializer<ConsensusKeyMigrationFinished>()
         {
             @Override
             public void serialize(ConsensusKeyMigrationFinished t, DataOutputPlus out, int version) throws IOException

@@ -100,7 +100,7 @@ public abstract class ConsensusTableMigrationState
 
     public static final IPartitionerDependentSerializer<List<Range<Token>>> rangesSerializer = newCollectionSerializer(rangeSerializer);
 
-    public static final FutureCallback<RepairResult> completedRepairJobHandler = new FutureCallback<>()
+    public static final FutureCallback<RepairResult> completedRepairJobHandler = new FutureCallback<RepairResult>()
     {
         @Override
         public void onSuccess(@Nullable RepairResult repairResult)
@@ -225,7 +225,7 @@ public abstract class ConsensusTableMigrationState
 
     public static class ConsensusMigratedAt
     {
-        public static final IVersionedSerializer<ConsensusMigratedAt> serializer = NullableSerializer.wrap(new IVersionedSerializer<>()
+        public static final IVersionedSerializer<ConsensusMigratedAt> serializer = NullableSerializer.wrap(new IVersionedSerializer<ConsensusMigratedAt>()
         {
             @Override
             public void serialize(ConsensusMigratedAt t, DataOutputPlus out, int version) throws IOException
@@ -290,7 +290,7 @@ public abstract class ConsensusTableMigrationState
         @Nonnull
         public final NavigableMap<Epoch, List<Range<Token>>> migratingRangesByEpoch;
 
-        public static final IPartitionerDependentSerializer<TableMigrationState> serializer = new IPartitionerDependentSerializer<>()
+        public static final IPartitionerDependentSerializer<TableMigrationState> serializer = new IPartitionerDependentSerializer<TableMigrationState>()
         {
             @Override
             public void serialize(TableMigrationState t, DataOutputPlus out, int version) throws IOException
@@ -505,7 +505,7 @@ public abstract class ConsensusTableMigrationState
 
         public final Epoch epoch;
 
-        public static final IVersionedSerializer<MigrationStateSnapshot> messagingSerializer = new IVersionedSerializer<>()
+        public static final IVersionedSerializer<MigrationStateSnapshot> messagingSerializer = new IVersionedSerializer<MigrationStateSnapshot>()
         {
             @Override
             public void serialize(MigrationStateSnapshot t, DataOutputPlus out, int version) throws IOException
@@ -526,7 +526,7 @@ public abstract class ConsensusTableMigrationState
             }
         };
 
-        public static final IPartitionerDependentSerializer<MigrationStateSnapshot> serializer = new IPartitionerDependentSerializer<>()
+        public static final IPartitionerDependentSerializer<MigrationStateSnapshot> serializer = new IPartitionerDependentSerializer<MigrationStateSnapshot>()
         {
             @Override
             public void serialize(MigrationStateSnapshot migrationStateSnapshot, DataOutputPlus out, int version) throws IOException

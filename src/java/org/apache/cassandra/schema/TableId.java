@@ -148,7 +148,7 @@ public class TableId implements Comparable<TableId>
         return new TableId(new UUID(accessor.getLong(src, offset), accessor.getLong(src, offset + TypeSizes.LONG_SIZE)));
     }
 
-    public static final IVersionedSerializer<TableId> serializer = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<TableId> serializer = new IVersionedSerializer<TableId>()
     {
         @Override
         public void serialize(TableId t, DataOutputPlus out, int version) throws IOException

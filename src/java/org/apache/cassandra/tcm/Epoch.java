@@ -196,7 +196,7 @@ public class Epoch implements Comparable<Epoch>, Serializable
         versionedBytes.put(SignedBytes.checkedCast(Version.V0.asInt()));
         VIntCoding.writeUnsignedVInt(period, versionedBytes);
         VIntCoding.writeUnsignedVInt(epoch, versionedBytes);
-        return versionedBytes.flip();
+        return (ByteBuffer)versionedBytes.flip();
     }
 
     public static Epoch fromVersionedBytes(ByteBuffer buffer)

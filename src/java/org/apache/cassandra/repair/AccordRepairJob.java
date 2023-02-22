@@ -43,6 +43,8 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  */
 public class AccordRepairJob extends AbstractRepairJob
 {
+    public static final BigInteger TWO = BigInteger.valueOf(2);
+
     private final Ranges ranges;
 
     private final AccordSplitter splitter;
@@ -98,7 +100,7 @@ public class AccordRepairJob extends AbstractRepairJob
         {
             iteration++;
             if (iteration % 100 == 0)
-                rangeStep = rangeStep.multiply(BigInteger.TWO);
+                rangeStep = rangeStep.multiply(TWO);
 
             BigInteger remaining = rangeSize.subtract(offset);
             BigInteger length = remaining.min(rangeStep);
@@ -151,9 +153,9 @@ public class AccordRepairJob extends AbstractRepairJob
             if (dependencyOverflow)
             {
                 offset = offset.subtract(rangeStep);
-                if (rangeStep == BigInteger.ONE)
+                if (rangeStep.equals(BigInteger.ONE))
                     throw new IllegalStateException("Unable to repair without overflowing with range step of 1");
-                rangeStep = BigInteger.ONE.max(rangeStep.divide(BigInteger.TWO));
+                rangeStep = BigInteger.ONE.max(rangeStep.divide(TWO));
                 continue;
             }
 

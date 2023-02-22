@@ -41,7 +41,7 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 public class ExecuteSerializers
 {
-    public static final IVersionedSerializer<WhenReadyToExecute> toExecuteSerializer = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<WhenReadyToExecute> toExecuteSerializer = new IVersionedSerializer<WhenReadyToExecute>()
     {
         @Override
         public void serialize(WhenReadyToExecute t, DataOutputPlus out, int version) throws IOException
@@ -164,7 +164,7 @@ public class ExecuteSerializers
         }
     }
 
-    public static final IVersionedSerializer<ExecuteReply> reply = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<ExecuteReply> reply = new IVersionedSerializer<ExecuteReply>()
     {
         // TODO (now): use something other than ordinal
         final ExecuteNack[] nacks = ExecuteNack.values();

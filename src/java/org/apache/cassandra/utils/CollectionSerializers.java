@@ -219,7 +219,7 @@ public class CollectionSerializers
 
     public static <T> IPartitionerDependentSerializer<Collection<T>> newCollectionSerializer(@Nonnull final IPartitionerDependentSerializer<T> serializer)
     {
-        return new IPartitionerDependentSerializer<>()
+        return new IPartitionerDependentSerializer<Collection<T>>()
         {
             @Override
             public void serialize(Collection<T> t, DataOutputPlus out, int version) throws IOException

@@ -176,7 +176,7 @@ public class TxnData extends TxnResult implements Data, Iterable<FilteredPartiti
         return txn_data;
     }
 
-    public static final TxnResultSerializer<TxnData> serializer = new TxnResultSerializer<>()
+    public static final TxnResultSerializer<TxnData> serializer = new TxnResultSerializer<TxnData>()
     {
         @Override
         public void serialize(TxnData data, DataOutputPlus out, int version) throws IOException

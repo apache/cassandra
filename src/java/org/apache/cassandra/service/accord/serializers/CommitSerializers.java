@@ -35,7 +35,7 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class CommitSerializers
 {
-    public static final IVersionedSerializer<Commit> request = new TxnRequestSerializer<>()
+    public static final IVersionedSerializer<Commit> request = new TxnRequestSerializer<Commit>()
     {
         @Override
         public void serializeBody(Commit msg, DataOutputPlus out, int version) throws IOException

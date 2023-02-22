@@ -61,7 +61,7 @@ public abstract class TxnResult implements Result
 
     public abstract long estimatedSizeOnHeap();
 
-    public static final IVersionedSerializer<TxnResult> serializer = new IVersionedSerializer<>()
+    public static final IVersionedSerializer<TxnResult> serializer = new IVersionedSerializer<TxnResult>()
     {
         @SuppressWarnings("unchecked")
         @Override

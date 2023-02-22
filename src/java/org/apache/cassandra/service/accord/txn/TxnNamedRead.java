@@ -204,7 +204,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
                      });
     }
 
-    static final IVersionedSerializer<TxnNamedRead> serializer = new IVersionedSerializer<>()
+    static final IVersionedSerializer<TxnNamedRead> serializer = new IVersionedSerializer<TxnNamedRead>()
     {
         @Override
         public void serialize(TxnNamedRead read, DataOutputPlus out, int version) throws IOException
