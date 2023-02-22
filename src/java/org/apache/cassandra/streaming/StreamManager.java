@@ -40,6 +40,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -254,7 +255,7 @@ public class StreamManager implements StreamManagerMBean
         }
     };
 
-    protected void readdStreamingState(StreamingState state)
+    protected void addStreamingStateAgain(StreamingState state)
     {
         if (!DatabaseDescriptor.getStreamingStatsEnabled())
             return;
@@ -269,12 +270,13 @@ public class StreamManager implements StreamManagerMBean
         states = CacheBuilder.newBuilder()
                              .expireAfterWrite(duration.quantity(), duration.unit())
                              .maximumWeight(sizeBytes)
-                             .weigher(new streamingStateWeigher())
+                             .weigher(new StreamingStateWeigher())
                              .build();
     }
 
-    private class streamingStateWeigher implements Weigher<TimeUUID,StreamingState>
+    private static class StreamingStateWeigher implements Weigher<TimeUUID,StreamingState>
     {
+        @Override
         public int weigh(TimeUUID key, StreamingState val)
         {
             long costOfPeers = val.peers().size() * (val.IPV6_SIZE + 48); // 48 represents the datastructure cost computed by the JOL

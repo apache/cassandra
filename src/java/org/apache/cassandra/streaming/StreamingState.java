@@ -306,8 +306,7 @@ public class StreamingState implements StreamEventHandler
         completeMessage = Throwables.getStackTraceAsString(throwable);
         updateState(Status.FAILURE);
         //we know the size is now very different from the estimate so recompute by adding again
-        StreamManager.instance.readdStreamingState(this);
-        //update cache
+        StreamManager.instance.addStreamingStateAgain(this);
     }
 
     private synchronized void updateState(Status state)
