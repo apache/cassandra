@@ -325,6 +325,7 @@ public class StorageProxy implements StorageProxyMBean
                                                             key, keyspaceName, cfName));
         }
 
+        @SuppressWarnings("resource")
         ConsensusAttemptResult lastAttemptResult;
         do
         {
@@ -371,6 +372,7 @@ public class StorageProxy implements StorageProxyMBean
         return lastAttemptResult.casResult;
     }
 
+//    @SuppressWarnings("resource")
     public static ConsensusAttemptResult legacyCas(String keyspaceName,
                                         String cfName,
                                         DecoratedKey key,
@@ -426,16 +428,14 @@ public class StorageProxy implements StorageProxyMBean
                 return Pair.create(updates, null);
             };
 
-            RowIterator resultIterator = doPaxos(metadata,
-                                                 key,
-                                                 consistencyForPaxos,
-                                                 consistencyForCommit,
-                                                 consistencyForCommit,
-                                                 queryStartNanoTime,
-                                                 casWriteMetrics,
-                                                 updateProposer);
-            return new ConsensusAttemptResult(resultIterator);
-
+            return new ConsensusAttemptResult(doPaxos(metadata,
+                                                      key,
+                                                      consistencyForPaxos,
+                                                      consistencyForCommit,
+                                                      consistencyForCommit,
+                                                      queryStartNanoTime,
+                                                      casWriteMetrics,
+                                                      updateProposer));
         }
         catch (CasWriteUnknownResultException e)
         {
@@ -1976,7 +1976,6 @@ public class StorageProxy implements StorageProxyMBean
         // calculate the blockFor before repair any paxos round to avoid RS being altered in between.
         int blockForRead = consistencyLevel.blockFor(Keyspace.open(metadata.keyspace).getReplicationStrategy());
 
-        PartitionIterator result = null;
         try
         {
             final ConsistencyLevel consistencyForReplayCommitsOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
@@ -2013,7 +2012,7 @@ public class StorageProxy implements StorageProxyMBean
                 throw new ReadFailureException(consistencyLevel, e.received, e.blockFor, false, e.failureReasonByEndpoint);
             }
 
-            result = fetchRows(group.queries, consistencyForReplayCommitsOrFetch, queryStartNanoTime);
+            return new ConsensusAttemptResult(fetchRows(group.queries, consistencyForReplayCommitsOrFetch, queryStartNanoTime));
         }
         catch (UnavailableException e)
         {
@@ -2053,8 +2052,6 @@ public class StorageProxy implements StorageProxyMBean
             readMetricsForLevel(consistencyLevel).addNano(latency);
             Keyspace.open(metadata.keyspace).getColumnFamilyStore(metadata.name).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
         }
-
-        return new ConsensusAttemptResult(result);
     }
 
     @SuppressWarnings("resource")

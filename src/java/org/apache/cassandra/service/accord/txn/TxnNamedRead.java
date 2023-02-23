@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.ImmutableMap;
+
 import accord.api.Data;
 import accord.local.SafeCommandStore;
 import accord.primitives.Timestamp;
@@ -37,7 +39,6 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
-import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -176,13 +177,12 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
                          // Transaction timeout should be higher, starting a new read with a new timeout is
                          // probably "good enough"
                          long queryStartNanos = nanoTime();
-                         PartitionIterator partitionIterator = StorageProxy.read(group, readConsistencyLevel, queryStartNanos);
-                         RowIterator row = PartitionIterators.getOnlyElement(partitionIterator, command);
-                         FilteredPartition filtered = FilteredPartition.create(row);
-                         TxnData result = new TxnData();
-                         result.put(name, filtered);
                          metrics.migrationReadLatency.addNano(nanoTime() - start);
-                         return result;
+                         return new TxnData(ImmutableMap.of(name,
+                                                            FilteredPartition.create(
+                                                                PartitionIterators.getOnlyElement(
+                                                                    StorageProxy.read(group, readConsistencyLevel, queryStartNanos),
+                                                                    command))));
                      });
     }
 
