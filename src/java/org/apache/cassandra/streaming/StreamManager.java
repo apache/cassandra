@@ -279,10 +279,8 @@ public class StreamManager implements StreamManagerMBean
         @Override
         public int weigh(TimeUUID key, StreamingState val)
         {
-            long costOfPeers = val.peers().size() * (val.IPV6_SIZE + 48); // 48 represents the datastructure cost computed by the JOL
-            long costOfCompleteMessage = ObjectSizes.sizeOf(val.completeMessage());
-            long weight = costOfPeers + costOfCompleteMessage + val.EMPTY;
-            int finalWeight = Math.toIntExact(weight);
+            long costOfStreamingState = val.unsharedHeapSize() + TimeUUID.sizeInBytes();
+            int finalWeight = Math.toIntExact(costOfStreamingState);
             return finalWeight;
         }
     }

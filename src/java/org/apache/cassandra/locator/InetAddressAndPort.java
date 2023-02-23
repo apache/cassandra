@@ -41,6 +41,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FastByteOperations;
+import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * A class to replace the usage of InetAddress to identify hosts in the cluster.
@@ -67,6 +68,8 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
     static volatile int defaultPort = 7000;
 
     public final byte[] addressBytes;
+
+    public static final long IPV6_SIZE = ObjectSizes.measureDeep(new InetSocketAddress(getIpvAddress(16), 42));
 
     @VisibleForTesting
     InetAddressAndPort(InetAddress address, byte[] addressBytes, int port)
@@ -147,6 +150,23 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
         {
             return address.getAddress().getHostAddress();
         }
+    }
+
+    public static InetAddress getIpvAddress(int size)
+    {
+        if (size == 16 || size ==4)
+        {
+            try
+            {
+                return InetAddress.getByAddress(new byte[size]);
+            }
+            catch (UnknownHostException e)
+            {
+                e.printStackTrace();
+                throw new IllegalArgumentException("Invalid size of a byte array when getting and ipv address: " + size);
+            }
+        }
+        else throw new IllegalArgumentException("Excpected a byte array size of 4 or 16 for an ipv address but got: " + size);
     }
 
     @Override

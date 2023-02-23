@@ -19,9 +19,7 @@ package org.apache.cassandra.streaming;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
@@ -36,7 +34,9 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -45,13 +45,11 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class StreamingState implements StreamEventHandler
+public class StreamingState implements StreamEventHandler, IMeasurableMemory
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingState.class);
 
     public static final long EMPTY = ObjectSizes.measureDeep(new StreamingState(nextTimeUUID(), StreamOperation.OTHER, false));
-
-    public static final long IPV6_SIZE = ObjectSizes.measureDeep(new InetSocketAddress(getIpvAddress(16), 42));
 
     public enum Status
     {INIT, START, SUCCESS, FAILURE}
@@ -73,6 +71,15 @@ public class StreamingState implements StreamEventHandler
 
     // API for state changes
     public final Phase phase = new Phase();
+
+    @Override
+    public long unsharedHeapSize()
+    {
+        long costOfPeers = peers().size() * (InetAddressAndPort.IPV6_SIZE + 48); // 48 represents the datastructure cost computed by the JOL
+        long costOfCompleteMessage = ObjectSizes.sizeOf(completeMessage());
+        long weight = costOfPeers + costOfCompleteMessage + EMPTY;;
+        return weight;
+    }
 
     public StreamingState(StreamResultFuture result)
     {
@@ -132,19 +139,6 @@ public class StreamingState implements StreamEventHandler
                 return true;
             default:
                 return false;
-        }
-    }
-
-    public static InetAddress getIpvAddress(int size)
-    {
-        try
-        {
-            return InetAddress.getByAddress(new byte[size]);
-        }
-        catch (UnknownHostException e)
-        {
-            e.printStackTrace();
-            return null;
         }
     }
 
