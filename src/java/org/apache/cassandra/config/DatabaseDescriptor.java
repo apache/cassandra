@@ -43,7 +43,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -1873,12 +1872,22 @@ public class DatabaseDescriptor
 
     public static long getRepairRpcTimeout(TimeUnit unit)
     {
-        return conf.repair_request_timeout.to(unit);
+        return getRepairRequestTimeout().to(unit);
     }
 
     public static void setRepairRpcTimeout(Long timeOutInMillis)
     {
-        conf.repair_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+        setRepairRequestTimeout(new DurationSpec.LongMillisecondsBound(timeOutInMillis));
+    }
+
+    public static DurationSpec.LongMillisecondsBound getRepairRequestTimeout()
+    {
+        return conf.repair_request_timeout;
+    }
+
+    public static void setRepairRequestTimeout(DurationSpec.LongMillisecondsBound bound)
+    {
+        conf.repair_request_timeout = bound;
     }
 
     public static boolean hasCrossNodeTimeout()
@@ -3702,22 +3711,46 @@ public class DatabaseDescriptor
         conf.cdc_enabled = cdc_enabled;
     }
 
+    @Deprecated
     public static boolean getCDCBlockWrites()
+    {
+        return getCdcBlockWrites();
+    }
+
+    @Deprecated
+    public static void setCDCBlockWrites(boolean val)
+    {
+        setCdcBlockWrites(val);
+    }
+
+    public static boolean getCdcBlockWrites()
     {
         return conf.cdc_block_writes;
     }
 
-    public static void setCDCBlockWrites(boolean val)
+    public static void setCdcBlockWrites(boolean val)
     {
         conf.cdc_block_writes = val;
     }
 
+    @Deprecated
     public static boolean isCDCOnRepairEnabled()
+    {
+        return getCdcOnRepairEnabled();
+    }
+
+    @Deprecated
+    public static void setCDCOnRepairEnabled(boolean val)
+    {
+        setCdcOnRepairEnabled(val);
+    }
+
+    public static boolean getCdcOnRepairEnabled()
     {
         return conf.cdc_on_repair_enabled;
     }
 
-    public static void setCDCOnRepairEnabled(boolean val)
+    public static void setCdcOnRepairEnabled(boolean val)
     {
         conf.cdc_on_repair_enabled = val;
     }

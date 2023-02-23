@@ -34,14 +34,14 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.registry.ConfigurationRegistry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
 import org.yaml.snakeyaml.introspector.Property;
 
 public class SettingsTableTest extends CQLTester
 {
-    private static final String KS_NAME = "vts";
-
+    public static final String KS_NAME = "vts";
     private Config config;
     private SettingsTable table;
 
@@ -62,7 +62,7 @@ public class SettingsTableTest extends CQLTester
         config.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
         config.commitlog_sync_group_window = new DurationSpec.IntMillisecondsBound(0);
         config.credentials_update_interval = null;
-        table = new SettingsTable(KS_NAME, config);
+        table = new SettingsTable(KS_NAME, config, new ConfigurationRegistry());
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();
     }

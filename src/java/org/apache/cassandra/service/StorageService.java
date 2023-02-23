@@ -63,6 +63,7 @@ import com.google.common.util.concurrent.*;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.registry.ConfigurationRegistry;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
@@ -159,6 +160,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DRAIN_EXECUTOR_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMENT_ALLOW_EMPTY;
+import static org.apache.cassandra.config.ConfigFields.REPAIR_REQUEST_TIMEOUT;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -885,6 +887,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             doAuthSetup(true);
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
+
+        ConfigurationRegistry.instance.addPropertyConstraint(REPAIR_REQUEST_TIMEOUT,
+                                                             t -> Preconditions.checkState(t.toMilliseconds() > 0),
+                                                             DurationSpec.LongMillisecondsBound.class);
 
         completeInitialization();
     }
@@ -7064,9 +7070,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setRepairRpcTimeout(Long timeoutInMillis)
     {
-        Preconditions.checkState(timeoutInMillis > 0);
-        DatabaseDescriptor.setRepairRpcTimeout(timeoutInMillis);
-        logger.info("RepairRpcTimeout set to {}ms via JMX", timeoutInMillis);
+        ConfigurationRegistry.instance.update(REPAIR_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeoutInMillis));
     }
     public void evictHungRepairs()
     {
