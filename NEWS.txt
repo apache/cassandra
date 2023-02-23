@@ -2596,7 +2596,7 @@ Features
     - Windows Service ("cassandra.bat install" to enable)
     - A dead node may be replaced in a single step by starting a new node
       with -Dcassandra.replace_token=<token>. More details can be found at
-      http://wiki.apache.org/cassandra/Operations#Replacing_a_Dead_Node
+      https://cassandra.apache.org/doc/latest/cassandra/operating/topo_changes.html#replacing-a-dead-node
     - It is now possible to repair only the first range returned by the
       partitioner for a node with `nodetool repair -pr`. It makes it
       easier/possible to repair a full cluster without any work duplication by
@@ -2750,7 +2750,7 @@ Upgrading
     - Thrift unframed mode has been removed.
     - The addition of key_validation_class means the cli will assume keys
       are bytes, instead of strings, in the absence of other information.
-      See http://wiki.apache.org/cassandra/FAQ#cli_keys for more details.
+      See https://web.archive.org/web/20130818025527/http://wiki.apache.org/cassandra/FAQ#cli_keys for more details.
 
 
 Features
@@ -2758,7 +2758,7 @@ Features
     - added CQL client API and JDBC/DBAPI2-compliant drivers for Java and
       Python, respectively (see: drivers/ subdirectory and doc/cql)
     - added distributed Counters feature;
-      see http://wiki.apache.org/cassandra/Counters
+      see https://cwiki.apache.org/confluence/display/CASSANDRA2/Counters
     - optional intranode encryption; see comments around 'encryption_options'
       in cassandra.yaml
     - compaction multithreading and rate-limiting; see
@@ -2923,7 +2923,7 @@ Features
 Upgrading
 ---------
     The Thrift API has changed in incompatible ways; see below, and refer
-    to http://wiki.apache.org/cassandra/ClientOptions for a list of
+    to https://cwiki.apache.org/confluence/display/CASSANDRA2/ClientOptions for a list of
     higher-level clients that have been updated to support the 0.7 API.
 
     The Cassandra inter-node protocol is incompatible with 0.6.x
@@ -3085,7 +3085,7 @@ JMX metrics
     - progress of data streaming during bootstrap, loadbalance, or other
       data migration, is available under
       org.apache.cassandra.streaming.StreamingService.
-      See http://wiki.apache.org/cassandra/Streaming for details.
+      See https://cwiki.apache.org/confluence/display/CASSANDRA2/Streaming for details.
 
 Installation/Upgrade
 --------------------
@@ -3110,7 +3110,7 @@ Installation/Upgrade
    whole cluster at the same time.
 
 1. Bootstrap, move, load balancing, and active repair have been added.
-   See http://wiki.apache.org/cassandra/Operations.  When upgrading
+   See https://cassandra.apache.org/doc/latest/cassandra/operating/index.html.  When upgrading
    from 0.4, leave autobootstrap set to false for the first restart
    of your old nodes.
 
@@ -3158,7 +3158,7 @@ Installation/Upgrade
    collisions with others in the same cluster.
 
 3. Many Thrift API changes and documentation.  See
-   http://wiki.apache.org/cassandra/API
+   https://cwiki.apache.org/confluence/display/CASSANDRA2/API
 
 4. Removed the web interface in favor of JMX and bin/nodeprobe, which
    has significantly enhanced functionality.

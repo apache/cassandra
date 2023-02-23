@@ -1612,7 +1612,7 @@ statements.
 * If a timestamp is not specified for each operation, then all
 operations will be applied with the same timestamp. Due to Cassandra’s
 conflict resolution procedure in the case of
-http://wiki.apache.org/cassandra/FAQ#clocktie[timestamp ties],
+https://cassandra.apache.org/doc/latest/cassandra/faq/index.html#what-on-same-timestamp-update[timestamp ties],
 operations may be applied in an order that is different from the order
 they are listed in the `BATCH` statement. To force a particular
 operation ordering, you must specify per-operation timestamps.
@@ -2851,7 +2851,7 @@ cannot be set. A counter doesn’t exist until first
 incremented/decremented, and the first incrementation/decrementation is
 made as if the previous value was 0. Deletion of counter columns is
 supported but have some limitations (see the
-http://wiki.apache.org/cassandra/Counters[Cassandra Wiki] for more
+https://cwiki.apache.org/confluence/display/CASSANDRA2/Counters[Cassandra Wiki] for more
 information).
 
 The use of the counter type is limited in the following way:

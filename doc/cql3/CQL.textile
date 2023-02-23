@@ -1061,7 +1061,7 @@ The @BATCH@ statement group multiple modification statements (insertions/updates
 Note that:
 * @BATCH@ statements may only contain @UPDATE@, @INSERT@ and @DELETE@ statements.
 * Batches are _not_ a full analogue for SQL transactions.
-* If a timestamp is not specified for each operation, then all operations will be applied with the same timestamp. Due to Cassandra's conflict resolution procedure in the case of "timestamp ties":http://wiki.apache.org/cassandra/FAQ#clocktie, operations may be applied in an order that is different from the order they are listed in the @BATCH@ statement. To force a particular operation ordering, you must specify per-operation timestamps.
+* If a timestamp is not specified for each operation, then all operations will be applied with the same timestamp. Due to Cassandra's conflict resolution procedure in the case of "timestamp ties":https://cassandra.apache.org/doc/latest/cassandra/faq/index.html#what-on-same-timestamp-update, operations may be applied in an order that is different from the order they are listed in the @BATCH@ statement. To force a particular operation ordering, you must specify per-operation timestamps.
 
 h4(#unloggedBatch). @UNLOGGED@
 
@@ -1918,7 +1918,7 @@ saving.
 
 h3(#counters). Counters
 
-The @counter@ type is used to define _counter columns_. A counter column is a column whose value is a 64-bit signed integer and on which 2 operations are supported: incrementation and decrementation (see "@UPDATE@":#updateStmt for syntax).  Note the value of a counter cannot be set. A counter doesn't exist until first incremented/decremented, and the first incrementation/decrementation is made as if the previous value was 0. Deletion of counter columns is supported but have some limitations (see the "Cassandra Wiki":http://wiki.apache.org/cassandra/Counters for more information).
+The @counter@ type is used to define _counter columns_. A counter column is a column whose value is a 64-bit signed integer and on which 2 operations are supported: incrementation and decrementation (see "@UPDATE@":#updateStmt for syntax).  Note the value of a counter cannot be set. A counter doesn't exist until first incremented/decremented, and the first incrementation/decrementation is made as if the previous value was 0. Deletion of counter columns is supported but have some limitations (see the "Cassandra Wiki":https://cwiki.apache.org/confluence/display/CASSANDRA2/Counters for more information).
 
 The use of the counter type is limited in the following way:
 * It cannot be used for column that is part of the @PRIMARY KEY@ of a table.

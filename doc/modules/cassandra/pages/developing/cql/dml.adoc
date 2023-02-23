@@ -439,7 +439,7 @@ statements (not other batches for instance).
 operations will be applied with the same timestamp (either one generated
 automatically, or the timestamp provided at the batch level). Due to
 Cassandra's conflict resolution procedure in the case of
-http://wiki.apache.org/cassandra/FAQ#clocktie[timestamp ties],
+https://cassandra.apache.org/doc/latest/cassandra/faq/index.html#what-on-same-timestamp-update[timestamp ties],
 operations may be applied in an order that is different from the order
 they are listed in the `BATCH` statement. To force a particular
 operation ordering, you must specify per-operation timestamps.
