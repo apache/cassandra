@@ -189,7 +189,7 @@ public class AccordMigrationTest extends AccordTestBase
 
     private static Iterator<Integer> getKeysBetweenTokens(Token left, Token right)
     {
-        return new Iterator<>()
+        return new Iterator<Integer>()
         {
             int candidate = 0;
             @Override
@@ -529,9 +529,9 @@ public class AccordMigrationTest extends AccordTestBase
         String minifiedYamlResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified-yaml");
         Map<String, Object> minifiedYamlStateMap = new Yaml().load(minifiedYamlResultString);
         String jsonResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "json");
-        Map<String, Object> jsonStateMap = new ObjectMapper().readValue(jsonResultString, new TypeReference<>(){});
+        Map<String, Object> jsonStateMap = new ObjectMapper().readValue(jsonResultString, new TypeReference<Map<String, Object>>(){});
         String minifiedJsonResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified-json");
-        Map<String, Object> minifiedJsonStateMap = new ObjectMapper().readValue(minifiedJsonResultString, new TypeReference<>(){});
+        Map<String, Object> minifiedJsonStateMap = new ObjectMapper().readValue(minifiedJsonResultString, new TypeReference<Map<String, Object>>(){});
 
 
         List<String> tableIds = new ArrayList<>();
