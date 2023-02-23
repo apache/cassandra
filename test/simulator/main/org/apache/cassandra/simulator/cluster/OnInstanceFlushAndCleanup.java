@@ -29,8 +29,6 @@ import org.apache.cassandra.simulator.Action;
 
 class OnInstanceFlushAndCleanup extends ClusterReliableAction
 {
-    private static final Logger logger = LoggerFactory.getLogger(OnInstanceFlushAndCleanup.class);
-
     OnInstanceFlushAndCleanup(ClusterActions actions, int on)
     {
         super("Flush and Cleanup on " + on, actions, on, invokableFlushAndCleanup());

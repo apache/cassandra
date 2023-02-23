@@ -32,7 +32,6 @@ public class GarbageCollect extends NodeToolCmd
 {
     @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
-    private static final Logger logger = LoggerFactory.getLogger(GarbageCollect.class);
 
     @Option(title = "granularity",
         name = {"-g", "--granularity"},
