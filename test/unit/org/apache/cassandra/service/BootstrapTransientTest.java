@@ -25,13 +25,13 @@ import java.util.Collection;
 import java.util.List;
 
 import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseOrderPreservingPartitioner;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -39,6 +39,8 @@ import org.apache.cassandra.dht.RangeStreamer;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsByReplica;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
@@ -57,7 +59,9 @@ import static org.apache.cassandra.service.StorageServiceTest.assertMultimapEqua
  * is used to calculate the endpoints to fetch from and check they are alive for both RangeRelocator (move) and
  * bootstrap (RangeRelocator).
  */
-public class BootstrapTransientTest
+@DDDaemonInitialization
+@UseOrderPreservingPartitioner
+public class BootstrapTransientTest extends CassandraTestBase
 {
     static InetAddressAndPort address02;
     static InetAddressAndPort address03;
@@ -114,12 +118,6 @@ public class BootstrapTransientTest
         // TODO: actually use these
         downNodes.clear();
         sourceFilterDownNodes.clear();
-    }
-
-    @BeforeClass
-    public static void setupDD()
-    {
-        DatabaseDescriptor.daemonInitialization();
     }
 
     Token tenToken    = new OrderPreservingPartitioner.StringToken("00010");

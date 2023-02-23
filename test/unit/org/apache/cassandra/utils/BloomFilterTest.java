@@ -18,8 +18,6 @@
 */
 package org.apache.cassandra.utils;
 
-import org.apache.cassandra.io.util.*;
-
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -29,10 +27,20 @@ import java.util.Iterator;
 import java.util.Random;
 import java.util.Set;
 
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
 
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.IFilter.FilterKey;
 import org.apache.cassandra.utils.KeyGenerator.RandomStringGenerator;
 import org.apache.cassandra.utils.obs.IBitSet;
@@ -225,7 +233,7 @@ public class BloomFilterTest
     @Test
     public void testMurmur3FilterHash()
     {
-        IPartitioner partitioner = new Murmur3Partitioner();
+        IPartitioner partitioner = Murmur3Partitioner.instance;
         Iterator<ByteBuffer> gen = new KeyGenerator.RandomStringGenerator(new Random().nextInt(), FilterTestHelper.ELEMENTS);
         long[] expected = new long[2];
         long[] actual = new long[2];

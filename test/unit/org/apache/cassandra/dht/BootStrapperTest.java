@@ -29,6 +29,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.SchemaLoaderPrepareServer;
+import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
@@ -37,8 +40,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamOperation;
@@ -46,19 +49,15 @@ import org.apache.cassandra.streaming.StreamOperation;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
-
-public class BootStrapperTest
+@UseMurmur3Partitioner
+@SchemaLoaderPrepareServer
+public class BootStrapperTest extends CassandraTestBase
 {
-    static IPartitioner oldPartitioner;
-
     static Predicate<Replica> originalAlivePredicate = RangeStreamer.ALIVE_PREDICATE;
     @BeforeClass
     public static void setup() throws ConfigurationException
     {
-        DatabaseDescriptor.daemonInitialization();
-        oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         SchemaLoader.startGossiper();
-        SchemaLoader.prepareServer();
         SchemaLoader.schemaDefinition("BootStrapperTest");
         RangeStreamer.ALIVE_PREDICATE = Predicates.alwaysTrue();
     }
@@ -66,7 +65,6 @@ public class BootStrapperTest
     @AfterClass
     public static void tearDown()
     {
-        DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
         RangeStreamer.ALIVE_PREDICATE = originalAlivePredicate;
     }
 

@@ -123,7 +123,7 @@ public class OfflineTokenAllocator
         private MultinodeAllocator(int rf, int numTokens, OutputHandler logger, IPartitioner partitioner)
         {
             this.fakeSnitch = new FakeSnitch();
-            this.fakeMetadata = new TokenMetadata(fakeSnitch).cloneWithNewPartitioner(partitioner);
+            this.fakeMetadata = new TokenMetadata(fakeSnitch, partitioner);
             this.allocation = TokenAllocation.create(fakeSnitch, fakeMetadata, rf, numTokens);
             this.logger = logger;
         }

@@ -27,8 +27,14 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.junit.*;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseRandomPartitioner;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -51,18 +57,13 @@ import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class RemoveTest
+@UseRandomPartitioner
+@DDDaemonInitialization
+public class RemoveTest extends CassandraTestBase
 {
-    static
-    {
-        DatabaseDescriptor.daemonInitialization();
-        CommitLog.instance.start();
-    }
-
     static final IPartitioner partitioner = RandomPartitioner.instance;
     StorageService ss = StorageService.instance;
     TokenMetadata tmd = ss.getTokenMetadata();
-    static IPartitioner oldPartitioner;
     ArrayList<Token> endpointTokens = new ArrayList<Token>();
     ArrayList<Token> keyTokens = new ArrayList<Token>();
     List<InetAddressAndPort> hosts = new ArrayList<>();
@@ -73,14 +74,8 @@ public class RemoveTest
     @BeforeClass
     public static void setupClass() throws ConfigurationException
     {
-        oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
+        CommitLog.instance.start();
         MessagingService.instance().listen();
-    }
-
-    @AfterClass
-    public static void tearDownClass()
-    {
-        StorageService.instance.setPartitionerUnsafe(oldPartitioner);
     }
 
     @Before

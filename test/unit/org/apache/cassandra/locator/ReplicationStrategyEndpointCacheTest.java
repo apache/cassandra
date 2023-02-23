@@ -18,9 +18,13 @@
 package org.apache.cassandra.locator;
 
 import org.apache.commons.lang3.StringUtils;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.SchemaLoaderPrepareServer;
+import org.apache.cassandra.CassandraTestBase.UseRandomPartitioner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.Keyspace;
@@ -29,7 +33,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 
-public class ReplicationStrategyEndpointCacheTest
+@SchemaLoaderPrepareServer
+@UseRandomPartitioner
+public class ReplicationStrategyEndpointCacheTest extends CassandraTestBase
 {
     private TokenMetadata tmd;
     private Token searchToken;
@@ -39,10 +45,10 @@ public class ReplicationStrategyEndpointCacheTest
     @BeforeClass
     public static void defineSchema()
     {
-        SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(5));
     }
 
+    @Before
     public void setup() throws Exception
     {
         tmd = new TokenMetadata();
@@ -56,14 +62,12 @@ public class ReplicationStrategyEndpointCacheTest
     @Test
     public void testEndpointsWereCached() throws Exception
     {
-        setup();
         Util.assertRCEquals(strategy.getNaturalReplicasForToken(searchToken), strategy.getNaturalReplicasForToken(searchToken));
     }
 
     @Test
     public void testCacheRespectsTokenChanges() throws Exception
     {
-        setup();
         EndpointsForToken initial;
         EndpointsForToken replicas;
 

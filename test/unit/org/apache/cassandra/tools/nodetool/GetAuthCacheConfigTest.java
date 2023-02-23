@@ -40,7 +40,6 @@ public class GetAuthCacheConfigTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
         requireNetwork();
         startJMXServer();

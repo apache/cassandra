@@ -147,6 +147,7 @@ import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.TokenSerializer;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.gms.VersionedValue.VersionedValueFactory;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -235,6 +236,7 @@ import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.tryFind;
 import static java.util.Arrays.asList;
@@ -323,6 +325,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public static final StorageService instance = new StorageService();
 
     private final SamplingManager samplingManager = new SamplingManager();
+
+    // For tests that unsafely change the partitioner store the original here
+    private IPartitioner originalPartitioner;
 
     @VisibleForTesting // this is used for dtests only, see CASSANDRA-18152
     public volatile boolean skipNotificationListeners = false;
@@ -1109,7 +1114,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 checkForEndpointCollision(localHostId, SystemKeyspace.loadHostIds().keySet());
                 if (SystemKeyspace.bootstrapComplete())
                 {
-                    Preconditions.checkState(!Config.isClientMode());
+                    checkState(!Config.isClientMode());
                     // tokens are only ever saved to system.local after bootstrap has completed and we're joining the ring,
                     // or when token update operations (move, decom) are completed
                     Collection<Token> savedTokens = SystemKeyspace.getSavedTokens();
@@ -4874,7 +4879,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             EndpointsForRange replicas = strategy.calculateNaturalReplicas(token, metadata);
             if (replicas.size() > 0 && replicas.get(0).endpoint().equals(ep))
             {
-                Preconditions.checkState(replicas.get(0).isFull());
+                checkState(replicas.get(0).isFull());
                 primaryRanges.add(new Range<>(metadata.getPredecessor(token), token));
             }
         }
@@ -5856,12 +5861,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     // Never ever do this at home. Used by tests.
     @VisibleForTesting
-    public IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
+    public void setPartitionerUnsafe(IPartitioner newPartitioner)
     {
-        IPartitioner oldPartitioner = DatabaseDescriptor.setPartitionerUnsafe(newPartitioner);
-        tokenMetadata = tokenMetadata.cloneWithNewPartitioner(newPartitioner);
+        checkNotNull(newPartitioner, "newPartitioner is null");
+        checkState(originalPartitioner == null, "Already changed the partitioner without resetting");
+        originalPartitioner = DatabaseDescriptor.setPartitionerUnsafe(newPartitioner);
+        tokenMetadata = new TokenMetadata();
+//        tokenMetadata = tokenMetadata.cloneWithNewPartitioner(newPartitioner);
         valueFactory = new VersionedValue.VersionedValueFactory(newPartitioner);
-        return oldPartitioner;
+    }
+
+    @VisibleForTesting
+    public void resetPartitionerUnsafe()
+    {
+        checkState(originalPartitioner != null, "Original partitioner was never changed");
+        DatabaseDescriptor.setPartitionerUnsafe(originalPartitioner);
+        tokenMetadata = new TokenMetadata();
+        valueFactory = new VersionedValueFactory(originalPartitioner);
+        originalPartitioner = null;
     }
 
     TokenMetadata setTokenMetadataUnsafe(TokenMetadata tmd)
@@ -7201,7 +7218,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setRepairRpcTimeout(Long timeoutInMillis)
     {
-        Preconditions.checkState(timeoutInMillis > 0);
+        checkState(timeoutInMillis > 0);
         DatabaseDescriptor.setRepairRpcTimeout(timeoutInMillis);
         logger.info("RepairRpcTimeout set to {}ms via JMX", timeoutInMillis);
     }
