@@ -598,19 +598,19 @@ public class CompactionManager implements CompactionManagerMBean
                     if (!needsCleanupFull && !needsCleanupTransient)
                     {
                         logger.debug("Skipping {} ([{}, {}]) for cleanup; all rows should be kept. Needs cleanup full ranges: {} Needs cleanup transient ranges: {} Repaired: {}",
-                                sstable,
-                                sstable.first.getToken(),
-                                sstable.last.getToken(),
-                                needsCleanupFull,
-                                needsCleanupTransient,
-                                sstable.isRepaired());
+                                    sstable,
+                                    sstable.first.getToken(),
+                                    sstable.last.getToken(),
+                                    needsCleanupFull,
+                                    needsCleanupTransient,
+                                    sstable.isRepaired());
                         sstableIter.remove();
                         transaction.cancel(sstable);
                         skippedSStables++;
                     }
                 }
                 logger.info("Skipping cleanup for {}/{} sstables for {}.{} since they are fully contained in owned ranges (full ranges: {}, transient ranges: {})",
-                        skippedSStables, totalSSTables, cfStore.keyspace.getName(), cfStore.getTableName(), fullRanges, transientRanges);
+                            skippedSStables, totalSSTables, cfStore.keyspace.getName(), cfStore.getTableName(), fullRanges, transientRanges);
                 sortedSSTables.sort(SSTableReader.sizeComparator);
                 return sortedSSTables;
             }
