@@ -26,8 +26,6 @@ import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Command(name = "garbagecollect", description = "Remove deleted data from one or more tables")
 public class GarbageCollect extends NodeToolCmd
@@ -55,7 +53,6 @@ public class GarbageCollect extends NodeToolCmd
         List<String> keyspaces = parseOptionalKeyspace(args, probe);
         String[] tableNames = parseOptionalTables(args);
 
-        logger.info("Starting GARBAGE_COLLECT");
         for (String keyspace : keyspaces)
         {
             try
@@ -66,6 +63,5 @@ public class GarbageCollect extends NodeToolCmd
                 throw new RuntimeException("Error occurred during garbage collection", e);
             }
         }
-        logger.info("Completed GARBAGE_COLLECT");
     }
 }

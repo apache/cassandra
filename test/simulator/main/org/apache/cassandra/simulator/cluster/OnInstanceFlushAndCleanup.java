@@ -26,8 +26,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.simulator.Action;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 class OnInstanceFlushAndCleanup extends ClusterReliableAction
 {
@@ -46,7 +44,6 @@ class OnInstanceFlushAndCleanup extends ClusterReliableAction
     private static IIsolatedExecutor.SerializableRunnable invokableFlushAndCleanup()
     {
         return () -> {
-            logger.info("Starting CLEANUP");
             for (Keyspace keyspace : Keyspace.all())
             {
                 for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
@@ -61,7 +58,6 @@ class OnInstanceFlushAndCleanup extends ClusterReliableAction
                     catch (Throwable t) { throw new RuntimeException(t); }
                 }
             }
-            logger.info("Completed CLEANUP");
         };
     }
 
