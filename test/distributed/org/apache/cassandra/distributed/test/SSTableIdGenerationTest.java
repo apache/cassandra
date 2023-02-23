@@ -34,6 +34,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.DateTieredCompactionStrategy;
@@ -135,8 +136,14 @@ public class SSTableIdGenerationTest extends TestBaseImpl
                                            .withConfig(config -> config.set(ENABLE_UUID_FIELD_NAME, true))
                                            .start()))
         {
-            cluster.disableAutoCompaction(KEYSPACE);
             cluster.schemaChange(createTableStmt(KEYSPACE, "tbl", null));
+            for (IInvokableInstance instance : cluster)
+            {
+                instance.runOnInstance(() -> {
+                    for (ColumnFamilyStore cs : Keyspace.open(KEYSPACE).getColumnFamilyStores())
+                        cs.disableAutoCompaction();
+                });
+            }
             createSSTables(cluster.get(1), KEYSPACE, "tbl", 1, 2);
             assertSSTablesCount(cluster.get(1), 0, 2, KEYSPACE, "tbl");
             verfiySSTableActivity(cluster, false);

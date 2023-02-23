@@ -24,10 +24,13 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 
 /**
  * Tests the guardrail for the number of items on a collection, {@link Guardrails#itemsPerCollection}.
@@ -52,7 +55,6 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
                               .withConfig(c -> c.set("items_per_collection_warn_threshold", WARN_THRESHOLD)
                                                 .set("items_per_collection_fail_threshold", FAIL_THRESHOLD))
                               .start());
-        cluster.disableAutoCompaction(KEYSPACE);
         coordinator = cluster.coordinator(1);
     }
 
@@ -72,7 +74,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testSetSize() throws Throwable
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v set<int>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<int>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, null)");
         execute("INSERT INTO %s (k, v) VALUES (1, {1})");
@@ -91,7 +93,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testSetSizeFrozen()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v frozen<set<int>>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<set<int>>)");
 
         execute("INSERT INTO %s (k, v) VALUES (3, {1, 2, 3})");
         execute("INSERT INTO %s (k, v) VALUES (5, {1, 2, 3, 4, 5})");
@@ -103,7 +105,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testSetSizeWithUpdates()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v set<int>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<int>)");
 
         execute("UPDATE %s SET v = v + {1, 2} WHERE k = 1");
         execute("UPDATE %s SET v = v - {1, 2} WHERE k = 2");
@@ -121,7 +123,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testSetSizeAfterCompaction() throws Throwable
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v set<int>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v set<int>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, {1})");
         assertNotWarnedOnFlush();
@@ -145,7 +147,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testListSize() throws Throwable
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v list<int>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v list<int>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, null)");
         execute("INSERT INTO %s (k, v) VALUES (1, [1])");
@@ -164,7 +166,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testListSizeFrozen() throws Throwable
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v frozen<list<int>>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<list<int>>)");
 
         execute("INSERT INTO %s (k, v) VALUES (3, [1, 2, 3])");
         execute("INSERT INTO %s (k, v) VALUES (5, [1, 2, 3, 4, 5])");
@@ -176,7 +178,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testListSizeWithUpdates()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v list<int>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v list<int>)");
 
         execute("UPDATE %s SET v = v + [1, 2] WHERE k = 1");
         execute("UPDATE %s SET v = v - [1, 2] WHERE k = 2");
@@ -194,7 +196,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testListSizeAfterCompaction() throws Throwable
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v list<int>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v list<int>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, [1])");
         assertNotWarnedOnFlush();
@@ -224,7 +226,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testMapSize() throws Throwable
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v map<int, int>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v map<int, int>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, null)");
         execute("INSERT INTO %s (k, v) VALUES (1, {1:10})");
@@ -243,7 +245,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testMapSizeFrozen()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v frozen<map<int, int>>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v frozen<map<int, int>>)");
 
         execute("INSERT INTO %s (k, v) VALUES (3, {1:10, 2:20, 3:30})");
         execute("INSERT INTO %s (k, v) VALUES (4, {1:10, 2:20, 3:30, 4:40})");
@@ -255,7 +257,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testMapSizeWithUpdates()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v map<int, int>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v map<int, int>)");
 
         execute("UPDATE %s SET v = v + {1:10, 2:20} WHERE k = 1");
         execute("UPDATE %s SET v = v - {1, 2} WHERE k = 2");
@@ -273,7 +275,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testMapSizeAfterCompaction()
     {
-        schemaChange("CREATE TABLE %s (k int PRIMARY KEY, v map<int, int>)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v map<int, int>)");
 
         execute("INSERT INTO %s (k, v) VALUES (0, {1:10})");
         assertNotWarnedOnFlush();
@@ -297,7 +299,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testCompositePartitionKey()
     {
-        schemaChange("CREATE TABLE %s (k1 int, k2 text, v set<int>, PRIMARY KEY((k1, k2)))");
+        createTable("CREATE TABLE %s (k1 int, k2 text, v set<int>, PRIMARY KEY((k1, k2)))");
 
         execute("INSERT INTO %s (k1, k2, v) VALUES (0, 'a', {1, 2, 3})");
         assertWarnedOnFlush(warnMessage("(0, 'a')", 3));
@@ -309,7 +311,7 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
     @Test
     public void testCompositeClusteringKey()
     {
-        schemaChange("CREATE TABLE %s (k int, c1 int, c2 text, v set<int>, PRIMARY KEY(k, c1, c2))");
+        createTable("CREATE TABLE %s (k int, c1 int, c2 text, v set<int>, PRIMARY KEY(k, c1, c2))");
 
         execute("INSERT INTO %s (k, c1, c2, v) VALUES (1, 10, 'a', {1, 2, 3})");
         assertWarnedOnFlush(warnMessage("(1, 10, 'a')", 3));
@@ -335,5 +337,17 @@ public class GuardrailItemsPerCollectionOnSSTableWriteTest extends GuardrailTest
         return String.format("Detected collection v in row %s in table %s with %d items, " +
                              "this exceeds the failure threshold of %d.",
                              key, qualifiedTableName, numItems, FAIL_THRESHOLD);
+    }
+
+    private void createTable(String cql)
+    {
+        schemaChange(cql);
+        for (IInvokableInstance instance : cluster)
+        {
+            instance.runOnInstance(() -> {
+                for (ColumnFamilyStore cs : Keyspace.open(KEYSPACE).getColumnFamilyStores())
+                    cs.disableAutoCompaction();
+            });
+        }
     }
 }
