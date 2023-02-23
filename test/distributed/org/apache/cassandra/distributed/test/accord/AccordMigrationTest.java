@@ -32,6 +32,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -132,6 +133,7 @@ public class AccordMigrationTest extends AccordTestBase
         return logger;
     }
 
+    private static IPartitioner originalPartitioner;
     @BeforeClass
     public static void setupClass() throws IOException
     {
@@ -139,13 +141,19 @@ public class AccordMigrationTest extends AccordTestBase
                                         builder.appendConfig(config ->
                                                              config.set("paxos_variant", PaxosVariant.v2.name())));
         partitioner = FBUtilities.newPartitioner(SHARED_CLUSTER.get(1).callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
-        DatabaseDescriptor.setPartitionerUnsafe(partitioner);
+        originalPartitioner = DatabaseDescriptor.setPartitionerUnsafe(partitioner);
         minToken = partitioner.getMinimumToken();
         maxToken = partitioner.getMaximumToken();
         midToken = partitioner.midpoint(minToken, maxToken);
         upperMidToken = partitioner.midpoint(midToken, maxToken);
         lowerMidToken = partitioner.midpoint(minToken, midToken);
         coordinator = SHARED_CLUSTER.coordinator(1);
+    }
+
+    @AfterClass
+    public static void tearDownClass()
+    {
+        DatabaseDescriptor.setPartitionerUnsafe(originalPartitioner);
     }
 
     @After

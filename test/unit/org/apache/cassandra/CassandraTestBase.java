@@ -61,6 +61,7 @@ public class CassandraTestBase
     }
 
     private static Class<?> testClass;
+
     @ClassRule
     public static TestWatcher classWatcher = new TestWatcher()
     {
