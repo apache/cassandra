@@ -34,21 +34,22 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
@@ -60,7 +61,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class SimpleStrategyTest
+public class SimpleStrategyTest extends CassandraTestBase
 {
     public static final String KEYSPACE1 = "SimpleStrategyTest";
     public static final String MULTIDC = "MultiDCSimpleStrategyTest";
@@ -87,6 +88,7 @@ public class SimpleStrategyTest
     }
 
     @Test
+    @UseRandomPartitioner
     public void testBigIntegerEndpoints() throws UnknownHostException
     {
         List<Token> endpointTokens = new ArrayList<Token>();
@@ -99,6 +101,7 @@ public class SimpleStrategyTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testStringEndpoints() throws UnknownHostException
     {
         IPartitioner partitioner = OrderPreservingPartitioner.instance;
@@ -113,6 +116,7 @@ public class SimpleStrategyTest
     }
 
     @Test
+    @UseMurmur3Partitioner
     public void testMultiDCSimpleStrategyEndpoints() throws UnknownHostException
     {
         IEndpointSnitch snitch = new PropertyFileSnitch();
@@ -184,6 +188,7 @@ public class SimpleStrategyTest
     }
 
     @Test
+    @UseRandomPartitioner
     public void testGetEndpointsDuringBootstrap() throws UnknownHostException
     {
         // the token difference will be RING_SIZE * 2.
@@ -255,6 +260,7 @@ public class SimpleStrategyTest
     }
 
     @Test
+    @UseMurmur3Partitioner
     public void transientReplica() throws Exception
     {
         IEndpointSnitch snitch = new SimpleSnitch();
@@ -298,6 +304,7 @@ public class SimpleStrategyTest
     public ExpectedException expectedEx = ExpectedException.none();
 
     @Test
+    @UseMurmur3Partitioner
     public void testSimpleStrategyThrowsConfigurationException() throws ConfigurationException, UnknownHostException
     {
         expectedEx.expect(ConfigurationException.class);

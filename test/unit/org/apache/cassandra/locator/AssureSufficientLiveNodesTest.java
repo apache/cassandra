@@ -37,6 +37,9 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.SchemaLoaderLoadSchema;
+import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
@@ -69,7 +72,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         targetClass = "FailureDetector",
         targetMethod = "isAlive",
         action = "return true;")
-public class AssureSufficientLiveNodesTest
+@SchemaLoaderLoadSchema
+@UseMurmur3Partitioner
+public class AssureSufficientLiveNodesTest extends CassandraTestBase
 {
     private static final AtomicInteger testIdGen = new AtomicInteger(0);
     private static final Supplier<String> keyspaceNameGen = () -> "race_" + testIdGen.getAndIncrement();
@@ -82,7 +87,6 @@ public class AssureSufficientLiveNodesTest
     @BeforeClass
     public static void setUpClass() throws Throwable
     {
-        SchemaLoader.loadSchema();
         // Register peers with expected DC for NetworkTopologyStrategy.
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();

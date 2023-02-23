@@ -59,7 +59,6 @@ public class JmxPermissionsCacheKeysTableTest extends CQLTester
         // high value is used for convenient debugging
         DatabaseDescriptor.setPermissionsValidity(20_000);
 
-        CQLTester.setUpClass();
         CQLTester.requireAuthentication();
 
         IRoleManager roleManager = DatabaseDescriptor.getRoleManager();

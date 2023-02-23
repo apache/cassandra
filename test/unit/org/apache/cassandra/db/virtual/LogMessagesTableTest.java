@@ -25,7 +25,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import ch.qos.logback.classic.Level;
@@ -46,12 +45,6 @@ public class LogMessagesTableTest extends CQLTester
 {
     private String keyspace = createKeyspaceName();
     private LogMessagesTable table;
-
-    @BeforeClass
-    public static void setup()
-    {
-        CQLTester.setUpClass();
-    }
 
     @Test
     public void testTruncate() throws Throwable

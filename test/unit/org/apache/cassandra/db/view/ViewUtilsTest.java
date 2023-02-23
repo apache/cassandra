@@ -27,6 +27,9 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseOrderPreservingPartitioner;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
@@ -44,14 +47,15 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.service.StorageService;
 
-public class ViewUtilsTest
+@DDDaemonInitialization
+@UseOrderPreservingPartitioner
+public class ViewUtilsTest extends CassandraTestBase
 {
     private final String KS = "Keyspace1";
 
     @BeforeClass
     public static void setUp() throws ConfigurationException, IOException
     {
-        DatabaseDescriptor.daemonInitialization();
         ServerTestUtils.cleanupAndLeaveDirs();
         IEndpointSnitch snitch = new PropertyFileSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);

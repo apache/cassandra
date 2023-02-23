@@ -67,7 +67,6 @@ public class StreamingVirtualTableTest extends CQLTester
     @BeforeClass
     public static void setup()
     {
-        CQLTester.setUpClass();
         StreamingVirtualTable table = new StreamingVirtualTable(KS_NAME);
         TABLE_NAME = table.toString();
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));

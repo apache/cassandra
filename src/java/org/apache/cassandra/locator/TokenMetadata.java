@@ -18,7 +18,18 @@
 package org.apache.cassandra.locator;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -26,12 +37,21 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.*;
-
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +69,7 @@ import org.apache.cassandra.utils.BiMultiValMap;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SortedBiMultiValMap;
 
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -123,12 +144,12 @@ public class TokenMetadata
              DatabaseDescriptor.getPartitioner());
     }
 
-    public TokenMetadata(IEndpointSnitch snitch)
+    public TokenMetadata(IEndpointSnitch snitch, @Nullable IPartitioner partitioner)
     {
         this(SortedBiMultiValMap.create(),
              HashBiMap.create(),
              Topology.builder(() -> snitch).build(),
-             DatabaseDescriptor.getPartitioner());
+             partitioner != null ? partitioner : DatabaseDescriptor.getPartitioner());
     }
 
     private TokenMetadata(BiMultiValMap<Token, InetAddressAndPort> tokenToEndpointMap, BiMap<InetAddressAndPort, UUID> endpointsMap, Topology topology, IPartitioner partitioner)
@@ -144,15 +165,7 @@ public class TokenMetadata
         endpointToHostIdMap = endpointsMap;
         sortedTokens = sortTokens();
         this.ringVersion = ringVersion;
-    }
-
-    /**
-     * To be used by tests only (via {@link org.apache.cassandra.service.StorageService#setPartitionerUnsafe}).
-     */
-    @VisibleForTesting
-    public TokenMetadata cloneWithNewPartitioner(IPartitioner newPartitioner)
-    {
-        return new TokenMetadata(tokenToEndpointMap, endpointToHostIdMap, topology, newPartitioner);
+        assertTokensMatchPartitioner();
     }
 
     private ArrayList<Token> sortTokens()
@@ -190,6 +203,7 @@ public class TokenMetadata
 
     public void updateNormalTokens(Collection<Token> tokens, InetAddressAndPort endpoint)
     {
+        assertTokensMatchPartitioner(tokens);
         Multimap<InetAddressAndPort, Token> endpointTokens = HashMultimap.create();
         endpointTokens.putAll(endpoint, tokens);
         updateNormalTokens(endpointTokens);
@@ -203,6 +217,7 @@ public class TokenMetadata
      */
     public void updateNormalTokens(Multimap<InetAddressAndPort, Token> endpointTokens)
     {
+        assertTokensMatchPartitioner(endpointTokens.values());
         if (endpointTokens.isEmpty())
             return;
 
@@ -364,6 +379,7 @@ public class TokenMetadata
     {
         assert tokens != null && !tokens.isEmpty();
         assert endpoint != null;
+        assertTokensMatchPartitioner(tokens);
 
         lock.writeLock().lock();
         try
@@ -397,6 +413,7 @@ public class TokenMetadata
     {
         assert replacingTokens != null && !replacingTokens.isEmpty();
         assert newNode != null && oldNode != null;
+        assertTokensMatchPartitioner(replacingTokens);
 
         lock.writeLock().lock();
         try
@@ -449,6 +466,7 @@ public class TokenMetadata
     public void removeBootstrapTokens(Collection<Token> tokens)
     {
         assert tokens != null && !tokens.isEmpty();
+        assertTokensMatchPartitioner(tokens);
 
         lock.writeLock().lock();
         try
@@ -485,6 +503,7 @@ public class TokenMetadata
     public void addMovingEndpoint(Token token, InetAddressAndPort endpoint)
     {
         assert endpoint != null;
+        assertTokenMatchesPartitioner(token);
 
         lock.writeLock().lock();
         try
@@ -773,6 +792,7 @@ public class TokenMetadata
 
     public InetAddressAndPort getEndpoint(Token token)
     {
+        assertTokenMatchesPartitioner(token);
         lock.readLock().lock();
         try
         {
@@ -786,6 +806,7 @@ public class TokenMetadata
 
     public Collection<Range<Token>> getPrimaryRangesFor(Collection<Token> tokens)
     {
+        assertTokensMatchPartitioner(tokens);
         Collection<Range<Token>> ranges = new ArrayList<>(tokens.size());
         for (Token right : tokens)
             ranges.add(new Range<>(getPredecessor(right), right));
@@ -795,6 +816,7 @@ public class TokenMetadata
     @Deprecated
     public Range<Token> getPrimaryRangeFor(Token right)
     {
+        assertTokenMatchesPartitioner(right);
         return getPrimaryRangesFor(Arrays.asList(right)).iterator().next();
     }
 
@@ -1043,6 +1065,7 @@ public class TokenMetadata
 
     public Token getPredecessor(Token token)
     {
+        assertTokenMatchesPartitioner(token);
         List<Token> tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
         assert index >= 0 : token + " not found in " + tokenToEndpointMapKeysAsStrings();
@@ -1051,6 +1074,7 @@ public class TokenMetadata
 
     public Token getSuccessor(Token token)
     {
+        assertTokenMatchesPartitioner(token);
         List<Token> tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
         assert index >= 0 : token + " not found in " + tokenToEndpointMapKeysAsStrings();
@@ -1440,6 +1464,24 @@ public class TokenMetadata
     public DecoratedKey decorateKey(ByteBuffer key)
     {
         return partitioner.decorateKey(key);
+    }
+
+    public void assertTokenMatchesPartitioner(Token t)
+    {
+        checkState(t.getPartitioner().equals(partitioner), "TokenMetadata partitioner should match token partitioner");
+    }
+
+    public void assertTokensMatchPartitioner()
+    {
+        assertTokensMatchPartitioner(sortedTokens);
+    }
+
+    public void assertTokensMatchPartitioner(Iterable<Token> tokens)
+    {
+        for (Token t : tokens)
+        {
+            checkState(t.getPartitioner().equals(partitioner), "TokenMetadata partitioner should match token partitioner");
+        }
     }
 
     /**

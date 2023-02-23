@@ -19,13 +19,22 @@
 package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.*;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
@@ -38,7 +47,9 @@ import static org.junit.Assert.assertTrue;
 import static org.quicktheories.QuickTheory.qt;
 import static org.quicktheories.generators.SourceDSL.integers;
 
-public class PendingRangesTest
+@DDDaemonInitialization
+@UseMurmur3Partitioner
+public class PendingRangesTest extends CassandraTestBase
 {
     private static final String RACK1 = "RACK1";
     private static final String DC1 = "DC1";
@@ -63,7 +74,6 @@ public class PendingRangesTest
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
-        DatabaseDescriptor.daemonInitialization();
         IEndpointSnitch snitch = snitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
     }

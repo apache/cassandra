@@ -20,24 +20,33 @@ package org.apache.cassandra.locator;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
-
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -56,7 +65,7 @@ import static org.apache.cassandra.locator.Replica.fullReplica;
 import static org.apache.cassandra.locator.Replica.transientReplica;
 import static org.junit.Assert.assertTrue;
 
-public class NetworkTopologyStrategyTest
+public class NetworkTopologyStrategyTest extends CassandraTestBase
 {
     private static final String KEYSPACE = "Keyspace1";
     private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategyTest.class);
@@ -69,6 +78,7 @@ public class NetworkTopologyStrategyTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testProperties() throws IOException, ConfigurationException
     {
         IEndpointSnitch snitch = new PropertyFileSnitch();
@@ -94,6 +104,7 @@ public class NetworkTopologyStrategyTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testPropertiesWithEmptyDC() throws IOException, ConfigurationException
     {
         IEndpointSnitch snitch = new PropertyFileSnitch();
@@ -119,6 +130,7 @@ public class NetworkTopologyStrategyTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testLargeCluster() throws UnknownHostException, ConfigurationException
     {
         int[] dcRacks = new int[]{2, 4, 8};
@@ -194,12 +206,12 @@ public class NetworkTopologyStrategyTest
     }
 
     @Test
+    @UseMurmur3Partitioner
     public void testCalculateEndpoints() throws UnknownHostException
     {
         final int NODES = 100;
         final int VNODES = 64;
         final int RUNS = 10;
-        StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         Map<String, Integer> datacenters = ImmutableMap.of("rf1", 1, "rf3", 3, "rf5_1", 5, "rf5_2", 5, "rf5_3", 5);
         List<InetAddressAndPort> nodes = new ArrayList<>(NODES);
         for (byte i=0; i<NODES; ++i)
@@ -403,6 +415,7 @@ public class NetworkTopologyStrategyTest
     }
 
     @Test
+    @UseMurmur3Partitioner
     public void testTransientReplica() throws Exception
     {
         IEndpointSnitch snitch = new SimpleSnitch();
@@ -458,6 +471,7 @@ public class NetworkTopologyStrategyTest
     }
 
     @Test
+    @UseMurmur3Partitioner
     public void shouldWarnOnHigherReplicationFactorThanNodesInDC()
     {
         HashMap<String, String> configOptions = new HashMap<>();

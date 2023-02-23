@@ -78,7 +78,7 @@ public class KeyspaceActions extends ClusterActions
     final NodesByDc left;
 
     final int[] currentRf;
-    final TokenMetadata tokenMetadata = new TokenMetadata(snitch.get());
+    final TokenMetadata tokenMetadata = new TokenMetadata(snitch.get(), Murmur3Partitioner.instance);
     Topology topology;
     boolean haveChangedVariant;
     boolean haveConsensusMigrated;
@@ -372,7 +372,7 @@ public class KeyspaceActions extends ClusterActions
         for (int i = 0 ; i < primaryKeys.length ; ++i)
         {
             int primaryKey = primaryKeys[i];
-            Token token = new Murmur3Partitioner().getToken(Int32Type.instance.decompose(primaryKey));
+            Token token = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(primaryKey));
             replicasForKey[i] = strategy.calculateNaturalReplicas(token, tokenMetadata)
                                         .endpointList().stream().mapToInt(lookup::get).toArray();
             PendingRangeMaps pendingRanges = tokenMetadata.getPendingRanges(keyspace);

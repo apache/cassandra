@@ -25,17 +25,15 @@ import java.util.Collection;
 import java.util.List;
 
 import com.google.common.collect.Iterables;
-
-import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.RangesAtEndpoint;
-import org.apache.cassandra.locator.RangesByEndpoint;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseRandomPartitioner;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -43,8 +41,11 @@ import org.apache.cassandra.dht.RangeStreamer;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -61,7 +62,9 @@ import static org.junit.Assert.assertTrue;
  * is used to calculate the endpoints to fetch from and check they are alive for both RangeRelocator (move) and
  * bootstrap (RangeRelocator).
  */
-public class MoveTransientTest
+@DDDaemonInitialization
+@UseRandomPartitioner
+public class MoveTransientTest extends CassandraTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(MoveTransientTest.class);
 
@@ -121,12 +124,6 @@ public class MoveTransientTest
     {
         downNodes.clear();
         sourceFilterDownNodes.clear();
-    }
-
-    @BeforeClass
-    public static void setupDD()
-    {
-        DatabaseDescriptor.daemonInitialization();
     }
 
     final Token oneToken = new RandomPartitioner.BigIntegerToken("1");

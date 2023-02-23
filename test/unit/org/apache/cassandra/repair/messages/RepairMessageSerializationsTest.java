@@ -25,13 +25,12 @@ import java.util.List;
 import java.util.UUID;
 
 import com.google.common.collect.Lists;
-import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.Range;
@@ -43,36 +42,22 @@ import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.SyncNodePair;
-import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.utils.MerkleTrees;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class RepairMessageSerializationsTest
+@UseMurmur3Partitioner
+@DDDaemonInitialization
+public class RepairMessageSerializationsTest extends CassandraTestBase
 {
     private static final int PROTOCOL_VERSION = MessagingService.current_version;
     private static final int GC_BEFORE = 1000000;
-
-    private static IPartitioner originalPartitioner;
-
-    @BeforeClass
-    public static void before()
-    {
-        DatabaseDescriptor.daemonInitialization();
-        originalPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
-    }
-
-    @AfterClass
-    public static void after()
-    {
-        DatabaseDescriptor.setPartitionerUnsafe(originalPartitioner);
-    }
 
     @Test
     public void validationRequestMessage() throws IOException

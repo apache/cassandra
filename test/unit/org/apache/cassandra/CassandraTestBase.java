@@ -24,6 +24,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.Method;
 
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
@@ -33,7 +34,12 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.LengthPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
+import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.service.StorageService;
 
 /*
  * Many tests declare their own test base and duplicate functionality
@@ -46,18 +52,89 @@ public class CassandraTestBase
     public @interface UseMurmur3Partitioner {}
 
     @Retention(RetentionPolicy.RUNTIME)
+    public @interface UseRandomPartitioner {}
+
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface UseOrderPreservingPartitioner {}
+
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface UseLengthPartitioner {}
+
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface UseByteOrderedPartitioner {}
+
+    @Retention(RetentionPolicy.RUNTIME)
     public @interface DDDaemonInitialization {}
+
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface SchemaLoaderPrepareServer {}
+
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface SchemaLoaderLoadSchema {}
+
+    private static boolean classResetStorageServicePartitioner;
 
     @BeforeClass
     public static void cassandraTestBaseBeforeClass()
     {
         if (hasClassAnnotation(DDDaemonInitialization.class))
             DatabaseDescriptor.daemonInitialization();
+        else if (hasClassAnnotation(SchemaLoaderPrepareServer.class))
+            SchemaLoader.prepareServer();
+        else if (hasClassAnnotation(SchemaLoaderLoadSchema.class))
+            SchemaLoader.loadSchema();
+        else
+            DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+
+        if (hasClassAnnotation(UseMurmur3Partitioner.class))
+        {
+            classResetStorageServicePartitioner = true;
+            StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        }
+        if (hasClassAnnotation(UseRandomPartitioner.class))
+        {
+            classResetStorageServicePartitioner = true;
+            StorageService.instance.setPartitionerUnsafe(RandomPartitioner.instance);
+        }
+        if (hasClassAnnotation(UseOrderPreservingPartitioner.class))
+        {
+            classResetStorageServicePartitioner = true;
+            StorageService.instance.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
+        }
+        if (hasClassAnnotation(UseLengthPartitioner.class))
+        {
+            classResetStorageServicePartitioner = true;
+            StorageService.instance.setPartitionerUnsafe(LengthPartitioner.instance);
+        }
+        if (hasClassAnnotation(UseByteOrderedPartitioner.class))
+        {
+            classResetStorageServicePartitioner = true;
+            StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+        }
+    }
+
+    @AfterClass
+    public static void cassandraTestBaseAfterClass()
+    {
+        if (classResetStorageServicePartitioner)
+        {
+            StorageService.instance.resetPartitionerUnsafe();
+            classResetStorageServicePartitioner = false;
+        }
     }
 
     public static boolean hasClassAnnotation(Class<? extends Annotation> annotation)
     {
-        return testClass.getAnnotation(annotation) != null;
+        return hasClassAnnotation(testClass, annotation);
+    }
+
+    public static boolean hasClassAnnotation(Class<?> clazz, Class<? extends Annotation> annotation)
+    {
+        if (clazz == null)
+            return false;
+        if (clazz.getAnnotation(annotation) != null)
+            return true;
+        return hasClassAnnotation(clazz.getSuperclass(), annotation);
     }
 
     private static Class<?> testClass;
@@ -75,14 +152,38 @@ public class CassandraTestBase
     @Rule
     public TestName testMethodName = new TestName();
     public Method testMethod;
-    private IPartitioner originalPartitioner;
+
+    private boolean testResetStorageServicePartitioner;
 
     @Before
     public void cassandraTestBaseSetUp() throws Exception
     {
         testMethod = testClass.getMethod(testMethodName.getMethodName());
         if (hasMethodAnnotation(UseMurmur3Partitioner.class))
-            originalPartitioner = DatabaseDescriptor.setPartitionerUnsafe(new org.apache.cassandra.dht.Murmur3Partitioner());
+        {
+            testResetStorageServicePartitioner = true;
+            StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        }
+        if (hasMethodAnnotation(UseRandomPartitioner.class))
+        {
+            testResetStorageServicePartitioner = true;
+            StorageService.instance.setPartitionerUnsafe(RandomPartitioner.instance);
+        }
+        if (hasMethodAnnotation(UseOrderPreservingPartitioner.class))
+        {
+            testResetStorageServicePartitioner = true;
+            StorageService.instance.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
+        }
+        if (hasMethodAnnotation(UseLengthPartitioner.class))
+        {
+            testResetStorageServicePartitioner = true;
+            StorageService.instance.setPartitionerUnsafe(LengthPartitioner.instance);
+        }
+        if (hasMethodAnnotation(UseByteOrderedPartitioner.class))
+        {
+            testResetStorageServicePartitioner = true;
+            StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+        }
     }
 
     private boolean hasMethodAnnotation(Class<? extends Annotation> annotation)
@@ -93,10 +194,10 @@ public class CassandraTestBase
     @After
     public void cassandraTestBaseTearDown() throws Exception
     {
-        if (originalPartitioner != null)
+        if (testResetStorageServicePartitioner)
         {
-            DatabaseDescriptor.setPartitionerUnsafe(originalPartitioner);
-            originalPartitioner = null;
+            StorageService.instance.resetPartitionerUnsafe();
+            testResetStorageServicePartitioner = true;
         }
     }
 }

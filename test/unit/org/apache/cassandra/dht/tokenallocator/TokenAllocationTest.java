@@ -28,16 +28,17 @@ import java.util.UUID;
 
 import com.google.common.collect.Lists;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.SchemaLoaderPrepareServer;
+import org.apache.cassandra.CassandraTestBase.UseMurmur3Partitioner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -52,25 +53,17 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-public class TokenAllocationTest
+@SchemaLoaderPrepareServer
+@UseMurmur3Partitioner
+public class TokenAllocationTest extends CassandraTestBase
 {
-    static IPartitioner oldPartitioner;
     static Random rand = new Random(1);
 
     @BeforeClass
     public static void setup() throws ConfigurationException
     {
-        DatabaseDescriptor.daemonInitialization();
-        oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         SchemaLoader.startGossiper();
-        SchemaLoader.prepareServer();
         SchemaLoader.schemaDefinition("TokenAllocationTest");
-    }
-
-    @AfterClass
-    public static void tearDown()
-    {
-        DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
     }
 
     private static TokenAllocation createForTest(TokenMetadata tokenMetadata, int replicas, int numTokens)

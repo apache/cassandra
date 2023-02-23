@@ -22,19 +22,24 @@ package org.apache.cassandra.service;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-
-import org.apache.cassandra.db.SystemKeyspace;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -49,7 +54,12 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
+import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
 
@@ -58,7 +68,7 @@ import static org.apache.cassandra.ServerTestUtils.mkdirs;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class StorageServiceServerTest
+public class StorageServiceServerTest extends CassandraTestBase
 {
     @BeforeClass
     public static void setUp() throws ConfigurationException
@@ -103,6 +113,7 @@ public class StorageServiceServerTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testLocalPrimaryRangeForEndpointWithNetworkTopologyStrategy() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
@@ -143,6 +154,7 @@ public class StorageServiceServerTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testPrimaryRangeForEndpointWithinDCWithNetworkTopologyStrategy() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
@@ -188,6 +200,7 @@ public class StorageServiceServerTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testPrimaryRangesWithNetworkTopologyStrategy() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
@@ -226,6 +239,7 @@ public class StorageServiceServerTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testPrimaryRangesWithNetworkTopologyStrategyOneDCOnly() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
@@ -265,6 +279,7 @@ public class StorageServiceServerTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testPrimaryRangeForEndpointWithinDCWithNetworkTopologyStrategyOneDCOnly() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
@@ -305,6 +320,7 @@ public class StorageServiceServerTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testPrimaryRangesWithVnodes() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
@@ -369,6 +385,7 @@ public class StorageServiceServerTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testPrimaryRangeForEndpointWithinDCWithVnodes() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
@@ -449,6 +466,7 @@ public class StorageServiceServerTest
     }
 
     @Test
+    @UseOrderPreservingPartitioner
     public void testPrimaryRangesWithSimpleStrategy() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
@@ -477,6 +495,7 @@ public class StorageServiceServerTest
 
     /* Does not make much sense to use -local and -pr with simplestrategy, but just to prevent human errors */
     @Test
+    @UseOrderPreservingPartitioner
     public void testPrimaryRangeForEndpointWithinDCWithSimpleStrategy() throws Exception
     {
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
@@ -507,10 +526,9 @@ public class StorageServiceServerTest
     }
 
     @Test
+    @UseMurmur3Partitioner
     public void testCreateRepairRangeFrom() throws Exception
     {
-        StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
-
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.clearUnsafe();
 
