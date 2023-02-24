@@ -299,4 +299,23 @@ public interface ColumnFamilyStoreMBean
     public Long getTopSizePartitionsLastUpdate();
     public Map<String, Long> getTopTombstonePartitions();
     public Long getTopTombstonePartitionsLastUpdate();
+
+    /**
+     * Returns the size of the biggest SSTable of this table.
+     *
+     * @return (physical) size of the biggest SSTable of this table on disk or 0 if no SSTable is present
+     */
+    public long getMaxSSTableSize();
+
+    /**
+     * Returns the longest duration of an SSTable, in milliseconds, of this table,
+     * computed as {@code maxTimestamp - minTimestamp}.
+     *
+     * It returns 0 if there are no SSTables or if {@code maxTimestamp} or {@code minTimestamp} is
+     * equal to {@code Long.MAX_VALUE}. Effectively non-zero for tables on {@code TimeWindowCompactionStrategy}.
+     *
+     * @return the biggest {@code maxTimestamp - minTimestamp} among all SSTables of this table
+     * or 0 if no SSTable is present
+     */
+    public long getMaxSSTableDuration();
 }
