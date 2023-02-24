@@ -31,6 +31,7 @@ public class StatsTable
     public boolean isLeveledSstable = false;
     public Object sstableCount;
     public Object oldSSTableCount;
+    public Long maxSSTableSize;
     public String spaceUsedLive;
     public String spaceUsedTotal;
     public String spaceUsedBySnapshotsTotal;
@@ -78,4 +79,7 @@ public class StatsTable
     public Map<String, Long> topTombstonePartitions;
     public String topSizePartitionsLastUpdate;
     public String topTombstonePartitionsLastUpdate;
+    public double localReadWriteRatio;
+    public Long twcsDurationInMillis;
+    public String twcs;
 }

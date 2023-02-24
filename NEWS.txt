@@ -126,7 +126,10 @@ New features
       normally require it, except `system_views.system_logs`.
     - More accurate skipping of sstables in read path due to better handling of min/max clustering and lower bound;
       SSTable format has been bumped to 'nc' because there are new fields in stats metadata\
-    - SSTal
+    - Added MaxSSTableSize and MaxSSTableDuration metrics to TableMetrics. The former returns the size of the biggest 
+      SSTable of a table or 0 when there is not any SSTable. The latter returns the maximum duration, computed as 
+      `maxTimestamp - minTimestamp`, effectively non-zero for SSTables produced by TimeWindowCompactionStrategy.
+    - Added local read/write ratio to tablestats.
 
 Upgrading
 ---------
