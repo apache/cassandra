@@ -144,6 +144,13 @@ this table (in bytes).
 |TotalDiskSpaceUsed |Counter |Total disk space used by SSTables
 belonging to this table, including obsolete ones waiting to be GC'd.
 
+|MaxSSTableSize |Gauge<Long> |Maximum size of SSTable of this table -
+the physical size on disk of all components for such SSTable in bytes. Equals to
+zero if there is not any SSTable on disk.
+
+|MaxSSTableDuration |Gauge<Long> |Maximum duration of an SSTable for this table,
+computed as `maxTimestamp - minTimestamp`. Equals to zero if min or max timestamp is `Long.MAX_VALUE`.
+
 |MinPartitionSize |Gauge<Long> |Size of the smallest compacted partition
 (in bytes).
 
