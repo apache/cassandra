@@ -33,7 +33,7 @@ public class CompactStorageColumnDeleteTest extends UpgradeTestBase
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(2)
-        .upgradesToCurrentFrom(v30)
+        .upgradesToCurrentFrom(v40)
         .setup((cluster) -> {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH COMPACT STORAGE");
         })

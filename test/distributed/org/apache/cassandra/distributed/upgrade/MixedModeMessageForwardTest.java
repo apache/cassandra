@@ -103,7 +103,7 @@ public class MixedModeMessageForwardTest extends UpgradeTestBase
         .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
         .withBuilder(b -> b.withRacks(numDCs, 1, nodesPerDc))
         .nodes(numDCs * nodesPerDc)
-        .singleUpgradeToCurrentFrom(v30)
+        .upgradesToCurrentFrom(v40)
         .setup(cluster -> {
             cluster.schemaChange("ALTER KEYSPACE " + KEYSPACE +
                 " WITH replication = {'class': 'NetworkTopologyStrategy', " + ntsArgs + " };");

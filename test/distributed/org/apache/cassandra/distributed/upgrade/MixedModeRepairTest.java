@@ -54,7 +54,7 @@ public class MixedModeRepairTest extends UpgradeTestBase
         new UpgradeTestBase.TestCase()
         .nodes(2)
         .nodesToUpgrade(UPGRADED_NODE)
-        .singleUpgradeToCurrentFrom(v3X)
+        .upgradesToCurrentFrom(v40)
         .withConfig(config -> config.with(NETWORK, GOSSIP))
         .setup(cluster -> {
             cluster.schemaChange(CREATE_TABLE);
@@ -78,39 +78,51 @@ public class MixedModeRepairTest extends UpgradeTestBase
                 cluster.get(2).flush(KEYSPACE);
 
                 // in case of repairing the upgraded node the repair should be rejected with a decriptive error in both
-                // nodetool output and logs (see CASSANDRA-13944)
-                if (repairedNode == UPGRADED_NODE)
+                // nodetool output and logs (see CASSANDRA-13944), if MessagingService.currentVersion has changed
+                if (cluster.get(1).getMessagingVersion() != cluster.get(2).getMessagingVersion())
                 {
-                    String errorMessage = "Repair is not supported in mixed major version clusters";
-                    cluster.get(repairedNode)
-                           .nodetoolResult("repair", "--full", KEYSPACE)
-                           .asserts()
-                           .errorContains(errorMessage);
-                    assertLogHas(cluster, repairedNode, errorMessage);
+                    if (repairedNode == UPGRADED_NODE)
+                    {
+                        // Repair is only not supported when MessagingService.current_version don't match
+                        //  but we keep the error message simple and user-facing
+                        String errorMessage = "Repair is not supported in mixed major version clusters";
+                        cluster.get(repairedNode)
+                               .nodetoolResult("repair", "--full", KEYSPACE)
+                               .asserts()
+                               .errorContains(errorMessage);
+                        assertLogHas(cluster, repairedNode, errorMessage);
+                    }
+                    // if the node issuing the repair is the not updated node we don't have specific error management,
+                    // so the repair will produce a failure in the upgraded node, and it will take one hour to time out in
+                    // the not upgraded node. Since we don't want to wait that long, we only wait a few seconds for the
+                    // repair before verifying the "unknown verb id" error in the upgraded node.
+                    else
+                    {
+                        try
+                        {
+                            IUpgradeableInstance instance = cluster.get(repairedNode);
+                            CompletableFuture.supplyAsync(() -> instance.nodetoolResult("repair", "--full", KEYSPACE))
+                                             .get(10, TimeUnit.SECONDS);
+                            fail("Repair in the not upgraded node should have timed out");
+                        }
+                        catch (TimeoutException e)
+                        {
+                            assertLogHas(cluster, UPGRADED_NODE, "unexpected exception caught while processing inbound messages");
+                            assertLogHas(cluster, UPGRADED_NODE, "java.lang.IllegalArgumentException: Unknown verb id");
+                        }
+                    }
+
+                    // verify that the previous failed repair hasn't repaired the data
+                    assertRows(cluster.get(1).executeInternal(SELECT, key), row1);
+                    assertRows(cluster.get(2).executeInternal(SELECT, key), row2);
                 }
-                // if the node issuing the repair is the not updated node we don't have specific error management,
-                // so the repair will produce a failure in the upgraded node, and it will take one hour to time out in
-                // the not upgraded node. Since we don't want to wait that long, we only wait a few seconds for the
-                // repair before verifying the "unknown verb id" error in the upgraded node.
                 else
                 {
-                    try
-                    {
-                        IUpgradeableInstance instance = cluster.get(repairedNode);
-                        CompletableFuture.supplyAsync(() -> instance.nodetoolResult("repair", "--full", KEYSPACE))
-                                         .get(10, TimeUnit.SECONDS);
-                        fail("Repair in the not upgraded node should have timed out");
-                    }
-                    catch (TimeoutException e)
-                    {
-                        assertLogHas(cluster, UPGRADED_NODE, "unexpected exception caught while processing inbound messages");
-                        assertLogHas(cluster, UPGRADED_NODE, "java.lang.IllegalArgumentException: Unknown verb id");
-                    }
+                    cluster.get(repairedNode).nodetoolResult("repair", "--full", KEYSPACE);
+                    // verify that the repair repaired the data
+                    assertRows(cluster.get(1).executeInternal(SELECT, key), row1, row2);
+                    assertRows(cluster.get(2).executeInternal(SELECT, key), row1, row2);
                 }
-
-                // verify that the previous failed repair hasn't repaired the data
-                assertRows(cluster.get(1).executeInternal(SELECT, key), row1);
-                assertRows(cluster.get(2).executeInternal(SELECT, key), row2);
             }
         })
         .run();
