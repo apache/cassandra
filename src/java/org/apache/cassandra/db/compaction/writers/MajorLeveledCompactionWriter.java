@@ -20,16 +20,12 @@ package org.apache.cassandra.db.compaction.writers;
 import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 
 public class MajorLeveledCompactionWriter extends CompactionAwareWriter
 {
@@ -67,11 +63,15 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     }
 
     @Override
-    @SuppressWarnings("resource")
     public boolean realAppend(UnfilteredRowIterator partition)
     {
-        AbstractRowIndexEntry rie = sstableWriter.append(partition);
         partitionsWritten++;
+        return super.realAppend(partition);
+    }
+
+    @Override
+    protected boolean shouldSwitchWriterInCurrentLocation(DecoratedKey key)
+    {
         long totalWrittenInCurrentWriter = sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten();
         if (totalWrittenInCurrentWriter > maxSSTableSize)
         {
@@ -81,31 +81,29 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                 totalWrittenInLevel = 0;
                 currentLevel++;
             }
-            switchCompactionLocation(sstableDirectory);
+            return true;
         }
-        return rie != null;
+        return false;
 
     }
 
     @Override
-    public void switchCompactionLocation(Directories.DataDirectory location)
+    public void switchCompactionWriter(Directories.DataDirectory location, DecoratedKey nextKey)
     {
-        sstableDirectory = location;
         averageEstimatedKeysPerSSTable = Math.round(((double) averageEstimatedKeysPerSSTable * sstablesWritten + partitionsWritten) / (sstablesWritten + 1));
-
-        Descriptor descriptor = cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory));
-        MetadataCollector collector = new MetadataCollector(txn.originals(), cfs.metadata().comparator, currentLevel);
-        SerializationHeader serializationHeader = SerializationHeader.make(cfs.metadata(), txn.originals());
-
-        @SuppressWarnings("resource")
-        SSTableWriter writer = newWriterBuilder(descriptor).setKeyCount(keysPerSSTable)
-                                                           .setSerializationHeader(serializationHeader)
-                                                           .setMetadataCollector(collector)
-                                                           .build(txn, cfs);
-
-        sstableWriter.switchWriter(writer);
         partitionsWritten = 0;
         sstablesWritten = 0;
+        super.switchCompactionWriter(location, nextKey);
+    }
+
+    protected int sstableLevel()
+    {
+        return currentLevel;
+    }
+
+    protected long sstableKeyCount()
+    {
+        return keysPerSSTable;
     }
 
     @Override
