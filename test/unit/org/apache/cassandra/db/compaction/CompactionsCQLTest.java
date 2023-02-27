@@ -208,6 +208,18 @@ public class CompactionsCQLTest extends CQLTester
     public void testSetLocalCompactionStrategy() throws Throwable
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+        testSetLocalCompactionStrategy(SizeTieredCompactionStrategy.class);
+    }
+
+    @Test
+    public void testSetLocalCompactionStrategyUCS() throws Throwable
+    {
+        testSetLocalCompactionStrategy(UnifiedCompactionStrategy.class);
+    }
+
+    private void testSetLocalCompactionStrategy(Class<? extends AbstractCompactionStrategy> strategy) throws Throwable
+    {
+        createTable(String.format("CREATE TABLE %%s (id text PRIMARY KEY) with compaction = {'class': '%s'}", strategy.getSimpleName()));
         Map<String, String> localOptions = new HashMap<>();
         localOptions.put("class", "SizeTieredCompactionStrategy");
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);

@@ -82,7 +82,8 @@ public class MemtableQuickTest extends CQLTester
         String keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
         String table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
                                              " with compression = {'enabled': false}" +
-                                             " and memtable = '" + memtableClass + "'");
+                                             " and memtable = '" + memtableClass + "'" +
+                                             " and compaction = { 'class': 'UnifiedCompactionStrategy', 'base_shard_count': '4' }"); // to trigger splitting of sstables, CASSANDRA-18123
         execute("use " + keyspace + ';');
 
         String writeStatement = "INSERT INTO "+table+"(userid,picid,commentid)VALUES(?,?,?)";
@@ -159,7 +160,7 @@ public class MemtableQuickTest extends CQLTester
             }
 
             // make sure the row counts are correct in both the metadata as well as the cardinality estimator
-            // (see STAR-1826)
+            // (see CASSANDRA-18123)
             long totalPartitions = 0;
             for (SSTableReader sstable : sstables)
             {

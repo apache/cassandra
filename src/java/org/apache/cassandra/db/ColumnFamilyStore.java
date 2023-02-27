@@ -64,7 +64,6 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
@@ -259,6 +258,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public static final String SNAPSHOT_TRUNCATE_PREFIX = "truncated";
     public static final String SNAPSHOT_DROP_PREFIX = "dropped";
     static final String TOKEN_DELIMITER = ":";
+
+    /** Special values used when the local ranges are not changed with ring changes (e.g. local tables). */
+    public static final int RING_VERSION_IRRELEVANT = -1;
 
     static
     {
@@ -1456,6 +1458,52 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
+    public static class VersionedLocalRanges extends ArrayList<Splitter.WeightedRange>
+    {
+        public final long ringVersion;
+
+        public VersionedLocalRanges(long ringVersion, int initialSize)
+        {
+            super(initialSize);
+            this.ringVersion = ringVersion;
+        }
+    }
+
+    public VersionedLocalRanges localRangesWeighted()
+    {
+        if (!SchemaConstants.isLocalSystemKeyspace(getKeyspaceName())
+            && getPartitioner() == StorageService.instance.getTokenMetadata().partitioner)
+        {
+            DiskBoundaryManager.VersionedRangesAtEndpoint versionedLocalRanges = DiskBoundaryManager.getVersionedLocalRanges(this);
+            Set<Range<Token>> localRanges = versionedLocalRanges.rangesAtEndpoint.ranges();
+            long ringVersion = versionedLocalRanges.ringVersion;
+
+            if (!localRanges.isEmpty())
+            {
+                VersionedLocalRanges weightedRanges = new VersionedLocalRanges(ringVersion, localRanges.size());
+                for (Range<Token> r : localRanges)
+                {
+                    // WeightedRange supports only unwrapped ranges as it relies
+                    // on right - left == num tokens equality
+                    for (Range<Token> u: r.unwrap())
+                        weightedRanges.add(new Splitter.WeightedRange(1.0, u));
+                }
+                weightedRanges.sort(Comparator.comparing(Splitter.WeightedRange::left));
+                return weightedRanges;
+            }
+            else
+            {
+                return fullWeightedRange(ringVersion, getPartitioner());
+            }
+        }
+        else
+        {
+            // Local tables need to cover the full token range and don't care about ring changes.
+            // We also end up here if the table's partitioner is not the database's, which can happen in tests.
+            return fullWeightedRange(RING_VERSION_IRRELEVANT, getPartitioner());
+        }
+    }
+
     @Override
     public ShardBoundaries localRangeSplits(int shardCount)
     {
@@ -1466,54 +1514,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         if (shardBoundaries == null ||
             shardBoundaries.shardCount() != shardCount ||
-            shardBoundaries.ringVersion != -1 && shardBoundaries.ringVersion != StorageService.instance.getTokenMetadata().getRingVersion())
+            (shardBoundaries.ringVersion != RING_VERSION_IRRELEVANT &&
+             shardBoundaries.ringVersion != StorageService.instance.getTokenMetadata().getRingVersion()))
         {
-            List<Splitter.WeightedRange> weightedRanges;
-            long ringVersion;
-            if (!SchemaConstants.isLocalSystemKeyspace(getKeyspaceName())
-                && getPartitioner() == StorageService.instance.getTokenMetadata().partitioner)
-            {
-                DiskBoundaryManager.VersionedRangesAtEndpoint versionedLocalRanges = DiskBoundaryManager.getVersionedLocalRanges(this);
-                Set<Range<Token>> localRanges = versionedLocalRanges.rangesAtEndpoint.ranges();
-                ringVersion = versionedLocalRanges.ringVersion;
-
-                if (!localRanges.isEmpty())
-                {
-                    weightedRanges = new ArrayList<>(localRanges.size());
-                    for (Range<Token> r : localRanges)
-                    {
-                        // WeightedRange supports only unwrapped ranges as it relies
-                        // on right - left == num tokens equality
-                        for (Range<Token> u: r.unwrap())
-                            weightedRanges.add(new Splitter.WeightedRange(1.0, u));
-                    }
-                    weightedRanges.sort(Comparator.comparing(Splitter.WeightedRange::left));
-                }
-                else
-                {
-                    weightedRanges = fullWeightedRange();
-                }
-            }
-            else
-            {
-                // Local tables need to cover the full token range and don't care about ring changes.
-                // We also end up here if the table's partitioner is not the database's, which can happen in tests.
-                weightedRanges = fullWeightedRange();
-                ringVersion = -1;
-            }
+            VersionedLocalRanges weightedRanges = localRangesWeighted();
 
             List<Token> boundaries = getPartitioner().splitter().get().splitOwnedRanges(shardCount, weightedRanges, false);
             shardBoundaries = new ShardBoundaries(boundaries.subList(0, boundaries.size() - 1),
-                                                  ringVersion);
+                                                  weightedRanges.ringVersion);
             cachedShardBoundaries = shardBoundaries;
             logger.debug("Memtable shard boundaries for {}.{}: {}", getKeyspaceName(), getTableName(), boundaries);
         }
         return shardBoundaries;
     }
 
-    private ImmutableList<Splitter.WeightedRange> fullWeightedRange()
+    @VisibleForTesting
+    public static VersionedLocalRanges fullWeightedRange(long ringVersion, IPartitioner partitioner)
     {
-        return ImmutableList.of(new Splitter.WeightedRange(1.0, new Range<>(getPartitioner().getMinimumToken(), getPartitioner().getMaximumToken())));
+        VersionedLocalRanges ranges = new VersionedLocalRanges(ringVersion, 1);
+        ranges.add(new Splitter.WeightedRange(1.0, new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken())));
+        return ranges;
     }
 
     /**

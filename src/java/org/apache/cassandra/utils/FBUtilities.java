@@ -1009,6 +1009,11 @@ public class FBUtilities
         return v;
     }
 
+    public static long parseHumanReadableBytes(String value)
+    {
+        return (long) parseHumanReadable(value, null, "B");
+    }
+
     /**
      * Starts and waits for the given @param pb to finish.
      * @throws java.io.IOException on non-zero exit code

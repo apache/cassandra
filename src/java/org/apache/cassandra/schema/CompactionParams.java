@@ -34,6 +34,7 @@ import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
+import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -134,6 +135,11 @@ public final class CompactionParams
     public static CompactionParams lcs(Map<String, String> options)
     {
         return create(LeveledCompactionStrategy.class, options);
+    }
+
+    public static CompactionParams ucs(Map<String, String> options)
+    {
+        return create(UnifiedCompactionStrategy.class, options);
     }
 
     public static CompactionParams twcs(Map<String, String> options)
