@@ -1661,7 +1661,7 @@ public class CompactionManager implements CompactionManagerMBean
                          .setPendingRepair(pendingRepair)
                          .setTransientSSTable(isTransient)
                          .setTableMetadataRef(cfs.metadata)
-                         .setMetadataCollector(new MetadataCollector(sstables, cfs.metadata().comparator, minLevel))
+                         .setMetadataCollector(new MetadataCollector(sstables, cfs.metadata().comparator).sstableLevel(minLevel))
                          .setSerializationHeader(SerializationHeader.make(cfs.metadata(), sstables))
                          .addDefaultComponents()
                          .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())

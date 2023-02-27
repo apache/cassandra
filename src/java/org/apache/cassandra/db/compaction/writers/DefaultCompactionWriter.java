@@ -24,14 +24,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 
 /**
  * The default compaction writer - creates one output file in L0
@@ -60,30 +56,17 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
     }
 
     @Override
-    public boolean realAppend(UnfilteredRowIterator partition)
+    protected boolean shouldSwitchWriterInCurrentLocation(DecoratedKey key)
     {
-        return sstableWriter.append(partition) != null;
+        return false;
     }
 
-    @Override
-    public void switchCompactionLocation(Directories.DataDirectory directory)
+    protected int sstableLevel()
     {
-        sstableDirectory = directory;
-
-        Descriptor descriptor = cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(directory));
-        MetadataCollector collector = new MetadataCollector(txn.originals(), cfs.metadata().comparator, sstableLevel);
-        SerializationHeader header = SerializationHeader.make(cfs.metadata(), nonExpiredSSTables);
-
-        @SuppressWarnings("resource")
-        SSTableWriter writer = newWriterBuilder(descriptor).setMetadataCollector(collector)
-                                                              .setSerializationHeader(header)
-                                                              .setKeyCount(estimatedTotalKeys)
-                                                              .build(txn, cfs);
-        sstableWriter.switchWriter(writer);
+        return sstableLevel;
     }
 
-    @Override
-    public long estimatedKeys()
+    protected long sstableKeyCount()
     {
         return estimatedTotalKeys;
     }
