@@ -41,6 +41,7 @@ public final class SchemaConstants
 
     public static final String SYSTEM_KEYSPACE_NAME = "system";
     public static final String SCHEMA_KEYSPACE_NAME = "system_schema";
+    public static final String METADATA_KEYSPACE_NAME = "cluster_metadata";
 
     public static final String TRACE_KEYSPACE_NAME = "system_traces";
     public static final String AUTH_KEYSPACE_NAME = "system_auth";
@@ -62,7 +63,7 @@ public final class SchemaConstants
 
     /* replicate system keyspace names (the ones with a "true" replication strategy) */
     public static final Set<String> REPLICATED_SYSTEM_KEYSPACE_NAMES =
-        ImmutableSet.of(TRACE_KEYSPACE_NAME, AUTH_KEYSPACE_NAME, DISTRIBUTED_KEYSPACE_NAME);
+        ImmutableSet.of(TRACE_KEYSPACE_NAME, AUTH_KEYSPACE_NAME, DISTRIBUTED_KEYSPACE_NAME, METADATA_KEYSPACE_NAME);
     /**
      * The longest permissible KS or CF name.
      *

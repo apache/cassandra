@@ -171,6 +171,16 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
 
+    public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
+    // TODO rename to indicate CMS related
+    public volatile int default_retry_max_tries = 10;
+    public volatile DurationSpec.IntMillisecondsBound default_retry_backoff = new DurationSpec.IntMillisecondsBound("50ms");
+    /**
+     * How often we should snapshot the cluster metadata.
+     */
+    public volatile int metadata_snapshot_frequency = 100;
+
+
     public volatile double phi_convict_threshold = 8.0;
 
     public int concurrent_reads = 32;

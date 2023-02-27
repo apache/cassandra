@@ -182,6 +182,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
+import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -207,6 +208,9 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -994,6 +998,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
+        try
+        {
+            Startup.initialize(DatabaseDescriptor.getSeeds());
+            Gossiper.waitToSettle();
+            ClusterMetadataService.instance().replayAndWait();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+
         completeInitialization();
     }
 
@@ -1404,6 +1423,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(TraceKeyspace.metadata(), TraceKeyspace.GENERATION));
         Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(SystemDistributedKeyspace.metadata(), SystemDistributedKeyspace.GENERATION));
         Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION));
+
+        Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(DistributedMetadataLogKeyspace.metadata(), 1));
     }
 
     public boolean isJoined()
@@ -7396,5 +7417,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (!skipNotificationListeners)
             super.addNotificationListener(listener, filter, handback);
+    }
+
+    @Override
+    public void addToCms(List<String> ignoredEndpoints)
+    {
+        ClusterMetadataService.instance().addToCms(ignoredEndpoints);
+    }
+
+    @Override
+    public List<String> describeCMS()
+    {
+        return ClusterMetadata.current().cmsMembers.stream().sorted().map(Object::toString).collect(Collectors.toList());
     }
 }

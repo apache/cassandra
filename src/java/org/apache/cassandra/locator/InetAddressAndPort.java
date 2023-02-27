@@ -38,6 +38,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FastByteOperations;
@@ -314,6 +315,27 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
     static int getDefaultPort()
     {
         return defaultPort;
+    }
+
+    public static final class MetadataSerializer implements org.apache.cassandra.tcm.serialization.MetadataSerializer<InetAddressAndPort>
+    {
+        public static final MetadataSerializer serializer = new MetadataSerializer();
+        private static final int SERDE_VERSION = MessagingService.Version.VERSION_40.value;
+
+        public void serialize(InetAddressAndPort t, DataOutputPlus out, Version version) throws IOException
+        {
+            Serializer.inetAddressAndPortSerializer.serialize(t, out, SERDE_VERSION);
+        }
+
+        public InetAddressAndPort deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            return Serializer.inetAddressAndPortSerializer.deserialize(in, SERDE_VERSION);
+        }
+
+        public long serializedSize(InetAddressAndPort t, Version version)
+        {
+            return Serializer.inetAddressAndPortSerializer.serializedSize(t, SERDE_VERSION);
+        }
     }
 
     /**

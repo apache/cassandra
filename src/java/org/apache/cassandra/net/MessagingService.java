@@ -376,12 +376,14 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
      * @param cb      callback interface which is used to pass the responses or
      *                suggest that a timeout occurred to the invoker of the send().
      */
-    public void sendWithCallback(Message message, InetAddressAndPort to, RequestCallback cb)
+    @Override
+    public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb)
     {
         sendWithCallback(message, to, cb, null);
     }
 
-    public void sendWithCallback(Message message, InetAddressAndPort to, RequestCallback cb, ConnectionType specifyConnection)
+    @Override
+    public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection)
     {
         callbacks.addWithExpiration(cb, message, to);
         if (cb.invokeOnFailure() && !message.callBackOnFailure())
@@ -414,7 +416,8 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
      * @param message messages to be sent.
      * @param to      endpoint to which the message needs to be sent
      */
-    public void send(Message message, InetAddressAndPort to)
+    @Override
+    public <REQ> void send(Message<REQ> message, InetAddressAndPort to)
     {
         send(message, to, null);
     }
@@ -686,5 +689,17 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     public void waitUntilListening() throws InterruptedException
     {
         inboundSockets.open().await();
+    }
+
+    public void waitUntilListeningUnchecked()
+    {
+        try
+        {
+            inboundSockets.open().await();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 }

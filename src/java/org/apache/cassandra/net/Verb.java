@@ -87,7 +87,7 @@ import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupComplete;
 import org.apache.cassandra.service.paxos.cleanup.PaxosStartPrepareCleanup;
 import org.apache.cassandra.service.paxos.cleanup.PaxosFinishPrepareCleanup;
-import org.apache.cassandra.utils.BooleanSerializer;
+import org.apache.cassandra.tcm.Commit.Result;import org.apache.cassandra.tcm.Discovery;import org.apache.cassandra.tcm.Replay;import org.apache.cassandra.tcm.log.LogState;import org.apache.cassandra.tcm.log.Replication;import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.service.EchoVerbHandler;
 import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.service.paxos.Commit;
@@ -104,7 +104,7 @@ import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.concurrent.Stage.*;
 import static org.apache.cassandra.net.VerbTimeouts.*;
 import static org.apache.cassandra.net.Verb.Kind.*;
-import static org.apache.cassandra.net.Verb.Priority.*;
+import static org.apache.cassandra.net.Verb.Priority.*;import static org.apache.cassandra.tcm.ClusterMetadataService.commitRequestHandler;import static org.apache.cassandra.tcm.ClusterMetadataService.currentEpochRequestHandler;import static org.apache.cassandra.tcm.ClusterMetadataService.logNotifyHandler;import static org.apache.cassandra.tcm.ClusterMetadataService.replayRequestHandler;import static org.apache.cassandra.tcm.ClusterMetadataService.replicationHandler;import static org.apache.cassandra.tcm.Commit.*;
 
 /**
  * Note that priorities except P0 are presently unused.  P0 corresponds to urgent, i.e. what used to be the "Gossip" connection.
@@ -203,6 +203,18 @@ public enum Verb
     PAXOS2_CLEANUP_FINISH_PREPARE_REQ(47, P2, repairTimeout, IMMEDIATE,         () -> PaxosCleanupHistory.serializer,          () -> PaxosFinishPrepareCleanup.verbHandler,                 PAXOS2_CLEANUP_FINISH_PREPARE_RSP),
     PAXOS2_CLEANUP_COMPLETE_RSP      (59, P2, repairTimeout, PAXOS_REPAIR,      () -> NoPayload.serializer,                    () -> ResponseVerbHandler.instance                                                            ),
     PAXOS2_CLEANUP_COMPLETE_REQ      (48, P2, repairTimeout, PAXOS_REPAIR,      () -> PaxosCleanupComplete.serializer,         () -> PaxosCleanupComplete.verbHandler,                      PAXOS2_CLEANUP_COMPLETE_RSP      ),
+
+    // transactional cluster metadata
+    TCM_COMMIT_RSP         (801, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Result.serializer,                            () -> ResponseVerbHandler.instance                             ),
+    TCM_COMMIT_REQ         (802, P1, rpcTimeout,      INTERNAL_METADATA,    () -> org.apache.cassandra.tcm.Commit.serializer,   () -> commitRequestHandler(),               TCM_COMMIT_RSP     ),
+    TCM_REPLAY_RSP         (803, P1, rpcTimeout,      INTERNAL_METADATA,    () -> LogState.serializer,                          () -> ResponseVerbHandler.instance                             ),
+    TCM_REPLAY_REQ         (804, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Replay.serializer,                            () -> replayRequestHandler(),               TCM_REPLAY_RSP     ),
+    TCM_REPLICATION        (805, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Replication.messageSerializer,                () -> replicationHandler()                                     ),
+    TCM_NOTIFY_RSP         (806, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> ResponseVerbHandler.instance                             ),
+    TCM_NOTIFY_REQ         (807, P1, rpcTimeout,      INTERNAL_METADATA,    () -> LogState.serializer,                          () -> logNotifyHandler(),                   TCM_NOTIFY_RSP     ),
+    TCM_CURRENT_EPOCH_REQ  (809, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> currentEpochRequestHandler(),         TCM_NOTIFY_RSP     ),
+    TCM_DISCOVER_RSP       (815, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         () -> ResponseVerbHandler.instance                             ),
+    TCM_DISCOVER_REQ       (816, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_RSP   ),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailureReason.serializer,      () -> ResponseVerbHandler.instance                             ),

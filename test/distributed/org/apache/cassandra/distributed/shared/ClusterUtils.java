@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.util.concurrent.Futures;
 
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.VersionedValue;
@@ -57,6 +58,8 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Isolated;
@@ -307,6 +310,69 @@ public class ClusterUtils
             instances[i].logs().watchFor(marks[i], waitString);
     }
 
+    public static Epoch getClusterMetadataVersion(IInvokableInstance inst)
+    {
+        return Epoch.create(inst.callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch()));
+    }
+
+    public static void waitForCMSToQuiesce(Cluster cluster, IInvokableInstance leader, int...ignored)
+    {
+        ClusterUtils.waitForCMSToQuiesce(cluster, getClusterMetadataVersion(leader), ignored);
+    }
+
+    private static class ClusterMetadataVersion
+    {
+        public final int node;
+        public final Epoch epoch;
+        public final Epoch replicated;
+
+        private ClusterMetadataVersion(int node, Epoch epoch, Epoch replicated)
+        {
+            this.node = node;
+            this.epoch = epoch;
+            this.replicated = replicated;
+        }
+
+        public String toString()
+        {
+            return "Version{" +
+                   "node=" + node +
+                   ", epoch=" + epoch +
+                   ", replicated=" + replicated +
+                   '}';
+        }
+    }
+
+    public static void waitForCMSToQuiesce(Cluster cluster, Epoch awaitedEpoch, int...ignored)
+    {
+        List<ClusterMetadataVersion> notMatching = new ArrayList<>();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (System.nanoTime() < deadline)
+        {
+            notMatching.clear();
+            for (int j = 1; j <= cluster.size(); j++)
+            {
+                boolean skip = false;
+                for (int ignore : ignored)
+                    if (ignore == j)
+                        skip = true;
+
+                if (skip)
+                    continue;
+
+                if (cluster.get(j).isShutdown())
+                    continue;
+                Epoch version = getClusterMetadataVersion(cluster.get(j));
+                if (!awaitedEpoch.equals(version))
+                    notMatching.add(new ClusterMetadataVersion(j, version, getClusterMetadataVersion(cluster.get(j))));
+            }
+            if (notMatching.isEmpty())
+                return;
+
+            sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
+        }
+        throw new AssertionError(String.format("Some instances have not reached schema agreement with the leader. Awaited %s; diverging nodes: %s. ", awaitedEpoch, notMatching));
+    }
 
     /**
      * Get the ring from the perspective of the instance.

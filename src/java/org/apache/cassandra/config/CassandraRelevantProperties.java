@@ -500,6 +500,16 @@ public enum CassandraRelevantProperties
     SYSTEM_AUTH_DEFAULT_RF("cassandra.system_auth.default_rf", "1"),
     SYSTEM_DISTRIBUTED_DEFAULT_RF("cassandra.system_distributed.default_rf", "3"),
     SYSTEM_TRACES_DEFAULT_RF("cassandra.system_traces.default_rf", "2"),
+
+
+    // transactional cluster metadata relevant properties
+    // TODO: not a fan of being forced to prefix these to satisfy the alphabetic ordering constraint
+    //       but it makes sense to group logically related properties together
+    /**
+     * size of in-memory index of max epoch -> sealed period
+     */
+    TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE("cassandra.recently_sealed_period_index_size", "10"),
+
     TEST_BBFAILHELPER_ENABLED("test.bbfailhelper.enabled"),
     TEST_BLOB_SHARED_SEED("cassandra.test.blob.shared.seed"),
     TEST_BYTEMAN_TRANSFORMATIONS_DEBUG("cassandra.test.byteman.transformations.debug"),
@@ -570,7 +580,9 @@ public enum CassandraRelevantProperties
     USE_NIX_RECURSIVE_DELETE("cassandra.use_nix_recursive_delete"),
     /** Gossiper compute expiration timeout. Default value 3 days. */
     VERY_LONG_TIME_MS("cassandra.very_long_time_ms", "259200000"),
-    WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS("cassandra.wait_for_tracing_events_timeout_secs", "0");
+    WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS("cassandra.wait_for_tracing_events_timeout_secs", "0"),
+    ;
+
 
     static
     {
