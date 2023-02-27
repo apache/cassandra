@@ -16,7 +16,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-. ./cassandra-conf.sh
+. $(dirname $(realpath -e $0))/cassandra-conf.sh
 validate_env
 
 if [ -z "$CLASSPATH" ]; then
