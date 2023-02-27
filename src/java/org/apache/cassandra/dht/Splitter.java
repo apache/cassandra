@@ -282,6 +282,14 @@ public abstract class Splitter
             return size.abs().divide(factor);
         }
 
+        /**
+         * A less precise version of the above, returning the size of the span as a double approximation.
+         */
+        public double size()
+        {
+            return left().size(right()) * weight;
+        }
+
         public Token left()
         {
             return range.left;
@@ -295,6 +303,11 @@ public abstract class Splitter
         public Range<Token> range()
         {
             return range;
+        }
+
+        public double weight()
+        {
+            return weight;
         }
 
         public String toString()
