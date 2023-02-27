@@ -28,6 +28,7 @@ import java.util.zip.CRC32;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.CompressionParams;
@@ -85,6 +86,7 @@ public class CompressedSequentialWriter extends SequentialWriter
                             .bufferSize(parameters.chunkLength())
                             .bufferType(parameters.getSstableCompressor().preferredBufferType())
                             .finishOnClose(option.finishOnClose())
+                            .hasMaxCompressedLength(option.hasMaxCompressedLength())
                             .build());
         this.compressor = parameters.getSstableCompressor();
         this.digestFile = Optional.ofNullable(digestFile);
@@ -95,7 +97,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         maxCompressedLength = parameters.maxCompressedLength();
 
         /* Index File (-CompressionInfo.db component) and it's header */
-        metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsPath);
+        metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsPath, option.hasMaxCompressedLength());
 
         this.sstableMetadataCollector = sstableMetadataCollector;
         crcMetadata = new ChecksumWriter(new DataOutputStream(Channels.newOutputStream(channel)));

@@ -23,7 +23,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
-
+import org.apache.cassandra.io.sstable.format.big.BigFormatV3;
 /**
  * Provides the accessors to data on disk.
  */
@@ -43,7 +43,8 @@ public interface SSTableFormat
     public static enum Type
     {
         //The original sstable format
-        BIG("big", BigFormat.instance);
+        BIG("big", BigFormat.instance),
+        V3("bigv3", BigFormatV3.instance);
 
         public final SSTableFormat info;
         public final String name;

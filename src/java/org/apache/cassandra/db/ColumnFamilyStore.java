@@ -574,6 +574,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                             ks, name);
     }
 
+    public SSTableId getNextsstableId()
+    {
+        return this.sstableIdGenerator.get();
+    }
+
     public void updateSpeculationThreshold()
     {
         try

@@ -49,7 +49,8 @@ public enum OperationType
     KEY_CACHE_SAVE("Key cache save", false, 6),
     ROW_CACHE_SAVE("Row cache save", false, 6),
     COUNTER_CACHE_SAVE("Counter cache save", false, 6),
-    INDEX_SUMMARY("Index summary redistribution", false, 6);
+    INDEX_SUMMARY("Index summary redistribution", false, 6),
+    DOWNGRADE_SSTABLES("Downgrade sstables", true, 1);
 
     public final String type;
     public final String fileName;
