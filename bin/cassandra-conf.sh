@@ -47,11 +47,12 @@ validate_env() {
         echo "ENVIRONMENT"
         echo "-----------"
         echo "PWD=$PWD"
+        echo "realpath="`realpath -e $0`
         echo "CASSANDRA_CONF=$CASSANDRA_CONF"
     fi
     
     if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
-        echo ">>> cassandra.in.sh not found or CASSANDRA_INCLUDE not set" >&2
+        echo ">>> cassandra.in.sh not found and CASSANDRA_INCLUDE not set" >&2
         retval=1
     else
         if [ -n "$CASSANDRA_ENV_DEBUG" ] ; then
@@ -101,6 +102,7 @@ validate_env() {
 }
 
 # locate and load the CASSANDRA_INCLUDE or cassandra.in.sh file.
+# because this file is sourced the $0 is the original scripts name and path
 
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     # Locations (in order) to use when searching for an include file.
@@ -134,6 +136,9 @@ fi
 
 if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
     echo "You must set the CASSANDRA_CONF and CLASSPATH vars" >&2
+     if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
+         echo "cassandra.in.sh not found and CASSANDRA_INCLUDE not set" >&2
+     fi
     exit 1
 fi
 

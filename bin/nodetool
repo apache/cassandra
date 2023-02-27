@@ -23,7 +23,7 @@ if [ "`basename "$0"`" = 'nodeprobe' ]; then
 fi
 
 CASSANDRA_ENV_PRESERVE="$CASSANDRA_ENV_PRESERVE MAX_HEAP_SIZE JVM_OPTS"
-. ./cassandra-conf.sh
+. $(dirname $(realpath -e $0))/cassandra-conf.sh
 
 # JMX Port passed via cmd line args (-p 9999 / --port 9999 / --port=9999)
 # should override the value from cassandra-env.sh
@@ -71,7 +71,7 @@ if [ "x$MAX_HEAP_SIZE" = "x" ]; then
     MAX_HEAP_SIZE="128m"
 fi
 
-# validate the environment, print the JMX_PORT value if we are CASSANDRA_ENV_DEBUG is set
+# validate the environment, print the JMX_PORT value if CASSANDRA_ENV_DEBUG is set
 validate_env JMX_PORT
 
 CMD=$(echo "$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
