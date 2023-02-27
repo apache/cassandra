@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -1236,4 +1237,23 @@ public class Util
     {
         view.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
     }
+
+    public static <T> T findFirstUnordered(java.util.function.Supplier<T> supplier)
+    {
+        HashSet<T> set = new HashSet<>(2);
+        T first = supplier.get();
+        while (true)
+        {
+            set.clear();
+            T second = supplier.get();
+            set.add(first);
+            set.add(second);
+            if (set.iterator().next() != first)
+                return second;
+
+            first = second;
+        }
+    }
+
+
 }

@@ -125,7 +125,7 @@ public class SSTableImporter
 
             Set<MovedSSTable> movedSSTables = new HashSet<>();
             Set<SSTableReader> newSSTablesPerDirectory = new HashSet<>();
-            for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
+            for (Map.Entry<Descriptor, Set<Component>> entry : lister.sortedList().entrySet())
             {
                 try
                 {

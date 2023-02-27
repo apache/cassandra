@@ -28,9 +28,9 @@ import java.util.Random;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -61,11 +61,13 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OutgoingStream;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamOperation;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
@@ -674,16 +676,77 @@ public class LegacySSTableTest
 
     private static void copyFile(File cfDir, File file) throws IOException
     {
-        byte[] buf = new byte[65536];
         if (file.isFile())
         {
             File target = new File(cfDir, file.name());
-            int rd;
-            try (FileInputStreamPlus is = new FileInputStreamPlus(file);
-                 FileOutputStreamPlus os = new FileOutputStreamPlus(target);) {
-                while ((rd = is.read(buf)) >= 0)
-                    os.write(buf, 0, rd);
-                }
+            FileUtils.copyWithConfirm( file, target );
         }
+    }
+
+    /**
+     * Finds the first point at which the HashSet inserts a generation before a previous
+     * generation in the set. This is used in testing to verfy the sequence of tables where
+     * the generation order is significant.
+     *
+     * @param legacyVersion the legacy version to work with.
+     * @return the generation that causes of the inversion.
+     */
+    public static int findInversion(String legacyVersion)
+    {
+        String ksname = "legacy_tables";
+        String cfname = String.format("legacy_%s_multiple", legacyVersion);
+
+        SSTableFormat.Type formatType = SSTableFormat.Type.BIG;
+        final int[] generation = {-1};
+        final SequenceBasedSSTableId id[] = { null };//new SequenceBasedSSTableId(generation);
+        File directory = new File(System.getProperty("java.io.tmpdir"));
+        Version version = formatType.info.getVersion(legacyVersion);
+
+        Util.findFirstUnordered(() -> {
+            id[0] = new SequenceBasedSSTableId(++(generation[0]));
+            return new Descriptor(version, directory, ksname, cfname, id[0], formatType);
+        } );
+        return generation[0];
+    }
+
+    /**
+     * Generates 3 sstables generations in legacy_x_multiple and adds it to the column store.
+     * Tables are guaranteed to not be returned in generation order when iterated via the
+     * {@code Directories.SSTableLister} class.
+     *
+     * @param legacyVersion the version to create tables for
+     * @throws IOException on IO error.
+     */
+    public static int generateMultipleTables(String legacyVersion) throws IOException
+    {
+
+        int start = findInversion(legacyVersion) - 1;
+        String tableName = String.format("legacy_%s_multiple", legacyVersion);
+
+        File sourceDir = getTableDir(legacyVersion, String.format("legacy_%s_simple", legacyVersion));
+
+        logger.info("creating legacy table {}", tableName);
+
+        QueryProcessor.executeInternal(String.format("CREATE TABLE legacy_tables.%s (pk text PRIMARY KEY, val text)", tableName));
+        ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(tableName);
+
+        List<File> cfDirs = cfs.getDirectories().getCFDirectories();
+        File cfDir = cfDirs.get(0);
+
+        for (int i = 0; i < 3; i++)
+        {
+            for (File file : sourceDir.tryList())
+            {
+                if (file.isFile())
+                {
+                    String[] fileNameParts = file.name().split("-");
+                    String targetName = String.format("%s-%s-%s-%s", legacyVersion, start + i, fileNameParts[2], fileNameParts[3]);
+                    logger.info("creating legacy sstable {}", targetName);
+                    File target = new File(cfDir, targetName);
+                    FileUtils.copyWithConfirm(file, target);
+                }
+            }
+        }
+        return start;
     }
 }
