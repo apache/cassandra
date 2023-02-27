@@ -334,7 +334,7 @@ public class AutoRepairUtils
                                         QueryOptions.forInternalCalls(internalQueryCL,
                                                                       Lists.newArrayList(ByteBufferUtil.bytes(pid),
                                                                                          ByteBufferUtil.bytes(hostId))),
-                                        System.nanoTime());
+                                        Dispatcher.RequestTime.forImmediateExecution());
 
         logger.info("Set force repair pid: {}, node: {}", pid, hostId);
     }

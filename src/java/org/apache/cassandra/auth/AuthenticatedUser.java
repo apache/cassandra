@@ -53,10 +53,20 @@ public class AuthenticatedUser
     // Primary Role of the logged in user
     private final RoleResource role;
 
+    private final boolean forceCanLogin;
+
+    public AuthenticatedUser(String name, boolean forceCanLogin)
+    {
+        this.name = name;
+        this.role = RoleResource.role(name);
+        this.forceCanLogin = forceCanLogin;
+    }
+
     public AuthenticatedUser(String name)
     {
         this.name = name;
         this.role = RoleResource.role(name);
+        this.forceCanLogin = false;
     }
 
     public String getName()
@@ -131,7 +141,7 @@ public class AuthenticatedUser
      */
     public boolean canLogin()
     {
-        return Roles.canLogin(getPrimaryRole());
+        return forceCanLogin || Roles.canLogin(getPrimaryRole());
     }
 
     /**

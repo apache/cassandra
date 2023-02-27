@@ -74,8 +74,9 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     public static final String USERNAME_KEY = "username";
     public static final String PASSWORD_KEY = "password";
 
-    public static final String EMPTY_USER_USERNAME = "empty_user";
-    public static final String EMPTY_PWD_USERNAME = "empty_password";
+    public static final String EMPTY_USER_USERNAME = "emptyuser";
+    public static final String EMPTY_PWD_USERNAME = "emptypassword";
+    public static final String INCORRECT_PWD = "incorrectpassword";
 
     static final byte NUL = 0;
     private SelectStatement authenticateStatement;
@@ -89,9 +90,14 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     }
 
     public boolean authEnabled = requireAuthentication();
-    public String authEnforcementFlag = DatabaseDescriptor.getAuthEnforcementFlag();
+    AuthEnforcementFlagEnum authEnforcementFlagEnum = getAuthEnforcementValue(DatabaseDescriptor.getAuthEnforcementFlag());
 
-    public boolean emitAuthMetricsAndLogs = !authEnforcementFlag.equalsIgnoreCase("none");
+    public boolean emitAuthMetricsAndLogs = AuthEnforcementFlagEnum.NONE != authEnforcementFlagEnum;
+    public boolean softEnforcementFlag = AuthEnforcementFlagEnum.SOFT == authEnforcementFlagEnum;
+
+    public enum AuthEnforcementFlagEnum {
+        SOFT, HARD, NONE;
+    }
 
     // No anonymous access.
     public boolean requireAuthentication()
@@ -122,10 +128,24 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     {
         return cache;
     }
-    public void setAuthEnforcementFlag(String authEnforcementFlag)
+    public void setAuthEnforcementFlag(AuthEnforcementFlagEnum authEnforcementFlagEnum)
     {
-        this.authEnforcementFlag = authEnforcementFlag;
-        this.emitAuthMetricsAndLogs = !authEnforcementFlag.equalsIgnoreCase("none");
+        this.authEnforcementFlagEnum = authEnforcementFlagEnum;
+        this.emitAuthMetricsAndLogs = AuthEnforcementFlagEnum.NONE != authEnforcementFlagEnum;
+        this.softEnforcementFlag = AuthEnforcementFlagEnum.SOFT == authEnforcementFlagEnum;
+    }
+
+    // Function to extract enum value from parameter provide. Default to "none"
+    public AuthEnforcementFlagEnum getAuthEnforcementValue (String authEnforcementFlag) {
+        if (authEnforcementFlag.isEmpty()) {
+            return AuthEnforcementFlagEnum.NONE;
+        }
+        for (AuthEnforcementFlagEnum enumValue : AuthEnforcementFlagEnum.values()) {
+            if (enumValue.name().equalsIgnoreCase(authEnforcementFlag)) {
+                return enumValue;
+            }
+        }
+        return AuthEnforcementFlagEnum.NONE;
     }
 
     protected static boolean checkpw(String password, String hash)
@@ -182,13 +202,17 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
 
             AuthenticatedUser authUser = new AuthenticatedUser(username);
             if (emitAuthMetricsAndLogs){
-                AuthMetricsManager.getMetrics(username, authEnabled, authEnforcementFlag).userSuccessMetrics.inc();
+                AuthMetricsManager.getMetrics(username, authEnabled, authEnforcementFlagEnum.name()).userSuccessMetrics.inc();
             }
             return authUser;
         } catch (AuthenticationException e) {
             if (emitAuthMetricsAndLogs) {
                 logger.warn("Error: Wrong credentials for username:" + username);
-                AuthMetricsManager.getMetrics(username, authEnabled, authEnforcementFlag).userFailureMetrics.inc();
+                AuthMetricsManager.getMetrics(username, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
+            }
+            if (softEnforcementFlag) {
+                logger.warn(String.format("Error: Allowing user (%s) to login because auth_enforcement_flag = soft", username));
+                return new AuthenticatedUser(username, true);
             }
             throw e;
         }
@@ -255,7 +279,10 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         {
             if (emitAuthMetricsAndLogs) {
                 logger.warn("Error: Empty user provided!");
-                AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.inc();
+                AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
+            }
+            if (softEnforcementFlag) {
+                return new AuthenticatedUser(EMPTY_USER_USERNAME, true);
             }
             throw new AuthenticationException(String.format("Required key '%s' is missing", USERNAME_KEY));
         }
@@ -264,7 +291,10 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         {
             if (emitAuthMetricsAndLogs) {
                 logger.warn("Error: Empty password with user: " + username);
-                AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.inc();
+                AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
+            }
+            if (softEnforcementFlag) {
+                return new AuthenticatedUser(EMPTY_PWD_USERNAME, true);
             }
             throw new AuthenticationException(String.format("Required key '%s' is missing for provided username %s", PASSWORD_KEY, username));
         }
@@ -333,8 +363,19 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
                         pass = Arrays.copyOfRange(bytes, i + 1, end);
                     else if (user == null)
                         user = Arrays.copyOfRange(bytes, i + 1, end);
-                    else
-                        throw new AuthenticationException("Credential format error: username or password is empty or contains NUL(\\0) character");
+                    else {
+                        if (emitAuthMetricsAndLogs) {
+                            logger.warn("Credential format error: username or password is empty or contains NUL(\\0) character");
+                            AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
+                        }
+                        if (softEnforcementFlag) {
+                            user = EMPTY_USER_USERNAME.getBytes(StandardCharsets.UTF_8);
+                            pass = EMPTY_PWD_USERNAME.getBytes(StandardCharsets.UTF_8);
+                        } else {
+                            throw new AuthenticationException("Credential format error: username or password is empty or contains NUL(\\0) character");
+                        }
+                        break;
+                    }
 
                     end = i;
                 }
@@ -345,18 +386,27 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
                 if (emitAuthMetricsAndLogs)
                 {
                     logger.warn("Error: Empty password for user: " + username);
-                    AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.inc();
+                    AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
                 }
-                throw new AuthenticationException("Password must not be null");
+                if (softEnforcementFlag) {
+                    pass = EMPTY_PWD_USERNAME.getBytes();
+                } else {
+                    throw new AuthenticationException("Password must not be null");
+                }
             }
 
             if (user == null || user.length == 0)
             {
                 if (emitAuthMetricsAndLogs)
                 {
-                    AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlag).userFailureMetrics.inc();
+                    logger.warn("Error: Empty user provided!");
+                    AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
                 }
-                throw new AuthenticationException("Authentication ID must not be null");
+                if (softEnforcementFlag) {
+                    user = EMPTY_USER_USERNAME.getBytes();
+                } else {
+                    throw new AuthenticationException("Authentication ID must not be null");
+                }
             }
 
             username = new String(user, StandardCharsets.UTF_8);
