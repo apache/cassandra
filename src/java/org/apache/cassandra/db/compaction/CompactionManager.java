@@ -434,7 +434,7 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.error("Failed to cleanup lifecycle transactions ({} for {}.{})", operationType, cfs.keyspace.getName(), cfs.getTableName(), fail);
             }
         });
-        logger.info("Completed {} with status status {}", operationType.name(), allSSTableOpStatus);
+        logger.info("Completed {} with status {}", operationType.name(), allSSTableOpStatus);
         return allSSTableOpStatus;
     }
 
