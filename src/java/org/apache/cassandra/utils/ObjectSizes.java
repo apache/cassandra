@@ -19,6 +19,9 @@
 
 package org.apache.cassandra.utils;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 
 import org.github.jamm.MemoryLayoutSpecification;
@@ -38,6 +41,8 @@ public class ObjectSizes
     private static final long EMPTY_STRING_SIZE = measure("");
 
     private static final long DIRECT_BUFFER_HEAP_SIZE = measure(ByteBuffer.allocateDirect(0));
+
+    public static final long IPV6_SIZE = ObjectSizes.measureDeep(new InetSocketAddress(getIpvAddress(16), 42));
 
     /**
      * Memory a byte array consumes
@@ -235,5 +240,21 @@ public class ObjectSizes
     public static long measure(Object pojo)
     {
         return meter.measure(pojo);
+    }
+
+    public static InetAddress getIpvAddress(int size)
+    {
+        if (size == 16 || size ==4)
+        {
+            try
+            {
+                return InetAddress.getByAddress(new byte[size]);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new IllegalArgumentException("Invalid size of a byte array when getting and ipv address: " + size);
+            }
+        }
+        else throw new IllegalArgumentException("Excpected a byte array size of 4 or 16 for an ipv address but got: " + size);
     }
 }

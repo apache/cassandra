@@ -279,7 +279,7 @@ public class StreamManager implements StreamManagerMBean
         @Override
         public int weigh(TimeUUID key, StreamingState val)
         {
-            long costOfStreamingState = val.unsharedHeapSize() + TimeUUID.sizeInBytes();
+            long costOfStreamingState = val.unsharedHeapSize() + TimeUUID.TIMESTAMP_SIZE;
             int finalWeight = Math.toIntExact(costOfStreamingState);
             return finalWeight;
         }

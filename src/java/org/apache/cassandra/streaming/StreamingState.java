@@ -75,10 +75,9 @@ public class StreamingState implements StreamEventHandler, IMeasurableMemory
     @Override
     public long unsharedHeapSize()
     {
-        long costOfPeers = peers().size() * (InetAddressAndPort.IPV6_SIZE + 48); // 48 represents the datastructure cost computed by the JOL
+        long costOfPeers = peers().size() * (ObjectSizes.IPV6_SIZE + 48); // 48 represents the datastructure cost computed by the JOL
         long costOfCompleteMessage = ObjectSizes.sizeOf(completeMessage());
-        long weight = costOfPeers + costOfCompleteMessage + EMPTY;;
-        return weight;
+        return costOfPeers + costOfCompleteMessage + EMPTY;
     }
 
     public StreamingState(StreamResultFuture result)
