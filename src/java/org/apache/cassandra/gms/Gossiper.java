@@ -1489,7 +1489,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return isAdministrativelyInactiveState(epState);
     }
 
-    private static String getGossipStatus(EndpointState epState)
+    public static String getGossipStatus(EndpointState epState)
     {
         if (epState == null)
         {
@@ -1536,7 +1536,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      * In that case above, the {@link Map#entrySet()} ordering can be random, causing h4 to apply before h2, which will
      * be rejected by subscripers (only after updating gossip causing zero retries).
      */
-    private static Comparator<Entry<InetAddressAndPort, EndpointState>> stateOrderMap()
+    @VisibleForTesting
+    static Comparator<Entry<InetAddressAndPort, EndpointState>> stateOrderMap()
     {
         // There apears to be some edge cases where the state we are ordering get added to the global state causing
         // ordering to change... to avoid that rely on a cache
