@@ -371,8 +371,7 @@ public class CompactionManager implements CompactionManagerMBean
     @SuppressWarnings("resource")
     private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs, final OneSSTableOperation operation, int jobs, OperationType operationType)
     {
-        logger.info("Starting {}", operationType.name());
-        AllSSTableOpStatus allSSTableOpStatus = cfs.withAllSSTables(operationType, (compacting) -> {
+        return cfs.withAllSSTables(operationType, (compacting) -> {
             logger.info("Starting {} for {}.{}", operationType, cfs.keyspace.getName(), cfs.getTableName());
             List<LifecycleTransaction> transactions = new ArrayList<>();
             List<Future<?>> futures = new ArrayList<>();
@@ -434,8 +433,6 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.error("Failed to cleanup lifecycle transactions ({} for {}.{})", operationType, cfs.keyspace.getName(), cfs.getTableName(), fail);
             }
         });
-        logger.info("Completed {} with status {}", operationType.name(), allSSTableOpStatus);
-        return allSSTableOpStatus;
     }
 
     private static interface OneSSTableOperation
