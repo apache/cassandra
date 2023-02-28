@@ -62,7 +62,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
 
     public long getFilePointer()
     {
-        return writer.getFilePointer();
+        return writer.getBytesWritten();
     }
 
     protected Throwable doCommit(Throwable accumulate)
