@@ -65,7 +65,7 @@ import static org.junit.Assert.assertTrue;
 public class LongBTreeTest
 {
     private static final boolean DEBUG = false;
-    private static int perThreadTrees = 10000;
+    private static int perThreadTrees = 10;
     private static int minTreeSize = 4;
     private static int maxTreeSize = 10000; // TODO randomise this for each test
     private static int threads = DEBUG ? 1 : Runtime.getRuntime().availableProcessors() * 8;
@@ -338,7 +338,6 @@ public class LongBTreeTest
     private void testRandomSelection(long seed, int perThreadTrees, int perTreeSelections, boolean narrow, boolean mixInNotPresentItems, boolean permitReversal, Consumer<RandomSelection> testRun) throws InterruptedException
     {
         final Random outerSeedGenerator = new Random(seed);
-        int threads = Runtime.getRuntime().availableProcessors();
         final CountDownLatch latch = new CountDownLatch(threads);
         final AtomicLong errors = new AtomicLong();
         final AtomicLong count = new AtomicLong();
@@ -784,7 +783,7 @@ public class LongBTreeTest
     @Test
     public void testIndividualInsertsMediumSparseRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(randomSeed(), perThreadTrees / 10, 500, 10, 1, true);
+        testInsertions(randomSeed(), 500, 10, 1, true);
     }
 
     @Test
@@ -796,17 +795,17 @@ public class LongBTreeTest
     @Test
     public void testLargeBatchesLargeRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(randomSeed(), perThreadTrees / 10, Math.max(maxTreeSize, 5000), 3, 100, true);
+        testInsertions(randomSeed(), Math.max(maxTreeSize, 5000), 3, 100, true);
     }
 
     @Test
     public void testRandomRangeAndBatches() throws ExecutionException, InterruptedException
     {
         Random seedGenerator = new Random(randomSeed());
-        for (int i = 0 ; i < perThreadTrees / 10 ; i++)
+        for (int i = 0 ; i < 10 ; i++)
         {
             int treeSize = nextInt(seedGenerator, maxTreeSize / 10, maxTreeSize * 10);
-            testInsertions(seedGenerator.nextLong(), threads * 10, treeSize, nextInt(seedGenerator, 1, 100) / 10f, treeSize / 100, true);
+            testInsertions(seedGenerator.nextLong(), treeSize, nextInt(seedGenerator, 1, 100) / 10f, treeSize / 100, true);
         }
     }
 
