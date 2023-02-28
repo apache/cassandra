@@ -371,7 +371,8 @@ public class CompactionManager implements CompactionManagerMBean
     @SuppressWarnings("resource")
     private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs, final OneSSTableOperation operation, int jobs, OperationType operationType)
     {
-        return cfs.withAllSSTables(operationType, (compacting) -> {
+        logger.info("Starting {}", operationType.name());
+        AllSSTableOpStatus allSSTableOpStatus = cfs.withAllSSTables(operationType, (compacting) -> {
             logger.info("Starting {} for {}.{}", operationType, cfs.keyspace.getName(), cfs.getTableName());
             List<LifecycleTransaction> transactions = new ArrayList<>();
             List<Future<?>> futures = new ArrayList<>();
@@ -433,6 +434,8 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.error("Failed to cleanup lifecycle transactions ({} for {}.{})", operationType, cfs.keyspace.getName(), cfs.getTableName(), fail);
             }
         });
+        logger.info("Completed {} with status status {}", operationType.name(), allSSTableOpStatus);
+        return allSSTableOpStatus;
     }
 
     private static interface OneSSTableOperation
@@ -567,7 +570,6 @@ public class CompactionManager implements CompactionManagerMBean
 
     public AllSSTableOpStatus performCleanup(final ColumnFamilyStore cfStore, int jobs) throws InterruptedException, ExecutionException
     {
-        logger.info("Starting CLEANUP");
         assert !cfStore.isIndex();
         Keyspace keyspace = cfStore.keyspace;
 
@@ -578,7 +580,7 @@ public class CompactionManager implements CompactionManagerMBean
         final Set<Range<Token>> fullRanges = replicas.onlyFull().ranges();
         final boolean hasIndexes = cfStore.indexManager.hasIndexes();
 
-        AllSSTableOpStatus opStatus = parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
+        return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
         {
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
@@ -622,17 +624,13 @@ public class CompactionManager implements CompactionManagerMBean
                 doCleanupOne(cfStore, txn, cleanupStrategy, replicas.ranges(), hasIndexes);
             }
         }, jobs, OperationType.CLEANUP);
-        logger.info("Completed CLEANUP");
-
-        return opStatus;
     }
 
     public AllSSTableOpStatus performGarbageCollection(final ColumnFamilyStore cfStore, TombstoneOption tombstoneOption, int jobs) throws InterruptedException, ExecutionException
     {
-        logger.info("Starting GARBAGE_COLLECT");
         assert !cfStore.isIndex();
 
-        AllSSTableOpStatus opStatus = parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
+        return parallelAllSSTableOperation(cfStore, new OneSSTableOperation()
         {
             @Override
             public Iterable<SSTableReader> filterSSTables(LifecycleTransaction transaction)
@@ -668,9 +666,6 @@ public class CompactionManager implements CompactionManagerMBean
                 task.execute(active);
             }
         }, jobs, OperationType.GARBAGE_COLLECT);
-        logger.info("Completed GARBAGE_COLLECT");
-
-        return opStatus;
     }
 
     public AllSSTableOpStatus relocateSSTables(final ColumnFamilyStore cfs, int jobs) throws ExecutionException, InterruptedException
