@@ -56,10 +56,11 @@ import org.apache.cassandra.service.accord.AccordCommandsForKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.concurrent.*;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
-import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.service.accord.AccordSerializers.partitionUpdateSerializer;
+import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
 
@@ -229,7 +230,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                                                                                 baseUpdate.rowCount(),
                                                                                 baseUpdate.canHaveShadowedData());
 
-            UpdateParameters up = parameters.updateParameters(baseUpdate.metadata(), index);
+            UpdateParameters up = parameters.updateParameters(baseUpdate.metadata(), key, index);
             TxnData data = parameters.getData();
             Row staticRow = applyUpdates(baseUpdate.staticRow(), referenceOps.statics, key, Clustering.STATIC_CLUSTERING, up, data);
 

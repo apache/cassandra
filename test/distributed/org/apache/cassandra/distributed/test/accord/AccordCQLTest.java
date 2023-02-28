@@ -460,7 +460,29 @@ public class AccordCQLTest extends AccordTestBase
                  String check = "BEGIN TRANSACTION\n" +
                                 "  SELECT v FROM " + currentTable + " WHERE k = 1;\n" +
                                 "COMMIT TRANSACTION";
-                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { endingvalue }, check);
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 2 }, check);
+             });
+    }
+
+    @Test
+    public void testConstantNonStaticRowReadBeforeUpdate() throws Exception
+    {
+        test("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY (k, c))",
+             cluster ->
+             {
+                 cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 2, ?)", ConsistencyLevel.ALL, 3);
+
+                 String update = "BEGIN TRANSACTION\n" +
+                                 "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = 1 AND c = 2);\n" +
+                                 "  SELECT row1.v;\n" +
+                                 "  UPDATE " + currentTable + " SET v += 1 WHERE k = 1 AND c = 2;\n" +
+                                 "COMMIT TRANSACTION";
+                 assertRowEquals(cluster, new Object[] { 3 }, update);
+
+                 String check = "BEGIN TRANSACTION\n" +
+                                "  SELECT v FROM " + currentTable + " WHERE k = 1 AND c = 2;\n" +
+                                "COMMIT TRANSACTION";
+                 assertRowEqualsWithPreemptedRetry(cluster, new Object[] { 4 }, check);
              });
     }
 
@@ -2384,8 +2406,12 @@ public class AccordCQLTest extends AccordTestBase
                 assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 5, 5);
                 assertRowEquals(cluster, new Object[]{true}, "UPDATE " + currentTable + " SET s = 6 WHERE id = 1 IF s = 5");
                 assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 5, 6);
+
+                // Test that read before write works with CAS
+                assertRowEquals(cluster, new Object[]{true}, "UPDATE " + currentTable + " SET s +=1, v += 1 WHERE id = 1 AND c = 2 IF EXISTS");
+                assertRowSerial(cluster, "SELECT id, c, v, s FROM " + currentTable + " WHERE id = 1 AND c = 2", 1, 2, 6, 7);
                 // Make sure all the consensus using queries actually were run on Accord
-                assertEquals( 13, getAccordCoordinateCount() - startingAccordCoordinateCount);
+                assertEquals( 15, getAccordCoordinateCount() - startingAccordCoordinateCount);
         });
     }
 }

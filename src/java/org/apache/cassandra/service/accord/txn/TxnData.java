@@ -46,7 +46,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 
-public class TxnData extends TxnResult implements Data, Iterable<FilteredPartition>
+public class  TxnData extends TxnResult implements Data, Iterable<FilteredPartition>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnData());
 

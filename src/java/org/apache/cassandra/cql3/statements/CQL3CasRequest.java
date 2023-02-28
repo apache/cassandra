@@ -74,7 +74,7 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult;
-import static org.apache.cassandra.service.accord.txn.TxnDataName.Kind.USER;
+import static org.apache.cassandra.service.accord.txn.TxnDataName.Kind.CAS_READ;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 
 
@@ -397,7 +397,7 @@ public class CQL3CasRequest implements CASRequest
         @Override
         public TxnCondition asTxnCondition()
         {
-            TxnDataName txnDataName = new TxnDataName(USER, clustering, TxnRead.SERIAL_READ_NAME);
+            TxnDataName txnDataName = new TxnDataName(CAS_READ, clustering, TxnRead.CAS_READ_NAME);
             TxnReference txnReference = new TxnReference(txnDataName, null);
             return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NULL);
         }
@@ -418,7 +418,7 @@ public class CQL3CasRequest implements CASRequest
         @Override
         public TxnCondition asTxnCondition()
         {
-            TxnDataName txnDataName = new TxnDataName(USER, clustering, TxnRead.SERIAL_READ_NAME);
+            TxnDataName txnDataName = new TxnDataName(CAS_READ, clustering, TxnRead.CAS_READ_NAME);
             TxnReference txnReference = new TxnReference(txnDataName, null);
             return new TxnCondition.Exists(txnReference, TxnCondition.Kind.IS_NOT_NULL);
         }
@@ -474,7 +474,7 @@ public class CQL3CasRequest implements CASRequest
         // In a CAS request only one key is supported and writes
         // can't be dependent on any data that is read (only conditions)
         // so the only relevant keys are the read key
-        TxnRead read = TxnRead.createSerialRead(readCommand, consistencyLevel);
+        TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel);
         return new Txn.InMemory(read.keys(), read, TxnQuery.CONDITION, update);
     }
 
@@ -517,7 +517,7 @@ public class CQL3CasRequest implements CASRequest
         if (txnResult.kind() == retry_new_protocol)
             return new ConsensusAttemptResult();
         TxnData txnData = (TxnData)txnResult;
-        FilteredPartition partition = txnData.get(TxnRead.SERIAL_READ);
+        FilteredPartition partition = txnData.get(TxnRead.CAS_READ);
         return new ConsensusAttemptResult(partition != null ? partition.rowIterator() : null);
     }
 }

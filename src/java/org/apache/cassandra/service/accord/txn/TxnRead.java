@@ -43,6 +43,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
+import org.apache.cassandra.service.accord.txn.TxnDataName.Kind;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
@@ -63,6 +64,9 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     // There is only potentially one partition in a CAS and SERIAL/LOCAL_SERIAL read
     public static final String SERIAL_READ_NAME = "SERIAL_READ";
     public static final TxnDataName SERIAL_READ = TxnDataName.user(SERIAL_READ_NAME);
+
+    public static final String CAS_READ_NAME = "CAS_READ";
+    public static final TxnDataName CAS_READ = new TxnDataName(Kind.CAS_READ, CAS_READ_NAME);
 
     public static final TxnRead EMPTY_READ = new TxnRead(new TxnNamedRead[0], Keys.EMPTY, ConsistencyLevel.ANY);
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnRead(new TxnNamedRead[0], null, null));
@@ -97,6 +101,12 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     public static TxnRead createSerialRead(SinglePartitionReadCommand readCommand, ConsistencyLevel consistencyLevel)
     {
         TxnNamedRead read = new TxnNamedRead(SERIAL_READ, readCommand);
+        return new TxnRead(ImmutableList.of(read), Keys.of(read.key()), consistencyLevel);
+    }
+
+    public static TxnRead createCasRead(SinglePartitionReadCommand readCommand, ConsistencyLevel consistencyLevel)
+    {
+        TxnNamedRead read = new TxnNamedRead(CAS_READ, readCommand);
         return new TxnRead(ImmutableList.of(read), Keys.of(read.key()), consistencyLevel);
     }
 
