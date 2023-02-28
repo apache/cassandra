@@ -169,7 +169,7 @@ public class Flushing
 
             if (logCompletion)
             {
-                long bytesFlushed = writer.getFilePointer();
+                long bytesFlushed = writer.getBytesWritten();
                 logger.info("Completed flushing {} ({}) for commitlog position {}",
                             writer.getFilename(),
                             FBUtilities.prettyPrintMemory(bytesFlushed),

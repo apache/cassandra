@@ -58,6 +58,8 @@ import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.ExpMovingAverage;
+import org.apache.cassandra.utils.MovingAverage;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -119,6 +121,8 @@ public class TableMetrics
     public final Counter pendingFlushes;
     /** Total number of bytes flushed since server [re]start */
     public final Counter bytesFlushed;
+    /** The average on-disk flushed size for sstables. */
+    public final MovingAverage flushSizeOnDisk;
     /** Total number of bytes written by compaction since server [re]start */
     public final Counter compactionBytesWritten;
     /** Estimate of number of pending compactios for this table */
@@ -623,6 +627,7 @@ public class TableMetrics
         rangeLatency = createLatencyMetrics("Range", cfs.keyspace.metric.rangeLatency, GLOBAL_RANGE_LATENCY);
         pendingFlushes = createTableCounter("PendingFlushes");
         bytesFlushed = createTableCounter("BytesFlushed");
+        flushSizeOnDisk = ExpMovingAverage.decayBy1000();
 
         compactionBytesWritten = createTableCounter("CompactionBytesWritten");
         pendingCompactions = createTableGauge("PendingCompactions", () -> cfs.getCompactionStrategyManager().getEstimatedRemainingTasks());
