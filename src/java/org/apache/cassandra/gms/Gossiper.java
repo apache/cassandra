@@ -1553,10 +1553,16 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
         Cache cache = new Cache();
         return ((Comparator<Entry<InetAddressAndPort, EndpointState>>) (e1, e2) -> {
+            String e1status = getGossipStatus(cache.get(e1));
+            String e2status = getGossipStatus(cache.get(e2));
+
+            if (Objects.equals(e1status, e2status) || (BOOTSTRAPPING_STATUS.contains(e1status) && BOOTSTRAPPING_STATUS.contains(e2status)))
+                return 0;
+
             // check status first, make sure bootstrap status happens-after all others
-            if (BOOTSTRAPPING_STATUS.contains(getGossipStatus(cache.get(e1))))
+            if (BOOTSTRAPPING_STATUS.contains(e1status))
                 return 1;
-            if (BOOTSTRAPPING_STATUS.contains(getGossipStatus(cache.get(e2))))
+            if (BOOTSTRAPPING_STATUS.contains(e2status))
                 return -1;
             return 0;
         })
