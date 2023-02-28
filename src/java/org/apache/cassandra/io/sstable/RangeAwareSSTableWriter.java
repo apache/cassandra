@@ -115,7 +115,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
         currentWriter = null;
         for (SSTableMultiWriter writer : finishedWriters)
         {
-            if (writer.getFilePointer() > 0)
+            if (writer.getBytesWritten() > 0)
                 finishedReaders.addAll(writer.finish(openResult));
             else
                 SSTableMultiWriter.abortOrDie(writer);
@@ -143,9 +143,15 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     }
 
     @Override
-    public long getFilePointer()
+    public long getBytesWritten()
     {
-       return currentWriter != null ? currentWriter.getFilePointer() : 0L;
+       return currentWriter != null ? currentWriter.getBytesWritten() : 0L;
+    }
+
+    @Override
+    public long getOnDiskBytesWritten()
+    {
+        return currentWriter != null ? currentWriter.getOnDiskBytesWritten() : 0L;
     }
 
     @Override

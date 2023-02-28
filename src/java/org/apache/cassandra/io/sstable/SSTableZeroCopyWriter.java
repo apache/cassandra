@@ -148,7 +148,13 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     }
 
     @Override
-    public long getFilePointer()
+    public long getBytesWritten()
+    {
+        return 0;
+    }
+
+    @Override
+    public long getOnDiskBytesWritten()
     {
         return 0;
     }
