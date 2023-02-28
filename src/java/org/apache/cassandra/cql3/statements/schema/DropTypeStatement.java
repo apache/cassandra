@@ -31,6 +31,7 @@ import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.Event.SchemaChange;
@@ -55,7 +56,8 @@ public final class DropTypeStatement extends AlterSchemaStatement
     }
 
     // TODO: expand types into tuples in all dropped columns of all tables
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
     {
         ByteBuffer name = bytes(typeName);
 

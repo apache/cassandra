@@ -35,6 +35,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
@@ -43,6 +44,7 @@ import org.apache.cassandra.tcm.transformations.SealPeriod;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
+import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
 
 
 public class ClusterMetadataService
@@ -158,6 +160,25 @@ public class ClusterMetadataService
         replayRequestHandler = isMemberOfOwnershipGroup ? new Replay.Handler() : null;
         commitRequestHandler = isMemberOfOwnershipGroup ? new Commit.Handler(processor, replicator) : null;
     }
+
+    @SuppressWarnings("resource")
+    public static void initializeForTools(boolean loadSSTables)
+    {
+        if (instance != null)
+            return;
+        ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables();
+        emptyFromSystemTables.schema.initializeKeyspaceInstances(DistributedSchema.empty(), loadSSTables);
+        emptyFromSystemTables = emptyFromSystemTables.forceEpoch(Epoch.EMPTY);
+        LocalLog log = LocalLog.sync(emptyFromSystemTables, new AtomicLongBackedProcessor.InMemoryStorage(), true);
+        ClusterMetadataService cms = new ClusterMetadataService(MetadataSnapshots.NO_OP,
+                                                                log,
+                                                                new AtomicLongBackedProcessor(log),
+                                                                Commit.Replicator.NO_OP,
+                                                                false);
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        ClusterMetadataService.setInstance(cms);
+    }
+
 
     public boolean isCurrentMember(InetAddressAndPort peer)
     {

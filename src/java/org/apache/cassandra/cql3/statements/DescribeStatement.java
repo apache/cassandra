@@ -135,10 +135,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         Keyspaces keyspaces = Schema.instance.distributedAndLocalKeyspaces();
         UUID schemaVersion = Schema.instance.getVersion();
 
-        keyspaces = Keyspaces.builder()
-                             .add(keyspaces)
-                             .add(VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata())
-                             .build();
+        keyspaces = keyspaces.with(VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata());
 
         PagingState pagingState = options.getPagingState();
 

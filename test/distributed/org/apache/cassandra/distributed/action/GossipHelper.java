@@ -47,13 +47,11 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-import static org.junit.Assert.assertTrue;
 
 public class GossipHelper
 {
@@ -162,7 +160,7 @@ public class GossipHelper
 
     public static InstanceAction pullSchemaFrom(IInvokableInstance pullFrom)
     {
-        return new PullSchemaFrom(pullFrom);
+        return inst -> {};
     }
 
     private static InstanceAction disableBinary()
@@ -228,26 +226,6 @@ public class GossipHelper
         }
     }
 
-    private static class PullSchemaFrom implements InstanceAction
-    {
-        final InetSocketAddress pullFrom;
-
-        public PullSchemaFrom(IInvokableInstance pullFrom)
-        {
-            this.pullFrom = pullFrom.broadcastAddress();;
-        }
-
-        public void accept(IInvokableInstance pullTo)
-        {
-            pullTo.acceptsOnInstance((InetSocketAddress pullFrom) -> {
-                InetAddressAndPort endpoint = toCassandraInetAddressAndPort(pullFrom);
-                EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-                Gossiper.instance.doOnChangeNotifications(endpoint, ApplicationState.SCHEMA, state.getApplicationState(ApplicationState.SCHEMA));
-                assertTrue("schema is ready", Schema.instance.waitUntilReady(Duration.ofSeconds(10)));
-            }).accept(pullFrom);
-        }
-    }
-
     private static class BootstrapAction implements InstanceAction, Serializable
     {
         private final boolean joinRing;
@@ -277,7 +255,6 @@ public class GossipHelper
                     assert collisions.size() == 0 : String.format("Didn't expect any replacements but got %s", collisions);
                     boolean isBootstrapSuccessful = StorageService.instance.bootstrap(tokens, waitForBootstrap.toMillis());
                     assert isBootstrapSuccessful : "Bootstrap did not complete successfully";
-                    StorageService.instance.setUpDistributedSystemKeyspaces();
                     if (joinRing)
                         StorageService.instance.finishJoiningRing(true, tokens);
                 }

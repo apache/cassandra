@@ -25,7 +25,10 @@ import com.google.common.collect.ImmutableSet;
 public class MetadataKeys
 {
     public static final String CORE_NS = MetadataKeys.class.getPackage().getName().toLowerCase(Locale.ROOT);
-    public static final ImmutableSet<MetadataKey> CORE_METADATA = ImmutableSet.of();
+
+    public static final MetadataKey SCHEMA                  = make(CORE_NS, "schema", "dist_schema");
+
+    public static final ImmutableSet<MetadataKey> CORE_METADATA = ImmutableSet.of(SCHEMA);
 
     public static MetadataKey make(String...parts)
     {

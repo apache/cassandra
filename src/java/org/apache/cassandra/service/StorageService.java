@@ -22,7 +22,6 @@ import java.io.DataInputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.time.Instant;
@@ -88,6 +87,7 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -182,7 +182,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
-import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -211,7 +210,6 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Startup;
-import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.Clock;
@@ -1187,7 +1185,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // gossip snitch infos (local DC and rack)
             gossipSnitchInfo();
-            Schema.instance.startSync();
             LoadBroadcaster.instance.startBroadcasting();
             DiskUsageBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
@@ -1200,17 +1197,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void startSnapshotManager()
     {
         snapshotManager.start();
-    }
-
-    public void waitForSchema(long schemaTimeoutMillis, long ringTimeoutMillis)
-    {
-        Instant deadline = FBUtilities.now().plus(java.time.Duration.ofMillis(ringTimeoutMillis));
-
-        while (Schema.instance.isEmpty() && FBUtilities.now().isBefore(deadline))
-            Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
-
-        if (!Schema.instance.waitUntilReady(java.time.Duration.ofMillis(schemaTimeoutMillis)))
-            throw new IllegalStateException("Could not achieve schema readiness in " + java.time.Duration.ofMillis(schemaTimeoutMillis));
     }
 
     private void joinTokenRing(long schemaTimeoutMillis, long ringTimeoutMillis) throws ConfigurationException
@@ -1272,8 +1258,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     logger.info("Using saved tokens {}", bootstrapTokens);
             }
         }
-
-        setUpDistributedSystemKeyspaces();
 
         if (finishJoiningRing)
         {
@@ -1391,7 +1375,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             if (setUpSchema)
             {
-                Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION));
+                // TODO: this is not serializable!
+                Schema.instance.submit(SchemaTransformations.updateSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION));
             }
 
             DatabaseDescriptor.getRoleManager().setup();
@@ -1414,17 +1399,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean authSetupCalled()
     {
         return authSetupCalled.get();
-    }
-
-
-    @VisibleForTesting
-    public void setUpDistributedSystemKeyspaces()
-    {
-        Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(TraceKeyspace.metadata(), TraceKeyspace.GENERATION));
-        Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(SystemDistributedKeyspace.metadata(), SystemDistributedKeyspace.GENERATION));
-        Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(AuthKeyspace.metadata(), AuthKeyspace.GENERATION));
-
-        Schema.instance.transform(SchemaTransformations.updateSystemKeyspace(DistributedMetadataLogKeyspace.metadata(), 1));
     }
 
     public boolean isJoined()
@@ -1985,7 +1959,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         else
             SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.IN_PROGRESS);
         setMode(Mode.JOINING, "waiting for ring information", true);
-        waitForSchema(schemaTimeoutMillis, ringTimeoutMillis);
         setMode(Mode.JOINING, "schema complete, ready to bootstrap", true);
         setMode(Mode.JOINING, "waiting for pending range calculation", true);
         PendingRangeCalculatorService.instance.blockUntilFinished();
@@ -6483,12 +6456,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void resetLocalSchema() throws IOException
     {
-        Schema.instance.resetLocalSchema();
+        // TODO remove from MBean
+        throw new RuntimeException("Deprecated");
     }
 
     public void reloadLocalSchema()
     {
-        Schema.instance.reloadSchemaAndAnnounceVersion();
+        // TODO remove from MBean
+        throw new RuntimeException("Deprecated");
     }
 
     public void setTraceProbability(double probability)
@@ -6967,17 +6942,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public Map<String, Set<InetAddress>> getOutstandingSchemaVersions()
     {
-        Map<UUID, Set<InetAddressAndPort>> outstanding = Schema.instance.getOutstandingSchemaVersions();
-        return outstanding.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(),
-                                                                        e -> e.getValue().stream().map(InetSocketAddress::getAddress).collect(Collectors.toSet())));
+        // TODO remove from MBean
+        throw new RuntimeException("Deprecated");
     }
 
     @Override
     public Map<String, Set<String>> getOutstandingSchemaVersionsWithPort()
     {
-        Map<UUID, Set<InetAddressAndPort>> outstanding = Schema.instance.getOutstandingSchemaVersions();
-        return outstanding.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(),
-                                                                        e -> e.getValue().stream().map(Object::toString).collect(Collectors.toSet())));
+        // TODO remove from MBean
+        throw new RuntimeException("Deprecated");
     }
 
     public boolean autoOptimiseIncRepairStreams()

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.functions;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -30,13 +31,20 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.schema.CQLTypeParser;
 import org.apache.cassandra.schema.Difference;
 import org.apache.cassandra.schema.UserFunctions;
+import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
@@ -44,6 +52,8 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  */
 public class UDAggregate extends UserFunction implements AggregateFunction
 {
+    public static final Serializer serializer = new Serializer();
+
     protected static final Logger logger = LoggerFactory.getLogger(UDAggregate.class);
 
     private final UDFDataType stateType;
@@ -374,5 +384,70 @@ public class UDAggregate extends UserFunction implements AggregateFunction
 
         return builder.append(";")
                       .toString();
+    }
+
+    // Not quite a MetadataSerializer, or even a UDTAwareMetadataSerializer, as it needs the collection of UDFs during deserialization.
+    public static class Serializer
+    {
+        public void serialize(UDAggregate t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUTF(t.name().keyspace);
+            out.writeUTF(t.name().name);
+            out.writeInt(t.argumentsList().size());
+            for (String arg : t.argumentsList())
+                out.writeUTF(arg);
+            out.writeUTF(t.returnType().asCQL3Type().toString());
+            out.writeUTF(t.stateFunction.name().name);
+            out.writeUTF(t.stateType.asCQL3Type().toString());
+            out.writeBoolean(t.finalFunction() != null);
+            if (t.finalFunction() != null)
+                out.writeUTF(t.finalFunction().name().name);
+            out.writeBoolean(t.initialCondition() != null);
+            if (t.initialCondition() != null)
+                ByteBufferUtil.writeWithShortLength(t.initialCondition(), out);
+        }
+
+        public UDAggregate deserialize(DataInputPlus in, Types types, Collection<UDFunction> functions, Version version) throws IOException
+        {
+            String ks = in.readUTF();
+            String name = in.readUTF();
+            FunctionName fn = new FunctionName(ks, name);
+            int argCount = in.readInt();
+            List<AbstractType<?>> argList = new ArrayList<>(argCount);
+            for (int i = 0; i < argCount; i++)
+                argList.add(CQLTypeParser.parse(ks, in.readUTF(), types).udfType());
+            AbstractType<?> returnType = CQLTypeParser.parse(ks, in.readUTF(), types).udfType();
+            FunctionName stateFunction = new FunctionName(ks, in.readUTF());
+            AbstractType<?> stateType = CQLTypeParser.parse(ks, in.readUTF(), types).udfType();
+            boolean hasFinalFunction = in.readBoolean();
+            FunctionName finalFunction = null;
+            if (hasFinalFunction)
+                finalFunction = new FunctionName(ks, in.readUTF());
+            boolean hasInitialCondition = in.readBoolean();
+            ByteBuffer initCond = null;
+            if (hasInitialCondition)
+                initCond = ByteBufferUtil.readWithShortLength(in);
+            return UDAggregate.create(functions, fn, argList, returnType, stateFunction, finalFunction, stateType, initCond);
+        }
+
+        public long serializedSize(UDAggregate t, Version version)
+        {
+            long size = sizeof(t.name().keyspace) + sizeof(t.name().name);
+
+            size += sizeof(t.argumentsList().size());
+            for (String arg : t.argumentsList())
+                size += sizeof(arg);
+
+            size += sizeof(t.returnType().asCQL3Type().toString());
+            size += sizeof(t.stateFunction.name().name);
+            size += sizeof(t.stateType.asCQL3Type().toString());
+            size += sizeof(t.finalFunction() != null);
+            if (t.finalFunction() != null)
+                size += sizeof(t.finalFunction().name().name);
+            size += sizeof(t.initialCondition() != null);
+            if (t.initialCondition() != null)
+                size += ByteBufferUtil.serializedSizeWithShortLength(t.initialCondition());
+            return size;
+        }
     }
 }

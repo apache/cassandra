@@ -111,7 +111,7 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
              UnfilteredRowIterator data = UnfilteredPartitionIterators.getOnlyElement(command.executeLocally(orderGroup), command))
         {
             Iterator<Collection<Mutation>> mutations = baseCfs.keyspace.viewManager
-                                                       .forTable(baseCfs.metadata.id)
+                                                       .forTable(baseCfs.metadata.get())
                                                        .generateViewUpdates(Collections.singleton(view), data, empty, nowInSec, true);
 
             AtomicLong noBase = new AtomicLong(Long.MAX_VALUE);

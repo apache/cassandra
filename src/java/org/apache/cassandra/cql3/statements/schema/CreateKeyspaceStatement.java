@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
-import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
@@ -36,12 +35,11 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.KeyspaceParams.Option;
-import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 
@@ -51,7 +49,6 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
 
     private final KeyspaceAttributes attrs;
     private final boolean ifNotExists;
-    private final HashSet<String> clientWarnings = new HashSet<>();
 
     public CreateKeyspaceStatement(String keyspaceName, KeyspaceAttributes attrs, boolean ifNotExists)
     {
@@ -60,7 +57,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         this.ifNotExists = ifNotExists;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
     {
         attrs.validate();
 
@@ -84,6 +81,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
         keyspace.params.validate(keyspaceName, state);
+        keyspace.replicationStrategy.validateExpectedOptions();
         return schema.withAddedOrUpdated(keyspace);
     }
 

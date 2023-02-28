@@ -165,7 +165,6 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
             builder.setFilter(filter);
             indexSummary = indexWriter.summary.build(metadata().partitioner, boundary);
             builder.setIndexSummary(indexSummary);
-
             long indexFileLength = descriptor.fileFor(Components.PRIMARY_INDEX).length();
             int indexBufferSize = ioOptions.diskOptimizationStrategy.bufferSize(indexFileLength / builder.getIndexSummary().size());
             FileHandle.Builder indexFileBuilder = indexWriter.builder;

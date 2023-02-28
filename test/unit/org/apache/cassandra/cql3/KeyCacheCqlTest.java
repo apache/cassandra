@@ -315,7 +315,7 @@ public class KeyCacheCqlTest extends CQLTester
         }
 
         dropTable("DROP TABLE %s");
-        assert Schema.instance.isSameVersion(SchemaKeyspace.calculateSchemaDigest());
+        assertEquals(Schema.instance.getVersion(), SchemaKeyspace.calculateSchemaDigest());
 
         //Test loading for a dropped 2i/table
         CacheService.instance.keyCache.clear();

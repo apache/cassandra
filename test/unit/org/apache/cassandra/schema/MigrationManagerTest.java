@@ -519,7 +519,7 @@ public class MigrationManagerTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
         Keyspaces before = Keyspaces.none();
-        Keyspaces after = transformation.apply(before);
+        Keyspaces after = transformation.apply(null, before);
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.altered.isEmpty());
@@ -535,7 +535,7 @@ public class MigrationManagerTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
         Keyspaces before = Keyspaces.of(keyspace);
-        Keyspaces after = transformation.apply(before);
+        Keyspaces after = transformation.apply(null, before);
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.isEmpty());
@@ -552,7 +552,7 @@ public class MigrationManagerTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace1, 1);
         Keyspaces before = Keyspaces.of(keyspace0);
-        Keyspaces after = transformation.apply(before);
+        Keyspaces after = transformation.apply(null, before);
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.created.isEmpty());

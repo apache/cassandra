@@ -25,6 +25,7 @@ import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 
@@ -38,7 +39,8 @@ public final class DropKeyspaceStatement extends AlterSchemaStatement
         this.ifExists = ifExists;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    @Override
+    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
     {
         Guardrails.dropKeyspaceEnabled.ensureEnabled(state);
 

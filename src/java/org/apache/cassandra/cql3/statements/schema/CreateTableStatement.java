@@ -43,6 +43,7 @@ import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
@@ -94,7 +95,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         this.useCompactStorage = useCompactStorage;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
     {
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
@@ -108,10 +109,10 @@ public final class CreateTableStatement extends AlterSchemaStatement
             throw new AlreadyExistsException(keyspaceName, tableName);
         }
 
-        TableMetadata table = builder(keyspace.types).build();
+        TableMetadata table = builder(keyspace.types).epoch(metadata.nextEpoch()).build();
         table.validate();
 
-        if (keyspace.createReplicationStrategy().hasTransientReplicas()
+        if (keyspace.replicationStrategy.hasTransientReplicas()
             && table.params.readRepair != ReadRepairStrategy.NONE)
         {
             throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");

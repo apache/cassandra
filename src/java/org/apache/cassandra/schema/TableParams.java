@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -24,10 +25,15 @@ import java.util.Map.Entry;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.service.reads.PercentileSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
@@ -37,9 +43,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
 import static org.apache.cassandra.schema.TableParams.Option.*;
+import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 public final class TableParams
 {
+    public static final Serializer serializer = new Serializer();
     public enum Option
     {
         ALLOW_AUTO_SNAPSHOT,
@@ -477,6 +485,138 @@ public final class TableParams
         {
             extensions = ImmutableMap.copyOf(val);
             return this;
+        }
+    }
+
+    public static class Serializer implements MetadataSerializer<TableParams>
+    {
+        public void serialize(TableParams t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUTF(t.comment);
+            out.writeDouble(t.bloomFilterFpChance);
+            out.writeDouble(t.crcCheckChance);
+            out.writeInt(t.gcGraceSeconds);
+            out.writeInt(t.defaultTimeToLive);
+            out.writeInt(t.memtableFlushPeriodInMs);
+            out.writeInt(t.minIndexInterval);
+            out.writeInt(t.maxIndexInterval);
+            out.writeUTF(t.speculativeRetry.toString());
+            out.writeUTF(t.additionalWritePolicy.toString());
+            serializeMap(t.caching.asMap(), out);
+            serializeMap(t.compaction.asMap(), out);
+            serializeMap(t.compression.asMap(), out);
+            serializeMapBB(t.extensions, out);
+            out.writeBoolean(t.cdc);
+            out.writeUTF(t.readRepair.name());
+        }
+
+        public TableParams deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            TableParams.Builder builder = TableParams.builder();
+            builder.comment(in.readUTF())
+                   .bloomFilterFpChance(in.readDouble())
+                   .crcCheckChance(in.readDouble())
+                   .gcGraceSeconds(in.readInt())
+                   .defaultTimeToLive(in.readInt())
+                   .memtableFlushPeriodInMs(in.readInt())
+                   .minIndexInterval(in.readInt())
+                   .maxIndexInterval(in.readInt())
+                   .speculativeRetry(SpeculativeRetryPolicy.fromString(in.readUTF()))
+                   .additionalWritePolicy(SpeculativeRetryPolicy.fromString(in.readUTF()))
+                   .caching(CachingParams.fromMap(deserializeMap(in)))
+                   .compaction(CompactionParams.fromMap(deserializeMap(in)))
+                   .compression(CompressionParams.fromMap(deserializeMap(in)))
+                   .extensions(deserializeMapBB(in))
+                   .cdc(in.readBoolean())
+                   .readRepair(ReadRepairStrategy.fromString(in.readUTF()));
+            return builder.build();
+        }
+
+        public long serializedSize(TableParams t, Version version)
+        {
+            return sizeof(t.comment) +
+                   sizeof(t.bloomFilterFpChance) +
+                   sizeof(t.crcCheckChance) +
+                   sizeof(t.gcGraceSeconds) +
+                   sizeof(t.defaultTimeToLive) +
+                   sizeof(t.memtableFlushPeriodInMs) +
+                   sizeof(t.minIndexInterval) +
+                   sizeof(t.maxIndexInterval) +
+                   sizeof(t.speculativeRetry.toString()) +
+                   sizeof(t.additionalWritePolicy.toString()) +
+                   serializedSizeMap(t.caching.asMap()) +
+                   serializedSizeMap(t.compaction.asMap()) +
+                   serializedSizeMap(t.compression.asMap()) +
+                   serializedSizeMapBB(t.extensions) +
+                   sizeof(t.cdc) +
+                   sizeof(t.readRepair.name());
+        }
+
+        private void serializeMap(Map<String, String> map, DataOutputPlus out) throws IOException
+        {
+            out.writeInt(map.size());
+            for (Map.Entry<String, String> entry : map.entrySet())
+            {
+                out.writeUTF(entry.getKey());
+                out.writeUTF(entry.getValue());
+            }
+        }
+
+        private long serializedSizeMap(Map<String, String> map)
+        {
+            long size = sizeof(map.size());
+            for (Map.Entry<String, String> entry : map.entrySet())
+            {
+                size += sizeof(entry.getKey());
+                size += sizeof(entry.getValue());
+            }
+            return size;
+        }
+
+        private void serializeMapBB(Map<String, ByteBuffer> map, DataOutputPlus out) throws IOException
+        {
+            out.writeInt(map.size());
+            for (Map.Entry<String, ByteBuffer> entry : map.entrySet())
+            {
+                out.writeUTF(entry.getKey());
+                ByteBufferUtil.writeWithVIntLength(entry.getValue(), out);
+            }
+        }
+
+        private long serializedSizeMapBB(Map<String, ByteBuffer> map)
+        {
+            long size = sizeof(map.size());
+            for (Map.Entry<String, ByteBuffer> entry : map.entrySet())
+            {
+                size += sizeof(entry.getKey());
+                size += ByteBufferUtil.serializedSizeWithVIntLength(entry.getValue());
+            }
+            return size;
+        }
+
+        private Map<String, String> deserializeMap(DataInputPlus in) throws IOException
+        {
+            int size = in.readInt();
+            Map<String, String> map = Maps.newHashMapWithExpectedSize(size);
+            for (int i = 0; i < size; i++)
+            {
+                String key = in.readUTF();
+                String value = in.readUTF();
+                map.put(key, value);
+            }
+            return map;
+        }
+        private Map<String, ByteBuffer> deserializeMapBB(DataInputPlus in) throws IOException
+        {
+            int size = in.readInt();
+            Map<String, ByteBuffer> map = Maps.newHashMapWithExpectedSize(size);
+            for (int i = 0; i < size; i++)
+            {
+                String key = in.readUTF();
+                ByteBuffer value = ByteBufferUtil.readWithVIntLength(in);
+                map.put(key, value);
+            }
+            return map;
         }
     }
 }

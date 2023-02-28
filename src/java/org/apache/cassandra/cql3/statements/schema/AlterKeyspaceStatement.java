@@ -23,6 +23,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
@@ -43,6 +46,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata.KeyspaceDiff;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.utils.FBUtilities;
@@ -52,9 +56,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSA
 
 public final class AlterKeyspaceStatement extends AlterSchemaStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(AlterKeyspaceStatement.class);
+
     private static final boolean allow_alter_rf_during_range_movement = ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT.getBoolean();
     private static final boolean allow_unsafe_transient_changes = ALLOW_UNSAFE_TRANSIENT_CHANGES.getBoolean();
-    private final HashSet<String> clientWarnings = new HashSet<>();
 
     private final KeyspaceAttributes attrs;
     private final boolean ifExists;
@@ -66,7 +71,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         this.ifExists = ifExists;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
     {
         attrs.validate();
 
@@ -87,13 +92,21 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
         newKeyspace.params.validate(keyspaceName, state);
+        newKeyspace.replicationStrategy.validate();
 
-        validateNoRangeMovements();
-        validateTransientReplication(keyspace.createReplicationStrategy(), newKeyspace.createReplicationStrategy());
+        validateTransientReplication(keyspace.replicationStrategy, newKeyspace.replicationStrategy);
 
-        Keyspaces res = schema.withAddedOrUpdated(newKeyspace);
+        // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
+        try
+        {
+            newKeyspace.replicationStrategy.validateExpectedOptions();
+        }
+        catch (ConfigurationException e)
+        {
+            logger.warn("Ignoring {}", e.getMessage());
+        }
 
-        return res;
+        return schema.withAddedOrUpdated(newKeyspace);
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -109,13 +122,14 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
     @Override
     Set<String> clientWarnings(KeyspacesDiff diff)
     {
+        HashSet<String> clientWarnings = new HashSet<>();
         if (diff.isEmpty())
             return clientWarnings;
 
         KeyspaceDiff keyspaceDiff = diff.altered.get(0);
 
-        AbstractReplicationStrategy before = keyspaceDiff.before.createReplicationStrategy();
-        AbstractReplicationStrategy after = keyspaceDiff.after.createReplicationStrategy();
+        AbstractReplicationStrategy before = keyspaceDiff.before.replicationStrategy;
+        AbstractReplicationStrategy after = keyspaceDiff.after.replicationStrategy;
 
         if (before.getReplicationFactor().fullReplicas < after.getReplicationFactor().fullReplicas)
             clientWarnings.add("When increasing replication factor you need to run a full (-full) repair to distribute the data.");
@@ -130,7 +144,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
         Stream<InetAddressAndPort> unreachableNotAdministrativelyInactive =
             Gossiper.instance.getUnreachableMembers().stream().filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
-                                                                      !Gossiper.instance.isAdministrativelyInactiveState(endpoint));
+                                                                                  !Gossiper.instance.isAdministrativelyInactiveState(endpoint));
         Stream<InetAddressAndPort> endpoints = Stream.concat(Gossiper.instance.getLiveMembers().stream(),
                                                              unreachableNotAdministrativelyInactive);
         List<InetAddressAndPort> notNormalEndpoints = endpoints.filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&

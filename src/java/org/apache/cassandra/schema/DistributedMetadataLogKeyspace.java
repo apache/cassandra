@@ -235,6 +235,7 @@ public final class DistributedMetadataLogKeyspace
     {
         return CreateTableStatement.parse(String.format(cql, SchemaConstants.METADATA_KEYSPACE_NAME, table), SchemaConstants.METADATA_KEYSPACE_NAME)
                                    .id(TableId.unsafeDeterministic(SchemaConstants.METADATA_KEYSPACE_NAME, table))
+                                   .epoch(FIRST)
                                    .comment(description);
     }
 

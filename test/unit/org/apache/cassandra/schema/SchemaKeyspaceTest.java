@@ -28,10 +28,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -62,8 +60,8 @@ import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(BMUnitRunner.class)
 public class SchemaKeyspaceTest
@@ -82,6 +80,7 @@ public class SchemaKeyspaceTest
         MessagingService.instance().listen();
     }
 
+    // TODO: REMOVE THIS TEST, IT IS NOW FULLY IRRELEVANT
     /** See CASSANDRA-16856/16996. Make sure schema pulls are synchronized to prevent concurrent schema pull/writes */
     @Test
     @BMRule(name = "delay partition updates to schema tables",
@@ -94,7 +93,8 @@ public class SchemaKeyspaceTest
         String keyspace = "sandbox";
         ExecutorService pool = Executors.newFixedThreadPool(2);
 
-        SchemaKeyspace.truncate(); // Make sure there's nothing but the create we're about to do
+        //TODO: check if that's right
+        //Schema.instance.resetLocalSchema(); // Make sure there's nothing but the create we're about to do
         CyclicBarrier barrier = new CyclicBarrier(2);
 
         Future<Void> creation = pool.submit(() -> {
@@ -105,13 +105,19 @@ public class SchemaKeyspaceTest
 
         Future<Collection<Mutation>> mutationsFromThread = pool.submit(() -> {
             barrier.await();
-            return Stream.generate(this::getSchemaMutations).filter(m -> !m.isEmpty()).findFirst().get();
+
+            Collection<Mutation> mutations = SchemaKeyspace.convertSchemaToMutations();
+            // Make sure we actually have a mutation to check for partial modification.
+            while (mutations.size() == 0)
+                mutations = SchemaKeyspace.convertSchemaToMutations();
+
+            return mutations;
         });
 
         creation.get(); // make sure the creation is finished
 
         Collection<Mutation> mutationsFromConcurrentAccess = mutationsFromThread.get();
-        Collection<Mutation> settledMutations = getSchemaMutations();
+        Collection<Mutation> settledMutations = SchemaKeyspace.convertSchemaToMutations();
 
         // If the worker thread picked up the creation at all, it should have the same modifications.
         // In other words, we should see all modifications or none.
@@ -141,7 +147,7 @@ public class SchemaKeyspaceTest
     @Test
     public void testConversionsInverses() throws Exception
     {
-        for (String keyspaceName : Schema.instance.getNonSystemKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
             {

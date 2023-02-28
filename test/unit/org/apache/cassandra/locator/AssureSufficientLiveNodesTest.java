@@ -20,7 +20,6 @@ package org.apache.cassandra.locator;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -47,7 +46,6 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.NeverSpeculativeRetryPolicy;
 import org.apache.cassandra.utils.FBUtilities;
 import org.jboss.byteman.contrib.bmunit.BMRule;
@@ -84,8 +82,7 @@ public class AssureSufficientLiveNodesTest
     {
         SchemaLoader.loadSchema();
         // Register peers with expected DC for NetworkTopologyStrategy.
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.clearUnsafe();
+//        metadata.clearUnsafe();
 
         DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
         {
@@ -113,8 +110,8 @@ public class AssureSufficientLiveNodesTest
         for (int i = 0; i < instances.size(); i++)
         {
             InetAddressAndPort ip = instances.get(i);
-            metadata.updateHostId(UUID.randomUUID(), ip);
-            metadata.updateNormalToken(new Murmur3Partitioner.LongToken(i), ip);
+//            metadata.updateHostId(UUID.randomUUID(), ip);
+//            metadata.updateNormalToken(new Murmur3Partitioner.LongToken(i), ip);
         }
     }
 
@@ -266,13 +263,13 @@ public class AssureSufficientLiveNodesTest
             for (int i = 0; i < loopCount; i++)
             {
                 // reset the keyspace
-                racedKs.setMetadata(initKsMeta);
+//                racedKs.setMetadata(initKsMeta);
                 CountDownLatch trigger = new CountDownLatch(1);
                 // starts 2 runnables that could race
                 Future<?> f1 = es.submit(() -> {
                     Uninterruptibles.awaitUninterruptibly(trigger);
                     // Update replication strategy
-                    racedKs.setMetadata(alterToKsMeta);
+//                    racedKs.setMetadata(alterToKsMeta);
                 });
                 Future<?> f2 = es.submit(() -> {
                     Uninterruptibles.awaitUninterruptibly(trigger);

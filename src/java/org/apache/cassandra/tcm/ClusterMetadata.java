@@ -35,6 +35,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -56,6 +57,7 @@ public class ClusterMetadata
     public final IPartitioner partitioner;       // Set during (initial) construction and not modifiable via Transformer
     public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
 
+    public final DistributedSchema schema;
     public final EndpointsForRange cmsReplicas;
     public final ImmutableSet<InetAddressAndPort> cmsMembers;
 
@@ -65,6 +67,7 @@ public class ClusterMetadata
              Period.EMPTY,
              true,
              partitioner,
+             DistributedSchema.first(),
              ImmutableSet.of(),
              ImmutableMap.of());
     }
@@ -73,6 +76,7 @@ public class ClusterMetadata
                            long period,
                            boolean lastInPeriod,
                            IPartitioner partitioner,
+                           DistributedSchema schema,
                            Set<InetAddressAndPort> cmsMembers,
                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions)
     {
@@ -80,6 +84,7 @@ public class ClusterMetadata
         this.period = period;
         this.lastInPeriod = lastInPeriod;
         this.partitioner = partitioner;
+        this.schema = schema;
         this.cmsMembers = ImmutableSet.copyOf(cmsMembers);
         this.extensions = ImmutableMap.copyOf(extensions);
 
@@ -110,6 +115,17 @@ public class ClusterMetadata
         return new Transformer(this, this.nextEpoch(), sealPeriod);
     }
 
+    public ClusterMetadata forceEpoch(Epoch epoch)
+    {
+        return new ClusterMetadata(epoch,
+                                   period,
+                                   lastInPeriod,
+                                   partitioner,
+                                   schema,
+                                   cmsMembers,
+                                   extensions);
+    }
+
     public Epoch nextEpoch()
     {
         return epoch.nextEpoch();
@@ -127,6 +143,7 @@ public class ClusterMetadata
         private final long period;
         private final boolean lastInPeriod;
         private final IPartitioner partitioner;
+        private DistributedSchema schema;
         private final Set<InetAddressAndPort> cmsMembers;
         private final Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions;
         private final Set<MetadataKey> modifiedKeys;
@@ -138,9 +155,16 @@ public class ClusterMetadata
             this.period = metadata.nextPeriod();
             this.lastInPeriod = lastInPeriod;
             this.partitioner = metadata.partitioner;
+            this.schema = metadata.schema;
             this.cmsMembers = new HashSet<>(metadata.cmsMembers);
             extensions = new HashMap<>(metadata.extensions);
             modifiedKeys = new HashSet<>();
+        }
+
+        public Transformer with(DistributedSchema schema)
+        {
+            this.schema = schema;
+            return this;
         }
 
         public Transformer withCMSMember(InetAddressAndPort member)
@@ -199,10 +223,17 @@ public class ClusterMetadata
                     mutable.withLastModified(epoch);
             }
 
+            if (schema != base.schema)
+            {
+                modifiedKeys.add(MetadataKeys.SCHEMA);
+                schema = schema.withLastModified(epoch);
+            }
+
             return new Transformed(new ClusterMetadata(epoch,
                                                        period,
                                                        lastInPeriod,
                                                        partitioner,
+                                                       schema,
                                                        cmsMembers,
                                                        extensions),
                                    ImmutableSet.copyOf(modifiedKeys));
@@ -216,6 +247,7 @@ public class ClusterMetadata
                    ", epoch=" + epoch +
                    ", lastInPeriod=" + lastInPeriod +
                    ", partitioner=" + partitioner +
+                   ", schema=" + schema +
                    ", extensions=" + extensions +
                    ", cmsMembers=" + cmsMembers +
                    ", modifiedKeys=" + modifiedKeys +
@@ -286,6 +318,7 @@ public class ClusterMetadata
             out.writeUnsignedVInt(metadata.period);
             out.writeBoolean(metadata.lastInPeriod);
             out.writeUTF(metadata.partitioner.getClass().getCanonicalName());
+            DistributedSchema.serializer.serialize(metadata.schema, out, version);
             out.writeInt(metadata.extensions.size());
             for (Map.Entry<ExtensionKey<?, ?>, ExtensionValue<?>> entry : metadata.extensions.entrySet())
             {
@@ -307,6 +340,7 @@ public class ClusterMetadata
             long period = in.readUnsignedVInt();
             boolean lastInPeriod = in.readBoolean();
             IPartitioner partitioner = FBUtilities.newPartitioner(in.readUTF());
+            DistributedSchema schema = DistributedSchema.serializer.deserialize(in, version);
             int items = in.readInt();
             Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions = new HashMap<>(items);
             for (int i = 0; i < items; i++)
@@ -324,6 +358,7 @@ public class ClusterMetadata
                                        period,
                                        lastInPeriod,
                                        partitioner,
+                                       schema,
                                        members,
                                        extensions);
         }
@@ -339,7 +374,8 @@ public class ClusterMetadata
             size += Epoch.serializer.serializedSize(metadata.epoch) +
                     VIntCoding.computeUnsignedVIntSize(metadata.period) +
                     TypeSizes.BOOL_SIZE +
-                    sizeof(metadata.partitioner.getClass().getCanonicalName());
+                    sizeof(metadata.partitioner.getClass().getCanonicalName()) +
+                    DistributedSchema.serializer.serializedSize(metadata.schema, version);
 
             size += TypeSizes.INT_SIZE;
             for (InetAddressAndPort member : metadata.cmsMembers)

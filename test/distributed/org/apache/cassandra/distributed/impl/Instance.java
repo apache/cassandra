@@ -36,8 +36,8 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import javax.management.ListenerNotFoundException;
@@ -112,7 +112,6 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.MigrationCoordinator;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -166,7 +165,6 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.fromCassandraInetAddressAndPort;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
 import static org.apache.cassandra.net.Verb.BATCH_STORE_REQ;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
  * This class is instantiated on the relevant classloader, so its methods invoke the correct target classes automatically
@@ -631,7 +629,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 try
                 {
                     // load schema from disk
-                    Schema.instance.loadFromDisk();
+//                    Schema.instance.loadFromDisk();
                 }
                 catch (Exception e)
                 {
@@ -695,7 +693,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 StorageService.instance.registerDaemon(CassandraDaemon.getInstanceForTesting());
                 if (config.has(GOSSIP))
                 {
-                    MigrationCoordinator.setUptimeFn(() -> TimeUnit.NANOSECONDS.toMillis(nanoTime() - startedAt.get()));
                     try
                     {
                         StorageService.instance.initServer();
@@ -714,7 +711,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 }
                 else
                 {
-                    Schema.instance.startSync();
+//                    Schema.instance.startSync();
                     Stream peers = cluster.stream().filter(instance -> ((IInstance) instance).isValid());
                     SystemKeyspace.setLocalHostId(config.hostId());
                     if (config.has(BLANK_GOSSIP))
@@ -724,7 +721,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     else
                         peers.forEach(peer -> GossipHelper.unsafeStatusToNormal(this, (IInstance) peer));
 
-                    StorageService.instance.setUpDistributedSystemKeyspaces();
+//                    StorageService.instance.setUpDistributedSystemKeyspaces();
                     StorageService.instance.setNormalModeUnsafe();
                     Gossiper.instance.register(StorageService.instance);
                     StorageService.instance.startSnapshotManager();

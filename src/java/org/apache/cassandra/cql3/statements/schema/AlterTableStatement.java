@@ -31,7 +31,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableSet;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +46,6 @@ import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
-
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -65,17 +63,17 @@ import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.utils.NoSpamLogger;
 
-import static java.lang.String.format;
-import static java.lang.String.join;
-
 import static com.google.common.collect.Iterables.isEmpty;
 import static com.google.common.collect.Iterables.transform;
-
+import static java.lang.String.format;
+import static java.lang.String.join;
 import static org.apache.cassandra.schema.TableMetadata.Flag;
 
 public abstract class AlterTableStatement extends AlterSchemaStatement
@@ -100,7 +98,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         this.state = state;
     }
 
-    public Keyspaces apply(Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
     {
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
@@ -118,7 +116,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         if (table.isView())
             throw ire("Cannot use ALTER TABLE on a materialized view; use ALTER MATERIALIZED VIEW instead");
 
-        return schema.withAddedOrUpdated(apply(keyspace, table));
+        return schema.withAddedOrUpdated(apply(metadata.nextEpoch(), keyspace, table));
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -142,7 +140,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         return format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
     }
 
-    abstract KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table);
+    abstract KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table);
 
     /**
      * ALTER TABLE [IF EXISTS] <table> ALTER <column> TYPE <newtype>;
@@ -156,7 +154,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super(keyspaceName, tableName, ifTableExists);
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             throw ire("Altering column types is no longer supported");
         }
@@ -196,7 +194,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
 
         @Override
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             ColumnMetadata column = table.getColumn(columnName);
 
@@ -214,7 +212,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             if (Objects.equals(oldMask, newMask))
                 return keyspace;
 
-            TableMetadata.Builder tableBuilder = table.unbuild();
+            TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
             tableBuilder.alterColumnMask(columnName, newMask);
             TableMetadata newTable = tableBuilder.build();
             newTable.validate();
@@ -274,10 +272,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             newColumns.forEach(c -> c.type.validate(state, "Column " + c.name));
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
-            TableMetadata.Builder tableBuilder = table.unbuild();
+            TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
             Views.Builder viewsBuilder = keyspace.views.unbuild();
             newColumns.forEach(c -> addColumn(keyspace, table, c, ifColumnNotExists, tableBuilder, viewsBuilder));
 
@@ -379,10 +377,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.timestamp = timestamp;
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
-            TableMetadata.Builder builder = table.unbuild();
+            TableMetadata.Builder builder = table.unbuild().epoch(epoch);
             removedColumns.forEach(c -> dropColumn(keyspace, table, c, ifColumnExists, builder));
             return keyspace.withSwapped(keyspace.tables.withSwapped(builder.build()));
         }
@@ -447,10 +445,10 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.ifColumnsExists = ifColumnsExists;
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
-            TableMetadata.Builder tableBuilder = table.unbuild();
+            TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
             Views.Builder viewsBuilder = keyspace.views.unbuild();
             renamedColumns.forEach((o, n) -> renameColumn(keyspace, table, o, n, ifColumnsExists, tableBuilder, viewsBuilder));
 
@@ -529,7 +527,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             validateDefaultTimeToLive(attrs.asNewTableParams());
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             attrs.validate();
 
@@ -547,7 +545,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                           "before being replayed.");
             }
 
-            if (keyspace.createReplicationStrategy().hasTransientReplicas()
+            if (keyspace.replicationStrategy.hasTransientReplicas()
                 && params.readRepair != ReadRepairStrategy.NONE)
             {
                 throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
@@ -573,7 +571,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super(keyspaceName, tableName, ifTableExists);
         }
 
-        public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             if (!DatabaseDescriptor.enableDropCompactStorage())
                 throw new InvalidRequestException("DROP COMPACT STORAGE is disabled. Enable in cassandra.yaml to use.");
@@ -587,7 +585,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                             ? ImmutableSet.of(Flag.COMPOUND, Flag.COUNTER)
                             : ImmutableSet.of(Flag.COMPOUND);
 
-            return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(flags)));
+            return keyspace.withSwapped(keyspace.tables.withSwapped(table.unbuild().epoch(epoch).flags(flags).build()));
         }
 
         /**

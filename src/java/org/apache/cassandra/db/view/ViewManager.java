@@ -28,12 +28,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.schema.SystemDistributedKeyspace;
-import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.MV_ENABLE_COORDINATOR_BATCHLOG;
@@ -84,7 +81,7 @@ public class ViewManager
                 if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor().allReplicas == 1)
                     continue;
 
-                if (!forTable(update.metadata().id).updatedViews(update).isEmpty())
+                if (!forTable(update.metadata()).updatedViews(update).isEmpty())
                     return true;
             }
         }
@@ -149,7 +146,7 @@ public class ViewManager
         }
 
         View view = new View(definition, keyspace.getColumnFamilyStore(definition.baseTableId));
-        forTable(view.getDefinition().baseTableId).add(view);
+        forTable(view.getDefinition().baseTableMetadata()).add(view);
         viewsByName.put(definition.name(), view);
     }
 
@@ -166,7 +163,7 @@ public class ViewManager
             return;
 
         view.stopBuild();
-        forTable(view.getDefinition().baseTableId).removeByName(name);
+        forTable(view.getDefinition().baseTableMetadata()).removeByName(name);
         SystemKeyspace.setViewRemoved(keyspace.getName(), view.name);
         SystemDistributedKeyspace.setViewRemoved(keyspace.getName(), view.name);
     }
@@ -182,13 +179,13 @@ public class ViewManager
             view.build();
     }
 
-    public TableViews forTable(TableId id)
+    public TableViews forTable(TableMetadata metadata)
     {
-        TableViews views = viewsByBaseTable.get(id);
+        TableViews views = viewsByBaseTable.get(metadata.id);
         if (views == null)
         {
-            views = new TableViews(id);
-            TableViews previous = viewsByBaseTable.putIfAbsent(id, views);
+            views = new TableViews(metadata);
+            TableViews previous = viewsByBaseTable.putIfAbsent(metadata.id, views);
             if (previous != null)
                 views = previous;
         }

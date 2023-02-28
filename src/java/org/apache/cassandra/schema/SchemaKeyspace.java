@@ -67,7 +67,7 @@ import static org.apache.cassandra.utils.Simulate.With.GLOBAL_CLOCK;
  * system_schema.* tables and methods for manipulating them.
  *
  * Please notice this class is _not_ thread safe and all methods which reads or updates the data in schema keyspace
- * should be accessed only from the implementation of {@link SchemaUpdateHandler} in synchronized blocks.
+ * should be accessed only from the implementation of {SchemaUpdateHandler} in synchronized blocks.
  */
 @NotThreadSafe
 public final class SchemaKeyspace
@@ -287,7 +287,7 @@ public final class SchemaKeyspace
         return KeyspaceMetadata.create(SchemaConstants.SCHEMA_KEYSPACE_NAME, KeyspaceParams.local(), org.apache.cassandra.schema.Tables.of(ALL_TABLE_METADATA));
     }
 
-    static Collection<Mutation> convertSchemaDiffToMutations(KeyspacesDiff diff, long timestamp)
+    public static Collection<Mutation> convertSchemaDiffToMutations(KeyspacesDiff diff, long timestamp)
     {
         Map<String, Mutation> mutations = new HashMap<>();
 
@@ -885,7 +885,7 @@ public final class SchemaKeyspace
                .add("argument_names", function.argNames().stream().map((c) -> bbToString(c.bytes)).collect(toList()));
     }
 
-    private static String bbToString(ByteBuffer bb)
+    public static String bbToString(ByteBuffer bb)
     {
         try
         {
@@ -933,14 +933,14 @@ public final class SchemaKeyspace
     {
         String query = format("SELECT keyspace_name FROM %s.%s", SchemaConstants.SCHEMA_KEYSPACE_NAME, KEYSPACES);
 
-        Keyspaces.Builder keyspaces = org.apache.cassandra.schema.Keyspaces.builder();
+        Keyspaces keyspaces = org.apache.cassandra.schema.Keyspaces.NONE;
         for (UntypedResultSet.Row row : query(query))
         {
             String keyspaceName = row.getString("keyspace_name");
             if (!excludedKeyspaceNames.contains(keyspaceName))
-                keyspaces.add(fetchKeyspace(keyspaceName));
+                keyspaces = keyspaces.with(fetchKeyspace(keyspaceName));
         }
-        return keyspaces.build();
+        return keyspaces;
     }
 
     private static KeyspaceMetadata fetchKeyspace(String keyspaceName)
@@ -1393,7 +1393,7 @@ public final class SchemaKeyspace
                         .collect(toSet());
     }
 
-    static void applyChanges(Collection<Mutation> mutations)
+    public static void applyChanges(Collection<Mutation> mutations)
     {
         mutations.forEach(Mutation::apply);
         if (SchemaKeyspace.FLUSH_SCHEMA_TABLES)
@@ -1408,10 +1408,10 @@ public final class SchemaKeyspace
          */
         String query = format("SELECT keyspace_name FROM %s.%s WHERE keyspace_name IN ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, KEYSPACES);
 
-        Keyspaces.Builder keyspaces = org.apache.cassandra.schema.Keyspaces.builder();
+        Keyspaces keyspaces = org.apache.cassandra.schema.Keyspaces.NONE;
         for (UntypedResultSet.Row row : query(query, new ArrayList<>(toFetch)))
-            keyspaces.add(fetchKeyspace(row.getString("keyspace_name")));
-        return keyspaces.build();
+            keyspaces = keyspaces.with(fetchKeyspace(row.getString("keyspace_name")));
+        return keyspaces;
     }
 
     @VisibleForTesting

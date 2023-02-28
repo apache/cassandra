@@ -40,7 +40,6 @@ import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.metrics.ClearableHistogram;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.assertj.core.api.Assertions;
@@ -525,7 +524,7 @@ public class KeyspaceTest extends CQLTester
     {
         String ksName = "MissingKeyspace";
 
-        Assertions.assertThatThrownBy(() -> Keyspace.open(ksName, Schema.instance, false))
+        Assertions.assertThatThrownBy(() -> Keyspace.open(ksName))
                   .isInstanceOf(AssertionError.class)
                   .hasMessage("Unknown keyspace " + ksName);
     }

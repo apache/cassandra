@@ -30,9 +30,8 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 /**
  * The unique identifier of a table.
@@ -40,7 +39,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * This is essentially a UUID, but we wrap it as it's used quite a bit in the code and having a nicely named class make
  * the code more readable.
  */
-public class TableId
+public class TableId implements Comparable<TableId>
 {
     // TODO: should this be a TimeUUID?
     private final UUID id;
@@ -148,5 +147,11 @@ public class TableId
     public static TableId deserialize(DataInput in) throws IOException
     {
         return new TableId(new UUID(in.readLong(), in.readLong()));
+    }
+
+    @Override
+    public int compareTo(TableId o)
+    {
+        return id.compareTo(o.id);
     }
 }

@@ -572,12 +572,12 @@ public class CQLSSTableWriter implements Closeable
 
                 String keyspaceName = schemaStatement.keyspace();
 
-                Schema.instance.transform(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(keyspaceName,
-                                                                                                    KeyspaceParams.simple(1),
-                                                                                                    Tables.none(),
-                                                                                                    Views.none(),
-                                                                                                    Types.none(),
-                                                                                                    UserFunctions.none()), true));
+                Schema.instance.submit(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(keyspaceName,
+                                                                                                 KeyspaceParams.simple(1),
+                                                                                                 Tables.none(),
+                                                                                                 Views.none(),
+                                                                                                 Types.none(),
+                                                                                                 UserFunctions.none()), true));
 
                 KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspaceName);
 
@@ -585,14 +585,14 @@ public class CQLSSTableWriter implements Closeable
                 if (tableMetadata == null)
                 {
                     Types types = createTypes(keyspaceName);
-                    Schema.instance.transform(SchemaTransformations.addTypes(types, true));
+                    Schema.instance.submit(SchemaTransformations.addTypes(types, true));
                     tableMetadata = createTable(types);
-                    Schema.instance.transform(SchemaTransformations.addTable(tableMetadata, true));
+                    Schema.instance.submit(SchemaTransformations.addTable(tableMetadata, true));
                 }
 
                 ModificationStatement preparedModificationStatement = prepareModificationStatement();
 
-                TableMetadataRef ref = TableMetadataRef.forOfflineTools(tableMetadata);
+                TableMetadataRef ref = tableMetadata.ref;
                 AbstractSSTableSimpleWriter writer = sorted
                                                      ? new SSTableSimpleWriter(directory, ref, preparedModificationStatement.updatedColumns())
                                                      : new SSTableSimpleUnsortedWriter(directory, ref, preparedModificationStatement.updatedColumns(), bufferSizeInMiB);

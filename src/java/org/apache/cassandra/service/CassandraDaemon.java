@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -72,6 +73,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -250,9 +252,25 @@ public class CassandraDaemon
 
         NativeLibrary.tryMlockall();
 
+        DatabaseDescriptor.createAllDirectories();
+
+        Keyspace.setInitialized();
+
         CommitLog.instance.start();
 
-        runStartupChecks();
+        try
+        {
+            Startup.initialize(DatabaseDescriptor.getSeeds());
+        }
+        catch (InterruptedException | ExecutionException e)
+        {
+            throw new AssertionError("Can't initialize cluster metadata service");
+        }
+
+        QueryProcessor.registerStatementInvalidatingListener();
+
+        //TODO disabled b/c this involves checking schema but log replay hasn't run yet so it hasn't been constructed
+//        runStartupChecks();
 
         try
         {
@@ -274,16 +292,16 @@ public class CassandraDaemon
         // Populate token metadata before flushing, for token-aware sstable partitioning (#6696)
         StorageService.instance.populateTokenMetadata();
 
-        try
-        {
-            // load schema from disk
-            Schema.instance.loadFromDisk();
-        }
-        catch (Exception e)
-        {
-            logger.error("Error while loading schema: ", e);
-            throw e;
-        }
+//        try
+//        {
+//            // load schema from disk
+//            Schema.instance.loadFromDisk();
+//        }
+//        catch (Exception e)
+//        {
+//            logger.error("Error while loading schema: ", e);
+//            throw e;
+//        }
 
         setupVirtualKeyspaces();
 

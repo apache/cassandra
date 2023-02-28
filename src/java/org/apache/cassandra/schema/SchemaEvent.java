@@ -30,6 +30,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.MapDifference;
 
@@ -87,7 +88,7 @@ public final class SchemaEvent extends DiagnosticEvent
         SCHEMATA_CLEARED
     }
 
-    SchemaEvent(SchemaEventType type, Schema schema, @Nullable KeyspaceMetadata ksUpdate,
+    SchemaEvent(SchemaEventType type, SchemaProvider schema, @Nullable KeyspaceMetadata ksUpdate,
                 @Nullable KeyspaceMetadata previous, @Nullable KeyspaceMetadata.KeyspaceDiff ksDiff,
                 @Nullable TableMetadata tableUpdate, @Nullable Tables.TablesDiff tablesDiff,
                 @Nullable Views.ViewsDiff viewsDiff, @Nullable MapDifference<String, TableMetadata> indexesDiff)
@@ -101,9 +102,10 @@ public final class SchemaEvent extends DiagnosticEvent
         this.viewsDiff = viewsDiff;
         this.indexesDiff = indexesDiff;
 
-        this.keyspaces = schema.distributedAndLocalKeyspaces().names();
-        this.nonSystemKeyspaces = schema.distributedKeyspaces().names();
-        this.userKeyspaces = schema.getUserKeyspaces().names();
+        // todo: no need to copy here
+        this.keyspaces = ImmutableSet.copyOf(schema.distributedAndLocalKeyspaces().names());
+        this.nonSystemKeyspaces = ImmutableSet.copyOf(schema.distributedKeyspaces().names());
+        this.userKeyspaces = ImmutableSet.copyOf(schema.getUserKeyspaces().names());
         this.numberOfTables = schema.getNumberOfTables();
         this.version = schema.getVersion();
 

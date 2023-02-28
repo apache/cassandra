@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.cql3.functions.masking;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,10 +41,19 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionResolver;
 import org.apache.cassandra.cql3.functions.ScalarFunction;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.schema.CQLTypeParser;
+import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.UserFunctions;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -67,6 +77,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  */
 public class ColumnMask
 {
+    public static Serializer serializer = new Serializer();
     public static final String DISABLED_ERROR_MESSAGE = "Cannot mask columns because dynamic data masking is not " +
                                                         "enabled. You can enable it with the " +
                                                         "dynamic_data_masking_enabled property on cassandra.yaml";
@@ -268,4 +279,72 @@ public class ColumnMask
             return format("%s(%s)", name, StringUtils.join(rawPartialArguments, ", "));
         }
     }
+
+    public static class Serializer
+    {
+        public void serialize(ColumnMask columnMask, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUTF(columnMask.function.name().keyspace);
+            out.writeUTF(columnMask.function.name().name);
+            List<AbstractType<?>> argTypes = columnMask.partialArgumentTypes();
+            int numArgs = argTypes.size();
+            out.writeUnsignedVInt32(numArgs);
+            for (int i = 0; i < numArgs; i++)
+            {
+                out.writeUTF(argTypes.get(i).asCQL3Type().toString());
+                ByteBuffer value = columnMask.partialArgumentValues[i];
+                out.writeBoolean(value != null);
+                if (value != null)
+                    ByteBufferUtil.writeWithVIntLength(value, out);
+            }
+        }
+
+        public ColumnMask deserialize(DataInputPlus in, String keyspace, AbstractType<?> columnType, Types types, UserFunctions functions, Version version) throws IOException
+        {
+            FunctionName functionName = new FunctionName(in.readUTF(), in.readUTF());
+
+            int numArgs = in.readUnsignedVInt32();
+            List<AbstractType<?>> argTypes = new ArrayList<>(numArgs + 1);
+            argTypes.set(0, columnType);
+            ByteBuffer[] partialArgValues = new ByteBuffer[numArgs];
+            for (int i = 0; i < numArgs; i++)
+            {
+                AbstractType<?> argType = CQLTypeParser.parse(keyspace, in.readUTF(), types);
+                argTypes.set(i + 1,  argType);
+                boolean valuePresent = in.readBoolean();
+                partialArgValues[i] = valuePresent ? null : ByteBufferUtil.readWithVIntLength(in);
+            }
+
+            Function function = FunctionResolver.get(keyspace, functionName, argTypes, null, null, null, functions);
+            if (function == null)
+            {
+                throw new AssertionError(format("Unable to find masking function %s(%s)", functionName, argTypes));
+            }
+            else if (!(function instanceof ScalarFunction))
+            {
+                throw new AssertionError(format("Function %s is not a scalar masking function", function));
+            }
+            return ColumnMask.build((ScalarFunction) function, partialArgValues);
+        }
+
+        public long serializedSize(ColumnMask columnMask, Version version)
+        {
+            List<AbstractType<?>> argTypes = columnMask.partialArgumentTypes();
+            int numArgs = argTypes.size();
+            long size = TypeSizes.sizeof(columnMask.function.name().keyspace) +
+                        TypeSizes.sizeof(columnMask.function.name().name) +
+                        VIntCoding.computeUnsignedVIntSize(numArgs);
+
+            for (int i = 0; i < numArgs; i++)
+            {
+                size += TypeSizes.sizeof(argTypes.get(i).asCQL3Type().toString());
+                size += TypeSizes.BOOL_SIZE;
+                ByteBuffer value = columnMask.partialArgumentValues[i];
+                if (value != null)
+                    size += ByteBufferUtil.serializedSizeWithVIntLength(value);
+            }
+            return size;
+        }
+    }
+
 }

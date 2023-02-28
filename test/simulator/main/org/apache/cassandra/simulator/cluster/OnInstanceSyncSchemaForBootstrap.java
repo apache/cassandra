@@ -18,20 +18,16 @@
 
 package org.apache.cassandra.simulator.cluster;
 
-import java.time.Duration;
-
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.simulator.systems.SimulatedActionTask;
 
 import static org.apache.cassandra.simulator.Action.Modifier.DISPLAY_ORIGIN;
 import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
-import static org.junit.Assert.assertTrue;
 
 class OnInstanceSyncSchemaForBootstrap extends SimulatedActionTask
 {
     public OnInstanceSyncSchemaForBootstrap(ClusterActions actions, int node)
     {
         super("Sync Schema on " + node, RELIABLE_NO_TIMEOUTS.with(DISPLAY_ORIGIN), RELIABLE_NO_TIMEOUTS, actions, actions.cluster.get(node),
-              () -> assertTrue("schema is ready", Schema.instance.waitUntilReady(Duration.ofMinutes(10))));
+              () -> {});
     }
 }

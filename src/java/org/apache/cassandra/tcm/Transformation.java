@@ -33,6 +33,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
@@ -137,7 +138,7 @@ public interface Transformation
         INITIALIZE_CMS(() -> Initialize.serializer),
         FORCE_SNAPSHOT(() -> ForceSnapshot.serializer),
         SEAL_PERIOD(() -> SealPeriod.serializer),
-
+        SCHEMA_CHANGE(() -> AlterSchema.serializer),
         CUSTOM(() -> CustomTransformation.serializer);
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;

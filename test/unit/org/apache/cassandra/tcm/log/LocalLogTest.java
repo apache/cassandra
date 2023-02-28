@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -37,7 +38,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
-import org.apache.mina.util.ConcurrentHashSet;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.tcm.Epoch.EMPTY;
@@ -93,7 +93,7 @@ public class LocalLogTest
         for (int i = 0; i < entryCount; i++)
             builder.add(entry(i + 1));
         ImmutableList<Entry> entries = builder.build();
-        Set<Entry> submitted = new ConcurrentHashSet<>();
+        Set<Entry> submitted = ConcurrentHashMap.newKeySet();
 
         int threads = 10;
         CountDownLatch begin = CountDownLatch.newCountDownLatch(1);

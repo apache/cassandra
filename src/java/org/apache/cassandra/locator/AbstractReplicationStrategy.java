@@ -40,10 +40,12 @@ import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -337,6 +339,25 @@ public abstract class AbstractReplicationStrategy
     }
 
     public static AbstractReplicationStrategy createReplicationStrategy(String keyspaceName,
+                                                                        ReplicationParams replicationParams)
+    {
+        return createReplicationStrategy(keyspaceName, replicationParams.klass, replicationParams.options);
+    }
+
+    public static AbstractReplicationStrategy createReplicationStrategy(String keyspaceName,
+                                                                        Class<? extends AbstractReplicationStrategy> strategyClass,
+                                                                        Map<String, String> strategyOptions)
+    {
+        AbstractReplicationStrategy strategy = createInternal(keyspaceName,
+                                                              strategyClass,
+                                                              StorageService.instance.getTokenMetadata(),
+                                                              DatabaseDescriptor.getEndpointSnitch(),
+                                                              strategyOptions);
+        strategy.validateOptions();
+        return strategy;
+    }
+
+    public static AbstractReplicationStrategy createReplicationStrategy(String keyspaceName,
                                                                         Class<? extends AbstractReplicationStrategy> strategyClass,
                                                                         TokenMetadata tokenMetadata,
                                                                         IEndpointSnitch snitch,
@@ -446,7 +467,18 @@ public abstract class AbstractReplicationStrategy
         }
     }
 
-    protected void validateExpectedOptions() throws ConfigurationException
+    public void validate() throws ConfigurationException
+    {
+        validateExpectedOptions();
+        validateOptions();
+        maybeWarnOnOptions();
+        if (hasTransientReplicas() && !DatabaseDescriptor.isTransientReplicationEnabled())
+        {
+            throw new ConfigurationException("Transient replication is disabled. Enable in cassandra.yaml to use.");
+        }
+    }
+
+    public void validateExpectedOptions() throws ConfigurationException
     {
         Collection<String> expectedOptions = recognizedOptions();
         if (expectedOptions == null)

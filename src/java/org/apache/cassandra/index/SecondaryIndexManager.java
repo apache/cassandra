@@ -75,6 +75,7 @@ import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.pager.SinglePartitionPager;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -193,10 +194,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     /**
      * Drops and adds new indexes associated with the underlying CF
      */
-    public void reload()
+    public void reload(TableMetadata baseTable)
     {
         // figure out what needs to be added and dropped.
-        Indexes tableIndexes = baseCfs.metadata().indexes;
+        Indexes tableIndexes = baseTable.indexes;
         indexes.keySet()
                .stream()
                .filter(indexName -> !tableIndexes.has(indexName))

@@ -17,19 +17,27 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 
 /**
  * An immutable class representing keyspace parameters (durability and replication).
  */
 public final class KeyspaceParams
 {
+    public static final Serializer serializer = new Serializer();
+
     public static final boolean DEFAULT_DURABLE_WRITES = true;
 
     /**
@@ -123,5 +131,27 @@ public final class KeyspaceParams
                           .add(Option.DURABLE_WRITES.toString(), durableWrites)
                           .add(Option.REPLICATION.toString(), replication)
                           .toString();
+    }
+
+    public static class Serializer implements MetadataSerializer<KeyspaceParams>
+    {
+        public void serialize(KeyspaceParams t, DataOutputPlus out, Version version) throws IOException
+        {
+            ReplicationParams.serializer.serialize(t.replication, out, version);
+            out.writeBoolean(t.durableWrites);
+        }
+
+        public KeyspaceParams deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            ReplicationParams params = ReplicationParams.serializer.deserialize(in, version);
+            boolean durableWrites = in.readBoolean();
+            return new KeyspaceParams(durableWrites, params);
+        }
+
+        public long serializedSize(KeyspaceParams t, Version version)
+        {
+            return ReplicationParams.serializer.serializedSize(t.replication, version) +
+                   TypeSizes.sizeof(t.durableWrites);
+        }
     }
 }

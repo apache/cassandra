@@ -18,11 +18,21 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
+
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
+
+import static org.apache.cassandra.db.TypeSizes.sizeof;
+
 public final class TriggerMetadata
 {
+    public static final Serializer serializer = new Serializer();
     public static final String CLASS = "class";
 
     public final String name;
@@ -69,5 +79,27 @@ public final class TriggerMetadata
                           .add("name", name)
                           .add("class", classOption)
                           .toString();
+    }
+
+    public static class Serializer implements MetadataSerializer<TriggerMetadata>
+    {
+        public void serialize(TriggerMetadata t, DataOutputPlus out, Version version) throws IOException
+        {
+            out.writeUTF(t.name);
+            out.writeUTF(t.classOption);
+        }
+
+        public TriggerMetadata deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            String name = in.readUTF();
+            String classOption = in.readUTF();
+            return new TriggerMetadata(name, classOption);
+        }
+
+        public long serializedSize(TriggerMetadata t, Version version)
+        {
+            return sizeof(t.name) +
+                   sizeof(t.classOption);
+        }
     }
 }

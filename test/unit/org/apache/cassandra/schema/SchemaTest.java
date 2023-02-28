@@ -43,31 +43,30 @@ public class SchemaTest
     {
         DatabaseDescriptor.daemonInitialization();
         ServerTestUtils.prepareServer();
-        Schema.instance.loadFromDisk();
     }
 
     @Test
     public void testTransKsMigration() throws IOException
     {
-        assertEquals(0, Schema.instance.getNonSystemKeyspaces().size());
+        assertEquals(0, Schema.instance.distributedKeyspaces().size());
 
         Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
         try
         {
             // add a few.
             saveKeyspaces();
-            Schema.instance.reloadSchemaAndAnnounceVersion();
+//            Schema.instance.reloadSchema();
 
             assertNotNull(Schema.instance.getKeyspaceMetadata("ks0"));
             assertNotNull(Schema.instance.getKeyspaceMetadata("ks1"));
 
-            Schema.instance.transform(keyspaces -> keyspaces.without(Arrays.asList("ks0", "ks1")));
+            Schema.instance.submit((metadata, schema) -> schema.without(Arrays.asList("ks0", "ks1")));
 
             assertNull(Schema.instance.getKeyspaceMetadata("ks0"));
             assertNull(Schema.instance.getKeyspaceMetadata("ks1"));
 
             saveKeyspaces();
-            Schema.instance.reloadSchemaAndAnnounceVersion();
+//            Schema.instance.reloadSchema(); // TODO .reloadSchemaAndAnnounceVersion();
 
             assertNotNull(Schema.instance.getKeyspaceMetadata("ks0"));
             assertNotNull(Schema.instance.getKeyspaceMetadata("ks1"));

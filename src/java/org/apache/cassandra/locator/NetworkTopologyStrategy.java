@@ -304,7 +304,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     }
 
     @Override
-    protected void validateExpectedOptions() throws ConfigurationException
+    public void validateExpectedOptions() throws ConfigurationException
     {
         // Do not accept query with no data centers specified.
         if (this.configOptions.isEmpty())

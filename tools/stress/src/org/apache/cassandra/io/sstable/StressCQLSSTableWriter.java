@@ -36,9 +36,9 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLFragmentParser;
-import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.CqlParser;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
@@ -61,7 +61,6 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTransformations;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -622,10 +621,10 @@ public class StressCQLSSTableWriter implements Closeable
         {
             String keyspace = schemaStatement.keyspace();
 
-            Schema.instance.transform(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)), true));
+            Schema.instance.submit(SchemaTransformations.addKeyspace(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)), true));
 
             Types types = createTypes(keyspace, typeStatements);
-            Schema.instance.transform(SchemaTransformations.addTypes(types, true));
+            Schema.instance.submit(SchemaTransformations.addTypes(types, true));
 
             KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
 
@@ -646,10 +645,10 @@ public class StressCQLSSTableWriter implements Closeable
             Directories directories = new Directories(tableMetadata, directoryList.stream().map(f -> new Directories.DataDirectory(new org.apache.cassandra.io.util.File(f.toPath()))).collect(Collectors.toList()));
 
             Keyspace ks = Keyspace.openWithoutSSTables(keyspace);
-            ColumnFamilyStore cfs =  ColumnFamilyStore.createColumnFamilyStore(ks, tableMetadata.name, TableMetadataRef.forOfflineTools(tableMetadata), directories, false, false, true);
+            ColumnFamilyStore cfs =  ColumnFamilyStore.createColumnFamilyStore(ks, tableMetadata.name, tableMetadata, directories, false, false, true);
 
             ks.initCfCustom(cfs);
-            Schema.instance.transform(SchemaTransformations.addTable(tableMetadata, true));
+            Schema.instance.submit(SchemaTransformations.addTable(tableMetadata, true));
 
             return cfs;
         }
