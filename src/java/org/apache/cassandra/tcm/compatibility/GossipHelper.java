@@ -30,6 +30,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Period;
+import org.apache.cassandra.tcm.membership.Directory;
 
 public class GossipHelper
 {
@@ -46,6 +47,7 @@ public class GossipHelper
                                    true,
                                    DatabaseDescriptor.getPartitioner(),
                                    DistributedSchema.fromSystemTables(SchemaKeyspace.fetchNonSystemKeyspaces()),
+                                   Directory.EMPTY,
                                    Collections.emptySet(),
                                    Collections.emptyMap());
     }

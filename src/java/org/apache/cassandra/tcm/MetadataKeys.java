@@ -27,6 +27,7 @@ public class MetadataKeys
     public static final String CORE_NS = MetadataKeys.class.getPackage().getName().toLowerCase(Locale.ROOT);
 
     public static final MetadataKey SCHEMA                  = make(CORE_NS, "schema", "dist_schema");
+    public static final MetadataKey NODE_DIRECTORY          = make(CORE_NS, "membership", "node_directory");
 
     public static final ImmutableSet<MetadataKey> CORE_METADATA = ImmutableSet.of(SCHEMA);
 

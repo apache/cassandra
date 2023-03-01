@@ -210,6 +210,8 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Startup;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.Clock;
@@ -1011,6 +1013,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new RuntimeException(e);
         }
 
+        NodeId self = Register.maybeRegister();
         completeInitialization();
     }
 
