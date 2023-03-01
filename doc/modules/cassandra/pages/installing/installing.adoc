@@ -189,7 +189,7 @@ include::example$TEXT/tarball_install_dirs.txt[]
 <5>location of cassandra-stress tool
 
 For information on how to configure your installation, see
-{cass_url}doc/latest/getting_started/configuring.html[Configuring
+{cass_url}doc/latest/getting-started/configuring.html[Configuring
 Cassandra].
 
 [arabic, start=6]
@@ -286,7 +286,7 @@ include::example$BASH/apt-get_cass.sh[]
 ----
 
 NOTE: For information on how to configure your installation, see
-{cass_url}doc/latest/getting_started/configuring.html[Configuring
+{cass_url}doc/latest/getting-started/configuring.html[Configuring
 Cassandra].
 
 include::partial$tail_syslog.adoc[]

@@ -1,0 +1,30 @@
+= Getting Started
+
+This section covers how to get started using Apache Cassandra and should
+be the first thing to read if you are new to Cassandra.
+
+* xref:installing/installing.adoc[Installing Cassandra]: Installation instructions plus information on choosing a method.  
+** [ xref:installing/installing.adoc#installing-the-docker-image[Docker] ]
+[ xref:installing/installing.adoc#installing-the-binary-tarball[tarball] ]
+[ xref:installing/installing.adoc#installing-the-debian-packages[Debian] ]
+[ xref:installing/installing.adoc#installing-the-rpm-packages[RPM] ]
+* xref:getting-started/configuring.adoc[Configuring Cassandra]
+* xref:getting-started/querying.adoc[Inserting and querying data]
+* xref:getting-started/drivers.adoc[Client drivers]: Drivers for various languages.
+** [ xref:getting-started/drivers.adoc#java[Java] ]
+ [ xref:getting-started/drivers.adoc#python[Python] ]
+ [ xref:getting-started/drivers.adoc#ruby[Ruby] ]
+ [ xref:getting-started/drivers.adoc#c-net[C# / .NET] ]
+ [ xref:getting-started/drivers.adoc#nodejs[Node.js] ]
+ [ xref:getting-started/drivers.adoc#php[PHP] ]
+ [ xref:getting-started/drivers.adoc#c[C++] ]
+ [ xref:getting-started/drivers.adoc#scala[Scala] ]
+ [ xref:getting-started/drivers.adoc#clojure[Clojure] ]
+ [ xref:getting-started/drivers.adoc#erlang[Erlang] ]
+ [ xref:getting-started/drivers.adoc#go[Go] ]
+ [ xref:getting-started/drivers.adoc#haskell[Haskell] ]
+ [ xref:getting-started/drivers.adoc#rust[Rust] ]
+ [ xref:getting-started/drivers.adoc#perl[Perl] ]
+ [ xref:getting-started/drivers.adoc#elixir[Elixir] ]
+ [ xref:getting-started/drivers.adoc#dart[Dart] ]
+* xref:getting-started/production.adoc[Production recommendations]

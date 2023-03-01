@@ -15,27 +15,27 @@ to do so by submitting your contribution like any other patch following
 [cols="a,a"]
 |===
 
-| xref:cassandra:getting_started/index.adoc[Getting started] | Newbie starting point
+| xref:cassandra:getting-started/index.adoc[Getting started] | Newbie starting point
 
 | xref:cassandra:new/index.adoc[What's new in 5.0] | What's new in Cassandra 5.0
 
 | xref:cassandra:architecture/index.adoc[Architecture] | Cassandra's big picture
 
-| xref:cassandra:data_modeling/index.adoc[Data modeling] | Hint: it's not relational
+| xref:cassandra:developing/data-modeling/index.adoc[Data modeling] | Hint: it's not relational
 
-| xref:cassandra:cql/index.adoc[Cassandra Query Language (CQL)] | CQL reference documentation
+| xref:cassandra:developing/cql/index.adoc[Cassandra Query Language (CQL)] | CQL reference documentation
 
-| xref:cassandra:configuration/index.adoc[Configuration] | Cassandra's handles and knobs
+| xref:cassandra:getting-started/configuration/index.adoc[Configuration] | Cassandra's handles and knobs
 
-| xref:cassandra:operating/index.adoc[Operation] | The operator's corner
+| xref:cassandra:managing/operating/index.adoc[Operation] | The operator's corner
 
-| xref:cassandra:tools/index.adoc[Tools] | cqlsh, nodetool, and others
+| xref:cassandra:managing/tools/index.adoc[Tools] | cqlsh, nodetool, and others
 
 | xref:cassandra:troubleshooting/index.adoc[Troubleshooting] | What to look for when you have a problem
 
-| xref:cassandra:faq/index.adoc[FAQ] | Frequently asked questions
+| xref:cassandra:overview/faq/index.adoc[FAQ] | Frequently asked questions
 
-| xref:cassandra:plugins/index.adoc[Plug-ins] | Third-party plug-ins
+| xref:cassandra:integrating/plugins/index.adoc[Plug-ins] | Third-party plug-ins
 
 | xref:master@_:ROOT:native_protocol.adoc[Native Protocols] | Native Cassandra protocol specifications
 
