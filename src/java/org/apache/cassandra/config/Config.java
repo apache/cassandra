@@ -1254,5 +1254,6 @@ public class Config
 
     public double severity_during_decommission = 0;
 
-    public StorageCompatibilityMode storage_compatibility_mode = StorageCompatibilityMode.CASSANDRA_4;
+    // TODO Revisit MessagingService::current_version
+    public StorageCompatibilityMode storage_compatibility_mode = StorageCompatibilityMode.NONE;
 }
