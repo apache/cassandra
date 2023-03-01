@@ -15,7 +15,7 @@ to do so by submitting your contribution like any other patch following
 [cols="a,a"]
 |===
 
-| xref:cassandra:getting_started/index.adoc[Getting started] | Newbie starting point
+| xref:cassandra:getting-started/index.adoc[Getting started] | Newbie starting point
 
 | xref:cassandra:new/index.adoc[What's new in 5.0] | What's new in Cassandra 5.0
 

@@ -21,7 +21,7 @@ cluster_name: 'Test Cluster'
 # Specifying initial_token will override this setting on the node's initial start,
 # on subsequent starts, this setting will apply even if initial token is set.
 #
-# See https://cassandra.apache.org/doc/latest/getting_started/production.html#tokens for
+# See https://cassandra.apache.org/doc/latest/getting-started/production.html#tokens for
 # best practice information about num_tokens.
 #
 num_tokens: 16
