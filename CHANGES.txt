@@ -1,4 +1,5 @@
 4.2
+ * Gossip stateMapOrdering does not have correct ordering when both EndpointState are in the bootstrapping set (CASSANDRA-18292)
  * Snapshot only sstables containing mismatching ranges on preview repair mismatch (CASSANDRA-17561)
  * More accurate skipping of sstables in read path (CASSANDRA-18134)
  * Prepare for JDK17 experimental support (CASSANDRA-18179, CASSANDRA-18258)

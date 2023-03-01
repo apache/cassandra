@@ -66,6 +66,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
@@ -255,7 +256,7 @@ public class PaxosRepair2Test extends TestBaseImpl
         )
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (k int primary key, v int)");
-            cluster.get(3).shutdown();
+            ClusterUtils.stopUnchecked(cluster.get(3));
             InetAddressAndPort node3 = InetAddressAndPort.getByAddress(cluster.get(3).broadcastAddress());
 
             for (int i = 0; i < 10; i++)
@@ -356,7 +357,7 @@ public class PaxosRepair2Test extends TestBaseImpl
         )
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
-            cluster.get(3).shutdown();
+            ClusterUtils.stopUnchecked(cluster.get(3));
             cluster.verbs(Verb.PAXOS_COMMIT_REQ).drop();
             try
             {
