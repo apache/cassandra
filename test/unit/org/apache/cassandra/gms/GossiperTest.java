@@ -43,7 +43,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -431,53 +430,43 @@ public class GossiperTest
     @Test
     public void orderingComparator()
     {
-        IPartitioner oldPartitioner = DatabaseDescriptor.getPartitioner();
-        try
-        {
-            DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-
-            qt().forAll(epStateMapGen()).checkAssert(map -> {
-                Comparator<Map.Entry<InetAddressAndPort, EndpointState>> comp = Gossiper.stateOrderMap();
-                List<Map.Entry<InetAddressAndPort, EndpointState>> elements = new ArrayList<>(map.entrySet());
-                for (int i = 0; i < elements.size(); i++)
+        qt().forAll(epStateMapGen()).checkAssert(map -> {
+            Comparator<Map.Entry<InetAddressAndPort, EndpointState>> comp = Gossiper.stateOrderMap();
+            List<Map.Entry<InetAddressAndPort, EndpointState>> elements = new ArrayList<>(map.entrySet());
+            for (int i = 0; i < elements.size(); i++)
+            {
+                for (int j = 0; j < elements.size(); j++)
                 {
-                    for (int j = 0; j < elements.size(); j++)
-                    {
-                        Map.Entry<InetAddressAndPort, EndpointState> e1 = elements.get(i);
-                        boolean e1Bootstrapping = VersionedValue.BOOTSTRAPPING_STATUS.contains(Gossiper.getGossipStatus(e1.getValue()));
-                        Map.Entry<InetAddressAndPort, EndpointState> e2 = elements.get(j);
-                        boolean e2Bootstrapping = VersionedValue.BOOTSTRAPPING_STATUS.contains(Gossiper.getGossipStatus(e2.getValue()));
-                        Ordering ordering = Ordering.compare(comp, e1, e2);
+                    Map.Entry<InetAddressAndPort, EndpointState> e1 = elements.get(i);
+                    boolean e1Bootstrapping = VersionedValue.BOOTSTRAPPING_STATUS.contains(Gossiper.getGossipStatus(e1.getValue()));
+                    Map.Entry<InetAddressAndPort, EndpointState> e2 = elements.get(j);
+                    boolean e2Bootstrapping = VersionedValue.BOOTSTRAPPING_STATUS.contains(Gossiper.getGossipStatus(e2.getValue()));
+                    Ordering ordering = Ordering.compare(comp, e1, e2);
 
-                        if (e1Bootstrapping == e2Bootstrapping)
+                    if (e1Bootstrapping == e2Bootstrapping)
+                    {
+                        // check generation
+                        Ordering sub = Ordering.compare(e1.getValue().getHeartBeatState().getGeneration(), e2.getValue().getHeartBeatState().getGeneration());
+                        if (sub == Ordering.EQ)
                         {
-                            // check generation
-                            Ordering sub = Ordering.compare(e1.getValue().getHeartBeatState().getGeneration(), e2.getValue().getHeartBeatState().getGeneration());
-                            if (sub == Ordering.EQ)
-                            {
-                                // check addressWPort
-                                sub = Ordering.compare(e1.getKey(), e2.getKey());
-                            }
-                            Assertions.assertThat(ordering)
-                                      .describedAs("Both elements bootstrap check were equal: %s == %s", e1Bootstrapping, e2Bootstrapping)
-                                      .isEqualTo(sub);
+                            // check addressWPort
+                            sub = Ordering.compare(e1.getKey(), e2.getKey());
                         }
-                        else if (e1Bootstrapping)
-                        {
-                            Assertions.assertThat(ordering).isEqualTo(Ordering.GT);
-                        }
-                        else
-                        {
-                            Assertions.assertThat(ordering).isEqualTo(Ordering.LT);
-                        }
+                        Assertions.assertThat(ordering)
+                                  .describedAs("Both elements bootstrap check were equal: %s == %s", e1Bootstrapping, e2Bootstrapping)
+                                  .isEqualTo(sub);
+                    }
+                    else if (e1Bootstrapping)
+                    {
+                        Assertions.assertThat(ordering).isEqualTo(Ordering.GT);
+                    }
+                    else
+                    {
+                        Assertions.assertThat(ordering).isEqualTo(Ordering.LT);
                     }
                 }
-            });
-        }
-        finally
-        {
-            DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
-        }
+            }
+        });
     }
 
     enum Ordering

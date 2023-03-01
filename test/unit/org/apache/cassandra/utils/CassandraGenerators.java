@@ -18,6 +18,7 @@
 package org.apache.cassandra.utils;
 
 import java.lang.reflect.Modifier;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -332,9 +333,43 @@ public final class CassandraGenerators
         return rs -> new Murmur3Partitioner.LongToken(rs.next(token));
     }
 
+    public static Gen<Token> byteOrderToken()
+    {
+        Constraint size = Constraint.between(0, 10);
+        Constraint byteRange = Constraint.between(Byte.MIN_VALUE, Byte.MAX_VALUE);
+        return rs -> {
+            byte[] token = new byte[Math.toIntExact(rs.next(size))];
+            for (int i = 0; i < token.length; i++)
+                token[i] = (byte) rs.next(byteRange);
+            return new ByteOrderedPartitioner.BytesToken(token);
+        };
+    }
+
+    public static Gen<Token> randomPartitionerToken()
+    {
+        Constraint domain = Constraint.none();
+        return rs -> new RandomPartitioner.BigIntegerToken(BigInteger.valueOf(rs.next(domain)));
+    }
+
+    public static Gen<Token> localPartitionerToken(LocalPartitioner partitioner)
+    {
+        Gen<ByteBuffer> bytes = AbstractTypeGenerators.getTypeSupport(partitioner.getTokenValidator()).bytesGen();
+        return rs -> partitioner.getToken(bytes.generate(rs));
+    }
+
+    public static Gen<Token> orderPreservingToken()
+    {
+        Gen<String> string = Generators.utf8(0, 10);
+        return rs -> new OrderPreservingPartitioner.StringToken(string.generate(rs));
+    }
+
     public static Gen<Token> token(IPartitioner partitioner)
     {
         if (partitioner instanceof Murmur3Partitioner) return murmurToken();
+        if (partitioner instanceof ByteOrderedPartitioner) return byteOrderToken();
+        if (partitioner instanceof RandomPartitioner) return randomPartitionerToken();
+        if (partitioner instanceof LocalPartitioner) return localPartitionerToken((LocalPartitioner) partitioner);
+        if (partitioner instanceof OrderPreservingPartitioner) return orderPreservingToken();
         throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());
     }
 
