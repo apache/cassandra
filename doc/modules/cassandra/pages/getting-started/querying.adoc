@@ -26,6 +26,6 @@ If the command is used without specifying a node, `localhost` is the default. Se
 
 == Client drivers
 
-A lot of xref:getting_started/drivers.adoc[client drivers] are provided by the Community and a list of
+A lot of xref:getting-started/drivers.adoc[client drivers] are provided by the Community and a list of
 known drivers is provided. You should refer to the documentation of each driver
 for more information.
