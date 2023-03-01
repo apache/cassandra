@@ -18,20 +18,26 @@
 package org.apache.cassandra.utils;
 
 import java.lang.reflect.Modifier;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.builder.MultilineRecursiveToStringStyle;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.ReadCommand;
@@ -50,6 +56,10 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.HeartBeatState;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
@@ -315,5 +325,167 @@ public final class CassandraGenerators
                 super.setContentEnd(contentEnd.replace("]", "}"));
             }
         }, true);
+    }
+
+    public static Gen<Token> murmurToken()
+    {
+        Constraint token = Constraint.between(Long.MIN_VALUE, Long.MAX_VALUE);
+        return rs -> new Murmur3Partitioner.LongToken(rs.next(token));
+    }
+
+    public static Gen<Token> byteOrderToken()
+    {
+        Constraint size = Constraint.between(0, 10);
+        Constraint byteRange = Constraint.between(Byte.MIN_VALUE, Byte.MAX_VALUE);
+        return rs -> {
+            byte[] token = new byte[Math.toIntExact(rs.next(size))];
+            for (int i = 0; i < token.length; i++)
+                token[i] = (byte) rs.next(byteRange);
+            return new ByteOrderedPartitioner.BytesToken(token);
+        };
+    }
+
+    public static Gen<Token> randomPartitionerToken()
+    {
+        Constraint domain = Constraint.none();
+        return rs -> new RandomPartitioner.BigIntegerToken(BigInteger.valueOf(rs.next(domain)));
+    }
+
+    public static Gen<Token> localPartitionerToken(LocalPartitioner partitioner)
+    {
+        Gen<ByteBuffer> bytes = AbstractTypeGenerators.getTypeSupport(partitioner.getTokenValidator()).bytesGen();
+        return rs -> partitioner.getToken(bytes.generate(rs));
+    }
+
+    public static Gen<Token> orderPreservingToken()
+    {
+        Gen<String> string = Generators.utf8(0, 10);
+        return rs -> new OrderPreservingPartitioner.StringToken(string.generate(rs));
+    }
+
+    public static Gen<Token> token(IPartitioner partitioner)
+    {
+        if (partitioner instanceof Murmur3Partitioner) return murmurToken();
+        if (partitioner instanceof ByteOrderedPartitioner) return byteOrderToken();
+        if (partitioner instanceof RandomPartitioner) return randomPartitionerToken();
+        if (partitioner instanceof LocalPartitioner) return localPartitionerToken((LocalPartitioner) partitioner);
+        if (partitioner instanceof OrderPreservingPartitioner) return orderPreservingToken();
+        throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());
+    }
+
+    public static Gen<? extends Collection<Token>> tokens(IPartitioner partitioner)
+    {
+        Gen<Token> tokenGen = token(partitioner);
+        return SourceDSL.lists().of(tokenGen).ofSizeBetween(1, 16);
+    }
+
+    public static Gen<HeartBeatState> heartBeatStates()
+    {
+        Constraint generationDomain = Constraint.between(0, Integer.MAX_VALUE);
+        Constraint versionDomain = Constraint.between(-1, Integer.MAX_VALUE);
+        return rs -> new HeartBeatState(Math.toIntExact(rs.next(generationDomain)), Math.toIntExact(rs.next(versionDomain)));
+    }
+
+    private static Gen<Map<ApplicationState, VersionedValue>> gossipApplicationStates()
+    {
+        //TODO support all application states...
+        // atm only used by a single test, which only looks at status
+        Gen<Boolean> statusWithPort = SourceDSL.booleans().all();
+        Gen<VersionedValue> statusGen = gossipStatusValue();
+
+        return rs -> {
+            ApplicationState statusState = statusWithPort.generate(rs) ? ApplicationState.STATUS_WITH_PORT : ApplicationState.STATUS;
+            VersionedValue vv = statusGen.generate(rs);
+            if (vv == null) return ImmutableMap.of();
+            return ImmutableMap.of(statusState, vv);
+        };
+    }
+
+    private static Gen<String> gossipStatus()
+    {
+        return SourceDSL.arbitrary()
+                        .pick(VersionedValue.STATUS_NORMAL,
+                              VersionedValue.STATUS_BOOTSTRAPPING_REPLACE,
+                              VersionedValue.STATUS_BOOTSTRAPPING,
+                              VersionedValue.STATUS_MOVING,
+                              VersionedValue.STATUS_LEAVING,
+                              VersionedValue.STATUS_LEFT,
+
+                              //TODO would be good to prefix with STATUS_ like others
+                              VersionedValue.REMOVING_TOKEN,
+                              VersionedValue.REMOVED_TOKEN,
+                              VersionedValue.HIBERNATE + VersionedValue.DELIMITER + true,
+                              VersionedValue.HIBERNATE + VersionedValue.DELIMITER + false,
+                              VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + true,
+                              VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + false,
+                              ""
+                        );
+    }
+
+    private static Gen<VersionedValue> gossipStatusValue()
+    {
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        Gen<String> statusGen = gossipStatus();
+        Gen<Token> tokenGen = token(partitioner);
+        Gen<? extends Collection<Token>> tokensGen = tokens(partitioner);
+        Gen<InetAddress> addressGen = Generators.INET_ADDRESS_GEN;
+        Gen<InetAddressAndPort> addressAndGenGen = INET_ADDRESS_AND_PORT_GEN;
+        Gen<Boolean> bool = SourceDSL.booleans().all();
+        Constraint millis = Constraint.between(0, Long.MAX_VALUE);
+        Constraint version = Constraint.between(0, Integer.MAX_VALUE);
+        Gen<UUID> hostId = Generators.UUID_RANDOM_GEN;
+        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(partitioner);
+        return rs -> {
+            String status = statusGen.generate(rs);
+            switch (status)
+            {
+                case "":
+                    return null;
+                case VersionedValue.STATUS_NORMAL:
+                    return factory.normal(tokensGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.STATUS_BOOTSTRAPPING:
+                    return factory.bootstrapping(tokensGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.STATUS_BOOTSTRAPPING_REPLACE:
+                    if (bool.generate(rs)) return factory.bootReplacingWithPort(addressAndGenGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                    else return factory.bootReplacing(addressGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.STATUS_MOVING:
+                    return factory.moving(tokenGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.STATUS_LEAVING:
+                    return factory.leaving(tokensGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.STATUS_LEFT:
+                    return factory.left(tokensGen.generate(rs), rs.next(millis)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.REMOVING_TOKEN:
+                    return factory.removingNonlocal(hostId.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.REMOVED_TOKEN:
+                    return factory.removedNonlocal(hostId.generate(rs), rs.next(millis)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.HIBERNATE + VersionedValue.DELIMITER + true:
+                    return factory.hibernate(true).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.HIBERNATE + VersionedValue.DELIMITER + false:
+                    return factory.hibernate(false).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + true:
+                    return factory.shutdown(true).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + false:
+                    return factory.shutdown(false).withVersion(Math.toIntExact(rs.next(version)));
+                default:
+                    throw new AssertionError("Unexpected status: " + status);
+            }
+        };
+    }
+
+    public static Gen<EndpointState> endpointStates()
+    {
+        Gen<HeartBeatState> hbGen = heartBeatStates();
+        Gen<Map<ApplicationState, VersionedValue>> appStates = gossipApplicationStates();
+        Gen<Boolean> alive = SourceDSL.booleans().all();
+        Constraint updateTimestamp = Constraint.between(0, Long.MAX_VALUE);
+        return rs -> {
+            EndpointState state = new EndpointState(hbGen.generate(rs));
+            Map<ApplicationState, VersionedValue> map = appStates.generate(rs);
+            if (!map.isEmpty()) state.addApplicationStates(map);
+            if (alive.generate(rs)) state.markAlive();
+            else state.markDead();
+            state.unsafeSetUpdateTimestamp(rs.next(updateTimestamp));
+            return state;
+        };
     }
 }
