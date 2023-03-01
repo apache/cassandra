@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.tcm.transformations.cms;
 
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class EntireRange
 {
@@ -34,4 +37,7 @@ public class EntireRange
         return new Replica(addr, entireRange, true);
     }
 
+    public static final EndpointsForRange localReplicas = EndpointsForRange.of(replica(FBUtilities.getBroadcastAddressAndPort()));
+    public static final DataPlacement placement = new DataPlacement(PlacementForRange.builder().withReplicaGroup(localReplicas).build(),
+                                                                    PlacementForRange.builder().withReplicaGroup(localReplicas).build());
 }

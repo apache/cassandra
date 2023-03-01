@@ -17,31 +17,46 @@
  */
 package org.apache.cassandra.locator;
 
-import java.util.Collections;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.transformations.cms.EntireRange;
 
-public class LocalStrategy extends AbstractReplicationStrategy
+public class LocalStrategy extends SystemStrategy
 {
     private static final ReplicationFactor RF = ReplicationFactor.fullOnly(1);
-    private final EndpointsForRange replicas;
+//    private final EndpointsForRange replicas;
 
     public LocalStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
-        replicas = EndpointsForRange.of(
-                new Replica(FBUtilities.getBroadcastAddressAndPort(),
-                        DatabaseDescriptor.getPartitioner().getMinimumToken(),
-                        DatabaseDescriptor.getPartitioner().getMinimumToken(),
-                        true
-                )
-        );
+//        replicas = EndpointsForRange.of(
+//                new Replica(FBUtilities.getBroadcastAddressAndPort(),
+//                        DatabaseDescriptor.getPartitioner().getMinimumToken(),
+//                        DatabaseDescriptor.getPartitioner().getMinimumToken(),
+//                        true
+//                )
+//        );
+    }
+
+    @Override
+    public DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata)
+    {
+        return EntireRange.placement;
+    }
+
+    @Override
+    public ReplicationFactor getReplicationFactor()
+    {
+        return RF;
     }
 
     /**
@@ -52,17 +67,12 @@ public class LocalStrategy extends AbstractReplicationStrategy
     @Override
     public EndpointsForRange getNaturalReplicas(RingPosition<?> searchPosition)
     {
-        return replicas;
+        return EntireRange.localReplicas;
     }
 
     public EndpointsForRange calculateNaturalReplicas(Token token, TokenMetadata metadata)
     {
-        return replicas;
-    }
-
-    public ReplicationFactor getReplicationFactor()
-    {
-        return RF;
+        return EntireRange.localReplicas;
     }
 
     public void validateOptions() throws ConfigurationException

@@ -22,6 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -47,6 +48,9 @@ import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.utils.FBUtilities;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -94,13 +98,13 @@ public abstract class AbstractReplicationStrategy
     {
         Token searchToken = searchPosition.getToken();
         long currentRingVersion = tokenMetadata.getRingVersion();
-        Token keyToken = TokenMetadata.firstToken(tokenMetadata.sortedTokens(), searchToken);
+        Token keyToken = TokenRingUtils.firstToken(tokenMetadata.sortedTokens(), searchToken);
         EndpointsForRange endpoints = getCachedReplicas(currentRingVersion, keyToken);
         if (endpoints == null)
         {
             TokenMetadata tm = tokenMetadata.cachedOnlyTokenMap();
             // if our cache got invalidated, it's possible there is a new token to account for too
-            keyToken = TokenMetadata.firstToken(tm.sortedTokens(), searchToken);
+            keyToken = TokenRingUtils.firstToken(tm.sortedTokens(), searchToken);
             endpoints = calculateNaturalReplicas(searchToken, tm);
             replicas.put(tm.getRingVersion(), keyToken, endpoints);
         }
@@ -132,6 +136,8 @@ public abstract class AbstractReplicationStrategy
      * @return a copy of the natural endpoints for the given token
      */
     public abstract EndpointsForRange calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata);
+
+    public abstract DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata);
 
     public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
                                                                        Runnable callback,

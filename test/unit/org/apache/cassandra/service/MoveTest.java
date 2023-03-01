@@ -68,6 +68,7 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -608,7 +609,7 @@ public class MoveTest
         for (Token token : keyTokens)
         {
             List<InetAddressAndPort> endpoints = new ArrayList<>();
-            Iterator<Token> tokenIter = TokenMetadata.ringIterator(tmd.sortedTokens(), token, false);
+            Iterator<Token> tokenIter = TokenRingUtils.ringIterator(tmd.sortedTokens(), token, false);
             while (tokenIter.hasNext())
             {
                 endpoints.add(tmd.getEndpoint(tokenIter.next()));

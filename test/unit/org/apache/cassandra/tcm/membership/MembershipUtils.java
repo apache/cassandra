@@ -25,6 +25,16 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 
 public class MembershipUtils
 {
+    public static NodeAddresses nodeAddresses(Random random)
+    {
+        return nodeAddresses(randomEndpoint(random));
+    }
+
+    public static NodeAddresses nodeAddresses(InetAddressAndPort endpoint)
+    {
+        return new NodeAddresses(endpoint, endpoint, endpoint);
+    }
+
     public static InetAddressAndPort randomEndpoint(Random random)
     {
         return endpoint(random.nextInt(254) + 1);

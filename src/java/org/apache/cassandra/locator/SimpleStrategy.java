@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -35,6 +36,13 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.compatibility.AsEndpoints;
+import org.apache.cassandra.tcm.compatibility.AsTokenMap;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.ownership.PlacementForRange;
 
 
 /**
@@ -57,16 +65,36 @@ public class SimpleStrategy extends AbstractReplicationStrategy
     }
 
     @Override
+    public DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata)
+    {
+        PlacementForRange.Builder builder = PlacementForRange.builder();
+        for (Range<Token> range : ranges)
+            builder.withReplicaGroup(calculateNaturalReplicas(range.right, metadata.tokenMap.tokens(), range, metadata.directory, metadata.tokenMap));
+
+        PlacementForRange built = builder.build();
+        return new DataPlacement(built, built);
+    }
+
+    @Override
     public EndpointsForRange calculateNaturalReplicas(Token token, TokenMetadata metadata)
     {
         ArrayList<Token> ring = metadata.sortedTokens();
-        if (ring.isEmpty())
-            return EndpointsForRange.empty(new Range<>(metadata.partitioner.getMinimumToken(), metadata.partitioner.getMinimumToken()));
-
-        Token replicaEnd = TokenMetadata.firstToken(ring, token);
-        Token replicaStart = metadata.getPredecessor(replicaEnd);
+        Token replicaEnd = TokenRingUtils.firstToken(ring, token);
+        Token replicaStart = TokenRingUtils.getPredecessor(ring, replicaEnd);
         Range<Token> replicaRange = new Range<>(replicaStart, replicaEnd);
-        Iterator<Token> iter = TokenMetadata.ringIterator(ring, token, false);
+        return calculateNaturalReplicas(token, ring, replicaRange, metadata, metadata);
+    }
+
+    private EndpointsForRange calculateNaturalReplicas(Token token,
+                                                       List<Token> ring,
+                                                       Range<Token> replicaRange,
+                                                       AsEndpoints endpoints,
+                                                       AsTokenMap tokens)
+    {
+        if (ring.isEmpty())
+            return EndpointsForRange.empty(new Range<>(tokens.partitioner().getMinimumToken(), token.getPartitioner().getMinimumToken()));
+
+        Iterator<Token> iter = TokenRingUtils.ringIterator(ring, token, false);
 
         EndpointsForRange.Builder replicas = new EndpointsForRange.Builder(replicaRange, rf.allReplicas);
 
@@ -74,7 +102,8 @@ public class SimpleStrategy extends AbstractReplicationStrategy
         while (replicas.size() < rf.allReplicas && iter.hasNext())
         {
             Token tk = iter.next();
-            InetAddressAndPort ep = metadata.getEndpoint(tk);
+            NodeId owner = tokens.owner(tk);
+            InetAddressAndPort ep = endpoints.endpoint(owner);
             if (!replicas.endpoints().contains(ep))
                 replicas.add(new Replica(ep, replicaRange, replicas.size() < rf.fullReplicas));
         }

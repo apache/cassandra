@@ -210,6 +210,7 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Startup;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.transport.ClientResourceLimits;
@@ -4894,13 +4895,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
         Collection<Range<Token>> primaryRanges = new HashSet<>();
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
-        for (Token token : metadata.sortedTokens())
+        List<Token> sortedTokens = metadata.sortedTokens();
+        for (Token token : sortedTokens)
         {
             EndpointsForRange replicas = strategy.calculateNaturalReplicas(token, metadata);
             if (replicas.size() > 0 && replicas.get(0).endpoint().equals(ep))
             {
                 Preconditions.checkState(replicas.get(0).isFull());
-                primaryRanges.add(new Range<>(metadata.getPredecessor(token), token));
+                primaryRanges.add(new Range<>(TokenRingUtils.getPredecessor(sortedTokens, token), token));
             }
         }
         return primaryRanges;
@@ -4922,7 +4924,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
 
         Collection<Range<Token>> localDCPrimaryRanges = new HashSet<>();
-        for (Token token : metadata.sortedTokens())
+        List<Token> sortedTokens = metadata.sortedTokens();
+        for (Token token : sortedTokens)
         {
             EndpointsForRange replicas = strategy.calculateNaturalReplicas(token, metadata);
             for (Replica replica : replicas)
@@ -4931,7 +4934,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 {
                     if (replica.endpoint().equals(referenceEndpoint))
                     {
-                        localDCPrimaryRanges.add(new Range<>(metadata.getPredecessor(token), token));
+                        localDCPrimaryRanges.add(new Range<>(TokenRingUtils.getPredecessor(sortedTokens, token), token));
                     }
                     break;
                 }

@@ -17,10 +17,17 @@
  */
 package org.apache.cassandra.locator;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.transformations.cms.EntireRange;
 
 public class MetaStrategy extends SystemStrategy
 {
@@ -32,9 +39,23 @@ public class MetaStrategy extends SystemStrategy
     @Override
     public EndpointsForRange calculateNaturalReplicas(Token token, TokenMetadata tokenMetadata)
     {
-        return ClusterMetadata.current().cmsReplicas;
+        return replicas();
     }
 
+    @Override
+    public DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata)
+    {
+        PlacementForRange placement = PlacementForRange.builder(1).withReplicaGroup(replicas()).build();
+        return new DataPlacement(placement, placement);
+    }
+
+    private static EndpointsForRange replicas()
+    {
+        Set<InetAddressAndPort> members = ClusterMetadata.current().cmsMembers();
+        return EndpointsForRange.builder(EntireRange.entireRange, members.size())
+                                .addAll(members.stream().map(EntireRange::replica).collect(Collectors.toList()))
+                                .build();
+    }
     @Override
     public ReplicationFactor getReplicationFactor()
     {

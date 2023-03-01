@@ -30,13 +30,20 @@ import org.apache.cassandra.dht.Datacenters;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.TokenMetadata.Topology;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.compatibility.AsEndpoints;
+import org.apache.cassandra.tcm.compatibility.AsLocations;
+import org.apache.cassandra.tcm.compatibility.AsTokenMap;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
@@ -105,7 +112,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
          * For efficiency the set is shared between the instances, using the location pair (dc, rack) to make sure
          * clashing names aren't a problem.
          */
-        Set<Pair<String, String>> racks;
+        Set<Location> racks;
 
         /** Number of replicas left to fill from this DC. */
         int rfLeft;
@@ -116,7 +123,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                             int rackCount,
                             int nodeCount,
                             EndpointsForRange.Builder replicas,
-                            Set<Pair<String, String>> racks)
+                            Set<Location> racks)
         {
             this.replicas = replicas;
             this.racks = racks;
@@ -136,7 +143,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
          * Attempts to add an endpoint to the replicas for this datacenter, adding to the replicas set if successful.
          * Returns true if the endpoint was added, and this datacenter does not require further replicas.
          */
-        boolean addEndpointAndCheckIfDone(InetAddressAndPort ep, Pair<String,String> location, Range<Token> replicatedRange)
+        boolean addEndpointAndCheckIfDone(InetAddressAndPort ep, Location location, Range<Token> replicatedRange)
         {
             if (done())
                 return false;
@@ -180,19 +187,23 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     {
         // we want to preserve insertion order so that the first added endpoint becomes primary
         ArrayList<Token> sortedTokens = tokenMetadata.sortedTokens();
-        Token replicaEnd = TokenMetadata.firstToken(sortedTokens, searchToken);
-        Token replicaStart = tokenMetadata.getPredecessor(replicaEnd);
+        Token replicaEnd = TokenRingUtils.firstToken(sortedTokens, searchToken);
+        Token replicaStart = TokenRingUtils.getPredecessor(sortedTokens, replicaEnd);
         Range<Token> replicatedRange = new Range<>(replicaStart, replicaEnd);
+        return calculateNaturalReplicas(searchToken, replicatedRange, tokenMetadata, tokenMetadata, tokenMetadata, datacenters);
+    }
 
+    private EndpointsForRange calculateNaturalReplicas(Token searchToken,
+                                                       Range<Token> replicatedRange,
+                                                       AsEndpoints endpoints,
+                                                       AsLocations locations,
+                                                       AsTokenMap tokens,
+                                                       Map<String, ReplicationFactor> datacenters)
+    {
         EndpointsForRange.Builder builder = new EndpointsForRange.Builder(replicatedRange);
-        Set<Pair<String, String>> seenRacks = new HashSet<>();
+        Set<Location> seenRacks = new HashSet<>();
 
-        Topology topology = tokenMetadata.getTopology();
-        // all endpoints in each DC, so we can check when we have exhausted all the members of a DC
-        Multimap<String, InetAddressAndPort> allEndpoints = topology.getDatacenterEndpoints();
-        // all racks in a DC so we can check when we have exhausted all racks in a DC
-        Map<String, ImmutableMultimap<String, InetAddressAndPort>> racks = topology.getDatacenterRacks();
-        assert !allEndpoints.isEmpty() && !racks.isEmpty() : "not aware of any cluster members";
+        assert !locations.allDatacenterEndpoints().isEmpty() && !locations.allDatacenterRacks().isEmpty() : "not aware of any cluster members";
 
         int dcsToFill = 0;
         Map<String, DatacenterEndpoints> dcs = new HashMap<>(datacenters.size() * 2);
@@ -202,27 +213,46 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         {
             String dc = en.getKey();
             ReplicationFactor rf = en.getValue();
-            int nodeCount = sizeOrZero(allEndpoints.get(dc));
+            int nodeCount = sizeOrZero(locations.datacenterEndpoints(dc));
 
             if (rf.allReplicas <= 0 || nodeCount <= 0)
                 continue;
 
-            DatacenterEndpoints dcEndpoints = new DatacenterEndpoints(rf, sizeOrZero(racks.get(dc)), nodeCount, builder, seenRacks);
+            DatacenterEndpoints dcEndpoints = new DatacenterEndpoints(rf, sizeOrZero(locations.datacenterRacks(dc)), nodeCount, builder, seenRacks);
             dcs.put(dc, dcEndpoints);
             ++dcsToFill;
         }
 
-        Iterator<Token> tokenIter = TokenMetadata.ringIterator(sortedTokens, searchToken, false);
+        Iterator<Token> tokenIter = TokenRingUtils.ringIterator(tokens.tokens(), searchToken, false);
         while (dcsToFill > 0 && tokenIter.hasNext())
         {
             Token next = tokenIter.next();
-            InetAddressAndPort ep = tokenMetadata.getEndpoint(next);
-            Pair<String, String> location = topology.getLocation(ep);
-            DatacenterEndpoints dcEndpoints = dcs.get(location.left);
+            NodeId owner = tokens.owner(next);
+            InetAddressAndPort ep = endpoints.endpoint(owner);
+            Location location = locations.location(owner);
+            DatacenterEndpoints dcEndpoints = dcs.get(location.datacenter);
             if (dcEndpoints != null && dcEndpoints.addEndpointAndCheckIfDone(ep, location, replicatedRange))
                 --dcsToFill;
         }
         return builder.build();
+    }
+
+    @Override
+    public DataPlacement calculateDataPlacement(List<Range<Token>> ranges,
+                                                ClusterMetadata metadata)
+    {
+        PlacementForRange.Builder builder = PlacementForRange.builder();
+        for (Range<Token> range : ranges)
+        {
+            builder.withReplicaGroup(calculateNaturalReplicas(range.right,
+                                                              range,
+                                                              metadata.directory,  // AsEndpoints
+                                                              metadata.directory,  // AsLocations
+                                                              metadata.tokenMap,
+                                                              datacenters));
+        }
+        PlacementForRange built = builder.build();
+        return new DataPlacement(built, built);
     }
 
     private int sizeOrZero(Multimap<?, ?> collection)

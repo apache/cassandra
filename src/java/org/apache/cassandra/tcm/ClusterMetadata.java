@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -26,11 +27,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForRange;
@@ -44,6 +47,7 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.cms.EntireRange;
@@ -65,6 +69,7 @@ public class ClusterMetadata
 
     public final DistributedSchema schema;
     public final Directory directory;
+    public final TokenMap tokenMap;
     public final EndpointsForRange cmsReplicas;
     public final ImmutableSet<InetAddressAndPort> cmsMembers;
 
@@ -73,7 +78,8 @@ public class ClusterMetadata
         this(partitioner, Directory.EMPTY);
     }
 
-    private ClusterMetadata(IPartitioner partitioner, Directory directory)
+    @VisibleForTesting
+    public ClusterMetadata(IPartitioner partitioner, Directory directory)
     {
         this(partitioner, directory, DistributedSchema.first());
     }
@@ -86,6 +92,7 @@ public class ClusterMetadata
              partitioner,
              schema,
              directory,
+             new TokenMap(partitioner),
              ImmutableSet.of(),
              ImmutableMap.of());
     }
@@ -96,15 +103,21 @@ public class ClusterMetadata
                            IPartitioner partitioner,
                            DistributedSchema schema,
                            Directory directory,
+                           TokenMap tokenMap,
                            Set<InetAddressAndPort> cmsMembers,
                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions)
     {
+        // TODO: token map is a feature of the specific placement strategy, and so may not be a relevant component of
+        //  ClusterMetadata in the long term. We need to consider how the actual components of metadata can be evolved
+        //  over time.
+        assert tokenMap == null || tokenMap.partitioner().getClass().equals(partitioner.getClass()) : "Partitioner for TokenMap doesn't match base partitioner";
         this.epoch = epoch;
         this.period = period;
         this.lastInPeriod = lastInPeriod;
         this.partitioner = partitioner;
         this.schema = schema;
         this.directory = directory;
+        this.tokenMap = tokenMap;
         this.cmsMembers = ImmutableSet.copyOf(cmsMembers);
         this.extensions = ImmutableMap.copyOf(extensions);
 
@@ -143,6 +156,7 @@ public class ClusterMetadata
                                    partitioner,
                                    schema,
                                    directory,
+                                   tokenMap,
                                    cmsMembers,
                                    extensions);
     }
@@ -166,6 +180,7 @@ public class ClusterMetadata
         private final IPartitioner partitioner;
         private DistributedSchema schema;
         private Directory directory;
+        private TokenMap tokenMap;
         private final Set<InetAddressAndPort> cmsMembers;
         private final Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions;
         private final Set<MetadataKey> modifiedKeys;
@@ -179,6 +194,7 @@ public class ClusterMetadata
             this.partitioner = metadata.partitioner;
             this.schema = metadata.schema;
             this.directory = metadata.directory;
+            this.tokenMap = metadata.tokenMap;
             this.cmsMembers = new HashSet<>(metadata.cmsMembers);
             extensions = new HashMap<>(metadata.extensions);
             modifiedKeys = new HashSet<>();
@@ -199,6 +215,25 @@ public class ClusterMetadata
         public Transformer withNodeState(NodeId id, NodeState state)
         {
             directory = directory.withNodeState(id, state);
+            return this;
+        }
+
+        public Transformer proposeToken(NodeId nodeId, Collection<Token> tokens)
+        {
+            tokenMap = tokenMap.assignTokens(nodeId, tokens);
+            directory = directory.withRackAndDC(nodeId);
+            return this;
+        }
+
+        public Transformer unproposeTokens(NodeId nodeId)
+        {
+            tokenMap = tokenMap.unassignTokens(nodeId);
+            return this;
+        }
+
+        public Transformer unproposeTokens(NodeId nodeId, Collection<Token> tokens)
+        {
+            tokenMap = tokenMap.unassignTokens(nodeId, tokens);
             return this;
         }
 
@@ -270,12 +305,19 @@ public class ClusterMetadata
                 directory = directory.withLastModified(epoch);
             }
 
+            if (tokenMap != base.tokenMap)
+            {
+                modifiedKeys.add(MetadataKeys.TOKEN_MAP);
+                tokenMap = tokenMap.withLastModified(epoch);
+            }
+
             return new Transformed(new ClusterMetadata(epoch,
                                                        period,
                                                        lastInPeriod,
                                                        partitioner,
                                                        schema,
                                                        directory,
+                                                       tokenMap,
                                                        cmsMembers,
                                                        extensions),
                                    ImmutableSet.copyOf(modifiedKeys));
@@ -291,6 +333,7 @@ public class ClusterMetadata
                    ", partitioner=" + partitioner +
                    ", schema=" + schema +
                    ", directory=" + schema +
+                   ", tokenMap=" + tokenMap +
                    ", extensions=" + extensions +
                    ", cmsMembers=" + cmsMembers +
                    ", modifiedKeys=" + modifiedKeys +
@@ -328,13 +371,14 @@ public class ClusterMetadata
                lastInPeriod == that.lastInPeriod &&
                schema.equals(that.schema) &&
                directory.equals(that.directory) &&
+               tokenMap.equals(that.tokenMap) &&
                extensions.equals(that.extensions);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(epoch, lastInPeriod, schema, directory, extensions);
+        return Objects.hash(epoch, lastInPeriod, schema, directory, tokenMap, extensions);
     }
 
     public static ClusterMetadata current()
@@ -378,6 +422,7 @@ public class ClusterMetadata
             out.writeUTF(metadata.partitioner.getClass().getCanonicalName());
             DistributedSchema.serializer.serialize(metadata.schema, out, version);
             Directory.serializer.serialize(metadata.directory, out, version);
+            TokenMap.serializer.serialize(metadata.tokenMap, out, version);
             out.writeInt(metadata.extensions.size());
             for (Map.Entry<ExtensionKey<?, ?>, ExtensionValue<?>> entry : metadata.extensions.entrySet())
             {
@@ -401,6 +446,7 @@ public class ClusterMetadata
             IPartitioner partitioner = FBUtilities.newPartitioner(in.readUTF());
             DistributedSchema schema = DistributedSchema.serializer.deserialize(in, version);
             Directory dir = Directory.serializer.deserialize(in, version);
+            TokenMap tokenMap = TokenMap.serializer.deserialize(in, version);
             int items = in.readInt();
             Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions = new HashMap<>(items);
             for (int i = 0; i < items; i++)
@@ -420,6 +466,7 @@ public class ClusterMetadata
                                        partitioner,
                                        schema,
                                        dir,
+                                       tokenMap,
                                        members,
                                        extensions);
         }
@@ -437,7 +484,8 @@ public class ClusterMetadata
                     TypeSizes.BOOL_SIZE +
                     sizeof(metadata.partitioner.getClass().getCanonicalName()) +
                     DistributedSchema.serializer.serializedSize(metadata.schema, version) +
-                    Directory.serializer.serializedSize(metadata.directory, version);
+                    Directory.serializer.serializedSize(metadata.directory, version) +
+                    TokenMap.serializer.serializedSize(metadata.tokenMap, version);
 
             size += TypeSizes.INT_SIZE;
             for (InetAddressAndPort member : metadata.cmsMembers)

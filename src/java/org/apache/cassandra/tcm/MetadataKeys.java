@@ -28,8 +28,11 @@ public class MetadataKeys
 
     public static final MetadataKey SCHEMA                  = make(CORE_NS, "schema", "dist_schema");
     public static final MetadataKey NODE_DIRECTORY          = make(CORE_NS, "membership", "node_directory");
+    public static final MetadataKey TOKEN_MAP               = make(CORE_NS, "ownership", "token_map");
 
-    public static final ImmutableSet<MetadataKey> CORE_METADATA = ImmutableSet.of(SCHEMA);
+    public static final ImmutableSet<MetadataKey> CORE_METADATA = ImmutableSet.of(SCHEMA,
+                                                                                  NODE_DIRECTORY,
+                                                                                  TOKEN_MAP);
 
     public static MetadataKey make(String...parts)
     {

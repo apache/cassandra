@@ -45,6 +45,12 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.compatibility.AsEndpoints;
+import org.apache.cassandra.tcm.compatibility.AsLocations;
+import org.apache.cassandra.tcm.compatibility.AsTokenMap;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.BiMultiValMap;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.SortedBiMultiValMap;
@@ -52,7 +58,7 @@ import org.apache.cassandra.utils.SortedBiMultiValMap;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
-public class TokenMetadata
+public class TokenMetadata implements AsEndpoints, AsLocations, AsTokenMap
 {
     private static final Logger logger = LoggerFactory.getLogger(TokenMetadata.class);
 
@@ -786,10 +792,7 @@ public class TokenMetadata
 
     public Collection<Range<Token>> getPrimaryRangesFor(Collection<Token> tokens)
     {
-        Collection<Range<Token>> ranges = new ArrayList<>(tokens.size());
-        for (Token right : tokens)
-            ranges.add(new Range<>(getPredecessor(right), right));
-        return ranges;
+        return TokenRingUtils.getPrimaryRangesFor(sortedTokens(), tokens);
     }
 
     @Deprecated
@@ -1041,22 +1044,6 @@ public class TokenMetadata
         return newPendingRanges;
     }
 
-    public Token getPredecessor(Token token)
-    {
-        List<Token> tokens = sortedTokens();
-        int index = Collections.binarySearch(tokens, token);
-        assert index >= 0 : token + " not found in " + tokenToEndpointMapKeysAsStrings();
-        return index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(index - 1);
-    }
-
-    public Token getSuccessor(Token token)
-    {
-        List<Token> tokens = sortedTokens();
-        int index = Collections.binarySearch(tokens, token);
-        assert index >= 0 : token + " not found in " + tokenToEndpointMapKeysAsStrings();
-        return (index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(index + 1);
-    }
-
     private String tokenToEndpointMapKeysAsStrings()
     {
         lock.readLock().lock();
@@ -1172,66 +1159,6 @@ public class TokenMetadata
         {
             lock.readLock().unlock();
         }
-    }
-
-    public static int firstTokenIndex(final ArrayList<Token> ring, Token start, boolean insertMin)
-    {
-        assert ring.size() > 0;
-        // insert the minimum token (at index == -1) if we were asked to include it and it isn't a member of the ring
-        int i = Collections.binarySearch(ring, start);
-        if (i < 0)
-        {
-            i = (i + 1) * (-1);
-            if (i >= ring.size())
-                i = insertMin ? -1 : 0;
-        }
-        return i;
-    }
-
-    public static Token firstToken(final ArrayList<Token> ring, Token start)
-    {
-        return ring.get(firstTokenIndex(ring, start, false));
-    }
-
-    /**
-     * iterator over the Tokens in the given ring, starting with the token for the node owning start
-     * (which does not have to be a Token in the ring)
-     * @param includeMin True if the minimum token should be returned in the ring even if it has no owner.
-     */
-    public static Iterator<Token> ringIterator(final ArrayList<Token> ring, Token start, boolean includeMin)
-    {
-        if (ring.isEmpty())
-            return includeMin ? Iterators.singletonIterator(start.getPartitioner().getMinimumToken())
-                              : Collections.emptyIterator();
-
-        final boolean insertMin = includeMin && !ring.get(0).isMinimum();
-        final int startIndex = firstTokenIndex(ring, start, insertMin);
-        return new AbstractIterator<Token>()
-        {
-            int j = startIndex;
-            protected Token computeNext()
-            {
-                if (j < -1)
-                    return endOfData();
-                try
-                {
-                    // return minimum for index == -1
-                    if (j == -1)
-                        return start.getPartitioner().getMinimumToken();
-                    // return ring token for other indexes
-                    return ring.get(j);
-                }
-                finally
-                {
-                    j++;
-                    if (j == ring.size())
-                        j = insertMin ? -1 : 0;
-                    if (j == startIndex)
-                        // end iteration
-                        j = -2;
-                }
-            }
-        };
     }
 
     /** used by tests */
@@ -1626,4 +1553,74 @@ public class TokenMetadata
             }
         }
     }
+
+    // Methods of org.apache.cassandra.tcm.compatibility.AsEndpoints
+    @Override
+    public NodeId peerId(InetAddressAndPort endpoint)
+    {
+        return new NodeId(getHostId(endpoint));
+    }
+
+    @Override
+    public InetAddressAndPort endpoint(NodeId id)
+    {
+        return getEndpointForHostId(id.uuid);
+    }
+
+    // Methods of org.apache.cassandra.tcm.compatibility.AsLocations
+    @Override
+    public Location location(NodeId peer)
+    {
+        Pair<String, String> dcRack = topology.getLocation(endpoint(peer));
+        return new Location(dcRack.left, dcRack.right);
+    }
+
+    @Override
+    public Set<InetAddressAndPort> datacenterEndpoints(String datacenter)
+    {
+        return new HashSet<>(topology.dcEndpoints.get(datacenter));
+    }
+
+    @Override
+    public Multimap<String, InetAddressAndPort> allDatacenterEndpoints()
+    {
+        return topology.getDatacenterEndpoints();
+    }
+
+    @Override
+    public Multimap<String, InetAddressAndPort> datacenterRacks(String datacenter)
+    {
+        return topology.dcRacks.get(datacenter);
+    }
+
+    @Override
+    public Map<String, Multimap<String, InetAddressAndPort>> allDatacenterRacks()
+    {
+        // terrible, but temporary
+        Map<String, Multimap<String, InetAddressAndPort>> dcRacks = new HashMap<>();
+        topology.getDatacenterRacks().forEach((dc, racks) -> {
+            dcRacks.put(dc, HashMultimap.create(racks));
+        });
+        return dcRacks;
+    }
+
+    // Methods of org.apache.cassandra.tcm.compatibility.AsTokenMap
+    @Override
+    public IPartitioner partitioner()
+    {
+        return partitioner;
+    }
+
+    @Override
+    public ImmutableList<Token> tokens()
+    {
+        return ImmutableList.copyOf(sortedTokens);
+    }
+
+    @Override
+    public NodeId owner(Token token)
+    {
+        return new NodeId(getHostId(getEndpoint(token)));
+    }
+
 }

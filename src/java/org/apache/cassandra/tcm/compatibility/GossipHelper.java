@@ -31,6 +31,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.ownership.TokenMap;
 
 public class GossipHelper
 {
@@ -48,6 +49,7 @@ public class GossipHelper
                                    DatabaseDescriptor.getPartitioner(),
                                    DistributedSchema.fromSystemTables(SchemaKeyspace.fetchNonSystemKeyspaces()),
                                    Directory.EMPTY,
+                                   new TokenMap(DatabaseDescriptor.getPartitioner()),
                                    Collections.emptySet(),
                                    Collections.emptyMap());
     }

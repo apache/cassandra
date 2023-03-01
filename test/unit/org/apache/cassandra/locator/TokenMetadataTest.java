@@ -39,6 +39,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -72,7 +73,7 @@ public class TokenMetadataTest
     private static void testRingIterator(ArrayList<Token> ring, String start, boolean includeMin, String... expected)
     {
         ArrayList<Token> actual = new ArrayList<>();
-        Iterators.addAll(actual, TokenMetadata.ringIterator(ring, token(start), includeMin));
+        Iterators.addAll(actual, TokenRingUtils.ringIterator(ring, token(start), includeMin));
         assertEquals(actual.toString(), expected.length, actual.size());
         for (int i = 0; i < expected.length; i++)
             assertEquals("Mismatch at index " + i + ": " + actual, token(expected[i]), actual.get(i));
