@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.*;
 import java.util.function.Predicate;
@@ -25,6 +26,11 @@ import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.ObjectUtils;
 
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -38,6 +44,7 @@ import org.apache.cassandra.utils.Pair;
  */
 public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implements Comparable<Range<T>>, Serializable
 {
+    public static final Serializer serializer = new Serializer();
     public static final long serialVersionUID = 1L;
 
     public Range(T left, T right)
@@ -680,6 +687,26 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
                                                        lastRange.intersects(range),
                                                        ranges));
             }
+        }
+    }
+
+    public static class Serializer implements MetadataSerializer<Range<Token>>
+    {
+        private static final int SERDE_VERSION = MessagingService.VERSION_40;
+
+        public void serialize(Range<Token> t, DataOutputPlus out, Version version) throws IOException
+        {
+            tokenSerializer.serialize(t, out, SERDE_VERSION);
+        }
+
+        public Range<Token> deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            return (Range<Token>) tokenSerializer.deserialize(in, IPartitioner.global(), SERDE_VERSION);
+        }
+
+        public long serializedSize(Range<Token> t, Version version)
+        {
+            return tokenSerializer.serializedSize(t, SERDE_VERSION);
         }
     }
 }

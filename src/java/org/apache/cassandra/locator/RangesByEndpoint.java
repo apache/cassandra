@@ -22,10 +22,25 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
+import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
+
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 
 public class RangesByEndpoint extends ReplicaMultimap<InetAddressAndPort, RangesAtEndpoint>
 {
+    public static RangesByEndpoint EMPTY = new RangesByEndpoint.Builder().build();
+
+    public static final Serializer serializer = new Serializer();
+
     public RangesByEndpoint(Map<InetAddressAndPort, RangesAtEndpoint> map)
     {
         super(map);
@@ -53,4 +68,58 @@ public class RangesByEndpoint extends ReplicaMultimap<InetAddressAndPort, Ranges
         }
     }
 
+    public static class Serializer implements MetadataSerializer<RangesByEndpoint>
+    {
+        public void serialize(RangesByEndpoint t, DataOutputPlus out, Version version) throws IOException
+        {
+            Set<Map.Entry<InetAddressAndPort, RangesAtEndpoint>> entries = t.entrySet();
+            out.writeInt(entries.size());
+            for (Map.Entry<InetAddressAndPort, RangesAtEndpoint> entry : entries)
+            {
+                InetAddressAndPort.MetadataSerializer.serializer.serialize(entry.getKey(), out, version);
+                AbstractReplicaCollection.ReplicaList replicas = entry.getValue().list;
+                out.writeInt(replicas.size());
+                for (Replica r : replicas)
+                {
+                    IPartitioner.validate(r.range());
+                    Range.serializer.serialize(r.range(), out, version);
+                    out.writeBoolean(r.isFull());
+                }
+            }
+        }
+
+        public RangesByEndpoint deserialize(DataInputPlus in, Version version) throws IOException
+        {
+            RangesByEndpoint.Builder builder = new Builder();
+            int size = in.readInt();
+            for (int i=0; i<size; i++)
+            {
+                InetAddressAndPort endpoint = InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version);
+                int replicas = in.readInt();
+                for (int j=0; j<replicas; j++)
+                {
+                    Range<Token> range = Range.serializer.deserialize(in, version);
+                    boolean full = in.readBoolean();
+                    builder.put(endpoint, new Replica(endpoint, range, full));
+                }
+            }
+            return builder.build();
+        }
+
+        public long serializedSize(RangesByEndpoint t, Version version)
+        {
+            long size = TypeSizes.INT_SIZE;
+            for (Map.Entry<InetAddressAndPort, RangesAtEndpoint> entry : t.entrySet())
+            {
+                size += InetAddressAndPort.MetadataSerializer.serializer.serializedSize(entry.getKey(), version);
+                size += TypeSizes.INT_SIZE;
+                for (Replica r : entry.getValue().list)
+                {
+                    size += Range.serializer.serializedSize(r.range(), version);
+                    size += TypeSizes.BOOL_SIZE;
+                }
+            }
+            return size;
+        }
+    }
 }
