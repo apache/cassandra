@@ -124,10 +124,9 @@ public final class TraceKeyspace
         Row.SimpleBuilder rb = builder.row();
         rb.ttl(ttl)
           .add("client", client)
-          .add("coordinator", FBUtilities.getBroadcastAddressAndPort().getAddress());
-        if (!Gossiper.instance.hasMajorVersion3Nodes())
-            rb.add("coordinator_port", FBUtilities.getBroadcastAddressAndPort().getPort());
-        rb.add("request", request)
+          .add("coordinator", FBUtilities.getBroadcastAddressAndPort().getAddress())
+          .add("coordinator_port", FBUtilities.getBroadcastAddressAndPort().getPort())
+          .add("request", request)
           .add("started_at", new Date(startedAt))
           .add("command", command)
           .appendAll("parameters", parameters);
@@ -151,10 +150,9 @@ public final class TraceKeyspace
                                               .ttl(ttl);
 
         rowBuilder.add("activity", message)
-                  .add("source", FBUtilities.getBroadcastAddressAndPort().getAddress());
-        if (!Gossiper.instance.hasMajorVersion3Nodes())
-            rowBuilder.add("source_port", FBUtilities.getBroadcastAddressAndPort().getPort());
-        rowBuilder.add("thread", threadName);
+                  .add("source", FBUtilities.getBroadcastAddressAndPort().getAddress())
+                  .add("source_port", FBUtilities.getBroadcastAddressAndPort().getPort())
+                  .add("thread", threadName);
 
         if (elapsed >= 0)
             rowBuilder.add("source_elapsed", elapsed);

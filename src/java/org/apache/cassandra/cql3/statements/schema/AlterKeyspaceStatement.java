@@ -47,6 +47,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.utils.FBUtilities;
@@ -93,7 +94,7 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
 
         newKeyspace.params.validate(keyspaceName, state);
         newKeyspace.replicationStrategy.validate();
-
+        validateNoRangeMovements();
         validateTransientReplication(keyspace.replicationStrategy, newKeyspace.replicationStrategy);
 
         // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
@@ -142,14 +143,19 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         if (allow_alter_rf_during_range_movement)
             return;
 
-        Stream<InetAddressAndPort> unreachableNotAdministrativelyInactive =
-            Gossiper.instance.getUnreachableMembers().stream().filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
-                                                                                  !Gossiper.instance.isAdministrativelyInactiveState(endpoint));
-        Stream<InetAddressAndPort> endpoints = Stream.concat(Gossiper.instance.getLiveMembers().stream(),
-                                                             unreachableNotAdministrativelyInactive);
-        List<InetAddressAndPort> notNormalEndpoints = endpoints.filter(endpoint -> !FBUtilities.getBroadcastAddressAndPort().equals(endpoint) &&
-                                                                                   !Gossiper.instance.getEndpointStateForEndpoint(endpoint).isNormalState())
-                                                               .collect(Collectors.toList());
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(FBUtilities.getBroadcastAddressAndPort());
+        Set<InetAddressAndPort> notNormalEndpoints = metadata.directory.states.entrySet().stream().filter(e -> !e.getKey().equals(nodeId)).filter(e -> {
+            switch (e.getValue())
+            {
+                case BOOTSTRAPPING:
+                case LEAVING:
+                case MOVING:
+                    return true;
+                default:
+                    return false;
+            }
+        }).map(e -> metadata.directory.endpoint(e.getKey())).collect(Collectors.toSet());
         if (!notNormalEndpoints.isEmpty())
         {
             throw new ConfigurationException("Cannot alter RF while some endpoints are not in normal state (no range movements): " + notNormalEndpoints);

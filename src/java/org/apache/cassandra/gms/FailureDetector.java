@@ -47,9 +47,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -254,10 +257,13 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
                 continue;
             sb.append("  ").append(state.getKey()).append(":").append(state.getValue().version).append(":").append(state.getValue().value).append("\n");
         }
-        VersionedValue tokens = endpointState.getApplicationState(ApplicationState.TOKENS);
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId nodeId = metadata.directory.peerId(FBUtilities.getBroadcastAddressAndPort());
+        List<Token> tokens = metadata.tokenMap.tokens(nodeId);
         if (tokens != null)
         {
-            sb.append("  TOKENS:").append(tokens.version).append(":<hidden>\n");
+            // todo, used to only append tokens.version
+            sb.append("  TOKENS:").append(metadata.epoch.toString()).append("\n");
         }
         else
         {
@@ -305,7 +311,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         // it's worth being defensive here so minor bugs don't cause disproportionate
         // badness.  (See CASSANDRA-1463 for an example).
         if (epState == null)
-            logger.error("Unknown endpoint: " + ep, new IllegalArgumentException(""));
+            logger.error("Unknown endpoint: " + ep, new IllegalArgumentException("Unknown endpoint: " + ep));
         return epState != null && epState.isAlive();
     }
 

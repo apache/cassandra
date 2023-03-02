@@ -42,7 +42,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         InetAddressAndPort from = message.from();
         if (logger.isTraceEnabled())
             logger.trace("Received a GossipDigestAckMessage from {}", from);
-        if (!Gossiper.instance.isEnabled() && !Gossiper.instance.isInShadowRound())
+        if (!Gossiper.instance.isEnabled() && !NewGossiper.instance.isInShadowRound())
         {
             if (logger.isTraceEnabled())
                 logger.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
@@ -53,17 +53,14 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         List<GossipDigest> gDigestList = gDigestAckMessage.getGossipDigestList();
         Map<InetAddressAndPort, EndpointState> epStateMap = gDigestAckMessage.getEndpointStateMap();
         logger.trace("Received ack with {} digests and {} states", gDigestList.size(), epStateMap.size());
-
-        if (Gossiper.instance.isInShadowRound())
+        if (NewGossiper.instance.isInShadowRound())
         {
             if (logger.isDebugEnabled())
                 logger.debug("Received an ack from {}, which may trigger exit from shadow round", from);
 
-            // if the ack is completely empty, then we can infer that the respondent is also in a shadow round
-            Gossiper.instance.maybeFinishShadowRound(from, gDigestList.isEmpty() && epStateMap.isEmpty(), epStateMap);
-            return; // don't bother doing anything else, we have what we came for
+            NewGossiper.instance.onAck(epStateMap);
+            return;
         }
-
         if (epStateMap.size() > 0)
         {
             // Ignore any GossipDigestAck messages that we handle before a regular GossipDigestSyn has been send.

@@ -77,7 +77,7 @@ public final class GossiperEvent extends DiagnosticEvent
         this.localState = localState;
 
         this.endpointStateMap = gossiper.getEndpointStateMap();
-        this.inShadowRound = gossiper.isInShadowRound();
+        this.inShadowRound = false; // todo; gossiper.isInShadowRound();
         this.justRemovedEndpoints = gossiper.getJustRemovedEndpoints();
         this.lastProcessedMessageAt = gossiper.getLastProcessedMessageAt();
         this.liveEndpoints = gossiper.getLiveMembers();
