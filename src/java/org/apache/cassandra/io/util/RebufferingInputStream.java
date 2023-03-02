@@ -17,13 +17,17 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.*;
+import java.io.Closeable;
+import java.io.DataInputStream;
+import java.io.EOFException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import com.google.common.base.Preconditions;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
+import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -32,10 +36,10 @@ import static java.lang.Math.min;
 /**
  * Rough equivalent of BufferedInputStream and DataInputStream wrapping a ByteBuffer that can be refilled
  * via rebuffer. Implementations provide this buffer from various channels (socket, file, memory, etc).
- *
+ * <p>
  * RebufferingInputStream is not thread safe.
  */
-public abstract class RebufferingInputStream extends InputStream implements DataInputPlus, Closeable
+public abstract class RebufferingInputStream extends DataInputStreamPlus implements DataInputPlus, Closeable
 {
     protected ByteBuffer buffer;
 

@@ -17,25 +17,33 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import org.apache.cassandra.io.util.*;
-
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
 import java.util.function.UnaryOperator;
 import java.util.zip.CRC32;
 
 import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -113,7 +121,7 @@ public class MetadataSerializer implements IMetadataSerializer
     {
         Map<MetadataType, MetadataComponent> components;
         logger.trace("Load metadata for {}", descriptor);
-        File statsFile = new File(descriptor.filenameFor(Component.STATS));
+        File statsFile = descriptor.fileFor(Components.STATS);
         if (!statsFile.exists())
         {
             logger.trace("No sstable stats for {}", descriptor);
@@ -213,8 +221,8 @@ public class MetadataSerializer implements IMetadataSerializer
 
         if (actualChecksum != expectedChecksum)
         {
-            String filename = descriptor.filenameFor(Component.STATS);
-            throw new CorruptSSTableException(new IOException("Checksums do not match for " + filename), filename);
+            File file = descriptor.fileFor(Components.STATS);
+            throw new CorruptSSTableException(new IOException("Checksums do not match for " + file), file);
         }
     }
 
@@ -222,7 +230,7 @@ public class MetadataSerializer implements IMetadataSerializer
     public void mutate(Descriptor descriptor, String description, UnaryOperator<StatsMetadata> transform) throws IOException
     {
         if (logger.isTraceEnabled() )
-            logger.trace("Mutating {} to {}", descriptor.filenameFor(Component.STATS), description);
+            logger.trace("Mutating {} to {}", descriptor.fileFor(Components.STATS), description);
 
         mutate(descriptor, transform);
     }
@@ -231,7 +239,7 @@ public class MetadataSerializer implements IMetadataSerializer
     public void mutateLevel(Descriptor descriptor, int newLevel) throws IOException
     {
         if (logger.isTraceEnabled())
-            logger.trace("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), newLevel);
+            logger.trace("Mutating {} to level {}", descriptor.fileFor(Components.STATS), newLevel);
 
         mutate(descriptor, stats -> stats.mutateLevel(newLevel));
     }
@@ -241,7 +249,7 @@ public class MetadataSerializer implements IMetadataSerializer
     {
         if (logger.isTraceEnabled())
             logger.trace("Mutating {} to repairedAt time {} and pendingRepair {}",
-                         descriptor.filenameFor(Component.STATS), newRepairedAt, newPendingRepair);
+                         descriptor.fileFor(Components.STATS), newRepairedAt, newPendingRepair);
 
         mutate(descriptor, stats -> stats.mutateRepairedMetadata(newRepairedAt, newPendingRepair, isTransient));
     }
@@ -257,8 +265,8 @@ public class MetadataSerializer implements IMetadataSerializer
 
     public void rewriteSSTableMetadata(Descriptor descriptor, Map<MetadataType, MetadataComponent> currentComponents) throws IOException
     {
-        String filePath = descriptor.tmpFilenameFor(Component.STATS);
-        try (DataOutputStreamPlus out = new FileOutputStreamPlus(filePath))
+        File file = descriptor.tmpFileFor(Components.STATS);
+        try (DataOutputStreamPlus out = file.newOutputStream(File.WriteMode.OVERWRITE))
         {
             serialize(currentComponents, out, descriptor.version);
             out.flush();
@@ -266,8 +274,8 @@ public class MetadataSerializer implements IMetadataSerializer
         catch (IOException e)
         {
             Throwables.throwIfInstanceOf(e, FileNotFoundException.class);
-            throw new FSWriteError(e, filePath);
+            throw new FSWriteError(e, file);
         }
-        FileUtils.renameWithConfirm(filePath, descriptor.filenameFor(Component.STATS));
+        file.move(descriptor.fileFor(Components.STATS));
     }
 }

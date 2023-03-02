@@ -34,4 +34,12 @@ public interface SharedCloseable extends AutoCloseable
     public Throwable close(Throwable accumulate);
 
     public void addTo(Ref.IdentityCollection identities);
+
+    static <T extends SharedCloseable> T sharedCopyOrNull(T sharedCloseable)
+    {
+        if (sharedCloseable != null)
+            return (T) sharedCloseable.sharedCopy();
+
+        return null;
+    }
 }

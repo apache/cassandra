@@ -24,15 +24,15 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.SSTableIndex;
 import org.apache.cassandra.index.sasi.conf.view.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Pair;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** a pared-down version of DataTracker and DT.View. need one for each index of each column family */
 public class DataTracker
@@ -145,7 +145,7 @@ public class DataTracker
             if (sstable.isMarkedCompacted())
                 continue;
 
-            File indexFile = new File(sstable.descriptor.filenameFor(columnIndex.getComponent()));
+            File indexFile = sstable.descriptor.fileFor(columnIndex.getComponent());
             if (!indexFile.exists())
                 continue;
 

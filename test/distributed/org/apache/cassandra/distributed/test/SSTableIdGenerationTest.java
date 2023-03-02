@@ -432,8 +432,16 @@ public class SSTableIdGenerationTest extends TestBaseImpl
 
     private static void assertSSTablesCount(Set<Descriptor> descs, String tableName, int expectedSeqGenIds, int expectedUUIDGenIds)
     {
-        List<String> seqSSTables = descs.stream().filter(desc -> desc.id instanceof SequenceBasedSSTableId).map(Descriptor::baseFilename).sorted().collect(Collectors.toList());
-        List<String> uuidSSTables = descs.stream().filter(desc -> desc.id instanceof UUIDBasedSSTableId).map(Descriptor::baseFilename).sorted().collect(Collectors.toList());
+        List<String> seqSSTables = descs.stream()
+                                        .filter(desc -> desc.id instanceof SequenceBasedSSTableId)
+                                        .map(descriptor -> descriptor.baseFile().toString())
+                                        .sorted()
+                                        .collect(Collectors.toList());
+        List<String> uuidSSTables = descs.stream()
+                                         .filter(desc -> desc.id instanceof UUIDBasedSSTableId)
+                                         .map(descriptor -> descriptor.baseFile().toString())
+                                         .sorted()
+                                         .collect(Collectors.toList());
         assertThat(seqSSTables).describedAs("SSTables of %s with sequence based id", tableName).hasSize(expectedSeqGenIds);
         assertThat(uuidSSTables).describedAs("SSTables of %s with UUID based id", tableName).hasSize(expectedUUIDGenIds);
     }

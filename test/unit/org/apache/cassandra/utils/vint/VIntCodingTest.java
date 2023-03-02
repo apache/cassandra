@@ -18,19 +18,17 @@
 */
 package org.apache.cassandra.utils.vint;
 
-import com.google.common.primitives.UnsignedInteger;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
-import org.junit.Test;
-
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+
+import com.google.common.primitives.UnsignedInteger;
+import org.junit.Test;
+
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -120,8 +118,7 @@ public class VIntCodingTest
                 // read as ByteBuffer
                 assertEquals(val, VIntCoding.getUnsignedVInt(out.buffer(), 0));
                 // read as DataInput
-                InputStream is = new ByteArrayInputStream(out.toByteArray());
-                assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputPlus.DataInputStreamPlus(is)));
+                assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputBuffer(out.toByteArray())));
             }
         }
     }
@@ -142,8 +139,7 @@ public class VIntCodingTest
                 // read as ByteBuffer
                 assertEquals(val, VIntCoding.getUnsignedVInt(ByteBuffer.wrap(baos.toByteArray()), 0));
                 // read as DataInput
-                InputStream is = new ByteArrayInputStream(baos.toByteArray());
-                assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputPlus.DataInputStreamPlus(is)));
+                assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputBuffer(baos.toByteArray())));
             }
         }
     }
@@ -160,8 +156,7 @@ public class VIntCodingTest
             // read as ByteBuffer
             assertEquals(val, VIntCoding.getUnsignedVInt(bb, 0));
             // read as DataInput
-            InputStream is = new ByteArrayInputStream(bb.array());
-            assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputPlus.DataInputStreamPlus(is)));
+            assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputBuffer(bb.array())));
         }
     }
 
@@ -175,8 +170,7 @@ public class VIntCodingTest
         // read as ByteBuffer
         assertEquals(val, VIntCoding.getUnsignedVInt(bb, 0));
         // read as DataInput
-        InputStream is = new ByteArrayInputStream(bb.array());
-        assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputPlus.DataInputStreamPlus(is)));
+        assertEquals(val, VIntCoding.readUnsignedVInt(new DataInputBuffer(bb.array())));
     }
 
     @Test

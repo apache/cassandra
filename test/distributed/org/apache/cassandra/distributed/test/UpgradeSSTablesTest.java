@@ -41,7 +41,6 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.LogAction;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
@@ -262,7 +261,7 @@ public class UpgradeSSTablesTest extends TestBaseImpl
                         cfs.disableAutoCompaction();
                         for (SSTableReader tbl : cfs.getLiveSSTables())
                         {
-                            maxTs = Math.max(maxTs, tbl.getCreationTimeFor(Component.DATA));
+                            maxTs = Math.max(maxTs, tbl.getDataCreationTime());
                         }
                         return maxTs;
                     }).apply(KEYSPACE);
@@ -284,7 +283,7 @@ public class UpgradeSSTablesTest extends TestBaseImpl
                         assert liveSSTables.size() == 2 : String.format("Expected 2 sstables, but got " + liveSSTables.size());
                         for (SSTableReader tbl : liveSSTables)
                         {
-                            if (tbl.getCreationTimeFor(Component.DATA) <= maxTs)
+                            if (tbl.getDataCreationTime() <= maxTs)
                                 count++;
                             else
                                 skipped++;

@@ -40,8 +40,8 @@ public abstract class Version
 
     protected Version(SSTableFormat format, String version)
     {
-        this.format = format;
-        this.version = version;
+        this.format = Objects.requireNonNull(format);
+        this.version = Objects.requireNonNull(version);
     }
 
     public abstract boolean isLatestVersion();

@@ -35,7 +35,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,8 +53,11 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components.Types;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Schema;
@@ -301,7 +303,7 @@ public abstract class SSTableHeaderFix
               .filter(p -> {
                   try
                   {
-                      return Descriptor.fromFilenameWithComponent(new File(p)).right.type == Component.Type.DATA;
+                      return Descriptor.fromFileWithComponent(new File(p)).right.type == Types.DATA;
                   }
                   catch (IllegalArgumentException t)
                   {
@@ -309,8 +311,8 @@ public abstract class SSTableHeaderFix
                       return false;
                   }
               })
-              .map(Path::toString)
-              .map(Descriptor::fromFilename)
+              .map(File::new)
+              .map(file -> Descriptor.fromFileWithComponent(file, false).left)
               .forEach(descriptors::add);
     }
 
@@ -342,8 +344,8 @@ public abstract class SSTableHeaderFix
             return;
         }
 
-        Set<Component> components = SSTable.discoverComponentsFor(desc);
-        if (components.stream().noneMatch(c -> c.type == Component.Type.STATS))
+        Set<Component> components = desc.discoverComponents();
+        if (components.stream().noneMatch(c -> c.type == Types.STATS))
         {
             error("sstable %s has no -Statistics.db component.", desc);
             return;
@@ -845,7 +847,7 @@ public abstract class SSTableHeaderFix
 
     private void writeNewMetadata(Descriptor desc, Map<MetadataType, MetadataComponent> newMetadata)
     {
-        String file = desc.filenameFor(Component.STATS);
+        File file = desc.fileFor(Components.STATS);
         info.accept(String.format("  Writing new metadata file %s", file));
         try
         {

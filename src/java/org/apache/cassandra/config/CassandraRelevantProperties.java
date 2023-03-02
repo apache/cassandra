@@ -341,6 +341,9 @@ public enum CassandraRelevantProperties
     SEED_COUNT_WARN_THRESHOLD("cassandra.seed_count_warn_threshold"),
 
 
+    SSTABLE_FORMAT_DEFAULT("cassandra.sstable.format.default"),
+
+
     /** When enabled, recursive directory deletion will be executed using a unix command `rm -rf` instead of traversing
      * and removing individual files. This is now used only tests, but eventually we will make it true by default.*/
     USE_NIX_RECURSIVE_DELETE("cassandra.use_nix_recursive_delete"),
@@ -356,6 +359,7 @@ public enum CassandraRelevantProperties
      * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
     FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
 
+    TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS("cassandra.streaminghistogram.roundseconds", "60"),
     ;
 
     CassandraRelevantProperties(String key, String defaultVal)
@@ -559,6 +563,21 @@ public enum CassandraRelevantProperties
         if (value == null)
             return defaultValue;
         return Enum.valueOf(defaultValue.getDeclaringClass(), toUppercase ? value.toUpperCase() : value);
+    }
+
+    /**
+     * Gets the value of a system property as an enum, optionally calling {@link String#toUpperCase()} first.
+     * If the value is missing, the default value for this property is used
+     *
+     * @param toUppercase before converting to enum
+     * @param enumClass enumeration class
+     * @param <T> type
+     * @return enum value
+     */
+    public <T extends Enum<T>> T getEnum(boolean toUppercase, Class<T> enumClass)
+    {
+        String value = System.getProperty(key, defaultVal);
+        return Enum.valueOf(enumClass, toUppercase ? value.toUpperCase() : value);
     }
 
     /**

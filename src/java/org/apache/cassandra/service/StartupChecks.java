@@ -555,7 +555,7 @@ public class StartupChecks
 
                     try
                     {
-                        Descriptor desc = Descriptor.fromFilename(file);
+                        Descriptor desc = Descriptor.fromFileWithComponent(file, false).left;
                         if (!desc.isCompatible())
                             invalid.add(file.toString());
 

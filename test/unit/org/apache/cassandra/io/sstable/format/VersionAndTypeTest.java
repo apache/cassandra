@@ -17,13 +17,24 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
+import java.util.NoSuchElementException;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 
 public class VersionAndTypeTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.clientInitialization();
+    }
+
     @Test
     public void testValidInput()
     {
@@ -37,10 +48,10 @@ public class VersionAndTypeTest
                                                                 .hasMessageContaining("should be of the form 'big-bc'");
         assertThatThrownBy(() -> VersionAndType.fromString("mcc-")).isInstanceOf(IllegalArgumentException.class)
                                                                    .hasMessageContaining("should be of the form 'big-bc'");
-        assertThatThrownBy(() -> VersionAndType.fromString("mcc-d")).isInstanceOf(IllegalArgumentException.class)
-                                                                    .hasMessageContaining("No Type constant mcc");
-        assertThatThrownBy(() -> VersionAndType.fromString("mcc-d-")).isInstanceOf(IllegalArgumentException.class)
-                                                                     .hasMessageContaining("No Type constant mcc");
+        assertThatThrownBy(() -> VersionAndType.fromString("mcc-d")).isInstanceOf(NoSuchElementException.class)
+                                                                    .hasMessageContaining("mcc");
+        assertThatThrownBy(() -> VersionAndType.fromString("mcc-d-")).isInstanceOf(NoSuchElementException.class)
+                                                                     .hasMessageContaining("mcc");
         assertThatThrownBy(() -> VersionAndType.fromString("mcc")).isInstanceOf(IllegalArgumentException.class)
                                                                   .hasMessageContaining("should be of the form 'big-bc'");
         assertThatThrownBy(() -> VersionAndType.fromString("-")).isInstanceOf(IllegalArgumentException.class)

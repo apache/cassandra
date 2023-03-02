@@ -21,15 +21,22 @@
 package org.apache.cassandra.db.lifecycle;
 
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
-
-import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,8 +44,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LogRecord.Type;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -62,7 +70,7 @@ final class LogFile implements AutoCloseable
     static String EXT = ".log";
     static char SEP = '_';
     // cc_txn_opname_id.log (where cc is one of the sstable versions defined in BigVersion)
-    static Pattern FILE_REGEX = Pattern.compile(String.format("^(.{2})_txn_(.*)_(.*)%s$", EXT));
+    static Pattern FILE_REGEX = Pattern.compile(String.format("^(.{2}_)?txn_(.*)_(.*)%s$", EXT));
 
     // A set of physical files on disk, each file is an identical replica
     private final LogReplicaSet replicas = new LogReplicaSet();
@@ -496,14 +504,10 @@ final class LogFile implements AutoCloseable
 
     private String getFileName()
     {
-        return StringUtils.join(BigFormat.latestVersion,
-                                LogFile.SEP,
-                                "txn",
-                                LogFile.SEP,
-                                type.fileName,
-                                LogFile.SEP,
-                                id.toString(),
-                                LogFile.EXT);
+        return StringUtils.join(SSTableFormat.Type.current().info.getLatestVersion(), LogFile.SEP, // remove version and separator when downgrading to 4.x is becomes unsupported
+                                "txn", LogFile.SEP,
+                                type.fileName, LogFile.SEP,
+                                id.toString(), LogFile.EXT);
     }
 
     public boolean isEmpty()

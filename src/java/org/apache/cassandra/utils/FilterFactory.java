@@ -17,15 +17,19 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.IOException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
 
 public class FilterFactory
 {
-    public static final IFilter AlwaysPresent = new AlwaysPresentFilter();
+    public static final IFilter AlwaysPresent = AlwaysPresentFilter.instance;
 
     private static final Logger logger = LoggerFactory.getLogger(FilterFactory.class);
     private static final long BITSET_EXCESS = 20;
@@ -57,7 +61,7 @@ public class FilterFactory
     {
         assert maxFalsePosProbability <= 1.0 : "Invalid probability";
         if (maxFalsePosProbability == 1.0)
-            return new AlwaysPresentFilter();
+            return FilterFactory.AlwaysPresent;
         int bucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
         BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement, maxFalsePosProbability);
         return createFilter(spec.K, numElements, spec.bucketsPerElement);
@@ -69,5 +73,57 @@ public class FilterFactory
         long numBits = (numElements * bucketsPer) + BITSET_EXCESS;
         IBitSet bitset = new OffHeapBitSet(numBits);
         return new BloomFilter(hash, bitset);
+    }
+
+    private static class AlwaysPresentFilter implements IFilter
+    {
+        public static final AlwaysPresentFilter instance = new AlwaysPresentFilter();
+
+        private AlwaysPresentFilter() { }
+
+        public boolean isPresent(FilterKey key)
+        {
+            return true;
+        }
+
+        public void add(FilterKey key) { }
+
+        public void clear() { }
+
+        public void close() { }
+
+        public IFilter sharedCopy()
+        {
+            return this;
+        }
+
+        public Throwable close(Throwable accumulate)
+        {
+            return accumulate;
+        }
+
+        public void addTo(Ref.IdentityCollection identities)
+        {
+        }
+
+        public long serializedSize(boolean oldSerializationFormat) { return 0; }
+
+        @Override
+        public void serialize(DataOutputStreamPlus out, boolean oldSerializationFormat) throws IOException
+        {
+            // no-op
+        }
+
+        @Override
+        public long offHeapSize()
+        {
+            return 0;
+        }
+
+        @Override
+        public boolean isInformative()
+        {
+            return false;
+        }
     }
 }

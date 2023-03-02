@@ -58,11 +58,11 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
@@ -252,8 +252,8 @@ public class CompactionStrategyManager implements INotificationConsumer
                                                   .stream()
                                                   .filter(s -> !compacting.contains(s) && !s.descriptor.version.isLatestVersion())
                                                   .sorted((o1, o2) -> {
-                                                      File f1 = new File(o1.descriptor.filenameFor(Component.DATA));
-                                                      File f2 = new File(o2.descriptor.filenameFor(Component.DATA));
+                                                      File f1 = o1.descriptor.fileFor(Components.DATA);
+                                                      File f2 = o2.descriptor.fileFor(Components.DATA);
                                                       return Longs.compare(f1.lastModified(), f2.lastModified());
                                                   }).collect(Collectors.toList());
         for (SSTableReader sstable : potentialUpgrade)

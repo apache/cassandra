@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable;
 import java.io.IOException;
 import java.util.UUID;
 
-import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -29,11 +28,14 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class DescriptorTest
 {
@@ -84,19 +86,19 @@ public class DescriptorTest
 
     private void testFromFilenameFor(File dir)
     {
-        checkFromFilename(new Descriptor(dir, ksname, cfname, new SequenceBasedSSTableId(1), SSTableFormat.Type.BIG));
+        checkFromFilename(new Descriptor(dir, ksname, cfname, new SequenceBasedSSTableId(1), SSTableFormat.Type.current()));
 
         // secondary index
         String idxName = "myidx";
         File idxDir = new File(dir.absolutePath() + File.pathSeparator() + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName);
-        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, new SequenceBasedSSTableId(4), SSTableFormat.Type.BIG));
+        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, new SequenceBasedSSTableId(4), SSTableFormat.Type.current()));
     }
 
     private void checkFromFilename(Descriptor original)
     {
-        File file = new File(original.filenameFor(Component.DATA));
+        File file = original.fileFor(Components.DATA);
 
-        Pair<Descriptor, Component> pair = Descriptor.fromFilenameWithComponent(file);
+        Pair<Descriptor, Component> pair = Descriptor.fromFileWithComponent(file);
         Descriptor desc = pair.left;
 
         assertEquals(original.directory, desc.directory);
@@ -104,7 +106,7 @@ public class DescriptorTest
         assertEquals(original.cfname, desc.cfname);
         assertEquals(original.version, desc.version);
         assertEquals(original.id, desc.id);
-        assertEquals(Component.DATA, pair.right);
+        assertEquals(Components.DATA, pair.right);
     }
 
     @Test
@@ -112,8 +114,8 @@ public class DescriptorTest
     {
         // Descriptor should be equal when parent directory points to the same directory
         File dir = new File(".");
-        Descriptor desc1 = new Descriptor(dir, "ks", "cf", new SequenceBasedSSTableId(1), SSTableFormat.Type.BIG);
-        Descriptor desc2 = new Descriptor(dir.toAbsolute(), "ks", "cf", new SequenceBasedSSTableId(1), SSTableFormat.Type.BIG);
+        Descriptor desc1 = new Descriptor(dir, "ks", "cf", new SequenceBasedSSTableId(1), SSTableFormat.Type.current());
+        Descriptor desc2 = new Descriptor(dir.toAbsolute(), "ks", "cf", new SequenceBasedSSTableId(1), SSTableFormat.Type.current());
         assertEquals(desc1, desc2);
         assertEquals(desc1.hashCode(), desc2.hashCode());
     }
@@ -121,16 +123,14 @@ public class DescriptorTest
     @Test
     public void validateNames()
     {
-        String[] names = {
-             "ma-1-big-Data.db",
-             // 2ndary index
-             ".idx1" + File.pathSeparator() + "ma-1-big-Data.db",
-        };
+        String name = SSTableFormat.Type.current().name;
+        String[] fileNames = { "ma-1-" + name + "-Data.db",
+                               // 2ndary index
+                               ".idx1" + File.pathSeparator() + "ma-1-" + name + "-Data.db",
+                               };
 
-        for (String name : names)
-        {
-            assertNotNull(Descriptor.fromFilename(name));
-        }
+        for (String fileName : fileNames)
+            assertNotNull(Descriptor.fromFileWithComponent(new File(fileName), false).left);
     }
 
     @Test
@@ -146,7 +146,7 @@ public class DescriptorTest
         {
             try
             {
-                Descriptor d = Descriptor.fromFilename(name);
+                Descriptor d = Descriptor.fromFile(new File(name));
                 Assert.fail(name);
             } catch (Throwable e) {
                 //good
@@ -301,7 +301,7 @@ public class DescriptorTest
     {
         for (String filePath : filePaths)
         {
-            Descriptor descriptor = Descriptor.fromFilename(filePath);
+            Descriptor descriptor = Descriptor.fromFile(new File(filePath));
             Assert.assertNotNull(descriptor);
             Assert.assertEquals(String.format("Expected keyspace not found for %s", filePath), expectedKeyspace, descriptor.ksname);
             Assert.assertEquals(String.format("Expected table not found for %s", filePath), expectedTable, descriptor.cfname);

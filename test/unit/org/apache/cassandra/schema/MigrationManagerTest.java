@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.cassandra.io.util.File;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
@@ -43,8 +42,9 @@ import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -473,7 +473,7 @@ public class MigrationManagerTest
         // check
         assertTrue(cfs.indexManager.listIndexes().isEmpty());
         LifecycleTransaction.waitForDeletions();
-        assertFalse(new File(desc.filenameFor(Component.DATA)).exists());
+        assertFalse(desc.fileFor(Components.DATA).exists());
     }
 
     @Test

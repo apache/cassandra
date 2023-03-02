@@ -17,76 +17,72 @@
  */
 package org.apache.cassandra.db.rows;
 
-import com.google.common.collect.UnmodifiableIterator;
-
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
 
 /**
  * Abstract class to make writing unfiltered iterators that wrap another iterator
  * easier. By default, the wrapping iterator simply delegate every call to
- * the wrapped iterator so concrete implementations will have to override
- * some of the methods.
+ * the wrapped iterator so concrete implementations will have to override some methods.
  * <p>
  * Note that if most of what you want to do is modifying/filtering the returned
- * {@code Unfiltered}, {@link org.apache.cassandra.db.transform.Transformation#merge(UnfilteredRowIterator,Transformation)} can be a simpler option.
+ * {@code Unfiltered}, {@link org.apache.cassandra.db.transform.Transformation#apply(UnfilteredRowIterator, Transformation)}
+ * can be a simpler option.
  */
-public abstract class WrappingUnfilteredRowIterator extends UnmodifiableIterator<Unfiltered>  implements UnfilteredRowIterator
+public interface WrappingUnfilteredRowIterator extends UnfilteredRowIterator
 {
-    protected final UnfilteredRowIterator wrapped;
+    UnfilteredRowIterator wrapped();
 
-    protected WrappingUnfilteredRowIterator(UnfilteredRowIterator wrapped)
+    default TableMetadata metadata()
     {
-        this.wrapped = wrapped;
+        return wrapped().metadata();
     }
 
-    public TableMetadata metadata()
+    default RegularAndStaticColumns columns()
     {
-        return wrapped.metadata();
+        return wrapped().columns();
     }
 
-    public RegularAndStaticColumns columns()
+    default boolean isReverseOrder()
     {
-        return wrapped.columns();
+        return wrapped().isReverseOrder();
     }
 
-    public boolean isReverseOrder()
+    default DecoratedKey partitionKey()
     {
-        return wrapped.isReverseOrder();
+        return wrapped().partitionKey();
     }
 
-    public DecoratedKey partitionKey()
+    default DeletionTime partitionLevelDeletion()
     {
-        return wrapped.partitionKey();
+        return wrapped().partitionLevelDeletion();
     }
 
-    public DeletionTime partitionLevelDeletion()
+    default Row staticRow()
     {
-        return wrapped.partitionLevelDeletion();
+        return wrapped().staticRow();
     }
 
-    public Row staticRow()
+    default EncodingStats stats()
     {
-        return wrapped.staticRow();
+        return wrapped().stats();
     }
 
-    public EncodingStats stats()
+    default boolean hasNext()
     {
-        return wrapped.stats();
+        return wrapped().hasNext();
     }
 
-    public boolean hasNext()
+    default Unfiltered next()
     {
-        return wrapped.hasNext();
+        return wrapped().next();
     }
 
-    public Unfiltered next()
+    default void close()
     {
-        return wrapped.next();
-    }
-
-    public void close()
-    {
-        wrapped.close();
+        wrapped().close();
     }
 }

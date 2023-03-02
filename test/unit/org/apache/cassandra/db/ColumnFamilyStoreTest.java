@@ -63,8 +63,10 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.ScrubTest;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.ClearableHistogram;
@@ -349,7 +351,7 @@ public class ColumnFamilyStoreTest
                                              liveSSTable.descriptor.id,
                                              liveSSTable.descriptor.formatType);
             for (Component c : liveSSTable.getComponents())
-                assertTrue("Cannot find backed-up file:" + desc.filenameFor(c), new File(desc.filenameFor(c)).exists());
+                assertTrue("Cannot find backed-up file:" + desc.fileFor(c), desc.fileFor(c).exists());
         }
     }
 
@@ -578,8 +580,8 @@ public class ColumnFamilyStoreTest
 
         Set<String> originalFiles = new HashSet<>();
         Iterables.toList(cfs.concatWithIndexes()).stream()
-                 .flatMap(c -> c.getLiveSSTables().stream().map(t -> t.descriptor.filenameFor(Component.DATA)))
-                 .forEach(originalFiles::add);
+                 .flatMap(c -> c.getLiveSSTables().stream().map(t -> t.descriptor.fileFor(Components.DATA)))
+                 .forEach(e -> originalFiles.add(e.toString()));
         assertThat(originalFiles.stream().anyMatch(f -> f.endsWith(indexTableFile))).isTrue();
         assertThat(originalFiles.stream().anyMatch(f -> f.endsWith(baseTableFile))).isTrue();
     }
@@ -667,9 +669,9 @@ public class ColumnFamilyStoreTest
         assertEquals(1, ssTables.size());
         SSTableReader ssTable = ssTables.iterator().next();
 
-        String dataFileName = ssTable.descriptor.filenameFor(Component.DATA);
-        String tmpDataFileName = ssTable.descriptor.tmpFilenameFor(Component.DATA);
-        new File(dataFileName).tryMove(new File(tmpDataFileName));
+        File dataFile = ssTable.descriptor.fileFor(Components.DATA);
+        File tmpDataFile = ssTable.descriptor.tmpFileFor(Components.DATA);
+        dataFile.tryMove(tmpDataFile);
 
         ssTable.selfRef().release();
 

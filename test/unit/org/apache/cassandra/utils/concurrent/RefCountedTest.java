@@ -18,28 +18,41 @@
 */
 package org.apache.cassandra.utils.concurrent;
 
-import org.junit.Test;
-
-import org.junit.Assert;
-
-import org.apache.cassandra.io.util.File;
 import java.lang.ref.WeakReference;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
+import org.junit.Assert;
+import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Ref.Visitor;
+import org.awaitility.Awaitility;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SuppressWarnings({"unused", "unchecked", "rawtypes"})
 public class RefCountedTest
@@ -405,5 +418,135 @@ public class RefCountedTest
         ref.close();
 
         Assert.assertTrue(visitor.haveLoops.isEmpty());
+    }
+
+    static class LambdaTestClassTidier implements RefCounted.Tidy
+    {
+        Runnable runOnClose;
+
+        @Override
+        public void tidy() throws Exception
+        {
+            runOnClose.run();
+        }
+
+        @Override
+        public String name()
+        {
+            return "42";
+        }
+    }
+
+    static class LambdaTestClass
+    {
+        String a = "x";
+        Ref<Object> ref;
+
+        Runnable getRunOnCloseLambda()
+        {
+            return () -> System.out.println("aaa");
+        }
+
+        Runnable getRunOnCloseInner()
+        {
+            return new Runnable()
+            {
+                @Override
+                public void run()
+                {
+                    System.out.println("aaa");
+                }
+            };
+        }
+
+        Runnable getRunOnCloseLambdaWithThis()
+        {
+            return () -> System.out.println(a);
+        }
+    }
+
+    private Set<Ref.GlobalState> testCycles(Function<LambdaTestClass, Runnable> runOnCloseSupplier)
+    {
+        LambdaTestClass test = new LambdaTestClass();
+        Runnable weakRef = runOnCloseSupplier.apply(test);
+        RefCounted.Tidy tidier = new RefCounted.Tidy()
+        {
+            Runnable ref = weakRef;
+
+            public void tidy()
+            {
+            }
+
+            public String name()
+            {
+                return "42";
+            }
+        };
+
+        Ref<Object> ref = new Ref(test, tidier);
+        test.ref = ref;
+
+        Visitor visitor = new Visitor();
+        visitor.haveLoops = new HashSet<>();
+        visitor.run();
+        ref.close();
+
+        return visitor.haveLoops;
+    }
+
+    /**
+     * The intention of this test is to confirm that lambda without a reference to `this`, does not implicitly
+     * include a reference to the enclosing class. If it did, we would detect cycles, as we do when we deal with
+     * anonymous inner classes or lamba which references `this` explicitly (see the sanity checks).
+     * <p>
+     * This test aims to confirm that JVM works as we assumed because we couldn't find that in the specification.
+     */
+    @Test
+    public void testCycles()
+    {
+        assertThat(testCycles(LambdaTestClass::getRunOnCloseLambdaWithThis)).isNotEmpty(); // sanity test
+        assertThat(testCycles(LambdaTestClass::getRunOnCloseInner)).isNotEmpty(); // sanity test
+
+        assertThat(testCycles(LambdaTestClass::getRunOnCloseLambda)).isEmpty();
+    }
+
+    @Test
+    public void testSSTableReaderLeakIsDetected()
+    {
+        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+        Descriptor descriptor = Descriptor.fromFileWithComponent(new File("test/data/legacy-sstables/nb/legacy_tables/legacy_nb_simple/nb-1-big-Data.db"), false).left;
+        TableMetadata tm = TableMetadata.builder("legacy_tables", "legacy_nb_simple").addPartitionKeyColumn("pk", UTF8Type.instance).addRegularColumn("val", UTF8Type.instance).build();
+        AtomicBoolean leakDetected = new AtomicBoolean();
+        AtomicBoolean runOnCloseExecuted1 = new AtomicBoolean();
+        AtomicBoolean runOnCloseExecuted2 = new AtomicBoolean();
+        Ref.OnLeak prevOnLeak = Ref.ON_LEAK;
+
+        try
+        {
+            Ref.ON_LEAK = state -> {
+                leakDetected.set(true);
+            };
+            {
+                SSTableReader reader = SSTableReader.openNoValidation(null, descriptor, TableMetadataRef.forOfflineTools(tm));
+                reader.runOnClose(() -> runOnCloseExecuted1.set(true));
+                reader.runOnClose(() -> runOnCloseExecuted2.set(true)); // second time to actually create lambda referencing to lambda, see runOnClose impl
+                //noinspection UnusedAssignment
+                reader = null; // this is required, otherwise GC will not attempt to collect the created reader
+            }
+            Awaitility.await().atMost(Duration.ofSeconds(30)).pollDelay(Duration.ofSeconds(1)).untilAsserted(() -> {
+                System.gc();
+                System.gc();
+                System.gc();
+                System.gc();
+                assertThat(leakDetected.get()).isTrue();
+            });
+            assertThat(runOnCloseExecuted1.get()).isTrue();
+            assertThat(runOnCloseExecuted2.get()).isTrue();
+        }
+        finally
+        {
+            Ref.ON_LEAK = prevOnLeak;
+        }
     }
 }

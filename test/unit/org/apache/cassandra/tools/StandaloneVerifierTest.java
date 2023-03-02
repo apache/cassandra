@@ -22,6 +22,7 @@ import java.util.Arrays;
 
 import org.junit.Test;
 
+import org.apache.cassandra.io.sstable.VerifyTest;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
@@ -33,7 +34,7 @@ import static org.junit.Assert.assertThat;
  * Note: the complete coverage is composed of:
  * - {@link StandaloneVerifierOnSSTablesTest}
  * - {@link StandaloneVerifierTest}
- * - {@link org.apache.cassandra.db.VerifyTest}
+ * - {@link VerifyTest}
 */
 public class StandaloneVerifierTest extends OfflineToolUtils
 {

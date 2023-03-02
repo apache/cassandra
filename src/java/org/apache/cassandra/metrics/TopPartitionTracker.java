@@ -45,7 +45,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 
@@ -238,7 +237,7 @@ public class TopPartitionTracker implements Closeable
                 return;
 
             if (top.size() < maxTopPartitionCount || value > currentMinValue)
-                track(new TopPartition(SSTable.getMinimalKey(key), value));
+                track(new TopPartition(key.retainable(), value));
         }
 
         private void track(TopPartition tp)
