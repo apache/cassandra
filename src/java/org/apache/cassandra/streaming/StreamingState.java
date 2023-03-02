@@ -36,7 +36,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ObjectSizes;
@@ -75,7 +74,7 @@ public class StreamingState implements StreamEventHandler, IMeasurableMemory
     @Override
     public long unsharedHeapSize()
     {
-        long costOfPeers = peers().size() * (ObjectSizes.IPV6_SIZE + 48); // 48 represents the datastructure cost computed by the JOL
+        long costOfPeers = peers().size() * (ObjectSizes.IPV6_SOCKET_ADDRESS_SIZE + 48); // 48 represents the datastructure cost computed by the JOL
         long costOfCompleteMessage = ObjectSizes.sizeOf(completeMessage());
         return costOfPeers + costOfCompleteMessage + EMPTY;
     }

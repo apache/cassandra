@@ -41,7 +41,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FastByteOperations;
-import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * A class to replace the usage of InetAddress to identify hosts in the cluster.

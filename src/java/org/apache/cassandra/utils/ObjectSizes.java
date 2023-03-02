@@ -42,7 +42,7 @@ public class ObjectSizes
 
     private static final long DIRECT_BUFFER_HEAP_SIZE = measure(ByteBuffer.allocateDirect(0));
 
-    public static final long IPV6_SIZE = ObjectSizes.measureDeep(new InetSocketAddress(getIpvAddress(16), 42));
+    public static final long IPV6_SOCKET_ADDRESS_SIZE = ObjectSizes.measureDeep(new InetSocketAddress(getIpvAddress(16), 42));
 
     /**
      * Memory a byte array consumes
@@ -242,7 +242,7 @@ public class ObjectSizes
         return meter.measure(pojo);
     }
 
-    public static InetAddress getIpvAddress(int size)
+    private static InetAddress getIpvAddress(int size)
     {
         if (size == 16 || size ==4)
         {
