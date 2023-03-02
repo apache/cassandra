@@ -26,9 +26,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import javax.annotation.Nonnull;
 
+import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.api.DataStore;
 import accord.api.Key;
@@ -46,6 +50,8 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -66,6 +72,8 @@ import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
 
 public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Write
 {
+    private static final Logger logger = LoggerFactory.getLogger(TxnWrite.class);
+
     public static final TxnWrite EMPTY = new TxnWrite(Collections.emptyList());
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY);
@@ -123,9 +131,9 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                    '}';
         }
 
-        public Future<?> write(long timestamp, int nowInSeconds)
+        public Future<?> write(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long timestamp, int nowInSeconds)
         {
-            PartitionUpdate update = new PartitionUpdate.Builder(get(), 0).updateAllTimestampAndLocalDeletionTime(timestamp, nowInSeconds).build();
+            PartitionUpdate update = new PartitionUpdate.Builder(get(), 0).updateAllTimesForAccord(cellToMaybeNewListPath, timestamp, nowInSeconds).build();
             Mutation mutation = new Mutation(update);
             return Stage.MUTATION.submit((Runnable) mutation::apply);
         }
@@ -354,7 +362,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         int nowInSeconds = cfk.nowInSecondsFor(executeAt, true);
 
         List<Future<?>> futures = new ArrayList<>();
-        forEachWithKey((PartitionKey) key, write -> futures.add(write.write(timestamp, nowInSeconds)));
+        forEachWithKey((PartitionKey) key, write -> futures.add(write.write(CellPath.accordListPathSuppler(timestamp), timestamp, nowInSeconds)));
 
         if (futures.isEmpty())
             return Writes.SUCCESS;
