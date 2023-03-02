@@ -97,7 +97,7 @@ public class AtomicBTreePartitionMemtableAccountingTest
     public static final long HEAP_LIMIT = 1 << 20;
     public static final long OFF_HEAP_LIMIT = 1 << 20;
     public static final float MEMTABLE_CLEANUP_THRESHOLD = 0.25f;
-    public static final MemtableCleaner DUMMY_CLEANER = () -> CompletableFuture.failedFuture(new IllegalStateException());
+    public static final MemtableCleaner DUMMY_CLEANER = () -> CompletableFuture.completedFuture(null);
 
     @Parameterized.Parameters(name="allocationType={0}")
     public static Iterable<? extends Object> data()
