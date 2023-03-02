@@ -30,6 +30,7 @@ import java.nio.file.FileStore;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -81,6 +82,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.File;
@@ -94,6 +96,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
@@ -190,6 +193,9 @@ public class DatabaseDescriptor
     private static StartupChecksOptions startupChecksOptions;
 
     private static Map<String, Supplier<SSTableFormat<?, ?>>> sstableFormatFactories;
+
+    /** The sstable compression options */
+    private static CompressionParams sstableCompression;
 
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                        ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
@@ -930,6 +936,8 @@ public class DatabaseDescriptor
         Paxos.setPaxosVariant(conf.paxos_variant);
         if (conf.paxos_state_purging == null)
             conf.paxos_state_purging = PaxosStatePurging.legacy;
+
+        sstableCompression = conf.sstable_compression != null ?  CompressionParams.fromMap(conf.sstable_compression) : CompressionParams.defaultCompression();
 
         logInitializationOutcome(logger);
 
