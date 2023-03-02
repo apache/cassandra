@@ -90,14 +90,14 @@ import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.memtable.Flushing;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.db.memtable.Flushing;
-import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraTableRepairManager;
@@ -161,6 +161,7 @@ import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.streaming.TableStreamManager;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.DefaultValue;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -261,7 +262,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     static final String TOKEN_DELIMITER = ":";
 
     /** Special values used when the local ranges are not changed with ring changes (e.g. local tables). */
-    public static final int RING_VERSION_IRRELEVANT = -1;
+    // TODO - make this Epoch.EMPTY
+    public static final Epoch RING_VERSION_IRRELEVANT = Epoch.create(-1);
 
     static
     {
@@ -523,6 +525,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             data.addInitialSSTablesWithoutUpdatingSize(sstables, this);
         }
 
+        // compaction strategy should be created after the CFS has been prepared
         compactionStrategyManager = new CompactionStrategyManager(this);
 
         if (maxCompactionThreshold.value() <= 0 || minCompactionThreshold.value() <=0)
@@ -1478,9 +1481,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public static class VersionedLocalRanges extends ArrayList<Splitter.WeightedRange>
     {
-        public final long ringVersion;
+        public final Epoch ringVersion;
 
-        public VersionedLocalRanges(long ringVersion, int initialSize)
+        public VersionedLocalRanges(Epoch ringVersion, int initialSize)
         {
             super(initialSize);
             this.ringVersion = ringVersion;
@@ -1489,16 +1492,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public VersionedLocalRanges localRangesWeighted()
     {
+        ClusterMetadata metadata = ClusterMetadata.current();
         if (!SchemaConstants.isLocalSystemKeyspace(getKeyspaceName())
-            && getPartitioner() == StorageService.instance.getTokenMetadata().partitioner)
+            && getPartitioner() == metadata.partitioner)
         {
             DiskBoundaryManager.VersionedRangesAtEndpoint versionedLocalRanges = DiskBoundaryManager.getVersionedLocalRanges(this);
             Set<Range<Token>> localRanges = versionedLocalRanges.rangesAtEndpoint.ranges();
-            long ringVersion = versionedLocalRanges.ringVersion;
-
+            Epoch epoch = versionedLocalRanges.epoch;
             if (!localRanges.isEmpty())
             {
-                VersionedLocalRanges weightedRanges = new VersionedLocalRanges(ringVersion, localRanges.size());
+                VersionedLocalRanges weightedRanges = new VersionedLocalRanges(epoch, localRanges.size());
                 for (Range<Token> r : localRanges)
                 {
                     // WeightedRange supports only unwrapped ranges as it relies
@@ -1511,7 +1514,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             }
             else
             {
-                return fullWeightedRange(ringVersion, getPartitioner());
+                return fullWeightedRange(epoch, getPartitioner());
             }
         }
         else
@@ -1529,11 +1532,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             return ShardBoundaries.NONE;
 
         ShardBoundaries shardBoundaries = cachedShardBoundaries;
+        ClusterMetadata metadata = ClusterMetadata.current();
 
         if (shardBoundaries == null ||
             shardBoundaries.shardCount() != shardCount ||
-            (shardBoundaries.ringVersion != RING_VERSION_IRRELEVANT &&
-             shardBoundaries.ringVersion != StorageService.instance.getTokenMetadata().getRingVersion()))
+            (!shardBoundaries.epoch.equals(Epoch.EMPTY) && !shardBoundaries.epoch.equals(metadata.epoch)))
         {
             VersionedLocalRanges weightedRanges = localRangesWeighted();
 
@@ -1547,9 +1550,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     }
 
     @VisibleForTesting
-    public static VersionedLocalRanges fullWeightedRange(long ringVersion, IPartitioner partitioner)
+    public static VersionedLocalRanges fullWeightedRange(Epoch epoch, IPartitioner partitioner)
     {
-        VersionedLocalRanges ranges = new VersionedLocalRanges(ringVersion, 1);
+        VersionedLocalRanges ranges = new VersionedLocalRanges(epoch, 1);
         ranges.add(new Splitter.WeightedRange(1.0, new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken())));
         return ranges;
     }
@@ -3344,7 +3347,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public DiskBoundaries getDiskBoundaries()
     {
-        return diskBoundaryManager.getDiskBoundaries(this);
+        return diskBoundaryManager.getDiskBoundaries(this, metadata.get());
+    }
+
+    public DiskBoundaries getDiskBoundaries(TableMetadata initialMetadata)
+    {
+        return diskBoundaryManager.getDiskBoundaries(this, initialMetadata);
     }
 
     public void invalidateLocalRanges()

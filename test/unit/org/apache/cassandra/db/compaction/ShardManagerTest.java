@@ -44,6 +44,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.mockito.Mockito;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.RING_VERSION_IRRELEVANT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -63,7 +64,7 @@ public class ShardManagerTest
     {
         DatabaseDescriptor.daemonInitialization(); // because of all the static initialization in CFS
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        weightedRanges = new ColumnFamilyStore.VersionedLocalRanges(-1, 16);
+        weightedRanges = new ColumnFamilyStore.VersionedLocalRanges(RING_VERSION_IRRELEVANT, 16);
     }
 
     @Test
@@ -338,7 +339,7 @@ public class ShardManagerTest
 
     ColumnFamilyStore.VersionedLocalRanges localRanges(List<Splitter.WeightedRange> ranges)
     {
-        ColumnFamilyStore.VersionedLocalRanges versionedLocalRanges = new ColumnFamilyStore.VersionedLocalRanges(-1, ranges.size());
+        ColumnFamilyStore.VersionedLocalRanges versionedLocalRanges = new ColumnFamilyStore.VersionedLocalRanges(RING_VERSION_IRRELEVANT, ranges.size());
         versionedLocalRanges.addAll(ranges);
         return versionedLocalRanges;
     }
@@ -348,7 +349,7 @@ public class ShardManagerTest
         List<Splitter.WeightedRange> ranges = ImmutableList.of(new Splitter.WeightedRange(1.0,
                                                                                           new Range<>(partitioner.getMinimumToken(),
                                                                                                       partitioner.getMinimumToken())));
-        ColumnFamilyStore.VersionedLocalRanges versionedLocalRanges = new ColumnFamilyStore.VersionedLocalRanges(-1, ranges.size());
+        ColumnFamilyStore.VersionedLocalRanges versionedLocalRanges = new ColumnFamilyStore.VersionedLocalRanges(RING_VERSION_IRRELEVANT, ranges.size());
         versionedLocalRanges.addAll(ranges);
         return versionedLocalRanges;
     }
@@ -361,7 +362,7 @@ public class ShardManagerTest
     private static DiskBoundaries makeDiskBoundaries(ColumnFamilyStore cfs, List<Token> diskBoundaries)
     {
         List<PartitionPosition> diskPositions = diskBoundaries.stream().map(Token::maxKeyBound).collect(Collectors.toList());
-        DiskBoundaries db = new DiskBoundaries(cfs, null, diskPositions, -1, -1);
+        DiskBoundaries db = new DiskBoundaries(cfs, null, diskPositions, RING_VERSION_IRRELEVANT, -1);
         return db;
     }
 

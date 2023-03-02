@@ -53,6 +53,7 @@ import org.apache.cassandra.dht.Splitter;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Overlaps;
 import org.apache.cassandra.utils.Pair;
@@ -139,7 +140,7 @@ public class UnifiedCompactionStrategyTest
             assertNotNull("Splitter is required with multiple compaction shards", splitter);
 
         when(cfs.getPartitioner()).thenReturn(partitioner);
-        localRanges = cfs.fullWeightedRange(0, partitioner);
+        localRanges = cfs.fullWeightedRange(Epoch.FIRST, partitioner);
 
         when(cfs.metadata()).thenReturn(metadata);
         when(cfs.getTableName()).thenReturn(table);

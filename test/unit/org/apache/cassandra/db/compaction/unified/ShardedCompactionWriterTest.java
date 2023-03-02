@@ -49,6 +49,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.db.ColumnFamilyStore.RING_VERSION_IRRELEVANT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -110,7 +111,7 @@ public class ShardedCompactionWriterTest extends CQLTester
 
         LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
 
-        ShardManager boundaries = new ShardManagerNoDisks(ColumnFamilyStore.fullWeightedRange(-1, cfs.getPartitioner()));
+        ShardManager boundaries = new ShardManagerNoDisks(ColumnFamilyStore.fullWeightedRange(RING_VERSION_IRRELEVANT, cfs.getPartitioner()));
         ShardedCompactionWriter writer = new ShardedCompactionWriter(cfs, cfs.getDirectories(), txn, txn.originals(), false, boundaries.boundaries(numShards));
 
         int rows = compact(cfs, txn, writer);

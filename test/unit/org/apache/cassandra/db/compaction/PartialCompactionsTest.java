@@ -193,7 +193,7 @@ public class PartialCompactionsTest extends SchemaLoader
             ColumnFamilyStore store = keyspace.getColumnFamilyStore(cf);
             TableMetadataRef metadata = store.metadata;
             keyspace.dropCf(metadata.id, true);
-            ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(keyspace, cf, metadata, wrapDirectoriesOf(store), false, false, true);
+            ColumnFamilyStore cfs = ColumnFamilyStore.createColumnFamilyStore(keyspace, cf, metadata.get(), wrapDirectoriesOf(store), false, false, true);
             keyspace.initCfCustom(cfs);
         }
 

@@ -39,6 +39,7 @@ import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Overlaps;
 import org.mockito.Mock;
@@ -67,7 +68,7 @@ public class ControllerTest
     UnifiedCompactionStrategy strategy;
 
     protected String keyspaceName = "TestKeyspace";
-    protected DiskBoundaries diskBoundaries = new DiskBoundaries(cfs, null, null, 0, 0);
+    protected DiskBoundaries diskBoundaries = new DiskBoundaries(cfs, null, null, Epoch.FIRST, 0);
 
     @BeforeClass
     public static void setUpClass()
@@ -327,11 +328,11 @@ public class ControllerTest
         }
 
         PartitionPosition min = Util.testPartitioner().getMinimumToken().minKeyBound();
-        diskBoundaries = new DiskBoundaries(cfs, null, ImmutableList.of(min, min, min), 0, 0);
+        diskBoundaries = new DiskBoundaries(cfs, null, ImmutableList.of(min, min, min), Epoch.FIRST, 0);
         controller = controller.fromOptions(cfs, options);
         assertEquals(1, controller.baseShardCount);
 
-        diskBoundaries = new DiskBoundaries(cfs, null, ImmutableList.of(min), 0, 0);
+        diskBoundaries = new DiskBoundaries(cfs, null, ImmutableList.of(min), Epoch.FIRST, 0);
         controller = controller.fromOptions(cfs, options);
         assertEquals(Controller.DEFAULT_BASE_SHARD_COUNT, controller.baseShardCount);
     }

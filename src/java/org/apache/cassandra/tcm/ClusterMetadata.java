@@ -45,6 +45,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
@@ -54,6 +55,7 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
@@ -146,51 +148,6 @@ public class ClusterMetadata
         this.fullCMSEndpoints = ImmutableSet.copyOf(placements.get(ReplicationParams.meta()).reads.byEndpoint().keySet());
     }
 
-    public boolean hasPendingRangesFor(KeyspaceMetadata ksm, Token token)
-    {
-        DataPlacements placement = current().placements;
-        PlacementForRange writes = placement.get(ksm.params.replication).writes;
-        PlacementForRange reads = placement.get(ksm.params.replication).reads;
-        return !reads.forToken(token).equals(writes.forToken(token));
-    }
-
-    public boolean hasPendingRangesFor(KeyspaceMetadata ksm, InetAddressAndPort endpoint)
-    {
-        DataPlacements placement = current().placements;
-        PlacementForRange writes = placement.get(ksm.params.replication).writes;
-        PlacementForRange reads = placement.get(ksm.params.replication).reads;
-        return !writes.byEndpoint().get(endpoint).equals(reads.byEndpoint().get(endpoint));
-    }
-
-    public Collection<Range<Token>> localWriteRanges(KeyspaceMetadata metadata)
-    {
-        return placements.get(metadata.params.replication).writes.byEndpoint().get(FBUtilities.getBroadcastAddressAndPort()).ranges();
-    }
-
-    public Map<Range<Token>, EndpointsForRange> pendingRanges(KeyspaceMetadata metadata)
-    {
-        Map<Range<Token>, EndpointsForRange> map = new HashMap<>();
-        List<Range<Token>> pending = new ArrayList<>(placements.get(metadata.params.replication).writes.ranges());
-        pending.removeAll(placements.get(metadata.params.replication).reads.ranges());
-        for (Range<Token> p : pending)
-            map.put(p, placements.get(metadata.params.replication).writes.forRange(p));
-        return map;
-    }
-
-    public EndpointsForToken pendingEndpointsFor(KeyspaceMetadata metadata, Token t)
-    {
-        EndpointsForToken writeEndpoints = placements.get(metadata.params.replication).writes.forToken(t);
-        EndpointsForToken readEndpoints = placements.get(metadata.params.replication).reads.forToken(t);
-        EndpointsForToken.Builder endpointsForToken = writeEndpoints.newBuilder(writeEndpoints.size() - readEndpoints.size());
-
-        for (Replica writeReplica : writeEndpoints)
-        {
-            if (!readEndpoints.contains(writeReplica))
-                endpointsForToken.add(writeReplica);
-        }
-        return endpointsForToken.build();
-    }
-
     public Set<InetAddressAndPort> fullCMSMembers()
     {
         return fullCMSEndpoints;
@@ -239,6 +196,83 @@ public class ClusterMetadata
     public long nextPeriod()
     {
         return lastInPeriod ? period + 1 : period;
+    }
+
+    public DataPlacement writePlacementAllSettled(KeyspaceMetadata ksm)
+    {
+        List<NodeId> leaving = new ArrayList<>();
+        List<NodeId> moving = new ArrayList<>();
+
+        for (Map.Entry<NodeId, NodeState> entry : directory.states.entrySet())
+        {
+            switch (entry.getValue())
+            {
+                case LEAVING:
+                    leaving.add(entry.getKey());
+                    break;
+                case MOVING:
+                    moving.add(entry.getKey());
+                    break;
+            }
+        }
+
+        Transformer t = transformer();
+        for (NodeId node : leaving)
+            t = t.proposeRemoveNode(node);
+        // todo: add tests for move!
+        for (NodeId node : moving)
+            t = t.proposeRemoveNode(node).proposeToken(node, tokenMap.tokens(node));
+
+        ClusterMetadata proposed = t.build().metadata;
+        return ClusterMetadataService.instance()
+                                     .placementProvider()
+                                     .calculatePlacements(proposed.tokenMap.toRanges(), proposed, Keyspaces.of(ksm))
+                                     .get(ksm.params.replication);
+    }
+
+    public boolean hasPendingRangesFor(KeyspaceMetadata ksm, Token token)
+    {
+        DataPlacements placement = current().placements;
+        PlacementForRange writes = placement.get(ksm.params.replication).writes;
+        PlacementForRange reads = placement.get(ksm.params.replication).reads;
+        return !reads.forToken(token).equals(writes.forToken(token));
+    }
+
+    public boolean hasPendingRangesFor(KeyspaceMetadata ksm, InetAddressAndPort endpoint)
+    {
+        DataPlacements placement = current().placements;
+        PlacementForRange writes = placement.get(ksm.params.replication).writes;
+        PlacementForRange reads = placement.get(ksm.params.replication).reads;
+        return !writes.byEndpoint().get(endpoint).equals(reads.byEndpoint().get(endpoint));
+    }
+
+    public Collection<Range<Token>> localWriteRanges(KeyspaceMetadata metadata)
+    {
+        return placements.get(metadata.params.replication).writes.byEndpoint().get(FBUtilities.getBroadcastAddressAndPort()).ranges();
+    }
+
+    public Map<Range<Token>, EndpointsForRange> pendingRanges(KeyspaceMetadata metadata)
+    {
+        Map<Range<Token>, EndpointsForRange> map = new HashMap<>();
+        List<Range<Token>> pending = new ArrayList<>(placements.get(metadata.params.replication).writes.ranges());
+        pending.removeAll(placements.get(metadata.params.replication).reads.ranges());
+        for (Range<Token> p : pending)
+            map.put(p, placements.get(metadata.params.replication).writes.forRange(p));
+        return map;
+    }
+
+    public EndpointsForToken pendingEndpointsFor(KeyspaceMetadata metadata, Token t)
+    {
+        EndpointsForToken writeEndpoints = placements.get(metadata.params.replication).writes.forToken(t);
+        EndpointsForToken readEndpoints = placements.get(metadata.params.replication).reads.forToken(t);
+        EndpointsForToken.Builder endpointsForToken = writeEndpoints.newBuilder(writeEndpoints.size() - readEndpoints.size());
+
+        for (Replica writeReplica : writeEndpoints)
+        {
+            if (!readEndpoints.contains(writeReplica))
+                endpointsForToken.add(writeReplica);
+        }
+        return endpointsForToken.build();
     }
 
     public static class Transformer

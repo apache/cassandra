@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.tcm.Epoch;
 
 /**
  * Holds boundaries (tokens) used to map a particular token (so partition key) to a shard id.
@@ -43,21 +44,21 @@ public class ShardBoundaries
     // - there is only 1 shard configured
     // - the default partitioner doesn't support splitting
     // - the keyspace is local system keyspace
-    public static final ShardBoundaries NONE = new ShardBoundaries(EMPTY_TOKEN_ARRAY, -1);
+    public static final ShardBoundaries NONE = new ShardBoundaries(EMPTY_TOKEN_ARRAY, Epoch.EMPTY);
 
     private final Token[] boundaries;
-    public final long ringVersion;
+    public final Epoch epoch;
 
     @VisibleForTesting
-    public ShardBoundaries(Token[] boundaries, long ringVersion)
+    public ShardBoundaries(Token[] boundaries, Epoch epoch)
     {
         this.boundaries = boundaries;
-        this.ringVersion = ringVersion;
+        this.epoch = epoch;
     }
 
-    public ShardBoundaries(List<Token> boundaries, long ringVersion)
+    public ShardBoundaries(List<Token> boundaries, Epoch epoch)
     {
-        this(boundaries.toArray(EMPTY_TOKEN_ARRAY), ringVersion);
+        this(boundaries.toArray(EMPTY_TOKEN_ARRAY), epoch);
     }
 
     /**

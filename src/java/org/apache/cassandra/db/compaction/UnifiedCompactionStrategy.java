@@ -52,7 +52,7 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Overlaps;
@@ -298,13 +298,14 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
 
     private void maybeUpdateShardManager()
     {
-        if (shardManager != null && !shardManager.isOutOfDate(StorageService.instance.getTokenMetadata().getRingVersion()))
+        // TODO - modify ShardManager::isOutOfDate to take an Epoch
+        if (shardManager != null && !shardManager.isOutOfDate(ClusterMetadata.current().epoch.getEpoch()))
             return; // the disk boundaries (and thus the local ranges too) have not changed since the last time we calculated
 
         synchronized (this)
         {
             // Recheck after entering critical section, another thread may have beaten us to it.
-            while (shardManager == null || shardManager.isOutOfDate(StorageService.instance.getTokenMetadata().getRingVersion()))
+            while (shardManager == null || shardManager.isOutOfDate(ClusterMetadata.current().epoch.getEpoch()))
                 shardManager = ShardManager.create(cfs);
             // Note: this can just as well be done without the synchronization (races would be benign, just doing some
             // redundant work). For the current usages of this blocking is fine and expected to perform no worse.
