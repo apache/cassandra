@@ -35,11 +35,14 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.exceptions.IncompatibleSchemaException;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
@@ -49,6 +52,7 @@ import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer.IS_EMPTY;
+import static org.apache.cassandra.tcm.Epoch.FIRST;
 
 /**
  * Stores updates made on a partition.
@@ -716,6 +720,8 @@ public class PartitionUpdate extends AbstractBTreePartition
                 assert !iter.isReverseOrder();
 
                 update.metadata.id.serialize(out);
+                if (version >= MessagingService.VERSION_50)
+                    Epoch.serializer.serialize(update.metadata.epoch != null ? update.metadata.epoch : Epoch.EMPTY, out);
                 UnfilteredRowIteratorSerializer.serializer.serialize(iter, null, out, version, update.rowCount());
             }
         }
@@ -723,6 +729,17 @@ public class PartitionUpdate extends AbstractBTreePartition
         public PartitionUpdate deserialize(DataInputPlus in, int version, DeserializationHelper.Flag flag) throws IOException
         {
             TableMetadata metadata = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
+            Epoch remoteVersion = Epoch.EMPTY;
+            if (version >= MessagingService.VERSION_50)
+                remoteVersion = Epoch.serializer.deserialize(in);
+            if (remoteVersion != null && remoteVersion.isBefore(FIRST) && !remoteVersion.equals(metadata.epoch))
+            {
+                // This exception should never be thrown under normal condition. By the time partition update is serialized,
+                // replica should be able to fully catch up with coordinator.
+                throw new IncompatibleSchemaException(String.format("Incompatible table schema version. Our version: %s. Coordinator version: %s.",
+                                                                    metadata.epoch, remoteVersion));
+            }
+
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, null, in, version, flag);
             if (header.isEmpty)
                 return emptyUpdate(metadata, header.key);
@@ -774,6 +791,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             try (UnfilteredRowIterator iter = update.unfilteredIterator())
             {
                 return update.metadata.id.serializedSize()
+                     + (version >= MessagingService.VERSION_50 ? Epoch.serializer.serializedSize(update.metadata.epoch) : 0)
                      + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, version, update.rowCount());
             }
         }

@@ -37,8 +37,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaPlans;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Pair;
@@ -97,11 +96,11 @@ class ReplicaPlanIterator extends AbstractIterator<ReplicaPlan.ForRangeRead>
             return Collections.singletonList(queryRange);
         }
 
-        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
+        ClusterMetadata metadata = ClusterMetadata.current();
 
         List<AbstractBounds<PartitionPosition>> ranges = new ArrayList<>();
         // divide the queryRange into pieces delimited by the ring and minimum tokens
-        Iterator<Token> ringIter = TokenRingUtils.ringIterator(tokenMetadata.sortedTokens(), queryRange.left.getToken(), true);
+        Iterator<Token> ringIter = TokenRingUtils.ringIterator(metadata.tokenMap.tokens(), queryRange.left.getToken(), true);
         AbstractBounds<PartitionPosition> remainder = queryRange;
         while (ringIter.hasNext())
         {

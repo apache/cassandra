@@ -67,6 +67,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.FBUtilities;
@@ -1075,6 +1076,8 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (command.isDigestQuery())
                 out.writeUnsignedVInt32(command.digestVersion());
             command.metadata().id.serialize(out);
+            if (version >= MessagingService.VERSION_50)
+                Epoch.serializer.serialize(command.metadata().epoch, out);
             out.writeInt(version >= MessagingService.VERSION_50 ? CassandraUInt.fromLong(command.nowInSec()) : (int) command.nowInSec());
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
             RowFilter.serializer.serialize(command.rowFilter(), out, version);
@@ -1105,6 +1108,10 @@ public abstract class ReadCommand extends AbstractReadQuery
             boolean hasIndex = hasIndex(flags);
             int digestVersion = isDigest ? in.readUnsignedVInt32() : 0;
             TableMetadata metadata = schema.getExistingTableMetadata(TableId.deserialize(in));
+            Epoch schemaVersion = null;
+            if (version >= MessagingService.VERSION_50)
+                schemaVersion = Epoch.serializer.deserialize(in);
+            assert schemaVersion == null || metadata.epoch.equals(schemaVersion) : metadata.epoch + " " + schemaVersion; // TODO: handle etc
             long nowInSec = version >= MessagingService.VERSION_50 ? CassandraUInt.toLong(in.readInt()) : in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
             RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, metadata);
@@ -1144,6 +1151,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             return 2 // kind + flags
                    + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                    + command.metadata().id.serializedSize()
+                   + (version >= MessagingService.VERSION_50 ? Epoch.serializer.serializedSize(command.metadata().epoch) : 0)
                    + TypeSizes.INT_SIZE // command.nowInSec() is serialized as uint
                    + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
                    + RowFilter.serializer.serializedSize(command.rowFilter(), version)

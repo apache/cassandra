@@ -22,15 +22,19 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
@@ -42,13 +46,15 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
     public void doVerb(Message<ReadCommand> message)
     {
+        ClusterMetadataService.instance().maybeCatchup(message.epoch());
+
         if (StorageService.instance.isBootstrapMode())
-        {
             throw new RuntimeException("Cannot service reads while bootstrapping!");
-        }
 
         ReadCommand command = message.payload;
-        validateTransientStatus(message);
+        ClusterMetadata metadata = ClusterMetadata.current();
+
+        checkTokenOwnership(metadata, message);
         MessageParams.reset();
 
         long timeout = message.expiresAtNanos() - message.createdAtNanos();
@@ -103,37 +109,61 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         }
     }
 
-    private void validateTransientStatus(Message<ReadCommand> message)
+    private void checkTokenOwnership(ClusterMetadata metadata, Message<ReadCommand> message)
     {
         ReadCommand command = message.payload;
         if (command.metadata().isVirtual())
             return;
-        Token token;
 
         if (command instanceof SinglePartitionReadCommand)
-            token = ((SinglePartitionReadCommand) command).partitionKey().getToken();
+        {
+            Token token = ((SinglePartitionReadCommand) command).partitionKey().getToken();
+            Replica localReplica = getLocalReplica(metadata, token, command.metadata().keyspace);
+            if (localReplica == null)
+            {
+                throw new InvalidRequestException(String.format("Received a read request from %s for a token %s that is not owned by the current replica as of %s: %s.",
+                                                                message.from(), token, metadata.epoch, message.payload));
+            }
+
+            if (!command.acceptsTransient() && localReplica.isTransient())
+            {
+                MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
+                throw new InvalidRequestException(String.format("Attempted to serve %s data request from %s node in %s",
+                                                                command.acceptsTransient() ? "transient" : "full",
+                                                                localReplica.isTransient() ? "transient" : "full",
+                                                                this));
+            }
+        }
         else
-            token = ((PartitionRangeReadCommand) command).dataRange().keyRange().right.getToken();
-
-        Replica replica = Keyspace.open(command.metadata().keyspace)
-                                  .getReplicationStrategy()
-                                  .getLocalReplicaFor(token);
-
-        if (replica == null)
         {
-            logger.warn("Received a read request from {} for a range that is not owned by the current replica {}.",
-                        message.from(),
-                        command);
-            return;
-        }
+            AbstractBounds<PartitionPosition> range = ((PartitionRangeReadCommand) command).dataRange().keyRange();
 
-        if (!command.acceptsTransient() && replica.isTransient())
-        {
-            MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
-            throw new InvalidRequestException(String.format("Attempted to serve %s data request from %s node in %s",
-                                                            command.acceptsTransient() ? "transient" : "full",
-                                                            replica.isTransient() ? "transient" : "full",
-                                                            this));
+            // TODO: preexisting issue: for the range queries or queries that span multiple replicas, we can only make requests where the right token is owned, but not the left one
+            Replica maxTokenLocalReplica = getLocalReplica(metadata, range.right.getToken(), command.metadata().keyspace);
+            if (maxTokenLocalReplica == null)
+            {
+                throw new InvalidRequestException(String.format("Received a read request from %s for a range [%s,%s] that is not owned by the current replica as of %s: %s.",
+                                                                message.from(), range.left, range.right, metadata.epoch, message.payload));
+            }
+
+            // TODO: preexisting issue: we should change the whole range for transient-ness, not just the right token
+            if (command.acceptsTransient() != maxTokenLocalReplica.isTransient())
+            {
+                MessagingService.instance().metrics.recordDroppedMessage(message, message.elapsedSinceCreated(NANOSECONDS), NANOSECONDS);
+                throw new InvalidRequestException(String.format("Attempted to serve %s data request from %s node in %s",
+                                                                command.acceptsTransient() ? "transient" : "full",
+                                                                maxTokenLocalReplica.isTransient() ? "transient" : "full",
+                                                                this));
+            }
         }
+    }
+
+    private static Replica getLocalReplica(ClusterMetadata metadata, Token token, String keyspace)
+    {
+        return metadata.placements
+               .get(metadata.schema.getKeyspaces().getNullable(keyspace).params.replication)
+               .reads
+               .forToken(token)
+               .lookup(FBUtilities.getBroadcastAddressAndPort());
     }
 }

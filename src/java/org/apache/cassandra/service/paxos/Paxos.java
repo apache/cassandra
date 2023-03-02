@@ -49,6 +49,7 @@ import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.locator.ReplicaLayout.ForTokenWrite;
 import org.apache.cassandra.locator.ReplicaPlan.ForRead;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -85,6 +86,7 @@ import org.apache.cassandra.service.CASRequest;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
@@ -384,16 +386,27 @@ public class Paxos
             return electorateNatural;
         }
 
-        static Participants get(TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
+        public boolean stillAppliesTo(ClusterMetadata metadata)
         {
-            Keyspace keyspace = Keyspace.open(table.keyspace);
-            ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(keyspace, token);
+            // TODO: currently, Paxos consistency verification is being done via Participants class.
+            // Since there is already a consistency check that is existing and available there, we postpone this until later.
+            return true;
+        }
+
+        static Participants get(ClusterMetadata metadata, TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
+        {
+            KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaceMetadata(table.keyspace);
+            ReplicaLayout.ForTokenWrite all = forTokenWriteLiveAndDown(keyspaceMetadata, token);
             ReplicaLayout.ForTokenWrite electorate = consistencyForConsensus.isDatacenterLocal()
                                                      ? all.filter(InOurDc.replicas()) : all;
 
             EndpointsForToken live = all.all().filter(FailureDetector.isReplicaAlive);
+            return new Participants(Keyspace.open(table.keyspace), consistencyForConsensus, all, electorate, live);
+        }
 
-            return new Participants(keyspace, consistencyForConsensus, all, electorate, live);
+        static Participants get(TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
+        {
+            return get(ClusterMetadata.current(), table, token, consistencyForConsensus);
         }
 
         static Participants get(TableMetadata cfm, DecoratedKey key, ConsistencyLevel consistency)
@@ -416,7 +429,7 @@ public class Paxos
             if (sizeOfConsensusQuorum > sizeOfPoll())
             {
                 mark(isWrite, m -> m.unavailables, consistencyForConsensus);
-                throw new UnavailableException("Cannot achieve consistency level " + consistencyForConsensus, consistencyForConsensus, sizeOfConsensusQuorum, sizeOfPoll());
+                throw new UnavailableException("Cannot achieve consistency level " + consistencyForConsensus + " " + sizeOfConsensusQuorum + " > " + sizeOfPoll(), consistencyForConsensus, sizeOfConsensusQuorum, sizeOfPoll());
             }
         }
 
@@ -481,6 +494,16 @@ public class Paxos
         public Participants withContacts(EndpointsForToken newContacts)
         {
             throw new UnsupportedOperationException();
+        }
+
+        public void collectSuccess(InetAddressAndPort inetAddressAndPort)
+        {
+            // TODO
+        }
+
+        public void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailureReason t)
+        {
+            // TODO
         }
     }
 
@@ -1014,7 +1037,6 @@ public class Paxos
                             // we don't need to test the side effects, as we just want to start again, and fall through
                             // to the superseded section below
                             prepare = new PaxosPrepare.Superseded(proposeResult.superseded().by, inProgress.participants);
-
                     }
                 }
 

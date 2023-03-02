@@ -20,7 +20,9 @@ package org.apache.cassandra.net;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -35,6 +37,18 @@ class ResponseVerbHandler implements IVerbHandler
     @Override
     public void doVerb(Message message)
     {
+        if (message.verb() != Verb.TCM_REPLAY_RSP &&
+            message.verb() != Verb.TCM_COMMIT_RSP &&
+            message.verb() != Verb.TCM_REPLICATION &&
+            message.verb() != Verb.TCM_NOTIFY_RSP &&
+            message.verb() != Verb.TCM_DISCOVER_RSP &&
+            // Gossip stage is single-threaded, so we may end up in a deadlock with after-commit hook
+            // that executes something on the gossip stage as well.
+            !Stage.GOSSIP.executor().inExecutor())
+        {
+            ClusterMetadataService.instance().maybeCatchup(message.epoch());
+        }
+
         RequestCallbacks.CallbackInfo callbackInfo = MessagingService.instance().callbacks.remove(message.id(), message.from());
         if (callbackInfo == null)
         {
