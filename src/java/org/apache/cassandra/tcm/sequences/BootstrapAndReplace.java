@@ -151,7 +151,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
 
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
                     StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
-                                 .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.keyspace.getName()))
+                                 .filter(cfs -> Schema.instance.getUserKeyspaces().names().contains(cfs.getKeyspaceName()))
                                  .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(true));
 
                     ClusterMetadataService.instance().commit(midReplace);

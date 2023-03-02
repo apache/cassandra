@@ -19,7 +19,6 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
@@ -132,14 +131,13 @@ public class ClusterMetadataService
         this.snapshots = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
 
         log = LocalLog.async(initial);
-        Supplier<Collection<InetAddressAndPort>> peers = () -> StorageService.instance.getTokenMetadata().getAllEndpoints();
         Processor localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
-        replicator = new Commit.DefaultReplicator(peers);
+        replicator = new Commit.DefaultReplicator(() -> log.metadata().directory);
         currentEpochHandler = new CurrentEpochRequestHandler();
         replayRequestHandler = new SwitchableHandler<>(new Replay.Handler(), cmsStateSupplier);
         commitRequestHandler = new SwitchableHandler<>(new Commit.Handler(localProcessor, replicator), cmsStateSupplier);
         processor = new SwitchableProcessor(localProcessor,
-                                            new RemoteProcessor(log, peers),
+                                            new RemoteProcessor(log, Discovery.instance::discoveredNodes),
                                             cmsStateSupplier);
 
         replicationHandler = new Replication.ReplicationHandler(log);

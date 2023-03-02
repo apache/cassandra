@@ -21,17 +21,26 @@ package org.apache.cassandra.tcm.compatibility;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 /**
  * Functions for interacting with a sorted list of tokens as modelled as a ring
@@ -112,6 +121,69 @@ public class TokenRingUtils
                 }
             }
         };
+    }
+
+    /**
+     * Get the "primary ranges" for the specified keyspace and endpoint.
+     * "Primary ranges" are the ranges that the node is responsible for storing replica primarily.
+     * The node that stores replica primarily is defined as the first node returned
+     * by {@link AbstractReplicationStrategy#calculateNaturalReplicas}.
+     *
+     * @param keyspace Keyspace name to check primary ranges
+     * @param ep endpoint we are interested in.
+     * @return primary ranges for the specified endpoint.
+     */
+    public static Collection<Range<Token>> getPrimaryRangesForEndpoint(String keyspace, InetAddressAndPort ep)
+    {
+        AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
+        Collection<Range<Token>> primaryRanges = new HashSet<>();
+        ClusterMetadata metadata = ClusterMetadata.current();
+        List<Token> tokens = metadata.tokenMap.tokens();
+        for (Token token : tokens)
+        {
+            EndpointsForRange replicas = strategy.calculateNaturalReplicas(token, metadata);
+            if (replicas.size() > 0 && replicas.get(0).endpoint().equals(ep))
+            {
+                Preconditions.checkState(replicas.get(0).isFull());
+                primaryRanges.add(new Range<>(getPredecessor(tokens, token), token));
+            }
+        }
+        return primaryRanges;
+    }
+
+    /**
+     * Get the "primary ranges" within local DC for the specified keyspace and endpoint.
+     *
+     * @see #getPrimaryRangesForEndpoint(String, InetAddressAndPort)
+     * @param keyspace Keyspace name to check primary ranges
+     * @param referenceEndpoint endpoint we are interested in.
+     * @return primary ranges within local DC for the specified endpoint.
+     */
+    public static Collection<Range<Token>> getPrimaryRangeForEndpointWithinDC(String keyspace, InetAddressAndPort referenceEndpoint)
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        String localDC = DatabaseDescriptor.getEndpointSnitch().getDatacenter(referenceEndpoint);
+        Collection<InetAddressAndPort> localDcNodes = metadata.directory.datacenterEndpoints(localDC);
+        AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
+
+        Collection<Range<Token>> localDCPrimaryRanges = new HashSet<>();
+        for (Token token : metadata.tokenMap.tokens())
+        {
+            EndpointsForRange replicas = strategy.calculateNaturalReplicas(token, metadata);
+            for (Replica replica : replicas)
+            {
+                if (localDcNodes.contains(replica.endpoint()))
+                {
+                    if (replica.endpoint().equals(referenceEndpoint))
+                    {
+                        localDCPrimaryRanges.add(new Range<>(getPredecessor(metadata.tokenMap.tokens(), token), token));
+                    }
+                    break;
+                }
+            }
+        }
+
+        return localDCPrimaryRanges;
     }
 
     /**

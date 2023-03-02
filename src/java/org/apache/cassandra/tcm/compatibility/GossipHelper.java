@@ -163,6 +163,8 @@ public class GossipHelper
                         if (tokens != null && !tokens.isEmpty())
                             newValue = nodeStateToStatus(metadata.directory.peerState(nodeId), tokens, valueFactory);
                         break;
+                    case INDEX_STATUS:
+                        // TODO;
                     default:
                         newValue = value;
                 }

@@ -41,6 +41,7 @@ import org.apache.cassandra.streaming.StreamEventHandler;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -55,38 +56,43 @@ public class BootStrapper extends ProgressEventNotifierSupport
     protected final InetAddressAndPort address;
     /* token of the node being bootstrapped. */
     protected final Collection<Token> tokens;
-    protected final TokenMetadata tokenMetadata;
+    protected final ClusterMetadata metadata;
 
-    public BootStrapper(InetAddressAndPort address, Collection<Token> tokens, TokenMetadata tmd)
+    public BootStrapper(InetAddressAndPort address, Collection<Token> tokens, ClusterMetadata metadata)
     {
         assert address != null;
         assert tokens != null && !tokens.isEmpty();
 
         this.address = address;
         this.tokens = tokens;
-        this.tokenMetadata = tmd;
+        this.metadata = metadata;
     }
 
-    public Future<StreamState> bootstrap(StreamStateStore stateStore, boolean useStrictConsistency)
+    public Future<StreamState> bootstrap(StreamStateStore stateStore, boolean useStrictConsistency, InetAddressAndPort replacing)
     {
         logger.trace("Beginning bootstrap process");
 
-        RangeStreamer streamer = new RangeStreamer(tokenMetadata,
+        RangeStreamer streamer = new RangeStreamer(metadata,
                                                    tokens,
-                                                   address,
                                                    StreamOperation.BOOTSTRAP,
                                                    useStrictConsistency,
                                                    DatabaseDescriptor.getEndpointSnitch(),
                                                    stateStore,
                                                    true,
                                                    DatabaseDescriptor.getStreamingConnectionsPerHost());
+
+        if (replacing != null)
+            streamer.addSourceFilter(new RangeStreamer.ExcludedSourcesFilter(Collections.singleton(replacing)));
+
         final Collection<String> nonLocalStrategyKeyspaces = Schema.instance.getNonLocalStrategyKeyspaces().names();
         if (nonLocalStrategyKeyspaces.isEmpty())
             logger.debug("Schema does not contain any non-local keyspaces to stream on bootstrap");
         for (String keyspaceName : nonLocalStrategyKeyspaces)
         {
-            AbstractReplicationStrategy strategy = Keyspace.open(keyspaceName).getReplicationStrategy();
-            streamer.addRanges(keyspaceName, strategy.getPendingAddressRanges(tokenMetadata, tokens, address));
+            KeyspaceMetadata ksm = metadata.schema.getKeyspaces().get(keyspaceName).get();
+            if (ksm.params.replication.isMeta())
+                continue;
+            streamer.addRanges(keyspaceName, metadata.placements.get(ksm.params.replication).writes.byEndpoint().get(FBUtilities.getBroadcastAddressAndPort()));
         }
 
         StreamResultFuture bootstrapStreamResult = streamer.fetchAsync();
@@ -160,7 +166,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
      * otherwise, if allocationKeyspace is specified use the token allocation algorithm to generate suitable tokens
      * else choose num_tokens tokens at random
      */
-    public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, InetAddressAndPort address, long schemaTimeoutMillis, long ringTimeoutMillis) throws ConfigurationException
+    public static Collection<Token> getBootstrapTokens(final ClusterMetadata metadata, InetAddressAndPort address) throws ConfigurationException
     {
         String allocationKeyspace = DatabaseDescriptor.getAllocateTokensForKeyspace();
         Integer allocationLocalRf = DatabaseDescriptor.getAllocateTokensForLocalRf();

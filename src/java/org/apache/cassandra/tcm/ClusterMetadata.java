@@ -19,9 +19,11 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -33,12 +35,16 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
@@ -50,6 +56,7 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
+import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
@@ -135,6 +142,51 @@ public class ClusterMetadata
 
         this.fullCMSReplicas = ImmutableSet.copyOf(placements.get(ReplicationParams.meta()).reads.byEndpoint().flattenValues());
         this.fullCMSEndpoints = ImmutableSet.copyOf(placements.get(ReplicationParams.meta()).reads.byEndpoint().keySet());
+    }
+
+    public boolean hasPendingRangesFor(KeyspaceMetadata ksm, Token token)
+    {
+        DataPlacements placement = current().placements;
+        PlacementForRange writes = placement.get(ksm.params.replication).writes;
+        PlacementForRange reads = placement.get(ksm.params.replication).reads;
+        return !reads.forToken(token).equals(writes.forToken(token));
+    }
+
+    public boolean hasPendingRangesFor(KeyspaceMetadata ksm, InetAddressAndPort endpoint)
+    {
+        DataPlacements placement = current().placements;
+        PlacementForRange writes = placement.get(ksm.params.replication).writes;
+        PlacementForRange reads = placement.get(ksm.params.replication).reads;
+        return !writes.byEndpoint().get(endpoint).equals(reads.byEndpoint().get(endpoint));
+    }
+
+    public Collection<Range<Token>> localWriteRanges(KeyspaceMetadata metadata)
+    {
+        return placements.get(metadata.params.replication).writes.byEndpoint().get(FBUtilities.getBroadcastAddressAndPort()).ranges();
+    }
+
+    public Map<Range<Token>, EndpointsForRange> pendingRanges(KeyspaceMetadata metadata)
+    {
+        Map<Range<Token>, EndpointsForRange> map = new HashMap<>();
+        List<Range<Token>> pending = new ArrayList<>(placements.get(metadata.params.replication).writes.ranges());
+        pending.removeAll(placements.get(metadata.params.replication).reads.ranges());
+        for (Range<Token> p : pending)
+            map.put(p, placements.get(metadata.params.replication).writes.forRange(p));
+        return map;
+    }
+
+    public EndpointsForToken pendingEndpointsFor(KeyspaceMetadata metadata, Token t)
+    {
+        EndpointsForToken writeEndpoints = placements.get(metadata.params.replication).writes.forToken(t);
+        EndpointsForToken readEndpoints = placements.get(metadata.params.replication).reads.forToken(t);
+        EndpointsForToken.Builder endpointsForToken = writeEndpoints.newBuilder(writeEndpoints.size() - readEndpoints.size());
+
+        for (Replica writeReplica : writeEndpoints)
+        {
+            if (!readEndpoints.contains(writeReplica))
+                endpointsForToken.add(writeReplica);
+        }
+        return endpointsForToken.build();
     }
 
     public Set<InetAddressAndPort> fullCMSMembers()
@@ -339,6 +391,15 @@ public class ClusterMetadata
             return this;
         }
 
+        public Transformer withNodeInformation(NodeId nodeId,
+                                               NodeVersion nodeVersion,
+                                               NodeAddresses addresses)
+        {
+            // todo: update placements with potential new broadcast address
+            directory = directory.withNodeVersion(nodeId, nodeVersion).withNodeAddresses(nodeId, addresses);
+            return this;
+        }
+
         public Transformed build()
         {
             // Process extension first as a) these are actually mutable and b) they are added to the set of
@@ -404,6 +465,21 @@ public class ClusterMetadata
                                                        inProgressSequences,
                                                        extensions),
                                    ImmutableSet.copyOf(modifiedKeys));
+        }
+
+        public ClusterMetadata buildForGossipMode()
+        {
+            return new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
+                                       Period.EMPTY,
+                                       true,
+                                       partitioner,
+                                       schema,
+                                       directory,
+                                       tokenMap,
+                                       placements,
+                                       lockedRanges,
+                                       inProgressSequences,
+                                       extensions);
         }
 
         @Override

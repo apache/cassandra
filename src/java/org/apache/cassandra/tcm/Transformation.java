@@ -44,6 +44,7 @@ import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
+import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.FinishAddMember;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
@@ -180,6 +181,8 @@ public interface Transformation
         START_ADD_TO_CMS(() -> StartAddMember.serializer),
         FINISH_ADD_TO_CMS(() -> FinishAddMember.serializer),
         REMOVE_FROM_CMS(() -> RemoveMember.serializer),
+
+        STARTUP(() -> Startup.serializer),
 
         CUSTOM(() -> CustomTransformation.serializer);
 

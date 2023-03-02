@@ -131,12 +131,22 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
                 }
                 catch (InterruptedException e)
                 {
+                    StorageService.instance.markDecommissionFailed();
+                    logger.error("Node interrupted while decommissioning");
                     return true;
                 }
                 catch (ExecutionException e)
                 {
+                    StorageService.instance.markDecommissionFailed();
                     JVMStabilityInspector.inspectThrowable(e);
-                    throw new RuntimeException("Unable to unbootstrap", e);
+                    logger.error("Error while decommissioning node: {}", e.getCause().getMessage());
+                    throw new RuntimeException("Error while decommissioning node: " + e.getCause().getMessage());
+                }
+                catch (Throwable t)
+                {
+                    StorageService.instance.markDecommissionFailed();;
+                    logger.error("Error while decommissioning node: {}", t.getMessage());
+                    throw t;
                 }
 
                 try
@@ -159,7 +169,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
                     JVMStabilityInspector.inspectThrowable(t);
                     return true;
                 }
-//                StorageService.instance.finishLeaving();
+                StorageService.instance.finishLeaving();
                 break;
             default:
                 throw new IllegalStateException("Can't proceed with leave from " + next);

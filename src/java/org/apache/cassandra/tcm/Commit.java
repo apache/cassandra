@@ -19,7 +19,6 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
@@ -38,6 +37,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -293,9 +294,9 @@ public class Commit
 
     public static class DefaultReplicator implements Replicator
     {
-        private final Supplier<Collection<InetAddressAndPort>> directorySupplier;
+        private final Supplier<Directory> directorySupplier;
 
-        public DefaultReplicator(Supplier<Collection<InetAddressAndPort>> directorySupplier)
+        public DefaultReplicator(Supplier<Directory> directorySupplier)
         {
             this.directorySupplier = directorySupplier;
         }
@@ -306,7 +307,7 @@ public class Commit
                 return;
 
             Result.Success success = result.success();
-            Collection<InetAddressAndPort> directory = directorySupplier.get();
+            Directory directory = directorySupplier.get();
 
             // Filter the log entries from the commit result for the purposes of replicating to members of the cluster
             // other than the original submitter. We only need to include the sublist of entries starting at the one
@@ -319,8 +320,9 @@ public class Commit
             assert !newlyCommitted.isEmpty() : String.format("Nothing to replicate after retaining epochs since %s from %s",
                                                              success.epoch, success.replication);
 
-            for (InetAddressAndPort endpoint : directory)
+            for (NodeId peerId : directory.peerIds())
             {
+                InetAddressAndPort endpoint = directory.endpoint(peerId);
                 // Do not replicate to self and to the peer that has requested to commit this message
                 if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()) || (source != null && source.equals(endpoint)))
                 {
