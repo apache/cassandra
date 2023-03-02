@@ -37,6 +37,7 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
@@ -80,16 +81,25 @@ public class Memtable implements Comparable<Memtable>
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
-    public static final MemtablePool MEMORY_POOL = createMemtableAllocatorPool();
+    public static final MemtablePool MEMORY_POOL = createMemtableAllocatorPoolInternal();
     public static final long NO_MIN_TIMESTAMP = -1;
 
-    private static MemtablePool createMemtableAllocatorPool()
+    private static MemtablePool createMemtableAllocatorPoolInternal()
     {
+        Config.MemtableAllocationType allocationType = DatabaseDescriptor.getMemtableAllocationType();
         long heapLimit = DatabaseDescriptor.getMemtableHeapSpaceInMb() << 20;
         long offHeapLimit = DatabaseDescriptor.getMemtableOffheapSpaceInMb() << 20;
         final float cleaningThreshold = DatabaseDescriptor.getMemtableCleanupThreshold();
         final MemtableCleaner cleaner = ColumnFamilyStore::flushLargestMemtable;
-        switch (DatabaseDescriptor.getMemtableAllocationType())
+        return createMemtableAllocatorPoolInternal(allocationType, heapLimit, offHeapLimit, cleaningThreshold, cleaner);
+    }
+
+    @VisibleForTesting
+    public static MemtablePool createMemtableAllocatorPoolInternal(Config.MemtableAllocationType allocationType,
+                                                                   long heapLimit, long offHeapLimit,
+                                                                   float cleaningThreshold, MemtableCleaner cleaner)
+    {
+        switch (allocationType)
         {
             case unslabbed_heap_buffers:
                 return new HeapPool(heapLimit, cleaningThreshold, cleaner);

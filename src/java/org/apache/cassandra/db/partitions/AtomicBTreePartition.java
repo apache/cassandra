@@ -375,7 +375,7 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
             indexer.onInserted(insert);
 
             this.dataSize += data.dataSize();
-            onAllocatedOnHeap(data.unsharedHeapSizeExcludingData());
+            this.heapSize += data.unsharedHeapSizeExcludingData();
             if (inserted == null)
                 inserted = new ArrayList<>();
             inserted.add(data);
@@ -409,12 +409,11 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
 
         public Cell<?> merge(Cell<?> previous, Cell<?> insert)
         {
-            if (insert != previous)
-            {
-                long timeDelta = Math.abs(insert.timestamp() - previous.timestamp());
-                if (timeDelta < colUpdateTimeDelta)
-                    colUpdateTimeDelta = timeDelta;
-            }
+            if (insert == previous)
+                return insert;
+            long timeDelta = Math.abs(insert.timestamp() - previous.timestamp());
+            if (timeDelta < colUpdateTimeDelta)
+                colUpdateTimeDelta = timeDelta;
             if (cloner != null)
                 insert = cloner.clone(insert);
             dataSize += insert.dataSize() - previous.dataSize();
