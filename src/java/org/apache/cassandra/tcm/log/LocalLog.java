@@ -95,7 +95,7 @@ public abstract class LocalLog implements Closeable
         Transformation transform = PreInitialize.withFirstCMS(addr);
         append(new Entry(Entry.Id.NONE, FIRST, transform));
         waitForHighestConsecutive();
-        assert metadata().epoch.is(Epoch.FIRST) : ClusterMetadata.current().epoch + " " + ClusterMetadata.current().cmsMembers;
+        assert metadata().epoch.is(Epoch.FIRST) : ClusterMetadata.current().epoch + " " + ClusterMetadata.current().fullCMSMembers();
     }
 
     public ClusterMetadata metadata()
@@ -557,7 +557,7 @@ public abstract class LocalLog implements Closeable
 
             if ((entry.epoch.getEpoch() % DatabaseDescriptor.getMetadataSnapshotFrequency()) == 0)
             {
-                List<InetAddressAndPort> list = new ArrayList<>(ClusterMetadata.current().cmsMembers);
+                List<InetAddressAndPort> list = new ArrayList<>(ClusterMetadata.current().fullCMSMembers());
                 list.sort(comparing(i -> i.addressBytes[i.addressBytes.length - 1]));
                 if (list.get(0).equals(FBUtilities.getBroadcastAddressAndPort()))
                     ScheduledExecutors.nonPeriodicTasks.submit(() -> ClusterMetadataService.instance().sealPeriod());

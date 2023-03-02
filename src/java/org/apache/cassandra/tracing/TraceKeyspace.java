@@ -29,7 +29,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -47,7 +46,7 @@ public final class TraceKeyspace
     {
     }
 
-    private static final int DEFAULT_RF = CassandraRelevantProperties.SYSTEM_TRACES_DEFAULT_RF.getInt();
+    public static final int DEFAULT_RF = CassandraRelevantProperties.SYSTEM_TRACES_DEFAULT_RF.getInt();
 
     /**
      * Generation is used as a timestamp for automatic table creation on startup.
@@ -70,33 +69,31 @@ public final class TraceKeyspace
     public static final String EVENTS = "events";
     public static final Set<String> TABLE_NAMES = ImmutableSet.of(SESSIONS, EVENTS);
 
+    public static final String SESSIONS_CQL = "CREATE TABLE IF NOT EXISTS %s ("
+                                              + "session_id uuid,"
+                                              + "command text,"
+                                              + "client inet,"
+                                              + "coordinator inet,"
+                                              + "coordinator_port int,"
+                                              + "duration int,"
+                                              + "parameters map<text, text>,"
+                                              + "request text,"
+                                              + "started_at timestamp,"
+                                              + "PRIMARY KEY ((session_id)))";
     private static final TableMetadata Sessions =
-        parse(SESSIONS,
-                "tracing sessions",
-                "CREATE TABLE %s ("
-                + "session_id uuid,"
-                + "command text,"
-                + "client inet,"
-                + "coordinator inet,"
-                + "coordinator_port int,"
-                + "duration int,"
-                + "parameters map<text, text>,"
-                + "request text,"
-                + "started_at timestamp,"
-                + "PRIMARY KEY ((session_id)))");
+        parse(SESSIONS, "tracing sessions", SESSIONS_CQL);
 
+    public static final String EVENTS_CQL = "CREATE TABLE IF NOT EXISTS %s ("
+                                            + "session_id uuid,"
+                                            + "event_id timeuuid,"
+                                            + "activity text,"
+                                            + "source inet,"
+                                            + "source_port int,"
+                                            + "source_elapsed int,"
+                                            + "thread text,"
+                                            + "PRIMARY KEY ((session_id), event_id))";
     private static final TableMetadata Events =
-        parse(EVENTS,
-                "tracing events",
-                "CREATE TABLE %s ("
-                + "session_id uuid,"
-                + "event_id timeuuid,"
-                + "activity text,"
-                + "source inet,"
-                + "source_port int,"
-                + "source_elapsed int,"
-                + "thread text,"
-                + "PRIMARY KEY ((session_id), event_id))");
+        parse(EVENTS, "tracing events", EVENTS_CQL);
 
     private static TableMetadata parse(String table, String description, String cql)
     {

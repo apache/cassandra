@@ -91,7 +91,7 @@ public final class RemoteProcessor implements ClusterMetadataService.Processor
 
     private List<InetAddressAndPort> candidates(boolean allowDiscovery)
     {
-        List<InetAddressAndPort> candidates = new ArrayList<>(log.metadata().cmsMembers);
+        List<InetAddressAndPort> candidates = new ArrayList<>(log.metadata().fullCMSMembers());
         if (candidates.isEmpty())
             candidates.addAll(DatabaseDescriptor.getSeeds());
 

@@ -122,7 +122,7 @@ public class Discovery
         @Override
         public void doVerb(Message<NoPayload> message)
         {
-            Set<InetAddressAndPort> cms = ClusterMetadata.current().cmsMembers;
+            Set<InetAddressAndPort> cms = ClusterMetadata.current().fullCMSMembers();
 
             DiscoveredNodes discoveredNodes;
             if (!cms.isEmpty())

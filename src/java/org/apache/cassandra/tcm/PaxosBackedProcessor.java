@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,8 +66,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         log.waitForHighestConsecutive();
         ClusterMetadata metadata = log.metadata();
 
-        List<Replica> replicas = new ArrayList<>();
-        Iterables.addAll(replicas, metadata.cmsReplicas);
+        Set<Replica> replicas = metadata.fullCMSMembersAsReplicas();
 
         // We can not use Paxos to catch-up a member of CMS ownership group, since that'd reduce availability,
         // so instead we allow CMS owners to catch up via inconsistent replay. In other words, from local log

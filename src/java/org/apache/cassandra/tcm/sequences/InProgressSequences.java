@@ -137,6 +137,7 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
 
     public enum Kind
     {
+        JOIN_OWNERSHIP_GROUP(AddToCMS.serializer),
         JOIN(BootstrapAndJoin.serializer),
         MOVE(Move.serializer),
         REPLACE(BootstrapAndReplace.serializer),

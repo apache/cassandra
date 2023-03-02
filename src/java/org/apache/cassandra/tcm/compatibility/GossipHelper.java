@@ -303,7 +303,6 @@ public class GossipHelper
                                    DataPlacements.empty(),
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
-                                   Collections.emptySet(),
                                    Collections.emptyMap());
     }
 
@@ -347,7 +346,6 @@ public class GossipHelper
                                                                       DataPlacements.empty(),
                                                                       LockedRanges.EMPTY,
                                                                       InProgressSequences.EMPTY,
-                                                                      Collections.emptySet(),
                                                                       extensions);
         return new ClusterMetadata(Epoch.UPGRADE_GOSSIP,
                                    Period.EMPTY,
@@ -359,7 +357,6 @@ public class GossipHelper
                                    new UniformRangePlacement().calculatePlacements(forPlacementCalculation, schema.getKeyspaces()),
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
-                                   Collections.emptySet(),
                                    extensions);
     }
 }

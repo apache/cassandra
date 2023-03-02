@@ -51,7 +51,7 @@ public class MetaStrategy extends SystemStrategy
 
     private static EndpointsForRange replicas()
     {
-        Set<InetAddressAndPort> members = ClusterMetadata.current().cmsMembers();
+        Set<InetAddressAndPort> members = ClusterMetadata.current().fullCMSMembers();
         return EndpointsForRange.builder(EntireRange.entireRange, members.size())
                                 .addAll(members.stream().map(EntireRange::replica).collect(Collectors.toList()))
                                 .build();
@@ -59,7 +59,7 @@ public class MetaStrategy extends SystemStrategy
     @Override
     public ReplicationFactor getReplicationFactor()
     {
-        int rf = ClusterMetadata.current().cmsMembers.size();
+        int rf = ClusterMetadata.current().fullCMSMembers().size();
         return ReplicationFactor.fullOnly(rf);
     }
 

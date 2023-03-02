@@ -25,7 +25,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -37,9 +36,10 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -55,12 +55,10 @@ import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.tcm.transformations.cms.EntireRange;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
-import static org.apache.cassandra.tcm.transformations.cms.EntireRange.entireRange;
 
 public class ClusterMetadata
 {
@@ -70,7 +68,6 @@ public class ClusterMetadata
     public final long period;
     public final boolean lastInPeriod;
     public final IPartitioner partitioner;       // Set during (initial) construction and not modifiable via Transformer
-    public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
 
     public final DistributedSchema schema;
     public final Directory directory;
@@ -78,8 +75,9 @@ public class ClusterMetadata
     public final DataPlacements placements;
     public final LockedRanges lockedRanges;
     public final InProgressSequences inProgressSequences;
-    public final EndpointsForRange cmsReplicas;
-    public final ImmutableSet<InetAddressAndPort> cmsMembers;
+    public final ImmutableMap<ExtensionKey<?,?>, ExtensionValue<?>> extensions;
+    private final Set<Replica> fullCMSReplicas;
+    private final Set<InetAddressAndPort> fullCMSEndpoints;
 
     public ClusterMetadata(IPartitioner partitioner)
     {
@@ -104,7 +102,6 @@ public class ClusterMetadata
              DataPlacements.EMPTY,
              LockedRanges.EMPTY,
              InProgressSequences.EMPTY,
-             ImmutableSet.of(),
              ImmutableMap.of());
     }
 
@@ -118,7 +115,6 @@ public class ClusterMetadata
                            DataPlacements placements,
                            LockedRanges lockedRanges,
                            InProgressSequences inProgressSequences,
-                           Set<InetAddressAndPort> cmsMembers,
                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions)
     {
         // TODO: token map is a feature of the specific placement strategy, and so may not be a relevant component of
@@ -135,24 +131,25 @@ public class ClusterMetadata
         this.placements = placements;
         this.lockedRanges = lockedRanges;
         this.inProgressSequences = inProgressSequences;
-        this.cmsMembers = ImmutableSet.copyOf(cmsMembers);
         this.extensions = ImmutableMap.copyOf(extensions);
 
-        this.cmsReplicas = EndpointsForRange.builder(entireRange)
-                                            .addAll(cmsMembers.stream()
-                                                              .map(EntireRange::replica)
-                                                              .collect(Collectors.toList()))
-                                            .build();
+        this.fullCMSReplicas = ImmutableSet.copyOf(placements.get(ReplicationParams.meta()).reads.byEndpoint().flattenValues());
+        this.fullCMSEndpoints = ImmutableSet.copyOf(placements.get(ReplicationParams.meta()).reads.byEndpoint().keySet());
+    }
+
+    public Set<InetAddressAndPort> fullCMSMembers()
+    {
+        return fullCMSEndpoints;
+    }
+
+    public Set<Replica> fullCMSMembersAsReplicas()
+    {
+        return fullCMSReplicas;
     }
 
     public boolean isCMSMember(InetAddressAndPort endpoint)
     {
-        return cmsMembers.contains(endpoint);
-    }
-
-    public Set<InetAddressAndPort> cmsMembers()
-    {
-        return cmsMembers;
+        return fullCMSMembers().contains(endpoint);
     }
 
     public Transformer transformer()
@@ -177,7 +174,6 @@ public class ClusterMetadata
                                    placements,
                                    lockedRanges,
                                    inProgressSequences,
-                                   cmsMembers,
                                    extensions);
     }
 
@@ -204,7 +200,6 @@ public class ClusterMetadata
         private DataPlacements placements;
         private LockedRanges lockedRanges;
         private InProgressSequences inProgressSequences;
-        private final Set<InetAddressAndPort> cmsMembers;
         private final Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions;
         private final Set<MetadataKey> modifiedKeys;
 
@@ -221,7 +216,6 @@ public class ClusterMetadata
             this.placements = metadata.placements;
             this.lockedRanges = metadata.lockedRanges;
             this.inProgressSequences = metadata.inProgressSequences;
-            this.cmsMembers = new HashSet<>(metadata.cmsMembers);
             extensions = new HashMap<>(metadata.extensions);
             modifiedKeys = new HashSet<>();
         }
@@ -309,17 +303,6 @@ public class ClusterMetadata
         public Transformer with(InProgressSequences sequences)
         {
             this.inProgressSequences = sequences;
-            return this;
-        }
-        public Transformer withCMSMember(InetAddressAndPort member)
-        {
-            cmsMembers.add(member);
-            return this;
-        }
-
-        public Transformer withoutCMSMember(InetAddressAndPort member)
-        {
-            cmsMembers.remove(member);
             return this;
         }
 
@@ -419,7 +402,6 @@ public class ClusterMetadata
                                                        placements,
                                                        lockedRanges,
                                                        inProgressSequences,
-                                                       cmsMembers,
                                                        extensions),
                                    ImmutableSet.copyOf(modifiedKeys));
         }
@@ -439,7 +421,6 @@ public class ClusterMetadata
                    ", lockedRanges=" + lockedRanges +
                    ", inProgressSequences=" + inProgressSequences +
                    ", extensions=" + extensions +
-                   ", cmsMembers=" + cmsMembers +
                    ", modifiedKeys=" + modifiedKeys +
                    '}';
         }
@@ -542,9 +523,6 @@ public class ClusterMetadata
                 assert key.valueType.isInstance(value);
                 value.serialize(out, version);
             }
-            out.writeInt(metadata.cmsMembers.size());
-            for (InetAddressAndPort member : metadata.cmsMembers)
-                InetAddressAndPort.MetadataSerializer.serializer.serialize(member, out, version);
         }
 
         @Override
@@ -569,10 +547,6 @@ public class ClusterMetadata
                 value.deserialize(in, version);
                 extensions.put(key, value);
             }
-            int memberCount = in.readInt();
-            Set<InetAddressAndPort> members = new HashSet<>(memberCount);
-            for (int i = 0; i < memberCount; i++)
-                members.add(InetAddressAndPort.MetadataSerializer.serializer.deserialize(in, version));
             return new ClusterMetadata(epoch,
                                        period,
                                        lastInPeriod,
@@ -583,7 +557,6 @@ public class ClusterMetadata
                                        placements,
                                        lockedRanges,
                                        ips,
-                                       members,
                                        extensions);
         }
 
@@ -605,10 +578,6 @@ public class ClusterMetadata
                     DataPlacements.serializer.serializedSize(metadata.placements, version) +
                     LockedRanges.serializer.serializedSize(metadata.lockedRanges, version) +
                     InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version);
-
-            size += TypeSizes.INT_SIZE;
-            for (InetAddressAndPort member : metadata.cmsMembers)
-                size += InetAddressAndPort.MetadataSerializer.serializer.serializedSize(member, version);
 
             return size;
         }
