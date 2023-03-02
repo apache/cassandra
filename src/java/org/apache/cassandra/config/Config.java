@@ -1087,6 +1087,9 @@ public class Config
     public volatile long min_tracked_partition_tombstone_count = 5000;
     public volatile boolean top_partitions_enabled = true;
 
+    @Nullable
+    public Map<String,String> sstable_compression;
+
     public static Supplier<Config> getOverrideLoadConfig()
     {
         return overrideLoadConfig;
