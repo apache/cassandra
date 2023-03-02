@@ -66,13 +66,13 @@ public final class CompressionParams
     public static final String ENABLED = "enabled";
     public static final String MIN_COMPRESS_RATIO = "min_compress_ratio";
 
-    public static final CompressionParams DEFAULT = !CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.getBoolean()
-                                                    ? noCompression()
-                                                    : new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
-                                                                            DEFAULT_CHUNK_LENGTH,
-                                                                            calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
-                                                                            DEFAULT_MIN_COMPRESS_RATIO,
-                                                                            Collections.emptyMap());
+//    public static final CompressionParams DEFAULT = !CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.getBoolean()
+//                                                    ? noCompression()
+//                                                    : new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
+//                                                                            DEFAULT_CHUNK_LENGTH,
+//                                                                            calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
+//                                                                            DEFAULT_MIN_COMPRESS_RATIO,
+//                                                                            Collections.emptyMap());
 
     public static final CompressionParams NOOP = new CompressionParams(NoopCompressor.create(Collections.emptyMap()),
                                                                        // 4 KiB is often the underlying disk block size
@@ -132,6 +132,16 @@ public final class CompressionParams
         return sstableCompressor.getClass();
     }
 
+    public static CompressionParams defaultCompression()
+    {
+        return !CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.getBoolean()
+               ? noCompression()
+               : new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
+                                       DEFAULT_CHUNK_LENGTH,
+                                       calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
+                                       DEFAULT_MIN_COMPRESS_RATIO,
+                                       Collections.emptyMap());
+    }
     public static CompressionParams noCompression()
     {
         return new CompressionParams((ICompressor) null, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, 0.0, Collections.emptyMap());
