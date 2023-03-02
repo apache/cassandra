@@ -17,7 +17,14 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.LongPredicate;
 
 import com.google.common.base.Predicates;
@@ -27,7 +34,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.AbstractCompactionController;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -251,7 +261,7 @@ public class CompactionController extends AbstractCompactionController
 
         for (SSTableReader sstable: filteredSSTables)
         {
-            if (sstable.maybePresent(key))
+            if (sstable.mayContainAssumingKeyIsInRange(key))
             {
                 minTimestampSeen = Math.min(minTimestampSeen, sstable.getMinTimestamp());
                 hasTimestamp = true;
@@ -316,8 +326,8 @@ public class CompactionController extends AbstractCompactionController
             reader.getMaxTimestamp() <= minTimestamp ||
             tombstoneOnly && !reader.mayHaveTombstones())
             return null;
-        RowIndexEntry<?> position = reader.getPosition(key, SSTableReader.Operator.EQ);
-        if (position == null)
+        long position = reader.getPosition(key, SSTableReader.Operator.EQ);
+        if (position < 0)
             return null;
         FileDataInput dfile = openDataFiles.computeIfAbsent(reader, this::openDataFile);
         return reader.simpleIterator(dfile, key, position, tombstoneOnly);

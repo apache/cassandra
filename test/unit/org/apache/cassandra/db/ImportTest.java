@@ -40,7 +40,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.BootStrapper;
-import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -236,7 +236,7 @@ public class ImportTest extends CQLTester
             sstable.selfRef().release();
             for (File f : sstable.descriptor.directory.tryList())
             {
-                if (f.toString().contains(sstable.descriptor.baseFilename()))
+                if (f.toString().contains(sstable.descriptor.baseFile().toString()))
                 {
                     System.out.println("move " + f.toPath() + " to " + backupdir);
                     File moveFileTo = new File(backupdir, f.name());
@@ -314,8 +314,8 @@ public class ImportTest extends CQLTester
 
         getCurrentColumnFamilyStore().clearUnsafe();
 
-        String filenameToCorrupt = sstableToCorrupt.descriptor.filenameFor(Component.STATS);
-        try (FileChannel fileChannel = new File(filenameToCorrupt).newReadWriteChannel())
+        File fileToCorrupt = sstableToCorrupt.descriptor.fileFor(Components.STATS);
+        try (FileChannel fileChannel = fileToCorrupt.newReadWriteChannel())
         {
             fileChannel.position(0);
             fileChannel.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));
@@ -574,8 +574,8 @@ public class ImportTest extends CQLTester
         sstables.forEach(s -> s.selfRef().release());
         // corrupt the sstable which is still in the data directory
         SSTableReader sstableToCorrupt = sstables.iterator().next();
-        String filenameToCorrupt = sstableToCorrupt.descriptor.filenameFor(Component.STATS);
-        try (FileChannel fileChannel = new File(filenameToCorrupt).newReadWriteChannel())
+        File fileToCorrupt = sstableToCorrupt.descriptor.fileFor(Components.STATS);
+        try (FileChannel fileChannel = fileToCorrupt.newReadWriteChannel())
         {
             fileChannel.position(0);
             fileChannel.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));
@@ -615,7 +615,7 @@ public class ImportTest extends CQLTester
         assertEquals(20, rowCount);
         assertEquals(expectedFiles, getCurrentColumnFamilyStore().getLiveSSTables());
         for (SSTableReader sstable : expectedFiles)
-            assertTrue(new File(sstable.descriptor.filenameFor(Component.DATA)).exists());
+            assertTrue(sstable.descriptor.fileFor(Components.DATA).exists());
         getCurrentColumnFamilyStore().truncateBlocking();
         LifecycleTransaction.waitForDeletions();
         for (File f : sstableToCorrupt.descriptor.directory.tryList()) // clean up the corrupt files which truncate does not handle

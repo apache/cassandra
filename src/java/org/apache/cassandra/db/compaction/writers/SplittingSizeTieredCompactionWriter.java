@@ -25,10 +25,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -85,7 +86,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     @Override
     public boolean realAppend(UnfilteredRowIterator partition)
     {
-        RowIndexEntry rie = sstableWriter.append(partition);
+        AbstractRowIndexEntry rie = sstableWriter.append(partition);
         if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > currentBytesToWrite && currentRatioIndex < ratios.length - 1) // if we underestimate how many keys we have, the last sstable might get more than we expect
         {
             currentRatioIndex++;
@@ -102,17 +103,15 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     {
         sstableDirectory = location;
         long currentPartitionsToWrite = Math.round(ratios[currentRatioIndex] * estimatedTotalKeys);
+        Descriptor descriptor = cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(location));
+        MetadataCollector collector = new MetadataCollector(allSSTables, cfs.metadata().comparator, 0);
+        SerializationHeader header = SerializationHeader.make(cfs.metadata(), nonExpiredSSTables);
+
         @SuppressWarnings("resource")
-        SSTableWriter writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(location)),
-                                                    currentPartitionsToWrite,
-                                                    minRepairedAt,
-                                                    pendingRepair,
-                                                    isTransient,
-                                                    cfs.metadata,
-                                                    new MetadataCollector(allSSTables, cfs.metadata().comparator, 0),
-                                                    SerializationHeader.make(cfs.metadata(), nonExpiredSSTables),
-                                                    cfs.indexManager.listIndexes(),
-                                                    txn);
+        SSTableWriter writer = newWriterBuilder(descriptor).setKeyCount(currentPartitionsToWrite)
+                                                              .setMetadataCollector(collector)
+                                                              .setSerializationHeader(header)
+                                                              .build(txn, cfs);
         logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
         sstableWriter.switchWriter(writer);
     }

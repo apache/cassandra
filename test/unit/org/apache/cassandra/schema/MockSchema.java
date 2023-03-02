@@ -33,28 +33,36 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.IndexSummary;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
+import org.apache.cassandra.io.sstable.indexsummary.IndexSummary;
+import org.apache.cassandra.io.sstable.keycache.KeyCache;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
-import org.apache.cassandra.utils.AlwaysPresentFilter;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FilterFactory;
 
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 
@@ -117,6 +125,7 @@ public class MockSchema
     {
         return sstable(generation, size, false, cfs);
     }
+
     public static SSTableReader sstable(int generation, int size, boolean keepRef, ColumnFamilyStore cfs)
     {
         return sstable(generation, size, keepRef, generation, generation, cfs);
@@ -154,52 +163,66 @@ public class MockSchema
 
     public static SSTableReader sstable(int generation, int size, boolean keepRef, long firstToken, long lastToken, int level, ColumnFamilyStore cfs, int minLocalDeletionTime, long timestamp)
     {
+        SSTableFormat<?, ?> format = SSTableFormat.Type.current().info;
         Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
                                                cfs.keyspace.getName(),
                                                cfs.getTableName(),
-                                               sstableId(generation), SSTableFormat.Type.BIG);
-        Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
-        for (Component component : components)
+                                               sstableId(generation),
+                                               format.getType());
+
+        if (format == BigFormat.getInstance())
         {
-            File file = new File(descriptor.filenameFor(component));
-            file.createFileIfNotExists();
-        }
-        // .complete() with size to make sstable.onDiskLength work
-        try (FileHandle.Builder builder = new FileHandle.Builder(new ChannelProxy(tempFile)).bufferSize(size);
-             FileHandle fileHandle = builder.complete(size))
-        {
-            if (size > 0)
+            Set<Component> components = ImmutableSet.of(Components.DATA, Components.PRIMARY_INDEX, Components.FILTER, Components.TOC);
+            for (Component component : components)
             {
-                try
-                {
-                    File file = new File(descriptor.filenameFor(Component.DATA));
-                    Util.setFileLength(file, size);
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
+                File file = descriptor.fileFor(component);
+                file.createFileIfNotExists();
             }
-            SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
-            MetadataCollector collector = new MetadataCollector(cfs.metadata().comparator);
-            collector.update(new DeletionTime(timestamp, minLocalDeletionTime));
-
-            BufferDecoratedKey first = readerBounds(firstToken);
-            BufferDecoratedKey last = readerBounds(lastToken);
-
-            StatsMetadata metadata = (StatsMetadata) collector.sstableLevel(level)
-                                                              .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header, SSTable.getMinimalKey(first).getKey().slice(), SSTable.getMinimalKey(last).getKey().slice())
-                                                              .get(MetadataType.STATS);
-            SSTableReader reader = SSTableReader.internalOpen(descriptor, components, cfs.metadata,
-                                                              fileHandle.sharedCopy(), fileHandle.sharedCopy(), indexSummary.sharedCopy(),
-                                                              new AlwaysPresentFilter(), 1L, metadata, SSTableReader.OpenReason.NORMAL, header);
-            reader.first = first ;
-            reader.last = last;
-            if (!keepRef)
-                reader.selfRef().release();
-            return reader;
+            // .complete() with size to make sstable.onDiskLength work
+            try (FileHandle fileHandle = new FileHandle.Builder(tempFile).bufferSize(size).withLengthOverride(size).complete())
+            {
+                if (size > 0)
+                {
+                    try
+                    {
+                        File file = descriptor.fileFor(Components.DATA);
+                        Util.setFileLength(file, size);
+                    }
+                    catch (IOException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                }
+                SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
+                MetadataCollector collector = new MetadataCollector(cfs.metadata().comparator);
+                collector.update(new DeletionTime(timestamp, minLocalDeletionTime));
+    BufferDecoratedKey first = readerBounds(firstToken);
+            BufferDecoratedKey last = readerBounds(lastToken);            StatsMetadata metadata = (StatsMetadata) collector.sstableLevel(level)
+                                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header, first.retainable().getKey().slice(), last.retainable().getKey().slice())
+                                                                  .get(MetadataType.STATS);
+                BigTableReader reader = new BigTableReader.Builder(descriptor).setComponents(components)
+                                                                              .setTableMetadataRef(cfs.metadata)
+                                                                              .setDataFile(fileHandle.sharedCopy())
+                                                                              .setIndexFile(fileHandle.sharedCopy())
+                                                                              .setIndexSummary(indexSummary.sharedCopy())
+                                                                              .setFilter(FilterFactory.AlwaysPresent)
+                                                                              .setMaxDataAge(1L)
+                                                                              .setStatsMetadata(metadata)
+                                                                              .setOpenReason(SSTableReader.OpenReason.NORMAL)
+                                                                              .setSerializationHeader(header)
+                                                                              .setFirst(first)
+                                                                              .setLast(last)
+                                                                              .setKeyCache(cfs.metadata().params.caching.cacheKeys ? new KeyCache(CacheService.instance.keyCache) : KeyCache.NO_CACHE)
+                                                                              .build(cfs, false, false);
+                if (!keepRef)
+                    reader.selfRef().release();
+                return reader;
+            }
         }
-
+        else
+        {
+            throw Util.testMustBeImplementedForSSTableFormat();
+        }
     }
 
     public static ColumnFamilyStore newCFS()

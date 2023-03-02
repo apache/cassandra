@@ -18,18 +18,19 @@
 
 package org.apache.cassandra.distributed.test;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.junit.Test;
+
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 
 import static org.apache.cassandra.Util.getBackups;
 import static org.apache.cassandra.distributed.Cluster.build;
@@ -154,7 +155,11 @@ public class TableLevelIncrementalBackupsTest extends TestBaseImpl
 
     private static void assertSSTablesCount(Set<Descriptor> descs, String tableName, int expectedSeqGenIds)
     {
-        List<String> seqSSTables = descs.stream().filter(desc -> desc.id instanceof SequenceBasedSSTableId).map(Descriptor::baseFilename).sorted().collect(Collectors.toList());
+        List<String> seqSSTables = descs.stream()
+                                        .filter(desc -> desc.id instanceof SequenceBasedSSTableId)
+                                        .map(descriptor -> descriptor.baseFile().toString())
+                                        .sorted()
+                                        .collect(Collectors.toList());
         assertThat(seqSSTables).describedAs("SSTables of %s with sequence based id", tableName).hasSize(expectedSeqGenIds);
     }
 

@@ -241,7 +241,7 @@ public class CompactionTask extends AbstractCompactionTask
 
             StringBuilder newSSTableNames = new StringBuilder();
             for (SSTableReader reader : newSStables)
-                newSSTableNames.append(reader.descriptor.baseFilename()).append(",");
+                newSSTableNames.append(reader.descriptor.baseFile()).append(",");
             long totalSourceRows = 0;
             for (int i = 0; i < mergedRowCounts.length; i++)
                 totalSourceRows += mergedRowCounts[i] * (i + 1);

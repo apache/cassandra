@@ -57,7 +57,7 @@ public final class CompactionInfo
     private final ImmutableSet<SSTableReader> sstables;
     private final String targetDirectory;
 
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId, Collection<SSTableReader> sstables, String targetDirectory)
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId, Collection<? extends SSTableReader> sstables, String targetDirectory)
     {
         this.tasktype = tasktype;
         this.completed = completed;
@@ -74,7 +74,7 @@ public final class CompactionInfo
         this(metadata, tasktype, completed, total, Unit.BYTES, compactionId, sstables, targetDirectory);
     }
 
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, TimeUUID compactionId, Collection<SSTableReader> sstables)
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, TimeUUID compactionId, Collection<? extends SSTableReader> sstables)
     {
         this(metadata, tasktype, completed, total, Unit.BYTES, compactionId, sstables, null);
     }

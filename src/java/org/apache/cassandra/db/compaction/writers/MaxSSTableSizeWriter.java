@@ -21,11 +21,12 @@ import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -80,7 +81,7 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
 
     protected boolean realAppend(UnfilteredRowIterator partition)
     {
-        RowIndexEntry rie = sstableWriter.append(partition);
+        AbstractRowIndexEntry rie = sstableWriter.append(partition);
         if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > maxSSTableSize)
         {
             switchCompactionLocation(sstableDirectory);
@@ -92,18 +93,16 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
     public void switchCompactionLocation(Directories.DataDirectory location)
     {
         sstableDirectory = location;
-        @SuppressWarnings("resource")
-        SSTableWriter writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory)),
-                                                    estimatedTotalKeys / estimatedSSTables,
-                                                    minRepairedAt,
-                                                    pendingRepair,
-                                                    isTransient,
-                                                    cfs.metadata,
-                                                    new MetadataCollector(allSSTables, cfs.metadata().comparator, level),
-                                                    SerializationHeader.make(cfs.metadata(), nonExpiredSSTables),
-                                                    cfs.indexManager.listIndexes(),
-                                                    txn);
 
+        Descriptor descriptor = cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory));
+        MetadataCollector collector = new MetadataCollector(allSSTables, cfs.metadata().comparator, level);
+        SerializationHeader header = SerializationHeader.make(cfs.metadata(), nonExpiredSSTables);
+
+        @SuppressWarnings("resource")
+        SSTableWriter writer = newWriterBuilder(descriptor).setKeyCount(estimatedTotalKeys / estimatedSSTables)
+                                                              .setMetadataCollector(collector)
+                                                              .setSerializationHeader(header)
+                                                              .build(txn, cfs);
         sstableWriter.switchWriter(writer);
     }
 
