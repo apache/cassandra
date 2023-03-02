@@ -70,6 +70,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import static accord.local.Status.Durability.Local;
 import static accord.local.Status.Durability.NotDurable;
 import static accord.local.Status.PreApplied;
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applyMapChanges;
 import static org.apache.cassandra.service.accord.AccordState.WriteOnly.applySetChanges;
 
@@ -95,7 +96,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         @Override
         public void future(Future<?> future)
         {
-            Preconditions.checkArgument(this.future == null);
+            checkArgument(this.future == null);
             this.future = future;
         }
 
@@ -234,7 +235,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         blockingCommitOn.setEmpty();
         waitingOnApply.setEmpty();
         blockingApplyOn.setEmpty();
-        storedListeners.setEmpty();;
+        storedListeners.setEmpty();
     }
 
     public AccordCommand initialize()
@@ -665,7 +666,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
         // with the correct scope and notify the caller when that completes
         if (!canApplyWithCurrentScope(safeStore))
         {
-            Preconditions.checkArgument(canReschedule);
+            checkArgument(canReschedule);
             return applyWithCorrectScope(safeStore.commandStore());
         }
 
@@ -793,6 +794,7 @@ public class AccordCommand extends Command implements AccordState<TxnId>
     @Override
     public void addWaitingOnApplyIfAbsent(TxnId txnId, Timestamp executeAt)
     {
+        checkArgument(!txnId().equals(txnId), "Can't wait on our own application");
         waitingOnApply.blindPut(executeAt, txnId);
     }
 
