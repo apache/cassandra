@@ -29,6 +29,8 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import accord.api.Update;
 import accord.primitives.Txn;
@@ -83,6 +85,8 @@ import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_p
  */
 public class CQL3CasRequest implements CASRequest
 {
+    private static final Logger logger = LoggerFactory.getLogger(CQL3CasRequest.class);
+
     public final TableMetadata metadata;
     public final DecoratedKey key;
     private final RegularAndStaticColumns conditionColumns;
@@ -505,6 +509,13 @@ public class CQL3CasRequest implements CASRequest
         {
             ModificationStatement modification = update.stmt;
             QueryOptions options = update.options;
+            TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options);
+            fragments.add(fragment);
+        }
+        for (RangeDeletion rangeDeletion : rangeDeletions)
+        {
+            ModificationStatement modification = rangeDeletion.stmt;
+            QueryOptions options = rangeDeletion.options;
             TxnWrite.Fragment fragment = modification.getTxnWriteFragment(idx++, state, options);
             fragments.add(fragment);
         }
