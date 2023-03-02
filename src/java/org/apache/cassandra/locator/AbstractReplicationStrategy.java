@@ -22,22 +22,17 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.*;
 
 import com.google.common.base.Preconditions;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.RingPosition;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
@@ -46,77 +41,24 @@ import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.utils.FBUtilities;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * A abstract parent for all replication strategies.
 */
 public abstract class AbstractReplicationStrategy
 {
-    private static final Logger logger = LoggerFactory.getLogger(AbstractReplicationStrategy.class);
-
     public final Map<String, String> configOptions;
     protected final String keyspaceName;
-    private final TokenMetadata tokenMetadata;
-    private final ReplicaCache<Token, EndpointsForRange> replicas = new ReplicaCache<>();
-    public IEndpointSnitch snitch;
 
-    protected AbstractReplicationStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+    protected AbstractReplicationStrategy(String keyspaceName, Map<String, String> configOptions)
     {
-        assert snitch != null;
-        assert tokenMetadata != null;
-        this.tokenMetadata = tokenMetadata;
-        this.snitch = snitch;
         this.configOptions = configOptions == null ? Collections.<String, String>emptyMap() : configOptions;
         this.keyspaceName = keyspaceName;
-    }
-
-    public EndpointsForRange getCachedReplicas(long ringVersion, Token t)
-    {
-        return replicas.get(ringVersion, t);
-    }
-
-    /**
-     * get the (possibly cached) endpoints that should store the given Token.
-     * Note that while the endpoints are conceptually a Set (no duplicates will be included),
-     * we return a List to avoid an extra allocation when sorting by proximity later
-     * @param searchPosition the position the natural endpoints are requested for
-     * @return a copy of the natural endpoints for the given token
-     */
-    public EndpointsForToken getNaturalReplicasForToken(RingPosition<?> searchPosition)
-    {
-        return getNaturalReplicas(searchPosition).forToken(searchPosition.getToken());
-    }
-
-    public EndpointsForRange getNaturalReplicas(RingPosition<?> searchPosition)
-    {
-        Token searchToken = searchPosition.getToken();
-        long currentRingVersion = tokenMetadata.getRingVersion();
-        Token keyToken = TokenRingUtils.firstToken(tokenMetadata.sortedTokens(), searchToken);
-        EndpointsForRange endpoints = getCachedReplicas(currentRingVersion, keyToken);
-        if (endpoints == null)
-        {
-            TokenMetadata tm = tokenMetadata.cachedOnlyTokenMap();
-            // if our cache got invalidated, it's possible there is a new token to account for too
-            keyToken = TokenRingUtils.firstToken(tm.sortedTokens(), searchToken);
-            endpoints = calculateNaturalReplicas(searchToken, tm);
-            replicas.put(tm.getRingVersion(), keyToken, endpoints);
-        }
-
-        return endpoints;
-    }
-
-    public Replica getLocalReplicaFor(RingPosition<?> searchPosition)
-    {
-        return getNaturalReplicas(searchPosition)
-               .byEndpoint()
-               .get(FBUtilities.getBroadcastAddressAndPort());
     }
 
     /**
@@ -128,14 +70,12 @@ public abstract class AbstractReplicationStrategy
      * {@link org.apache.cassandra.service.StorageService#getPrimaryRangesForEndpoint(String, InetAddressAndPort)}
      * which is in turn relied on by various components like repair and size estimate calculations.
      *
-     * @see #getNaturalReplicasForToken(org.apache.cassandra.dht.RingPosition)
-     *
-     * @param tokenMetadata the token metadata used to find the searchToken, e.g. contains token to endpoint
+     * @param metadata the token metadata used to find the searchToken, e.g. contains token to endpoint
      *                      mapping information
      * @param searchToken the token to find the natural endpoints for
      * @return a copy of the natural endpoints for the given token
      */
-    public abstract EndpointsForRange calculateNaturalReplicas(Token searchToken, TokenMetadata tokenMetadata);
+    public abstract EndpointsForRange calculateNaturalReplicas(Token searchToken, ClusterMetadata metadata);
 
     public abstract DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata);
 
@@ -209,88 +149,72 @@ public abstract class AbstractReplicationStrategy
     {
         return getReplicationFactor().hasTransientReplicas();
     }
-
     /*
      * NOTE: this is pretty inefficient. also the inverse (getRangeAddresses) below.
      * this is fine as long as we don't use this on any critical path.
      * (fixing this would probably require merging tokenmetadata into replicationstrategy,
      * so we could cache/invalidate cleanly.)
      */
-    public RangesByEndpoint getAddressReplicas(TokenMetadata metadata)
+    public RangesByEndpoint getAddressReplicas(ClusterMetadata metadata)
     {
         RangesByEndpoint.Builder map = new RangesByEndpoint.Builder();
-
-        for (Token token : metadata.sortedTokens())
+        List<Token> tokens = metadata.tokenMap.tokens();
+        for (Token token : tokens)
         {
-            Range<Token> range = metadata.getPrimaryRangeFor(token);
-            for (Replica replica : calculateNaturalReplicas(token, metadata))
+            for (Range<Token> range : TokenRingUtils.getPrimaryRangesFor(tokens, Collections.singleton(token)))
             {
-                // LocalStrategy always returns (min, min] ranges for it's replicas, so we skip the check here
-                Preconditions.checkState(range.equals(replica.range()) || this instanceof LocalStrategy);
-                map.put(replica.endpoint(), replica);
+                for (Replica replica : calculateNaturalReplicas(token, metadata))
+                {
+                    // SystemStrategy always returns (min, min] ranges for it's replicas, so we skip the check here
+                    Preconditions.checkState(range.equals(replica.range()) || this instanceof SystemStrategy);
+                    map.put(replica.endpoint(), replica);
+                }
             }
         }
 
         return map.build();
     }
 
-    public RangesAtEndpoint getAddressReplicas(TokenMetadata metadata, InetAddressAndPort endpoint)
+    public RangesAtEndpoint getAddressReplicas(ClusterMetadata metadata, InetAddressAndPort endpoint)
     {
         RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(endpoint);
-        for (Token token : metadata.sortedTokens())
+        List<Token> tokens = metadata.tokenMap.tokens();
+        for (Token token : tokens)
         {
-            Range<Token> range = metadata.getPrimaryRangeFor(token);
-            Replica replica = calculateNaturalReplicas(token, metadata)
-                    .byEndpoint().get(endpoint);
-            if (replica != null)
+            for (Range<Token> range : TokenRingUtils.getPrimaryRangesFor(tokens, Collections.singleton(token)))
             {
-                // LocalStrategy always returns (min, min] ranges for it's replicas, so we skip the check here
-                Preconditions.checkState(range.equals(replica.range()) || this instanceof LocalStrategy);
-                builder.add(replica, Conflict.DUPLICATE);
+                Replica replica = calculateNaturalReplicas(token, metadata)
+                                  .byEndpoint().get(endpoint);
+                if (replica != null)
+                {
+                    // SystemStrategy always returns (min, min] ranges for it's replicas, so we skip the check here
+                    Preconditions.checkState(range.equals(replica.range()) || this instanceof SystemStrategy);
+                    builder.add(replica, Conflict.DUPLICATE);
+                }
             }
         }
         return builder.build();
     }
 
 
-    public EndpointsByRange getRangeAddresses(TokenMetadata metadata)
+    public EndpointsByRange getRangeAddresses(ClusterMetadata metadata)
     {
         EndpointsByRange.Builder map = new EndpointsByRange.Builder();
-
-        for (Token token : metadata.sortedTokens())
+        List<Token> tokens = metadata.tokenMap.tokens();
+        for (Token token : tokens)
         {
-            Range<Token> range = metadata.getPrimaryRangeFor(token);
-            for (Replica replica : calculateNaturalReplicas(token, metadata))
+            for (Range<Token> range : TokenRingUtils.getPrimaryRangesFor(tokens, Collections.singleton(token)))
             {
-                // LocalStrategy always returns (min, min] ranges for it's replicas, so we skip the check here
-                Preconditions.checkState(range.equals(replica.range()) || this instanceof LocalStrategy);
-                map.put(range, replica);
+                for (Replica replica : calculateNaturalReplicas(token, metadata))
+                {
+                    // SystemStrategy always returns (min, min] ranges for it's replicas, so we skip the check here
+                    Preconditions.checkState(range.equals(replica.range()) || this instanceof SystemStrategy);
+                    map.put(range, replica);
+                }
             }
         }
 
         return map.build();
-    }
-
-    public RangesByEndpoint getAddressReplicas()
-    {
-        return getAddressReplicas(tokenMetadata.cloneOnlyTokenMap());
-    }
-
-    public RangesAtEndpoint getAddressReplicas(InetAddressAndPort endpoint)
-    {
-        return getAddressReplicas(tokenMetadata.cloneOnlyTokenMap(), endpoint);
-    }
-
-    public RangesAtEndpoint getPendingAddressRanges(TokenMetadata metadata, Token pendingToken, InetAddressAndPort pendingAddress)
-    {
-        return getPendingAddressRanges(metadata, Collections.singleton(pendingToken), pendingAddress);
-    }
-
-    public RangesAtEndpoint getPendingAddressRanges(TokenMetadata metadata, Collection<Token> pendingTokens, InetAddressAndPort pendingAddress)
-    {
-        TokenMetadata temp = metadata.cloneOnlyTokenMap();
-        temp.updateNormalTokens(pendingTokens, pendingAddress);
-        return getAddressReplicas(temp, pendingAddress);
     }
 
     public abstract void validateOptions() throws ConfigurationException;
@@ -312,7 +236,7 @@ public abstract class AbstractReplicationStrategy
      * The empty collection means that no options are accepted, but null means
      * that any option is accepted.
      */
-    public Collection<String> recognizedOptions()
+    public Collection<String> recognizedOptions(ClusterMetadata metadata)
     {
         // We default to null for backward compatibility sake
         return null;
@@ -320,17 +244,15 @@ public abstract class AbstractReplicationStrategy
 
     private static AbstractReplicationStrategy createInternal(String keyspaceName,
                                                               Class<? extends AbstractReplicationStrategy> strategyClass,
-                                                              TokenMetadata tokenMetadata,
-                                                              IEndpointSnitch snitch,
                                                               Map<String, String> strategyOptions)
         throws ConfigurationException
     {
         AbstractReplicationStrategy strategy;
-        Class<?>[] parameterTypes = new Class[] {String.class, TokenMetadata.class, IEndpointSnitch.class, Map.class};
+        Class<?>[] parameterTypes = new Class[] {String.class, Map.class};
         try
         {
             Constructor<? extends AbstractReplicationStrategy> constructor = strategyClass.getConstructor(parameterTypes);
-            strategy = constructor.newInstance(keyspaceName, tokenMetadata, snitch, strategyOptions);
+            strategy = constructor.newInstance(keyspaceName, strategyOptions);
         }
         catch (InvocationTargetException e)
         {
@@ -349,38 +271,11 @@ public abstract class AbstractReplicationStrategy
     {
         return createReplicationStrategy(keyspaceName, replicationParams.klass, replicationParams.options);
     }
-
     public static AbstractReplicationStrategy createReplicationStrategy(String keyspaceName,
                                                                         Class<? extends AbstractReplicationStrategy> strategyClass,
                                                                         Map<String, String> strategyOptions)
     {
-        AbstractReplicationStrategy strategy = createInternal(keyspaceName,
-                                                              strategyClass,
-                                                              StorageService.instance.getTokenMetadata(),
-                                                              DatabaseDescriptor.getEndpointSnitch(),
-                                                              strategyOptions);
-        strategy.validateOptions();
-        return strategy;
-    }
-
-    public static AbstractReplicationStrategy createReplicationStrategy(String keyspaceName,
-                                                                        Class<? extends AbstractReplicationStrategy> strategyClass,
-                                                                        TokenMetadata tokenMetadata,
-                                                                        IEndpointSnitch snitch,
-                                                                        Map<String, String> strategyOptions)
-    {
-        AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
-
-        // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
-        try
-        {
-            strategy.validateExpectedOptions();
-        }
-        catch (ConfigurationException e)
-        {
-            logger.warn("Ignoring {}", e.getMessage());
-        }
-
+        AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, strategyOptions);
         strategy.validateOptions();
         return strategy;
     }
@@ -420,13 +315,12 @@ public abstract class AbstractReplicationStrategy
 
     public static void validateReplicationStrategy(String keyspaceName,
                                                    Class<? extends AbstractReplicationStrategy> strategyClass,
-                                                   TokenMetadata tokenMetadata,
-                                                   IEndpointSnitch snitch,
+                                                   ClusterMetadata metadata,
                                                    Map<String, String> strategyOptions,
                                                    ClientState state) throws ConfigurationException
     {
-        AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, tokenMetadata, snitch, strategyOptions);
-        strategy.validateExpectedOptions();
+        AbstractReplicationStrategy strategy = createInternal(keyspaceName, strategyClass, strategyOptions);
+        strategy.validateExpectedOptions(metadata);
         strategy.validateOptions();
         strategy.maybeWarnOnOptions(state);
         if (strategy.hasTransientReplicas() && !DatabaseDescriptor.isTransientReplicationEnabled())
@@ -473,9 +367,9 @@ public abstract class AbstractReplicationStrategy
         }
     }
 
-    public void validate() throws ConfigurationException
+    public void validate(ClusterMetadata snapshot) throws ConfigurationException
     {
-        validateExpectedOptions();
+        validateExpectedOptions(snapshot);
         validateOptions();
         maybeWarnOnOptions();
         if (hasTransientReplicas() && !DatabaseDescriptor.isTransientReplicationEnabled())
@@ -484,76 +378,16 @@ public abstract class AbstractReplicationStrategy
         }
     }
 
-    public void validateExpectedOptions() throws ConfigurationException
+    public void validateExpectedOptions(ClusterMetadata snapshot) throws ConfigurationException
     {
-        Collection<String> expectedOptions = recognizedOptions();
+        Collection<String> expectedOptions = recognizedOptions(snapshot);
         if (expectedOptions == null)
             return;
 
         for (String key : configOptions.keySet())
         {
             if (!expectedOptions.contains(key))
-                throw new ConfigurationException(String.format("Unrecognized strategy option {%s} passed to %s for keyspace %s", key, getClass().getSimpleName(), keyspaceName));
-        }
-    }
-
-    static class ReplicaCache<K, V>
-    {
-        private final AtomicReference<ReplicaHolder<K, V>> cachedReplicas = new AtomicReference<>(new ReplicaHolder<>(0, 4));
-
-        V get(long ringVersion, K keyToken)
-        {
-            ReplicaHolder<K, V> replicaHolder = maybeClearAndGet(ringVersion);
-            if (replicaHolder == null)
-                return null;
-
-            return replicaHolder.replicas.get(keyToken);
-        }
-
-        void put(long ringVersion, K keyToken, V endpoints)
-        {
-            ReplicaHolder<K, V> current = maybeClearAndGet(ringVersion);
-            if (current != null)
-            {
-                // if we have the same ringVersion, but already know about the keyToken the endpoints should be the same
-                current.replicas.putIfAbsent(keyToken, endpoints);
-            }
-        }
-
-        ReplicaHolder<K, V> maybeClearAndGet(long ringVersion)
-        {
-            ReplicaHolder<K, V> current = cachedReplicas.get();
-            if (ringVersion == current.ringVersion)
-                return current;
-            else if (ringVersion < current.ringVersion) // things have already moved on
-                return null;
-
-            // If ring version has changed, create a fresh replica holder and try to replace the current one.
-            // This may race with other threads that have the same new ring version and one will win and the loosers
-            // will be garbage collected
-            ReplicaHolder<K, V> cleaned = new ReplicaHolder<>(ringVersion, current.replicas.size());
-            cachedReplicas.compareAndSet(current, cleaned);
-
-            // A new ring version may have come along while making the new holder, so re-check the
-            // reference and return the ring version if the same, otherwise return null as there is no point
-            // in using it.
-            current = cachedReplicas.get();
-            if (ringVersion == current.ringVersion)
-                return current;
-            else
-                return null;
-        }
-    }
-
-    static class ReplicaHolder<K, V>
-    {
-        private final long ringVersion;
-        private final NonBlockingHashMap<K, V> replicas;
-
-        ReplicaHolder(long ringVersion, int expectedEntries)
-        {
-            this.ringVersion = ringVersion;
-            this.replicas = new NonBlockingHashMap<>(expectedEntries);
+                throw new ConfigurationException(String.format("Unrecognized strategy option {%s} passed to %s for keyspace %s. Expected options: %s", key, getClass().getSimpleName(), keyspaceName, expectedOptions));
         }
     }
 }

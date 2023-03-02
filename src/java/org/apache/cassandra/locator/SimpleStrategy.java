@@ -17,12 +17,7 @@
  */
 package org.apache.cassandra.locator;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,10 +32,10 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.compatibility.AsEndpoints;
-import org.apache.cassandra.tcm.compatibility.AsTokenMap;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
 
@@ -57,12 +52,13 @@ public class SimpleStrategy extends AbstractReplicationStrategy
     private static final Logger logger = LoggerFactory.getLogger(SimpleStrategy.class);
     private final ReplicationFactor rf;
 
-    public SimpleStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+    public SimpleStrategy(String keyspaceName, Map<String, String> configOptions)
     {
-        super(keyspaceName, tokenMetadata, snitch, configOptions);
+        super(keyspaceName, configOptions);
         validateOptionsInternal(configOptions);
         this.rf = ReplicationFactor.fromString(this.configOptions.get(REPLICATION_FACTOR));
     }
+
 
     @Override
     public DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata)
@@ -76,20 +72,21 @@ public class SimpleStrategy extends AbstractReplicationStrategy
     }
 
     @Override
-    public EndpointsForRange calculateNaturalReplicas(Token token, TokenMetadata metadata)
+    public EndpointsForRange calculateNaturalReplicas(Token token, ClusterMetadata metadata)
     {
-        ArrayList<Token> ring = metadata.sortedTokens();
-        Token replicaEnd = TokenRingUtils.firstToken(ring, token);
-        Token replicaStart = TokenRingUtils.getPredecessor(ring, replicaEnd);
-        Range<Token> replicaRange = new Range<>(replicaStart, replicaEnd);
-        return calculateNaturalReplicas(token, ring, replicaRange, metadata, metadata);
+        List<Token> ring = metadata.tokenMap.tokens();
+        if (ring.isEmpty())
+            return EndpointsForRange.empty(new Range<>(metadata.tokenMap.partitioner().getMinimumToken(), metadata.tokenMap.partitioner().getMinimumToken()));
+
+        Range<Token> replicaRange = TokenRingUtils.getRange(ring, token);
+        return calculateNaturalReplicas(token, ring, replicaRange, metadata.directory, metadata.tokenMap);
     }
 
     private EndpointsForRange calculateNaturalReplicas(Token token,
                                                        List<Token> ring,
                                                        Range<Token> replicaRange,
-                                                       AsEndpoints endpoints,
-                                                       AsTokenMap tokens)
+                                                       Directory endpoints,
+                                                       TokenMap tokens)
     {
         if (ring.isEmpty())
             return EndpointsForRange.empty(new Range<>(tokens.partitioner().getMinimumToken(), token.getPartitioner().getMinimumToken()));
@@ -110,6 +107,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
 
         return replicas.build();
     }
+
 
     @Override
     public ReplicationFactor getReplicationFactor()
@@ -153,7 +151,7 @@ public class SimpleStrategy extends AbstractReplicationStrategy
     }
 
     @Override
-    public Collection<String> recognizedOptions()
+    public Collection<String> recognizedOptions(ClusterMetadata metadata)
     {
         return Collections.singleton(REPLICATION_FACTOR);
     }

@@ -23,15 +23,16 @@ import java.util.Collections;
 import java.util.Map;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 /**
  * A replication strategy that is uniform for all tokens and ignores TokenMetadata
  */
 public abstract class SystemStrategy extends AbstractReplicationStrategy
 {
-    public SystemStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+    public SystemStrategy(String keyspaceName, Map<String, String> configOptions)
     {
-        super(keyspaceName, tokenMetadata, snitch, configOptions);
+        super(keyspaceName, configOptions);
     }
 
     public void validateOptions() throws ConfigurationException
@@ -44,7 +45,7 @@ public abstract class SystemStrategy extends AbstractReplicationStrategy
     }
 
     @Override
-    public Collection<String> recognizedOptions()
+    public Collection<String> recognizedOptions(ClusterMetadata metadata)
     {
         // SystemStrategy doesn't expect any options.
         return Collections.emptySet();

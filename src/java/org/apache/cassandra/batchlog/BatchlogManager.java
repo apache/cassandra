@@ -36,6 +36,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
@@ -203,7 +205,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         // rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
         // max rate is scaled by the number of nodes in the cluster (same as for HHOM - see CASSANDRA-5272).
-        int endpointsCount = StorageService.instance.getTokenMetadata().getSizeOfAllEndpoints();
+        int endpointsCount = ClusterMetadata.current().directory.allAddresses().size();
         if (endpointsCount <= 0)
         {
             logger.trace("Replay cancelled as there are no peers in the ring.");
@@ -234,7 +236,7 @@ public class BatchlogManager implements BatchlogManagerMBean
      */
     public void setRate(final int throttleInKB)
     {
-        int endpointsCount = StorageService.instance.getTokenMetadata().getSizeOfAllEndpoints();
+        int endpointsCount = ClusterMetadata.current().directory.allAddresses().size();
         if (endpointsCount > 0)
         {
             int endpointThrottleInKiB = throttleInKB / endpointsCount;
@@ -471,29 +473,27 @@ public class BatchlogManager implements BatchlogManagerMBean
                                                                                      Set<UUID> hintedNodes)
         {
             String ks = mutation.getKeyspaceName();
-            Keyspace keyspace = Keyspace.open(ks);
             Token tk = mutation.key().getToken();
+            ClusterMetadata metadata = ClusterMetadata.current();
+            KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaceMetadata(ks);
 
             // TODO: this logic could do with revisiting at some point, as it is unclear what its rationale is
             // we perform a local write, ignoring errors and inline in this thread (potentially slowing replay down)
             // effectively bumping CL for locally owned writes and also potentially stalling log replay if an error occurs
             // once we decide how it should work, it can also probably be simplified, and avoid constructing a ReplicaPlan directly
-            ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWriteLiveAndDown(keyspace, tk);
-            Replicas.temporaryAssertFull(liveAndDown.all()); // TODO in CASSANDRA-14549
+            ReplicaLayout.ForTokenWrite allReplias = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspaceMetadata, tk);
+            ReplicaPlan.ForWrite replicaPlan = forReplayMutation(metadata, Keyspace.open(ks), tk);
 
-            Replica selfReplica = liveAndDown.all().selfIfPresent();
+            Replica selfReplica = allReplias.all().selfIfPresent();
             if (selfReplica != null)
                 mutation.apply();
 
-            ReplicaLayout.ForTokenWrite liveRemoteOnly = liveAndDown.filter(
-                    r -> FailureDetector.isReplicaAlive.test(r) && r != selfReplica);
-
-            for (Replica replica : liveAndDown.all())
+            for (Replica replica : allReplias.all())
             {
-                if (replica == selfReplica || liveRemoteOnly.all().contains(replica))
+                if (replica == selfReplica || replicaPlan.liveAndDown().contains(replica))
                     continue;
 
-                UUID hostId = StorageService.instance.getHostIdForEndpoint(replica.endpoint());
+                UUID hostId = metadata.directory.peerId(replica.endpoint()).uuid;
                 if (null != hostId)
                 {
                     HintsService.instance.write(hostId, Hint.create(mutation, writtenAt));
@@ -501,15 +501,26 @@ public class BatchlogManager implements BatchlogManagerMBean
                 }
             }
 
-            ReplicaPlan.ForWrite replicaPlan = new ReplicaPlan.ForWrite(keyspace, liveAndDown.replicationStrategy(),
-                                                                        ConsistencyLevel.ONE, liveRemoteOnly.pending(), liveRemoteOnly.all(), liveRemoteOnly.all(), liveRemoteOnly.all());
             ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, mutation, nanoTime());
             Message<Mutation> message = Message.outWithFlag(MUTATION_REQ, mutation, MessageFlag.CALL_BACK_ON_FAILURE);
-            for (Replica replica : liveRemoteOnly.all())
+            for (Replica replica : replicaPlan.liveAndDown())
                 MessagingService.instance().sendWriteWithCallback(message, replica, handler);
             return handler;
         }
 
+        public static ReplicaPlan.ForWrite forReplayMutation(ClusterMetadata metadata, Keyspace keyspace, Token token)
+        {
+            ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWriteLiveAndDown(metadata, keyspace.getMetadata(), token);
+            Replicas.temporaryAssertFull(liveAndDown.all()); // TODO in CASSANDRA-14549
+
+            Replica selfReplica = liveAndDown.all().selfIfPresent();
+            ReplicaLayout.ForTokenWrite liveRemoteOnly = liveAndDown.filter(r -> FailureDetector.isReplicaAlive.test(r) && r != selfReplica);
+
+            return new ReplicaPlan.ForWrite(keyspace, liveAndDown.replicationStrategy(),
+                                            ConsistencyLevel.ONE, liveRemoteOnly.pending(), liveRemoteOnly.all(), liveRemoteOnly.all(), liveRemoteOnly.all(),
+                                            (cm) -> forReplayMutation(cm, keyspace, token),
+                                            liveAndDown.epoch());
+        }
         private static int gcgs(Collection<Mutation> mutations)
         {
             int gcgs = Integer.MAX_VALUE;

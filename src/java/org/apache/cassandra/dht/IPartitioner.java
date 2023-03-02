@@ -26,7 +26,7 @@ import java.util.Random;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import javax.annotation.Nullable;
 
@@ -34,7 +34,7 @@ public interface IPartitioner
 {
     static IPartitioner global()
     {
-        return StorageService.instance.getTokenMetadata().partitioner;
+        return ClusterMetadata.current().partitioner;
     }
 
     static void validate(Collection<? extends AbstractBounds<?>> allBounds)

@@ -20,6 +20,7 @@ package org.apache.cassandra.dht;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,9 +36,8 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
-
+import com.google.common.collect.Multimaps;
 import org.apache.commons.lang3.StringUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,11 +60,13 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.base.Predicates.and;
@@ -82,17 +84,14 @@ public class RangeStreamer
     private static final Logger logger = LoggerFactory.getLogger(RangeStreamer.class);
 
     public static Predicate<Replica> ALIVE_PREDICATE = replica ->
-                                                             (!Gossiper.instance.isEnabled() ||
-                                                              (Gossiper.instance.getEndpointStateForEndpoint(replica.endpoint()) == null ||
-                                                               Gossiper.instance.getEndpointStateForEndpoint(replica.endpoint()).isAlive())) &&
-                                                             FailureDetector.instance.isAlive(replica.endpoint());
+                                                       (!Gossiper.instance.isEnabled() ||
+                                                        (Gossiper.instance.getEndpointStateForEndpoint(replica.endpoint()) == null ||
+                                                         Gossiper.instance.getEndpointStateForEndpoint(replica.endpoint()).isAlive())) &&
+                                                       FailureDetector.instance.isAlive(replica.endpoint());
 
+    private final ClusterMetadata metadata;
     /* bootstrap tokens. can be null if replacing the node. */
     private final Collection<Token> tokens;
-    /* current token ring */
-    private final TokenMetadata metadata;
-    /* address of this node */
-    private final InetAddressAndPort address;
     /* streaming description */
     private final String description;
     private final Map<String, Multimap<InetAddressAndPort, FetchReplica>> toFetch = new HashMap<>();
@@ -272,9 +271,29 @@ public class RangeStreamer
         }
     }
 
-    public RangeStreamer(TokenMetadata metadata,
+    public static class ExcludedSourcesFilter implements SourceFilter
+    {
+        private final Set<InetAddressAndPort> excludedSources;
+
+        public ExcludedSourcesFilter(Set<InetAddressAndPort> allowedSources)
+        {
+            this.excludedSources = allowedSources;
+        }
+
+        public boolean apply(Replica replica)
+        {
+            return !excludedSources.contains(replica.endpoint());
+        }
+
+        @Override
+        public String message(Replica replica)
+        {
+            return "Filtered " + replica + " out because it was in the excluded set: " + excludedSources;
+        }
+    }
+
+    public RangeStreamer(ClusterMetadata metadata,
                          Collection<Token> tokens,
-                         InetAddressAndPort address,
                          StreamOperation streamOperation,
                          boolean useStrictConsistency,
                          IEndpointSnitch snitch,
@@ -282,13 +301,12 @@ public class RangeStreamer
                          boolean connectSequentially,
                          int connectionsPerHost)
     {
-        this(metadata, tokens, address, streamOperation, useStrictConsistency, snitch, stateStore,
+        this(metadata, tokens, streamOperation, useStrictConsistency, snitch, stateStore,
              FailureDetector.instance, connectSequentially, connectionsPerHost);
     }
 
-    RangeStreamer(TokenMetadata metadata,
+    RangeStreamer(ClusterMetadata metadata,
                   Collection<Token> tokens,
-                  InetAddressAndPort address,
                   StreamOperation streamOperation,
                   boolean useStrictConsistency,
                   IEndpointSnitch snitch,
@@ -300,7 +318,6 @@ public class RangeStreamer
         Preconditions.checkArgument(streamOperation == StreamOperation.BOOTSTRAP || streamOperation == StreamOperation.REBUILD, streamOperation);
         this.metadata = metadata;
         this.tokens = tokens;
-        this.address = address;
         this.description = streamOperation.getDescription();
         this.streamPlan = new StreamPlan(streamOperation, connectionsPerHost, connectSequentially, null, PreviewKind.NONE);
         this.useStrictConsistency = useStrictConsistency;
@@ -352,7 +369,13 @@ public class RangeStreamer
         }
 
         boolean useStrictSource = useStrictSourcesForRanges(strat);
-        EndpointsByReplica fetchMap = calculateRangesToFetchWithPreferredEndpoints(replicas, keyspace, useStrictSource);
+        EndpointsByReplica fetchMap = calculateRangesToFetchWithPreferredEndpoints(snitch::sortedByProximity,
+                                                                                   keyspace.getReplicationStrategy(),
+                                                                                   replicas,
+                                                                                   useStrictConsistency,
+                                                                                   metadata,
+                                                                                   keyspace.getName(),
+                                                                                   sourceFilters);
 
         for (Map.Entry<Replica, Replica> entry : fetchMap.flattenEntries())
             logger.info("{}: range {} exists on {} for keyspace {}", description, entry.getKey(), entry.getValue(), keyspaceName);
@@ -388,60 +411,60 @@ public class RangeStreamer
      */
     private boolean useStrictSourcesForRanges(AbstractReplicationStrategy strat)
     {
+        return useStrictSourcesForRanges(strat, metadata, snitch, useStrictConsistency, tokens);
+    }
+
+    private static boolean useStrictSourcesForRanges(AbstractReplicationStrategy strat, ClusterMetadata metadata, IEndpointSnitch snitch, boolean useStrictConsistency, Collection<Token> tokens)
+    {
         boolean res = useStrictConsistency && tokens != null;
-        
+
         if (res)
         {
             int nodes = 0;
 
+            HashSet<InetAddressAndPort> allOtherNodes = new HashSet<>(metadata.directory.allAddresses());
+            allOtherNodes.remove(FBUtilities.getBroadcastAddressAndPort());
+
             if (strat instanceof NetworkTopologyStrategy)
             {
-                ImmutableMultimap<String, InetAddressAndPort> dc2Nodes = metadata.getDC2AllEndpoints(snitch);
+                ImmutableMultimap<String, InetAddressAndPort> dc2Nodes = Multimaps.index(allOtherNodes, snitch::getDatacenter);
 
                 NetworkTopologyStrategy ntps = (NetworkTopologyStrategy) strat;
                 for (String dc : dc2Nodes.keySet())
                     nodes += ntps.getReplicationFactor(dc).allReplicas > 0 ? dc2Nodes.get(dc).size() : 0;
             }
             else
-                nodes = metadata.getSizeOfAllEndpoints();
-    
+                nodes = allOtherNodes.size();
+
             res = nodes > strat.getReplicationFactor().allReplicas;
         }
-        
+
         return res;
     }
 
-    /**
-     * Wrapper method to assemble the arguments for invoking the implementation with RangeStreamer's parameters
-     */
-    private EndpointsByReplica calculateRangesToFetchWithPreferredEndpoints(ReplicaCollection<?> fetchRanges, Keyspace keyspace, boolean useStrictConsistency)
+    private static EndpointsForRange endpointsForWrappedRange(Range<Token> maybeWrappingRange, PlacementForRange placements)
     {
-        AbstractReplicationStrategy strat = keyspace.getReplicationStrategy();
-
-        TokenMetadata tmd = metadata.cloneOnlyTokenMap();
-
-        TokenMetadata tmdAfter = null;
-
-        if (tokens != null)
+        EndpointsForRange endpoints;
+        if (maybeWrappingRange.isWrapAround())
         {
-            // Pending ranges
-            tmdAfter = tmd.cloneOnlyTokenMap();
-            tmdAfter.updateNormalTokens(tokens, address);
+            EndpointsForRange wrappedEndpointsForRange = null;
+            for (Range<Token> r : maybeWrappingRange.unwrap())
+            {
+                EndpointsForRange ep1 = placements.forRange(r);
+                if (wrappedEndpointsForRange == null)
+                    wrappedEndpointsForRange = ep1;
+                assert wrappedEndpointsForRange.endpoints().equals(ep1.endpoints()) : wrappedEndpointsForRange +" != " + ep1;
+            }
+            EndpointsForRange.Builder builder = EndpointsForRange.builder(maybeWrappingRange);
+            for (InetAddressAndPort ep : wrappedEndpointsForRange.endpoints())
+                builder.add(new Replica(ep, maybeWrappingRange, wrappedEndpointsForRange.byEndpoint().get(ep).isFull()));
+            endpoints = builder.build();
         }
-        else if (useStrictConsistency)
+        else
         {
-            throw new IllegalArgumentException("Can't ask for strict consistency and not supply tokens");
+            endpoints = placements.forRange(maybeWrappingRange);
         }
-
-        return calculateRangesToFetchWithPreferredEndpoints(snitch::sortedByProximity,
-                                                            strat,
-                                                            fetchRanges,
-                                                            useStrictConsistency,
-                                                            tmd,
-                                                            tmdAfter,
-                                                            keyspace.getName(),
-                                                            sourceFilters);
-
+        return endpoints;
     }
 
     /**
@@ -454,17 +477,13 @@ public class RangeStreamer
                                                   AbstractReplicationStrategy strat,
                                                   ReplicaCollection<?> fetchRanges,
                                                   boolean useStrictConsistency,
-                                                  TokenMetadata tmdBefore,
-                                                  TokenMetadata tmdAfter,
+                                                  ClusterMetadata metadata,
                                                   String keyspace,
                                                   Collection<SourceFilter> sourceFilters)
      {
-         EndpointsByRange rangeAddresses = strat.getRangeAddresses(tmdBefore);
-
          InetAddressAndPort localAddress = FBUtilities.getBroadcastAddressAndPort();
-         logger.debug ("Keyspace: {}", keyspace);
+         logger.debug("Keyspace: {}", keyspace);
          logger.debug("To fetch RN: {}", fetchRanges);
-         logger.debug("Fetch ranges: {}", rangeAddresses);
 
          Predicate<Replica> testSourceFilters = and(sourceFilters);
          Function<EndpointsForRange, EndpointsForRange> sorted =
@@ -480,76 +499,72 @@ public class RangeStreamer
              Predicate<Replica> isSufficient = r -> toFetch.isTransient() || r.isFull();
 
              logger.debug("To fetch {}", toFetch);
-             for (Range<Token> range : rangeAddresses.keySet())
+
+             ReplicationParams params = metadata.schema.getKeyspaces().get(keyspace).get().params.replication;
+             EndpointsForRange oldEndpoints = endpointsForWrappedRange(toFetch.range(), metadata.placements.get(params).reads);
+
+             //Ultimately we populate this with whatever is going to be fetched from to satisfy toFetch
+             //It could be multiple endpoints and we must fetch from all of them if they are there
+             //With transient replication and strict consistency this is to get the full data from a full replica and
+             //transient data from the transient replica losing data
+             EndpointsForRange sources;
+             //Due to CASSANDRA-5953 we can have a higher RF than we have endpoints.
+             //So we need to be careful to only be strict when endpoints == RF
+             boolean isStrictConsistencyApplicable = useStrictConsistency && (oldEndpoints.size() == strat.getReplicationFactor().allReplicas);
+             if (isStrictConsistencyApplicable)
              {
-                 if (!range.contains(toFetch.range()))
-                     continue;
+                 EndpointsForRange strictEndpoints;
 
-                 final EndpointsForRange oldEndpoints = sorted.apply(rangeAddresses.get(range));
+                 //Start with two sets of who replicates the range before and who replicates it after
+                 EndpointsForRange newEndpoints = endpointsForWrappedRange(toFetch.range(), metadata.placements.get(params).writes);
+                 logger.debug("Old endpoints {}", oldEndpoints);
+                 logger.debug("New endpoints {}", newEndpoints);
 
-                 //Ultimately we populate this with whatever is going to be fetched from to satisfy toFetch
-                 //It could be multiple endpoints and we must fetch from all of them if they are there
-                 //With transient replication and strict consistency this is to get the full data from a full replica and
-                 //transient data from the transient replica losing data
-                 EndpointsForRange sources;
-                 //Due to CASSANDRA-5953 we can have a higher RF than we have endpoints.
-                 //So we need to be careful to only be strict when endpoints == RF
-                 boolean isStrictConsistencyApplicable = useStrictConsistency && (oldEndpoints.size() == strat.getReplicationFactor().allReplicas);
-                 if (isStrictConsistencyApplicable)
+                 // Remove new endpoints from old endpoints based on address
+                 strictEndpoints = oldEndpoints.without(newEndpoints.endpoints());
+
+                 if (strictEndpoints.size() > 1)
+                     throw new AssertionError("Expected <= 1 endpoint but found " + strictEndpoints);
+
+                 //We have to check the source filters here to see if they will remove any replicas
+                 //required for strict consistency
+                 if (!all(strictEndpoints, testSourceFilters))
+                     throw new IllegalStateException("Necessary replicas for strict consistency were removed by source filters: " + buildErrorMessage(sourceFilters, strictEndpoints));
+
+                 //If we are transitioning from transient to full and and the set of replicas for the range is not changing
+                 //we might end up with no endpoints to fetch from by address. In that case we can pick any full replica safely
+                 //since we are already a transient replica and the existing replica remains.
+                 //The old behavior where we might be asked to fetch ranges we don't need shouldn't occur anymore.
+                 //So it's an error if we don't find what we need.
+                 if (strictEndpoints.isEmpty() && toFetch.isTransient())
+                     throw new AssertionError("If there are no endpoints to fetch from then we must be transitioning from transient to full for range " + toFetch);
+
+                 if (!any(strictEndpoints, isSufficient))
                  {
-                     EndpointsForRange strictEndpoints;
-
-                     //Start with two sets of who replicates the range before and who replicates it after
-                     EndpointsForRange newEndpoints = strat.calculateNaturalReplicas(toFetch.range().right, tmdAfter);
-                     logger.debug("Old endpoints {}", oldEndpoints);
-                     logger.debug("New endpoints {}", newEndpoints);
-
-                     // Remove new endpoints from old endpoints based on address
-                     strictEndpoints = oldEndpoints.without(newEndpoints.endpoints());
-
-                     if (strictEndpoints.size() > 1)
-                         throw new AssertionError("Expected <= 1 endpoint but found " + strictEndpoints);
-
-                     //We have to check the source filters here to see if they will remove any replicas
-                     //required for strict consistency
-                     if (!all(strictEndpoints, testSourceFilters))
-                         throw new IllegalStateException("Necessary replicas for strict consistency were removed by source filters: " + buildErrorMessage(sourceFilters, strictEndpoints));
-
-                     //If we are transitioning from transient to full and and the set of replicas for the range is not changing
-                     //we might end up with no endpoints to fetch from by address. In that case we can pick any full replica safely
-                     //since we are already a transient replica and the existing replica remains.
-                     //The old behavior where we might be asked to fetch ranges we don't need shouldn't occur anymore.
-                     //So it's an error if we don't find what we need.
-                     if (strictEndpoints.isEmpty() && toFetch.isTransient())
-                         throw new AssertionError("If there are no endpoints to fetch from then we must be transitioning from transient to full for range " + toFetch);
-
-                     if (!any(strictEndpoints, isSufficient))
-                     {
-                         // need an additional replica; include all our filters, to ensure we include a matching node
-                         Optional<Replica> fullReplica = Iterables.<Replica>tryFind(oldEndpoints, and(isSufficient, testSourceFilters)).toJavaUtil();
-                         if (fullReplica.isPresent())
-                             strictEndpoints = Endpoints.concat(strictEndpoints, EndpointsForRange.of(fullReplica.get()));
-                         else
-                             throw new IllegalStateException("Couldn't find any matching sufficient replica out of " + buildErrorMessage(sourceFilters, oldEndpoints));
-                     }
-
-                     sources = strictEndpoints;
-                 }
-                 else
-                 {
-                     //Without strict consistency we have given up on correctness so no point in fetching from
-                     //a random full + transient replica since it's also likely to lose data
-                     //Also apply testSourceFilters that were given to us so we can safely select a single source
-                     sources = sorted.apply(oldEndpoints.filter(and(isSufficient, testSourceFilters)));
-                     //Limit it to just the first possible source, we don't need more than one and downstream
-                     //will fetch from every source we supply
-                     sources = sources.size() > 0 ? sources.subList(0, 1) : sources;
+                     // need an additional replica; include all our filters, to ensure we include a matching node
+                     Optional<Replica> fullReplica = Iterables.<Replica>tryFind(oldEndpoints, and(isSufficient, testSourceFilters)).toJavaUtil();
+                     if (fullReplica.isPresent())
+                         strictEndpoints = Endpoints.concat(strictEndpoints, EndpointsForRange.of(fullReplica.get()));
+                     else
+                         throw new IllegalStateException("Couldn't find any matching sufficient replica out of " + buildErrorMessage(sourceFilters, oldEndpoints));
                  }
 
-                 // storing range and preferred endpoint set
-                 rangesToFetchWithPreferredEndpoints.putAll(toFetch, sources, Conflict.NONE);
-                 logger.debug("Endpoints to fetch for {} are {}", toFetch, sources);
+                 sources = strictEndpoints;
              }
+             else
+             {
+                 //Without strict consistency we have given up on correctness so no point in fetching from
+                 //a random full + transient replica since it's also likely to lose data
+                 //Also apply testSourceFilters that were given to us so we can safely select a single source
+                 sources = sorted.apply(oldEndpoints.filter(and(isSufficient, testSourceFilters)));
+                 //Limit it to just the first possible source, we don't need more than one and downstream
+                 //will fetch from every source we supply
+                 sources = sources.size() > 0 ? sources.subList(0, 1) : sources;
+             }
+
+             // storing range and preferred endpoint set
+             rangesToFetchWithPreferredEndpoints.putAll(toFetch, sources, Conflict.NONE);
+             logger.debug("Endpoints to fetch for {} are {}", toFetch, sources);
 
              EndpointsForRange addressList = rangesToFetchWithPreferredEndpoints.getIfPresent(toFetch);
              if (addressList == null)
@@ -669,7 +684,7 @@ public class RangeStreamer
             if(entry.getKey().equals(FBUtilities.getBroadcastAddressAndPort()))
             {
                 throw new IllegalStateException("Trying to stream locally. Range: " + entry.getValue()
-                                        + " in keyspace " + keyspace);
+                                                + " in keyspace " + keyspace);
             }
 
             if (!rangesWithSources.get(entry.getValue()).endpoints().contains(entry.getKey()))
@@ -708,7 +723,7 @@ public class RangeStreamer
                 else
                 {
                     // Filter out already streamed ranges
-                    SystemKeyspace.AvailableRanges available = stateStore.getAvailableRanges(keyspace, metadata.partitioner);
+                    SystemKeyspace.AvailableRanges available = stateStore.getAvailableRanges(keyspace, metadata.tokenMap.partitioner());
 
                     Predicate<FetchReplica> isAvailable = fetch -> {
                         boolean isInFull = available.full.contains(fetch.local.range());
@@ -758,13 +773,13 @@ public class RangeStreamer
 
                 InetAddressAndPort self = FBUtilities.getBroadcastAddressAndPort();
                 RangesAtEndpoint full = remaining.stream()
-                        .filter(pair -> pair.remote.isFull())
-                        .map(pair -> pair.local)
-                        .collect(RangesAtEndpoint.collector(self));
+                                                 .filter(pair -> pair.remote.isFull())
+                                                 .map(pair -> pair.local)
+                                                 .collect(RangesAtEndpoint.collector(self));
                 RangesAtEndpoint transientReplicas = remaining.stream()
-                        .filter(pair -> pair.remote.isTransient())
-                        .map(pair -> pair.local)
-                        .collect(RangesAtEndpoint.collector(self));
+                                                              .filter(pair -> pair.remote.isTransient())
+                                                              .map(pair -> pair.local)
+                                                              .collect(RangesAtEndpoint.collector(self));
 
                 logger.debug("Source and our replicas {}", fetchReplicas);
                 logger.debug("Source {} Keyspace {}  streaming full {} transient {}", source, keyspace, full, transientReplicas);

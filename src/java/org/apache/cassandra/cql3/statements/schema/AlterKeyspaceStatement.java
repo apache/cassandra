@@ -18,10 +18,8 @@
 package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +33,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
@@ -92,15 +89,16 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         if (newKeyspace.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        newKeyspace.params.validate(keyspaceName, state);
-        newKeyspace.replicationStrategy.validate();
+        newKeyspace.params.validate(keyspaceName, state, metadata);
+        newKeyspace.replicationStrategy.validate(metadata);
+
         validateNoRangeMovements();
         validateTransientReplication(keyspace.replicationStrategy, newKeyspace.replicationStrategy);
 
         // Because we used to not properly validate unrecognized options, we only log a warning if we find one.
         try
         {
-            newKeyspace.replicationStrategy.validateExpectedOptions();
+            newKeyspace.replicationStrategy.validateExpectedOptions(metadata);
         }
         catch (ConfigurationException e)
         {
@@ -155,7 +153,9 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
                 default:
                     return false;
             }
+
         }).map(e -> metadata.directory.endpoint(e.getKey())).collect(Collectors.toSet());
+
         if (!notNormalEndpoints.isEmpty())
         {
             throw new ConfigurationException("Cannot alter RF while some endpoints are not in normal state (no range movements): " + notNormalEndpoints);

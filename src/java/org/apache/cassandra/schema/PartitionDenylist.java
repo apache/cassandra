@@ -44,8 +44,8 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.range.RangeCommands;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.NoSpamLogger;
 
@@ -433,13 +433,13 @@ public class PartitionDenylist
 
             final Set<ByteBuffer> keys = new HashSet<>();
             final NavigableSet<Token> tokens = new TreeSet<>();
-
+            ClusterMetadata metadata = ClusterMetadata.current();
             int processed = 0;
             for (final UntypedResultSet.Row row : results)
             {
                 final ByteBuffer key = row.getBlob("key");
                 keys.add(key);
-                tokens.add(StorageService.instance.getTokenMetadata().partitioner.getToken(key));
+                tokens.add(metadata.tokenMap.partitioner().getToken(key));
 
                 processed++;
                 if (processed >= limit)

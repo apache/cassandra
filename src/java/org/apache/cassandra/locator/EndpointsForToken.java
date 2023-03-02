@@ -22,8 +22,7 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -158,31 +157,6 @@ public class EndpointsForToken extends Endpoints<EndpointsForToken>
 
     public static EndpointsForToken natural(Keyspace keyspace, Token token)
     {
-        return keyspace.getReplicationStrategy().getNaturalReplicasForToken(token);
-    }
-
-    public static EndpointsForToken natural(AbstractReplicationStrategy replicationStrategy, Token token)
-    {
-        return replicationStrategy.getNaturalReplicasForToken(token);
-    }
-
-    public static EndpointsForToken natural(TableMetadata table, Token token)
-    {
-        return natural(Keyspace.open(table.keyspace), token);
-    }
-
-    public static EndpointsForToken pending(TableMetadata table, Token token)
-    {
-        return pending(table.keyspace, token);
-    }
-
-    public static EndpointsForToken pending(Keyspace keyspace, Token token)
-    {
-        return pending(keyspace.getName(), token);
-    }
-
-    public static EndpointsForToken pending(String keyspace, Token token)
-    {
-        return StorageService.instance.getTokenMetadata().pendingEndpointsForToken(token, keyspace);
+        return ClusterMetadata.current().placements.get(keyspace.getMetadata().params.replication).reads.forToken(token);
     }
 }

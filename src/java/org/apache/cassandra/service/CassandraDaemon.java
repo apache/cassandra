@@ -73,6 +73,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
@@ -290,7 +292,7 @@ public class CassandraDaemon
         SystemKeyspaceMigrator41.migrate();
 
         // Populate token metadata before flushing, for token-aware sstable partitioning (#6696)
-        StorageService.instance.populateTokenMetadata();
+//        StorageService.instance.populateTokenMetadata();
 
 //        try
 //        {
@@ -365,7 +367,7 @@ public class CassandraDaemon
         }
 
         // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
-        StorageService.instance.populateTokenMetadata();
+//        StorageService.instance.populateTokenMetadata();
 
         try
         {
@@ -802,26 +804,31 @@ public class CassandraDaemon
 
     public void validateTransportsCanStart()
     {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        InProgressSequence startupSequence = metadata.inProgressSequences.get(metadata.myNodeId());
+
         // We only start transports if bootstrap has completed and we're not in survey mode, OR if we are in
         // survey mode and streaming has completed but we're not using auth.
         // OR if we have not joined the ring yet.
-        if (StorageService.instance.hasJoined())
+        if (startupSequence != null)
         {
-            if (StorageService.instance.isSurveyMode())
+            throw new IllegalStateException("Not starting client transports because startup sequence has not completed");
+        }
+
+        if (StorageService.instance.isSurveyMode())
+        {
+            if (DatabaseDescriptor.getAuthenticator().requireAuthentication())
             {
-                if (StorageService.instance.isBootstrapMode() || DatabaseDescriptor.getAuthenticator().requireAuthentication())
-                {
-                    throw new IllegalStateException("Not starting client transports in write_survey mode as it's bootstrapping or " +
-                                                    "auth is enabled");
-                }
+                throw new IllegalStateException("Not starting client transports in write_survey mode as it's not fully started yet " +
+                                                "auth is enabled");
             }
-            else
+        }
+        else
+        {
+            if (!SystemKeyspace.bootstrapComplete())
             {
-                if (!SystemKeyspace.bootstrapComplete())
-                {
-                    throw new IllegalStateException("Node is not yet bootstrapped completely. Use nodetool to check bootstrap" +
-                                                    " state and resume. For more, see `nodetool help bootstrap`");
-                }
+                throw new IllegalStateException("Node is not yet bootstrapped completely. Use nodetool to check bootstrap" +
+                                                " state and resume. For more, see `nodetool help bootstrap`");
             }
         }
     }

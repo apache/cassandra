@@ -80,8 +80,8 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         if (keyspace.params.replication.klass.equals(LocalStrategy.class))
             throw ire("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
 
-        keyspace.params.validate(keyspaceName, state);
-        keyspace.replicationStrategy.validateExpectedOptions();
+        keyspace.params.validate(keyspaceName, state, metadata);
+        keyspace.replicationStrategy.validateExpectedOptions(metadata);
         return schema.withAddedOrUpdated(keyspace);
     }
 

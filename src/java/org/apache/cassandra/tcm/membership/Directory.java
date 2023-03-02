@@ -34,8 +34,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
-import org.apache.cassandra.tcm.compatibility.AsEndpoints;
-import org.apache.cassandra.tcm.compatibility.AsLocations;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.net.MessagingService;
@@ -46,7 +44,7 @@ import org.apache.cassandra.utils.btree.BTreeMultimap;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
-public class Directory implements MetadataValue<Directory>, AsEndpoints, AsLocations
+public class Directory implements MetadataValue<Directory>
 {
     public static final Serializer serializer = new Serializer();
 

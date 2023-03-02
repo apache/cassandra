@@ -342,7 +342,7 @@ public final class KeyspaceMetadata implements SchemaElement
                                                     name));
         }
 
-        params.validate(name, null);
+        params.validate(name, null, metadata);
         tablesAndViews().forEach(TableMetadata::validate);
 
         Set<String> indexNames = new HashSet<>();

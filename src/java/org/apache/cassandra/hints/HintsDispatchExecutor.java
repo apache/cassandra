@@ -38,6 +38,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -216,7 +217,7 @@ final class HintsDispatchExecutor
             // The goal is to bound maximum hints traffic going towards a particular node from the rest of the cluster,
             // not total outgoing hints traffic from this node. This is why the rate limiter is not shared between
             // all the dispatch tasks (as there will be at most one dispatch task for a particular host id at a time).
-            int nodesCount = isTransfer ? 1 : Math.max(1, StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
+            int nodesCount = isTransfer ? 1 : Math.max(1, ClusterMetadata.current().directory.allAddresses().size() - 1);
             double throttleInBytes = DatabaseDescriptor.getHintedHandoffThrottleInKiB() * 1024.0 / nodesCount;
             this.rateLimiter = RateLimiter.create(throttleInBytes == 0 ? Double.MAX_VALUE : throttleInBytes);
         }

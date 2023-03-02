@@ -5639,7 +5639,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public List<String> describeCMS()
     {
-        return ClusterMetadata.current().cmsMembers().stream().sorted().map(ep -> ep.toString()).collect(Collectors.toList());
+        return ClusterMetadata.current().fullCMSMembers().stream().sorted().map(Object::toString).collect(Collectors.toList());
     }
 
     @Override

@@ -42,6 +42,7 @@ import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
@@ -147,7 +148,7 @@ public abstract class AbstractReadExecutor
                 traceState.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
 
             if (null == message)
-                message = readCommand.createMessage(false);
+                message = readCommand.createMessage(false).withEpoch(ClusterMetadata.current().epoch);
 
             MessagingService.instance().sendWithCallback(message, endpoint, handler);
         }
@@ -181,7 +182,8 @@ public abstract class AbstractReadExecutor
     /**
      * @return an executor appropriate for the configured speculative read policy
      */
-    public static AbstractReadExecutor getReadExecutor(SinglePartitionReadCommand command,
+    public static AbstractReadExecutor getReadExecutor(ClusterMetadata metadata,
+                                                       SinglePartitionReadCommand command,
                                                        ConsistencyLevel consistencyLevel,
                                                        long queryStartNanoTime) throws UnavailableException
     {
@@ -189,7 +191,8 @@ public abstract class AbstractReadExecutor
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
         SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
 
-        ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(keyspace,
+        ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(metadata,
+                                                                    keyspace,
                                                                     command.partitionKey().getToken(),
                                                                     command.indexQueryPlan(),
                                                                     consistencyLevel,
@@ -438,7 +441,7 @@ public abstract class AbstractReadExecutor
                 logger.trace("Timed out waiting on digest mismatch repair requests");
             // the caught exception here will have CL.ALL from the repair command,
             // not whatever CL the initial command was at (CASSANDRA-7947)
-            throw new ReadTimeoutException(replicaPlan().consistencyLevel(), handler.blockFor - 1, handler.blockFor, true);
+            throw new ReadTimeoutException(replicaPlan().consistencyLevel(), handler.replicaPlan().readQuorum() - 1, handler.replicaPlan().readQuorum(), true);
         }
     }
 

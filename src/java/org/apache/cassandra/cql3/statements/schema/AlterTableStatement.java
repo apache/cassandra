@@ -61,7 +61,6 @@ import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
@@ -606,7 +605,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             Set<InetAddressAndPort> preC15897nodes = new HashSet<>();
             Set<InetAddressAndPort> with2xSStables = new HashSet<>();
             Splitter onComma = Splitter.on(',').omitEmptyStrings().trimResults();
-            for (InetAddressAndPort node : StorageService.instance.getTokenMetadata().getAllEndpoints())
+            for (InetAddressAndPort node : ClusterMetadata.current().directory.allAddresses())
             {
                 if (MessagingService.instance().versions.knows(node) &&
                     MessagingService.instance().versions.getRaw(node) < MessagingService.VERSION_40)

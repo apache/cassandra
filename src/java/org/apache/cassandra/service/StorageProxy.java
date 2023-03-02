@@ -43,7 +43,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.cache.CacheLoader;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -94,14 +93,12 @@ import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaLayout;
@@ -135,6 +132,7 @@ import org.apache.cassandra.service.reads.AbstractReadExecutor;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.Clock;
@@ -147,12 +145,9 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static com.google.common.collect.Iterables.concat;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-
-import static com.google.common.collect.Iterables.concat;
-import static org.apache.commons.lang3.StringUtils.join;
-
 import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
@@ -180,6 +175,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
+import static org.apache.commons.lang3.StringUtils.join;
 
 public class StorageProxy implements StorageProxyMBean
 {
@@ -970,25 +966,27 @@ public class StorageProxy implements StorageProxyMBean
 
     private static void hintMutation(Mutation mutation)
     {
+        ClusterMetadata metadata = ClusterMetadata.current();
         String keyspaceName = mutation.getKeyspaceName();
         Token token = mutation.key().getToken();
 
         // local writes can timeout, but cannot be dropped (see LocalMutationRunnable and CASSANDRA-6510),
         // so there is no need to hint or retry.
-        EndpointsForToken replicasToHint = ReplicaLayout.forTokenWriteLiveAndDown(Keyspace.open(keyspaceName), token)
+        EndpointsForToken replicasToHint = ReplicaLayout.forTokenWriteLiveAndDown(metadata, Keyspace.open(keyspaceName), token)
                 .all()
                 .filter(StorageProxy::shouldHint);
 
         submitHint(mutation, replicasToHint, null);
     }
 
-    public boolean appliesLocally(Mutation mutation)
+    public static boolean appliesLocally(Mutation mutation)
     {
+        ClusterMetadata metadata = ClusterMetadata.current();
         String keyspaceName = mutation.getKeyspaceName();
         Token token = mutation.key().getToken();
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
 
-        return ReplicaLayout.forTokenWriteLiveAndDown(Keyspace.open(keyspaceName), token)
+        return ReplicaLayout.forTokenWriteLiveAndDown(metadata, Keyspace.open(keyspaceName), token)
                 .all().endpoints().contains(local);
     }
 
@@ -1009,6 +1007,7 @@ public class StorageProxy implements StorageProxyMBean
 
         long startTime = nanoTime();
 
+        ClusterMetadata metadata = ClusterMetadata.current();
 
         try
         {
@@ -1025,23 +1024,25 @@ public class StorageProxy implements StorageProxyMBean
                 List<WriteResponseHandlerWrapper> wrappers = new ArrayList<>(mutations.size());
                 //non-local mutations rely on the base mutation commit-log entry for eventual consistency
                 Set<Mutation> nonLocalMutations = new HashSet<>(mutations);
-                Token baseToken = StorageService.instance.getTokenMetadata().partitioner.getToken(dataKey);
+                Token baseToken = metadata.tokenMap.partitioner().getToken(dataKey);
 
                 ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
 
                 //Since the base -> view replication is 1:1 we only need to store the BL locally
-                ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forLocalBatchlogWrite();
+                ReplicaPlan.ForWrite localReplicaPlan = ReplicaPlans.forLocalBatchlogWrite();
                 BatchlogCleanup cleanup = new BatchlogCleanup(mutations.size(),
-                                                              () -> asyncRemoveFromBatchlog(replicaPlan, batchUUID));
+                                                              () -> asyncRemoveFromBatchlog(localReplicaPlan, batchUUID));
 
                 // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
                 for (Mutation mutation : mutations)
                 {
                     String keyspaceName = mutation.getKeyspaceName();
                     Token tk = mutation.key().getToken();
-                    AbstractReplicationStrategy replicationStrategy = Keyspace.open(keyspaceName).getReplicationStrategy();
-                    Optional<Replica> pairedEndpoint = ViewUtils.getViewNaturalEndpoint(replicationStrategy, baseToken, tk);
-                    EndpointsForToken pendingReplicas = StorageService.instance.getTokenMetadata().pendingEndpointsForToken(tk, keyspaceName);
+                    Function<ClusterMetadata, Optional<Replica>> pairedEndpointSupplier = (cm) -> ViewUtils.getViewNaturalEndpoint(cm, keyspaceName, baseToken, tk);
+                    Function<ClusterMetadata, EndpointsForToken> pendingReplicasSupplier = (cm) -> cm.pendingEndpointsFor(Keyspace.open(keyspaceName).getMetadata(), tk);
+
+                    Optional<Replica> pairedEndpoint = pairedEndpointSupplier.apply(metadata);
+                    EndpointsForToken pendingReplicas = pendingReplicasSupplier.apply(metadata);
 
                     // if there are no paired endpoints there are probably range movements going on, so we write to the local batchlog to replay later
                     if (!pairedEndpoint.isPresent())
@@ -1077,13 +1078,17 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     else
                     {
-                        ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(replicationStrategy,
-                                                                                              EndpointsForToken.of(tk, pairedEndpoint.get()),
-                                                                                              pendingReplicas);
+                        Function<ClusterMetadata, ReplicaLayout.ForTokenWrite> computeReplicas = (cm) -> {
+                            return ReplicaLayout.forTokenWrite(Keyspace.open(keyspaceName).getReplicationStrategy(),
+                                                               EndpointsForToken.of(tk, pairedEndpointSupplier.apply(cm).get()),
+                                                               pendingReplicasSupplier.apply(cm));
+                        };
+
+                        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(metadata, Keyspace.open(keyspaceName), consistencyLevel, computeReplicas, ReplicaPlans.writeAll);
+
                         wrappers.add(wrapViewBatchResponseHandler(mutation,
                                                                   consistencyLevel,
-                                                                  consistencyLevel,
-                                                                  liveAndDown,
+                                                                  replicaPlan,
                                                                   baseComplete,
                                                                   WriteType.BATCH,
                                                                   cleanup,
@@ -1411,16 +1416,13 @@ public class StorageProxy implements StorageProxyMBean
      * Keeps track of ViewWriteMetrics
      */
     private static WriteResponseHandlerWrapper wrapViewBatchResponseHandler(Mutation mutation,
-                                                                            ConsistencyLevel consistencyLevel,
                                                                             ConsistencyLevel batchConsistencyLevel,
-                                                                            ReplicaLayout.ForTokenWrite liveAndDown,
+                                                                            ReplicaPlan.ForWrite replicaPlan,
                                                                             AtomicLong baseComplete,
                                                                             WriteType writeType,
                                                                             BatchlogResponseHandler.BatchlogCleanup cleanup,
                                                                             long queryStartNanoTime)
     {
-        Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
-        ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(keyspace, consistencyLevel, liveAndDown, ReplicaPlans.writeAll);
         AbstractReplicationStrategy replicationStrategy = replicaPlan.replicationStrategy();
         AbstractWriteResponseHandler<IMutation> writeHandler = replicationStrategy.getWriteResponseHandler(replicaPlan, () -> {
             long delay = Math.max(0, currentTimeMillis() - baseComplete.get());
@@ -1711,7 +1713,8 @@ public class StorageProxy implements StorageProxyMBean
      */
     public static AbstractWriteResponseHandler<IMutation> mutateCounter(CounterMutation cm, String localDataCenter, long queryStartNanoTime) throws UnavailableException, OverloadedException
     {
-        Replica replica = findSuitableReplica(cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency());
+        ClusterMetadata metadata = ClusterMetadata.current();
+        Replica replica = ReplicaPlans.findCounterLeaderReplica(metadata, cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency());
 
         if (replica.isSelf())
         {
@@ -1725,15 +1728,17 @@ public class StorageProxy implements StorageProxyMBean
             Token tk = cm.key().getToken();
 
             // we build this ONLY to perform the sufficiency check that happens on construction
-            ReplicaPlans.forWrite(keyspace, cm.consistency(), tk, ReplicaPlans.writeAll);
+            ReplicaPlans.forWrite(metadata, keyspace, cm.consistency(), tk, ReplicaPlans.writeAll);
 
             // This host isn't a replica, so mark the request as being remote. If this host is a
             // replica, applyCounterMutationOnCoordinator() in the branch above will call performWrite(), and
             // there we'll mark a local request against the metrics.
             writeMetrics.remoteRequests.mark();
 
+            ReplicaPlan.ForWrite forWrite = ReplicaPlans.forForwardingCounterWrite(metadata, keyspace, tk,
+                                                                                   clm -> ReplicaPlans.findCounterLeaderReplica(clm, cm.getKeyspaceName(), cm.key(), localDataCenter, cm.consistency()));
             // Forward the actual update to the chosen leader replica
-            AbstractWriteResponseHandler<IMutation> responseHandler = new WriteResponseHandler<>(ReplicaPlans.forForwardingCounterWrite(keyspace, tk, replica),
+            AbstractWriteResponseHandler<IMutation> responseHandler = new WriteResponseHandler<>(forWrite,
                                                                                                  WriteType.COUNTER, null, queryStartNanoTime);
 
             Tracing.trace("Enqueuing counter update to {}", replica);
@@ -1741,53 +1746,6 @@ public class StorageProxy implements StorageProxyMBean
             MessagingService.instance().sendWriteWithCallback(message, replica, responseHandler);
             return responseHandler;
         }
-    }
-
-    /**
-     * Find a suitable replica as leader for counter update.
-     * For now, we pick a random replica in the local DC (or ask the snitch if
-     * there is no replica alive in the local DC).
-     * TODO: if we track the latency of the counter writes (which makes sense
-     * contrarily to standard writes since there is a read involved), we could
-     * trust the dynamic snitch entirely, which may be a better solution. It
-     * is unclear we want to mix those latencies with read latencies, so this
-     * may be a bit involved.
-     */
-    private static Replica findSuitableReplica(String keyspaceName, DecoratedKey key, String localDataCenter, ConsistencyLevel cl) throws UnavailableException
-    {
-        Keyspace keyspace = Keyspace.open(keyspaceName);
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
-        EndpointsForToken replicas = replicationStrategy.getNaturalReplicasForToken(key);
-
-        // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
-        replicas = replicas.filter(replica -> StorageService.instance.isRpcReady(replica.endpoint()));
-
-        // CASSANDRA-17411: filter out endpoints that are not alive
-        replicas = replicas.filter(replica -> FailureDetector.instance.isAlive(replica.endpoint()));
-
-        // TODO have a way to compute the consistency level
-        if (replicas.isEmpty())
-            throw UnavailableException.create(cl, cl.blockFor(replicationStrategy), 0);
-
-        List<Replica> localReplicas = new ArrayList<>(replicas.size());
-
-        for (Replica replica : replicas)
-            if (snitch.getDatacenter(replica).equals(localDataCenter))
-                localReplicas.add(replica);
-
-        if (localReplicas.isEmpty())
-        {
-            // If the consistency required is local then we should not involve other DCs
-            if (cl.isDatacenterLocal())
-                throw UnavailableException.create(cl, cl.blockFor(replicationStrategy), 0);
-
-            // No endpoint in local DC, pick the closest endpoint according to the snitch
-            replicas = snitch.sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
-            return replicas.get(0);
-        }
-
-        return localReplicas.get(ThreadLocalRandom.current().nextInt(localReplicas.size()));
     }
 
     // Must be called on a replica of the mutation. This replica becomes the
@@ -2090,11 +2048,12 @@ public class StorageProxy implements StorageProxyMBean
 
         AbstractReadExecutor[] reads = new AbstractReadExecutor[cmdCount];
 
+        ClusterMetadata metadata = ClusterMetadata.current();
         // Get the replica locations, sorted by response time according to the snitch, and create a read executor
         // for type of speculation we'll use in this read
         for (int i=0; i<cmdCount; i++)
         {
-            reads[i] = AbstractReadExecutor.getReadExecutor(commands.get(i), consistencyLevel, queryStartNanoTime);
+            reads[i] = AbstractReadExecutor.getReadExecutor(metadata, commands.get(i), consistencyLevel, queryStartNanoTime);
 
             if (reads[i].hasLocalRead())
                 readMetrics.localRequests.mark();
@@ -2103,7 +2062,7 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         // sends a data request to the closest replica, and a digest request to the others. If we have a speculating
-        // read executoe, we'll only send read requests to enough replicas to satisfy the consistency level
+        // read executor, we'll only send read requests to enough replicas to satisfy the consistency level
         for (int i=0; i<cmdCount; i++)
         {
             reads[i].executeAsync();

@@ -24,10 +24,11 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -99,9 +100,9 @@ public final class KeyspaceParams
         return new KeyspaceParams(true, ReplicationParams.nts(args));
     }
 
-    public void validate(String name, ClientState state)
+    public void validate(String name, ClientState state, ClusterMetadata metadata)
     {
-        replication.validate(name, state);
+        replication.validate(name, state, metadata);
     }
 
     @Override

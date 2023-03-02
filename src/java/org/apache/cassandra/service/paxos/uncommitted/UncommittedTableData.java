@@ -185,7 +185,7 @@ public class UncommittedTableData
                 return Range.normalize(FULL_RANGE);
 
             String ksName = table.getKeyspaceName();
-            List<Range<Token>> ranges = StorageService.instance.getLocalAndPendingRanges(ksName);
+            Collection<Range<Token>> ranges = StorageService.instance.getLocalAndPendingRanges(ksName);
 
             // don't filter anything if we're not aware of any locally replicated ranges
             if (ranges.isEmpty())

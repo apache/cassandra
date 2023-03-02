@@ -24,10 +24,11 @@ import java.util.function.Predicate;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 public final class ViewUtils
 {
@@ -57,11 +58,13 @@ public final class ViewUtils
      *
      * @return Optional.empty() if this method is called using a base token which does not belong to this replica
      */
-    public static Optional<Replica> getViewNaturalEndpoint(AbstractReplicationStrategy replicationStrategy, Token baseToken, Token viewToken)
+    public static Optional<Replica> getViewNaturalEndpoint(ClusterMetadata metadata, String keyspace, Token baseToken, Token viewToken)
     {
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
-        EndpointsForToken naturalBaseReplicas = replicationStrategy.getNaturalReplicasForToken(baseToken);
-        EndpointsForToken naturalViewReplicas = replicationStrategy.getNaturalReplicasForToken(viewToken);
+        KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
+
+        EndpointsForToken naturalBaseReplicas = metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(baseToken);
+        EndpointsForToken naturalViewReplicas = metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(viewToken);
 
         Optional<Replica> localReplica = Iterables.tryFind(naturalViewReplicas, Replica::isSelf).toJavaUtil();
         if (localReplica.isPresent())
@@ -69,7 +72,7 @@ public final class ViewUtils
 
         // We only select replicas from our own DC
         // TODO: this is poor encapsulation, leaking implementation details of replication strategy
-        Predicate<Replica> isLocalDC = r -> !(replicationStrategy instanceof NetworkTopologyStrategy)
+        Predicate<Replica> isLocalDC = r -> !(keyspaceMetadata.replicationStrategy instanceof NetworkTopologyStrategy)
                 || DatabaseDescriptor.getEndpointSnitch().getDatacenter(r).equals(localDataCenter);
 
         // We have to remove any endpoint which is shared between the base and the view, as it will select itself
@@ -84,7 +87,9 @@ public final class ViewUtils
         // The replication strategy will be the same for the base and the view, as they must belong to the same keyspace.
         // Since the same replication strategy is used, the same placement should be used and we should get the same
         // number of replicas for all of the tokens in the ring.
-        assert baseReplicas.size() == viewReplicas.size() : "Replication strategy should have the same number of endpoints for the base and the view";
+        assert baseReplicas.size() == viewReplicas.size() :
+        String.format("Replication strategy should have the same number of endpoints for the base (%d) and the view (%d)",
+                      baseReplicas.size(), viewReplicas.size());
 
         int baseIdx = -1;
         for (int i=0; i<baseReplicas.size(); i++)

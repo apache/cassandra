@@ -37,7 +37,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataValue;
-import org.apache.cassandra.tcm.compatibility.AsTokenMap;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -47,7 +46,7 @@ import org.apache.cassandra.utils.SortedBiMultiValMap;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
-public class TokenMap implements MetadataValue<TokenMap>, AsTokenMap
+public class TokenMap implements MetadataValue<TokenMap>
 {
     public static final Serializer serializer = new Serializer();
 

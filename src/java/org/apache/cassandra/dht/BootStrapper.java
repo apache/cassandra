@@ -19,6 +19,7 @@ package org.apache.cassandra.dht;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -31,10 +32,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.tokenallocator.TokenAllocation;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
@@ -200,29 +200,26 @@ public class BootStrapper extends ProgressEventNotifierSupport
         return tokens;
     }
 
-    private static Collection<Token> getSpecifiedTokens(final TokenMetadata metadata,
+    private static Collection<Token> getSpecifiedTokens(final ClusterMetadata metadata,
                                                         Collection<String> initialTokens)
     {
         logger.info("tokens manually specified as {}",  initialTokens);
         List<Token> tokens = new ArrayList<>(initialTokens.size());
         for (String tokenString : initialTokens)
         {
-            Token token = metadata.partitioner.getTokenFactory().fromString(tokenString);
-            if (metadata.getEndpoint(token) != null)
+            Token token = metadata.tokenMap.partitioner().getTokenFactory().fromString(tokenString);
+            if (metadata.tokenMap.owner(token) != null)
                 throw new ConfigurationException("Bootstrapping to existing token " + tokenString + " is not allowed (decommission/removenode the old node first).");
             tokens.add(token);
         }
         return tokens;
     }
 
-    static Collection<Token> allocateTokens(final TokenMetadata metadata,
+    static Collection<Token> allocateTokens(final ClusterMetadata metadata,
                                             InetAddressAndPort address,
                                             String allocationKeyspace,
                                             int numTokens)
     {
-        if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
-            Gossiper.waitToSettle();
-
         Keyspace ks = Keyspace.open(allocationKeyspace);
         if (ks == null)
             throw new ConfigurationException("Problem opening token allocation keyspace " + allocationKeyspace);
@@ -234,30 +231,36 @@ public class BootStrapper extends ProgressEventNotifierSupport
     }
 
 
-    static Collection<Token> allocateTokens(final TokenMetadata metadata,
+    static Collection<Token> allocateTokens(final ClusterMetadata metadata,
                                             InetAddressAndPort address,
                                             int rf,
                                             int numTokens)
     {
-        if (!FBUtilities.getBroadcastAddressAndPort().equals(InetAddressAndPort.getLoopbackAddress()))
-            Gossiper.waitToSettle();
-
         Collection<Token> tokens = TokenAllocation.allocateTokens(metadata, rf, address, numTokens);
         BootstrapDiagnostics.tokensAllocated(address, metadata, rf, numTokens, tokens);
         return tokens;
     }
 
-    public static Collection<Token> getRandomTokens(TokenMetadata metadata, int numTokens)
+    public static Set<Token> getRandomTokens(ClusterMetadata metadata, int numTokens)
     {
         Set<Token> tokens = new HashSet<>(numTokens);
         while (tokens.size() < numTokens)
         {
-            Token token = metadata.partitioner.getRandomToken();
-            if (metadata.getEndpoint(token) == null)
+            Token token = metadata.tokenMap.partitioner().getRandomToken();
+            if (metadata.tokenMap.owner(token) == null)
                 tokens.add(token);
         }
 
         logger.info("Generated random tokens. tokens are {}", tokens);
         return tokens;
+    }
+
+    public String toString()
+    {
+        return "BootStrapper{" +
+               "address=" + address +
+               ", tokens=" + tokens +
+               ", metadata=" + metadata +
+               '}';
     }
 }

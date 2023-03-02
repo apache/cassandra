@@ -42,10 +42,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.UnavailableException;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -58,6 +54,8 @@ import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -546,7 +544,7 @@ public class PaxosRepair extends AbstractPaxosRepair
      */
     public static boolean hasSufficientLiveNodesForTopologyChange(Keyspace keyspace, Range<Token> range, Collection<InetAddressAndPort> liveEndpoints)
     {
-        return hasSufficientLiveNodesForTopologyChange(keyspace.getReplicationStrategy().getNaturalReplicasForToken(range.right).endpoints(),
+        return hasSufficientLiveNodesForTopologyChange(ClusterMetadata.current().placements.get(keyspace.getMetadata().params.replication).reads.forRange(range).endpoints(),
                                                        liveEndpoints,
                                                        DatabaseDescriptor.getEndpointSnitch()::getDatacenter,
                                                        DatabaseDescriptor.paxoTopologyRepairNoDcChecks(),
@@ -659,40 +657,21 @@ public class PaxosRepair extends AbstractPaxosRepair
         return (version.major == 4 && version.minor > 0) || version.major > 4;
     }
 
-    static String getPeerVersion(InetAddressAndPort peer)
+    static boolean validatePeerCompatibility(ClusterMetadata metadata, Replica peer)
     {
-        EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(peer);
-        if (epState == null)
-            return null;
-
-        VersionedValue value = epState.getApplicationState(ApplicationState.RELEASE_VERSION);
-        if (value == null)
-            return null;
-
-        try
-        {
-            return value.value;
-        }
-        catch (IllegalArgumentException e)
-        {
-            return null;
-        }
-    }
-
-    static boolean validatePeerCompatibility(Replica peer)
-    {
-        String versionString = getPeerVersion(peer.endpoint());
-        CassandraVersion version = versionString != null ? new CassandraVersion(versionString) : null;
+        NodeId nodeId = metadata.directory.peerId(peer.endpoint());
+        CassandraVersion version = metadata.directory.version(nodeId).cassandraVersion;
         boolean result = validateVersionCompatibility(version);
         if (!result)
-            logger.info("PaxosRepair isn't supported by {} on version {}", peer, versionString);
+            logger.info("PaxosRepair isn't supported by {} on version {}", peer, version);
         return result;
     }
 
     static boolean validatePeerCompatibility(TableMetadata table, Range<Token> range)
     {
+        ClusterMetadata metadata = ClusterMetadata.current();
         Participants participants = Participants.get(table, range.right, ConsistencyLevel.SERIAL);
-        return Iterables.all(participants.all, PaxosRepair::validatePeerCompatibility);
+        return Iterables.all(participants.all, (participant) -> validatePeerCompatibility(metadata, participant));
     }
 
     public static boolean validatePeerCompatibility(TableMetadata table, Collection<Range<Token>> ranges)

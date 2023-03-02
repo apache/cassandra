@@ -44,6 +44,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -51,7 +52,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -63,7 +63,6 @@ import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_RSP;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.service.paxos.Commit.*;
-import static org.apache.cassandra.service.paxos.Commit.CompareResult.WAS_REPROPOSED_BY;
 import static org.apache.cassandra.service.paxos.Paxos.*;
 import static org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome.*;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -469,13 +468,14 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             Stage.GOSSIP.executor().execute(() -> {
                 Gossiper.instance.notifyFailureDetector(permitted.gossipInfo);
                 Gossiper.instance.applyStateLocally(permitted.gossipInfo);
-
                 // TODO: We should also wait for schema pulls/pushes, however this would be quite an involved change to MigrationManager
                 //       (which currently drops some migration tasks on the floor).
                 //       Note it would be fine for us to fail to complete the migration task and simply treat this response as a failure/timeout.
 
                 // once any pending ranges have been calculated, refresh our Participants list and submit the promise
-                PendingRangeCalculatorService.instance.executeWhenFinished(() -> permittedOrTerminateIfElectorateMismatch(permitted, from));
+                // todo: verify that this is correct, we no longer have any pending ranges, just call this immediately
+                // PendingRangeCalculatorService.instance.executeWhenFinished(() -> permittedOrTerminateIfElectorateMismatch(permitted, from));
+                permittedOrTerminateIfElectorateMismatch(permitted, from);
             });
     }
 
@@ -1005,6 +1005,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         @Override
         public void doVerb(Message<Request> message)
         {
+            ClusterMetadataService.instance().maybeCatchup(message.epoch());
+
             Response response = execute(message.payload, message.from());
             if (response == null)
                 MessagingService.instance().respondWithFailure(UNKNOWN, message);

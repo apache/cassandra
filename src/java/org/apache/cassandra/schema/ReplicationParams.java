@@ -26,20 +26,17 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
@@ -107,12 +104,10 @@ public final class ReplicationParams
         return new ReplicationParams(NetworkTopologyStrategy.class, options);
     }
 
-    public void validate(String name, ClientState state)
+    public void validate(String name, ClientState state, ClusterMetadata metadata)
     {
         // Attempt to instantiate the ARS, which will throw a ConfigurationException if the options aren't valid.
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-        IEndpointSnitch eps = DatabaseDescriptor.getEndpointSnitch();
-        AbstractReplicationStrategy.validateReplicationStrategy(name, klass, tmd, eps, options, state);
+        AbstractReplicationStrategy.validateReplicationStrategy(name, klass, metadata, options, state);
     }
 
     public static ReplicationParams fromMap(Map<String, String> map) {

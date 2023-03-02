@@ -63,8 +63,10 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 public class ClusterMetadata
@@ -514,11 +516,82 @@ public class ClusterMetadata
         }
     }
 
+    public String legacyToString()
+    {
+        StringBuilder sb = new StringBuilder();
+        Set<Pair<Token, InetAddressAndPort>> normal = new HashSet<>();
+        Set<Pair<Token, InetAddressAndPort>> bootstrapping = new HashSet<>();
+        Set<InetAddressAndPort> leaving = new HashSet<>();
+
+        for (Map.Entry<NodeId, NodeState> entry : directory.states.entrySet())
+        {
+            InetAddressAndPort endpoint = directory.endpoint(entry.getKey());
+            switch (entry.getValue())
+            {
+                case BOOTSTRAPPING:
+                    for (Token t : tokenMap.tokens(entry.getKey()))
+                        bootstrapping.add(Pair.create(t, endpoint));
+                    break;
+                case LEAVING:
+                    leaving.add(endpoint);
+                    break;
+                case JOINED:
+                    for (Token t : tokenMap.tokens(entry.getKey()))
+                        normal.add(Pair.create(t, endpoint));
+                    break;
+                case MOVING:
+                    // todo when adding MOVE
+                    break;
+            }
+        }
+
+        if (!normal.isEmpty())
+        {
+            sb.append("Normal Tokens:");
+            sb.append(LINE_SEPARATOR.getString());
+            for (Pair<Token, InetAddressAndPort> ep : normal)
+            {
+                sb.append(ep.right);
+                sb.append(':');
+                sb.append(ep.left);
+                sb.append(LINE_SEPARATOR.getString());
+            }
+        }
+
+        if (!bootstrapping.isEmpty())
+        {
+            sb.append("Bootstrapping Tokens:" );
+            sb.append(LINE_SEPARATOR.getString());
+            for (Pair<Token, InetAddressAndPort> entry : bootstrapping)
+            {
+                sb.append(entry.right).append(':').append(entry.left);
+                sb.append(LINE_SEPARATOR.getString());
+            }
+        }
+
+        if (!leaving.isEmpty())
+        {
+            sb.append("Leaving Endpoints:");
+            sb.append(LINE_SEPARATOR.getString());
+            for (InetAddressAndPort ep : leaving)
+            {
+                sb.append(ep);
+                sb.append(LINE_SEPARATOR.getString());
+            }
+        }
+        return sb.toString();
+    }
+
     @Override
     public String toString()
     {
         return "ClusterMetadata{" +
                "epoch=" + epoch +
+               ", schema=" + schema +
+               ", directory=" + directory +
+               ", tokenMap=" + tokenMap +
+               ", placements=" + placements +
+               ", lockedRanges=" + lockedRanges +
                '}';
     }
 

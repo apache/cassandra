@@ -19,47 +19,38 @@ package org.apache.cassandra.locator;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
-import org.apache.cassandra.tcm.ownership.PlacementForRange;
-import org.apache.cassandra.tcm.transformations.cms.EntireRange;
+
+import static org.apache.cassandra.tcm.transformations.cms.EntireRange.entireRange;
 
 public class MetaStrategy extends SystemStrategy
 {
-    public MetaStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions)
+    public MetaStrategy(String keyspaceName, Map<String, String> configOptions)
     {
-        super(keyspaceName, tokenMetadata, snitch, configOptions);
+        super(keyspaceName, configOptions);
     }
 
     @Override
-    public EndpointsForRange calculateNaturalReplicas(Token token, TokenMetadata tokenMetadata)
+    public EndpointsForRange calculateNaturalReplicas(Token token, ClusterMetadata metadata)
     {
-        return replicas();
+        return metadata.placements.get(ReplicationParams.meta()).reads.forRange(entireRange);
     }
 
     @Override
     public DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata)
     {
-        PlacementForRange placement = PlacementForRange.builder(1).withReplicaGroup(replicas()).build();
-        return new DataPlacement(placement, placement);
+        return metadata.placements.get(ReplicationParams.meta());
     }
 
-    private static EndpointsForRange replicas()
-    {
-        Set<InetAddressAndPort> members = ClusterMetadata.current().fullCMSMembers();
-        return EndpointsForRange.builder(EntireRange.entireRange, members.size())
-                                .addAll(members.stream().map(EntireRange::replica).collect(Collectors.toList()))
-                                .build();
-    }
     @Override
     public ReplicationFactor getReplicationFactor()
     {
-        int rf = ClusterMetadata.current().fullCMSMembers().size();
+        int rf = ClusterMetadata.current().placements.get(ReplicationParams.meta()).writes.forRange(entireRange).byEndpoint.size();
         return ReplicationFactor.fullOnly(rf);
     }
 
