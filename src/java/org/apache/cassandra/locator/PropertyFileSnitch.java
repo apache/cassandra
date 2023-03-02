@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ResourceWatcher;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -213,14 +214,9 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         endpointMap = reloadedMap;
         if (StorageService.instance != null) // null check tolerates circular dependency; see CASSANDRA-4145
         {
-            if (isUpdate)
-                StorageService.instance.updateTopology();
-            else
-                StorageService.instance.getTokenMetadata().invalidateCachedRings();
+//            if (isUpdate)
+//                StorageService.instance.updateTopology();
         }
-
-        if (gossipStarted)
-            StorageService.instance.gossipSnitchInfo();
     }
 
     /**
@@ -232,6 +228,8 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
      */
     private static boolean livenessCheck(HashMap<InetAddressAndPort, String[]> reloadedMap, String[] reloadedDefaultDCRack)
     {
+        if (ClusterMetadataService.instance() == null)
+            return false;
         // If the default has changed we must check all live hosts but hopefully we will find a live
         // host quickly and interrupt the loop. Otherwise we only check the live hosts that were either
         // in the old set or in the new set

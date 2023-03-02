@@ -35,7 +35,6 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.schema.DistributedSchema;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.Replication;
@@ -390,6 +389,17 @@ public class ClusterMetadataService
                                                       });
     }
 
+    public void initRecentlySealedPeriodsIndex()
+    {
+        Sealed.initIndexFromSystemTables();
+    }
+
+    public boolean isMigrating()
+    {
+        return false;
+//        return Election.instance.isMigrating();
+    }
+
     /**
      * Switchable implementations that allow us to go between local and remote implementation whenever we need it.
      * When the node becomes a member of CMS, it switches back to being a regular member of a cluster, and all
@@ -469,6 +479,6 @@ public class ClusterMetadataService
 
     public enum State
     {
-        LOCAL, REMOTE
+        LOCAL, REMOTE, GOSSIP
     }
 }
