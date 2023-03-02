@@ -25,6 +25,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.MetadataKeys;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -48,9 +49,9 @@ public class ForceSnapshot implements Transformation
         return Kind.FORCE_SNAPSHOT;
     }
 
-    public Result execute(ClusterMetadata clusterMetadata)
+    public Result execute(ClusterMetadata metadata)
     {
-        return new Success(baseState, MetadataKeys.CORE_METADATA);
+        return new Success(baseState, LockedRanges.AffectedRanges.EMPTY, MetadataKeys.CORE_METADATA);
     }
 
     public String toString()

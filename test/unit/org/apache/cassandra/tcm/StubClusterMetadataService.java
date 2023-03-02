@@ -25,6 +25,7 @@ import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 
 public class StubClusterMetadataService extends ClusterMetadataService
 {
@@ -44,7 +45,8 @@ public class StubClusterMetadataService extends ClusterMetadataService
                                        Function<Processor, Processor> wrapProcessor,
                                        Supplier<State> cmsStateSupplier)
     {
-        super(MetadataSnapshots.NO_OP,
+        super(new UniformRangePlacement(),
+              MetadataSnapshots.NO_OP,
               LocalLog.asyncForTests(LogStorage.None, initial, false),
               new StubProcessor(initial),
               Commit.Replicator.NO_OP,

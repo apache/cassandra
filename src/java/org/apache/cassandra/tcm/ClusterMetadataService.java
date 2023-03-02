@@ -40,6 +40,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.ownership.PlacementProvider;
+import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -94,6 +96,7 @@ public class ClusterMetadataService
         ClusterMetadata replayAndWait();
     }
 
+    private final PlacementProvider placementProvider;
     private final Processor processor;
     private final LocalLog log;
     private final Commit.Replicator replicator;
@@ -120,10 +123,12 @@ public class ClusterMetadataService
         return State.REMOTE;
     }
 
-    ClusterMetadataService(ClusterMetadata initial,
+    ClusterMetadataService(PlacementProvider placementProvider,
+                           ClusterMetadata initial,
                            Function<Processor, Processor> wrapProcessor,
                            Supplier<State> cmsStateSupplier)
     {
+        this.placementProvider = placementProvider;
         this.snapshots = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
 
         log = LocalLog.async(initial);
@@ -142,12 +147,14 @@ public class ClusterMetadataService
     }
 
     @VisibleForTesting
-    public ClusterMetadataService(MetadataSnapshots snapshots,
+    public ClusterMetadataService(PlacementProvider placementProvider,
+                                  MetadataSnapshots snapshots,
                                   LocalLog log,
                                   Processor processor,
                                   Commit.Replicator replicator,
                                   boolean isMemberOfOwnershipGroup)
     {
+        this.placementProvider = placementProvider;
         this.log = log;
         this.processor = processor;
         this.replicator = replicator;
@@ -161,6 +168,29 @@ public class ClusterMetadataService
         commitRequestHandler = isMemberOfOwnershipGroup ? new Commit.Handler(processor, replicator) : null;
     }
 
+    private ClusterMetadataService(PlacementProvider placementProvider,
+                                   MetadataSnapshots snapshots,
+                                   LocalLog log,
+                                   Processor processor,
+                                   Commit.Replicator replicator,
+                                   Replication.ReplicationHandler replicationHandler,
+                                   Replication.LogNotifyHandler logNotifyHandler,
+                                   CurrentEpochRequestHandler currentEpochHandler,
+                                   Replay.Handler replayRequestHandler,
+                                   Commit.Handler commitRequestHandler)
+    {
+        this.placementProvider = placementProvider;
+        this.snapshots = snapshots;
+        this.log = log;
+        this.processor = processor;
+        this.replicator = replicator;
+        this.replicationHandler = replicationHandler;
+        this.logNotifyHandler = logNotifyHandler;
+        this.currentEpochHandler = currentEpochHandler;
+        this.replayRequestHandler = replayRequestHandler;
+        this.commitRequestHandler = commitRequestHandler;
+    }
+
     @SuppressWarnings("resource")
     public static void initializeForTools(boolean loadSSTables)
     {
@@ -170,15 +200,19 @@ public class ClusterMetadataService
         emptyFromSystemTables.schema.initializeKeyspaceInstances(DistributedSchema.empty(), loadSSTables);
         emptyFromSystemTables = emptyFromSystemTables.forceEpoch(Epoch.EMPTY);
         LocalLog log = LocalLog.sync(emptyFromSystemTables, new AtomicLongBackedProcessor.InMemoryStorage(), true);
-        ClusterMetadataService cms = new ClusterMetadataService(MetadataSnapshots.NO_OP,
+        ClusterMetadataService cms = new ClusterMetadataService(new UniformRangePlacement(),
+                                                                MetadataSnapshots.NO_OP,
                                                                 log,
                                                                 new AtomicLongBackedProcessor(log),
                                                                 Commit.Replicator.NO_OP,
-                                                                false);
+                                                                new Replication.ReplicationHandler(log),
+                                                                new Replication.LogNotifyHandler(log),
+                                                                new CurrentEpochRequestHandler(),
+                                                                null,
+                                                                null);
         log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
         ClusterMetadataService.setInstance(cms);
     }
-
 
     public boolean isCurrentMember(InetAddressAndPort peer)
     {
@@ -289,6 +323,11 @@ public class ClusterMetadataService
     public static IVerbHandler<NoPayload> currentEpochRequestHandler()
     {
         return ClusterMetadataService.instance().currentEpochHandler;
+    }
+
+    public PlacementProvider placementProvider()
+    {
+        return this.placementProvider;
     }
 
     @VisibleForTesting

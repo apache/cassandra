@@ -324,7 +324,7 @@ public class ColumnMask
             {
                 throw new AssertionError(format("Function %s is not a scalar masking function", function));
             }
-            return ColumnMask.build((ScalarFunction) function, partialArgValues);
+            return new ColumnMask((ScalarFunction) function, partialArgValues);
         }
 
         public long serializedSize(ColumnMask columnMask, Version version)

@@ -37,10 +37,14 @@ import org.apache.cassandra.tcm.MetadataKey;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.extensions.IntValue;
 import org.apache.cassandra.tcm.listeners.LogListener;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 
 import static org.apache.cassandra.tcm.MetadataKeys.make;
+import static org.apache.cassandra.tcm.ownership.OwnershipUtils.randomPlacements;
+import static org.apache.cassandra.tcm.sequences.SequencesUtils.affectedRanges;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -58,6 +62,7 @@ public class LogListenerNotificationTest
     {
         long seed = System.nanoTime();
         Random random = new Random(seed);
+        DataPlacements placements = randomPlacements(random);
 
         List<Entry> input = new ArrayList<>();
         Epoch epoch = Epoch.FIRST;
@@ -67,6 +72,7 @@ public class LogListenerNotificationTest
             input.add(new Entry(new Entry.Id(i),
                                 epoch,
                                 new TestTransform(random.nextInt(),
+                                                  affectedRanges(placements, random),
                                                   affectedMetadata(random))));
         }
 
@@ -111,10 +117,12 @@ public class LogListenerNotificationTest
 
     static class TestTransform extends CustomTransformation.PokeInt
     {
+        private final LockedRanges.AffectedRanges ranges;
         private final ImmutableSet<MetadataKey> keys;
-        public TestTransform(int v, Set<MetadataKey> keys)
+        public TestTransform(int v, LockedRanges.AffectedRanges ranges, Set<MetadataKey> keys)
         {
             super(v);
+            this.ranges = ranges;
             this.keys = ImmutableSet.copyOf(keys);
         }
 
@@ -123,7 +131,7 @@ public class LogListenerNotificationTest
         {
             return new Success(prev.transformer()
                                    .with(CustomTransformation.PokeInt.METADATA_KEY, IntValue.create(v))
-                                   .build().metadata, keys);
+                                   .build().metadata, ranges, keys);
         }
     }
 }

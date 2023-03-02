@@ -30,7 +30,10 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -57,6 +60,10 @@ public class AlterSchema implements Transformation
     @Override
     public final Result execute(ClusterMetadata prev)
     {
+        // TODO: this not necessarily should be the case, we should optimise this, just be careful not to override
+        if (!prev.lockedRanges.locked.isEmpty())
+            return new Rejected("Can't have schema changes during ring movements: " + prev.lockedRanges.locked);
+
         Keyspaces newKeyspaces;
 
         try
@@ -69,9 +76,18 @@ public class AlterSchema implements Transformation
         }
 
         DistributedSchema snapshotAfter = new DistributedSchema(newKeyspaces);
-        ClusterMetadata.Transformer next = prev.transformer().with(snapshotAfter);
 
-        return success(next);
+        // state.schema is a DistributedSchema, so doesn't include local keyspaces. If we don't explicitly include those
+        // here, their placements won't be calculated, effectively dropping them from the new versioned state
+        Keyspaces allKeyspaces = prev.schema.getKeyspaces().withAddedOrReplaced(snapshotAfter.getKeyspaces());
+
+        DataPlacements newPlacement = ClusterMetadataService.instance()
+                                                            .placementProvider()
+                                                            .calculatePlacements(prev.tokenMap.toRanges(), prev, allKeyspaces);
+
+        ClusterMetadata.Transformer next = prev.transformer().with(snapshotAfter).with(newPlacement);
+
+        return success(next, LockedRanges.AffectedRanges.EMPTY);
     }
 
     static class Serializer implements AsymmetricMetadataSerializer<Transformation, AlterSchema>

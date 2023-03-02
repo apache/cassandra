@@ -31,6 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -47,7 +48,11 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
 import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.sequences.InProgressSequences;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.cms.EntireRange;
@@ -70,6 +75,9 @@ public class ClusterMetadata
     public final DistributedSchema schema;
     public final Directory directory;
     public final TokenMap tokenMap;
+    public final DataPlacements placements;
+    public final LockedRanges lockedRanges;
+    public final InProgressSequences inProgressSequences;
     public final EndpointsForRange cmsReplicas;
     public final ImmutableSet<InetAddressAndPort> cmsMembers;
 
@@ -93,6 +101,9 @@ public class ClusterMetadata
              schema,
              directory,
              new TokenMap(partitioner),
+             DataPlacements.EMPTY,
+             LockedRanges.EMPTY,
+             InProgressSequences.EMPTY,
              ImmutableSet.of(),
              ImmutableMap.of());
     }
@@ -104,6 +115,9 @@ public class ClusterMetadata
                            DistributedSchema schema,
                            Directory directory,
                            TokenMap tokenMap,
+                           DataPlacements placements,
+                           LockedRanges lockedRanges,
+                           InProgressSequences inProgressSequences,
                            Set<InetAddressAndPort> cmsMembers,
                            Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions)
     {
@@ -118,6 +132,9 @@ public class ClusterMetadata
         this.schema = schema;
         this.directory = directory;
         this.tokenMap = tokenMap;
+        this.placements = placements;
+        this.lockedRanges = lockedRanges;
+        this.inProgressSequences = inProgressSequences;
         this.cmsMembers = ImmutableSet.copyOf(cmsMembers);
         this.extensions = ImmutableMap.copyOf(extensions);
 
@@ -157,6 +174,9 @@ public class ClusterMetadata
                                    schema,
                                    directory,
                                    tokenMap,
+                                   placements,
+                                   lockedRanges,
+                                   inProgressSequences,
                                    cmsMembers,
                                    extensions);
     }
@@ -181,6 +201,9 @@ public class ClusterMetadata
         private DistributedSchema schema;
         private Directory directory;
         private TokenMap tokenMap;
+        private DataPlacements placements;
+        private LockedRanges lockedRanges;
+        private InProgressSequences inProgressSequences;
         private final Set<InetAddressAndPort> cmsMembers;
         private final Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions;
         private final Set<MetadataKey> modifiedKeys;
@@ -195,6 +218,9 @@ public class ClusterMetadata
             this.schema = metadata.schema;
             this.directory = metadata.directory;
             this.tokenMap = metadata.tokenMap;
+            this.placements = metadata.placements;
+            this.lockedRanges = metadata.lockedRanges;
+            this.inProgressSequences = metadata.inProgressSequences;
             this.cmsMembers = new HashSet<>(metadata.cmsMembers);
             extensions = new HashMap<>(metadata.extensions);
             modifiedKeys = new HashSet<>();
@@ -228,6 +254,7 @@ public class ClusterMetadata
         public Transformer unproposeTokens(NodeId nodeId)
         {
             tokenMap = tokenMap.unassignTokens(nodeId);
+            directory = directory.withoutRackAndDC(nodeId);
             return this;
         }
 
@@ -237,6 +264,53 @@ public class ClusterMetadata
             return this;
         }
 
+        public Transformer join(NodeId nodeId)
+        {
+            directory = directory.withNodeState(nodeId, NodeState.JOINED);
+            return this;
+        }
+
+        public Transformer replaced(NodeId replaced, NodeId replacement)
+        {
+            Collection<Token> transferringTokens = tokenMap.tokens(replaced);
+            tokenMap = tokenMap.unassignTokens(replaced)
+                               .assignTokens(replacement, transferringTokens);
+            directory = directory.without(replaced)
+                                 .withNodeState(replacement, NodeState.JOINED);
+            return this;
+        }
+
+        public Transformer proposeRemoveNode(NodeId id)
+        {
+            tokenMap = tokenMap.unassignTokens(id);
+            return this;
+        }
+
+        public Transformer left(NodeId id)
+        {
+            tokenMap = tokenMap.unassignTokens(id);
+            directory = directory.withNodeState(id, NodeState.LEFT)
+                                 .withoutRackAndDC(id);
+            return this;
+        }
+
+        public Transformer with(DataPlacements placements)
+        {
+            this.placements = placements;
+            return this;
+        }
+
+        public Transformer with(LockedRanges lockedRanges)
+        {
+            this.lockedRanges = lockedRanges;
+            return this;
+        }
+
+        public Transformer with(InProgressSequences sequences)
+        {
+            this.inProgressSequences = sequences;
+            return this;
+        }
         public Transformer withCMSMember(InetAddressAndPort member)
         {
             cmsMembers.add(member);
@@ -311,6 +385,30 @@ public class ClusterMetadata
                 tokenMap = tokenMap.withLastModified(epoch);
             }
 
+            if (placements != base.placements)
+            {
+                modifiedKeys.add(MetadataKeys.DATA_PLACEMENTS);
+                // sort all endpoint lists to preserve primary replica
+                if (CassandraRelevantProperties.TCM_SORT_REPLICA_GROUPS.getBoolean())
+                {
+                    PrimaryRangeComparator comparator = new PrimaryRangeComparator(tokenMap, directory);
+                    placements = DataPlacements.sortReplicaGroups(placements, comparator);
+                }
+                placements = placements.withLastModified(epoch);
+            }
+
+            if (lockedRanges != base.lockedRanges)
+            {
+                modifiedKeys.add(MetadataKeys.LOCKED_RANGES);
+                lockedRanges = lockedRanges.withLastModified(epoch);
+            }
+
+            if (inProgressSequences != base.inProgressSequences)
+            {
+                modifiedKeys.add(MetadataKeys.IN_PROGRESS_SEQUENCES);
+                inProgressSequences = inProgressSequences.withLastModified(epoch);
+            }
+
             return new Transformed(new ClusterMetadata(epoch,
                                                        period,
                                                        lastInPeriod,
@@ -318,6 +416,9 @@ public class ClusterMetadata
                                                        schema,
                                                        directory,
                                                        tokenMap,
+                                                       placements,
+                                                       lockedRanges,
+                                                       inProgressSequences,
                                                        cmsMembers,
                                                        extensions),
                                    ImmutableSet.copyOf(modifiedKeys));
@@ -334,6 +435,9 @@ public class ClusterMetadata
                    ", schema=" + schema +
                    ", directory=" + schema +
                    ", tokenMap=" + tokenMap +
+                   ", placement=" + placements +
+                   ", lockedRanges=" + lockedRanges +
+                   ", inProgressSequences=" + inProgressSequences +
                    ", extensions=" + extensions +
                    ", cmsMembers=" + cmsMembers +
                    ", modifiedKeys=" + modifiedKeys +
@@ -372,13 +476,16 @@ public class ClusterMetadata
                schema.equals(that.schema) &&
                directory.equals(that.directory) &&
                tokenMap.equals(that.tokenMap) &&
+               placements.equals(that.placements) &&
+               lockedRanges.equals(that.lockedRanges) &&
+               inProgressSequences.equals(that.inProgressSequences) &&
                extensions.equals(that.extensions);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(epoch, lastInPeriod, schema, directory, tokenMap, extensions);
+        return Objects.hash(epoch, lastInPeriod, schema, directory, tokenMap, placements, lockedRanges, inProgressSequences, extensions);
     }
 
     public static ClusterMetadata current()
@@ -423,6 +530,9 @@ public class ClusterMetadata
             DistributedSchema.serializer.serialize(metadata.schema, out, version);
             Directory.serializer.serialize(metadata.directory, out, version);
             TokenMap.serializer.serialize(metadata.tokenMap, out, version);
+            DataPlacements.serializer.serialize(metadata.placements, out, version);
+            LockedRanges.serializer.serialize(metadata.lockedRanges, out, version);
+            InProgressSequences.serializer.serialize(metadata.inProgressSequences, out, version);
             out.writeInt(metadata.extensions.size());
             for (Map.Entry<ExtensionKey<?, ?>, ExtensionValue<?>> entry : metadata.extensions.entrySet())
             {
@@ -447,6 +557,9 @@ public class ClusterMetadata
             DistributedSchema schema = DistributedSchema.serializer.deserialize(in, version);
             Directory dir = Directory.serializer.deserialize(in, version);
             TokenMap tokenMap = TokenMap.serializer.deserialize(in, version);
+            DataPlacements placements = DataPlacements.serializer.deserialize(in, version);
+            LockedRanges lockedRanges = LockedRanges.serializer.deserialize(in, version);
+            InProgressSequences ips = InProgressSequences.serializer.deserialize(in, version);
             int items = in.readInt();
             Map<ExtensionKey<?, ?>, ExtensionValue<?>> extensions = new HashMap<>(items);
             for (int i = 0; i < items; i++)
@@ -467,6 +580,9 @@ public class ClusterMetadata
                                        schema,
                                        dir,
                                        tokenMap,
+                                       placements,
+                                       lockedRanges,
+                                       ips,
                                        members,
                                        extensions);
         }
@@ -485,7 +601,10 @@ public class ClusterMetadata
                     sizeof(metadata.partitioner.getClass().getCanonicalName()) +
                     DistributedSchema.serializer.serializedSize(metadata.schema, version) +
                     Directory.serializer.serializedSize(metadata.directory, version) +
-                    TokenMap.serializer.serializedSize(metadata.tokenMap, version);
+                    TokenMap.serializer.serializedSize(metadata.tokenMap, version) +
+                    DataPlacements.serializer.serializedSize(metadata.placements, version) +
+                    LockedRanges.serializer.serializedSize(metadata.lockedRanges, version) +
+                    InProgressSequences.serializer.serializedSize(metadata.inProgressSequences, version);
 
             size += TypeSizes.INT_SIZE;
             for (InetAddressAndPort member : metadata.cmsMembers)

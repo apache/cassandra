@@ -31,16 +31,17 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.IEndpointSnitch;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
-import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
+import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class Register implements Transformation
@@ -77,7 +78,7 @@ public class Register implements Transformation
 
         ClusterMetadata.Transformer next = prev.transformer()
                                                .register(addresses, location, version);
-        return success(next);
+        return success(next, LockedRanges.AffectedRanges.EMPTY);
     }
 
     public static NodeId maybeRegister()

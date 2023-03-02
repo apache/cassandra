@@ -31,7 +31,10 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.membership.Directory;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.sequences.InProgressSequences;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 
 public class GossipHelper
 {
@@ -50,6 +53,9 @@ public class GossipHelper
                                    DistributedSchema.fromSystemTables(SchemaKeyspace.fetchNonSystemKeyspaces()),
                                    Directory.EMPTY,
                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
+                                   DataPlacements.empty(),
+                                   LockedRanges.EMPTY,
+                                   InProgressSequences.EMPTY,
                                    Collections.emptySet(),
                                    Collections.emptyMap());
     }

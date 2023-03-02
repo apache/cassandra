@@ -30,14 +30,21 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
+import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
+import org.apache.cassandra.tcm.transformations.PrepareJoin;
+import org.apache.cassandra.tcm.transformations.PrepareLeave;
+import org.apache.cassandra.tcm.transformations.PrepareMove;
+import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 
@@ -49,10 +56,10 @@ public interface Transformation
 
     Result execute(ClusterMetadata metadata);
 
-    default Success success(ClusterMetadata.Transformer transformer)
+    default Success success(ClusterMetadata.Transformer transformer, LockedRanges.AffectedRanges affectedRanges)
     {
         ClusterMetadata.Transformer.Transformed transformed = transformer.build();
-        return new Success(transformed.metadata, transformed.modifiedKeys);
+        return new Success(transformed.metadata, affectedRanges, transformed.modifiedKeys);
     }
 
     interface Result
@@ -67,11 +74,13 @@ public interface Transformation
     final class Success implements Result
     {
         public final ClusterMetadata metadata;
+        public final LockedRanges.AffectedRanges affectedRanges;
         public final ImmutableSet<MetadataKey> affectedMetadata;
 
-        public Success(ClusterMetadata metadata, ImmutableSet<MetadataKey> affectedKeys)
+        public Success(ClusterMetadata metadata, LockedRanges.AffectedRanges affectedRanges, ImmutableSet<MetadataKey> affectedKeys)
         {
             this.metadata = metadata;
+            this.affectedRanges = affectedRanges;
             this.affectedMetadata = affectedKeys;
         }
 
@@ -141,6 +150,30 @@ public interface Transformation
         SEAL_PERIOD(() -> SealPeriod.serializer),
         SCHEMA_CHANGE(() -> AlterSchema.serializer),
         REGISTER(() -> Register.serializer),
+
+        UNSAFE_JOIN(() -> UnsafeJoin.serializer),
+        PREPARE_JOIN(() -> PrepareJoin.serializer),
+        START_JOIN(() -> PrepareJoin.StartJoin.serializer),
+        MID_JOIN(() -> PrepareJoin.MidJoin.serializer),
+        FINISH_JOIN(() -> PrepareJoin.FinishJoin.serializer),
+
+        PREPARE_MOVE(() -> PrepareMove.serializer),
+        START_MOVE(() -> PrepareMove.StartMove.serializer),
+        MID_MOVE(() -> PrepareMove.MidMove.serializer),
+        FINISH_MOVE(() -> PrepareMove.FinishMove.serializer),
+
+        PREPARE_LEAVE(() -> PrepareLeave.serializer),
+        START_LEAVE(() -> PrepareLeave.StartLeave.serializer),
+        MID_LEAVE(() -> PrepareLeave.MidLeave.serializer),
+        FINISH_LEAVE(() -> PrepareLeave.FinishLeave.serializer),
+
+        PREPARE_REPLACE(() -> PrepareReplace.serializer),
+        START_REPLACE(() -> PrepareReplace.StartReplace.serializer),
+        MID_REPLACE(() -> PrepareReplace.MidReplace.serializer),
+        FINISH_REPLACE(() -> PrepareReplace.FinishReplace.serializer),
+
+        CANCEL_SEQUENCE(() -> CancelInProgressSequence.serializer),
+
         CUSTOM(() -> CustomTransformation.serializer);
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;

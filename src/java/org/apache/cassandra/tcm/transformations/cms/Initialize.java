@@ -28,6 +28,8 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 
+import static org.apache.cassandra.tcm.transformations.cms.EntireRange.affectedRanges;
+
 public class Initialize extends ForceSnapshot
 {
     public static final AsymmetricMetadataSerializer<Transformation, Initialize> serializer = new AsymmetricMetadataSerializer<Transformation, Initialize>()
@@ -64,7 +66,7 @@ public class Initialize extends ForceSnapshot
     {
         ClusterMetadata next = baseState;
         ClusterMetadata.Transformer transformer = next.transformer();
-        return success(transformer);
+        return success(transformer, affectedRanges);
     }
 
     @Override

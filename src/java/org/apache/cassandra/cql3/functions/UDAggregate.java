@@ -398,7 +398,7 @@ public class UDAggregate extends UserFunction implements AggregateFunction
                 out.writeUTF(arg);
             out.writeUTF(t.returnType().asCQL3Type().toString());
             out.writeUTF(t.stateFunction.name().name);
-            out.writeUTF(t.stateType.asCQL3Type().toString());
+            out.writeUTF(t.stateType.toAbstractType().asCQL3Type().toString());
             out.writeBoolean(t.finalFunction() != null);
             if (t.finalFunction() != null)
                 out.writeUTF(t.finalFunction().name().name);
@@ -440,7 +440,7 @@ public class UDAggregate extends UserFunction implements AggregateFunction
 
             size += sizeof(t.returnType().asCQL3Type().toString());
             size += sizeof(t.stateFunction.name().name);
-            size += sizeof(t.stateType.asCQL3Type().toString());
+            size += sizeof(t.stateType.toAbstractType().asCQL3Type().toString());
             size += sizeof(t.finalFunction() != null);
             if (t.finalFunction() != null)
                 size += sizeof(t.finalFunction().name().name);

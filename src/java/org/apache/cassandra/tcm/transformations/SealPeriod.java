@@ -20,13 +20,11 @@ package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -37,8 +35,6 @@ import org.apache.cassandra.tcm.serialization.Version;
  */
 public class SealPeriod implements Transformation
 {
-    private static final Logger logger = LoggerFactory.getLogger(SealPeriod.class);
-
     public static final Serializer serializer = new Serializer();
 
     public static SealPeriod instance = new SealPeriod();
@@ -57,7 +53,7 @@ public class SealPeriod implements Transformation
         if (prev.lastInPeriod)
             return new Rejected("Have just sealed this period");
 
-        return success(prev.transformer(true));
+        return success(prev.transformer(true), LockedRanges.AffectedRanges.EMPTY);
     }
 
     static class Serializer implements AsymmetricMetadataSerializer<Transformation, SealPeriod>

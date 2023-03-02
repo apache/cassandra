@@ -213,9 +213,14 @@ public class Directory implements MetadataValue<Directory>, AsEndpoints, AsLocat
         Location location = locations.get(id);
         BTreeMultimap<String, InetAddressAndPort> rackEP = (BTreeMultimap<String, InetAddressAndPort>) racksByDC.get(location.datacenter);
         rackEP = rackEP.without(location.rack, endpoint);
+        BTreeMap<String, Multimap<String, InetAddressAndPort>> newRacksByDC;
+        if (rackEP.isEmpty())
+            newRacksByDC = racksByDC.without(location.datacenter);
+        else
+            newRacksByDC = racksByDC.withForce(location.datacenter, rackEP);
         return new Directory(nextId, lastModified, peers, locations, states, versions, hostIds, addresses,
                              endpointsByDC.without(location.datacenter, endpoint),
-                             racksByDC.withForce(location.datacenter, rackEP));
+                             newRacksByDC);
     }
 
     public Directory without(NodeId id)

@@ -21,9 +21,30 @@ package org.apache.cassandra.tcm.sequences;
 import java.util.Random;
 
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
 
 public class SequencesUtils
 {
+    public static LockedRanges lockedRanges(DataPlacements placements, Random random)
+    {
+        LockedRanges locked = LockedRanges.EMPTY;
+        for (int i = 0; i < random.nextInt(10) + 1; i++)
+            locked = locked.lock(LockedRanges.keyFor(epoch(random)), affectedRanges(placements, random));
+        return locked;
+    }
+
+    public static LockedRanges.AffectedRanges affectedRanges(DataPlacements placements, Random random)
+    {
+        LockedRanges.AffectedRangesBuilder affected = LockedRanges.AffectedRanges.builder();
+        placements.asMap().forEach((params, placement) -> {
+            placement.reads.replicaGroups().keySet().forEach((range) -> {
+                if (random.nextDouble() >= 0.6)
+                    affected.add(params, range);
+            });
+        });
+        return affected.build();
+    }
+
     public static Epoch epoch(Random random)
     {
         return Epoch.create(random.nextLong());

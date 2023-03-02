@@ -29,6 +29,7 @@ package org.apache.cassandra.tcm;
  import org.apache.cassandra.locator.InetAddressAndPort;
  import org.apache.cassandra.net.MessagingService;
  import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
+ import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
  import org.apache.cassandra.tcm.transformations.cms.Initialize;
  import org.apache.cassandra.utils.FBUtilities;
 
@@ -86,7 +87,8 @@ package org.apache.cassandra.tcm;
      public static void initializeAsNonCmsNode(Function<ClusterMetadataService.Processor, ClusterMetadataService.Processor> wrapProcessor)
      {
          ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
-         ClusterMetadataService.setInstance(new ClusterMetadataService(initial,
+         ClusterMetadataService.setInstance(new ClusterMetadataService(new UniformRangePlacement(),
+                                                                       initial,
                                                                        wrapProcessor,
                                                                        ClusterMetadataService::state));
          ClusterMetadataService.instance().log().replayPersisted();

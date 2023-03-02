@@ -19,19 +19,18 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.IntValue;
 import org.apache.cassandra.tcm.extensions.StringValue;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 
 public class CustomTransformation implements Transformation
 {
@@ -175,7 +174,7 @@ public class CustomTransformation implements Transformation
         public Result execute(ClusterMetadata prev)
         {
             StringValue value = StringValue.create(str);
-            return success(prev.transformer().with(METADATA_KEY, value));
+            return success(prev.transformer().with(METADATA_KEY, value), LockedRanges.AffectedRanges.EMPTY);
         }
 
         public String toString()
@@ -233,7 +232,7 @@ public class CustomTransformation implements Transformation
         public Result execute(ClusterMetadata prev)
         {
             IntValue value = IntValue.create(v);
-            return success(prev.transformer().with(METADATA_KEY, value));
+            return success(prev.transformer().with(METADATA_KEY, value), LockedRanges.AffectedRanges.EMPTY);
         }
 
         public String toString()

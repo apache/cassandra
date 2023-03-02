@@ -506,9 +506,20 @@ public enum CassandraRelevantProperties
     // TODO: not a fan of being forced to prefix these to satisfy the alphabetic ordering constraint
     //       but it makes sense to group logically related properties together
     /**
+     * for obtaining acknowlegement from peers to make progress in multi-step operations
+     */
+    TCM_PROGRESS_BARRIER_BACKOFF_MILLIS("cassandra.progress_barrier_backoff_ms", "1000"),
+    TCM_PROGRESS_BARRIER_TIMEOUT_MILLIS("cassandra.progress_barrier_timeout_ms", "3600000"),
+
+    /**
      * size of in-memory index of max epoch -> sealed period
      */
     TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE("cassandra.recently_sealed_period_index_size", "10"),
+
+    /**
+     * should replica groups in data placements be sorted to ensure the primary replica is first in the list
+     */
+    TCM_SORT_REPLICA_GROUPS("cassandra.sorted_replica_groups_enabled", "true"),
 
     TEST_BBFAILHELPER_ENABLED("test.bbfailhelper.enabled"),
     TEST_BLOB_SHARED_SEED("cassandra.test.blob.shared.seed"),

@@ -27,6 +27,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -74,7 +75,7 @@ public class PreInitialize implements Transformation
         metadata = transformed.metadata;
         assert metadata.epoch.is(Epoch.FIRST) : metadata.epoch;
 
-        return success(transformer);
+        return new Success(metadata, LockedRanges.AffectedRanges.EMPTY, transformed.modifiedKeys);
     }
 
     @Override
