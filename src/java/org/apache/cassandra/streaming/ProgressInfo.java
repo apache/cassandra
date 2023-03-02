@@ -60,7 +60,6 @@ public class ProgressInfo implements Serializable
     public ProgressInfo(InetAddressAndPort peer, int sessionIndex, String fileName, Direction direction,
                         long currentBytes,  long deltaBytes, long totalBytes)
     {
-        assert totalBytes > 0;
 
         this.peer = peer;
         this.sessionIndex = sessionIndex;
@@ -77,6 +76,11 @@ public class ProgressInfo implements Serializable
     public boolean isCompleted()
     {
         return currentBytes >= totalBytes;
+    }
+
+    public int progressPercentage()
+    {
+        return totalBytes == 0 ? 100 : (int) ((100 * currentBytes) / totalBytes);
     }
 
     /**
@@ -114,7 +118,7 @@ public class ProgressInfo implements Serializable
         StringBuilder sb = new StringBuilder(fileName);
         sb.append(" ").append(currentBytes);
         sb.append("/").append(totalBytes).append(" bytes ");
-        sb.append("(").append(currentBytes*100/totalBytes).append("%) ");
+        sb.append("(").append(progressPercentage()).append("%) ");
         sb.append(direction == Direction.OUT ? "sent to " : "received from ");
         sb.append("idx:").append(sessionIndex);
         sb.append(peer.toString(withPorts));

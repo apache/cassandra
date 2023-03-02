@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.Optional;
 
@@ -32,14 +31,14 @@ import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.RegularAndStaticColumns;
-import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.transform.RTBoundValidator;
-import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.keycache.KeyCacheSupport;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.IteratorWithLowerBound;
@@ -197,21 +196,10 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
      */
     private ClusteringBound<?> maybeGetLowerBoundFromKeyCache()
     {
-        RowIndexEntry<?> rowIndexEntry = sstable.getCachedPosition(partitionKey(), false);
-        if (rowIndexEntry == null || !rowIndexEntry.indexOnHeap())
-            return null;
+        if (sstable instanceof KeyCacheSupport<?>)
+            return ((KeyCacheSupport<?>) sstable).getLowerBoundPrefixFromCache(partitionKey(), isReverseOrder);
 
-        try (RowIndexEntry.IndexInfoRetriever onHeapRetriever = rowIndexEntry.openWithIndex(null))
-        {
-            IndexInfo columns = onHeapRetriever.columnsIndex(isReverseOrder() ? rowIndexEntry.columnsIndexCount() - 1 : 0);
-            ClusteringBound<?> bound = isReverseOrder() ? columns.lastName.asEndBound() : columns.firstName.asStartBound();
-            assertBoundSize(bound);
-            return bound.artificialLowerBound(isReverseOrder());
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException("should never occur", e);
-        }
+        return null;
     }
 
     /**
@@ -253,16 +241,16 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
 
         final StatsMetadata m = sstable.getSSTableMetadata();
         ClusteringBound<?> bound = m.coveredClustering.open(isReverseOrder);
-        assertBoundSize(bound);
+        assertBoundSize(bound, sstable);
         return bound.artificialLowerBound(isReverseOrder);
     }
 
-    private void assertBoundSize(ClusteringPrefix<?> lowerBound)
+    public static void assertBoundSize(ClusteringPrefix<?> lowerBound, SSTable sstable)
     {
-        assert lowerBound.size() <= metadata().comparator.size() :
+        assert lowerBound.size() <= sstable.metadata().comparator.size() :
         String.format("Unexpected number of clustering values %d, expected %d or fewer for %s",
                       lowerBound.size(),
-                      metadata().comparator.size(),
+                      sstable.metadata().comparator.size(),
                       sstable.getFilename());
     }
 }

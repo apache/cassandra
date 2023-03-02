@@ -17,19 +17,20 @@
  */
 package org.apache.cassandra.index.sasi.utils;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
-
-import org.junit.Assert;
-import org.junit.Test;
 
 public class MappedBufferTest
 {
@@ -461,7 +462,7 @@ public class MappedBufferTest
 
         file.getFD().sync();
 
-        try (MappedBuffer buffer = new MappedBuffer(new ChannelProxy(tmp.absolutePath(), file.getChannel())))
+        try (MappedBuffer buffer = new MappedBuffer(new ChannelProxy(tmp, file.getChannel())))
         {
             Assert.assertEquals(numValues * 8, buffer.limit());
             Assert.assertEquals(numValues * 8, buffer.capacity());
@@ -530,7 +531,7 @@ public class MappedBufferTest
 
         try
         {
-            return new MappedBuffer(new ChannelProxy(testFile.absolutePath(), file.getChannel()), numPageBits);
+            return new MappedBuffer(new ChannelProxy(testFile, file.getChannel()), numPageBits);
         }
         finally
         {

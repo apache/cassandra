@@ -29,9 +29,8 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
@@ -129,8 +128,7 @@ public class SingleSSTableLCSTaskTest extends CQLTester
         Util.flush(cfs);
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
-        String filenameToCorrupt = sstable.descriptor.filenameFor(Component.STATS);
-        try(FileChannel fc = new File(filenameToCorrupt).newReadWriteChannel())
+        try(FileChannel fc = sstable.descriptor.fileFor(Components.STATS).newReadWriteChannel())
         {
             fc.position(0);
             fc.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));

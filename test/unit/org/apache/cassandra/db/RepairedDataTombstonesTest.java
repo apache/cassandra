@@ -31,6 +31,7 @@ import org.apache.cassandra.db.rows.AbstractRow;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -260,6 +261,10 @@ public class RepairedDataTombstonesTest extends CQLTester
                                 assertTrue("val=" + val, val >= minVal && val < maxVal);
                             }
                         }
+                    }
+                    else
+                    {
+                        while (rowIter.hasNext()) rowIter.next();
                     }
                 }
             }

@@ -20,9 +20,11 @@ package org.apache.cassandra;
  */
 
 import java.io.Closeable;
+import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.IOError;
 import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigInteger;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -113,7 +115,10 @@ import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -137,6 +142,8 @@ import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Throwables;
 import org.awaitility.Awaitility;
+import org.mockito.Mockito;
+import org.mockito.internal.stubbing.defaultanswers.ForwardsInvocations;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -465,10 +472,10 @@ public class Util
             assert iterator.hasNext() : "Expecting one row in one partition but got nothing";
             try (RowIterator partition = iterator.next())
             {
-                assert !iterator.hasNext() : "Expecting a single partition but got more";
                 assert partition.hasNext() : "Expecting one row in one partition but got an empty partition";
                 Row row = partition.next();
                 assert !partition.hasNext() : "Expecting a single row but got more";
+                assert !iterator.hasNext() : "Expecting a single partition but got more";
                 return row;
             }
         }
@@ -851,7 +858,7 @@ public class Util
             {
                 if (sst.name().contains("Data"))
                 {
-                    Descriptor d = Descriptor.fromFilename(sst.absolutePath());
+                    Descriptor d = Descriptor.fromFileWithComponent(sst, false).left;
                     assertTrue(liveIdentifiers.contains(d.id));
                     fileCount++;
                 }
@@ -1063,7 +1070,7 @@ public class Util
         {
             for (SSTableReader sstable : sstables)
             {
-                sstable = sstable.cloneAndReplace(FilterFactory.AlwaysPresent);
+                sstable = ((SSTableReaderWithFilter) sstable).cloneAndReplace(FilterFactory.AlwaysPresent);
                 txn.update(sstable, true);
                 txn.checkpoint();
             }
@@ -1071,7 +1078,7 @@ public class Util
         }
 
         for (SSTableReader reader : cfs.getLiveSSTables())
-            assertEquals(FilterFactory.AlwaysPresent, reader.getBloomFilter());
+            assertEquals(0, ((SSTableReaderWithFilter) reader).getFilterOffHeapSize());
     }
 
     /**
@@ -1235,5 +1242,24 @@ public class Util
     public static void flush(TableViews view)
     {
         view.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+    }
+
+    public static class DataInputStreamPlusImpl extends DataInputStream implements DataInputPlus
+    {
+        private DataInputStreamPlusImpl(InputStream in)
+        {
+            super(in);
+        }
+
+        public static DataInputStreamPlus wrap(InputStream in)
+        {
+            DataInputStreamPlusImpl impl = new DataInputStreamPlusImpl(in);
+            return Mockito.mock(DataInputStreamPlus.class, new ForwardsInvocations(impl));
+        }
+    }
+
+    public static RuntimeException testMustBeImplementedForSSTableFormat()
+    {
+        return new UnsupportedOperationException("Test must be implemented for sstable format " + SSTableFormat.Type.current().info.getClass().getName());
     }
 }
