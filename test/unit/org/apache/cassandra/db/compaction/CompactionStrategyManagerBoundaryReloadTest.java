@@ -26,7 +26,6 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DiskBoundaries;
-import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
@@ -67,11 +66,8 @@ public class CompactionStrategyManagerBoundaryReloadTest extends CQLTester
         List<List<AbstractCompactionStrategy>> strategies = cfs.getCompactionStrategyManager().getStrategies();
         DiskBoundaries db = cfs.getDiskBoundaries();
         TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-        byte[] tk1 = new byte[1], tk2 = new byte[1];
-        tk1[0] = 2;
-        tk2[0] = 1;
-        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk1), InetAddressAndPort.getByName("127.0.0.1"));
-        tmd.updateNormalToken(new ByteOrderedPartitioner.BytesToken(tk2), InetAddressAndPort.getByName("127.0.0.2"));
+        tmd.updateNormalToken(tmd.partitioner.getMinimumToken(), InetAddressAndPort.getByName("127.0.0.1"));
+        tmd.updateNormalToken(tmd.partitioner.getMaximumToken(), InetAddressAndPort.getByName("127.0.0.2"));
         // make sure the strategy instances have been reloaded
         assertFalse(isSame(strategies,
                            cfs.getCompactionStrategyManager().getStrategies()));
