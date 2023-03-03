@@ -178,6 +178,16 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
     <T> Future<T> flatMap(Function<? super V, ? extends Future<T>> flatMapper, Executor executor);
 
     /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     */
+    <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen);
+
+    /**
+     * Support {@link com.google.common.util.concurrent.Futures#transformAsync(ListenableFuture, AsyncFunction, Executor)} natively
+     */
+    <T> Future<T> andThenAsync(Function<? super V, ? extends Future<T>> andThen, Executor executor);
+
+    /**
      * Invoke {@code runnable} on completion, using {@code executor}.
      *
      * Tasks are submitted to their executors in the order they were added to this Future.
