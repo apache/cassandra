@@ -4796,6 +4796,11 @@ public class DatabaseDescriptor
         return conf.accord_transactions_enabled;
     }
 
+    public static void setAccordTransactionsEnabled(boolean b)
+    {
+        conf.accord_transactions_enabled = b;
+    }
+
     public static boolean getForceNewPreparedStatementBehaviour()
     {
         return conf.force_new_prepared_statement_behaviour;
