@@ -19,7 +19,11 @@
 # regex in-pattern flags. Any of those can break correct operation of Scanner.
 
 import re
-from sre_constants import BRANCH, SUBPATTERN, GROUPREF, GROUPREF_IGNORE, GROUPREF_EXISTS
+import six
+try:
+    from sre_constants import BRANCH, SUBPATTERN, GROUPREF, GROUPREF_IGNORE, GROUPREF_EXISTS
+except ImportError:
+    from re._constants import BRANCH, SUBPATTERN, GROUPREF, GROUPREF_IGNORE, GROUPREF_EXISTS
 from sys import version_info
 
 
@@ -81,4 +85,24 @@ class Py38SaferScanner(SaferScannerBase):
         self.scanner = re.sre_compile.compile(p)
 
 
-SaferScanner = Py38SaferScanner if version_info >= (3, 8) else Py36SaferScanner
+class Py311SaferScanner(SaferScannerBase):
+
+    def __init__(self, lexicon, flags=0):
+        self.lexicon = lexicon
+        p = []
+        s = re._parser.State()
+        s.flags = flags
+        for phrase, action in lexicon:
+            gid = s.opengroup()
+            p.append(re._parser.SubPattern(s, [(SUBPATTERN, (gid, 0, 0, re._parser.parse(phrase, flags))), ]))
+            s.closegroup(gid, p[-1])
+        p = re._parser.SubPattern(s, [(BRANCH, (None, p))])
+        self.p = p
+        self.scanner = re._compiler.compile(p)
+
+
+SaferScanner = Py36SaferScanner if six.PY3 else Py2SaferScanner
+if version_info >= (3, 11):
+    SaferScanner = Py311SaferScanner
+elif version_info >= (3, 8):
+    SaferScanner = Py38SaferScanner

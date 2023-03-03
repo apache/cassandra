@@ -35,7 +35,6 @@ import org.junit.Test;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -43,7 +42,7 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUIDAsBytes;
 
 
-public class UUIDTests
+public class UUIDTest
 {
     @Test
     public void verifyType1()

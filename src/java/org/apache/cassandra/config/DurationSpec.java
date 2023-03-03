@@ -521,6 +521,16 @@ public abstract class DurationSpec
         }
 
         /**
+         * Returns this duration in the number of nanoseconds as an {@code int}
+         *
+         * @return this duration in number of nanoseconds or {@code Integer.MAX_VALUE} if the number of nanoseconds is too large.
+         */
+        public int toNanoseconds()
+        {
+            return Ints.saturatedCast(unit().toNanos(quantity()));
+        }
+
+        /**
          * Returns this duration in number of milliseconds as an {@code int}
          *
          * @return this duration in number of milliseconds or {@code Integer.MAX_VALUE} if the number of milliseconds is too large.

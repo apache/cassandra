@@ -16,30 +16,18 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.distributed.upgrade;
 
-import java.util.Collection;
-
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import com.vdurmont.semver4j.Semver;
 
 /**
- * This base class tests all keywords which took a long time. Hence it was split into multiple
- * KeywordTestSplitN to prevent CI timing out. If timeouts reappear split it further
+ * {@link CompactStoragePagingWithProtocolTester} for v3X -> CURRENT upgrade path.
  */
-@RunWith(Parameterized.class)
-public class KeywordTestSplit1 extends KeywordTestBase
+public class CompactStoragePagingWithProtocolV3XTest extends CompactStoragePagingWithProtocolTester
 {
-    static int SPLIT = 1;
-    static int TOTAL_SPLITS = 2;
-
-    @Parameterized.Parameters(name = "keyword {0} isReserved {1}")
-    public static Collection<Object[]> keywords() {
-        return KeywordTestBase.getKeywordsForSplit(SPLIT, TOTAL_SPLITS);
-    }
-
-    public KeywordTestSplit1(String keyword, boolean isReserved)
+    @Override
+    protected Semver initialVersion()
     {
-        super(keyword, isReserved);
+        return v3X;
     }
 }

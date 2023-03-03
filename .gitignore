@@ -1,6 +1,7 @@
 .gitignore
 
 # C*
+build
 build/
 src/gen-java/
 src/resources/org/apache/cassandra/config/
@@ -83,3 +84,5 @@ venv/
 # build-scripts will put cassandra-builds into the directory
 cassandra-builds/
 cassandra-dtest/
+
+conf/triggers/trigger-example.jar

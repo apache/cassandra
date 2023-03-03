@@ -71,6 +71,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
             int sectionIdx = 0;
 
             // stream each of the required sections of the file
+            String filename = sstable.descriptor.filenameFor(Component.DATA);
             for (Section section : sections)
             {
                 // length of the section to stream
@@ -94,7 +95,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
 
                     bytesTransferred += toTransfer;
                     progress += toTransfer;
-                    session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, totalSize);
+                    session.progress(filename, ProgressInfo.Direction.OUT, progress, toTransfer, totalSize);
                 }
             }
             logger.debug("[Stream #{}] Finished streaming file {} to {}, bytesTransferred = {}, totalSize = {}",

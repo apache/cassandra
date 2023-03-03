@@ -33,7 +33,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="4.1-beta2"/>
+    <property name="base.version" value="4.1.1"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -117,11 +117,17 @@
     <property name="test.distributed.timeout" value="900000" />
     <property name="test.simulation.timeout" value="1800000" />
 
-    <!-- default for cql tests. Can be override by -Dcassandra.test.use_prepared=false -->
+    <!-- default for cql tests. Can be overridden by -Dcassandra.test.use_prepared=false -->
     <property name="cassandra.test.use_prepared" value="true" />
+
+    <!-- The number of active processors seen by JVM -->
+    <property name="cassandra.test.processorCount" value="2"/>
 
     <!-- skip flushing schema tables during tests -->
     <property name="cassandra.test.flush_local_schema_changes" value="false" />
+
+    <!-- fast shutdown of messaging service -->
+    <property name="cassandra.test.messagingService.nonGracefulShutdown" value="true"/>
 
     <!-- https://www.eclemma.org/jacoco/ -->
     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
@@ -158,6 +164,10 @@
 
     <condition property="is.source.artifact">
       <available file="${build.src.java}" type="dir" />
+    </condition>
+
+    <condition property="cassandra.use_nix_recursive_delete" value="false" else="true">
+        <os family="windows" />
     </condition>
 
     <!-- Check if all tests are being run or just one. If it's all tests don't spam the console with test output.
@@ -302,7 +312,7 @@
     <sequential>
       <javadoc destdir="@{destdir}" author="true" version="true" use="true"
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
-        bottom="Copyright &amp;copy; 2009-2022 The Apache Software Foundation"
+        bottom="Copyright &amp;copy; 2009- The Apache Software Foundation"
         useexternalfile="yes" encoding="UTF-8" failonerror="false"
         maxmemory="256m" additionalparam="${jdk11-javadoc-exports}">
         <filesets/>
@@ -508,7 +518,7 @@
           <dependency groupId="org.xerial.snappy" artifactId="snappy-java" version="1.1.8.4"/>
           <dependency groupId="org.lz4" artifactId="lz4-java" version="1.8.0"/>
           <dependency groupId="com.ning" artifactId="compress-lzf" version="0.8.4" scope="provided"/>
-          <dependency groupId="com.github.luben" artifactId="zstd-jni" version="1.5.0-4"/>
+          <dependency groupId="com.github.luben" artifactId="zstd-jni" version="1.5.4-1"/>
           <dependency groupId="com.google.guava" artifactId="guava" version="27.0-jre">
             <exclusion groupId="com.google.code.findbugs" artifactId="jsr305" />
             <exclusion groupId="org.codehaus.mojo" artifactId="animal-sniffer-annotations" />
@@ -1157,7 +1167,7 @@
         </manifest>
         <mkdir dir="${fqltool.build.classes}/META-INF" />
         <mkdir dir="${build.dir}/tools/lib/" />
-        <jar destfile="${build.dir}/tools/lib/fqltool.jar" manifest="${stress.manifest}">
+        <jar destfile="${build.dir}/tools/lib/fqltool.jar" manifest="${fqltool.manifest}">
             <fileset dir="${fqltool.build.classes}"/>
         </jar>
     </target>
@@ -1439,11 +1449,25 @@
      <src path="${test.simulator-test.src}"/>
     </javac>
 
+    <checktestnameshelper/>
+
     <!-- Non-java resources needed by the test suite -->
     <copy todir="${test.classes}">
       <fileset dir="${test.resources}"/>
     </copy>
   </target>
+
+  <macrodef name="checktestnameshelper">
+    <sequential>
+      <taskdef name="test-name-check_" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
+        <classpath>
+          <path refid="cassandra.classpath.test"/>
+          <path location="${fqltool.build.classes}"/>
+        </classpath>
+      </taskdef>
+      <test-name-check_/>
+    </sequential>
+  </macrodef>
 
   <!-- Run tests separately and report errors after and generate a junit report -->
   <macrodef name="testhelper">
@@ -1515,6 +1539,7 @@
              more aggressively rather than waiting. See CASSANDRA-14922 for more details.
         -->
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
+        <jvmarg value="-XX:ActiveProcessorCount=${cassandra.test.processorCount}" />
         <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
         <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
@@ -1526,6 +1551,9 @@
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
+        <jvmarg value="-Dcassandra.test.flush_local_schema_changes=${cassandra.test.flush_local_schema_changes}"/>
+        <jvmarg value="-Dcassandra.test.messagingService.nonGracefulShutdown=${cassandra.test.messagingService.nonGracefulShutdown}"/>
+        <jvmarg value="-Dcassandra.use_nix_recursive_delete=${cassandra.use_nix_recursive_delete}"/>
         <jvmarg line="${java11-jvmargs}"/>
         <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
@@ -2126,8 +2154,8 @@
     <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_11"/>
     <replace file=".idea/misc.xml" token="1.8" value="11"/>
     <replaceregexp file=".idea/workspace.xml"
-                   match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)&quot;"
-                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java11-jvmargs}&quot;"
+                   match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)"
+                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java11-jvmargs}"
                    byline="true"/>
 
       <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
@@ -2146,6 +2174,7 @@
         <fileset dir="ide/idea"/>
     </copy>
     <replace file=".idea/workspace.xml" token="trunk" value="${eclipse.project.name}"/>
+    <replace file=".idea/workspace.xml" token="-Dcassandra.use_nix_recursive_delete=true" value="-Dcassandra.use_nix_recursive_delete=${cassandra.use_nix_recursive_delete}"/>
     <copy tofile="${eclipse.project.name}.iml" file="ide/idea-iml-file.xml"/>
     <echo file=".idea/.name">Apache Cassandra ${eclipse.project.name}</echo>
     <echo file=".idea/modules.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>

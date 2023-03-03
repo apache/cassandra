@@ -19,12 +19,14 @@ package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 
 import org.junit.BeforeClass;
@@ -45,6 +47,7 @@ import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy.getWindowBoundsInMillis;
@@ -368,5 +371,26 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         assertEquals(sstable, expiredSSTable);
         twcs.shutdown();
         t.transaction.abort();
+    }
+
+    @Test
+    public void testGroupForAntiCompaction()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS("test_group_for_anticompaction");
+        cfs.setCompactionParameters(ImmutableMap.of("class", "TimeWindowCompactionStrategy",
+                                                    "timestamp_resolution", "MILLISECONDS",
+                                                    "compaction_window_size", "1",
+                                                    "compaction_window_unit", "MINUTES"));
+
+        List<SSTableReader> sstables = new ArrayList<>(10);
+        long curr = System.currentTimeMillis();
+        for (int i = 0; i < 10; i++)
+            sstables.add(MockSchema.sstableWithTimestamp(i, curr + TimeUnit.MILLISECONDS.convert(i, TimeUnit.MINUTES), cfs));
+
+        cfs.addSSTables(sstables);
+        Collection<Collection<SSTableReader>> groups = cfs.getCompactionStrategyManager().getCompactionStrategyFor(sstables.get(0)).groupSSTablesForAntiCompaction(sstables);
+        assertTrue(groups.size() > 0);
+        for (Collection<SSTableReader> group : groups)
+            assertEquals(1, group.size());
     }
 }

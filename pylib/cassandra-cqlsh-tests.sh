@@ -39,7 +39,7 @@ export CASS_DRIVER_NO_CYTHON=true
 export CCM_MAX_HEAP_SIZE="2048M"
 export CCM_HEAP_NEWSIZE="200M"
 export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
-export NUM_TOKENS="32"
+export NUM_TOKENS="16"
 export CASSANDRA_DIR=${WORKSPACE}
 export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}"
 
@@ -73,13 +73,15 @@ fi
 set -e # enable immediate exit if venv setup fails
 virtualenv --python=$PYTHON_VERSION venv
 source venv/bin/activate
+# 3.11 needs the newest pip
+curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_VERSION
 
 pip install -r ${CASSANDRA_DIR}/pylib/requirements.txt
 pip freeze
 
 if [ "$cython" = "yes" ]; then
     TESTSUITE_NAME="${TESTSUITE_NAME}.cython"
-    pip install "Cython>=0.27.2,<0.28"
+    pip install "Cython>=0.29.15,<3.0"
     cd pylib/; python setup.py build_ext --inplace
     cd ${WORKSPACE}
 else

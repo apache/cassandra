@@ -19,6 +19,7 @@
 
 BASEDIR=`dirname $0`
 BASE_BRANCH=cassandra-4.1
+set -e
 
 die ()
 {
@@ -56,6 +57,8 @@ print_help()
   echo "                   -e REPEATED_JVM_UPGRADE_DTESTS_COUNT=500"
   echo "                   -e REPEATED_DTESTS=cdc_test.py cqlsh_tests/test_cqlsh.py::TestCqlshSmoke"
   echo "                   -e REPEATED_DTESTS_COUNT=500"
+  echo "                   -e REPEATED_LARGE_DTESTS=replace_address_test.py::TestReplaceAddress::test_replace_stopped_node"
+  echo "                   -e REPEATED_LARGE_DTESTS=100"
   echo "                   -e REPEATED_UPGRADE_DTESTS=upgrade_tests/cql_tests.py upgrade_tests/paging_test.py"
   echo "                   -e REPEATED_UPGRADE_DTESTS_COUNT=25"
   echo "                   -e REPEATED_ANT_TEST_TARGET=testsome"
@@ -87,7 +90,7 @@ while getopts "e:almhf" opt; do
           ;;
       h ) highres=true
           ;;
-      e ) if (!($has_env_vars)); then
+      e ) if (! ($has_env_vars)); then
             env_vars="$OPTARG"
           else
             env_vars="$env_vars|$OPTARG"
@@ -128,6 +131,8 @@ if $has_env_vars && $check_env_vars; then
        [ "$key" != "REPEATED_JVM_UPGRADE_DTESTS_COUNT" ]  &&
        [ "$key" != "REPEATED_DTESTS" ] &&
        [ "$key" != "REPEATED_DTESTS_COUNT" ] &&
+       [ "$key" != "REPEATED_LARGE_DTESTS" ] &&
+       [ "$key" != "REPEATED_LARGE_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_UPGRADE_DTESTS" ] &&
        [ "$key" != "REPEATED_UPGRADE_DTESTS_COUNT" ] &&
        [ "$key" != "REPEATED_ANT_TEST_TARGET" ] &&
@@ -187,13 +192,13 @@ elif $all; then
   # copy lower into config.yml to make sure this gets updated
   cp $BASEDIR/config.yml.LOWRES $BASEDIR/config.yml
 
-elif (!($has_env_vars)); then
+elif (! ($has_env_vars)); then
   print_help
   exit 0
 fi
 
 # add new or modified tests to the sets of tests to be repeated
-if (!($all)); then
+if (! ($all)); then
   add_diff_tests ()
   {
     dir="${BASEDIR}/../${2}"
@@ -203,7 +208,8 @@ if (!($all)); then
            | sed -e "s/\\.java//" \
            | sed -e "s,^${2},," \
            | tr  '/' '.' \
-           | grep ${3} )
+           | grep ${3} )\
+           || : # avoid execution interruptions due to grep return codes and set -e
     for test in $tests; do
       echo "  $test"
       has_env_vars=true
@@ -304,6 +310,12 @@ delete_repeated_jobs()
     delete_job "$1" "j11_dtests_repeat"
     delete_job "$1" "j11_dtests_vnode_repeat"
     delete_job "$1" "j11_dtests_offheap_repeat"
+  fi
+  if (! (echo "$env_vars" | grep -q "REPEATED_LARGE_DTESTS=")); then
+    delete_job "$1" "j8_dtests_large_repeat"
+    delete_job "$1" "j8_dtests_large_vnode_repeat"
+    delete_job "$1" "j11_dtests_large_repeat"
+    delete_job "$1" "j11_dtests_large_vnode_repeat"
   fi
   if (! (echo "$env_vars" | grep -q "REPEATED_UPGRADE_DTESTS=")); then
     delete_job "$1" "j8_upgrade_dtests_repeat"

@@ -26,6 +26,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
@@ -164,7 +166,8 @@ public class Dump implements Runnable
         }
     }
 
-    private static void dumpQuery(QueryOptions options, WireIn wireIn, StringBuilder sb)
+    @VisibleForTesting
+    static void dumpQuery(QueryOptions options, WireIn wireIn, StringBuilder sb)
     {
         sb.append("Query: ")
           .append(wireIn.read(FullQueryLogger.QUERY).text())
@@ -216,25 +219,24 @@ public class Dump implements Runnable
 
     private static void appendValuesToStringBuilder(List<ByteBuffer> values, StringBuilder sb)
     {
-        boolean first = true;
         for (ByteBuffer value : values)
         {
-            Bytes bytes = Bytes.wrapForRead(value);
-            long maxLength2 = Math.min(1024, bytes.readLimit() - bytes.readPosition());
-            toHexString(bytes, bytes.readPosition(), maxLength2, sb);
-            if (maxLength2 < bytes.readLimit() - bytes.readPosition())
+            if (null == value)
             {
-                sb.append("... truncated").append(System.lineSeparator());
-            }
-
-            if (first)
-            {
-                first = false;
+                sb.append("null").append(System.lineSeparator());
             }
             else
             {
-                sb.append("-----").append(System.lineSeparator());
+                Bytes<ByteBuffer> bytes = Bytes.wrapForRead(value);
+                long maxLength2 = Math.min(1024, bytes.readLimit() - bytes.readPosition());
+                toHexString(bytes, bytes.readPosition(), maxLength2, sb);
+                if (maxLength2 < bytes.readLimit() - bytes.readPosition())
+                {
+                    sb.append("... truncated").append(System.lineSeparator());
+                }
             }
+
+            sb.append("-----").append(System.lineSeparator());
         }
     }
 

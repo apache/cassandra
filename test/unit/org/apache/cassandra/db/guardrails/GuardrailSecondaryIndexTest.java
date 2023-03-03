@@ -26,9 +26,9 @@ import static java.lang.String.format;
 /**
  * Tests the guardrail for disabling user creation of secondary indexes, {@link Guardrails#setSecondaryIndexesEnabled(boolean)}.
  */
-public class GuardrailSecondaryIndexTester extends GuardrailTester
+public class GuardrailSecondaryIndexTest extends GuardrailTester
 {
-    public GuardrailSecondaryIndexTester()
+    public GuardrailSecondaryIndexTest()
     {
         super(Guardrails.createSecondaryIndexesEnabled);
     }

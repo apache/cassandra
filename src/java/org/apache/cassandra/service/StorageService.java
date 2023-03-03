@@ -72,7 +72,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
-import org.apache.cassandra.service.snapshot.SnapshotLoader;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -165,6 +164,7 @@ import static org.apache.cassandra.service.ActiveRepairService.*;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.now;
+import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -1040,8 +1040,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             DiskUsageBroadcaster.instance.startBroadcasting();
             HintsService.instance.startDispatch();
             BatchlogManager.instance.start();
-            snapshotManager.start();
+            startSnapshotManager();
         }
+    }
+
+    @VisibleForTesting
+    public void startSnapshotManager()
+    {
+        snapshotManager.start();
     }
 
     public void waitForSchema(long schemaTimeoutMillis, long ringTimeoutMillis)
@@ -3800,6 +3806,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
             throw new RuntimeException("Cleanup of the system keyspace is neither necessary nor wise");
 
+        if (tokenMetadata.getPendingRanges(keyspaceName, getBroadcastAddressAndPort()).size() > 0)
+            throw new RuntimeException("Node is involved in cluster membership changes. Not safe to run cleanup.");
+
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tables))
         {
@@ -4218,10 +4227,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         boolean skipExpiring = options != null && Boolean.parseBoolean(options.getOrDefault("no_ttl", "false"));
 
-        SnapshotLoader loader = new SnapshotLoader();
         Map<String, TabularData> snapshotMap = new HashMap<>();
 
-        for (TableSnapshot snapshot : loader.loadSnapshots())
+        for (TableSnapshot snapshot : snapshotManager.loadSnapshots())
         {
             if (skipExpiring && snapshot.isExpiring())
                 continue;
