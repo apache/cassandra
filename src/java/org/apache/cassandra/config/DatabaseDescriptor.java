@@ -347,7 +347,7 @@ public class DatabaseDescriptor
     public static Config loadConfig() throws ConfigurationException
     {
         if (Config.getOverrideLoadConfig() != null)
-            return Config.getOverrideLoadConfig().get();
+            return Config.getOverrideLoadConfig().get();src/java/org/apache/cassandra/config/DatabaseDescriptor.java>>>
 
         String loaderClass = System.getProperty(Config.PROPERTY_PREFIX + "config.loader");
         ConfigurationLoader loader = loaderClass == null
@@ -4703,4 +4703,9 @@ public class DatabaseDescriptor
             conf.dynamic_data_masking_enabled = enabled;
         }
     }
+
+    public static CompressionParams getSstableCompression() {
+        return sstableCompression;
+    }
+
 }
