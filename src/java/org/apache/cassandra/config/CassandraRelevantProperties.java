@@ -549,6 +549,7 @@ public enum CassandraRelevantProperties
     TEST_LEGACY_SSTABLE_ROOT("legacy-sstable-root"),
     TEST_ORG_CAFFINITAS_OHC_SEGMENTCOUNT("org.caffinitas.ohc.segmentCount"),
     TEST_RANDOM_SEED("cassandra.test.random.seed"),
+    TEST_PRESERVE_THREAD_CREATION_STACKTRACE("cassandra.test.preserve_thread_creation_stacktrace", "false"),
     TEST_READ_ITERATION_DELAY_MS("cassandra.test.read_iteration_delay_ms", "0"),
     TEST_REUSE_PREPARED("cassandra.test.reuse_prepared", "true"),
     TEST_ROW_CACHE_SIZE("cassandra.test.row_cache_size"),
