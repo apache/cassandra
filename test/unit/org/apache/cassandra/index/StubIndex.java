@@ -228,9 +228,13 @@ public class StubIndex implements Index
         }
 
         @Override
-        public UnfilteredPartitionIterator search(ReadExecutionController executionController)
+        public UnfilteredPartitionIterator search(ReadExecutionController controller)
         {
-            return Util.executeLocally((PartitionRangeReadCommand)command, baseCfs, executionController);
+            if (command instanceof PartitionRangeReadCommand)
+                return Util.executeLocally((PartitionRangeReadCommand)command, baseCfs, controller);
+            if (command instanceof SinglePartitionReadCommand)
+                return Util.executeLocally((SinglePartitionReadCommand) command, baseCfs, controller);
+            throw new IllegalArgumentException("Unexpected ReadCommand type: " + command.getClass());
         }
     }
 }

@@ -226,7 +226,7 @@ public class AccordService implements IAccordService, Shutdownable
 
     private static RuntimeException throwTimeout(Txn txn, ConsistencyLevel consistencyLevel)
     {
-        throw txn.isWrite() ? new WriteTimeoutException(WriteType.TRANSACTION, consistencyLevel, 0, 0)
+        throw txn.isWrite() ? new WriteTimeoutException(WriteType.CAS, consistencyLevel, 0, 0)
                             : new ReadTimeoutException(consistencyLevel, 0, 0, false);
     }
 
