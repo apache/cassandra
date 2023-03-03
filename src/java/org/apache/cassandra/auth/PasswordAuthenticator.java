@@ -31,6 +31,7 @@ import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -90,14 +91,10 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     }
 
     public boolean authEnabled = requireAuthentication();
-    AuthEnforcementFlagEnum authEnforcementFlagEnum = getAuthEnforcementValue(DatabaseDescriptor.getAuthEnforcementFlag());
+    AuthEnforcementFlag authEnforcementFlagEnum = DatabaseDescriptor.getAuthEnforcementFlag();
 
-    public boolean emitAuthMetricsAndLogs = AuthEnforcementFlagEnum.NONE != authEnforcementFlagEnum;
-    public boolean softEnforcementFlag = AuthEnforcementFlagEnum.SOFT == authEnforcementFlagEnum;
-
-    public enum AuthEnforcementFlagEnum {
-        SOFT, HARD, NONE;
-    }
+    public boolean emitAuthMetricsAndLogs = AuthEnforcementFlag.none != authEnforcementFlagEnum;
+    public boolean softEnforcementFlag = AuthEnforcementFlag.soft == authEnforcementFlagEnum;
 
     // No anonymous access.
     public boolean requireAuthentication()
@@ -128,24 +125,11 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
     {
         return cache;
     }
-    public void setAuthEnforcementFlag(AuthEnforcementFlagEnum authEnforcementFlagEnum)
+    public void setAuthEnforcementFlag(AuthEnforcementFlag authEnforcementFlagEnum)
     {
         this.authEnforcementFlagEnum = authEnforcementFlagEnum;
-        this.emitAuthMetricsAndLogs = AuthEnforcementFlagEnum.NONE != authEnforcementFlagEnum;
-        this.softEnforcementFlag = AuthEnforcementFlagEnum.SOFT == authEnforcementFlagEnum;
-    }
-
-    // Function to extract enum value from parameter provide. Default to "none"
-    public AuthEnforcementFlagEnum getAuthEnforcementValue (String authEnforcementFlag) {
-        if (authEnforcementFlag.isEmpty()) {
-            return AuthEnforcementFlagEnum.NONE;
-        }
-        for (AuthEnforcementFlagEnum enumValue : AuthEnforcementFlagEnum.values()) {
-            if (enumValue.name().equalsIgnoreCase(authEnforcementFlag)) {
-                return enumValue;
-            }
-        }
-        return AuthEnforcementFlagEnum.NONE;
+        this.emitAuthMetricsAndLogs = AuthEnforcementFlag.none != authEnforcementFlagEnum;
+        this.softEnforcementFlag = AuthEnforcementFlag.soft == authEnforcementFlagEnum;
     }
 
     protected static boolean checkpw(String password, String hash)

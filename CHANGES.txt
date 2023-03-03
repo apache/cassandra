@@ -177,6 +177,8 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-19188] Create nodetool command for auth_enforcement_flag
+ * [SO-19195] Fix default file system error handler for disk_failure_policy die
  * [SO-19145] Implement auth_enforcement_flag logic
  * [SO-18510] User based auth success and failure metrics
  * [SO-17723] Detect non-networktopology user keyspace creation

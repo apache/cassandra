@@ -49,6 +49,7 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
+import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.db.monitoring.BadQueriesInSystemLog;
 import org.apache.cassandra.db.monitoring.BadQueriesInTable;
 import org.apache.cassandra.db.monitoring.IBadQueryReporter;
@@ -4797,8 +4798,12 @@ public class DatabaseDescriptor
         return conf.bad_query_ignore_keyspaces;
     }
 
-    public static String getAuthEnforcementFlag() {
+    public static AuthEnforcementFlag getAuthEnforcementFlag() {
         return conf.auth_enforcement_flag;
+    }
+
+    public static void setAuthEnforcementFlag(AuthEnforcementFlag authEnforcementFlag) {
+        conf.auth_enforcement_flag = authEnforcementFlag;
     }
 
     public static Boolean isAutoRepairEnabled()

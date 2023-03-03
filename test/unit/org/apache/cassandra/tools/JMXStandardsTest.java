@@ -107,6 +107,8 @@ public class JMXStandardsTest
                                                        .add(TreeSet.class)
                                                        .add(UUID.class)
                                                        .add(InetAddressAndPort.class)
+                                                       // used in AuthEnforcement
+                                                       .add(Config.AuthEnforcementFlag.class)
                                                        .build();
     /**
      * This list is a set of types under java.* and javax.*, but are too vague that could cause issues; this does not

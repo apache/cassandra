@@ -664,7 +664,7 @@ public class Config
 
     public String bad_query_ignore_keyspaces = "system.*|.*staging.*|.*test.*|health|pingless";
 
-    public String auth_enforcement_flag = "none";
+    public AuthEnforcementFlag auth_enforcement_flag = AuthEnforcementFlag.none;
 
     public Boolean auto_repair_enabled = true;
 
@@ -1160,6 +1160,13 @@ public class Config
     // if a hint file is found orphan and older than these many days (from the current time), then it is considered safe to purge
     // there is no specific logic behind the default value - it is intentionally set higher on the conservative side
     public Integer orphan_node_hint_files_age_in_days = 15;
+
+    public enum AuthEnforcementFlag
+    {
+        hard,
+        soft,
+        none
+    }
 
     public enum CommitLogSync
     {

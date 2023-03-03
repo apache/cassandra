@@ -38,6 +38,7 @@ import com.datastax.driver.core.Authenticator;
 import com.datastax.driver.core.EndPoint;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -58,14 +59,12 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.auth.AuthTestUtils.ALL_ROLES;
 import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
 import static org.apache.cassandra.auth.CassandraRoleManager.getGensaltLogRounds;
-import static org.apache.cassandra.auth.PasswordAuthenticator.AuthEnforcementFlagEnum;
 import static org.apache.cassandra.auth.PasswordAuthenticator.EMPTY_PWD_USERNAME;
 import static org.apache.cassandra.auth.PasswordAuthenticator.EMPTY_USER_USERNAME;
 import static org.apache.cassandra.auth.PasswordAuthenticator.SaslNegotiator;
 import static org.apache.cassandra.auth.PasswordAuthenticator.checkpw;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.mindrot.jbcrypt.BCrypt.gensalt;
 import static org.mindrot.jbcrypt.BCrypt.hashpw;
@@ -77,20 +76,20 @@ public class PasswordAuthenticatorTest extends CQLTester
 {
     private final static PasswordAuthenticator authenticator = new PasswordAuthenticator();
     private static final boolean authEnabled = DatabaseDescriptor.getAuthenticator().requireAuthentication();
-    AuthEnforcementFlagEnum authEnforcementFlag;
+    AuthEnforcementFlag authEnforcementFlag;
     long empty_pwd_failure_count;
     AuthenticationException authException, expectedException;
     AuthenticationException baseAuthException = new AuthenticationException("Authentication exception");
 
-    public PasswordAuthenticatorTest(AuthEnforcementFlagEnum authEnforcementFlag)
+    public PasswordAuthenticatorTest(AuthEnforcementFlag authEnforcementFlag)
     {
         authenticator.setAuthEnforcementFlag(authEnforcementFlag);
         this.authEnforcementFlag = authEnforcementFlag;
 
-        if (authEnforcementFlag == AuthEnforcementFlagEnum.NONE) {
+        if (authEnforcementFlag == AuthEnforcementFlag.none) {
             empty_pwd_failure_count = 0;
             expectedException = baseAuthException;
-        } else if (authEnforcementFlag == AuthEnforcementFlagEnum.HARD) {
+        } else if (authEnforcementFlag == AuthEnforcementFlag.hard) {
             empty_pwd_failure_count = 1;
             expectedException = baseAuthException;
         } else {
@@ -100,9 +99,9 @@ public class PasswordAuthenticatorTest extends CQLTester
     }
 
     @Parameterized.Parameters()
-    public static List<AuthEnforcementFlagEnum> generateData()
+    public static List<AuthEnforcementFlag> generateData()
     {
-        return Arrays.asList(AuthEnforcementFlagEnum.NONE, AuthEnforcementFlagEnum.HARD, AuthEnforcementFlagEnum.SOFT);
+        return Arrays.asList(AuthEnforcementFlag.none, AuthEnforcementFlag.hard, AuthEnforcementFlag.soft);
     }
 
     @BeforeClass

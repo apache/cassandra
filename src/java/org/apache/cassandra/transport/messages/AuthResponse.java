@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.AuthMetrics;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -77,7 +78,7 @@ public class AuthResponse extends Message.Request
     @Override
     protected Response execute(QueryState queryState, Dispatcher.RequestTime requestTime, boolean traceRequest)
     {
-        boolean emitAuthMetricsAndLogs = !DatabaseDescriptor.getAuthEnforcementFlag().equalsIgnoreCase("none");
+        boolean emitAuthMetricsAndLogs = !(DatabaseDescriptor.getAuthEnforcementFlag() == AuthEnforcementFlag.none);
         try
         {
             IAuthenticator.SaslNegotiator negotiator = ((ServerConnection) connection).getSaslNegotiator(queryState);

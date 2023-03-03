@@ -76,6 +76,7 @@ import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
@@ -2470,6 +2471,16 @@ public class NodeProbe implements AutoCloseable
     public String getTokenToEndpointOwnership()
     {
         return ssProxy.getTokenToEndpointOwnership();
+    }
+
+    public void setAuthEnforcementFlag(AuthEnforcementFlag authEnforcementFlag)
+    {
+        ssProxy.setAuthEnforcementFlag(authEnforcementFlag);
+    }
+
+    public AuthEnforcementFlag getAuthEnforcementFlag()
+    {
+        return ssProxy.getAuthEnforcementFlag();
     }
 }
 

@@ -115,6 +115,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.cql3.QueryHandler;
@@ -7355,5 +7356,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public String getTokenToEndpointOwnership()
     {
         return tokenMetadata.toString();
+    }
+
+    public AuthEnforcementFlag getAuthEnforcementFlag()
+    {
+        return DatabaseDescriptor.getAuthEnforcementFlag();
+    }
+
+    public void setAuthEnforcementFlag(AuthEnforcementFlag authEnforcementFlag)
+    {
+        DatabaseDescriptor.setAuthEnforcementFlag(authEnforcementFlag);
     }
 }

@@ -31,13 +31,13 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
 import static org.junit.Assert.assertEquals;
-import static org.apache.cassandra.auth.PasswordAuthenticator.*;
 
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.AuthenticationException;
 import com.datastax.driver.core.exceptions.UnauthorizedException;
 import org.apache.cassandra.auth.PasswordAuthenticator;
+import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.cql3.CQLTester;
@@ -57,14 +57,14 @@ public class AuthMetricsTest
 
     private static PasswordAuthenticator authenticator;
     private final boolean authEnabled = DatabaseDescriptor.getAuthenticator().requireAuthentication();
-    AuthEnforcementFlagEnum authEnforcementFlag;
+    AuthEnforcementFlag authEnforcementFlag;
     long test_user_success_count, test_user_failure_count, test_wrong_user_success_count, test_wrong_user_failure_count;
 
-    public AuthMetricsTest(AuthEnforcementFlagEnum authEnforcementFlag)
+    public AuthMetricsTest(AuthEnforcementFlag authEnforcementFlag)
     {
         authenticator.setAuthEnforcementFlag(authEnforcementFlag);
         this.authEnforcementFlag = authEnforcementFlag;
-        if (authEnforcementFlag == AuthEnforcementFlagEnum.SOFT) {
+        if (authEnforcementFlag == AuthEnforcementFlag.soft) {
             test_user_success_count = 2;
             test_user_failure_count = 2;
             test_wrong_user_success_count = 0;
@@ -79,9 +79,9 @@ public class AuthMetricsTest
     }
 
     @Parameters()
-    public static List<AuthEnforcementFlagEnum> generateData()
+    public static List<AuthEnforcementFlag> generateData()
     {
-        return Arrays.asList(AuthEnforcementFlagEnum.HARD, AuthEnforcementFlagEnum.SOFT);
+        return Arrays.asList(AuthEnforcementFlag.hard, AuthEnforcementFlag.soft);
     }
 
     @BeforeClass

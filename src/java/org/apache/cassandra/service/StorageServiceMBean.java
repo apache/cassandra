@@ -28,6 +28,9 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
+
+import org.apache.cassandra.config.Config.AuthEnforcementFlag;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import javax.management.NotificationEmitter;
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.OpenDataException;
@@ -1125,4 +1128,10 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Provides Token to end-point ownership cache details for UN, UJ, and UL */
     public String getTokenToEndpointOwnership();
+
+    /** Sets the value for auth enforcement to be hard/soft/none */
+    public void setAuthEnforcementFlag(AuthEnforcementFlag authEnforcementFlag);
+
+    /** Gets the value for auth enforcement flag */
+    public AuthEnforcementFlag getAuthEnforcementFlag();
 }
