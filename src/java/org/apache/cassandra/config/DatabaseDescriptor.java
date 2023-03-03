@@ -368,7 +368,7 @@ public class DatabaseDescriptor
     public static Config loadConfig() throws ConfigurationException
     {
         if (Config.getOverrideLoadConfig() != null)
-            return Config.getOverrideLoadConfig().get();
+            return Config.getOverrideLoadConfig().get();src/java/org/apache/cassandra/config/DatabaseDescriptor.java>>>
 
         String loaderClass = CONFIG_LOADER.getString();
         ConfigurationLoader loader = loaderClass == null
@@ -4729,10 +4729,16 @@ public class DatabaseDescriptor
         }
     }
 
+
     public static OptionalDouble getSeverityDuringDecommission()
     {
         return conf.severity_during_decommission > 0 ?
                OptionalDouble.of(conf.severity_during_decommission) :
                OptionalDouble.empty();
     }
+
+    public static CompressionParams getSstableCompression() {
+        return sstableCompression;
+    }
+    
 }
