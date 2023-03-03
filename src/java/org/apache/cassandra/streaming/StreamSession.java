@@ -701,8 +701,8 @@ public class StreamSession
             state(State.FAILED); // make sure subsequent error handling sees the session in a final state 
             channel.sendControlMessage(new SessionFailedMessage()).awaitUninterruptibly();
         }
-        String exception = Throwables.getStackTraceAsString(e);
-        return closeSession(State.FAILED, "Failed because of an unkown exception\n" + exception.substring(0,exception.length() -143)); //bound the exception by removing internal line logs
+        StringBuilder boundedStktrace = boundStacktrace(e.getStackTrace(), 2); //bound the stacktrace with a specified limit on the number of lines
+        return closeSession(State.FAILED, "Failed because of an unkown exception\n" + Throwables.getRootCause(e) + boundedStktrace.toString());
     }
 
     private void logError(Throwable e)
@@ -1336,5 +1336,20 @@ public class StreamSession
                ", previewKind=" + previewKind +
                ", state=" + state +
                '}';
+    }
+
+    public StringBuilder boundStacktrace(StackTraceElement[] stacktrace, int limit)
+    {
+        if (limit >= stacktrace.length) {
+            throw new IllegalArgumentException("Invalid limit size: " + limit);
+        }
+
+        StringBuilder out = new StringBuilder(limit);
+        for (int i = 0; i < limit; i++)
+        {
+            out.append('\n');
+            out.append('\t').append(stacktrace[i]);
+        }
+        return out;
     }
 }
