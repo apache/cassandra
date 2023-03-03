@@ -24,8 +24,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -64,8 +65,8 @@ public class GossipCMSListener implements IEndpointStateChangeSubscriber
                 ClusterMetadata newCM = metadata.transformer()
                                                 .withNodeInformation(nodeId, newNodeVersion, metadata.directory.getNodeAddresses(nodeId))
                                                 .buildForGossipMode();
-//                if (ClusterMetadataService.instance().applyFromGossip(metadata, newCM))
-//                    return;
+                if (ClusterMetadataService.instance().applyFromGossip(metadata, newCM))
+                    return;
                 metadata = ClusterMetadata.current();
             }
         }

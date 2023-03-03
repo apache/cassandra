@@ -40,19 +40,21 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
 import org.apache.cassandra.tcm.listeners.InitializationListener;
+import org.apache.cassandra.tcm.listeners.LegacyStateListener;
 import org.apache.cassandra.tcm.listeners.LogListener;
 import org.apache.cassandra.tcm.listeners.MetadataSnapshotListener;
+import org.apache.cassandra.tcm.listeners.PaxosRepairListener;
 import org.apache.cassandra.tcm.listeners.PlacementsChangeListener;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
-import org.apache.cassandra.tcm.listeners.PaxosRepairListener;
-import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
+import org.apache.cassandra.tcm.transformations.ForceSnapshot;
+import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -96,7 +98,7 @@ public abstract class LocalLog implements Closeable
         Transformation transform = PreInitialize.withFirstCMS(addr);
         append(new Entry(Entry.Id.NONE, FIRST, transform));
         waitForHighestConsecutive();
-        assert metadata().epoch.is(Epoch.FIRST) : ClusterMetadata.current().epoch + " " + ClusterMetadata.current().fullCMSMembers();
+        assert metadata().epoch.is(Epoch.FIRST) : ClusterMetadata.current().epoch + " " + ClusterMetadata.current().placements.get(ReplicationParams.meta());
     }
 
     public ClusterMetadata metadata()
@@ -104,7 +106,22 @@ public abstract class LocalLog implements Closeable
         return committed.get();
     }
 
-    @VisibleForTesting
+    public boolean unsafeSetCommittedFromGossip(ClusterMetadata expected, ClusterMetadata updated)
+    {
+        if (!(expected.epoch.isEqualOrBefore(Epoch.UPGRADE_GOSSIP) && updated.epoch.is(Epoch.UPGRADE_GOSSIP)))
+            throw new IllegalStateException(String.format("Illegal epochs for setting from gossip; expected: %s, updated: %s",
+                                                          expected.epoch, updated.epoch));
+        return committed.compareAndSet(expected, updated);
+    }
+
+    public void unsafeSetCommittedFromGossip(ClusterMetadata updated)
+    {
+        if (!updated.epoch.is(Epoch.UPGRADE_GOSSIP))
+            throw new IllegalStateException(String.format("Illegal epoch for setting from gossip; updated: %s",
+                                                          updated.epoch));
+        committed.set(updated);
+    }
+
     public int pendingBufferSize()
     {
         return pending.size();
@@ -546,6 +563,7 @@ public abstract class LocalLog implements Closeable
         addListener(snapshotListener());
         addListener(new InitializationListener());
         addListener(new SchemaListener());
+        addListener(new LegacyStateListener());
         addListener(new PlacementsChangeListener());
         addListener(new MetadataSnapshotListener());
         addListener(new PaxosRepairListener());

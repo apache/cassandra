@@ -42,6 +42,8 @@ class ResponseVerbHandler implements IVerbHandler
             message.verb() != Verb.TCM_REPLICATION &&
             message.verb() != Verb.TCM_NOTIFY_RSP &&
             message.verb() != Verb.TCM_DISCOVER_RSP &&
+            message.verb() != Verb.TCM_INIT_MIG_RSP &&
+            message.verb() != Verb.TCM_INIT_MIG_RSP &&
             // Gossip stage is single-threaded, so we may end up in a deadlock with after-commit hook
             // that executes something on the gossip stage as well.
             !Stage.GOSSIP.executor().inExecutor())

@@ -87,7 +87,7 @@ import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupResponse;
 import org.apache.cassandra.service.paxos.cleanup.PaxosCleanupComplete;
 import org.apache.cassandra.service.paxos.cleanup.PaxosStartPrepareCleanup;
 import org.apache.cassandra.service.paxos.cleanup.PaxosFinishPrepareCleanup;
-import org.apache.cassandra.tcm.Commit.Result;import org.apache.cassandra.tcm.Discovery;import org.apache.cassandra.tcm.Replay;import org.apache.cassandra.tcm.log.LogState;import org.apache.cassandra.tcm.log.Replication;import org.apache.cassandra.utils.BooleanSerializer;
+import org.apache.cassandra.tcm.Commit.Result;import org.apache.cassandra.tcm.Discovery;import org.apache.cassandra.tcm.Replay;import org.apache.cassandra.tcm.log.LogState;import org.apache.cassandra.tcm.log.Replication;import org.apache.cassandra.tcm.migration.ClusterMetadataHolder;import org.apache.cassandra.tcm.migration.Election;import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.service.EchoVerbHandler;
 import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.service.paxos.Commit;
@@ -212,9 +212,12 @@ public enum Verb
     TCM_REPLICATION        (805, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Replication.messageSerializer,                () -> replicationHandler()                                     ),
     TCM_NOTIFY_RSP         (806, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> ResponseVerbHandler.instance                             ),
     TCM_NOTIFY_REQ         (807, P1, rpcTimeout,      INTERNAL_METADATA,    () -> LogState.serializer,                          () -> logNotifyHandler(),                   TCM_NOTIFY_RSP     ),
-    TCM_CURRENT_EPOCH_REQ  (809, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> currentEpochRequestHandler(),         TCM_NOTIFY_RSP     ),
-    TCM_DISCOVER_RSP       (815, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         () -> ResponseVerbHandler.instance                             ),
-    TCM_DISCOVER_REQ       (816, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_RSP   ),
+    TCM_CURRENT_EPOCH_REQ  (808, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> currentEpochRequestHandler(),         TCM_NOTIFY_RSP     ),
+    TCM_INIT_MIG_RSP       (809, P1, rpcTimeout,      INTERNAL_METADATA,    () -> ClusterMetadataHolder.serializer,             () -> ResponseVerbHandler.instance                             ),
+    TCM_INIT_MIG_REQ       (810, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Election.Initiator.serializer,                () -> Election.instance.prepareHandler,     TCM_INIT_MIG_RSP   ),
+    TCM_ABORT_MIG          (811, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Election.Initiator.serializer,                () -> Election.instance.abortHandler,       TCM_INIT_MIG_RSP   ),
+    TCM_DISCOVER_RSP       (812, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         () -> ResponseVerbHandler.instance                             ),
+    TCM_DISCOVER_REQ       (813, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_RSP   ),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailureReason.serializer,      () -> ResponseVerbHandler.instance                             ),

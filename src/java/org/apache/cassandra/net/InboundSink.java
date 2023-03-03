@@ -18,6 +18,7 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Predicate;
@@ -29,6 +30,9 @@ import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.index.IndexNotAvailableException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.NotCMSException;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 /**
@@ -72,10 +76,28 @@ public class InboundSink implements InboundMessageHandlers.MessageConsumer
 
     private final MessagingService messaging;
 
+    private final static EnumSet<Verb> allowedDuringStartup = EnumSet.of(Verb.GOSSIP_DIGEST_ACK, Verb.GOSSIP_DIGEST_SYN);
+
     InboundSink(MessagingService messaging)
     {
         this.messaging = messaging;
-        this.sink = message -> message.header.verb.handler().doVerb((Message<Object>) message);
+        this.sink = message -> {
+            IVerbHandler handler = message.header.verb.handler();
+            if (handler == null)
+            {
+                String err = String.format("Handler for verb %s is null", message.header.verb);
+                noSpamLogger.info(err);
+                throw new IllegalStateException(err);
+            }
+
+            if (ClusterMetadata.current().epoch.is(Epoch.UPGRADE_STARTUP) && !allowedDuringStartup.contains(message.header.verb))
+            {
+                noSpamLogger.info("Ignoring message from {} with verb="+message.header.verb, message.from());
+                return;
+            }
+
+            handler.doVerb(message);
+        };
     }
 
     public void fail(Message.Header header, Throwable failure)
@@ -100,7 +122,9 @@ public class InboundSink implements InboundMessageHandlers.MessageConsumer
         {
             fail(message.header, t);
 
-            if (t instanceof TombstoneOverwhelmingException || t instanceof IndexNotAvailableException)
+            if (t instanceof NotCMSException)
+                noSpamLogger.warn(t.getMessage());
+            else if (t instanceof TombstoneOverwhelmingException || t instanceof IndexNotAvailableException)
                 noSpamLogger.error(t.getMessage());
             else if (t instanceof RuntimeException)
                 throw (RuntimeException) t;

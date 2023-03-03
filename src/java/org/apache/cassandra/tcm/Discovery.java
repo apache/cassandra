@@ -123,6 +123,7 @@ public class Discovery
         public void doVerb(Message<NoPayload> message)
         {
             Set<InetAddressAndPort> cms = ClusterMetadata.current().fullCMSMembers();
+            logger.debug("Responding to discovery request from {}: {}", message.from(), cms);
 
             DiscoveredNodes discoveredNodes;
             if (!cms.isEmpty())

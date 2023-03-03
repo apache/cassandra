@@ -20,6 +20,8 @@ package org.apache.cassandra.tcm;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -27,6 +29,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,13 +41,20 @@ import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.migration.Election;
+import org.apache.cassandra.tcm.migration.GossipProcessor;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
 import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
+import static org.apache.cassandra.utils.Collectors3.toImmutableSet;
 
 
 public class ClusterMetadataService
@@ -111,8 +121,11 @@ public class ClusterMetadataService
         return state(ClusterMetadata.current());
     }
 
-    public static State state(ClusterMetadata clusterMetadata)
+    public static State state(ClusterMetadata metadata)
     {
+        if (metadata.epoch.isBefore(Epoch.EMPTY))
+            return State.GOSSIP;
+
         // The node is a full member of the CMS if it has started participating in reads for distributed metadata table (which
         // implies it is a write replica as well). In other words, it's a fully joined member of the replica set responsible for
         // the distributed metadata table.
@@ -131,12 +144,15 @@ public class ClusterMetadataService
 
         log = LocalLog.async(initial);
         Processor localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
+        RemoteProcessor remoteProcessor = new RemoteProcessor(log, Discovery.instance::discoveredNodes);
+        GossipProcessor gossipProcessor = new GossipProcessor();
         replicator = new Commit.DefaultReplicator(() -> log.metadata().directory);
         currentEpochHandler = new CurrentEpochRequestHandler();
         replayRequestHandler = new SwitchableHandler<>(new Replay.Handler(), cmsStateSupplier);
         commitRequestHandler = new SwitchableHandler<>(new Commit.Handler(localProcessor, replicator), cmsStateSupplier);
         processor = new SwitchableProcessor(localProcessor,
-                                            new RemoteProcessor(log, Discovery.instance::discoveredNodes),
+                                            remoteProcessor,
+                                            gossipProcessor,
                                             cmsStateSupplier);
 
         replicationHandler = new Replication.ReplicationHandler(log);
@@ -218,14 +234,92 @@ public class ClusterMetadataService
 
     public void addToCms(List<String> ignoredEndpoints)
     {
+        Set<InetAddressAndPort> ignored = ignoredEndpoints.stream().map(InetAddressAndPort::getByNameUnchecked).collect(toSet());
+        if (ignored.contains(FBUtilities.getBroadcastAddressAndPort()))
+        {
+            String msg = "Can't ignore local host " + FBUtilities.getBroadcastAddressAndPort() + " when doing CMS migration";
+            logger.error(msg);
+            throw new IllegalStateException(msg);
+        }
+
         ClusterMetadata metadata = metadata();
-        if (metadata.isCMSMember(FBUtilities.getBroadcastAddressAndPort()))
+        Set<InetAddressAndPort> existingMembers = metadata.fullCMSMembers();
+        if (existingMembers.contains(FBUtilities.getBroadcastAddressAndPort()))
         {
             logger.info("Already in the CMS");
             throw new IllegalStateException("Already in the CMS");
         }
 
-        // TODO
+        if (!metadata.directory.allAddresses().containsAll(ignored))
+        {
+            Set<InetAddressAndPort> allAddresses = Sets.newHashSet(metadata.directory.allAddresses());
+            String msg = String.format("Ignored host(s) %s don't exist in the cluster", Sets.difference(ignored, allAddresses));
+            logger.error(msg);
+            throw new IllegalStateException(msg);
+        }
+
+        for (Map.Entry<NodeId, NodeVersion> entry : metadata.directory.versions.entrySet())
+        {
+            NodeVersion version = entry.getValue();
+            InetAddressAndPort ep = metadata.directory.getNodeAddresses(entry.getKey()).broadcastAddress;
+            if (ignored.contains(ep))
+            {
+                // todo; what do we do if an endpoint has a mismatching gossip-clustermetadata?
+                //       - we could add the node to --ignore and force this CM to it?
+                //       - require operator to bounce/manually fix the CM on that node
+                //       for now just requiring that any ignored host is also down
+//                if (FailureDetector.instance.isAlive(ep))
+//                    throw new IllegalStateException("Can't ignore " + ep + " during CMS migration - it is not down");
+                logger.info("Endpoint {} running {} is ignored", ep, version);
+                continue;
+            }
+
+            if (!version.isUpgraded())
+            {
+                String msg = String.format("All nodes are not yet upgraded - %s is running %s", metadata.directory.endpoint(entry.getKey()), version);
+                logger.error(msg);
+                throw new IllegalStateException(msg);
+            }
+        }
+
+        if (existingMembers.isEmpty())
+        {
+            logger.info("First CMS node");
+            Set<InetAddressAndPort> candidates = metadata
+                                                 .directory
+                                                 .allAddresses()
+                                                 .stream()
+                                                 .filter(ep -> !FBUtilities.getBroadcastAddressAndPort().equals(ep) &&
+                                                               !ignoredEndpoints.contains(ep))
+                                                 .collect(toImmutableSet());
+
+            Election.instance.nominateSelf(candidates, ignored, metadata::equals);
+            ClusterMetadataService.instance().sealPeriod();
+        }
+        else
+        {
+            logger.info("Adding local node to existing CMS nodes; {}", existingMembers);
+            AddToCMS.initiate();
+        }
+    }
+
+    public boolean applyFromGossip(ClusterMetadata expected, ClusterMetadata updated)
+    {
+        logger.debug("Applying from gossip, current={} new={}", expected, updated);
+        if (!expected.epoch.isBefore(Epoch.EMPTY))
+            throw new IllegalStateException("Can't apply a ClusterMetadata from gossip with epoch " + expected.epoch);
+        if (state() != State.GOSSIP)
+            throw new IllegalStateException("Can't apply a ClusterMetadata from gossip when CMSState is not GOSSIP: " + state());
+
+        return log.unsafeSetCommittedFromGossip(expected, updated);
+    }
+
+    public void setFromGossip(ClusterMetadata fromGossip)
+    {
+        logger.debug("Setting from gossip, new={}", fromGossip);
+        if (state() != State.GOSSIP)
+            throw new IllegalStateException("Can't apply a ClusterMetadata from gossip when CMSState is not GOSSIP: " + state());
+        log.unsafeSetCommittedFromGossip(fromGossip);
     }
 
     public final Supplier<Entry.Id> entryIdGen = new Entry.DefaultEntryIdGen();
@@ -353,6 +447,12 @@ public class ClusterMetadataService
         Epoch ourEpoch = ClusterMetadata.current().epoch;
         if (!theirEpoch.isBefore(Epoch.FIRST) && theirEpoch.isAfter(ourEpoch))
         {
+            if (state() == State.GOSSIP)
+            {
+                logger.warn("TODO: can't catchup in gossip mode (their epoch = {})", theirEpoch); //todo: we have seen a message with epoch > EMPTY, we are probably racing with migration, or we missed the finish migration message, handle!
+                return;
+            }
+
             replayAndWait();
             ourEpoch = ClusterMetadata.current().epoch;
             if (theirEpoch.isAfter(ourEpoch))
@@ -396,8 +496,7 @@ public class ClusterMetadataService
 
     public boolean isMigrating()
     {
-        return false;
-//        return Election.instance.isMigrating();
+        return Election.instance.isMigrating();
     }
 
     /**
@@ -426,6 +525,10 @@ public class ClusterMetadataService
                     break;
                 case REMOTE:
                     throw new NotCMSException("Not currently a member of the CMS");
+                case GOSSIP:
+                    String msg = "Tried to use a handler when in gossip mode: "+handler.toString();
+                    logger.error(msg);
+                    throw new IllegalStateException(msg);
                 default:
                     throw new IllegalStateException("Illegal state: " + cmsStateSupplier.get());
             }
@@ -437,12 +540,14 @@ public class ClusterMetadataService
     {
         private final Processor local;
         private final RemoteProcessor remote;
+        private final GossipProcessor gossip;
         private final Supplier<State> cmsStateSupplier;
 
-        SwitchableProcessor(Processor local, RemoteProcessor remote, Supplier<State> cmsStateSupplier)
+        SwitchableProcessor(Processor local, RemoteProcessor remote, GossipProcessor gossip, Supplier<State> cmsStateSupplier)
         {
             this.local = local;
             this.remote = remote;
+            this.gossip = gossip;
             this.cmsStateSupplier = cmsStateSupplier;
         }
 
@@ -456,6 +561,8 @@ public class ClusterMetadataService
                     return local;
                 case REMOTE:
                     return remote;
+                case GOSSIP:
+                    return gossip;
             }
             throw new IllegalStateException("Bad CMS state: " + state);
         }
