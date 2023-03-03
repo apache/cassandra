@@ -31,7 +31,6 @@ import java.util.Objects;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
-import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.CBCodec;
@@ -314,8 +313,8 @@ public class ResultSet
 
         public static ResultMetadata fromPrepared(CQLStatement statement)
         {
-            if (statement instanceof SelectStatement)
-                return ((SelectStatement)statement).getResultMetadata();
+            if (statement instanceof CQLStatement.ReturningCQLStatement)
+                return ((CQLStatement.ReturningCQLStatement) statement).getResultMetadata();
 
             return ResultSet.ResultMetadata.EMPTY;
         }

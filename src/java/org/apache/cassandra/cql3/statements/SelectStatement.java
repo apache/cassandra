@@ -150,7 +150,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  * Note that select statements can be accessed by multiple threads, so we cannot rely on mutable attributes.
  */
 @ThreadSafe
-public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
+public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement, CQLStatement.ReturningCQLStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(SelectStatement.logger, 1, TimeUnit.MINUTES);
@@ -278,6 +278,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                                    null);
     }
 
+    @Override
     public ResultSet.ResultMetadata getResultMetadata()
     {
         return selection.getResultMetadata();
