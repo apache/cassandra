@@ -179,6 +179,20 @@ public class TransactionStatement implements CQLStatement
         };
     }
 
+    public ResultSet.ResultMetadata getResultMetadata()
+    {
+        if (returningSelect != null)
+            return returningSelect.select.getResultMetadata();
+        if (returningReferences != null && !returningReferences.isEmpty())
+        {
+            List<ColumnSpecification> names = new ArrayList<>(returningReferences.size());
+            for (RowDataReference reference : returningReferences)
+                names.add(reference.toResultMetadata());
+            return new ResultSet.ResultMetadata(names);
+        }
+        return ResultSet.ResultMetadata.EMPTY;
+    }
+
     TxnNamedRead createNamedRead(NamedSelect namedSelect, QueryOptions options, ClientState state)
     {
         SelectStatement select = namedSelect.select;

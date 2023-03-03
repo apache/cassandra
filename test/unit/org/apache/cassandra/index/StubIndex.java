@@ -205,7 +205,13 @@ public class StubIndex implements Index
 
     public Searcher searcherFor(final ReadCommand command)
     {
-        return (controller) -> Util.executeLocally((PartitionRangeReadCommand)command, baseCfs, controller);
+        return (controller) -> {
+            if (command instanceof PartitionRangeReadCommand)
+                return Util.executeLocally((PartitionRangeReadCommand)command, baseCfs, controller);
+            if (command instanceof SinglePartitionReadCommand)
+                return Util.executeLocally((SinglePartitionReadCommand) command, baseCfs, controller);
+            throw new IllegalArgumentException("Unexpected ReadCommand type: " + command.getClass());
+        };
     }
 
     public BiFunction<PartitionIterator, ReadCommand, PartitionIterator> postProcessorFor(ReadCommand readCommand)

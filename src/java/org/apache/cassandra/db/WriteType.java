@@ -26,6 +26,6 @@ public enum WriteType
     BATCH_LOG,
     CAS,
     VIEW,
-    CDC,
-    TRANSACTION
+    CDC
+    //TODO update client protocol to support "TRANSACTION"
 }
