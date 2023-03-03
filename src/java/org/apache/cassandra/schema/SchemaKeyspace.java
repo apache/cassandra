@@ -715,37 +715,47 @@ public final class SchemaKeyspace
                .add("type", type.asCQL3Type().toString());
 
         ColumnMask mask = column.getMask();
-        Row.SimpleBuilder maskBuilder = builder.update(ColumnMasks).row(table.name, column.name.toString());
-        if (mask == null)
+        if (SchemaConstants.isReplicatedSystemKeyspace(table.keyspace))
         {
-            maskBuilder.delete();
+            // The propagation of system distributed keyspaces at startup can be problematic for old nodes without DDM,
+            // since those won't know what to do with the mask mutations. Thus, we don't support DDM on those keyspaces.
+            assert mask == null : "Dynamic data masking shouldn't be used on system distributed keyspaces";
         }
         else
         {
-            FunctionName maskFunctionName = mask.function.name();
+            Row.SimpleBuilder maskBuilder = builder.update(ColumnMasks).row(table.name, column.name.toString());
 
-            // Some arguments of the masking function can be null, but the CQL's list type that stores them doesn't
-            // accept nulls, so we use a parallel list of booleans to store what arguments are null.
-            int numArgs = mask.partialArgumentValues.size();
-            List<String> types = new ArrayList<>(numArgs);
-            List<String> values = new ArrayList<>(numArgs);
-            List<Boolean> nulls = new ArrayList<>(numArgs);
-            for (int i = 0; i < numArgs; i++)
+            if (mask == null)
             {
-                AbstractType<?> argType = mask.partialArgumentTypes().get(i);
-                types.add(argType.asCQL3Type().toString());
-
-                ByteBuffer argValue = mask.partialArgumentValues.get(i);
-                boolean isNull = argValue == null;
-                nulls.add(isNull);
-                values.add(isNull ? "" : argType.getString(argValue));
+                maskBuilder.delete();
             }
+            else
+            {
+                FunctionName maskFunctionName = mask.function.name();
 
-            maskBuilder.add("function_keyspace", maskFunctionName.keyspace)
-                       .add("function_name", maskFunctionName.name)
-                       .add("function_argument_types", types)
-                       .add("function_argument_values", values)
-                       .add("function_argument_nulls", nulls);
+                // Some arguments of the masking function can be null, but the CQL's list type that stores them doesn't
+                // accept nulls, so we use a parallel list of booleans to store what arguments are null.
+                int numArgs = mask.partialArgumentValues.size();
+                List<String> types = new ArrayList<>(numArgs);
+                List<String> values = new ArrayList<>(numArgs);
+                List<Boolean> nulls = new ArrayList<>(numArgs);
+                for (int i = 0; i < numArgs; i++)
+                {
+                    AbstractType<?> argType = mask.partialArgumentTypes().get(i);
+                    types.add(argType.asCQL3Type().toString());
+
+                    ByteBuffer argValue = mask.partialArgumentValues.get(i);
+                    boolean isNull = argValue == null;
+                    nulls.add(isNull);
+                    values.add(isNull ? "" : argType.getString(argValue));
+                }
+
+                maskBuilder.add("function_keyspace", maskFunctionName.keyspace)
+                           .add("function_name", maskFunctionName.name)
+                           .add("function_argument_types", types)
+                           .add("function_argument_values", values)
+                           .add("function_argument_nulls", nulls);
+            }
         }
     }
 

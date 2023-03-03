@@ -182,6 +182,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         assert name != null && type != null && kind != null;
         assert (position == NO_POSITION) == !kind.isPrimaryKeyKind(); // The position really only make sense for partition and clustering columns (and those must have one),
                                                                       // so make sure we don't sneak it for something else since it'd breaks equals()
+
+        // The propagation of system distributed keyspaces at startup can be problematic for old nodes without DDM,
+        // since those won't know what to do with the mask mutations. Thus, we don't support DDM on those keyspaces.
+        if (mask != null && SchemaConstants.isReplicatedSystemKeyspace(ksName))
+            throw new AssertionError("DDM is not supported on system distributed keyspaces");
+
         this.kind = kind;
         this.position = position;
         this.cellPathComparator = makeCellPathComparator(kind, type);
