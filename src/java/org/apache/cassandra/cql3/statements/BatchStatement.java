@@ -58,7 +58,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
  */
-public class BatchStatement implements CQLStatement
+public class BatchStatement implements CQLStatement.CompositeCQLStatement
 {
     public enum Type
     {
@@ -261,6 +261,7 @@ public class BatchStatement implements CQLStatement
             statement.validate(state);
     }
 
+    @Override
     public List<ModificationStatement> getStatements()
     {
         return statements;
@@ -608,7 +609,7 @@ public class BatchStatement implements CQLStatement
         return String.format("BatchStatement(type=%s, statements=%s)", type, statements);
     }
 
-    public static class Parsed extends QualifiedStatement
+    public static class Parsed extends QualifiedStatement.Composite
     {
         private final Type type;
         private final Attributes.Raw attrs;
@@ -616,36 +617,18 @@ public class BatchStatement implements CQLStatement
 
         public Parsed(Type type, Attributes.Raw attrs, List<ModificationStatement.Parsed> parsedStatements)
         {
-            super(null);
             this.type = type;
             this.attrs = attrs;
             this.parsedStatements = parsedStatements;
         }
 
-        // Not doing this in the constructor since we only need this for prepared statements
         @Override
-        public boolean isFullyQualified()
+        protected Iterable<? extends QualifiedStatement> getStatements()
         {
-            for (ModificationStatement.Parsed statement : parsedStatements)
-                if (!statement.isFullyQualified())
-                    return false;
-
-            return true;
+            return parsedStatements;
         }
 
         @Override
-        public void setKeyspace(ClientState state) throws InvalidRequestException
-        {
-            for (ModificationStatement.Parsed statement : parsedStatements)
-                statement.setKeyspace(state);
-        }
-
-        @Override
-        public String keyspace()
-        {
-            return null;
-        }
-
         public BatchStatement prepare(ClientState state)
         {
             List<ModificationStatement> statements = new ArrayList<>(parsedStatements.size());

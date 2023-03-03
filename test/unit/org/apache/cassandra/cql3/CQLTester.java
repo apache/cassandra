@@ -103,6 +103,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JMXServerUtils;
+import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.TimeUUID;
 import org.assertj.core.api.Assertions;
 import org.apache.cassandra.utils.Pair;
@@ -1411,9 +1412,10 @@ public abstract class CQLTester
             Object[] expected = rows[i];
             Row actual = iter.next();
 
-            Assert.assertEquals(String.format("Invalid number of (expected) values provided for row %d (using protocol version %s)",
-                                              i, protocolVersion),
-                                meta.size(), expected.length);
+            Assertions.assertThat(meta.size())
+                      .describedAs("Invalid number of (expected) values provided for row %d (using protocol version %s); expected=%s, actual=%s",
+                                   i, protocolVersion, LazyToString.lazy(() -> Arrays.toString(expected)), LazyToString.lazy(() -> Arrays.toString(toObjectArray(actual))))
+                      .isEqualTo(expected.length);
 
             for (int j = 0; j < meta.size(); j++)
             {
@@ -1452,6 +1454,14 @@ public abstract class CQLTester
 
         Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d (using protocol version %s)",
                                         rows.length>i ? "less" : "more", rows.length, i, protocolVersion), i == rows.length);
+    }
+
+    private static Object[] toObjectArray(Row actual)
+    {
+        Object[] row = new Object[actual.getColumnDefinitions().size()];
+        for (int i = 0; i < row.length; i++)
+            row[i] = actual.getObject(i);
+        return row;
     }
 
     protected void assertRowCountNet(ResultSet r1, int expectedCount)

@@ -29,7 +29,6 @@ import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -137,8 +136,8 @@ public class ExecuteMessage extends Message.Request
 
             if (!prepared.fullyQualified
                 && !Objects.equals(state.getClientState().getRawKeyspace(), prepared.keyspace)
-                // We can not reliably detect inconsistencies for batches yet
-                && !(prepared.statement instanceof BatchStatement)
+                // We cannot reliably detect inconsistencies for composite statements yet
+                && !(prepared.statement instanceof CQLStatement.CompositeCQLStatement)
             )
             {
                 state.getClientState().warnAboutUseWithPreparedStatements(statementId, prepared.keyspace);

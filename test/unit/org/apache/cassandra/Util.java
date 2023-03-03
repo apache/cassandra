@@ -76,6 +76,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.ActiveCompactionsTracker;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -784,6 +785,13 @@ public class Util
     }
 
     public static UnfilteredPartitionIterator executeLocally(PartitionRangeReadCommand command,
+                                                             ColumnFamilyStore cfs,
+                                                             ReadExecutionController controller)
+    {
+        return command.queryStorage(cfs, controller);
+    }
+
+    public static UnfilteredPartitionIterator executeLocally(SinglePartitionReadCommand command,
                                                              ColumnFamilyStore cfs,
                                                              ReadExecutionController controller)
     {
