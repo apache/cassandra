@@ -72,7 +72,7 @@ public class NativeCell extends AbstractCell<ByteBuffer>
                       CellPath path)
     {
         super(column);
-        long size = simpleSize(value.remaining());
+        long size = offHeapSizeWithoutPath(value.remaining());
 
         assert value.order() == ByteOrder.BIG_ENDIAN;
         assert column.isComplex() == (path != null);
@@ -105,7 +105,7 @@ public class NativeCell extends AbstractCell<ByteBuffer>
         }
     }
 
-    private static long simpleSize(int length)
+    private static long offHeapSizeWithoutPath(int length)
     {
         return VALUE + length;
     }
@@ -180,7 +180,7 @@ public class NativeCell extends AbstractCell<ByteBuffer>
 
     public long offHeapSize()
     {
-        long size = simpleSize(MemoryUtil.getInt(peer + LENGTH));
+        long size = offHeapSizeWithoutPath(MemoryUtil.getInt(peer + LENGTH));
         if (hasPath())
             size += 4 + MemoryUtil.getInt(peer + size);
         return size;

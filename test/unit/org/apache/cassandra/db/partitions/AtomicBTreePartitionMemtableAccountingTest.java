@@ -105,21 +105,40 @@ public class AtomicBTreePartitionMemtableAccountingTest
         return Arrays.asList(Config.MemtableAllocationType.values());
     }
 
+    @Parameterized.Parameter
+    public Config.MemtableAllocationType allocationType;
+
+    static TableMetadata metadata;
+    static DecoratedKey partitionKey;
+    static  ColumnMetadata r1md;
+    static  ColumnMetadata c2md;
+    static  ColumnMetadata s3md;
+    static  ColumnMetadata c4md;
+
     @BeforeClass
     public static void setUp()
     {
         DatabaseDescriptor.daemonInitialization();
+        metadata = TableMetadata.builder("dummy_ks", "dummy_tbl")
+                                                           .addPartitionKeyColumn("pk", Int32Type.instance)
+                                                           .addRegularColumn("r1", Int32Type.instance)
+                                                           .addRegularColumn("c2", SetType.getInstance(Int32Type.instance, true))
+                                                           .addStaticColumn("s3", Int32Type.instance)
+                                                           .addStaticColumn("c4", SetType.getInstance(Int32Type.instance, true))
+                                                           .build();
+        partitionKey = DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.bytes(0));
+        r1md = metadata.getColumn(new ColumnIdentifier("r1", false));
+        c2md = metadata.getColumn(new ColumnIdentifier("c2", false));
+        s3md = metadata.getColumn(new ColumnIdentifier("s3", false));
+        c4md = metadata.getColumn(new ColumnIdentifier("c4", false));
     }
-
-    @Parameterized.Parameter
-    public Config.MemtableAllocationType allocationType;
 
     @Ignore
     @Test
     public void repro() // For running in the IDE, update with failing testCase parameters to run
     {
-        testCase(INITIAL_TS, Cell.NO_TTL, Cell.NO_DELETION_TIME, new DeletionTime(EARLIER_TS, EARLIER_LDT), 1,
-                 EARLIER_TS, Cell.NO_TTL, Cell.NO_DELETION_TIME, DeletionTime.LIVE, 3);
+        new TestCase(INITIAL_TS, Cell.NO_TTL, Cell.NO_DELETION_TIME, new DeletionTime(EARLIER_TS, EARLIER_LDT), 1,
+                     EARLIER_TS, Cell.NO_TTL, Cell.NO_DELETION_TIME, DeletionTime.LIVE, 3).execute();
     }
 
     @Test
@@ -162,8 +181,8 @@ public class AtomicBTreePartitionMemtableAccountingTest
                                 updateLDTs.forEach(updateLDT -> {
                                     updateComplexDeletionTimes.forEach(updateCDT -> {
                                         updateComplexCellCount.forEach(numC2UpdateCells -> {
-                                            testCase(INITIAL_TS, initialTTL, initialLDT, initialCDT, numC2InitialCells,
-                                                     updateTS, updateTTL, updateLDT, updateCDT, numC2UpdateCells);
+                                            new TestCase(INITIAL_TS, initialTTL, initialLDT, initialCDT, numC2InitialCells,
+                                                         updateTS, updateTTL, updateLDT, updateCDT, numC2UpdateCells).execute();
                                         });
                                     });
                                 });
@@ -175,90 +194,95 @@ public class AtomicBTreePartitionMemtableAccountingTest
         });
     }
 
-    static Cell<?> makeCell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value, CellPath path)
+    class TestCase
     {
-        if (localDeletionTime != Cell.NO_DELETION_TIME) // never a ttl for a tombstone
+        int initialTS;
+        int initialTTL;
+        int initialLDT;
+        DeletionTime initialCDT;
+        int numC2InitialCells;
+        int updateTS;
+        int updateTTL;
+        int updateLDT;
+        DeletionTime updateCDT;
+        Integer numC2UpdateCells;
+
+        public TestCase(int initialTS, int initialTTL, int initialLDT, DeletionTime initialCDT, int numC2InitialCells,
+                        int updateTS, int updateTTL, int updateLDT, DeletionTime updateCDT, Integer numC2UpdateCells)
         {
-            ttl = Cell.NO_TTL;
-            value = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+            this.initialTS = initialTS;
+            this.initialTTL = initialTTL;
+            this.initialLDT = initialLDT;
+            this.initialCDT = initialCDT;
+            this.numC2InitialCells = numC2InitialCells;
+            this.updateTS = updateTS;
+            this.updateTTL = updateTTL;
+            this.updateLDT = updateLDT;
+            this.updateCDT = updateCDT;
+            this.numC2UpdateCells = numC2UpdateCells;
         }
-        return new BufferCell(column, timestamp, ttl, localDeletionTime, value, path);
-    }
 
-    void testCase(int initialTS, int initialTTL, int initialLDT, DeletionTime initialCDT, int numC2InitialCells,
-                          int updateTS, int updateTTL, int updateLDT, DeletionTime updateCDT, Integer numC2UpdateCells)
-    {
-        // cell type doesn't really matter, just use easy ints.
-        final int pk = 0;
-        TableMetadata metadata =
-        TableMetadata.builder("dummy_ks", "dummy_tbl")
-                     .addPartitionKeyColumn("pk", Int32Type.instance)
-                     .addRegularColumn("r1", Int32Type.instance)
-                     .addRegularColumn("c2", SetType.getInstance(Int32Type.instance, true))
-                     .addStaticColumn("s3", Int32Type.instance)
-                     .addStaticColumn("c4", SetType.getInstance(Int32Type.instance, true))
-                     .build();
-        DecoratedKey partitionKey = DatabaseDescriptor.getPartitioner().decorateKey(ByteBufferUtil.bytes(pk));
+        void execute()
+        {
+            // Test regular row updates
+            Pair<Row, Row> regularRows = makeInitialAndUpdate(r1md, c2md);
+            PartitionUpdate initial = PartitionUpdate.singleRowUpdate(metadata, partitionKey, regularRows.left, null);
+            PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, partitionKey, regularRows.right, null);
+            validateUpdates(metadata, partitionKey, Arrays.asList(initial, update));
 
-        ColumnMetadata r1md = metadata.getColumn(new ColumnIdentifier("r1", false));
-        ColumnMetadata c2md = metadata.getColumn(new ColumnIdentifier("c2", false));
-        ColumnMetadata s3md = metadata.getColumn(new ColumnIdentifier("s3", false));
-        ColumnMetadata c4md = metadata.getColumn(new ColumnIdentifier("c4", false));
+            // Test static row updates
+            Pair<Row, Row> staticRows = makeInitialAndUpdate(s3md, c4md);
+            PartitionUpdate staticInitial = PartitionUpdate.singleRowUpdate(metadata, partitionKey, null, staticRows.left);
+            PartitionUpdate staticUpdate = PartitionUpdate.singleRowUpdate(metadata, partitionKey, null, staticRows.right);
+            validateUpdates(metadata, partitionKey, Arrays.asList(staticInitial, staticUpdate));
+        }
 
-        // Test regular row updates
-        Pair<Row, Row> regularRows = makeInitialAndUpdate(r1md, c2md, initialTS, initialTTL, initialLDT, initialCDT, numC2InitialCells,
-                                                          updateTS, updateTTL, updateLDT, updateCDT, numC2UpdateCells);
-        PartitionUpdate initial = PartitionUpdate.singleRowUpdate(metadata, partitionKey, regularRows.left, null);
-        PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, partitionKey, regularRows.right, null);
-        validateUpdates(metadata, partitionKey, Arrays.asList(initial, update));
+        private Pair<Row, Row> makeInitialAndUpdate(ColumnMetadata regular, ColumnMetadata complex)
+        {
+            final ByteBuffer initialValueBB = ByteBufferUtil.bytes(111);
+            final ByteBuffer updateValueBB = ByteBufferUtil.bytes(222);
 
-        Pair<Row, Row> staticRows = makeInitialAndUpdate(s3md, c4md, initialTS, initialTTL, initialLDT, initialCDT, numC2InitialCells,
-                                                          updateTS, updateTTL, updateLDT, updateCDT, numC2UpdateCells);
-        // Test static row updates
-        PartitionUpdate staticInitial = PartitionUpdate.singleRowUpdate(metadata, partitionKey, null, staticRows.left);
-        PartitionUpdate staticUpdate = PartitionUpdate.singleRowUpdate(metadata, partitionKey, null, staticRows.right);
-        validateUpdates(metadata, partitionKey, Arrays.asList(staticInitial, staticUpdate));
-    }
+            // Create the initial row to populate the partition with
+            Row.Builder initialRowBuilder = BTreeRow.unsortedBuilder();
+            initialRowBuilder.newRow(regular.isStatic() ? Clustering.STATIC_CLUSTERING : Clustering.EMPTY);
 
-    private static Pair<Row, Row> makeInitialAndUpdate(ColumnMetadata regular, ColumnMetadata complex,
-                                                       int initialTS, int initialTTL, int initialLDT,
-                                                       DeletionTime initialComplexDeletionTime, int numC2InitialCells,
-                                                       int updateTS, int updateTTL, int updateLDT,
-                                                       DeletionTime updateComplexDeletionTime, Integer numC2UpdateCells)
-    {
-        final ByteBuffer initialValueBB = ByteBufferUtil.bytes(111);
-        final ByteBuffer updateValueBB = ByteBufferUtil.bytes(222);
+            initialRowBuilder.addCell(makeCell(regular, initialTS, initialTTL, initialLDT, initialValueBB, null));
+            if (initialCDT != DeletionTime.LIVE)
+                initialRowBuilder.addComplexDeletion(complex, initialCDT);
+            int cellPath = 1000;
+            for (int i = 0; i < numC2InitialCells; i++)
+                initialRowBuilder.addCell(makeCell(complex, initialTS, initialTTL, initialLDT,
+                                                   ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                   CellPath.create(ByteBufferUtil.bytes(cellPath--))));
+            Row initialRow = initialRowBuilder.build();
 
-        // Create the initial row to populate the partition with
-        Row.Builder initialRowBuilder = BTreeRow.unsortedBuilder();
-        initialRowBuilder.newRow(regular.isStatic() ? Clustering.STATIC_CLUSTERING : Clustering.EMPTY);
+            // Create the update row to modify the partition with
+            Row.Builder updateRowBuilder = BTreeRow.unsortedBuilder();
+            updateRowBuilder.newRow(regular.isStatic() ? Clustering.STATIC_CLUSTERING : Clustering.EMPTY);
 
-        initialRowBuilder.addCell(makeCell(regular, initialTS, initialTTL, initialLDT, initialValueBB, null));
-        if (initialComplexDeletionTime != DeletionTime.LIVE)
-            initialRowBuilder.addComplexDeletion(complex, initialComplexDeletionTime);
-        int cellPath = 1000;
-        for (int i = 0; i < numC2InitialCells; i++)
-            initialRowBuilder.addCell(makeCell(complex, initialTS, initialTTL, initialLDT,
-                                               ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                               CellPath.create(ByteBufferUtil.bytes(cellPath--))));
-        Row initialRow = initialRowBuilder.build();
+            updateRowBuilder.addCell(makeCell(regular, updateTS, updateTTL, updateLDT, updateValueBB, null));
+            if (updateCDT != DeletionTime.LIVE)
+                updateRowBuilder.addComplexDeletion(complex, updateCDT);
 
-        // Create the update row to modify the partition with
-        Row.Builder updateRowBuilder = BTreeRow.unsortedBuilder();
-        updateRowBuilder.newRow(regular.isStatic() ? Clustering.STATIC_CLUSTERING : Clustering.EMPTY);
+            // Make multiple update cells to make any issues more pronounced
+            cellPath = 1000;
+            for (int i = 0; i < numC2UpdateCells; i++)
+                updateRowBuilder.addCell(makeCell(complex, updateTS, updateTTL, updateLDT,
+                                                  ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                                                  CellPath.create(ByteBufferUtil.bytes(cellPath++))));
+            Row updateRow = updateRowBuilder.build();
+            return Pair.create(initialRow, updateRow);
+        }
 
-        updateRowBuilder.addCell(makeCell(regular, updateTS, updateTTL, updateLDT, updateValueBB, null));
-        if (updateComplexDeletionTime != DeletionTime.LIVE)
-            updateRowBuilder.addComplexDeletion(complex, updateComplexDeletionTime);
-
-        // Make multiple update cells to make any issues more pronounced
-        cellPath = 1000;
-        for (int i = 0; i < numC2UpdateCells; i++)
-            updateRowBuilder.addCell(makeCell(complex, updateTS, updateTTL, updateLDT,
-                                              ByteBufferUtil.EMPTY_BYTE_BUFFER,
-                                              CellPath.create(ByteBufferUtil.bytes(cellPath++))));
-        Row updateRow = updateRowBuilder.build();
-        return Pair.create(initialRow, updateRow);
+        Cell<?> makeCell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value, CellPath path)
+        {
+            if (localDeletionTime != Cell.NO_DELETION_TIME) // never a ttl for a tombstone
+            {
+                ttl = Cell.NO_TTL;
+                value = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+            }
+            return new BufferCell(column, timestamp, ttl, localDeletionTime, value, path);
+        }
     }
 
     void validateUpdates(TableMetadata metadata, DecoratedKey partitionKey, List<PartitionUpdate> updates)
