@@ -22,6 +22,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.Cluster;
@@ -29,11 +30,13 @@ import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.SyntaxError;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.serializers.BooleanSerializer;
 import org.apache.cassandra.serializers.Int32Serializer;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -48,6 +51,13 @@ public class PreparedStatementsTest extends CQLTester
     private static final String createKsStatement = "CREATE KEYSPACE " + KEYSPACE +
                                                     " WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };";
     private static final String dropKsStatement = "DROP KEYSPACE IF EXISTS " + KEYSPACE;
+
+    @BeforeClass
+    public static void setUpClass()
+    {
+        DatabaseDescriptor.setAccordTransactionsEnabled(true);
+        CQLTester.setUpClass();
+    }
 
     @Before
     public void setup()
@@ -67,24 +77,30 @@ public class PreparedStatementsTest extends CQLTester
 
         session.execute(createTableStatement);
 
-        PreparedStatement prepared = session.prepare("INSERT INTO " + KEYSPACE + ".qp_cleanup (id, cid, val) VALUES (?, ?, ?)");
-        PreparedStatement preparedBatch = session.prepare("BEGIN BATCH " +
-                                                          "INSERT INTO " + KEYSPACE + ".qp_cleanup (id, cid, val) VALUES (?, ?, ?);" +
-                                                          "APPLY BATCH;");
+        String insert = "INSERT INTO " + KEYSPACE + ".qp_cleanup (id, cid, val) VALUES (?, ?, ?)";
+        PreparedStatement prepared = session.prepare(insert);
+        PreparedStatement preparedBatch = session.prepare(batch(insert));
+        PreparedStatement preparedTxn = session.prepare(txn(insert));
+
         session.execute(dropTableStatement);
         session.execute(createTableStatement);
+        updateTxnState();
+
         session.execute(prepared.bind(1, 1, "value"));
         session.execute(preparedBatch.bind(2, 2, "value2"));
+        session.execute(preparedTxn.bind(3, 3, "value3"));
 
         session.execute(dropKsStatement);
         session.execute(createKsStatement);
         session.execute(createTableStatement);
+        updateTxnState();
 
         // The driver will get a response about the prepared statement being invalid, causing it to transparently
         // re-prepare the statement.  We'll rely on the fact that we get no errors while executing this to show that
         // the statements have been invalidated.
         session.execute(prepared.bind(1, 1, "value"));
         session.execute(preparedBatch.bind(2, 2, "value2"));
+        session.execute(preparedTxn.bind(3, 3, "value3"));
         session.execute(dropKsStatement);
     }
 
@@ -110,7 +126,9 @@ public class PreparedStatementsTest extends CQLTester
         session.execute(createKsStatement);
         session.execute(createTableStatement);
 
-        PreparedStatement preparedSelect = session.prepare("SELECT * FROM " + KEYSPACE + ".qp_cleanup");
+        String select = "SELECT * FROM " + KEYSPACE + ".qp_cleanup";
+        PreparedStatement preparedSelect = session.prepare(select);
+        PreparedStatement preparedSelectTxn = session.prepare(txn(select + " WHERE a = ?"));
         session.execute("INSERT INTO " + KEYSPACE + ".qp_cleanup (a, b, c) VALUES (?, ?, ?);",
                         1, 2, 3);
         session.execute("INSERT INTO " + KEYSPACE + ".qp_cleanup (a, b, c) VALUES (?, ?, ?);",
@@ -118,6 +136,10 @@ public class PreparedStatementsTest extends CQLTester
 
         assertRowsNet(session.execute(preparedSelect.bind()),
                       row(1, 2, 3),
+                      row(2, 3, 4));
+        assertRowsNet(session.execute(preparedSelectTxn.bind(1)),
+                      row(1, 2, 3));
+        assertRowsNet(session.execute(preparedSelectTxn.bind(2)),
                       row(2, 3, 4));
 
         session.execute(alterTableStatement);
@@ -134,15 +156,33 @@ public class PreparedStatementsTest extends CQLTester
                           row(2, 3, 4, null),
                           row(3, 4, 5, 6));
             assertEquals(rs.getColumnDefinitions().size(), 4);
+
+            for (int i = 1; i <= 3; i++)
+            {
+                rs = session.execute(preparedSelectTxn.bind(i));
+                assertRowsNet(version,
+                              rs,
+                              row(i, i + 1, i + 2, i == 3 ? 6 : null));
+                assertEquals(rs.getColumnDefinitions().size(), 4);
+            }
         }
         else
         {
             rs = session.execute(preparedSelect.bind());
-            assertRowsNet(rs,
+            assertRowsNet(version,
+                          rs,
                           row(1, 2, 3),
                           row(2, 3, 4),
                           row(3, 4, 5));
-            assertEquals(rs.getColumnDefinitions().size(), 3);
+            assertEquals(3, rs.getColumnDefinitions().size());
+            for (int i = 1; i <= 3; i++)
+            {
+                rs = session.execute(preparedSelectTxn.bind(i));
+                assertRowsNet(version,
+                              rs,
+                              row(i, i + 1, i + 2));
+                assertEquals(3, rs.getColumnDefinitions().size());
+            }
         }
 
         session.execute(dropKsStatement);
@@ -580,5 +620,39 @@ public class PreparedStatementsTest extends CQLTester
         assertRowsNet(rs,
                       row(false, 1, 10, 20, null));
         assertEquals(rs.getColumnDefinitions().size(), 5);
+    }
+
+    private static String txn(String... stmts)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("BEGIN TRANSACTION\n");
+        for (String stmt : stmts)
+        {
+            sb.append("  ").append(stmt);
+            if (!stmt.endsWith(";")) sb.append(';');
+            sb.append('\n');
+        }
+        sb.append("COMMIT TRANSACTION");
+        return sb.toString();
+    }
+
+    private static String batch(String... stmts)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("BEGIN BATCH\n");
+        for (String stmt : stmts)
+        {
+            sb.append("  ").append(stmt);
+            if (!stmt.endsWith(";")) sb.append(';');
+            sb.append('\n');
+        }
+        sb.append("APPLY BATCH");
+        return sb.toString();
+    }
+
+    private static void updateTxnState()
+    {
+        AccordService.instance().createEpochFromConfigUnsafe();
+        AccordService.instance().setCacheSize(0);
     }
 }

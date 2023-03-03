@@ -999,6 +999,16 @@ public class QueryProcessor implements QueryHandler
                 }
                 return false;
             }
+            else if (statement instanceof TransactionStatement)
+            {
+                TransactionStatement transactionStatement = (TransactionStatement) statement;
+                for (CQLStatement stmt : transactionStatement.statements())
+                {
+                    if (shouldInvalidate(ksName, cfName, stmt))
+                        return true;
+                }
+                return false;
+            }
             else
             {
                 return false;

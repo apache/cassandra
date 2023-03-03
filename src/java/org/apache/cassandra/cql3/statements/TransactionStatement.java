@@ -30,10 +30,12 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -115,8 +117,6 @@ public class TransactionStatement implements CQLStatement
 
     private final VariableSpecifications bindVariables;
 
-    private final Map<TxnDataName, NamedSelect> autoReads = new HashMap<>();
-
     public TransactionStatement(List<NamedSelect> assignments,
                                 NamedSelect returningSelect,
                                 List<RowDataReference> returningReferences,
@@ -168,6 +168,17 @@ public class TransactionStatement implements CQLStatement
             statement.validate(state);
     }
 
+    public Iterable<CQLStatement> statements()
+    {
+        return () -> {
+            Stream<CQLStatement> stream = assignments.stream().map(n -> n.select);
+            if (returningSelect != null)
+                stream = Stream.concat(stream, Stream.of(returningSelect.select));
+            stream = Stream.concat(stream, updates.stream());
+            return stream.iterator();
+        };
+    }
+
     TxnNamedRead createNamedRead(NamedSelect namedSelect, QueryOptions options, ClientState state)
     {
         SelectStatement select = namedSelect.select;
@@ -203,7 +214,7 @@ public class TransactionStatement implements CQLStatement
         return list;
     }
 
-    private List<TxnNamedRead> createNamedReads(QueryOptions options, ClientState state, Consumer<Key> keyConsumer)
+    private List<TxnNamedRead> createNamedReads(QueryOptions options, ClientState state, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
     {
         List<TxnNamedRead> reads = new ArrayList<>(assignments.size() + 1);
 
@@ -245,7 +256,7 @@ public class TransactionStatement implements CQLStatement
         return new TxnCondition.BooleanGroup(TxnCondition.Kind.AND, result);
     }
 
-    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Consumer<Key> keyConsumer)
+    List<TxnWrite.Fragment> createWriteFragments(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
     {
         List<TxnWrite.Fragment> fragments = new ArrayList<>(updates.size());
         int idx = 0;
@@ -268,9 +279,9 @@ public class TransactionStatement implements CQLStatement
         return fragments;
     }
 
-    TxnUpdate createUpdate(ClientState state, QueryOptions options, Consumer<Key> keyConsumer)
+    TxnUpdate createUpdate(ClientState state, QueryOptions options, Map<TxnDataName, NamedSelect> autoReads, Consumer<Key> keyConsumer)
     {
-        return new TxnUpdate(createWriteFragments(state, options, keyConsumer), createCondition(options));
+        return new TxnUpdate(createWriteFragments(state, options, autoReads, keyConsumer), createCondition(options));
     }
 
     Keys toKeys(SortedSet<Key> keySet)
@@ -287,15 +298,16 @@ public class TransactionStatement implements CQLStatement
         {
             // TODO: Test case around this...
             Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
-            List<TxnNamedRead> reads = createNamedReads(options, state, keySet::add);
+            List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
             TxnRead read = new TxnRead(reads, txnKeys);
             return new Txn.InMemory(txnKeys, read, TxnQuery.ALL);
         }
         else
         {
-            TxnUpdate update = createUpdate(state, options, keySet::add);
-            List<TxnNamedRead> reads = createNamedReads(options, state, keySet::add);
+            Map<TxnDataName, NamedSelect> autoReads = new HashMap<>();
+            TxnUpdate update = createUpdate(state, options, autoReads, keySet::add);
+            List<TxnNamedRead> reads = createNamedReads(options, state, autoReads, keySet::add);
             Keys txnKeys = toKeys(keySet);
             TxnRead read = new TxnRead(reads, txnKeys);
             return new Txn.InMemory(txnKeys, read, TxnQuery.ALL, update);
@@ -414,7 +426,7 @@ public class TransactionStatement implements CQLStatement
         return new AuditLogContext(AuditLogEntryType.TRANSACTION);
     }
 
-    public static class Parsed extends QualifiedStatement
+    public static class Parsed extends QualifiedStatement.Group
     {
         private final List<SelectStatement.RawStatement> assignments;
         private final SelectStatement.RawStatement select;
@@ -430,7 +442,6 @@ public class TransactionStatement implements CQLStatement
                       List<ConditionStatement.Raw> conditions,
                       List<RowDataReference.Raw> dataReferences)
         {
-            super(null);
             this.assignments = assignments;
             this.select = select;
             this.returning = returning;
@@ -440,12 +451,12 @@ public class TransactionStatement implements CQLStatement
         }
 
         @Override
-        public void setKeyspace(ClientState state)
+        protected Iterable<? extends QualifiedStatement> group()
         {
-            assignments.forEach(select -> select.setKeyspace(state));
+            Iterable<QualifiedStatement> group = Iterables.concat(assignments, updates);
             if (select != null)
-                select.setKeyspace(state);
-            updates.forEach(update -> update.setKeyspace(state));
+                group = Iterables.concat(group, Collections.singleton(select));
+            return group;
         }
 
         @Override
