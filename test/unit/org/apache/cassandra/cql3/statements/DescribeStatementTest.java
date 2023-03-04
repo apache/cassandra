@@ -39,12 +39,14 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.schema.SchemaConstants.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -755,6 +757,47 @@ public class DescribeStatementTest extends CQLTester
 
         assertRowsNet(executeDescribeNet("DESCRIBE INDEX " + KEYSPACE_PER_TEST + "." + indexWithOptions),
                       row(KEYSPACE_PER_TEST, "index", indexWithOptions, expectedIndexStmtWithOptions));
+    }
+
+    @Test
+    public void testDescribeTableWithColumnMasks() throws Throwable
+    {
+        requireNetwork();
+
+        String table = createTable(KEYSPACE_PER_TEST,
+                                   "CREATE TABLE %s (" +
+                                   "  pk1 text, " +
+                                   "  pk2 int MASKED WITH DEFAULT, " +
+                                   "  ck1 int, " +
+                                   "  ck2 int MASKED WITH mask_default()," +
+                                   "  s1 decimal static, " +
+                                   "  s2 decimal static MASKED WITH mask_null(), " +
+                                   "  v1 text, " +
+                                   "  v2 text MASKED WITH mask_inner(1, null), " +
+                                   "PRIMARY KEY ((pk1, pk2), ck1, ck2 ))");
+
+        TableMetadata tableMetadata = Schema.instance.getTableMetadata(KEYSPACE_PER_TEST, table);
+        assertNotNull(tableMetadata);
+
+        String tableCreateStatement = "CREATE TABLE " + KEYSPACE_PER_TEST + "." + table + " (\n" +
+                                      "    pk1 text,\n" +
+                                      "    pk2 int MASKED WITH system.mask_default(),\n" +
+                                      "    ck1 int,\n" +
+                                      "    ck2 int MASKED WITH system.mask_default(),\n" +
+                                      "    s1 decimal static,\n" +
+                                      "    s2 decimal static MASKED WITH system.mask_null(),\n" +
+                                      "    v1 text,\n" +
+                                      "    v2 text MASKED WITH system.mask_inner(1, null),\n" +
+                                      "    PRIMARY KEY ((pk1, pk2), ck1, ck2)\n" +
+                                      ") WITH ID = " + tableMetadata.id + "\n" +
+                                      "    AND CLUSTERING ORDER BY (ck1 ASC, ck2 ASC)\n" +
+                                      "    AND " + tableParametersCql();
+
+        assertRowsNet(executeDescribeNet("DESCRIBE TABLE " + KEYSPACE_PER_TEST + "." + table + " WITH INTERNALS"),
+                      row(KEYSPACE_PER_TEST,
+                          "table",
+                          table,
+                          tableCreateStatement));
     }
 
     private static String allTypesTable()

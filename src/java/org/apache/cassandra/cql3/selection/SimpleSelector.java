@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -45,7 +46,7 @@ public final class SimpleSelector extends Selector
             ByteBuffer columnName = ByteBufferUtil.readWithVIntLength(in);
             ColumnMetadata column = metadata.getColumn(columnName);
             int idx = in.readInt();
-            return new SimpleSelector(column, idx);
+            return new SimpleSelector(column, idx, false);
         }
     };
 
@@ -55,13 +56,14 @@ public final class SimpleSelector extends Selector
     public static final class SimpleSelectorFactory extends Factory
     {
         private final int idx;
-
         private final ColumnMetadata column;
+        private final boolean unmask;
 
-        private SimpleSelectorFactory(int idx, ColumnMetadata def)
+        private SimpleSelectorFactory(int idx, ColumnMetadata def, boolean unmask)
         {
             this.idx = idx;
             this.column = def;
+            this.unmask = unmask;
         }
 
         @Override
@@ -84,7 +86,7 @@ public final class SimpleSelector extends Selector
         @Override
         public Selector newInstance(QueryOptions options)
         {
-            return new SimpleSelector(column, idx);
+            return new SimpleSelector(column, idx, unmask);
         }
 
         @Override
@@ -117,14 +119,15 @@ public final class SimpleSelector extends Selector
 
     public final ColumnMetadata column;
     private final int idx;
+    private final boolean unmask;
     private ByteBuffer current;
     private ColumnTimestamps writetimes;
     private ColumnTimestamps ttls;
     private boolean isSet;
 
-    public static Factory newFactory(final ColumnMetadata def, final int idx)
+    public static Factory newFactory(final ColumnMetadata def, final int idx, boolean unmask)
     {
-        return new SimpleSelectorFactory(idx, def);
+        return new SimpleSelectorFactory(idx, def, unmask);
     }
 
     @Override
@@ -148,6 +151,10 @@ public final class SimpleSelector extends Selector
     @Override
     public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
+        ColumnMask mask = unmask ? null : column.getMask();
+        if (mask != null)
+            return mask.mask(protocolVersion, current);
+
         return current;
     }
 
@@ -184,11 +191,12 @@ public final class SimpleSelector extends Selector
         return column.name.toString();
     }
 
-    private SimpleSelector(ColumnMetadata column, int idx)
+    private SimpleSelector(ColumnMetadata column, int idx, boolean unmask)
     {
         super(Kind.SIMPLE_SELECTOR);
         this.column = column;
         this.idx = idx;
+        this.unmask = unmask;
     }
 
     @Override
@@ -228,6 +236,6 @@ public final class SimpleSelector extends Selector
     protected void serialize(DataOutputPlus out, int version) throws IOException
     {
         ByteBufferUtil.writeWithVIntLength(column.name.bytes, out);
-        out.writeInt(idx);;
+        out.writeInt(idx);
     }
 }

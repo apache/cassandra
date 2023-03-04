@@ -35,6 +35,8 @@ import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.cql3.functions.masking.ColumnMask;
+import org.apache.cassandra.cql3.functions.masking.MaskingFunction;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -138,6 +140,20 @@ public final class SchemaKeyspace
               + "position int,"
               + "type text,"
               + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
+
+    private static final TableMetadata ColumnMasks =
+    parse(COLUMN_MASKS,
+          "column dynamic data masks",
+          "CREATE TABLE %s ("
+          + "keyspace_name text,"
+          + "table_name text,"
+          + "column_name text,"
+          + "function_keyspace text,"
+          + "function_name text,"
+          + "function_argument_types frozen<list<text>>,"
+          + "function_argument_values frozen<list<text>>,"
+          + "function_argument_nulls frozen<list<boolean>>," // arguments that are null
+          + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
 
     private static final TableMetadata DroppedColumns =
         parse(DROPPED_COLUMNS,
@@ -245,7 +261,7 @@ public final class SchemaKeyspace
               + "PRIMARY KEY ((keyspace_name), aggregate_name, argument_types))");
 
     private static final List<TableMetadata> ALL_TABLE_METADATA =
-        ImmutableList.of(Keyspaces, Tables, Columns, Triggers, DroppedColumns, Views, Types, Functions, Aggregates, Indexes);
+        ImmutableList.of(Keyspaces, Tables, Columns, ColumnMasks, Triggers, DroppedColumns, Views, Types, Functions, Aggregates, Indexes);
 
     private static TableMetadata parse(String name, String description, String cql)
     {
@@ -688,7 +704,7 @@ public final class SchemaKeyspace
     {
         AbstractType<?> type = column.type;
         if (type instanceof ReversedType)
-            type = ((ReversedType) type).baseType;
+            type = ((ReversedType<?>) type).baseType;
 
         builder.update(Columns)
                .row(table.name, column.name.toString())
@@ -697,6 +713,50 @@ public final class SchemaKeyspace
                .add("position", column.position())
                .add("clustering_order", column.clusteringOrder().toString().toLowerCase())
                .add("type", type.asCQL3Type().toString());
+
+        ColumnMask mask = column.getMask();
+        if (SchemaConstants.isReplicatedSystemKeyspace(table.keyspace))
+        {
+            // The propagation of system distributed keyspaces at startup can be problematic for old nodes without DDM,
+            // since those won't know what to do with the mask mutations. Thus, we don't support DDM on those keyspaces.
+            assert mask == null : "Dynamic data masking shouldn't be used on system distributed keyspaces";
+        }
+        else
+        {
+            Row.SimpleBuilder maskBuilder = builder.update(ColumnMasks).row(table.name, column.name.toString());
+
+            if (mask == null)
+            {
+                maskBuilder.delete();
+            }
+            else
+            {
+                FunctionName maskFunctionName = mask.function.name();
+
+                // Some arguments of the masking function can be null, but the CQL's list type that stores them doesn't
+                // accept nulls, so we use a parallel list of booleans to store what arguments are null.
+                int numArgs = mask.partialArgumentValues.size();
+                List<String> types = new ArrayList<>(numArgs);
+                List<String> values = new ArrayList<>(numArgs);
+                List<Boolean> nulls = new ArrayList<>(numArgs);
+                for (int i = 0; i < numArgs; i++)
+                {
+                    AbstractType<?> argType = mask.partialArgumentTypes().get(i);
+                    types.add(argType.asCQL3Type().toString());
+
+                    ByteBuffer argValue = mask.partialArgumentValues.get(i);
+                    boolean isNull = argValue == null;
+                    nulls.add(isNull);
+                    values.add(isNull ? "" : argType.getString(argValue));
+                }
+
+                maskBuilder.add("function_keyspace", maskFunctionName.keyspace)
+                           .add("function_name", maskFunctionName.name)
+                           .add("function_argument_types", types)
+                           .add("function_argument_values", values)
+                           .add("function_argument_nulls", nulls);
+            }
+        }
     }
 
     private static void dropColumnFromSchemaMutation(TableMetadata table, ColumnMetadata column, Mutation.SimpleBuilder builder)
@@ -1019,7 +1079,7 @@ public final class SchemaKeyspace
     }
 
     @VisibleForTesting
-    static ColumnMetadata createColumnFromRow(UntypedResultSet.Row row, Types types)
+    public static ColumnMetadata createColumnFromRow(UntypedResultSet.Row row, Types types)
     {
         String keyspace = row.getString("keyspace_name");
         String table = row.getString("table_name");
@@ -1035,7 +1095,48 @@ public final class SchemaKeyspace
 
         ColumnIdentifier name = new ColumnIdentifier(row.getBytes("column_name_bytes"), row.getString("column_name"));
 
-        return new ColumnMetadata(keyspace, table, name, type, position, kind);
+        ColumnMask mask = null;
+        String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ? AND column_name = ?",
+                              SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMN_MASKS);
+        UntypedResultSet columnMasks = query(query, keyspace, table, name.toString());
+        if (!columnMasks.isEmpty())
+        {
+            UntypedResultSet.Row maskRow = columnMasks.one();
+            FunctionName functionName = new FunctionName(maskRow.getString("function_keyspace"), maskRow.getString("function_name"));
+
+            List<String> partialArgumentTypes = maskRow.getFrozenList("function_argument_types", UTF8Type.instance);
+            List<AbstractType<?>> argumentTypes = new ArrayList<>(1 + partialArgumentTypes.size());
+            argumentTypes.add(type);
+            for (String argumentType : partialArgumentTypes)
+            {
+                argumentTypes.add(CQLTypeParser.parse(keyspace, argumentType, types));
+            }
+
+            Function function = FunctionResolver.get(keyspace, functionName, argumentTypes, null, null, null);
+            if (!(function instanceof MaskingFunction))
+            {
+                throw new AssertionError(format("Column %s.%s.%s is unexpectedly masked with function %s " +
+                                                "which is not a known native masking function",
+                                                keyspace, table, name, function));
+            }
+
+            // Some arguments of the masking function can be null, but the CQL's list type that stores them doesn't
+            // accept nulls, so we use a parallel list of booleans to store what arguments are null.
+            List<Boolean> nulls = maskRow.getFrozenList("function_argument_nulls", BooleanType.instance);
+            List<String> valuesAsCQL = maskRow.getFrozenList("function_argument_values", UTF8Type.instance);
+            List<ByteBuffer> values = new ArrayList<>(valuesAsCQL.size());
+            for (int i = 0; i < valuesAsCQL.size(); i++)
+            {
+                if (nulls.get(i))
+                    values.add(null);
+                else
+                    values.add(argumentTypes.get(i + 1).fromString(valuesAsCQL.get(i)));
+            }
+
+            mask = new ColumnMask((MaskingFunction) function, values);
+        }
+
+        return new ColumnMetadata(keyspace, table, name, type, position, kind, mask);
     }
 
     private static Map<ByteBuffer, DroppedColumn> fetchDroppedColumns(String keyspace, String table)
@@ -1067,7 +1168,7 @@ public final class SchemaKeyspace
         assert kind == ColumnMetadata.Kind.REGULAR || kind == ColumnMetadata.Kind.STATIC
             : "Unexpected dropped column kind: " + kind;
 
-        ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, ColumnMetadata.NO_POSITION, kind);
+        ColumnMetadata column = new ColumnMetadata(keyspace, table, ColumnIdentifier.getInterned(name, true), type, ColumnMetadata.NO_POSITION, kind, null);
         long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getLong("dropped_time"));
         return new DroppedColumn(column, droppedTime);
     }

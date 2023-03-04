@@ -3611,6 +3611,7 @@ or not.
 |`LIST` |no
 |`LOGIN` |no
 |`MAP` |no
+|`MASKED` |no
 |`MATERIALIZED` |yes
 |`MBEAN` |yes
 |`MBEANS` |yes
