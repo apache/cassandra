@@ -19,10 +19,13 @@
 package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
-import com.google.common.collect.*;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -30,13 +33,15 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.quicktheories.core.Gen;
-import org.quicktheories.generators.Generate;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.quicktheories.QuickTheory.qt;
-import static org.quicktheories.generators.SourceDSL.integers;
 
 public class PendingRangesTest
 {
@@ -64,8 +69,15 @@ public class PendingRangesTest
     public static void beforeClass() throws Throwable
     {
         DatabaseDescriptor.daemonInitialization();
-        IEndpointSnitch snitch = snitch();
-        DatabaseDescriptor.setEndpointSnitch(snitch);
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+    }
+
+    @Before
+    public void setup()
+    {
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(ClusterMetadataTestHelper.syncInstanceForTest());
+        ClusterMetadataService.instance().log().bootstrap(FBUtilities.getBroadcastAddressAndPort());
     }
 
     @Test
@@ -133,37 +145,37 @@ public class PendingRangesTest
          * so node4A incorrectly becomes a pending endpoint for an additional sub-range: (50, 0).
          *
          */
-        TokenMetadata tm = new TokenMetadata();
-        AbstractReplicationStrategy replicationStrategy = simpleStrategy(tm, 3);
 
         // setup initial ring
-        addNode(tm, PEER1, TOKEN1);
-        addNode(tm, PEER2, TOKEN2);
-        addNode(tm, PEER3, TOKEN3);
-        addNode(tm, PEER4, TOKEN4);
-        addNode(tm, PEER5, TOKEN5);
-        addNode(tm, PEER6, TOKEN6);
+        addNode(PEER1, TOKEN1);
+        addNode(PEER2, TOKEN2);
+        addNode(PEER3, TOKEN3);
+        addNode(PEER4, TOKEN4);
+        addNode(PEER5, TOKEN5);
+        addNode(PEER6, TOKEN6);
+
+        AbstractReplicationStrategy replicationStrategy = simpleStrategy(3);
+        ClusterMetadataTestHelper.createKeyspace(KEYSPACE, KeyspaceParams.simple(3));
+        ClusterMetadata metadata = ClusterMetadata.current();
+        KeyspaceMetadata ks = metadata.schema.getKeyspaceMetadata(KEYSPACE);
 
         // no pending ranges before any replacements
-        tm.calculatePendingRanges(replicationStrategy, KEYSPACE);
-        assertEquals(0, Iterators.size(tm.getPendingRanges(KEYSPACE).iterator()));
+        assertEquals(0, metadata.pendingRanges(ks).size());
 
         // Ranges initially owned by PEER1 and PEER4
-        RangesAtEndpoint peer1Ranges = replicationStrategy.getAddressReplicas(tm).get(PEER1);
-        RangesAtEndpoint peer4Ranges = replicationStrategy.getAddressReplicas(tm).get(PEER4);
+        RangesAtEndpoint peer1Ranges = replicationStrategy.getAddressReplicas(metadata).get(PEER1).unwrap();
+        RangesAtEndpoint peer4Ranges = replicationStrategy.getAddressReplicas(metadata).get(PEER4).unwrap();
         // Replace PEER1 with PEER1A
-        replace(PEER1, PEER1A, TOKEN1, tm, replicationStrategy);
+        replace(PEER1, PEER1A, TOKEN1);
         // The only pending ranges should be the ones previously belonging to PEER1
         // and these should have a single pending endpoint, PEER1A
         RangesByEndpoint.Builder b1 = new RangesByEndpoint.Builder();
         peer1Ranges.iterator().forEachRemaining(replica -> b1.put(PEER1A, new Replica(PEER1A, replica.range(), replica.isFull())));
         RangesByEndpoint expected = b1.build();
-        assertPendingRanges(tm.getPendingRanges(KEYSPACE), expected);
-        // Also verify the Multimap variant of getPendingRanges
-        assertPendingRanges(tm.getPendingRangesMM(KEYSPACE), expected);
+        assertPendingRanges(ClusterMetadata.current().pendingRanges(ks), expected);
 
         // Replace PEER4 with PEER4A
-        replace(PEER4, PEER4A, TOKEN4, tm, replicationStrategy);
+        replace(PEER4, PEER4A, TOKEN4);
         // Pending ranges should now include the ranges originally belonging
         // to PEER1 (now pending for PEER1A) and the ranges originally belonging to PEER4
         // (now pending for PEER4A).
@@ -171,16 +183,16 @@ public class PendingRangesTest
         peer1Ranges.iterator().forEachRemaining(replica -> b2.put(PEER1A, new Replica(PEER1A, replica.range(), replica.isFull())));
         peer4Ranges.iterator().forEachRemaining(replica -> b2.put(PEER4A, new Replica(PEER4A, replica.range(), replica.isFull())));
         expected = b2.build();
-        assertPendingRanges(tm.getPendingRanges(KEYSPACE), expected);
-        assertPendingRanges(tm.getPendingRangesMM(KEYSPACE), expected);
+        assertPendingRanges(ClusterMetadata.current().pendingRanges(ks), expected);
     }
 
     @Test
     public void testConcurrentAdjacentLeaveAndMove()
     {
-        TokenMetadata tm = new TokenMetadata();
-        AbstractReplicationStrategy strategy = simpleStrategy(tm, 3);
-
+        // TODO This fails with TCM as the constraints regarding concurrent overlapping range movements and
+        //      replication factors have moved into the operations themselves. Previously, these were enforced
+        //      at the StorageService level.
+        ClusterMetadataTestHelper.createKeyspace(KEYSPACE, KeyspaceParams.simple(3));
         Token newToken = token(0);
         Token token1 = token(-9);
         Token token2 = token(-5);
@@ -195,32 +207,33 @@ public class PendingRangesTest
         InetAddressAndPort node5 = peer(5);
 
         // setup initial ring
-        addNode(tm, node1, token1);
-        addNode(tm, node2, token2);
-        addNode(tm, node3, token3);
-        addNode(tm, node4, token4);
-        addNode(tm, node5, token5);
+        addNode(node1, token1);
+        addNode(node2, token2);
+        addNode(node3, token3);
+        addNode(node4, token4);
+        addNode(node5, token5);
 
-        tm.addLeavingEndpoint(node5);
-        tm.addMovingEndpoint(newToken, node3);
-
-        tm.calculatePendingRanges(strategy, KEYSPACE);
+        leave(node5);
+        move(node3, newToken);
+        Map<InetAddressAndPort, RangesAtEndpoint> pendingByEndpoint = getPendingRangesByEndpoint();
         assertRangesAtEndpoint(RangesAtEndpoint.of(new Replica(node1, new Range<>(token2, token3), true)),
-                               tm.getPendingRanges(KEYSPACE, node1));
+                               pendingByEndpoint.get(node1));
         assertRangesAtEndpoint(RangesAtEndpoint.of(new Replica(node2, new Range<>(token3, token4), true)),
-                               tm.getPendingRanges(KEYSPACE, node2));
+                               pendingByEndpoint.get(node2));
         assertRangesAtEndpoint(RangesAtEndpoint.of(new Replica(node3, new Range<>(token3, newToken), true),
                                                    new Replica(node3, new Range<>(token4, token5), true)),
-                               tm.getPendingRanges(KEYSPACE, node3));
-        assertRangesAtEndpoint(RangesAtEndpoint.empty(node4), tm.getPendingRanges(KEYSPACE, node4));
-        assertRangesAtEndpoint(RangesAtEndpoint.empty(node5), tm.getPendingRanges(KEYSPACE, node5));
+                               pendingByEndpoint.get(node3));
+        assertRangesAtEndpoint(RangesAtEndpoint.empty(node4), pendingByEndpoint.get(node4));
+        assertRangesAtEndpoint(RangesAtEndpoint.empty(node5), pendingByEndpoint.get(node5));
     }
 
     @Test
     public void testConcurrentAdjacentLeavingNodes()
     {
-        TokenMetadata tm = new TokenMetadata();
-        AbstractReplicationStrategy strategy = simpleStrategy(tm, 2);
+        // TODO This fails with TCM as the constraints regarding concurrent overlapping range movements and
+        //      replication factors have moved into the operations themselves. Previously, these were enforced
+        //      at the StorageService level.
+        ClusterMetadataTestHelper.createKeyspace(KEYSPACE, KeyspaceParams.simple(2));
 
         Token token1 = token(-9);
         Token token2 = token(-4);
@@ -232,24 +245,26 @@ public class PendingRangesTest
         InetAddressAndPort node3 = peer(3);
         InetAddressAndPort node4 = peer(4);
 
-        addNode(tm, node1, token1);
-        addNode(tm, node2, token2);
-        addNode(tm, node3, token3);
-        addNode(tm, node4, token4);
+        addNode(node1, token1);
+        addNode(node2, token2);
+        addNode(node3, token3);
+        addNode(node4, token4);
 
-        tm.addLeavingEndpoint(node2);
-        tm.addLeavingEndpoint(node3);
-
-        tm.calculatePendingRanges(strategy, KEYSPACE);
+        leave(node2);
+        leave(node3);
+        Map<InetAddressAndPort, RangesAtEndpoint> pendingByEndpoint = getPendingRangesByEndpoint();
         assertRangesAtEndpoint(RangesAtEndpoint.of(new Replica(node1, new Range<>(token1, token3), true)),
-                               tm.getPendingRanges(KEYSPACE, node1));
-        assertRangesAtEndpoint(RangesAtEndpoint.empty(node2), tm.getPendingRanges(KEYSPACE, node2));
-        assertRangesAtEndpoint(RangesAtEndpoint.empty(node3), tm.getPendingRanges(KEYSPACE, node3));
+                               pendingByEndpoint.get(node1));
+        assertRangesAtEndpoint(RangesAtEndpoint.empty(node2), pendingByEndpoint.get(node2));
+        assertRangesAtEndpoint(RangesAtEndpoint.empty(node3), pendingByEndpoint.get(node3));
         assertRangesAtEndpoint(RangesAtEndpoint.of(new Replica(node4, new Range<>(token4, token1), true),
                                                    new Replica(node4, new Range<>(token1, token2), true)),
-                               tm.getPendingRanges(KEYSPACE, node4));
+                               pendingByEndpoint.get(node4));
     }
 
+    // TODO assess whether it's valuable to port these randomised tests to TCM given that we have a largely equivalent
+    //      test in MetadataChangeSimulationTest
+/*
     @Test
     public void testBootstrapLeaveAndMovePermutationsWithoutVnodes()
     {
@@ -356,7 +371,7 @@ public class PendingRangesTest
 
     private static class Cluster
     {
-        private final TokenMetadata tm;
+        private TokenMetadata tm;
         private final int tokensPerNode;
         private final AbstractReplicationStrategy strategy;
 
@@ -365,43 +380,57 @@ public class PendingRangesTest
 
         Cluster(int rf, int initialNodes, int tokensPerNode)
         {
-            this.tm = new TokenMetadata();
-            this.tokensPerNode = tokensPerNode;
-            this.strategy = simpleStrategy(tm, rf);
-
             this.nodes = new ArrayList<>(initialNodes);
-            for (int i = 0; i < initialNodes; i++)
-                addInitialNode();
+
+            this.tokensPerNode = tokensPerNode;
+            this.tm = buildTmd(initialNodes);
+
+            this.strategy = simpleStrategy(rf);
         }
 
-        private void addInitialNode()
+        private TokenMetadata buildTmd(int initialNodes)
         {
-            InetAddressAndPort node = peer(nodes.size() + 1);
-            tm.updateHostId(UUID.randomUUID(), node);
-            tm.updateNormalTokens(tokens(), node);
-            nodes.add(node);
+            TokenMetadata tmd = new DefaultTokenMetadata();
+            TokenMetadata.Transformer tmdTransformer = tmd.transformer();
+
+            for (int i = 0; i < initialNodes; i++)
+            {
+                int id = nodes.size() + 1;
+                InetAddressAndPort node = peer(id);
+                tmdTransformer = tmdTransformer.withHostId(new UUID(0, id), node)
+                                               .withNormalTokens(tokens(), node);
+                nodes.add(node);
+            }
+            return tmdTransformer.build();
         }
 
         private void bootstrapNode()
         {
-            InetAddressAndPort node = peer(nodes.size() + 1);
-            tm.updateHostId(UUID.randomUUID(), node);
-            tm.addBootstrapTokens(tokens(), node);
+            int id = nodes.size() + 1;
+            InetAddressAndPort node = peer(id);
+            TokenMetadata.Transformer transformer = tm.transformer()
+                                                      .withHostId(new UUID(0, id), node);
+            transformer.withBootstrapTokens(tokens(), node, null);
             nodes.add(node);
+            tm = transformer.build();
         }
 
         void calculateAndGetPendingRanges()
         {
             // test that it does not crash
-            tm.calculatePendingRanges(strategy, KEYSPACE);
             for (InetAddressAndPort node : nodes)
-                tm.getPendingRanges(KEYSPACE, node);
+            {
+                ((DefaultTokenMetadata) tm).getPendingRanges(KEYSPACE, strategy).atEndpoint(node);
+            }
         }
 
         Cluster decommissionNodes(int cnt)
         {
+            TokenMetadata.Transformer transformer = tm.transformer();
             for (int i = 0; i < cnt; i++)
-                tm.addLeavingEndpoint(nodes.get(random.nextInt(nodes.size())));
+                transformer = transformer.withLeavingEndpoint(nodes.get(random.nextInt(nodes.size())));
+
+            tm = transformer.build();
             return this;
         }
 
@@ -421,17 +450,22 @@ public class PendingRangesTest
             return this;
         }
 
-        private void moveNode()
+        synchronized private void moveNode()
         {
-            if (tm.getSizeOfMovingEndpoints() >= nodes.size())
+            if (tm.getMovingEndpoints().size() >= nodes.size())
                 throw new IllegalStateException("Number of movements should not exceed total nodes in the cluster");
 
             // we want to ensure that any given node is only marked as moving once.
+            // todo: made sure we don't try to move a leaving node - this seems to have been allowed before, investigate why
             List<InetAddressAndPort> moveCandidates = nodes.stream()
-                                                           .filter(node -> !tm.isMoving(node))
+                                                           .filter(node -> tm.getMovingEndpoints().stream().noneMatch(p -> p.right.equals(node)))
+                                                           .filter(node -> tm.getLeavingEndpoints().stream().noneMatch(node::equals))
                                                            .collect(Collectors.toList());
-            InetAddressAndPort node = moveCandidates.get(random.nextInt(moveCandidates.size()));
-            tm.addMovingEndpoint(token(random.nextLong()), node);
+            if (moveCandidates.size() > 0)
+            {
+                InetAddressAndPort node = moveCandidates.get(random.nextInt(moveCandidates.size()));
+                tm = tm.transformer().withMovingEndpoint(token(random.nextLong()), node).build();
+            }
         }
 
         private Collection<Token> tokens()
@@ -451,11 +485,29 @@ public class PendingRangesTest
                                  tm.toString());
         }
     }
+*/
 
-    private void assertPendingRanges(PendingRangeMaps pending, RangesByEndpoint expected)
+    private static Map<InetAddressAndPort, RangesAtEndpoint> getPendingRangesByEndpoint()
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        KeyspaceMetadata ks = metadata.schema.getKeyspaceMetadata(KEYSPACE);
+        Map<Range<Token>, EndpointsForRange> pending = metadata.pendingRanges(ks);
+        Map<InetAddressAndPort, RangesAtEndpoint.Builder> byEndpointBuilder = new HashMap<>();
+        pending.forEach((range, endpoints) -> {
+            endpoints.forEach(r -> {
+                RangesAtEndpoint.Builder builder = byEndpointBuilder.computeIfAbsent(r.endpoint(), RangesAtEndpoint::builder);
+                builder.add(r);
+            });
+        });
+        Map<InetAddressAndPort, RangesAtEndpoint> pendingByEndpoint = new HashMap<>();
+        byEndpointBuilder.forEach((endpoint, builder) -> pendingByEndpoint.put(endpoint, builder.build()));
+        return pendingByEndpoint;
+    }
+
+    private void assertPendingRanges(Map<Range<Token>, EndpointsForRange> pending, RangesByEndpoint expected)
     {
         RangesByEndpoint.Builder actual = new RangesByEndpoint.Builder();
-        pending.iterator().forEachRemaining(pendingRange -> {
+        pending.entrySet().forEach(pendingRange -> {
             Replica replica = Iterators.getOnlyElement(pendingRange.getValue().iterator());
             actual.put(replica.endpoint(), replica);
         });
@@ -471,8 +523,8 @@ public class PendingRangesTest
 
     private void assertRangesAtEndpoint(RangesAtEndpoint expected, RangesAtEndpoint actual)
     {
-        assertEquals(expected.size(), actual.size());
-        assertTrue(Iterables.all(expected, actual::contains));
+        assertEquals("expected = "+expected +", actual = " + actual, expected.size(), actual.size());
+        assertTrue("expected = "+expected +", actual = " + actual , Iterables.all(expected, actual::contains));
     }
 
     private void assertRangesByEndpoint(RangesByEndpoint expected, RangesByEndpoint actual)
@@ -486,20 +538,44 @@ public class PendingRangesTest
         }
     }
 
-    private void addNode(TokenMetadata tm, InetAddressAndPort replica, Token token)
+    private void addNode(InetAddressAndPort replica, Token token)
     {
-        tm.updateNormalTokens(Collections.singleton(token), replica);
+        registerNode(replica);
+        ClusterMetadataTestHelper.join(replica, Collections.singleton(token));
+    }
+
+    private void registerNode(InetAddressAndPort replica)
+    {
+        ClusterMetadataTestHelper.register(replica, DC1, RACK1);
     }
 
     private void replace(InetAddressAndPort toReplace,
                          InetAddressAndPort replacement,
-                         Token token,
-                         TokenMetadata tm,
-                         AbstractReplicationStrategy replicationStrategy)
+                         Token token)
     {
-        assertEquals(toReplace, tm.getEndpoint(token));
-        tm.addReplaceTokens(Collections.singleton(token), replacement, toReplace);
-        tm.calculatePendingRanges(replicationStrategy, KEYSPACE);
+        // begin replacement, but don't complete it
+        ClusterMetadata metadata = ClusterMetadata.current();
+        assertEquals(toReplace, metadata.directory.endpoint(metadata.tokenMap.owner(token)));
+        registerNode(replacement);
+        ClusterMetadataTestHelper.lazyReplace(toReplace, replacement)
+                                 .prepareReplace()
+                                 .startReplace();
+    }
+
+    private void leave(InetAddressAndPort leaving)
+    {
+        // begin a decommission, but don't complete it
+        ClusterMetadataTestHelper.lazyLeave(leaving, false)
+                                 .prepareLeave()
+                                 .startLeave();
+    }
+
+    private void move(InetAddressAndPort moving, Token newToken)
+    {
+        // begin a move, but don't complete it
+        ClusterMetadataTestHelper.lazyMove(moving, Collections.singleton(newToken))
+                                 .prepareMove()
+                                 .startMove();
     }
 
     private static Token token(long token)
@@ -535,11 +611,9 @@ public class PendingRangesTest
         };
     }
 
-    private static AbstractReplicationStrategy simpleStrategy(TokenMetadata tokenMetadata, int replicationFactor)
+    private static AbstractReplicationStrategy simpleStrategy(int replicationFactor)
     {
         return new SimpleStrategy(KEYSPACE,
-                                  tokenMetadata,
-                                  DatabaseDescriptor.getEndpointSnitch(),
                                   Collections.singletonMap("replication_factor", Integer.toString(replicationFactor)));
     }
 }

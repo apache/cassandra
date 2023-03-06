@@ -16,14 +16,9 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.simulator.cluster;
+package org.apache.cassandra.distributed.harry;
 
-import org.apache.cassandra.simulator.Actions.ReliableAction;
-
-public class OnClusterSyncPendingRanges extends ReliableAction
+public interface ClusterState
 {
-    public OnClusterSyncPendingRanges(ClusterActions actions)
-    {
-        super("Sync Pending Ranges Executor", actions::syncPendingRanges, true);
-    }
+    boolean isDown(int i);
 }

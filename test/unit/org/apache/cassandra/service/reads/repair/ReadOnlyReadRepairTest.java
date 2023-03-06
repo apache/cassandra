@@ -92,7 +92,7 @@ public class ReadOnlyReadRepairTest extends AbstractReadRepairTest
     public void repairPartitionFailure()
     {
         ReplicaPlan.SharedForRangeRead readPlan = ReplicaPlan.shared(replicaPlan(replicas, replicas));
-        ReplicaPlan.ForWrite writePlan = repairPlan(replicas, replicas);
+        ReplicaPlan.ForReadRepair writePlan = repairPlan(replicas, replicas);
         InstrumentedReadRepair repair = createInstrumentedReadRepair(readPlan);
         repair.repairPartition(null, Collections.emptyMap(), writePlan);
     }

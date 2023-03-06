@@ -35,7 +35,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -175,7 +174,8 @@ public class ShadowRoundTest
 
         try (WithProperties properties = new WithProperties().set(AUTO_BOOTSTRAP, false))
         {
-            StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
+            // TODO TCM will remove shadow round as it currently exists
+//            StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
         }
         catch (Exception e)
         {
@@ -211,7 +211,8 @@ public class ShadowRoundTest
 
         try (WithProperties properties = new WithProperties().set(AUTO_BOOTSTRAP, false))
         {
-            StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
+            // TODO TCM will remove shadow round as it currently exists
+//            StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
         }
     }
 

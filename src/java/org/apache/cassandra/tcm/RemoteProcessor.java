@@ -259,6 +259,11 @@ public final class RemoteProcessor implements ClusterMetadataService.Processor
                    '}';
         }
 
+        public InetAddressAndPort peekLast()
+        {
+            return candidates.peekLast();
+        }
+
         @Override
         protected InetAddressAndPort computeNext()
         {

@@ -23,7 +23,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 
-import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -38,10 +37,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractNetworkTopologySnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -84,8 +82,7 @@ public class CleanupTransientTest
         StorageService ss = StorageService.instance;
         final int RING_SIZE = 2;
 
-        TokenMetadata tmd = ss.getTokenMetadata();
-        tmd.clearUnsafe();
+//        tmd.clearUnsafe();
         ArrayList<Token> endpointTokens = new ArrayList<>();
         ArrayList<Token> keyTokens = new ArrayList<>();
         List<InetAddressAndPort> hosts = new ArrayList<>();
@@ -94,9 +91,7 @@ public class CleanupTransientTest
         endpointTokens.add(RandomPartitioner.MINIMUM);
         endpointTokens.add(RandomPartitioner.instance.midpoint(RandomPartitioner.MINIMUM, new RandomPartitioner.BigIntegerToken(RandomPartitioner.MAXIMUM)));
 
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
-        PendingRangeCalculatorService.instance.blockUntilFinished();
-
+        Util.createInitialRing(endpointTokens, keyTokens, hosts, hostIds, RING_SIZE);
 
         DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
         {

@@ -27,7 +27,11 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
@@ -41,9 +45,9 @@ import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue.VersionedValueFactory;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -61,7 +65,6 @@ public class RemoveTest
 
     static final IPartitioner partitioner = RandomPartitioner.instance;
     StorageService ss = StorageService.instance;
-    TokenMetadata tmd = ss.getTokenMetadata();
     static IPartitioner oldPartitioner;
     ArrayList<Token> endpointTokens = new ArrayList<Token>();
     ArrayList<Token> keyTokens = new ArrayList<Token>();
@@ -86,10 +89,10 @@ public class RemoveTest
     @Before
     public void setup() throws IOException, ConfigurationException
     {
-        tmd.clearUnsafe();
+//        tmd.clearUnsafe();
 
         // create a ring of 5 nodes
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
+        Util.createInitialRing(endpointTokens, keyTokens, hosts, hostIds, 6);
 
         removalhost = hosts.get(5);
         hosts.remove(removalhost);
@@ -161,8 +164,8 @@ public class RemoveTest
 
         Thread.sleep(1000); // make sure removal is waiting for confirmation
 
-        assertTrue(tmd.isLeaving(removalhost));
-        assertEquals(1, tmd.getSizeOfLeavingEndpoints());
+        assertTrue(StorageService.instance.endpointsWithState(NodeState.LEAVING).contains(removalhost));
+        assertEquals(1, StorageService.instance.endpointsWithState(NodeState.LEAVING).size());
 
         for (InetAddressAndPort host : hosts)
         {
@@ -175,6 +178,6 @@ public class RemoveTest
         remover.join();
 
         assertTrue(success.get());
-        assertTrue(tmd.getSizeOfLeavingEndpoints() == 0);
+        assertTrue(StorageService.instance.endpointsWithState(NodeState.LEAVING).size() == 0);
     }
 }

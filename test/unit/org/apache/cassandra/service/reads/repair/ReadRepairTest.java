@@ -75,7 +75,7 @@ public class ReadRepairTest
     private static class InstrumentedReadRepairHandler<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
             extends BlockingPartitionRepair
     {
-        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
+        public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForReadRepair writePlan)
         {
             super(Util.dk("not a valid key"), repairs, writePlan, e -> targets.endpoints().contains(e));
         }
@@ -164,7 +164,7 @@ public class ReadRepairTest
     private static InstrumentedReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, EndpointsForRange all, EndpointsForRange targets)
     {
         ReplicaPlan.ForRangeRead readPlan = AbstractReadRepairTest.replicaPlan(ks, ConsistencyLevel.LOCAL_QUORUM, all, targets);
-        ReplicaPlan.ForWrite writePlan = AbstractReadRepairTest.repairPlan(readPlan);
+        ReplicaPlan.ForReadRepair writePlan = AbstractReadRepairTest.repairPlan(readPlan);
         return new InstrumentedReadRepairHandler(repairs, writePlan);
     }
 

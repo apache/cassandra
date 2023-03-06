@@ -57,7 +57,6 @@ class OnClusterChangeRf extends OnClusterChangeTopology
 
         return ActionList.of(
             schemaChange("ALTER KEYSPACE " + description(), actions, on, command.toString()),
-            new OnClusterSyncPendingRanges(actions),
             new OnClusterFullRepair(actions, after, true, false, false),
             // TODO: cleanup should clear paxos state tables
             Actions.of("Flush and Cleanup", !increase ? () -> actions.flushAndCleanup(after.membersOfRing) : ActionList::empty)

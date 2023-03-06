@@ -20,19 +20,20 @@ package org.apache.cassandra.service.reads.range;
 
 import java.net.UnknownHostException;
 import java.util.List;
-import java.util.UUID;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -94,13 +95,11 @@ public class TokenUpdater
 
     public TokenUpdater update()
     {
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-        tmd.clearUnsafe();
-        tmd.updateNormalTokens(endpointTokens);
-        endpointTokens.keySet()
-                      .stream()
-                      .filter(e -> !e.equals(localEndpoint()))
-                      .forEach(e -> Gossiper.instance.initializeNodeUnsafe(e, UUID.randomUUID(), 1));
+        for (InetAddressAndPort ep : endpointTokens.keySet())
+        {
+            NodeId id = Register.register(new NodeAddresses(ep, ep, ep));
+            UnsafeJoin.unsafeJoin(id, Sets.newHashSet(endpointTokens.get(ep)));
+        }
         return this;
     }
 

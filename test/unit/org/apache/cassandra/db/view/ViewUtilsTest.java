@@ -23,26 +23,26 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
 
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class ViewUtilsTest
 {
@@ -52,25 +52,30 @@ public class ViewUtilsTest
     public static void setUp() throws ConfigurationException, IOException
     {
         DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
         ServerTestUtils.cleanupAndLeaveDirs();
         IEndpointSnitch snitch = new PropertyFileSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
         Keyspace.setInitialized();
     }
 
+    @Before
+    public void beforeEach()
+    {
+        ClusterMetadataService.setInstance(ClusterMetadataTestHelper.instanceForTest());
+    }
+
     @Test
     public void testGetIndexNaturalEndpoint() throws Exception
     {
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.clearUnsafe();
-
         // DC1
-        metadata.updateNormalToken(new StringToken("A"), InetAddressAndPort.getByName("127.0.0.1"));
-        metadata.updateNormalToken(new StringToken("C"), InetAddressAndPort.getByName("127.0.0.2"));
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.1"), new StringToken("A"), "DC1", "RACK1");
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.2"), new StringToken("C"), "DC1", "RACK1");
 
         // DC2
-        metadata.updateNormalToken(new StringToken("B"), InetAddressAndPort.getByName("127.0.0.4"));
-        metadata.updateNormalToken(new StringToken("D"), InetAddressAndPort.getByName("127.0.0.5"));
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.4"), new StringToken("B"), "DC2", "RACK1");
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.5"), new StringToken("D"), "DC2", "RACK1");
+
 
         Map<String, String> replicationMap = new HashMap<>();
         replicationMap.put(ReplicationParams.CLASS, NetworkTopologyStrategy.class.getName());
@@ -80,7 +85,8 @@ public class ViewUtilsTest
 
         recreateKeyspace(replicationMap);
 
-        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(Keyspace.open(KS).getReplicationStrategy(),
+        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(ClusterMetadata.current(),
+                                                                             KS,
                                                                              new StringToken("CA"),
                                                                              new StringToken("BB"));
 
@@ -92,16 +98,13 @@ public class ViewUtilsTest
     @Test
     public void testLocalHostPreference() throws Exception
     {
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.clearUnsafe();
-
         // DC1
-        metadata.updateNormalToken(new StringToken("A"), InetAddressAndPort.getByName("127.0.0.1"));
-        metadata.updateNormalToken(new StringToken("C"), InetAddressAndPort.getByName("127.0.0.2"));
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.1"), new StringToken("A"), "DC1", "RACK1");
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.2"), new StringToken("C"), "DC1", "RACK1");
 
         // DC2
-        metadata.updateNormalToken(new StringToken("B"), InetAddressAndPort.getByName("127.0.0.4"));
-        metadata.updateNormalToken(new StringToken("D"), InetAddressAndPort.getByName("127.0.0.5"));
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.4"), new StringToken("B"), "DC2", "RACK1");
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.5"), new StringToken("D"), "DC2", "RACK1");
 
         Map<String, String> replicationMap = new HashMap<>();
         replicationMap.put(ReplicationParams.CLASS, NetworkTopologyStrategy.class.getName());
@@ -111,7 +114,8 @@ public class ViewUtilsTest
 
         recreateKeyspace(replicationMap);
 
-        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(Keyspace.open(KS).getReplicationStrategy(),
+        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(ClusterMetadata.current(),
+                                                                             KS,
                                                                              new StringToken("CA"),
                                                                              new StringToken("BB"));
 
@@ -122,16 +126,14 @@ public class ViewUtilsTest
     @Test
     public void testBaseTokenDoesNotBelongToLocalReplicaShouldReturnEmpty() throws Exception
     {
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.clearUnsafe();
-
         // DC1
-        metadata.updateNormalToken(new StringToken("A"), InetAddressAndPort.getByName("127.0.0.1"));
-        metadata.updateNormalToken(new StringToken("C"), InetAddressAndPort.getByName("127.0.0.2"));
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.1"), new StringToken("A"), "DC1", "RACK1");
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.2"), new StringToken("C"), "DC1", "RACK1");
 
         // DC2
-        metadata.updateNormalToken(new StringToken("B"), InetAddressAndPort.getByName("127.0.0.4"));
-        metadata.updateNormalToken(new StringToken("D"), InetAddressAndPort.getByName("127.0.0.5"));
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.4"), new StringToken("B"), "DC2", "RACK1");
+        ClusterMetadataTestHelper.addEndpoint(InetAddressAndPort.getByName("127.0.0.5"), new StringToken("D"), "DC2", "RACK1");
+
 
         Map<String, String> replicationMap = new HashMap<>();
         replicationMap.put(ReplicationParams.CLASS, NetworkTopologyStrategy.class.getName());
@@ -141,7 +143,8 @@ public class ViewUtilsTest
 
         recreateKeyspace(replicationMap);
 
-        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(Keyspace.open(KS).getReplicationStrategy(),
+        Optional<Replica> naturalEndpoint = ViewUtils.getViewNaturalEndpoint(ClusterMetadata.current(),
+                                                                             KS,
                                                                              new StringToken("AB"),
                                                                              new StringToken("BB"));
 

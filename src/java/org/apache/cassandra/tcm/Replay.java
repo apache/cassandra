@@ -88,7 +88,7 @@ public class Replay
 
             logger.info("Received replay request {} from {}", request, message.from());
             LogState delta;
-            // If both we and the other node believe it should be caught up with a lineraizable read
+            // If both we and the other node believe it should be caught up with a linearizable read
             boolean consistentReplay = request.consistentReplay && !ClusterMetadataService.instance().isCurrentMember(message.from());
 
             if (consistentReplay)

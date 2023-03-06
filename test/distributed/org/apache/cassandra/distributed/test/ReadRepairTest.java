@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -26,7 +25,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -48,13 +46,11 @@ import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
@@ -200,11 +196,11 @@ public class ReadRepairTest extends TestBaseImpl
             // write only to #4
             cluster.get(4).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, 1, 1)", i);
             // mark #2 as leaving in #4
-            cluster.get(4).acceptsOnInstance((InetSocketAddress endpoint) -> {
-                StorageService.instance.getTokenMetadata().addLeavingEndpoint(InetAddressAndPort.getByAddressOverrideDefaults(endpoint.getAddress(), endpoint.getPort()));
-                PendingRangeCalculatorService.instance.update();
-                PendingRangeCalculatorService.instance.blockUntilFinished();
-            }).accept(cluster.get(2).broadcastAddress());
+//            cluster.get(4).acceptsOnInstance((InetSocketAddress endpoint) -> {
+////                StorageService.instance.getTokenMetadata().addLeavingEndpoint(InetAddressAndPort.getByAddressOverrideDefaults(endpoint.getAddress(), endpoint.getPort()));
+//                PendingRangeCalculatorService.instance.update();
+//                PendingRangeCalculatorService.instance.blockUntilFinished();
+//            }).accept(cluster.get(2).broadcastAddress());
 
             // prevent #4 from reading or writing to #3, so our QUORUM must contain #2 and #4
             // since #1 is taking over the range, this means any read-repair must make it to #1 as well

@@ -48,7 +48,8 @@ class OnInstanceBootstrap extends SimulatedActionTask
     {
         return () -> {
             List<Token> tokens = parseTokens(singletonList(token));
-            StorageService.instance.startBootstrap(tokens, replacing);
+            // TODO (alexp/samt)
+            StorageService.instance.startBootstrap(tokens, null, null);
         };
     }
 }

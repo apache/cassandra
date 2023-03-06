@@ -30,7 +30,6 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
@@ -38,7 +37,6 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 
-import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;
 import static org.apache.cassandra.tcm.membership.MembershipUtils.randomEndpoint;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
@@ -125,15 +123,6 @@ public class OwnershipUtils
                                                              KeyspaceParams.simple(2).replication,
                                                              KeyspaceParams.simple(3).replication);
         return placements(ranges(random), replication, random);
-    }
-
-    public static EndpointsForRange rg(long t0, long t1, int...replicas)
-    {
-        Range<Token> range = new Range<>(token(t0), token(t1));
-        EndpointsForRange.Builder builder = EndpointsForRange.builder(range);
-        for (int i : replicas)
-            builder.add(Replica.fullReplica(endpoint((byte)i), range));
-        return builder.build();
     }
 
 }

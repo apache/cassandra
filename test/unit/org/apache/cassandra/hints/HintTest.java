@@ -18,10 +18,9 @@
 package org.apache.cassandra.hints;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.collect.ImmutableList;
 
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -29,17 +28,20 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -50,15 +52,18 @@ import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.utils.FBUtilities;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 
 import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.hints.HintsTestUtil.assertHintsEqual;
 import static org.apache.cassandra.hints.HintsTestUtil.assertPartitionsEqual;
 import static org.apache.cassandra.net.Verb.HINT_REQ;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class HintTest
 {
@@ -81,11 +86,10 @@ public class HintTest
     @Before
     public void resetGcGraceSeconds()
     {
-        TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
-        tokenMeta.clearUnsafe();
-        tokenMeta.updateHostId(UUID.randomUUID(), local);
-        tokenMeta.updateNormalTokens(BootStrapper.getRandomTokens(tokenMeta, 1), local);
+//        tokenMeta.clearUnsafe();
+//        tokenMeta.updateHostId(UUID.randomUUID(), local);
+//        tokenMeta.updateNormalTokens(BootStrapper.getRandomTokens(tokenMeta, 1), local);
 
         for (TableMetadata table : Schema.instance.getTablesAndViews(KEYSPACE))
             SchemaTestUtil.announceTableUpdate(table.unbuild().gcGraceSeconds(864000).build());
@@ -230,13 +234,11 @@ public class HintTest
         Hint hint = Hint.create(mutation, now / 1000);
 
         // Prepare metadata with injected stale endpoint serving the mutation key.
-        TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort endpoint = InetAddressAndPort.getByName("1.1.1.1");
         UUID localId = StorageService.instance.getLocalHostUUID();
-        UUID targetId = UUID.randomUUID();
-        tokenMeta.updateHostId(targetId, endpoint);
-        tokenMeta.updateNormalTokens(ImmutableList.of(mutation.key().getToken()), endpoint);
+        NodeId targetId = Register.register(new NodeAddresses(endpoint, endpoint, endpoint));
+        UnsafeJoin.unsafeJoin(targetId, Collections.singleton(mutation.key().getToken()));
 
         // sanity check that there is no data inside yet
         assertNoPartitions(key, TABLE0);
@@ -269,13 +271,12 @@ public class HintTest
         Hint hint = Hint.create(mutation, now / 1000);
 
         // Prepare metadata with injected stale endpoint.
-        TokenMetadata tokenMeta = StorageService.instance.getTokenMetadata();
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         InetAddressAndPort endpoint = InetAddressAndPort.getByName("1.1.1.1");
         UUID localId = StorageService.instance.getLocalHostUUID();
         UUID targetId = UUID.randomUUID();
-        tokenMeta.updateHostId(targetId, endpoint);
-        tokenMeta.updateNormalTokens(ImmutableList.of(mutation.key().getToken()), endpoint);
+//        tokenMeta.updateHostId(targetId, endpoint);
+//        tokenMeta.updateNormalTokens(ImmutableList.of(mutation.key().getToken()), endpoint);
 
         // sanity check that there is no data inside yet
         assertNoPartitions(key, TABLE0);

@@ -31,22 +31,36 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
-
 import org.junit.After;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.cql3.Duration;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.DurationType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
-import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_GC_INSPECTOR;
 
+// checkstyle: suppress below 'blockSystemPropertyUsage'
 public class TestBaseImpl extends DistributedTestBase
 {
     public static final Object[][] EMPTY_ROWS = new Object[0][];
@@ -61,6 +75,8 @@ public class TestBaseImpl extends DistributedTestBase
     public static void beforeClass() throws Throwable
     {
         ICluster.setup();
+        SKIP_GC_INSPECTOR.setBoolean(true);
+        System.setProperty("sigar.nativeLogging", "false");
     }
 
     @Override
@@ -122,9 +138,12 @@ public class TestBaseImpl extends DistributedTestBase
         IInstanceConfig config = cluster.newInstanceConfig();
         config.set("auto_bootstrap", true);
         IInvokableInstance newInstance = cluster.bootstrap(config);
-        withProperty(BOOTSTRAP_SCHEMA_DELAY_MS, Integer.toString(90 * 1000),
-                     () -> withProperty(JOIN_RING, false, () -> newInstance.startup(cluster)));
-        newInstance.nodetoolResult("join").asserts().success();
+        newInstance.startup(cluster);
+        // todo: re-add once we fix write survey/join ring = false mode
+//        withProperty(BOOTSTRAP_SCHEMA_DELAY_MS, Integer.toString(90 * 1000),
+//                     () -> withProperty(JOIN_RING, false, () -> newInstance.startup(cluster)));
+//        newInstance.nodetoolResult("join").asserts().success();
+        newInstance.nodetoolResult("describecms").asserts().success(); // just make sure we're joined, remove later
     }
 
     @SuppressWarnings("unchecked")

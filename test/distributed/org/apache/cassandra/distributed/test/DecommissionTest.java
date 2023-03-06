@@ -169,15 +169,7 @@ public class DecommissionTest extends TestBaseImpl
             assertEquals(NORMAL.name(), oprationMode);
 
             instance.runOnInstance(() -> {
-                try
-                {
-                    StorageService.instance.decommission(true);
-                }
-                catch (InterruptedException e)
-                {
-                    fail("Should decommission the node");
-                }
-
+                StorageService.instance.decommission(true);
                 assertEquals(DECOMMISSIONED.name(), StorageService.instance.getBootstrapState());
                 assertFalse(StorageService.instance.isDecommissionFailed());
                 assertFalse(StorageService.instance.isDecommissioning());

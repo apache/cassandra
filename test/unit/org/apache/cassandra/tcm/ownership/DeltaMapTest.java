@@ -34,7 +34,7 @@ import static org.apache.cassandra.tcm.ownership.OwnershipUtils.trivialReplicas;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class PlacementDeltasTest
+public class DeltaMapTest
 {
     private static final ReplicationParams key = ReplicationParams.simple(1);
     private static final InetAddressAndPort P1 = endpoint(1);

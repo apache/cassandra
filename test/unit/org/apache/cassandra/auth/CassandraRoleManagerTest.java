@@ -52,7 +52,7 @@ public class CassandraRoleManagerTest
         // take a faster path once the cluster is already setup, which includes checking MessagingService
         // and issuing queries with QueryProcessor.process, which uses TokenMetadata
         DatabaseDescriptor.daemonInitialization();
-        StorageService.instance.initServer(0);
+        StorageService.instance.initServer();
         AuthCacheService.initializeAndRegisterCaches();
     }
 

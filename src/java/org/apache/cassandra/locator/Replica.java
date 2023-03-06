@@ -168,7 +168,7 @@ public final class Replica implements Comparable<Replica>
 
     public Replica decorateSubrange(Range<Token> subrange)
     {
-        Preconditions.checkArgument(range.contains(subrange));
+        Preconditions.checkArgument(range.contains(subrange), range + " " + subrange);
         return new Replica(endpoint(), subrange, isFull());
     }
 

@@ -33,6 +33,7 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.locator.ReplicaUtils.full;
@@ -212,7 +213,7 @@ public class DigestResolverTest extends AbstractReadResponseTest
 
     private ReplicaPlan.SharedForTokenRead plan(ConsistencyLevel consistencyLevel, EndpointsForToken replicas)
     {
-        return ReplicaPlan.shared(new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, replicas, replicas));
+        return ReplicaPlan.shared(new ReplicaPlan.ForTokenRead(ks, ks.getReplicationStrategy(), consistencyLevel, replicas, replicas, null, () -> null, Epoch.EMPTY));
     }
 
     private void waitForLatch(CountDownLatch startlatch)

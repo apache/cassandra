@@ -34,8 +34,8 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.MAX_LOCAL_PAUSE_IN_MS;
 import static org.junit.Assert.assertFalse;
@@ -56,8 +56,7 @@ public class FailureDetectorTest
     public void testConvictAfterLeft() throws UnknownHostException
     {
         StorageService ss = StorageService.instance;
-        TokenMetadata tmd = ss.getTokenMetadata();
-        tmd.clearUnsafe();
+//        tmd.clearUnsafe();
         IPartitioner partitioner = new RandomPartitioner();
         VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
 
@@ -70,7 +69,7 @@ public class FailureDetectorTest
         DatabaseDescriptor.setPhiConvictThreshold(0);
 
         // create a ring of 2 nodes
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 3);
+        Util.createInitialRing(endpointTokens, keyTokens, hosts, hostIds, 3);
 
         InetAddressAndPort leftHost = hosts.get(1);
 
@@ -81,7 +80,7 @@ public class FailureDetectorTest
                     valueFactory.left(Collections.singleton(endpointTokens.get(1)), Gossiper.computeExpireTime()));
 
         // confirm that handleStateLeft was called and leftEndpoint was removed from TokenMetadata
-        assertFalse("Left endpoint not removed from TokenMetadata", tmd.isMember(leftHost));
+        assertFalse("Left endpoint not removed from TokenMetadata", ClusterMetadata.current().directory.allAddresses().contains(leftHost));
 
         // confirm the FD's history for leftHost didn't get wiped by status jump to LEFT
         FailureDetector.instance.interpret(leftHost);

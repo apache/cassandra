@@ -101,7 +101,8 @@ public class ClusterMetadata
         this(partitioner, directory, DistributedSchema.first());
     }
 
-    private ClusterMetadata(IPartitioner partitioner, Directory directory, DistributedSchema schema)
+    @VisibleForTesting
+    public ClusterMetadata(IPartitioner partitioner, Directory directory, DistributedSchema schema)
     {
         this(Epoch.EMPTY,
              Period.EMPTY,
@@ -254,10 +255,24 @@ public class ClusterMetadata
     public Map<Range<Token>, EndpointsForRange> pendingRanges(KeyspaceMetadata metadata)
     {
         Map<Range<Token>, EndpointsForRange> map = new HashMap<>();
-        List<Range<Token>> pending = new ArrayList<>(placements.get(metadata.params.replication).writes.ranges());
-        pending.removeAll(placements.get(metadata.params.replication).reads.ranges());
+        PlacementForRange writes = placements.get(metadata.params.replication).writes;
+        PlacementForRange reads = placements.get(metadata.params.replication).reads;
+
+        // first, pending ranges as the result of range splitting or merging
+        // i.e. new ranges being created through join/leave
+        List<Range<Token>> pending = new ArrayList<>(writes.ranges());
+        pending.removeAll(reads.ranges());
         for (Range<Token> p : pending)
             map.put(p, placements.get(metadata.params.replication).writes.forRange(p));
+
+        // next, ranges where the ranges themselves are not changing, but the replicas are
+        // i.e. replacement or RF increase
+        writes.replicaGroups().forEach((range, endpoints) -> {
+            EndpointsForRange readGroup = reads.forRange(range);
+            if (!readGroup.equals(endpoints))
+                map.put(range, endpoints.filter(r -> !readGroup.contains(r)));
+        });
+
         return map;
     }
 

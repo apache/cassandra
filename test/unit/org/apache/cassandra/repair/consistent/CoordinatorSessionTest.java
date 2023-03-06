@@ -32,11 +32,13 @@ import java.util.function.Supplier;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.repair.AbstractRepairTest;
@@ -61,7 +63,11 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class CoordinatorSessionTest extends AbstractRepairTest
 {
-
+    @BeforeClass
+    public static void beforeClass()
+    {
+        ClusterMetadataTestHelper.setInstanceForTest();
+    }
     static CoordinatorSession.Builder createBuilder()
     {
         CoordinatorSession.Builder builder = CoordinatorSession.builder(SharedContext.Global.instance);

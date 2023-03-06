@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.net.UnknownHostException;
+import java.util.Collections;
 import java.util.Random;
 
 import org.junit.Before;
@@ -33,18 +34,20 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.net.Verb.*;
+import static org.apache.cassandra.net.Verb.READ_REQ;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -71,11 +74,15 @@ public class ReadCommandVerbHandlerTest
         metadata = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
         metadata_with_transient = Schema.instance.getTableMetadata(KEYSPACE_WITH_TRANSIENT, TABLE);
         KEY = key(metadata, 1);
-
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-        tmd.updateNormalToken(KEY.getToken(), InetAddressAndPort.getByName("127.0.0.2"));
-        tmd.updateNormalToken(key(metadata, 2).getToken(), InetAddressAndPort.getByName("127.0.0.3"));
-        tmd.updateNormalToken(key(metadata, 3).getToken(), FBUtilities.getBroadcastAddressAndPort());
+        InetAddressAndPort ep1 = InetAddressAndPort.getByName("127.0.0.2");
+        InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.3");
+        InetAddressAndPort ep3 = FBUtilities.getBroadcastAddressAndPort();
+        NodeId node1 = Register.register(new NodeAddresses(ep1, ep1, ep1));
+        NodeId node2 = Register.register(new NodeAddresses(ep2, ep2, ep2));
+        NodeId node3 = Register.register(new NodeAddresses(ep3, ep3, ep3));
+        UnsafeJoin.unsafeJoin(node1, Collections.singleton(KEY.getToken()));
+        UnsafeJoin.unsafeJoin(node2, Collections.singleton(key(metadata, 2).getToken()));
+        UnsafeJoin.unsafeJoin(node3, Collections.singleton(key(metadata, 3).getToken()));
     }
 
     @Before

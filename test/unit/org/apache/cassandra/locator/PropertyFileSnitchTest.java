@@ -34,6 +34,10 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Matcher;
 
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -42,15 +46,10 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Unit tests for {@link PropertyFileSnitch}.
@@ -158,7 +157,8 @@ public class PropertyFileSnitchTest
 
     private void setNodeShutdown(InetAddressAndPort host)
     {
-        StorageService.instance.getTokenMetadata().removeEndpoint(host);
+        // todo
+//        StorageService.instance.getTokenMetadata().removeEndpoint(host);
         Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS_WITH_PORT, valueFactory.shutdown(true));
         Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS, valueFactory.shutdown(true));
         Gossiper.instance.markDead(host, Gossiper.instance.getEndpointStateForEndpoint(host));
@@ -169,7 +169,8 @@ public class PropertyFileSnitchTest
         Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS_WITH_PORT, valueFactory.normal(tokenMap.get(host)));
         Gossiper.instance.injectApplicationState(host, ApplicationState.STATUS, valueFactory.normal(tokenMap.get(host)));
         Gossiper.instance.realMarkAlive(host, Gossiper.instance.getEndpointStateForEndpoint(host));
-        StorageService.instance.getTokenMetadata().updateNormalTokens(tokenMap.get(host), host);
+        // todo
+//        StorageService.instance.getTokenMetadata().updateNormalTokens(tokenMap.get(host), host);
     }
 
     private static void checkEndpoint(final AbstractNetworkTopologySnitch snitch,

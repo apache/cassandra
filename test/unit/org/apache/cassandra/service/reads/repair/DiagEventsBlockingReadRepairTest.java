@@ -85,7 +85,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         repairs.put(replica2, repair2);
 
 
-        ReplicaPlan.ForWrite writePlan = repairPlan(replicas, EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet())));
+        ReplicaPlan.ForReadRepair writePlan = repairPlan(replicas, EndpointsForRange.copyOf(Lists.newArrayList(repairs.keySet())));
         DiagnosticPartitionReadRepairHandler handler = createRepairHandler(repairs, writePlan);
 
         Assert.assertTrue(handler.updatesByEp.isEmpty());
@@ -121,7 +121,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
         return new DiagnosticBlockingRepairHandler(command, replicaPlan, queryStartNanoTime);
     }
 
-    private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
+    private static DiagnosticPartitionReadRepairHandler createRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForReadRepair writePlan)
     {
         return new DiagnosticPartitionReadRepairHandler(key, repairs, writePlan);
     }
@@ -179,9 +179,9 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
             return e -> candidates.contains(e);
         }
 
-        DiagnosticPartitionReadRepairHandler(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite writePlan)
+        DiagnosticPartitionReadRepairHandler(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForReadRepair forReadRepair)
         {
-            super(key, repairs, writePlan, isLocal());
+            super(key, repairs, forReadRepair, isLocal());
             DiagnosticEventService.instance().subscribe(PartitionRepairEvent.class, this::onRepairEvent);
         }
 

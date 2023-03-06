@@ -20,13 +20,16 @@ package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.function.Consumer;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -36,7 +39,6 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -75,22 +77,30 @@ public class ColumnFilterTest
     private final CellPath path3 = CellPath.create(ByteBufferUtil.bytes(3));
     private final CellPath path4 = CellPath.create(ByteBufferUtil.bytes(4));
 
+    @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
+    public static Collection<Object[]> data()
+    {
+        // [tcm] we will require upgrading from 4.1
+        return Arrays.asList(new Object[]{ "4.1" }, new Object[]{ "4.0" });
+    }
+
     @BeforeClass
     public static void beforeClass()
     {
         // Gossiper touches StorageService which touches StreamManager which requires configs be setup
         DatabaseDescriptor.daemonInitialization();
+        SchemaLoader.prepareServer();
         DatabaseDescriptor.setSeedProvider(Arrays::asList);
         DatabaseDescriptor.setEndpointSnitch(new SimpleSnitch());
         DatabaseDescriptor.setDefaultFailureDetector();
         DatabaseDescriptor.setPartitionerUnsafe(new Murmur3Partitioner());
-        Gossiper.instance.start(0);
     }
 
     @Before
     public void before()
     {
         Util.setUpgradeFromVersion("4.0");
+        // todo; nothing in this test is actually version dependent anymore
     }
 
     // Select all

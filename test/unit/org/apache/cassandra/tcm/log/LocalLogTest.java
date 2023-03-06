@@ -25,9 +25,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -78,7 +80,7 @@ public class LocalLogTest
     @Test
     public void appendFuzzTest() throws InterruptedException
     {
-        for (int i = 0; i < 3000; i++)
+        for (int i = 0; i < 10000; i++)
         {
             singleAppendFuzzTest();
         }
@@ -98,7 +100,8 @@ public class LocalLogTest
         int threads = 10;
         CountDownLatch begin = CountDownLatch.newCountDownLatch(1);
         CountDownLatch finish = CountDownLatch.newCountDownLatch(threads);
-        ExecutorPlus executor = executorFactory().configurePooled("APPENDER", threads).build();
+        CountDownLatch finishReaders = CountDownLatch.newCountDownLatch(threads);
+        ExecutorPlus executor = executorFactory().configurePooled("APPENDER", threads * 2).build();
         LocalLog log = LocalLog.asyncForTests(LogStorage.None, cm(), false);
         List<Entry> committed = new CopyOnWriteArrayList<>(); // doesn't need to be concurrent, since log is single-threaded
         log.addListener((e, m) -> committed.add(e));
@@ -121,13 +124,31 @@ public class LocalLogTest
             });
         }
 
+        for (int i = 0; i < threads; i++)
+        {
+            executor.submit(() -> {
+                begin.awaitUninterruptibly();
+                while (submitted.size() < entryCount)
+                {
+                    Epoch waitFor = entries.get(random.nextInt(entries.size())).epoch;
+                    try
+                    {
+                        Assert.assertTrue(log.awaitAtLeast(waitFor).epoch.isEqualOrAfter(waitFor));
+                    }
+                    catch (InterruptedException | TimeoutException e)
+                    {
+                        // ignore
+                    }
+                }
+                finishReaders.decrement();
+            });
+        }
+
         begin.decrement();
         finish.awaitUninterruptibly();
 
         log.waitForHighestConsecutive();
 
-        // TODO known concurrency issue with log follower
-        TimeUnit.MILLISECONDS.sleep(10);
         assertEquals(entries.get(entries.size() - 1).epoch, log.metadata().epoch);
 
         if (!entries.equals(committed))
@@ -137,6 +158,8 @@ public class LocalLogTest
                  "\n\tPending: " + log.pendingBufferSize() +
                  "\n\tSeed: " + seed);
         assertEquals(0, log.pendingBufferSize());
+
+        finishReaders.awaitUninterruptibly();
 
         executor.shutdownNow();
         executor.awaitTermination(10, TimeUnit.SECONDS);
@@ -152,10 +175,10 @@ public class LocalLogTest
 
     static Entry entry(int i)
     {
-        return entry(i, 1, i);
+        return entry(i, i);
     }
 
-    static Entry entry(int i, long period, long epoch)
+    static Entry entry(int i, long epoch)
     {
         return new Entry(new Entry.Id(i),
                          Epoch.create(epoch),
@@ -164,7 +187,6 @@ public class LocalLogTest
 
     static ClusterMetadata cm()
     {
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         return new ClusterMetadata(Murmur3Partitioner.instance);
     }
 }

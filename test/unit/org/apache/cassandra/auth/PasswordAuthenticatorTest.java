@@ -62,7 +62,7 @@ public class PasswordAuthenticatorTest extends CQLTester
     {
         SchemaLoader.loadSchema();
         DatabaseDescriptor.daemonInitialization();
-        StorageService.instance.initServer(0);
+        StorageService.instance.initServer();
     }
 
     @Before

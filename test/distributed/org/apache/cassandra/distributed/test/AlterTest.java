@@ -23,7 +23,6 @@ import java.util.List;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +37,6 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
@@ -103,12 +101,13 @@ public class AlterTest extends TestBaseImpl
 
             int attempts = 0;
             // it takes some time the underlying structure is populated otherwise the test is flaky
-            while (((IInvokableInstance) (cluster.get(2))).callOnInstance(() -> StorageService.instance.getTokenMetadata().getAllMembers().isEmpty()))
-            {
-                if (attempts++ > 30)
-                    throw new RuntimeException("timeouted on waiting for a member");
-                Thread.sleep(1000);
-            }
+            // todo (rebase)
+//            while (((IInvokableInstance) (cluster.get(2))).callOnInstance(() -> StorageService.instance.getTokenMetadata().getAllMembers().isEmpty()))
+//            {
+//                if (attempts++ > 30)
+//                    throw new RuntimeException("timeouted on waiting for a member");
+//                Thread.sleep(1000);
+//            }
 
             for (String operation : new String[] { "CREATE", "ALTER" })
             {

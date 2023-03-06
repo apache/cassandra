@@ -18,26 +18,6 @@
 
 package org.apache.cassandra.schema;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.io.util.File;
-import org.mockito.Mockito;
-
-import static org.apache.cassandra.config.CassandraRelevantProperties.SCHEMA_UPDATE_HANDLER_FACTORY_CLASS;
-import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.fail;
-
 public class RemoveWithoutDroppingTest
 {
 //    static volatile boolean dropDataOverride = true;
@@ -50,6 +30,7 @@ public class RemoveWithoutDroppingTest
 //        ServerTestUtils.daemonInitialization();
 //
 //        SCHEMA_UPDATE_HANDLER_FACTORY_CLASS.setString(TestSchemaUpdateHandlerFactory.class.getName());
+//        System.setProperty(SchemaUpdateHandlerFactoryProvider.SUH_FACTORY_CLASS_PROPERTY, TestSchemaUpdateHandlerFactory.class.getName());
 //        CQLTester.prepareServer();
 //        Schema.instance.registerListener(listener);
 //    }
@@ -58,6 +39,22 @@ public class RemoveWithoutDroppingTest
 //    public void before()
 //    {
 //        Mockito.reset(listener);
+//    }
+//
+//    public static void callbackOverride(BiConsumer<SchemaTransformationResult, Boolean> updateSchemaCallback, SchemaTransformationResult result, boolean dropData)
+//    {
+//        updateSchemaCallback.accept(result, dropDataOverride);
+//    }
+//
+//    public static class TestSchemaUpdateHandlerFactory implements SchemaUpdateHandlerFactory
+//    {
+//        @Override
+//        public SchemaUpdateHandler getSchemaUpdateHandler(boolean online, BiConsumer<SchemaTransformationResult, Boolean> updateSchemaCallback)
+//        {
+//            return online
+//                   ? new DefaultSchemaUpdateHandler((result, dropData) -> callbackOverride(updateSchemaCallback, result, dropData))
+//                   : new OfflineSchemaUpdateHandler((result, dropData) -> callbackOverride(updateSchemaCallback, result, dropData));
+//        }
 //    }
 //
 //    private void testRemoveKeyspace(String ks, String tab, boolean expectDropped) throws Throwable

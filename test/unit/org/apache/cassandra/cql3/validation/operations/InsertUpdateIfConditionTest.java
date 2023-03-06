@@ -32,7 +32,6 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
@@ -40,8 +39,6 @@ import org.apache.cassandra.utils.CassandraVersion;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 /* InsertUpdateIfConditionCollectionsTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670)
  * Any changes here check if they apply to the other classes
@@ -52,27 +49,16 @@ import static org.junit.Assert.assertTrue;
 @RunWith(Parameterized.class)
 public class InsertUpdateIfConditionTest extends CQLTester
 {
-    @Parameterized.Parameter(0)
-    public String clusterMinVersion;
-
-    @Parameterized.Parameter(1)
-    public Runnable assertion;
-
     @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
     public static Collection<Object[]> data()
     {
         ServerTestUtils.daemonInitialization();
-        return Arrays.asList(new Object[]{ "3.0", (Runnable) () -> {
-                                 assertTrue(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("3.11")));
-                             } },
-                             new Object[]{ "3.11", (Runnable) () -> {
-                                 assertTrue(Gossiper.instance.isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION));
-                                 assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("3.11")));
-                             } },
-                             new Object[]{ SystemKeyspace.CURRENT_VERSION.toString(), (Runnable) () -> {
-                                 assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION));
-                             } });
+        // TODO [tcm] we will require upgrading from 4.1
+        return Arrays.asList(new Object[]{ "4.1" }, new Object[]{ "4.0" });
     }
+
+    @Parameterized.Parameter(0)
+    public String clusterMinVersion;
 
     @BeforeClass
     public static void beforeClass()
@@ -83,11 +69,12 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @Before
     public void before()
     {
-        beforeSetup(clusterMinVersion, assertion);
+        beforeSetup(clusterMinVersion);
     }
     
-    public static void beforeSetup(String clusterMinVersion, Runnable assertion)
+    public static void beforeSetup(String clusterMinVersion)
     {
+<<<<<<< HEAD
         // setUpgradeFromVersion adds node2 to the Gossiper. On slow CI envs the Gossiper might auto-remove it after some
         // timeout if it thinks it's a fat client making the test fail. Just retry C18393.
         Util.spinAssertEquals(Boolean.TRUE, () -> {
@@ -96,6 +83,9 @@ public class InsertUpdateIfConditionTest extends CQLTester
             return true;
         },
                               5);
+=======
+        Util.setUpgradeFromVersion(clusterMinVersion);
+>>>>>>> f62ba685b6 ([CEP-21] Bulk update of unit and dtests)
     }
 
     @AfterClass

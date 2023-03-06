@@ -23,31 +23,32 @@ import java.util.Optional;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.commons.lang3.ArrayUtils;
-
 import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.schema.SchemaConstants.*;
+import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.SCHEMA_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.TRACE_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_SCHEMA;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -453,10 +454,9 @@ public class DescribeStatementTest extends CQLTester
                               "ByteOrderedPartitioner",
                               DatabaseDescriptor.getEndpointSnitch().getClass().getName()));
         }
-
-        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-        Token token = tokenMetadata.sortedTokens().get(0);
-        InetAddressAndPort addressAndPort = tokenMetadata.getAllEndpoints().iterator().next();
+        ClusterMetadata metadata = ClusterMetadata.current();
+        Token token = metadata.tokenMap.tokens().get(0);
+        InetAddressAndPort addressAndPort = metadata.directory.allAddresses().iterator().next();
 
         assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE CLUSTER"),
                       row("Test Cluster",

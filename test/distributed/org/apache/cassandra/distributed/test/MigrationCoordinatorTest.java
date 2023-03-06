@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.net.InetAddress;
 import java.util.UUID;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -54,6 +55,8 @@ public class MigrationCoordinatorTest extends TestBaseImpl
     @Test
     public void replaceNode() throws Throwable
     {
+
+        Assert.fail("Causes build to hang and probably no longer necessary");
         try (Cluster cluster = Cluster.build(2)
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                       .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(3, "dc0", "rack0"))
@@ -75,6 +78,7 @@ public class MigrationCoordinatorTest extends TestBaseImpl
     @Test
     public void explicitEndpointIgnore() throws Throwable
     {
+        Assert.fail("Causes build to hang and probably no longer necessary");
         try (Cluster cluster = Cluster.build(2)
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                       .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(3, "dc0", "rack0"))
@@ -97,6 +101,7 @@ public class MigrationCoordinatorTest extends TestBaseImpl
     @Test
     public void explicitVersionIgnore() throws Throwable
     {
+        Assert.fail("Causes build to hang and probably no longer necessary");
         try (Cluster cluster = Cluster.build(2)
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3))
                                       .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(3, "dc0", "rack0"))

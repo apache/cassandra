@@ -48,7 +48,7 @@ public class OnClusterUpdateGossip extends ReliableAction
 
     OnClusterUpdateGossip(Object id, ClusterActions actions, ActionList updateLocalStateThenSendGossip)
     {
-        super(id, STRICT.with(DISPLAY_ORIGIN), RELIABLE_NO_TIMEOUTS, () -> updateLocalStateThenSendGossip.andThen(new OnClusterSyncPendingRanges(actions)));
+        super(id, STRICT.with(DISPLAY_ORIGIN), RELIABLE_NO_TIMEOUTS, () -> updateLocalStateThenSendGossip);
         cancel = updateLocalStateThenSendGossip;
     }
 

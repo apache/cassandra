@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.service;
 
+import java.util.Collections;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -27,14 +29,14 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.SchemaTestUtil;
-import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 
+import static org.apache.cassandra.cql3.CQLTester.requireNetwork;
 import static org.apache.cassandra.cql3.QueryProcessor.process;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -48,36 +50,35 @@ public class PartitionDenylistTest
         ServerTestUtils.daemonInitialization();
 
         CQLTester.prepareServer();
+        process("create keyspace "+ks_cql+" with replication = {'class':'SimpleStrategy', 'replication_factor':1}", ConsistencyLevel.ONE);
+        process("CREATE TABLE "+ks_cql+".table1 ("
+                     + "keyone text, "
+                     + "keytwo text, "
+                     + "qux text, "
+                     + "quz text, "
+                     + "foo text, "
+                     + "PRIMARY KEY((keyone, keytwo), qux, quz) ) ", ConsistencyLevel.ONE);
 
-        KeyspaceMetadata schema = KeyspaceMetadata.create(ks_cql,
-                                                          KeyspaceParams.simple(1),
-                                                          Tables.of(
-            CreateTableStatement.parse("CREATE TABLE table1 ("
-                                       + "keyone text, "
-                                       + "keytwo text, "
-                                       + "qux text, "
-                                       + "quz text, "
-                                       + "foo text, "
-                                       + "PRIMARY KEY((keyone, keytwo), qux, quz) ) ", ks_cql).build(),
-            CreateTableStatement.parse("CREATE TABLE table2 ("
-                                       + "keyone text, "
-                                       + "keytwo text, "
-                                       + "keythree text, "
-                                       + "value text, "
-                                       + "PRIMARY KEY((keyone, keytwo), keythree) ) ", ks_cql).build(),
-            CreateTableStatement.parse("CREATE TABLE table3 ("
-                                       + "keyone text, "
-                                       + "keytwo text, "
-                                       + "keythree text, "
-                                       + "value text, "
-                                       + "PRIMARY KEY((keyone, keytwo), keythree) ) ", ks_cql).build()
-        ));
-        SchemaTestUtil.addOrUpdateKeyspace(schema, false);
+        process("CREATE TABLE "+ks_cql+".table2 ("
+                     + "keyone text, "
+                     + "keytwo text, "
+                     + "keythree text, "
+                     + "value text, "
+                     + "PRIMARY KEY((keyone, keytwo), keythree) ) ", ConsistencyLevel.ONE);
+
+        process("CREATE TABLE "+ks_cql+".table3 ("
+                     + "keyone text, "
+                     + "keytwo text, "
+                     + "keythree text, "
+                     + "value text, "
+                     + "PRIMARY KEY((keyone, keytwo), keythree) ) ", ConsistencyLevel.ONE);
         DatabaseDescriptor.setPartitionDenylistEnabled(true);
         DatabaseDescriptor.setDenylistRangeReadsEnabled(true);
         DatabaseDescriptor.setDenylistConsistencyLevel(ConsistencyLevel.ONE);
         DatabaseDescriptor.setDenylistRefreshSeconds(1);
-        StorageService.instance.initServer(0);
+        requireNetwork();
+        NodeId nodeId = Register.maybeRegister();
+        UnsafeJoin.unsafeJoin(nodeId, Collections.singleton(ByteOrderedPartitioner.instance.getRandomToken()));
     }
 
     @Before

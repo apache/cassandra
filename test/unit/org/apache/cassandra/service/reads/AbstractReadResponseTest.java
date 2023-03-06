@@ -72,6 +72,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -250,6 +251,7 @@ public abstract class AbstractReadResponseTest
                                 : ReadResponse.createRemoteDataResponse(data, repairedDataDigest, hasPendingRepair, command, fromVersion);
         return Message.builder(READ_REQ, response)
                       .from(from)
+                      .withEpoch(ClusterMetadata.current().epoch)
                       .build();
     }
 

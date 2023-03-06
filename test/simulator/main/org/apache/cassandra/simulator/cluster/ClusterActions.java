@@ -45,7 +45,6 @@ import org.apache.cassandra.locator.ReplicaLayout;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
-import org.apache.cassandra.simulator.Actions.ReliableAction;
 import org.apache.cassandra.simulator.Actions.StrictAction;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RandomSource.Choices;
@@ -202,7 +201,6 @@ public class ClusterActions extends SimulatedSystems
                 actions.addAll(sendLocalGossipStateToAll(add));
             }
 
-            actions.add(ReliableAction.transitively("Sync Pending Ranges Executor", ClusterActions.this::syncPendingRanges));
             debug.debug(CLUSTER, time, cluster, null, null);
             return ActionList.of(actions);
         });
@@ -279,7 +277,6 @@ public class ClusterActions extends SimulatedSystems
         return on(action, IntStream.of(on));
     }
 
-    ActionList syncPendingRanges() { return onAll(OnInstanceSyncPendingRanges.factory(this)); }
     ActionList gossipWithAll(int from) { return toAll(OnInstanceGossipWith.factory(this), from); }
     ActionList sendShutdownToAll(int from) { return toAll(OnInstanceSendShutdown.factory(this), from); }
     ActionList sendLocalGossipStateToAll(int from) { return toAll(OnInstanceSendLocalGossipState.factory(this), from); }

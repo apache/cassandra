@@ -21,7 +21,12 @@ package org.apache.cassandra.distributed.test;
 import java.io.Closeable;
 import java.net.InetSocketAddress;
 import java.util.Collection;
-import java.util.concurrent.*;
+import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 
@@ -34,19 +39,27 @@ import org.junit.Test;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.*;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -62,6 +75,7 @@ import static org.apache.cassandra.distributed.shared.NetworkTopology.singleDcNe
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class GossipTest extends TestBaseImpl
 {
@@ -80,11 +94,10 @@ public class GossipTest extends TestBaseImpl
             cluster.get(fail).startup();
             Collection<String> expectTokens =
                 cluster.get(fail)
-                       .callsOnInstance(() -> StorageService.instance.getTokenMetadata()
-                                                                     .getTokens(FBUtilities.getBroadcastAddressAndPort())
-                                                                     .stream()
-                                                                     .map(Object::toString)
-                                                                     .collect(Collectors.toList()))
+                       .callsOnInstance(() -> ClusterMetadata.current().tokenMap.tokens(ClusterMetadata.current().myNodeId())
+                                                                                .stream()
+                                                                                .map(Object::toString)
+                                                                                .collect(Collectors.toList()))
                        .call();
 
             InetSocketAddress failAddress = cluster.get(fail).broadcastAddress();
@@ -103,7 +116,7 @@ public class GossipTest extends TestBaseImpl
 
             // set ourselves to MOVING, and wait for it to propagate
             cluster.get(fail).runOnInstance(() -> {
-                Token token = Iterables.getFirst(StorageService.instance.getTokenMetadata().getTokens(FBUtilities.getBroadcastAddressAndPort()), null);
+                Token token = Iterables.getFirst(ClusterMetadata.current().tokenMap.tokens(ClusterMetadata.current().myNodeId()), null);
                 Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.moving(token));
             });
             for (int i = 1 ; i <= liveCount ; ++i)
@@ -130,12 +143,10 @@ public class GossipTest extends TestBaseImpl
 
             Collection<String> tokens =
                 cluster.get(late)
-                       .appliesOnInstance((InetSocketAddress address) ->
-                                          StorageService.instance.getTokenMetadata()
-                                                                 .getTokens(toCassandraInetAddressAndPort(address))
-                                                                 .stream()
-                                                                 .map(Object::toString)
-                                                                 .collect(Collectors.toList()))
+                       .appliesOnInstance((InetSocketAddress address) -> ClusterMetadata.current().tokenMap.tokens(ClusterMetadata.current().directory.peerId(InetAddressAndPort.getByAddress(address)))
+                                                                                                           .stream()
+                                                                                                           .map(Object::toString)
+                                                                                                           .collect(Collectors.toList()))
                        .apply(failAddress);
 
             Assert.assertEquals(expectTokens, tokens);
@@ -188,7 +199,7 @@ public class GossipTest extends TestBaseImpl
                         {
                             StorageService.instance.stopGossiping();
 
-                            Assert.fail("stopGossiping did not fail!");
+                            fail("stopGossiping did not fail!");
                         }
                         catch (Exception ex)
                         {
@@ -227,12 +238,16 @@ public class GossipTest extends TestBaseImpl
         {
             cluster.get(1).runOnInstance(() -> {
                 StorageService.instance.stopGossiping();
-                StorageService.instance.setMovingModeUnsafe();
+                ClusterMetadata metadata = ClusterMetadata.current();
+                ClusterMetadataService.instance().commit(new PrepareMove(metadata.myNodeId(),
+                                                                         Collections.singleton(metadata.partitioner.getRandomToken()),
+                                                                         new UniformRangePlacement(),
+                                                                         false));
                 try
                 {
                     StorageService.instance.startGossiping();
 
-                    Assert.fail("startGossiping did not fail!");
+                    fail("startGossiping did not fail!");
                 }
                 catch (Exception ex)
                 {
@@ -246,6 +261,7 @@ public class GossipTest extends TestBaseImpl
     @Test
     public void gossipShutdownUpdatesTokenMetadata() throws Exception
     {
+        fail("[tcm] Does not work right now");
         // TODO: fails with vnode enabled
         try (Cluster cluster = Cluster.build(3)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK))
@@ -331,17 +347,11 @@ public class GossipTest extends TestBaseImpl
             boolean hasPending = inst.appliesOnInstance((InetSocketAddress address) -> {
                 InetAddressAndPort peer = toCassandraInetAddressAndPort(address);
 
-                PendingRangeCalculatorService.instance.blockUntilFinished();
-
-                boolean isMoving = StorageService.instance.getTokenMetadata()
-                                                          .getMovingEndpoints()
+                boolean isMoving = StorageService.instance.endpointsWithState(NodeState.LEAVING)
                                                           .stream()
-                                                          .map(pair -> pair.right)
                                                           .anyMatch(peer::equals);
 
-                return isMoving && !StorageService.instance.getTokenMetadata()
-                                                           .getPendingRanges(KEYSPACE, peer)
-                                                           .isEmpty();
+                return isMoving && ClusterMetadata.current().hasPendingRangesFor(Keyspace.open(KEYSPACE).getMetadata(), peer);
             }).apply(movingAddress);
             assertEquals(String.format("%s should %shave PENDING RANGES for %s",
                                        inst.broadcastAddress().getHostString(),

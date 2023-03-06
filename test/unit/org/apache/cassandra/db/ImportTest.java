@@ -44,11 +44,12 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.CacheService;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -267,8 +268,6 @@ public class ImportTest extends CQLTester
     @Test
     public void testGetCorrectDirectory() throws Throwable
     {
-        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
-        metadata.updateNormalTokens(BootStrapper.getRandomTokens(metadata, 10), FBUtilities.getBroadcastAddressAndPort());
         createTable("create table %s (id int primary key, d int)");
         getCurrentColumnFamilyStore().disableAutoCompaction();
 
@@ -409,38 +408,35 @@ public class ImportTest extends CQLTester
 
         getCurrentColumnFamilyStore().clearUnsafe();
 
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        InetAddressAndPort ep1 = InetAddressAndPort.getByName("127.0.0.1");
+        InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.2");
+        InetAddressAndPort ep3 = InetAddressAndPort.getByName("127.0.0.3");
 
-        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.1"));
-        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.2"));
-        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.3"));
-
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep1, ep1, ep1)),
+                              BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep2, ep2, ep2)),
+                              BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep3, ep3, ep3)),
+                              BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
 
         File backupdir = moveToBackupDir(sstables);
-        try
-        {
-            SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString()).verifySSTables(true).verifyTokens(true).build();
-            SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
-            List<String> failed = importer.importNewSSTables(options);
-            assertEquals(Collections.singletonList(backupdir.toString()), failed);
 
-            // verify that we check the tokens if verifySSTables == false but verifyTokens == true:
-            options = SSTableImporter.Options.options(backupdir.toString()).verifySSTables(false).verifyTokens(true).build();
-            importer = new SSTableImporter(getCurrentColumnFamilyStore());
-            failed = importer.importNewSSTables(options);
-            assertEquals(Collections.singletonList(backupdir.toString()), failed);
+        SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString()).verifySSTables(true).verifyTokens(true).build();
+        SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
+        List<String> failed = importer.importNewSSTables(options);
+        assertEquals(Collections.singletonList(backupdir.toString()), failed);
 
-            // and that we can import with it disabled:
-            options = SSTableImporter.Options.options(backupdir.toString()).verifySSTables(true).verifyTokens(false).build();
-            importer = new SSTableImporter(getCurrentColumnFamilyStore());
-            failed = importer.importNewSSTables(options);
-            assertTrue(failed.isEmpty());
+        // verify that we check the tokens if verifySSTables == false but verifyTokens == true:
+        options = SSTableImporter.Options.options(backupdir.toString()).verifySSTables(false).verifyTokens(true).build();
+        importer = new SSTableImporter(getCurrentColumnFamilyStore());
+        failed = importer.importNewSSTables(options);
+        assertEquals(Collections.singletonList(backupdir.toString()), failed);
 
-        }
-        finally
-        {
-            tmd.clearUnsafe();
-        }
+        // and that we can import with it disabled:
+        options = SSTableImporter.Options.options(backupdir.toString()).verifySSTables(true).verifyTokens(false).build();
+        importer = new SSTableImporter(getCurrentColumnFamilyStore());
+        failed = importer.importNewSSTables(options);
+        assertTrue(failed.isEmpty());
     }
 
     @Test
@@ -453,29 +449,24 @@ public class ImportTest extends CQLTester
         Set<SSTableReader> sstables = getCurrentColumnFamilyStore().getLiveSSTables();
 
         getCurrentColumnFamilyStore().clearUnsafe();
+        InetAddressAndPort ep1 = InetAddressAndPort.getByName("127.0.0.1");
+        InetAddressAndPort ep2 = InetAddressAndPort.getByName("127.0.0.2");
+        InetAddressAndPort ep3 = InetAddressAndPort.getByName("127.0.0.3");
 
-        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
-
-        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.1"));
-        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.2"));
-        tmd.updateNormalTokens(BootStrapper.getRandomTokens(tmd, 5), InetAddressAndPort.getByName("127.0.0.3"));
-
-
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep1, ep1, ep1)),
+                              BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep2, ep2, ep2)),
+                              BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
+        UnsafeJoin.unsafeJoin(Register.register(new NodeAddresses(ep3, ep3, ep3)),
+                              BootStrapper.getRandomTokens(ClusterMetadata.current(), 5));
         File backupdir = moveToBackupDir(sstables);
-        try
-        {
-            SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString())
-                                                                                     .verifySSTables(true)
-                                                                                     .verifyTokens(true)
-                                                                                     .extendedVerify(true).build();
-            SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
-            List<String> failedDirectories = importer.importNewSSTables(options);
-            assertEquals(Collections.singletonList(backupdir.toString()), failedDirectories);
-        }
-        finally
-        {
-            tmd.clearUnsafe();
-        }
+        SSTableImporter.Options options = SSTableImporter.Options.options(backupdir.toString())
+                                                                                 .verifySSTables(true)
+                                                                                 .verifyTokens(true)
+                                                                                 .extendedVerify(true).build();
+        SSTableImporter importer = new SSTableImporter(getCurrentColumnFamilyStore());
+        List<String> failedDirectories = importer.importNewSSTables(options);
+        assertEquals(Collections.singletonList(backupdir.toString()), failedDirectories);
     }
 
 

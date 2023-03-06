@@ -33,11 +33,8 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
-import org.apache.cassandra.locator.PendingRangeMaps;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.ActionListener;
@@ -46,6 +43,7 @@ import org.apache.cassandra.simulator.Actions;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.OrderOn.StrictSequential;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
@@ -76,7 +74,6 @@ public class KeyspaceActions extends ClusterActions
     final NodesByDc left;
 
     final int[] currentRf;
-    final TokenMetadata tokenMetadata = new TokenMetadata(snitch.get());
     Topology topology;
     boolean haveChangedVariant;
     int topologyChangeCount = 0;
@@ -150,7 +147,6 @@ public class KeyspaceActions extends ClusterActions
             {
                 int join = prejoin.removeRandom(random, dc);
                 joined.add(join);
-                tokenMetadata.updateNormalToken(tokenOf(join), inet(join));
             }
         }
 
@@ -216,12 +212,9 @@ public class KeyspaceActions extends ClusterActions
                     left.add(leave);
                     nodeLookup.setTokenOf(join, nodeLookup.tokenOf(leave));
                     Collection<Token> token = singleton(tokenOf(leave));
-                    tokenMetadata.addReplaceTokens(token, inet(join), inet(leave));
-                    tokenMetadata.unsafeCalculatePendingRanges(strategy(), keyspace);
+
                     Topology during = recomputeTopology();
                     updateTopology(during);
-                    tokenMetadata.updateNormalTokens(token, inet(join));
-                    tokenMetadata.unsafeCalculatePendingRanges(strategy(), keyspace);
                     Topology after = recomputeTopology();
                     Action action = new OnClusterReplace(KeyspaceActions.this, before, during, after, leave, join);
                     return scheduleAndUpdateTopologyOnCompletion(action, after);
@@ -235,12 +228,8 @@ public class KeyspaceActions extends ClusterActions
                     int join = prejoin.removeRandom(random, dc);
                     joined.add(join);
                     Collection<Token> token = singleton(tokenOf(join));
-                    tokenMetadata.addBootstrapTokens(token, inet(join));
-                    tokenMetadata.unsafeCalculatePendingRanges(strategy(), keyspace);
                     Topology during = recomputeTopology();
                     updateTopology(during);
-                    tokenMetadata.updateNormalTokens(token, inet(join));
-                    tokenMetadata.unsafeCalculatePendingRanges(strategy(), keyspace);
                     Topology after = recomputeTopology();
                     Action action = new OnClusterJoin(KeyspaceActions.this, before, during, after, join);
                     return scheduleAndUpdateTopologyOnCompletion(action, after);
@@ -250,12 +239,8 @@ public class KeyspaceActions extends ClusterActions
                     Topology before = topology;
                     int leave = joined.removeRandom(random, dc);
                     left.add(leave);
-                    tokenMetadata.addLeavingEndpoint(inet(leave));
-                    tokenMetadata.unsafeCalculatePendingRanges(strategy(), keyspace);
                     Topology during = recomputeTopology();
                     updateTopology(during);
-                    tokenMetadata.removeEndpoint(inet(leave));
-                    tokenMetadata.unsafeCalculatePendingRanges(strategy(), keyspace);
                     Topology after = recomputeTopology();
                     Action action = new OnClusterLeave(KeyspaceActions.this, before, during, after, leave);
                     return scheduleAndUpdateTopologyOnCompletion(action, after);
@@ -337,12 +322,8 @@ public class KeyspaceActions extends ClusterActions
         {
             int primaryKey = primaryKeys[i];
             Token token = new Murmur3Partitioner().getToken(Int32Type.instance.decompose(primaryKey));
-            replicasForKey[i] = strategy.calculateNaturalReplicas(token, tokenMetadata)
+            replicasForKey[i] = strategy.calculateNaturalReplicas(token, ClusterMetadata.current())
                                         .endpointList().stream().mapToInt(lookup::get).toArray();
-            PendingRangeMaps pendingRanges = tokenMetadata.getPendingRanges(keyspace);
-            EndpointsForToken pendingEndpoints = pendingRanges == null ? null : pendingRanges.pendingEndpointsFor(token);
-            if (pendingEndpoints == null) pendingReplicasForKey[i] = new int[0];
-            else pendingReplicasForKey[i] = pendingEndpoints.endpointList().stream().mapToInt(lookup::get).toArray();
         }
         int[] membersOfRing = joined.toArray();
         long[] membersOfRingTokens = IntStream.of(membersOfRing).mapToLong(nodeLookup::tokenOf).toArray();
@@ -384,7 +365,7 @@ public class KeyspaceActions extends ClusterActions
         Map<String, String> rf = new HashMap<>();
         for (int i = 0 ; i < snitch.dcCount() ; ++i)
             rf.put(snitch.nameOfDc(i), Integer.toString(currentRf[i]));
-        return new NetworkTopologyStrategy(keyspace, tokenMetadata, snitch.get(), rf);
+        return new NetworkTopologyStrategy(keyspace, rf);
     }
 
     private Token tokenOf(int node)

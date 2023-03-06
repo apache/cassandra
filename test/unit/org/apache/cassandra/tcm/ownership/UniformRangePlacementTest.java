@@ -26,11 +26,13 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.junit.Test;
 
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
 
-import static org.apache.cassandra.tcm.ownership.OwnershipUtils.rg;
+import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -286,5 +288,14 @@ public class UniformRangePlacementTest
         assertTrue(String.format("Placement didn't match expected replica groups. " +
                                  "%nExpected: %s%nActual: %s", Arrays.asList(expected), replicaGroups),
                    allMatch);
+    }
+
+    private EndpointsForRange rg(long t0, long t1, int...replicas)
+    {
+        Range<Token> range = new Range<>(token(t0), token(t1));
+        EndpointsForRange.Builder builder = EndpointsForRange.builder(range);
+        for (int i : replicas)
+            builder.add(Replica.fullReplica(endpoint((byte)i), range));
+        return builder.build();
     }
 }

@@ -73,7 +73,6 @@ public class CompactionIteratorTest extends CQLTester
 
         kk = Util.dk("key");
 
-        SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KSNAME,
                                     KeyspaceParams.simple(1),
                                     metadata = SchemaLoader.standardCFMD(KSNAME,

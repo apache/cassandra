@@ -70,8 +70,6 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION.setBoolean(true);
 
 
-        SchemaLoader.prepareServer();
-
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));

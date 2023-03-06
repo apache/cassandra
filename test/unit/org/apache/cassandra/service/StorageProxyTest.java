@@ -19,7 +19,6 @@
 package org.apache.cassandra.service;
 
 import java.net.UnknownHostException;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -135,7 +134,7 @@ public class StorageProxyTest
     {
         InetAddressAndPort testEp = InetAddressAndPort.getByName("192.168.1.1");
         Replica replica = full(testEp);
-        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), testEp);
+//        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), testEp);
         EndpointState state = new EndpointState(new HeartBeatState(0, 0));
         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.markDead(replica.endpoint(), state));
 
@@ -145,7 +144,7 @@ public class StorageProxyTest
         }
         finally
         {
-            StorageService.instance.getTokenMetadata().removeEndpoint(testEp);
+//            StorageService.instance.getTokenMetadata().removeEndpoint(testEp);
         }
     }
 }

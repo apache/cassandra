@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,12 +38,27 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummarySupport;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.security.ThreadAwareSecurityManager;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Commit;
+import org.apache.cassandra.tcm.MetadataSnapshots;
+import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.log.LogStorage;
+import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.transformations.cms.Initialize;
+import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 
 /**
  * Utility methodes used by SchemaLoader and CQLTester to manage the server and its state.
@@ -66,7 +82,11 @@ public final class ServerTestUtils
     public static void daemonInitialization()
     {
         DatabaseDescriptor.daemonInitialization();
+        initSnitch();
+    }
 
+    public static void initSnitch()
+    {
         // Register an EndpointSnitch which returns fixed values for test.
         DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
         {
@@ -131,7 +151,7 @@ public final class ServerTestUtils
 
         ThreadAwareSecurityManager.install();
 
-        Keyspace.setInitialized();
+        initCMS();
         SystemKeyspace.persistLocalMetadata();
         AuditLogManager.instance.initialize();
         isServerPrepared = true;
@@ -204,6 +224,48 @@ public final class ServerTestUtils
         EmbeddedCassandraService service = new EmbeddedCassandraService();
         service.start();
         return service;
+    }
+
+    public static void initCMS()
+    {
+        Function<LocalLog, ClusterMetadataService.Processor> processorFactory = AtomicLongBackedProcessor::new;
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        boolean addListeners = true;
+        ClusterMetadata initial = new ClusterMetadata(partitioner);
+        initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
+        if (!Keyspace.isInitialized())
+            Keyspace.setInitialized();
+
+        LocalLog log = LocalLog.sync(initial, LogStorage.None, addListeners);
+        ClusterMetadataService service = new ClusterMetadataService(new UniformRangePlacement(),
+                                                                    MetadataSnapshots.NO_OP,
+                                                                    log,
+                                                                    processorFactory.apply(log),
+                                                                    Commit.Replicator.NO_OP,
+                                                                    true);
+
+        ClusterMetadataService.setInstance(service);
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        service.commit(new Initialize(ClusterMetadata.current()));
+        QueryProcessor.registerStatementInvalidatingListener();
+    }
+
+
+    public static void resetCMS()
+    {
+        assert ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.getBoolean() : "Need to set " + ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION + " to true for resetCMS to work";
+        ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+        initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
+        LocalLog log = LocalLog.async(initial);
+        ClusterMetadataService cms = new ClusterMetadataService(new UniformRangePlacement(),
+                                                                MetadataSnapshots.NO_OP,
+                                                                log,
+                                                                new AtomicLongBackedProcessor(log),
+                                                                Commit.Replicator.NO_OP,
+                                                                true);
+        ClusterMetadataService.unsetInstance();
+        ClusterMetadataService.setInstance(cms);
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
     }
 
     private ServerTestUtils()

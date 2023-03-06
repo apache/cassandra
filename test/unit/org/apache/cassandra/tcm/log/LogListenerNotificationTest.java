@@ -42,7 +42,7 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 
-import static org.apache.cassandra.tcm.MetadataKeys.make;
+import static org.apache.cassandra.tcm.MetadataKeys.CORE_METADATA;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.randomPlacements;
 import static org.apache.cassandra.tcm.sequences.SequencesUtils.affectedRanges;
 import static org.junit.Assert.assertEquals;
@@ -76,8 +76,8 @@ public class LogListenerNotificationTest
                                                   affectedMetadata(random))));
         }
 
-        ClusterMetadata cm = cm();
-        LocalLog log = LocalLog.sync(cm, LogStorage.None, false);
+        ClusterMetadata metadata = cm();
+        LocalLog log = LocalLog.sync(metadata, LogStorage.None, false);
         log.append(new Entry(Entry.Id.NONE, Epoch.FIRST, PreInitialize.forTesting()));
         LogListener listener = new LogListener()
         {
@@ -92,6 +92,7 @@ public class LogListenerNotificationTest
                 assertEquals(transform.keys.size(), updatedMetadata.size());
                 for (MetadataKey expectedKey : transform.keys)
                     assertTrue(updatedMetadata.contains(expectedKey));
+                assertEquals(transform.ranges, result.success().affectedRanges);
 
                 counter++;
             }
@@ -108,10 +109,11 @@ public class LogListenerNotificationTest
 
     static Set<MetadataKey> affectedMetadata(Random random)
     {
-        int required = random.nextInt(9) + 1;
+        List<MetadataKey> src = new ArrayList<>(CORE_METADATA);
+        int required = random.nextInt(src.size());
         Set<MetadataKey> keys = new HashSet<>();
         while (keys.size() < required)
-            keys.add(make("test.random." + random.nextInt(100)));
+            keys.add(src.get(random.nextInt(src.size())));
         return keys;
     }
 

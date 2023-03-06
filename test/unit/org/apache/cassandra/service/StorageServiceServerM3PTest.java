@@ -53,7 +53,7 @@ public class StorageServiceServerM3PTest
     {
         mkdirs();
         cleanup();
-        StorageService.instance.initServer(0);
+        StorageService.instance.initServer();
         for (String path : DatabaseDescriptor.getAllDataFileLocations())
         {
             // verify that storage directories are there.

@@ -73,7 +73,7 @@ public class Ec2SnitchTest
         mkdirs();
         cleanup();
         Keyspace.setInitialized();
-        StorageService.instance.initServer(0);
+        StorageService.instance.initServer();
     }
 
 
@@ -257,7 +257,6 @@ public class Ec2SnitchTest
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
-        Gossiper.instance.addSavedEndpoint(nonlocal);
         Map<ApplicationState, VersionedValue> stateMap = new EnumMap<>(ApplicationState.class);
         stateMap.put(ApplicationState.DC, StorageService.instance.valueFactory.datacenter("us-west"));
         stateMap.put(ApplicationState.RACK, StorageService.instance.valueFactory.datacenter("1a"));

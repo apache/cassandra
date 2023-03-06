@@ -38,4 +38,6 @@ public final class Constants
      * 'true'.
      */
     public static final String KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN = "dtest.api.startup.failure_as_shutdown";
+
+    public static final String KEY_DTEST_FULL_STARTUP = "dtest.api.startup.full_startup";
 }

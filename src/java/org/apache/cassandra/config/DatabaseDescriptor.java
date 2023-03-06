@@ -84,6 +84,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.gms.IFailureDetector;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
@@ -104,6 +105,7 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
@@ -1879,6 +1881,13 @@ public class DatabaseDescriptor
 
     /* For tests ONLY, don't use otherwise or all hell will break loose. Tests should restore value at the end. */
     public static IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
+    {
+        IPartitioner old = setOnlyPartitionerUnsafe(newPartitioner);
+        StorageService.instance.valueFactory = new VersionedValue.VersionedValueFactory(partitioner);
+        return old;
+    }
+
+    public static IPartitioner setOnlyPartitionerUnsafe(IPartitioner newPartitioner)
     {
         IPartitioner old = partitioner;
         partitioner = newPartitioner;

@@ -25,14 +25,15 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.Actions.ReliableAction;
 
@@ -71,10 +72,16 @@ class OnClusterReplace extends OnClusterChangeTopology
 
         int[] others = repairRanges.stream().mapToInt(
             repairRange -> lookup.get(leaveInstance.unsafeApplyOnThisThread(
-                (String keyspaceName, String tk) -> Keyspace.open(keyspaceName).getReplicationStrategy().getNaturalReplicasForToken(Utils.parseToken(tk)).stream().map(Replica::endpoint)
-                                                            .filter(i -> !i.equals(getBroadcastAddressAndPort()))
-                                                            .findFirst()
-                                                            .orElseThrow(IllegalStateException::new),
+                (String keyspaceName, String tk) -> {
+                    ClusterMetadata metadata = ClusterMetadata.current();
+                    KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspaceName);
+                    return metadata.placements.get(keyspaceMetadata.params.replication).reads
+                           .forToken(Utils.parseToken(tk))
+                           .stream().map(Replica::endpoint)
+                           .filter(i -> !i.equals(getBroadcastAddressAndPort()))
+                           .findFirst()
+                           .orElseThrow(IllegalStateException::new);
+                },
                 actions.keyspace, repairRange.getValue())
             ).config().num()
         ).toArray();

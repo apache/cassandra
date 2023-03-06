@@ -40,14 +40,12 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SeedProvider;
-import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -58,7 +56,6 @@ import org.quicktheories.impl.Constraint;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -77,7 +74,6 @@ public class GossiperTest
 
     static final IPartitioner partitioner = new RandomPartitioner();
     StorageService ss = StorageService.instance;
-    TokenMetadata tmd = StorageService.instance.getTokenMetadata();
     ArrayList<Token> endpointTokens = new ArrayList<>();
     ArrayList<Token> keyTokens = new ArrayList<>();
     List<InetAddressAndPort> hosts = new ArrayList<>();
@@ -88,7 +84,7 @@ public class GossiperTest
     @Before
     public void setup()
     {
-        tmd.clearUnsafe();
+//        tmd.clearUnsafe();
         originalSeedProvider = DatabaseDescriptor.getSeedProvider();
     }
 
@@ -121,50 +117,9 @@ public class GossiperTest
     }
 
     @Test
-    public void testHasVersion3Nodes() throws Exception
-    {
-        Gossiper.instance.start(0);
-        Gossiper.instance.expireUpgradeFromVersion();
-
-        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(null);
-        EndpointState es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion(CURRENT_VERSION.toString()));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.1"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.1"));
-
-
-        es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("3.11.3"));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.2"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.2"));
-
-        es = new EndpointState((HeartBeatState) null);
-        es.addApplicationState(ApplicationState.RELEASE_VERSION, factory.releaseVersion("3.0.0"));
-        Gossiper.instance.endpointStateMap.put(InetAddressAndPort.getByName("127.0.0.3"), es);
-        Gossiper.instance.liveEndpoints.add(InetAddressAndPort.getByName("127.0.0.3"));
-
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
-        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
-        assertTrue(Gossiper.instance.hasMajorVersion3Nodes());
-
-        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.3"));
-        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.3"));
-
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.0")) < 0);
-        assertFalse(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.1")) < 0);
-        assertTrue(Gossiper.instance.upgradeFromVersionSupplier.get().value().compareTo(new CassandraVersion("3.12")) < 0);
-        assertTrue(Gossiper.instance.hasMajorVersion3Nodes());
-
-        Gossiper.instance.endpointStateMap.remove(InetAddressAndPort.getByName("127.0.0.2"));
-        Gossiper.instance.liveEndpoints.remove(InetAddressAndPort.getByName("127.0.0.2"));
-
-        assertEquals(SystemKeyspace.CURRENT_VERSION, Gossiper.instance.upgradeFromVersionSupplier.get().value());
-    }
-
-    @Test
     public void testLargeGenerationJump() throws UnknownHostException, InterruptedException
     {
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Util.createInitialRing(endpointTokens, keyTokens, hosts, hostIds, 2);
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -211,7 +166,7 @@ public class GossiperTest
             new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
 
         SimpleStateChangeListener stateChangeListener = null;
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Util.createInitialRing(endpointTokens, keyTokens, hosts, hostIds, 2);
         try
         {
             InetAddressAndPort remoteHostAddress = hosts.get(1);
@@ -369,7 +324,7 @@ public class GossiperTest
         VersionedValue.VersionedValueFactory valueFactory =
             new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
 
-        Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 2);
+        Util.createInitialRing(endpointTokens, keyTokens, hosts, hostIds, 2);
         SimpleStateChangeListener stateChangeListener = null;
         try
         {

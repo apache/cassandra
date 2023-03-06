@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.distributed.test;
 
-import org.awaitility.Awaitility;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.action.GossipHelper;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
@@ -30,13 +28,10 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.metrics.HintsServiceMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.awaitility.Awaitility;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.awaitility.Awaitility.await;
-import static org.junit.Assert.assertEquals;
-
-import static org.apache.cassandra.distributed.action.GossipHelper.decommission;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.TWO;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -44,6 +39,9 @@ import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Tests around removing and adding nodes from and to a cluster while hints are still outstanding.
@@ -108,7 +106,7 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
 
             // Decomision node 1...
             assertEquals(4, endpointsKnownTo(cluster, 2));
-            cluster.run(decommission(), 1);
+            cluster.get(1).nodetoolResult("decommission --force").asserts().success();
             await().pollDelay(1, SECONDS).until(() -> endpointsKnownTo(cluster, 2) == 3);
             // ...and verify that all data still exists on either node 2 or 3.
             verify(cluster, "decom_hint_test", 2, 0, 128, ConsistencyLevel.ONE);
@@ -118,8 +116,8 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
             await().atMost(30, SECONDS).pollDelay(3, SECONDS).until(() -> count(cluster, "decom_hint_test", 4) >= totalHints);
 
             // Now decommission both nodes 2 and 3...
-            cluster.run(GossipHelper.decommission(true), 2);
-            cluster.run(GossipHelper.decommission(true), 3);
+            cluster.get(2).nodetoolResult("decommission --force").asserts().success();
+            cluster.get(3).nodetoolResult("decommission --force").asserts().success();
             await().pollDelay(1, SECONDS).until(() -> endpointsKnownTo(cluster, 4) == 1);
             // ...and verify that even if we drop below the replication factor of 2, all data has been preserved.
             verify(cluster, "decom_hint_test", 4, 0, 128, ConsistencyLevel.ONE);
@@ -199,6 +197,6 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
 
     private int endpointsKnownTo(Cluster cluster, int node)
     {
-        return cluster.get(node).callOnInstance(() -> StorageService.instance.getTokenMetadata().getAllEndpoints().size());
+        return cluster.get(node).callOnInstance(() -> ClusterMetadata.current().directory.allAddresses().size());
     }
 }

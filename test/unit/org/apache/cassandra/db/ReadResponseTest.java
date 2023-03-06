@@ -23,14 +23,17 @@ import java.nio.ByteBuffer;
 import java.util.Random;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
@@ -48,10 +51,18 @@ public class ReadResponseTest
     private final Random random = new Random();
     private TableMetadata metadata;
 
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+        ClusterMetadataTestHelper.setInstanceForTest();
+    }
     @Before
     public void setup()
     {
+
         metadata = TableMetadata.builder("ks", "t1")
+                                .offline()
                                 .addPartitionKeyColumn("p", Int32Type.instance)
                                 .addRegularColumn("v", Int32Type.instance)
                                 .partitioner(Murmur3Partitioner.instance)

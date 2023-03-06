@@ -47,6 +47,7 @@ public class SequencesUtils
 
     public static Epoch epoch(Random random)
     {
-        return Epoch.create(random.nextLong());
+        return Epoch.create(Math.abs(random.nextLong()));
     }
+
 }

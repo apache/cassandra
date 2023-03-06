@@ -21,14 +21,24 @@ package org.apache.cassandra.tcm;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 
 public class StubClusterMetadataService extends ClusterMetadataService
 {
+
+    public static StubClusterMetadataService forTesting()
+    {
+        return new StubClusterMetadataService(null,
+                                              new ClusterMetadata(DatabaseDescriptor.getPartitioner()),
+                                              null,
+                                              null);
+    }
 
     @Override
     public ClusterMetadata metadata()
@@ -41,7 +51,8 @@ public class StubClusterMetadataService extends ClusterMetadataService
         ((StubProcessor)processor()).metadata = metadata;
     }
 
-    private StubClusterMetadataService(ClusterMetadata initial,
+    private StubClusterMetadataService(PlacementProvider placementProvider,
+                                       ClusterMetadata initial,
                                        Function<Processor, Processor> wrapProcessor,
                                        Supplier<State> cmsStateSupplier)
     {

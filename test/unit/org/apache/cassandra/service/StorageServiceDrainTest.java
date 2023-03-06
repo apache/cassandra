@@ -33,8 +33,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -60,10 +58,7 @@ public class StorageServiceDrainTest
 
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE, KeyspaceParams.simple(1), SchemaLoader.standardCFMD(KEYSPACE, TABLE));
-
-        StorageService.instance
-                .getTokenMetadata()
-                .updateNormalToken(new BytesToken((new byte[]{50})), InetAddressAndPort.getByName("127.0.0.1"));
+        StorageService.instance.unsafeSetInitialized();
 
         final ColumnFamilyStore table = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
         for (int row = 0; row < ROWS; row++)

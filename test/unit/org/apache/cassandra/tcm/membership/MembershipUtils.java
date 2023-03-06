@@ -27,11 +27,7 @@ public class MembershipUtils
 {
     public static NodeAddresses nodeAddresses(Random random)
     {
-        return nodeAddresses(randomEndpoint(random));
-    }
-
-    public static NodeAddresses nodeAddresses(InetAddressAndPort endpoint)
-    {
+        InetAddressAndPort endpoint = randomEndpoint(random);
         return new NodeAddresses(endpoint, endpoint, endpoint);
     }
 

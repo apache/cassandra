@@ -57,7 +57,7 @@ public class TriggersTest
     @Before
     public void setup() throws Exception
     {
-        StorageService.instance.initServer(0);
+        StorageService.instance.initServer();
 
         String cql = String.format("CREATE KEYSPACE IF NOT EXISTS %s " +
                                    "WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': 1}",

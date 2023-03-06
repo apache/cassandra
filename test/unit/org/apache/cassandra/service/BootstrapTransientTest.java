@@ -25,9 +25,6 @@ import java.util.Collection;
 import java.util.List;
 
 import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -39,13 +36,15 @@ import org.apache.cassandra.dht.RangeStreamer;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.EndpointsByReplica;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.SimpleStrategy;
-import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.locator.Replica.fullReplica;
@@ -153,40 +152,46 @@ public class BootstrapTransientTest
         return builder.build();
     }
     @Test
-    public void testRangeStreamerRangesToFetch() throws Exception
+    public void testRangeStreamerRangesToFetch()
     {
         EndpointsByReplica expectedResult = new EndpointsByReplica(ImmutableMap.of(
         transientReplica(address05, range10_20), endpoints(transientReplica(address02, range10_20)),
         fullReplica(address05, range20_30), endpoints(transientReplica(address03, range20_30), fullReplica(address04, range20_30)),
         fullReplica(address05, range30_40), endpoints(transientReplica(address04, range30_10), fullReplica(address02, range30_10))));
 
-        invokeCalculateRangesToFetchWithPreferredEndpoints(toFetch, constructTMDs(), expectedResult);
+        invokeCalculateRangesToFetchWithPreferredEndpoints(toFetch, constructClusterMetadatas(), expectedResult);
     }
 
-    private Pair<TokenMetadata, TokenMetadata> constructTMDs()
+    private Pair<ClusterMetadata, ClusterMetadata> constructClusterMetadatas()
     {
-        TokenMetadata tmd = new TokenMetadata();
-        tmd.updateNormalToken(range30_10.right, address02);
-        tmd.updateNormalToken(range10_20.right, address03);
-        tmd.updateNormalToken(range20_30.right, address04);
-        TokenMetadata updated = tmd.cloneOnlyTokenMap();
-        updated.updateNormalToken(range30_40.right, address05);
-
-        return Pair.create(tmd, updated);
+        return null;
+        // todo;
+//        TokenMetadata tmd = new DefaultTokenMetadata();
+//        TokenMetadata.Transformer transformer = tmd.transformer();
+//        transformer.withNormalToken(range30_10.right, address02)
+//                   .withNormalToken(range10_20.right, address03)
+//                   .withNormalToken(range20_30.right, address04);
+//
+//        TokenMetadata.Transformer updated = transformer.build().onlyTokensTransformer();
+//        updated.withNormalToken(range30_40.right, address05);
+//
+//        return Pair.create(tmd, updated.build());
     }
 
     private void invokeCalculateRangesToFetchWithPreferredEndpoints(ReplicaCollection<?> toFetch,
-                                                                    Pair<TokenMetadata, TokenMetadata> tmds,
+                                                                    Pair<ClusterMetadata, ClusterMetadata> metadatas,
                                                                     EndpointsByReplica expectedResult)
     {
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
 
         EndpointsByReplica result = RangeStreamer.calculateRangesToFetchWithPreferredEndpoints((address, replicas) -> replicas,
-                                                                                               simpleStrategy(tmds.left),
+                                                                                               simpleStrategy(metadatas.left),
                                                                                                toFetch,
                                                                                                true,
-                                                                                               tmds.left,
-                                                                                               tmds.right,
+null,
+//TODO
+//                                                                                               tmds.left,
+//                                                                                               tmds.right,
                                                                                                "TestKeyspace",
                                                                                                sourceFilters);
         result.asMap().forEach((replica, list) -> System.out.printf("Replica %s, sources %s%n", replica, list));
@@ -194,7 +199,7 @@ public class BootstrapTransientTest
 
     }
 
-    private AbstractReplicationStrategy simpleStrategy(TokenMetadata tmd)
+    private AbstractReplicationStrategy simpleStrategy(ClusterMetadata metadata)
     {
         IEndpointSnitch snitch = new AbstractEndpointSnitch()
         {
@@ -215,8 +220,6 @@ public class BootstrapTransientTest
         };
 
         return new SimpleStrategy("MoveTransientTest",
-                                  tmd,
-                                  snitch,
                                   com.google.common.collect.ImmutableMap.of("replication_factor", "3/1"));
     }
 

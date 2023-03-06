@@ -36,8 +36,8 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.PendingRangeCalculatorService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.collect.Iterables.getOnlyElement;
@@ -137,7 +137,6 @@ public class UnsafeGossipHelper
                                           : Math.min(MessagingService.current_version, messagingVersion);
                 MessagingService.instance().versions.set(addressAndPort, setMessagingVersion);
 
-                PendingRangeCalculatorService.instance.blockUntilFinished();
             }
             catch (Throwable e) // UnknownHostException
             {
@@ -201,7 +200,6 @@ public class UnsafeGossipHelper
                     Gossiper.instance.initializeNodeUnsafe(addressAndPort, hostId, 1);
                     Gossiper.instance.realMarkAlive(addressAndPort, Gossiper.instance.getEndpointStateForEndpoint(addressAndPort));
                 });
-                PendingRangeCalculatorService.instance.blockUntilFinished();
             }
             catch (Throwable e) // UnknownHostException
             {
@@ -253,7 +251,7 @@ public class UnsafeGossipHelper
     public static void addToRingNormal(IInstance peer)
     {
         addToRingNormalRunner(peer).run();
-        assert StorageService.instance.getTokenMetadata().isMember(toCassandraInetAddressAndPort(peer.broadcastAddress()));
+        assert ClusterMetadata.current().directory.allAddresses().contains(toCassandraInetAddressAndPort(peer.broadcastAddress()));
     }
 
     public static void addToRingBootstrapping(IInstance peer)

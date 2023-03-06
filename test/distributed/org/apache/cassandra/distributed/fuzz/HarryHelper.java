@@ -20,8 +20,13 @@ package org.apache.cassandra.distributed.fuzz;
 
 import java.io.File;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import harry.core.Configuration;
+import harry.ddl.ColumnSpec;
+import harry.ddl.SchemaGenerators;
+import harry.ddl.SchemaSpec;
+import harry.generators.Surjections;
 import harry.model.OpSelectors;
 import harry.model.clock.OffsetClock;
 import harry.model.sut.PrintlnSut;
@@ -64,6 +69,45 @@ public class HarryHelper
         return configuration;
     }
 
+    private static AtomicInteger counter = new AtomicInteger();
+
+    public static Surjections.Surjection<SchemaSpec> schemaSpecGen(String keyspace, String prefix)
+    {
+        return new SchemaGenerators.Builder(keyspace, () -> prefix + counter.getAndIncrement())
+               .partitionKeySpec(1, 3,
+                                 ColumnSpec.int64Type,
+                                 ColumnSpec.doubleType,
+                                 ColumnSpec.asciiType,
+                                 ColumnSpec.textType)
+               .clusteringKeySpec(1, 3,
+                                  ColumnSpec.int64Type,
+                                  ColumnSpec.doubleType,
+                                  ColumnSpec.asciiType,
+                                  ColumnSpec.textType,
+                                  ColumnSpec.ReversedType.getInstance(ColumnSpec.int64Type),
+                                  ColumnSpec.ReversedType.getInstance(ColumnSpec.doubleType),
+                                  ColumnSpec.ReversedType.getInstance(ColumnSpec.asciiType),
+                                  ColumnSpec.ReversedType.getInstance(ColumnSpec.textType))
+               .regularColumnSpec(3, 5,
+                                  ColumnSpec.int8Type,
+                                  ColumnSpec.int16Type,
+                                  ColumnSpec.int32Type,
+                                  ColumnSpec.int64Type,
+                                  ColumnSpec.floatType,
+                                  ColumnSpec.doubleType,
+                                  ColumnSpec.asciiType(5, 256))
+               .staticColumnSpec(3, 5,
+                                 ColumnSpec.int8Type,
+                                 ColumnSpec.int16Type,
+                                 ColumnSpec.int32Type,
+                                 ColumnSpec.int64Type,
+                                 ColumnSpec.floatType,
+                                 ColumnSpec.doubleType,
+                                 ColumnSpec.asciiType(4, 512),
+                                 ColumnSpec.asciiType(4, 2048))
+               .surjection();
+    }
+
     public static Configuration.ConfigurationBuilder defaultConfiguration() throws Exception
     {
         return new Configuration.ConfigurationBuilder()
@@ -71,7 +115,7 @@ public class HarryHelper
                .setCreateSchema(true)
                .setTruncateTable(false)
                .setDropSchema(false)
-               .setSchemaProvider(new Configuration.DefaultSchemaProviderConfiguration())
+               .setSchemaProvider((seed, sut) -> schemaSpecGen("harry", "tbl_").inflate(seed))
                .setClock(new Configuration.ApproximateMonotonicClockConfiguration(7300, 1, TimeUnit.SECONDS))
                .setClusteringDescriptorSelector(defaultClusteringDescriptorSelectorConfiguration().build())
                .setPartitionDescriptorSelector(new Configuration.DefaultPDSelectorConfiguration(100, 10))

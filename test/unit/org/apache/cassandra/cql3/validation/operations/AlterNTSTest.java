@@ -19,7 +19,6 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.junit.Test;
 
@@ -33,7 +32,6 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientWarn;
-import org.apache.cassandra.service.StorageService;
 import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
@@ -116,7 +114,7 @@ public class AlterNTSTest extends CQLTester
         requireAuthentication();
 
         // Add a peer
-        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.0.0.2"));
+//        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.0.0.2"));
 
         // Register an Endpoint snitch which returns fixed value for data center.
         DatabaseDescriptor.setEndpointSnitch(new IEndpointSnitch()
