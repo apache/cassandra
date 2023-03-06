@@ -79,19 +79,19 @@ public abstract class QualifiedStatement extends CQLStatement.Raw
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 
-    public static abstract class Group extends QualifiedStatement
+    public static abstract class CompositeQualifiedStatement extends QualifiedStatement
     {
-        Group()
+        CompositeQualifiedStatement()
         {
             super(null);
         }
 
-        protected abstract Iterable<? extends QualifiedStatement> group();
+        protected abstract Iterable<? extends QualifiedStatement> getStatements();
 
         @Override
         public boolean isFullyQualified()
         {
-            for (QualifiedStatement statement : group())
+            for (QualifiedStatement statement : getStatements())
                 if (!statement.isFullyQualified())
                     return false;
 
@@ -101,14 +101,14 @@ public abstract class QualifiedStatement extends CQLStatement.Raw
         @Override
         public void setKeyspace(ClientState state)
         {
-            for (QualifiedStatement statement : group())
+            for (QualifiedStatement statement : getStatements())
                 statement.setKeyspace(state);
         }
 
         @Override
         public void setKeyspace(String keyspace)
         {
-            for (QualifiedStatement statement : group())
+            for (QualifiedStatement statement : getStatements())
                 statement.setKeyspace(keyspace);
         }
 

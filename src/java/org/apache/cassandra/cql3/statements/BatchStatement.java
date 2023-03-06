@@ -57,7 +57,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
  */
-public class BatchStatement implements CQLStatement
+public class BatchStatement implements CompositeCQLStatement
 {
     public enum Type
     {
@@ -260,6 +260,7 @@ public class BatchStatement implements CQLStatement
             statement.validate(state);
     }
 
+    @Override
     public List<ModificationStatement> getStatements()
     {
         return statements;
@@ -606,7 +607,7 @@ public class BatchStatement implements CQLStatement
         return String.format("BatchStatement(type=%s, statements=%s)", type, statements);
     }
 
-    public static class Parsed extends QualifiedStatement.Group
+    public static class Parsed extends QualifiedStatement.CompositeQualifiedStatement
     {
         private final Type type;
         private final Attributes.Raw attrs;
@@ -620,7 +621,7 @@ public class BatchStatement implements CQLStatement
         }
 
         @Override
-        protected Iterable<? extends QualifiedStatement> group()
+        protected Iterable<? extends QualifiedStatement> getStatements()
         {
             return parsedStatements;
         }

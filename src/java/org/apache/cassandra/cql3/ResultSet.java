@@ -31,6 +31,7 @@ import java.util.Objects;
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
+import org.apache.cassandra.cql3.statements.ReturningCQLStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -315,10 +316,8 @@ public class ResultSet
 
         public static ResultMetadata fromPrepared(CQLStatement statement)
         {
-            if (statement instanceof SelectStatement)
-                return ((SelectStatement)statement).getResultMetadata();
-            if (statement instanceof TransactionStatement)
-                return ((TransactionStatement) statement).getResultMetadata();
+            if (statement instanceof ReturningCQLStatement)
+                return ((ReturningCQLStatement) statement).getResultMetadata();
 
             return ResultSet.ResultMetadata.EMPTY;
         }

@@ -83,7 +83,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNu
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-public class TransactionStatement implements CQLStatement
+public class TransactionStatement implements CompositeCQLStatement, ReturningCQLStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(TransactionStatement.class);
 
@@ -168,7 +168,8 @@ public class TransactionStatement implements CQLStatement
             statement.validate(state);
     }
 
-    public Iterable<CQLStatement> statements()
+    @Override
+    public Iterable<CQLStatement> getStatements()
     {
         return () -> {
             Stream<CQLStatement> stream = assignments.stream().map(n -> n.select);
@@ -179,6 +180,7 @@ public class TransactionStatement implements CQLStatement
         };
     }
 
+    @Override
     public ResultSet.ResultMetadata getResultMetadata()
     {
         if (returningSelect != null)
@@ -440,7 +442,7 @@ public class TransactionStatement implements CQLStatement
         return new AuditLogContext(AuditLogEntryType.TRANSACTION);
     }
 
-    public static class Parsed extends QualifiedStatement.Group
+    public static class Parsed extends QualifiedStatement.CompositeQualifiedStatement
     {
         private final List<SelectStatement.RawStatement> assignments;
         private final SelectStatement.RawStatement select;
@@ -465,7 +467,7 @@ public class TransactionStatement implements CQLStatement
         }
 
         @Override
-        protected Iterable<? extends QualifiedStatement> group()
+        protected Iterable<? extends QualifiedStatement> getStatements()
         {
             Iterable<QualifiedStatement> group = Iterables.concat(assignments, updates);
             if (select != null)

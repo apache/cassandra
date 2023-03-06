@@ -989,20 +989,10 @@ public class QueryProcessor implements QueryHandler
                 statementKsName = selectStatement.keyspace();
                 statementCfName = selectStatement.table();
             }
-            else if (statement instanceof BatchStatement)
+            else if (statement instanceof CompositeCQLStatement)
             {
-                BatchStatement batchStatement = ((BatchStatement) statement);
-                for (ModificationStatement stmt : batchStatement.getStatements())
-                {
-                    if (shouldInvalidate(ksName, cfName, stmt))
-                        return true;
-                }
-                return false;
-            }
-            else if (statement instanceof TransactionStatement)
-            {
-                TransactionStatement transactionStatement = (TransactionStatement) statement;
-                for (CQLStatement stmt : transactionStatement.statements())
+                CompositeCQLStatement transactionStatement = (CompositeCQLStatement) statement;
+                for (CQLStatement stmt : transactionStatement.getStatements())
                 {
                     if (shouldInvalidate(ksName, cfName, stmt))
                         return true;
