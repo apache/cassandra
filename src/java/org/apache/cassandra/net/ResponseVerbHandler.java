@@ -48,6 +48,7 @@ class ResponseVerbHandler implements IVerbHandler
             // that executes something on the gossip stage as well.
             !Stage.GOSSIP.executor().inExecutor())
         {
+            logger.debug("Learned about next epoch {} from {} in {}", message.epoch(), message.from(), message.verb());
             ClusterMetadataService.instance().maybeCatchup(message.epoch());
         }
 

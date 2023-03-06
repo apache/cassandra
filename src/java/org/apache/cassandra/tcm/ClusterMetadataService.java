@@ -50,6 +50,7 @@ import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
@@ -86,28 +87,9 @@ public class ClusterMetadataService
         return instance;
     }
 
-    public interface Processor
-    {
-        // TODO: remove entry id from the interface?
-        /**
-         * Method is _only_ responsible to commit the transformation to the cluster metadata. Implementers _have to ensure_
-         * local visibility and enactment of the metadata!
-         */
-        Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown);
-        // TODO: add a debounce to requestReplay. Right now, because of ResponseVerbHandler, it is possible to send
-        // a barage of these requests.
-        /**
-         * Replays to the highest known epoch.
-         *
-         * Upon replay, all items _at least_ up to returned epoch will be visible.
-         */
-        ClusterMetadata replayAndWait();
-    }
-
     private final PlacementProvider placementProvider;
     private final Processor processor;
     private final LocalLog log;
-    private final Commit.Replicator replicator;
     private final MetadataSnapshots snapshots;
 
     private final Replication.ReplicationHandler replicationHandler;
@@ -146,15 +128,15 @@ public class ClusterMetadataService
         Processor localProcessor = wrapProcessor.apply(new PaxosBackedProcessor(log));
         RemoteProcessor remoteProcessor = new RemoteProcessor(log, Discovery.instance::discoveredNodes);
         GossipProcessor gossipProcessor = new GossipProcessor();
-        replicator = new Commit.DefaultReplicator(() -> log.metadata().directory);
+        Commit.Replicator replicator = new Commit.DefaultReplicator(() -> log.metadata().directory);
         currentEpochHandler = new CurrentEpochRequestHandler();
         replayRequestHandler = new SwitchableHandler<>(new Replay.Handler(), cmsStateSupplier);
         commitRequestHandler = new SwitchableHandler<>(new Commit.Handler(localProcessor, replicator), cmsStateSupplier);
         processor = new SwitchableProcessor(localProcessor,
                                             remoteProcessor,
                                             gossipProcessor,
+                                            replicator,
                                             cmsStateSupplier);
-
         replicationHandler = new Replication.ReplicationHandler(log);
         logNotifyHandler = new Replication.LogNotifyHandler(log);
     }
@@ -169,8 +151,7 @@ public class ClusterMetadataService
     {
         this.placementProvider = placementProvider;
         this.log = log;
-        this.processor = processor;
-        this.replicator = replicator;
+        this.processor = new SwitchableProcessor(processor, null, null, replicator, () -> State.LOCAL);
         this.snapshots = snapshots;
 
         replicationHandler = new Replication.ReplicationHandler(log);
@@ -185,7 +166,6 @@ public class ClusterMetadataService
                                    MetadataSnapshots snapshots,
                                    LocalLog log,
                                    Processor processor,
-                                   Commit.Replicator replicator,
                                    Replication.ReplicationHandler replicationHandler,
                                    Replication.LogNotifyHandler logNotifyHandler,
                                    CurrentEpochRequestHandler currentEpochHandler,
@@ -196,7 +176,6 @@ public class ClusterMetadataService
         this.snapshots = snapshots;
         this.log = log;
         this.processor = processor;
-        this.replicator = replicator;
         this.replicationHandler = replicationHandler;
         this.logNotifyHandler = logNotifyHandler;
         this.currentEpochHandler = currentEpochHandler;
@@ -217,7 +196,6 @@ public class ClusterMetadataService
                                                                 MetadataSnapshots.NO_OP,
                                                                 log,
                                                                 new AtomicLongBackedProcessor(log),
-                                                                Commit.Replicator.NO_OP,
                                                                 new Replication.ReplicationHandler(log),
                                                                 new Replication.LogNotifyHandler(log),
                                                                 new CurrentEpochRequestHandler(),
@@ -343,11 +321,6 @@ public class ClusterMetadataService
 
             if (result.isSuccess())
             {
-                // TODO: we could actually move replicator to processor, if we have a source node attached to the transformation.
-                // In other words, we simply know who was a submitter, so we wouldn't replicate to the submitter, since the
-                // submitter is going to learn about the result of execution by other means, namely the response.
-                if (state() == LOCAL) replicator.send(result, null);
-
                 while (!backoff.reachedMax())
                 {
                     try
@@ -542,34 +515,50 @@ public class ClusterMetadataService
         private final RemoteProcessor remote;
         private final GossipProcessor gossip;
         private final Supplier<State> cmsStateSupplier;
+        private final Commit.Replicator replicator;
 
-        SwitchableProcessor(Processor local, RemoteProcessor remote, GossipProcessor gossip, Supplier<State> cmsStateSupplier)
+        SwitchableProcessor(Processor local,
+                            RemoteProcessor remote,
+                            GossipProcessor gossip,
+                            Commit.Replicator replicator,
+                            Supplier<State> cmsStateSupplier)
         {
             this.local = local;
             this.remote = remote;
             this.gossip = gossip;
+            this.replicator = replicator;
             this.cmsStateSupplier = cmsStateSupplier;
         }
 
         @VisibleForTesting
         public Processor delegate()
         {
+            return delegateInternal().right;
+        }
+
+        private Pair<State, Processor> delegateInternal()
+        {
             State state = cmsStateSupplier.get();
             switch (state)
             {
                 case LOCAL:
-                    return local;
+                    return Pair.create(state, local);
                 case REMOTE:
-                    return remote;
+                    return Pair.create(state, remote);
                 case GOSSIP:
-                    return gossip;
+                    return Pair.create(state, gossip);
             }
             throw new IllegalStateException("Bad CMS state: " + state);
         }
 
+        @Override
         public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown)
         {
-            return delegate().commit(entryId, transform, lastKnown);
+            Pair<State, Processor> delegate = delegateInternal();
+            Commit.Result result = delegate.right.commit(entryId, transform, lastKnown);
+            if (delegate.left == State.LOCAL)
+                replicator.send(result, null);
+            return result;
         }
 
         public ClusterMetadata replayAndWait()

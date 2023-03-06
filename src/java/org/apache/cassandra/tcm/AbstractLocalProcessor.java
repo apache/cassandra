@@ -23,11 +23,12 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
+import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.utils.FBUtilities;
 
-public abstract class AbstractLocalProcessor implements ClusterMetadataService.Processor
+public abstract class AbstractLocalProcessor implements Processor
 {
     private static final Logger logger = LoggerFactory.getLogger(PaxosBackedProcessor.class);
 
@@ -57,10 +58,11 @@ public abstract class AbstractLocalProcessor implements ClusterMetadataService.P
         {
             Replication replication;
             if (lastKnown == null || lastKnown.isDirectlyBefore(result.success().metadata.epoch))
+            {
                 replication = Replication.of(new Entry(entryId, result.success().metadata.epoch, transform));
+            }
             else
             {
-                // TODO: catch up at most to this epoch
                 replication = log.getCommittedEntries(lastKnown);
             }
 
@@ -84,6 +86,8 @@ public abstract class AbstractLocalProcessor implements ClusterMetadataService.P
         while (true)
         {
             ClusterMetadata previous = log.waitForHighestConsecutive();
+            if (!previous.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()))
+                throw new IllegalStateException("Node is not a member of CMS anymore");
             Transformation.Result result = transform.execute(previous);
             // if we're rejected, just try to catch up to the latest distributed state
             if (result.isRejected())

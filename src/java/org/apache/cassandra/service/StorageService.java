@@ -72,13 +72,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Ordering;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -195,6 +189,7 @@ import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
@@ -202,8 +197,10 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.migration.GossipCMSListener;
 import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
+import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
@@ -212,6 +209,7 @@ import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
+import org.apache.cassandra.tcm.transformations.cms.RemoveFromCMS;
 import org.apache.cassandra.transport.ClientResourceLimits;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.Clock;
@@ -266,7 +264,6 @@ import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
 import static org.apache.cassandra.tcm.membership.NodeState.LEAVING;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
-import static org.apache.cassandra.tcm.membership.NodeState.REGISTERED;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.now;
 
@@ -3540,6 +3537,29 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId self = metadata.myNodeId();
+
+        Set<InetAddressAndPort> cmsMembers = metadata.placements.get(ReplicationParams.meta()).reads.byEndpoint().keySet();
+        if (cmsMembers.contains(FBUtilities.getBroadcastAddressAndPort()))
+        {
+            if (metadata.directory.peerIds().size() == cmsMembers.size())
+                throw new IllegalStateException("Can not decomission the node as it will decrease the replication factor of CMS keyspace");
+
+            NodeId replacement = null;
+            for (Entry<NodeId, NodeAddresses> e : metadata.directory.addresses.entrySet())
+            {
+                if (!cmsMembers.contains(e.getValue().broadcastAddress))
+                {
+                    logger.info("Nominating an alternative CMS node ({}) before decommission.", e.getValue().broadcastAddress);
+                    AddToCMS.initiate(e.getKey(), e.getValue().broadcastAddress);
+                    replacement = e.getKey();
+                    break;
+                }
+            }
+
+            Epoch epoch = ClusterMetadataService.instance().commit(new RemoveFromCMS(FBUtilities.getBroadcastAddressAndPort())).epoch;
+            new ProgressBarrier(epoch, ImmutableSet.of(replacement), false).await();
+        }
+
         logger.info("starting decom with {} {}", metadata.epoch, self);
         if (InProgressSequences.isLeave(metadata.inProgressSequences.get(self)))
         {

@@ -24,11 +24,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -47,14 +49,17 @@ import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.tcm.transformations.cms.FinishAddMember;
-import org.apache.cassandra.tcm.transformations.cms.StartAddMember;
+import org.apache.cassandra.tcm.transformations.cms.FinishAddToCMS;
+import org.apache.cassandra.tcm.transformations.cms.StartAddToCMS;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.tcm.sequences.InProgressSequences.Kind.JOIN_OWNERSHIP_GROUP;
 import static org.apache.cassandra.tcm.transformations.cms.EntireRange.*;
 
+/**
+ * Add this or another node as a member of CMS.
+ */
 public class AddToCMS implements InProgressSequence<AddToCMS>
 {
     private static final Logger logger = LoggerFactory.getLogger(AddToCMS.class);
@@ -62,15 +67,19 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
 
     private final ProgressBarrier barrier;
     private final List<InetAddressAndPort> streamCandidates;
-    private final FinishAddMember finishJoin;
+    private final FinishAddToCMS finishJoin;
 
     public static void initiate()
     {
-        NodeId self = ClusterMetadata.current().myNodeId();
+        initiate(ClusterMetadata.current().myNodeId(), FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    public static void initiate(NodeId nodeId, InetAddressAndPort addr)
+    {
         InProgressSequence<?> continuation = ClusterMetadataService.instance()
-                                                                   .commit(new StartAddMember(FBUtilities.getBroadcastAddressAndPort()),
-                                                                           (metadata) -> !metadata.inProgressSequences.contains(self),
-                                                                           (metadata) -> metadata.inProgressSequences.get(self),
+                                                                   .commit(new StartAddToCMS(addr),
+                                                                           (metadata) -> !metadata.inProgressSequences.contains(nodeId),
+                                                                           (metadata) -> metadata.inProgressSequences.get(nodeId),
                                                                            (metadata, reason) -> {
                                                                                throw new IllegalStateException("Can't join ownership group: " + reason);
                                                                            });
@@ -81,7 +90,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         continuation.executeNext();
     }
 
-    public AddToCMS(ProgressBarrier barrier, List<InetAddressAndPort> streamCandidates, FinishAddMember join)
+    public AddToCMS(ProgressBarrier barrier, List<InetAddressAndPort> streamCandidates, FinishAddToCMS join)
     {
         this.barrier = barrier;
         this.streamCandidates = streamCandidates;
@@ -101,13 +110,26 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
 
     private void streamRanges() throws ExecutionException, InterruptedException
     {
-        // TODO: iterate over stream candidates
         StreamPlan streamPlan = new StreamPlan(StreamOperation.BOOTSTRAP, 1, true, null, PreviewKind.NONE);
-        streamPlan.requestRanges(streamCandidates.get(0),
-                                 SchemaConstants.METADATA_KEYSPACE_NAME,
-                                 new RangesAtEndpoint.Builder(FBUtilities.getBroadcastAddressAndPort()).add(finishJoin.replicaForStreaming()).build(),
-                                 new RangesAtEndpoint.Builder(FBUtilities.getBroadcastAddressAndPort()).build(),
-                                 DistributedMetadataLogKeyspace.TABLE_NAME);
+        // Current node is the streaming target. We can pick any other live CMS node as a streaming source
+        if (finishJoin.getEndpoint().equals(FBUtilities.getBroadcastAddressAndPort()))
+        {
+            Optional<InetAddressAndPort> streamingSource = streamCandidates.stream().filter(FailureDetector.instance::isAlive).findFirst();
+            if (!streamingSource.isPresent())
+                throw new IllegalStateException(String.format("Can not start range streaming as all candidates (%s) are down", streamCandidates));
+            streamPlan.requestRanges(streamingSource.get(),
+                                     SchemaConstants.METADATA_KEYSPACE_NAME,
+                                     new RangesAtEndpoint.Builder(FBUtilities.getBroadcastAddressAndPort()).add(finishJoin.replicaForStreaming()).build(),
+                                     new RangesAtEndpoint.Builder(FBUtilities.getBroadcastAddressAndPort()).build(),
+                                     DistributedMetadataLogKeyspace.TABLE_NAME);
+        }
+        else
+        {
+            streamPlan.transferRanges(finishJoin.getEndpoint(),
+                                      SchemaConstants.METADATA_KEYSPACE_NAME,
+                                      new RangesAtEndpoint.Builder(finishJoin.replicaForStreaming().endpoint()).add(finishJoin.replicaForStreaming()).build(),
+                                      DistributedMetadataLogKeyspace.TABLE_NAME);
+        }
         streamPlan.execute().get();
     }
 
@@ -164,10 +186,10 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AddToCMS addToCMS = (AddToCMS) o;
-        return Objects.equals(barrier, addToCMS.barrier) &&
-               Objects.equals(streamCandidates, addToCMS.streamCandidates) &&
-               Objects.equals(finishJoin, addToCMS.finishJoin);
+        AddToCMS addMember = (AddToCMS) o;
+        return Objects.equals(barrier, addMember.barrier) &&
+               Objects.equals(streamCandidates, addMember.streamCandidates) &&
+               Objects.equals(finishJoin, addMember.finishJoin);
     }
 
     @Override
@@ -183,7 +205,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         {
             AddToCMS seq = (AddToCMS) t;
             ProgressBarrier.serializer.serialize(t.barrier(), out, version);
-            FinishAddMember.serializer.serialize(seq.finishJoin, out, version);
+            FinishAddToCMS.serializer.serialize(seq.finishJoin, out, version);
             out.writeInt(seq.streamCandidates.size());
             for (InetAddressAndPort ep : seq.streamCandidates)
                 InetAddressAndPort.MetadataSerializer.serializer.serialize(ep, out, version);
@@ -193,7 +215,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         public AddToCMS deserialize(DataInputPlus in, Version version) throws IOException
         {
             ProgressBarrier barrier = ProgressBarrier.serializer.deserialize(in, version);
-            FinishAddMember finish = FinishAddMember.serializer.deserialize(in, version);
+            FinishAddToCMS finish = FinishAddToCMS.serializer.deserialize(in, version);
             int streamCandidatesSize = in.readInt();
             List<InetAddressAndPort> streamCandidates = new ArrayList<>();
 
@@ -207,7 +229,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         {
             AddToCMS seq = (AddToCMS) t;
             long size = ProgressBarrier.serializer.serializedSize(t.barrier(), version);
-            size += FinishAddMember.serializer.serializedSize(seq.finishJoin, version);
+            size += FinishAddToCMS.serializer.serializedSize(seq.finishJoin, version);
             size += sizeof(seq.streamCandidates.size());
             for (InetAddressAndPort ep : seq.streamCandidates)
                 size += InetAddressAndPort.MetadataSerializer.serializer.serializedSize(ep, version);

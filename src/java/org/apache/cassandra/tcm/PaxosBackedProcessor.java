@@ -29,10 +29,10 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
+import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static org.apache.cassandra.schema.DistributedMetadataLogKeyspace.tryCommit;
@@ -44,12 +44,6 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     public PaxosBackedProcessor(LocalLog log)
     {
         super(log);
-    }
-
-    @Override
-    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown)
-    {
-        return super.commit(entryId, transform, lastKnown);
     }
 
     @Override
@@ -77,7 +71,7 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
             // TODO: test applying LogStates from multiple responses
             if (replica.isSelf())
             {
-                log.append(DistributedMetadataLogKeyspace.getLogState(metadata.epoch));
+                log.append(LogStorage.SystemKeyspace.getLogState(metadata.epoch));
                 latch.decrement();
             }
             else
@@ -97,6 +91,4 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
         latch.awaitUninterruptibly(10, TimeUnit.SECONDS);
         return log.waitForHighestConsecutive();
     }
-
-
 }

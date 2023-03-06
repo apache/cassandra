@@ -16,26 +16,24 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.tcm.migration;
+package org.apache.cassandra.tcm;
 
-import org.apache.cassandra.tcm.Commit;
-import org.apache.cassandra.tcm.Processor;
 import org.apache.cassandra.tcm.log.Entry;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.ClusterMetadata;
 
-public class GossipProcessor implements Processor
+public interface Processor
 {
-    @Override
-    public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown)
-    {
-        throw new IllegalStateException("Can't commit transformations when running in gossip mode. Enable the ClusterMetadataService with `nodetool addtocms`.");
-    }
+    /**
+     * Method is _only_ responsible to commit the transformation to the cluster metadata. Implementers _have to ensure_
+     * local visibility and enactment of the metadata!
+     */
+    Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown);
+    // TODO: add a debounce to requestReplay. Right now, because of ResponseVerbHandler, it is possible to send
+    // a barage of these requests.
 
-    @Override
-    public ClusterMetadata replayAndWait()
-    {
-        return ClusterMetadata.current();
-    }
+    /**
+     * Replays to the highest known epoch.
+     * <p>
+     * Upon replay, all items _at least_ up to returned epoch will be visible.
+     */
+    ClusterMetadata replayAndWait();
 }

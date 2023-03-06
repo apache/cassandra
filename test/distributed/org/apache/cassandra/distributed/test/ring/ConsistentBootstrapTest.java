@@ -43,9 +43,7 @@ import org.apache.cassandra.distributed.test.log.FuzzTestBase;
 import org.apache.cassandra.distributed.test.log.TestProcessor;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
-import org.apache.cassandra.tcm.transformations.CustomTransformation;
 
 public class ConsistentBootstrapTest extends FuzzTestBase
 {
@@ -127,31 +125,6 @@ public class ConsistentBootstrapTest extends FuzzTestBase
             for (int i = 0; i < WRITES; i++)
                 visitor.visit();
             model.validateAll();
-        }
-    }
-
-    @Test
-    public void joinCmsTest() throws Throwable
-    {
-        try (Cluster cluster = builder().withNodes(3)
-                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
-                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                        .start())
-        {
-            for (int idx : new int[]{ 2, 3 })
-            {
-                cluster.get(idx).runOnInstance(() -> {
-                    AddToCMS.initiate();
-                    try
-                    {
-                        ClusterMetadataService.instance().commit(CustomTransformation.make(idx));
-                    }
-                    catch (Throwable e)
-                    {
-                        e.printStackTrace();
-                    }
-                });
-            }
         }
     }
 }

@@ -62,7 +62,7 @@ package org.apache.cassandra.tcm;
      }
 
      public static void initialize(Set<InetAddressAndPort> seeds,
-                                   Function<ClusterMetadataService.Processor, ClusterMetadataService.Processor> wrapProcessor,
+                                   Function<Processor, Processor> wrapProcessor,
                                    Runnable initMessaging) throws InterruptedException, ExecutionException
      {
          switch (StartupMode.get(seeds))
@@ -108,7 +108,7 @@ package org.apache.cassandra.tcm;
          ClusterMetadataService.instance().commit(initialize);
      }
 
-     public static void initializeAsNonCmsNode(Function<ClusterMetadataService.Processor, ClusterMetadataService.Processor> wrapProcessor)
+     public static void initializeAsNonCmsNode(Function<Processor, Processor> wrapProcessor)
      {
          ClusterMetadata initial = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
          initial.schema.initializeKeyspaceInstances(DistributedSchema.empty());
@@ -163,7 +163,7 @@ package org.apache.cassandra.tcm;
      /**
       * This should only be called during startup.
       */
-     public static void initializeFromGossip(Function<ClusterMetadataService.Processor, ClusterMetadataService.Processor> wrapProcessor, Runnable initMessaging)
+     public static void initializeFromGossip(Function<Processor, Processor> wrapProcessor, Runnable initMessaging)
      {
          ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables();
          emptyFromSystemTables.schema.initializeKeyspaceInstances(DistributedSchema.empty());

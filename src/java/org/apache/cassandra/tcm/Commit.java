@@ -40,8 +40,6 @@ import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
-
 public class Commit
 {
     private static final Logger logger = LoggerFactory.getLogger(Commit.class);
@@ -239,26 +237,26 @@ public class Commit
     }
 
     @VisibleForTesting
-    public static IVerbHandler<Commit> handlerForTests(ClusterMetadataService.Processor processor, Replicator replicator, BiConsumer<Message<?>, InetAddressAndPort> messagingService)
+    public static IVerbHandler<Commit> handlerForTests(Processor processor, Replicator replicator, BiConsumer<Message<?>, InetAddressAndPort> messagingService)
     {
         return new Handler(processor, replicator, messagingService);
     }
 
     static class Handler implements IVerbHandler<Commit>
     {
-        private final ClusterMetadataService.Processor processor;
-        private final Replicator replicate;
+        private final Processor processor;
+        private final Replicator replicator;
         private final BiConsumer<Message<?>, InetAddressAndPort> messagingService;
 
-        Handler(ClusterMetadataService.Processor processor, Replicator replicator)
+        Handler(Processor processor, Replicator replicator)
         {
             this(processor, replicator, MessagingService.instance()::send);
         }
 
-        Handler(ClusterMetadataService.Processor processor, Replicator replicator, BiConsumer<Message<?>, InetAddressAndPort> messagingService)
+        Handler(Processor processor, Replicator replicator, BiConsumer<Message<?>, InetAddressAndPort> messagingService)
         {
             this.processor = processor;
-            this.replicate = replicator;
+            this.replicator = replicator;
             this.messagingService = messagingService;
         }
 
@@ -269,7 +267,7 @@ public class Commit
             if (result.isSuccess())
             {
                 Result.Success success = result.success();
-                replicate.send(success, message.from());
+                replicator.send(success, message.from());
                 logger.info("Responding with full result {} to sender {}", result, message.from());
                 // TODO: this response message can get lost; how do we re-discover this on the other side?
                 // TODO: what if we have holes after replaying?
@@ -300,7 +298,7 @@ public class Commit
 
         public void send(Result result, InetAddressAndPort source)
         {
-            if (!result.isSuccess() || ClusterMetadataService.state() != LOCAL)
+            if (!result.isSuccess())
                 return;
 
             Result.Success success = result.success();

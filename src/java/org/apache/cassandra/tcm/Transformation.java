@@ -46,11 +46,11 @@ import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
 import org.apache.cassandra.tcm.transformations.Startup;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
-import org.apache.cassandra.tcm.transformations.cms.FinishAddMember;
+import org.apache.cassandra.tcm.transformations.cms.FinishAddToCMS;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
-import org.apache.cassandra.tcm.transformations.cms.RemoveMember;
-import org.apache.cassandra.tcm.transformations.cms.StartAddMember;
+import org.apache.cassandra.tcm.transformations.cms.RemoveFromCMS;
+import org.apache.cassandra.tcm.transformations.cms.StartAddToCMS;
 
 public interface Transformation
 {
@@ -178,9 +178,9 @@ public interface Transformation
 
         CANCEL_SEQUENCE(() -> CancelInProgressSequence.serializer),
 
-        START_ADD_TO_CMS(() -> StartAddMember.serializer),
-        FINISH_ADD_TO_CMS(() -> FinishAddMember.serializer),
-        REMOVE_FROM_CMS(() -> RemoveMember.serializer),
+        START_ADD_TO_CMS(() -> StartAddToCMS.serializer),
+        FINISH_ADD_TO_CMS(() -> FinishAddToCMS.serializer),
+        REMOVE_FROM_CMS(() -> RemoveFromCMS.serializer),
 
         STARTUP(() -> Startup.serializer),
 

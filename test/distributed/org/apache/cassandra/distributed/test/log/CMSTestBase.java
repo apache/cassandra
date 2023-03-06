@@ -37,6 +37,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.MetadataSnapshots;
+import org.apache.cassandra.tcm.Processor;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -82,7 +83,7 @@ public class CMSTestBase
         public final SchemaProvider schemaProvider;
         public final ReplicationFactor replication;
 
-        public CMSSut(IIsolatedExecutor.SerializableFunction<LocalLog, ClusterMetadataService.Processor> processorFactory, boolean addListeners, int rf)
+        public CMSSut(IIsolatedExecutor.SerializableFunction<LocalLog, Processor> processorFactory, boolean addListeners, int rf)
         {
             partitioner = Murmur3Partitioner.instance;
             replication = ReplicationFactor.fullOnly(rf);

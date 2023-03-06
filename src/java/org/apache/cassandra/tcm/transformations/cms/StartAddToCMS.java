@@ -34,17 +34,17 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 
 import static org.apache.cassandra.tcm.transformations.cms.EntireRange.affectedRanges;
 
-public class StartAddMember extends BaseMembershipTransformation
+public class StartAddToCMS extends BaseMembershipTransformation
 {
-    public static final AsymmetricMetadataSerializer<Transformation, StartAddMember> serializer = new SerializerBase<StartAddMember>()
+    public static final AsymmetricMetadataSerializer<Transformation, StartAddToCMS> serializer = new SerializerBase<StartAddToCMS>()
     {
-        public StartAddMember createTransformation(InetAddressAndPort addr)
+        public StartAddToCMS createTransformation(InetAddressAndPort addr)
         {
-            return new StartAddMember(addr);
+            return new StartAddToCMS(addr);
         }
     };
 
-    public StartAddMember(InetAddressAndPort addr)
+    public StartAddToCMS(InetAddressAndPort addr)
     {
         super(addr);
     }
@@ -76,9 +76,17 @@ public class StartAddMember extends BaseMembershipTransformation
         }
 
         ProgressBarrier barrier = new ProgressBarrier(prev.nextEpoch(), affectedRanges.toPeers(prev.placements, prev.directory), false);
-        AddToCMS joinSequence = new AddToCMS(barrier, streamCandidates, new FinishAddMember(endpoint));
+        AddToCMS joinSequence = new AddToCMS(barrier, streamCandidates, new FinishAddToCMS(endpoint));
 
         return success(transformer.with(prev.inProgressSequences.with(prev.directory.peerId(replica.endpoint()), joinSequence)),
                        affectedRanges);
+    }
+
+    public String toString()
+    {
+        return "StartAddMember{" +
+               "endpoint=" + endpoint +
+               ", replica=" + replica +
+               '}';
     }
 }

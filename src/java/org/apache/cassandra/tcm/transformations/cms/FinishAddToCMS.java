@@ -32,17 +32,17 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 
 import static org.apache.cassandra.tcm.transformations.cms.EntireRange.affectedRanges;
 
-public class FinishAddMember extends BaseMembershipTransformation
+public class FinishAddToCMS extends BaseMembershipTransformation
 {
-    public static final AsymmetricMetadataSerializer<Transformation, FinishAddMember> serializer = new SerializerBase<FinishAddMember>()
+    public static final AsymmetricMetadataSerializer<Transformation, FinishAddToCMS> serializer = new SerializerBase<FinishAddToCMS>()
     {
-        public FinishAddMember createTransformation(InetAddressAndPort addr)
+        public FinishAddToCMS createTransformation(InetAddressAndPort addr)
         {
-            return new FinishAddMember(addr);
+            return new FinishAddToCMS(addr);
         }
     };
 
-    public FinishAddMember(InetAddressAndPort addr)
+    public FinishAddToCMS(InetAddressAndPort addr)
     {
         super(addr);
     }
@@ -76,5 +76,13 @@ public class FinishAddMember extends BaseMembershipTransformation
         transformer = transformer.with(prev.placements.unbuild().with(ReplicationParams.meta(), builder.build()).build())
                                  .with(prev.inProgressSequences.without(targetNode));
         return success(transformer, affectedRanges);
+    }
+
+    public String toString()
+    {
+        return "FinishAddMember{" +
+               "endpoint=" + endpoint +
+               ", replica=" + replica +
+               '}';
     }
 }

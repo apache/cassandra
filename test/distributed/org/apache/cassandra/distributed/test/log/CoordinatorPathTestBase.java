@@ -68,13 +68,7 @@ import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SimpleSeedProvider;
-import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
-import org.apache.cassandra.tcm.Commit;
-import org.apache.cassandra.tcm.Discovery;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.MetadataSnapshots;
-import org.apache.cassandra.tcm.Replay;
+import org.apache.cassandra.tcm.*;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
@@ -86,12 +80,10 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.AssertUtil;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.FBUtilities;
@@ -709,7 +701,6 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 
             // We would like all messages directed to the node under test to be delivered it.
             this.nodes.put(nodeUnderTestAddr, new RealSimulatedNode(this, 1, nodeUnderTestAddr.toString(), tokenSupplier.token(1)) {
-//                @Test // todo - having this here makes the build fail
                 public boolean test(Message<?> message)
                 {
                     realCluster.get(1).receiveMessage(Instance.serializeMessage(message.from(), nodeUnderTestAddr, message));
@@ -723,7 +714,6 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             assert executor == null;
             LogStorage logStorage = new AtomicLongBackedProcessor.InMemoryStorage();
             LocalLog log = LocalLog.sync(new ClusterMetadata(partitioner), logStorage, false);
-            AtomicLongBackedProcessor processor = new AtomicLongBackedProcessor(log);
 
             // Replicator only replicates to the node under test, as there are no other nodes in reality
             Commit.Replicator replicator = (result, source) -> {
@@ -731,6 +721,8 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                            Instance.serializeMessage(cms, nodeUnderTest,
                                                                      Message.out(Verb.TCM_REPLICATION, result.success().replication)));
             };
+
+            AtomicLongBackedProcessor processor = new AtomicLongBackedProcessor(log);
 
             ClusterMetadataService service = new ClusterMetadataService(new UniformRangePlacement(),
                                                                         new AtomicLongBackedProcessor.InMemoryMetadataSnapshots(),
@@ -804,7 +796,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             new ClusterMetadataService(new UniformRangePlacement(),
                                        MetadataSnapshots.NO_OP,
                                        log,
-                                       new ClusterMetadataService.Processor()
+                                       new Processor()
                                        {
                                            public Commit.Result commit(Entry.Id entryId, Transformation event, Epoch lastKnown)
                                            {

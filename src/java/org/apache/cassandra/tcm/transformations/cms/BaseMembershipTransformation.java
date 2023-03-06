@@ -39,6 +39,12 @@ public abstract class BaseMembershipTransformation implements Transformation
         this.replica = EntireRange.replica(endpoint);
     }
 
+    // TODO: to node id
+    public InetAddressAndPort getEndpoint()
+    {
+        return endpoint;
+    }
+
     public static abstract class SerializerBase<T extends BaseMembershipTransformation> implements AsymmetricMetadataSerializer<Transformation, T>
     {
         public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException

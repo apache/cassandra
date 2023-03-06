@@ -26,25 +26,25 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.Processor;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class TestProcessor implements ClusterMetadataService.Processor
+public class TestProcessor implements Processor
 {
     private static final Logger logger = LoggerFactory.getLogger(TestProcessor.class);
     private final AtomicBoolean isPaused = new AtomicBoolean();
     private final WaitQueue waiters;
     private final List<Predicate<Transformation>> waitPredicates;
     private final List<BiFunction<Transformation, Commit.Result, Boolean>> commitPredicates;
-    private final ClusterMetadataService.Processor delegate;
+    private final Processor delegate;
 
-    public TestProcessor(ClusterMetadataService.Processor delegate)
+    public TestProcessor(Processor delegate)
     {
         this.waiters = WaitQueue.newWaitQueue();
         this.waitPredicates = new ArrayList<>();

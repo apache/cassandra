@@ -27,17 +27,17 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 
 import static org.apache.cassandra.tcm.transformations.cms.EntireRange.affectedRanges;
 
-public class RemoveMember extends BaseMembershipTransformation
+public class RemoveFromCMS extends BaseMembershipTransformation
 {
-    public static final AsymmetricMetadataSerializer<Transformation, RemoveMember> serializer = new SerializerBase<RemoveMember>()
+    public static final AsymmetricMetadataSerializer<Transformation, RemoveFromCMS> serializer = new SerializerBase<RemoveFromCMS>()
     {
-        public RemoveMember createTransformation(InetAddressAndPort addr)
+        public RemoveFromCMS createTransformation(InetAddressAndPort addr)
         {
-            return new RemoveMember(addr);
+            return new RemoveFromCMS(addr);
         }
     };
 
-    public RemoveMember(InetAddressAndPort addr)
+    public RemoveFromCMS(InetAddressAndPort addr)
     {
         super(addr);
     }

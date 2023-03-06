@@ -52,7 +52,7 @@ import org.apache.cassandra.utils.concurrent.Promise;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.REMOTE;
 
-public final class RemoteProcessor implements ClusterMetadataService.Processor
+public final class RemoteProcessor implements Processor
 {
     private static final Logger logger = LoggerFactory.getLogger(RemoteProcessor.class);
     private final Supplier<Collection<InetAddressAndPort>> discoveryNodes;
