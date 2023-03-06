@@ -244,14 +244,14 @@ public class ColumnMaskTest extends ColumnMaskTester
                                  "WHERE k IS NOT NULL AND c IS NOT NULL AND v IS NOT NULL " +
                                  "PRIMARY KEY (v, k, c)");
         waitForViewMutations();
-        assertRows(execute(format("SELECT v FROM %s.%s", KEYSPACE, view)), row("redacted"));
-        assertRows(execute(format("SELECT v FROM %s.%s WHERE v='sensitive'", KEYSPACE, view)), row("redacted"));
-        assertEmpty(execute(format("SELECT v FROM %s.%s WHERE v='redacted'", KEYSPACE, view)));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s", KEYSPACE, view)), row("redacted"));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s WHERE v='sensitive'", KEYSPACE, view)), row("redacted"));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s WHERE v='redacted'", KEYSPACE, view)));
 
         alterTable("ALTER TABLE %s ALTER v DROP MASKED");
-        assertRows(execute(format("SELECT v FROM %s.%s", KEYSPACE, view)), row("sensitive"));
-        assertRows(execute(format("SELECT v FROM %s.%s WHERE v='sensitive'", KEYSPACE, view)), row("sensitive"));
-        assertEmpty(execute(format("SELECT v FROM %s.%s WHERE v='redacted'", KEYSPACE, view)));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s", KEYSPACE, view)), row("sensitive"));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s WHERE v='sensitive'", KEYSPACE, view)), row("sensitive"));
+        assertRowsNet(executeNet(format("SELECT v FROM %s.%s WHERE v='redacted'", KEYSPACE, view)));
     }
 
     @Test
@@ -288,25 +288,25 @@ public class ColumnMaskTest extends ColumnMaskTester
 
         // without masks
         String query = "SELECT * FROM %s GROUP BY k";
-        assertRows(execute(query), row(1, 0, "sensitive"), row(0, 0, "sensitive"));
+        assertRowsNet(executeNet(query), row(1, 0, "sensitive"), row(0, 0, "sensitive"));
 
         // with masked regular column
         alterTable("ALTER TABLE %s ALTER v MASKED WITH mask_replace('redacted')");
-        assertRows(execute(query), row(1, 0, "redacted"), row(0, 0, "redacted"));
+        assertRowsNet(executeNet(query), row(1, 0, "redacted"), row(0, 0, "redacted"));
 
         // with masked clustering key
         alterTable("ALTER TABLE %s ALTER c MASKED WITH mask_replace(-1)");
-        assertRows(execute(query), row(1, -1, "redacted"), row(0, -1, "redacted"));
+        assertRowsNet(executeNet(query), row(1, -1, "redacted"), row(0, -1, "redacted"));
 
         // with masked partition key
         alterTable("ALTER TABLE %s ALTER k MASKED WITH mask_replace(-1)");
-        assertRows(execute(query), row(-1, -1, "redacted"), row(-1, -1, "redacted"));
+        assertRowsNet(executeNet(query), row(-1, -1, "redacted"), row(-1, -1, "redacted"));
 
         // again without masks
         alterTable("ALTER TABLE %s ALTER k DROP MASKED");
         alterTable("ALTER TABLE %s ALTER c DROP MASKED");
         alterTable("ALTER TABLE %s ALTER v DROP MASKED");
-        assertRows(execute(query), row(1, 0, "sensitive"), row(0, 0, "sensitive"));
+        assertRowsNet(executeNet(query), row(1, 0, "sensitive"), row(0, 0, "sensitive"));
     }
 
     @Test
@@ -371,144 +371,144 @@ public class ColumnMaskTest extends ColumnMaskTester
         NativeFunctions.instance.add(NEGATIVE);
 
         // Test ordering without masking, just for reference
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2)"),
-                   row(0, 0, 0),
-                   row(0, 1, 1),
-                   row(1, 0, 3),
-                   row(1, 1, 4),
-                   row(2, 0, 6),
-                   row(2, 1, 7));
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
-                   row(0, 0, 0),
-                   row(1, 0, 3),
-                   row(2, 0, 6),
-                   row(0, 1, 1),
-                   row(1, 1, 4),
-                   row(2, 1, 7));
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
-                   row(0, 1, 1),
-                   row(1, 1, 4),
-                   row(2, 1, 7),
-                   row(0, 0, 0),
-                   row(1, 0, 3),
-                   row(2, 0, 6));
+        assertRowsNet(executeNet("SELECT * FROM %s WHERE k IN (0, 1, 2)"),
+                      row(0, 0, 0),
+                      row(0, 1, 1),
+                      row(1, 0, 3),
+                      row(1, 1, 4),
+                      row(2, 0, 6),
+                      row(2, 1, 7));
+        assertRowsNet(executeNetWithoutPaging("SELECT * FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
+                      row(0, 0, 0),
+                      row(1, 0, 3),
+                      row(2, 0, 6),
+                      row(0, 1, 1),
+                      row(1, 1, 4),
+                      row(2, 1, 7));
+        assertRowsNet(executeNetWithoutPaging("SELECT * FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
+                      row(0, 1, 1),
+                      row(1, 1, 4),
+                      row(2, 1, 7),
+                      row(0, 0, 0),
+                      row(1, 0, 3),
+                      row(2, 0, 6));
 
         // Test ordering with manually applied masking function, just for reference
-        assertRows(execute("SELECT k, mask_negative(c), v FROM %s WHERE k IN (0, 1, 2)"),
-                   row(0, -0, 0), // (0, 0, 0)
-                   row(0, -1, 1), // (0, 1, 1)
-                   row(1, -0, 3), // (1, 0, 3)
-                   row(1, -1, 4), // (1, 1, 4)
-                   row(2, -0, 6), // (2, 0, 6)
-                   row(2, -1, 7)); // (2, 1, 7)
-        assertRows(execute("SELECT k, mask_negative(c), v FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
-                   row(0, -0, 0), // (0, 0, 0)
-                   row(1, -0, 3), // (1, 0, 3)
-                   row(2, -0, 6), // (2, 0, 6)
-                   row(0, -1, 1), // (0, 1, 1)
-                   row(1, -1, 4), // (1, 1, 4)
-                   row(2, -1, 7)); // (2, 1, 7)
-        assertRows(execute("SELECT k, mask_negative(c), v FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
-                   row(0, -1, 1), // (0, 1, 1)
-                   row(1, -1, 4), // (1, 1, 4)
-                   row(2, -1, 7), // (2, 1, 7)
-                   row(0, -0, 0), // (0, 0, 0)
-                   row(1, -0, 3), // (1, 0, 3)
-                   row(2, -0, 6)); // (2, 0, 6)
+        assertRowsNet(executeNet("SELECT k, mask_negative(c), v FROM %s WHERE k IN (0, 1, 2)"),
+                      row(0, -0, 0), // (0, 0, 0)
+                      row(0, -1, 1), // (0, 1, 1)
+                      row(1, -0, 3), // (1, 0, 3)
+                      row(1, -1, 4), // (1, 1, 4)
+                      row(2, -0, 6), // (2, 0, 6)
+                      row(2, -1, 7)); // (2, 1, 7)
+        assertRowsNet(executeNetWithoutPaging("SELECT k, mask_negative(c), v FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
+                      row(0, -0, 0), // (0, 0, 0)
+                      row(1, -0, 3), // (1, 0, 3)
+                      row(2, -0, 6), // (2, 0, 6)
+                      row(0, -1, 1), // (0, 1, 1)
+                      row(1, -1, 4), // (1, 1, 4)
+                      row(2, -1, 7)); // (2, 1, 7)
+        assertRowsNet(executeNetWithoutPaging("SELECT k, mask_negative(c), v FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
+                      row(0, -1, 1), // (0, 1, 1)
+                      row(1, -1, 4), // (1, 1, 4)
+                      row(2, -1, 7), // (2, 1, 7)
+                      row(0, -0, 0), // (0, 0, 0)
+                      row(1, -0, 3), // (1, 0, 3)
+                      row(2, -0, 6)); // (2, 0, 6)
 
         alterTable("ALTER TABLE %s ALTER c MASKED WITH mask_negative()");
 
         // Test ordering of wildcard queries with masked column
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2)"),
-                   row(0, -0, 0), // (0, 0, 0)
-                   row(0, -1, 1), // (0, 1, 1)
-                   row(1, -0, 3), // (1, 0, 3)
-                   row(1, -1, 4), // (1, 1, 4)
-                   row(2, -0, 6), // (2, 0, 6)
-                   row(2, -1, 7)); // (2, 1, 7)
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
-                   row(0, -0, 0), // (0, 0, 0)
-                   row(1, -0, 3), // (1, 0, 3)
-                   row(2, -0, 6), // (2, 0, 6)
-                   row(0, -1, 1), // (0, 1, 1)
-                   row(1, -1, 4), // (1, 1, 4)
-                   row(2, -1, 7)); // (2, 1, 7)
-        assertRows(execute("SELECT * FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
-                   row(0, -1, 1), // (0, 1, 1)
-                   row(1, -1, 4), // (1, 1, 4)
-                   row(2, -1, 7), // (2, 1, 7)
-                   row(0, -0, 0), // (0, 0, 0)
-                   row(1, -0, 3), // (1, 0, 3)
-                   row(2, -0, 6)); // (2, 0, 6)
+        assertRowsNet(executeNet("SELECT * FROM %s WHERE k IN (0, 1, 2)"),
+                      row(0, -0, 0), // (0, 0, 0)
+                      row(0, -1, 1), // (0, 1, 1)
+                      row(1, -0, 3), // (1, 0, 3)
+                      row(1, -1, 4), // (1, 1, 4)
+                      row(2, -0, 6), // (2, 0, 6)
+                      row(2, -1, 7)); // (2, 1, 7)
+        assertRowsNet(executeNetWithoutPaging("SELECT * FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
+                      row(0, -0, 0), // (0, 0, 0)
+                      row(1, -0, 3), // (1, 0, 3)
+                      row(2, -0, 6), // (2, 0, 6)
+                      row(0, -1, 1), // (0, 1, 1)
+                      row(1, -1, 4), // (1, 1, 4)
+                      row(2, -1, 7)); // (2, 1, 7)
+        assertRowsNet(executeNetWithoutPaging("SELECT * FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
+                      row(0, -1, 1), // (0, 1, 1)
+                      row(1, -1, 4), // (1, 1, 4)
+                      row(2, -1, 7), // (2, 1, 7)
+                      row(0, -0, 0), // (0, 0, 0)
+                      row(1, -0, 3), // (1, 0, 3)
+                      row(2, -0, 6)); // (2, 0, 6)
 
         // Test ordering of column selection queries with masked column
-        assertRows(execute("SELECT k, c, v FROM %s WHERE k IN (0, 1, 2)"),
-                   row(0, -0, 0), // (0, 0, 0)
-                   row(0, -1, 1), // (0, 1, 1)
-                   row(1, -0, 3), // (1, 0, 3)
-                   row(1, -1, 4), // (1, 1, 4)
-                   row(2, -0, 6), // (2, 0, 6)
-                   row(2, -1, 7)); // (2, 1, 7)
-        assertRows(execute("SELECT k, c, v FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
-                   row(0, -0, 0), // (0, 0, 0)
-                   row(1, -0, 3), // (1, 0, 3)
-                   row(2, -0, 6), // (2, 0, 6)
-                   row(0, -1, 1), // (0, 1, 1)
-                   row(1, -1, 4), // (1, 1, 4)
-                   row(2, -1, 7)); // (2, 1, 7)
-        assertRows(execute("SELECT k, c, v FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
-                   row(0, -1, 1), // (0, 1, 1)
-                   row(1, -1, 4), // (1, 1, 4)
-                   row(2, -1, 7), // (2, 1, 7)
-                   row(0, -0, 0), // (0, 0, 0)
-                   row(1, -0, 3), // (1, 0, 3)
-                   row(2, -0, 6)); // (2, 0, 6)
+        assertRowsNet(executeNet("SELECT k, c, v FROM %s WHERE k IN (0, 1, 2)"),
+                      row(0, -0, 0), // (0, 0, 0)
+                      row(0, -1, 1), // (0, 1, 1)
+                      row(1, -0, 3), // (1, 0, 3)
+                      row(1, -1, 4), // (1, 1, 4)
+                      row(2, -0, 6), // (2, 0, 6)
+                      row(2, -1, 7)); // (2, 1, 7)
+        assertRowsNet(executeNetWithoutPaging("SELECT k, c, v FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
+                      row(0, -0, 0), // (0, 0, 0)
+                      row(1, -0, 3), // (1, 0, 3)
+                      row(2, -0, 6), // (2, 0, 6)
+                      row(0, -1, 1), // (0, 1, 1)
+                      row(1, -1, 4), // (1, 1, 4)
+                      row(2, -1, 7)); // (2, 1, 7)
+        assertRowsNet(executeNetWithoutPaging("SELECT k, c, v FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
+                      row(0, -1, 1), // (0, 1, 1)
+                      row(1, -1, 4), // (1, 1, 4)
+                      row(2, -1, 7), // (2, 1, 7)
+                      row(0, -0, 0), // (0, 0, 0)
+                      row(1, -0, 3), // (1, 0, 3)
+                      row(2, -0, 6)); // (2, 0, 6)
 
         // Test ordering of column selection queries with masked column, without selecting the ordered column
-        assertRows(execute("SELECT k, v FROM %s WHERE k IN (0, 1, 2)"),
-                   row(0, 0), // (0, 0, 0)
-                   row(0, 1), // (0, 1, 1)
-                   row(1, 3), // (1, 0, 3)
-                   row(1, 4), // (1, 1, 4)
-                   row(2, 6), // (2, 0, 6)
-                   row(2, 7)); // (2, 1, 7)
-        assertRows(execute("SELECT k, v FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
-                   row(0, 0), // (0, 0, 0)
-                   row(1, 3), // (1, 0, 3)
-                   row(2, 6), // (2, 0, 6)
-                   row(0, 1), // (0, 1, 1)
-                   row(1, 4), // (1, 1, 4)
-                   row(2, 7)); // (2, 1, 7)
-        assertRows(execute("SELECT k, v FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
-                   row(0, 1), // (0, 1, 1)
-                   row(1, 4), // (1, 1, 4)
-                   row(2, 7), // (2, 1, 7)
-                   row(0, 0), // (0, 0, 0)
-                   row(1, 3), // (1, 0, 3)
-                   row(2, 6)); // (2, 0, 6)
+        assertRowsNet(executeNet("SELECT k, v FROM %s WHERE k IN (0, 1, 2)"),
+                      row(0, 0), // (0, 0, 0)
+                      row(0, 1), // (0, 1, 1)
+                      row(1, 3), // (1, 0, 3)
+                      row(1, 4), // (1, 1, 4)
+                      row(2, 6), // (2, 0, 6)
+                      row(2, 7)); // (2, 1, 7)
+        assertRowsNet(executeNetWithoutPaging("SELECT k, v FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
+                      row(0, 0), // (0, 0, 0)
+                      row(1, 3), // (1, 0, 3)
+                      row(2, 6), // (2, 0, 6)
+                      row(0, 1), // (0, 1, 1)
+                      row(1, 4), // (1, 1, 4)
+                      row(2, 7)); // (2, 1, 7)
+        assertRowsNet(executeNetWithoutPaging("SELECT k, v FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
+                      row(0, 1), // (0, 1, 1)
+                      row(1, 4), // (1, 1, 4)
+                      row(2, 7), // (2, 1, 7)
+                      row(0, 0), // (0, 0, 0)
+                      row(1, 3), // (1, 0, 3)
+                      row(2, 6)); // (2, 0, 6)
 
         // Test ordering of wildcard JSON queries with masked column
-        assertRows(execute("SELECT JSON * FROM %s WHERE k IN (0, 1, 2)"),
-                   row("{\"k\": 0, \"c\": 0, \"v\": 0}"), // (0, 0, 0)
-                   row("{\"k\": 0, \"c\": -1, \"v\": 1}"), // (0, 1, 1)
-                   row("{\"k\": 1, \"c\": 0, \"v\": 3}"), // (1, 0, 3)
-                   row("{\"k\": 1, \"c\": -1, \"v\": 4}"), // (1, 1, 4)
-                   row("{\"k\": 2, \"c\": 0, \"v\": 6}"), // (2, 0, 6)
-                   row("{\"k\": 2, \"c\": -1, \"v\": 7}")); // (2, 1, 7)
-        assertRows(execute("SELECT JSON * FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
-                   row("{\"k\": 0, \"c\": 0, \"v\": 0}"), // (0, 0, 0)
-                   row("{\"k\": 1, \"c\": 0, \"v\": 3}"), // (1, 0, 3)
-                   row("{\"k\": 2, \"c\": 0, \"v\": 6}"), // (2, 0, 6)
-                   row("{\"k\": 0, \"c\": -1, \"v\": 1}"), // (0, 1, 1)
-                   row("{\"k\": 1, \"c\": -1, \"v\": 4}"), // (1, 1, 4)
-                   row("{\"k\": 2, \"c\": -1, \"v\": 7}")); // (2, 1, 7)
-        assertRows(execute("SELECT JSON * FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
-                   row("{\"k\": 0, \"c\": -1, \"v\": 1}"), // (0, 1, 1)
-                   row("{\"k\": 1, \"c\": -1, \"v\": 4}"), // (1, 1, 4)
-                   row("{\"k\": 2, \"c\": -1, \"v\": 7}"), // (2, 1, 7)
-                   row("{\"k\": 0, \"c\": 0, \"v\": 0}"), // (0, 0, 0)
-                   row("{\"k\": 1, \"c\": 0, \"v\": 3}"), // (1, 0, 3)
-                   row("{\"k\": 2, \"c\": 0, \"v\": 6}")); // (2, 0, 6)
+        assertRowsNet(executeNet("SELECT JSON * FROM %s WHERE k IN (0, 1, 2)"),
+                      row("{\"k\": 0, \"c\": 0, \"v\": 0}"), // (0, 0, 0)
+                      row("{\"k\": 0, \"c\": -1, \"v\": 1}"), // (0, 1, 1)
+                      row("{\"k\": 1, \"c\": 0, \"v\": 3}"), // (1, 0, 3)
+                      row("{\"k\": 1, \"c\": -1, \"v\": 4}"), // (1, 1, 4)
+                      row("{\"k\": 2, \"c\": 0, \"v\": 6}"), // (2, 0, 6)
+                      row("{\"k\": 2, \"c\": -1, \"v\": 7}")); // (2, 1, 7)
+        assertRowsNet(executeNetWithoutPaging("SELECT JSON * FROM %s WHERE k IN (0, 1, 2) ORDER BY c ASC"),
+                      row("{\"k\": 0, \"c\": 0, \"v\": 0}"), // (0, 0, 0)
+                      row("{\"k\": 1, \"c\": 0, \"v\": 3}"), // (1, 0, 3)
+                      row("{\"k\": 2, \"c\": 0, \"v\": 6}"), // (2, 0, 6)
+                      row("{\"k\": 0, \"c\": -1, \"v\": 1}"), // (0, 1, 1)
+                      row("{\"k\": 1, \"c\": -1, \"v\": 4}"), // (1, 1, 4)
+                      row("{\"k\": 2, \"c\": -1, \"v\": 7}")); // (2, 1, 7)
+        assertRowsNet(executeNetWithoutPaging("SELECT JSON * FROM %s WHERE k IN (0, 1, 2) ORDER BY c DESC"),
+                      row("{\"k\": 0, \"c\": -1, \"v\": 1}"), // (0, 1, 1)
+                      row("{\"k\": 1, \"c\": -1, \"v\": 4}"), // (1, 1, 4)
+                      row("{\"k\": 2, \"c\": -1, \"v\": 7}"), // (2, 1, 7)
+                      row("{\"k\": 0, \"c\": 0, \"v\": 0}"), // (0, 0, 0)
+                      row("{\"k\": 1, \"c\": 0, \"v\": 3}"), // (1, 0, 3)
+                      row("{\"k\": 2, \"c\": 0, \"v\": 6}")); // (2, 0, 6)
     }
 
     private void assertRowsWithPaging(String query, Object[]... rows)

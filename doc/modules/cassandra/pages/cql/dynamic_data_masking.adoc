@@ -67,3 +67,61 @@ In a similar way, a masking function can be dettached from a column with an `ALT
 ----
 include::example$CQL/ddm_drop_mask.cql[]
 ----
+
+== Permissions
+
+The `UNMASK` permission allows users to retrieve the unmasked values of masked columns.
+The masks will only be applied to the results of a `SELECT` query if the user doesn't have the `UNMASK` permission.
+Ordinary users are created without the `UNMASK` permission, whereas superusers do have it.
+
+As an example, suppose that we have a table with masked columns:
+
+[source,cql]
+----
+include::example$CQL/ddm_create_table.cql[]
+----
+
+And we insert some data into the table:
+
+[source,cql]
+----
+include::example$CQL/ddm_insert_data.cql[]
+----
+
+[source,cql]
+----
+include::example$CQL/ddm_select_without_unmask_permission.cql[]
+----
+
+Then we create two users with `SELECT` permission for the table, but we only grant the `UNMASK` permission to one of
+the users:
+
+[source,cql]
+----
+include::example$CQL/ddm_create_users.cql[]
+----
+
+We can now see that the user with the `UNMASK` permission can see the clear data, without any masking:
+
+[source,cql]
+----
+include::example$CQL/ddm_select_with_unmask_permission.cql[]
+----
+
+However, the user without the `UNMASK` permission can only see the masked data:
+
+[source,cql]
+----
+include::example$CQL/ddm_select_without_unmask_permission.cql[]
+----
+
+The `UNMASK` permission works as any other permission. Thus, it can be revoked in any moment:
+
+[source,cql]
+----
+include::example$CQL/ddm_revoke_unmask.cql[]
+----
+
+Please note that the anonymous user that is used when authentication is disabled has all the permissions.
+Since it includes the `UNMASK` permission, that anonymous user will always see the clear data.
+In other words, attaching data masking functions to columns only makes sense if authentication is enabled.

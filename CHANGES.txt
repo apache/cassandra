@@ -1,4 +1,5 @@
 4.2
+ * Add UNMASK permission (CASSANDRA-18069)
  * Add masking functions to column metadata (CASSANDRA-18068)
  * Gossip stateMapOrdering does not have correct ordering when both EndpointState are in the bootstrapping set (CASSANDRA-18292)
  * Snapshot only sstables containing mismatching ranges on preview repair mismatch (CASSANDRA-17561)

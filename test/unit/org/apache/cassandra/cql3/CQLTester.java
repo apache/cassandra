@@ -1276,6 +1276,11 @@ public abstract class CQLTester
         return sessionNet().execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
     }
 
+    protected com.datastax.driver.core.ResultSet executeNetWithoutPaging(String query)
+    {
+        return executeNetWithPaging(query, Integer.MAX_VALUE);
+    }
+
     protected Session sessionNet()
     {
         return sessionNet(getDefaultVersion());
@@ -1718,6 +1723,24 @@ public abstract class CQLTester
         {
             ColumnSpecification columnSpec = metadata.get(i);
             Assert.assertEquals(expectedColumnNames[i], columnSpec.name.toString());
+        }
+    }
+
+    protected void assertColumnNames(ResultSet result, String... expectedColumnNames)
+    {
+        if (result == null)
+        {
+            Assert.fail("No rows returned by query.");
+            return;
+        }
+
+        ColumnDefinitions columnDefinitions = result.getColumnDefinitions();
+        Assert.assertEquals("Got less columns than expected.", expectedColumnNames.length, columnDefinitions.size());
+
+        for (int i = 0, m = columnDefinitions.size(); i < m; i++)
+        {
+            String columnName = columnDefinitions.getName(i);
+            Assert.assertEquals(expectedColumnNames[i], columnName);
         }
     }
 
