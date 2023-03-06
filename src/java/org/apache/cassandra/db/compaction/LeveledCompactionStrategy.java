@@ -428,7 +428,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
             totalLength = length;
             compressedLength = cLength;
-            Collections.sort(this.sstables, SSTableReader.sstableComparator);
+            Collections.sort(this.sstables, SSTableReader.firstKeyComparator);
             sstableIterator = this.sstables.iterator();
             assert sstableIterator.hasNext(); // caller should check intersecting first
             SSTableReader currentSSTable = sstableIterator.next();

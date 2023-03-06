@@ -733,7 +733,7 @@ public class LeveledCompactionStrategyTest
             assertTrue(level.stream().allMatch(s -> s.getSSTableLevel() == lvl));
             if (i > 0)
             {
-                level.sort(SSTableReader.sstableComparator);
+                level.sort(SSTableReader.firstKeyComparator);
                 SSTableReader prev = null;
                 for (SSTableReader sstable : level)
                 {
@@ -843,7 +843,7 @@ public class LeveledCompactionStrategyTest
             for (SSTableReader sstable : lvlGroup.getValue())
             {
                 newLevel.add(sstable);
-                newLevel.sort(SSTableReader.sstableComparator);
+                newLevel.sort(SSTableReader.firstKeyComparator);
 
                 SSTableReader prev = null;
                 boolean kept = true;

@@ -530,7 +530,7 @@ public abstract class AbstractCompactionStrategy
     {
         int groupSize = 2;
         List<SSTableReader> sortedSSTablesToGroup = new ArrayList<>(sstablesToGroup);
-        Collections.sort(sortedSSTablesToGroup, SSTableReader.sstableComparator);
+        Collections.sort(sortedSSTablesToGroup, SSTableReader.firstKeyComparator);
 
         Collection<Collection<SSTableReader>> groupedSSTables = new ArrayList<>();
         Collection<SSTableReader> currGroup = new ArrayList<>(groupSize);

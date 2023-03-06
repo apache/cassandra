@@ -1521,7 +1521,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         View view = data.getView();
 
         List<SSTableReader> sortedByFirst = Lists.newArrayList(sstables);
-        sortedByFirst.sort(SSTableReader.sstableComparator);
+        sortedByFirst.sort(SSTableReader.firstKeyComparator);
 
         List<AbstractBounds<PartitionPosition>> bounds = new ArrayList<>();
         DecoratedKey first = null, last = null;
