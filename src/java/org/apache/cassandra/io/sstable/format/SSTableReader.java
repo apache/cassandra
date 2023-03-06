@@ -183,8 +183,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
     public final UniqueIdentifier instanceId = new UniqueIdentifier();
 
-    public static final Comparator<SSTableReader> sstableComparator = Comparator.comparing(o -> o.first);
-    public static final Ordering<SSTableReader> sstableOrdering = Ordering.from(sstableComparator);
+    public static final Comparator<SSTableReader> firstKeyComparator = (o1, o2) -> o1.first.compareTo(o2.first);
+    public static final Ordering<SSTableReader> firstKeyOrdering = Ordering.from(firstKeyComparator);
 
     public static final Comparator<SSTableReader> idComparator = Comparator.comparing(t -> t.descriptor.id, SSTableIdFactory.COMPARATOR);
     public static final Comparator<SSTableReader> idReverseComparator = idComparator.reversed();

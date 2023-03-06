@@ -75,7 +75,7 @@ class LeveledGenerations
     private final TreeSet<SSTableReader> [] levels = new TreeSet[MAX_LEVEL_COUNT - 1];
 
     private static final Comparator<SSTableReader> nonL0Comparator = (o1, o2) -> {
-        int cmp = SSTableReader.sstableComparator.compare(o1, o2);
+        int cmp = SSTableReader.firstKeyComparator.compare(o1, o2);
         if (cmp == 0)
             cmp = SSTableIdFactory.COMPARATOR.compare(o1.descriptor.id, o2.descriptor.id);
         return cmp;
