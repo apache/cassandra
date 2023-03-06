@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import javax.annotation.Nullable;
 
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.cql3.CQLTester;
@@ -52,11 +53,25 @@ import static org.junit.Assert.fail;
  */
 public class ColumnMaskTester extends CQLTester
 {
+    protected static final String USERNAME = "ddm_user";
+    protected static final String PASSWORD = "ddm_password";
+
     @BeforeClass
     public static void beforeClass()
     {
         CQLTester.setUpClass();
+        requireAuthentication();
         requireNetwork();
+    }
+
+    @Before
+    public void before() throws Throwable
+    {
+        useSuperUser();
+        executeNet(format("CREATE USER IF NOT EXISTS %s WITH PASSWORD '%s'", USERNAME, PASSWORD));
+        executeNet(format("GRANT ALL ON KEYSPACE %s TO %s", KEYSPACE, USERNAME));
+        executeNet(format("REVOKE UNMASK ON KEYSPACE %s FROM %s", KEYSPACE, USERNAME));
+        useUser(USERNAME, PASSWORD);
     }
 
     protected void assertTableColumnsAreNotMasked(String... columns) throws Throwable

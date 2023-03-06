@@ -79,7 +79,7 @@ public class ColumnMaskWithTypeAlteringFunctionTest extends ColumnMaskTester
     }
 
     @Before
-    public void before()
+    public void setupExpectedResults()
     {
         shouldSucceed = returnedType == type;
         errorMessage = shouldSucceed ? null : format("Masking function %s return type is %s.", mask, returnedType);

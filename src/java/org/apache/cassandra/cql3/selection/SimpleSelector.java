@@ -142,19 +142,24 @@ public final class SimpleSelector extends Selector
         if (!isSet)
         {
             isSet = true;
-            current = input.getValue(idx);
             writetimes = input.getWritetimes(idx);
             ttls = input.getTtls(idx);
+
+            /*
+            We apply the column mask of the column unless:
+            - The column doesn't have a mask
+            - This selector is for a query with ORDER BY post-ordering, indicated by this.unmask
+            - The input row is for a user with UNMASK permission, indicated by input.umask()
+             */
+            ColumnMask mask = unmask || input.unmask() ? null : column.getMask();
+            ByteBuffer value = input.getValue(idx);
+            current = mask == null ? value : mask.mask(input.getProtocolVersion(), value);
         }
     }
 
     @Override
     public ByteBuffer getOutput(ProtocolVersion protocolVersion)
     {
-        ColumnMask mask = unmask ? null : column.getMask();
-        if (mask != null)
-            return mask.mask(protocolVersion, current);
-
         return current;
     }
 
