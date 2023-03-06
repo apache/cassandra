@@ -199,4 +199,22 @@ public class JVMStabilityInspectorTest
         JVMStabilityInspector.removeShutdownHooks();
         assertTrue(testShutdownHook.shutdownHookRemoved);
     }
+
+    @Test
+    public void testSettingCustomGlobalHandler()
+    {
+        Consumer<Throwable> globalHandler = Mockito.mock(Consumer.class);
+        JVMStabilityInspector.setGlobalErrorHandler(globalHandler);
+
+        Throwable causeThrowable = new Throwable("cause");
+        Throwable topThrowable = new Throwable("hello", causeThrowable);
+        Throwable suppressedThrowable = new Throwable("suppressed");
+        topThrowable.addSuppressed(suppressedThrowable);
+
+        JVMStabilityInspector.inspectThrowable(topThrowable);
+
+        Mockito.verify(globalHandler).accept(Mockito.eq(topThrowable));
+        Mockito.verify(globalHandler).accept(Mockito.eq(suppressedThrowable));
+        Mockito.verify(globalHandler).accept(Mockito.eq(causeThrowable));
+    }
 }
