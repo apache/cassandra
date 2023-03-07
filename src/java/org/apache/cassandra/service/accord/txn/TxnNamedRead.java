@@ -160,7 +160,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
 
     private Future<Data> performCoordinatedRead(ConsistencyLevel consistencyLevel, SinglePartitionReadCommand command, int nowInSeconds, AccordClientRequestMetrics metrics)
     {
-        long start = nanoTime();
+        long queryStartNanos = nanoTime();
         return Stage.ACCORD_MIGRATION.submit(() ->
                      {
                          checkArgument(consistencyLevel.isSerialConsistency(), "Should be a serial consistency level");
@@ -176,13 +176,18 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
                          SinglePartitionReadCommand.Group group = SinglePartitionReadCommand.Group.one(command.withNowInSec(nowInSeconds));
                          // Transaction timeout should be higher, starting a new read with a new timeout is
                          // probably "good enough"
-                         long queryStartNanos = nanoTime();
-                         metrics.migrationReadLatency.addNano(nanoTime() - start);
-                         return new TxnData(ImmutableMap.of(name,
-                                                            FilteredPartition.create(
+                         try
+                         {
+                             return new TxnData(ImmutableMap.of(name,
+                                                                FilteredPartition.create(
                                                                 PartitionIterators.getOnlyElement(
-                                                                    StorageProxy.read(group, readConsistencyLevel, queryStartNanos),
-                                                                    command))));
+                                                                StorageProxy.read(group, readConsistencyLevel, queryStartNanos),
+                                                                command))));
+                         }
+                         finally
+                         {
+                             metrics.migrationReadLatency.addNano(nanoTime() - queryStartNanos);
+                         }
                      });
     }
 
