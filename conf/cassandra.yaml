@@ -1929,3 +1929,10 @@ sstable_formats:
     parameters:
       id: 0
       name: big
+
+sstable_compression:
+#  Defines the compression params used to read/write the sstables.  If undefined the old default is used.
+  - class_name: org.apache.cassandra.io.compress.LZ4Compressor # the comnpressor class
+    parameters:
+      - chunk_length_in_kb: '16384'
+        min_compress_ratio: '0.0'
