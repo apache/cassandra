@@ -33,6 +33,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.CompressionParams;
 import org.yaml.snakeyaml.error.YAMLException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
@@ -41,6 +42,7 @@ import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERT
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 
@@ -167,6 +169,21 @@ public class YamlConfigurationLoaderTest
 
         assertThat(c.row_index_read_size_warn_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1 << 12, KIBIBYTES));
         assertThat(c.row_index_read_size_fail_threshold).isEqualTo(new DataStorageSpec.LongBytesBound(1 << 13, KIBIBYTES));
+    }
+
+    @Test
+    public void readSSTableCompressionFromConfig()
+    {
+        Config c = load("test/conf/cassandra.yaml");
+
+        assertNotNull(c.sstable_compressor);
+        assertEquals("org.apache.cassandra.io.compress.LZ4Compressor", c.sstable_compressor.class_name);
+        assertThat(c.sstable_compressor.parameters).containsKey(CompressionParams.CHUNK_LENGTH_IN_KB);
+        assertThat(c.sstable_compressor.parameters).containsKey(CompressionParams.MIN_COMPRESS_RATIO);
+        CompressionParams cp = CompressionParams.fromParameterizedClass(c.sstable_compressor);
+        assertThat(cp.chunkLength()).isEqualTo(16384 * 1024);
+        assertThat(cp.isEnabled()).isTrue();
+        assertThat(cp.getSstableCompressor()).isInstanceOf(org.apache.cassandra.io.compress.LZ4Compressor.class);
     }
 
     @Test

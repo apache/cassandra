@@ -67,7 +67,7 @@ public class CassandraStreamHeaderTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF_COMPRESSED).compression(DatabaseDescriptor.getSstableCompression();));
+                                    SchemaLoader.standardCFMD(KEYSPACE, CF_COMPRESSED).compression(DatabaseDescriptor.getSstableCompression()));
 
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         store = keyspace.getColumnFamilyStore(CF_COMPRESSED);
