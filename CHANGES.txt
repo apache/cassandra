@@ -1,4 +1,5 @@
 5.0
+ * Add more logging around CompactionManager operations (CASSANDRA-18268)
  * Reduce memory allocations of calls to ByteBufer.duplicate() made in org.apache.cassandra.transport.CBUtil#writeValue (CASSANDRA-18212)
  * CEP-17: SSTable API (CASSANDRA-17056)
  * Gossip stateMapOrdering does not have correct ordering when both EndpointState are in the bootstrapping set (CASSANDRA-18292)
