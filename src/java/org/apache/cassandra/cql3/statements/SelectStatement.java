@@ -22,6 +22,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.concurrent.ThreadSafe;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
@@ -99,6 +101,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  *
  * Note that select statements can be accessed by multiple threads, so we cannot rely on mutable attributes.
  */
+@ThreadSafe
 public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
