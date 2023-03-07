@@ -16,6 +16,7 @@
 
 package org.apache.cassandra.db.compaction.unified;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -27,6 +28,7 @@ import org.junit.Ignore;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionStrategyOptions;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.ReplicationFactor;
@@ -55,6 +57,13 @@ public abstract class ControllerTest
     static final double maxSpaceOverhead = 0.3d;
     static final boolean allowOverlaps = false;
     static final long checkFrequency= 600L;
+    static final float tombstoneThresholdOption = 1;
+    static final long tombstoneCompactionIntervalOption = 1;
+    static final boolean uncheckedTombstoneCompactionOption = true;
+    static final boolean logAllOption = true;
+    static final String logTypeOption = "all";
+    static final int logPeriodMinutesOption = 1;
+    static final boolean compactionEnabled = true;
 
     @Mock
     ColumnFamilyStore cfs;
@@ -184,5 +193,43 @@ public abstract class ControllerTest
         assertNotNull(controller.getCalculator());
 
         controller.startup(strategy, executorService);
+    }
+
+    void testValidateCompactionStrategyOptions(boolean testLogType)
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(CompactionStrategyOptions.TOMBSTONE_THRESHOLD_OPTION, Float.toString(tombstoneThresholdOption));
+        options.put(CompactionStrategyOptions.TOMBSTONE_COMPACTION_INTERVAL_OPTION, Long.toString(tombstoneCompactionIntervalOption));
+        options.put(CompactionStrategyOptions.UNCHECKED_TOMBSTONE_COMPACTION_OPTION, Boolean.toString(uncheckedTombstoneCompactionOption));
+
+        if (testLogType)
+            options.put(CompactionStrategyOptions.LOG_TYPE_OPTION, logTypeOption);
+        else
+            options.put(CompactionStrategyOptions.LOG_ALL_OPTION, Boolean.toString(logAllOption));
+
+        options.put(CompactionStrategyOptions.LOG_PERIOD_MINUTES_OPTION, Integer.toString(logPeriodMinutesOption));
+        options.put(CompactionStrategyOptions.COMPACTION_ENABLED, Boolean.toString(compactionEnabled));
+
+        CompactionStrategyOptions compactionStrategyOptions = new CompactionStrategyOptions(UnifiedCompactionStrategy.class, options, true);
+        assertNotNull(compactionStrategyOptions);
+        assertNotNull(compactionStrategyOptions.toString());
+        assertEquals(tombstoneThresholdOption, compactionStrategyOptions.getTombstoneThreshold(), epsilon);
+        assertEquals(tombstoneCompactionIntervalOption, compactionStrategyOptions.getTombstoneCompactionInterval());
+        assertEquals(uncheckedTombstoneCompactionOption, compactionStrategyOptions.isUncheckedTombstoneCompaction());
+
+        if (testLogType)
+        {
+            assertEquals((logTypeOption.equals("all") || logTypeOption.equals("events_only")), compactionStrategyOptions.isLogEnabled());
+            assertEquals(logTypeOption.equals("all"), compactionStrategyOptions.isLogAll());
+        }
+        else
+        {
+            assertEquals(logAllOption, compactionStrategyOptions.isLogEnabled());
+            assertEquals(logAllOption, compactionStrategyOptions.isLogAll());
+        }
+        assertEquals(logPeriodMinutesOption, compactionStrategyOptions.getLogPeriodMinutes());
+
+        Map<String, String> uncheckedOptions = CompactionStrategyOptions.validateOptions(options);
+        assertNotNull(uncheckedOptions);
     }
 }

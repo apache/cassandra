@@ -855,4 +855,15 @@ public class CompactionsCQLTest extends CQLTester
         if (shouldFind)
             fail("No minor compaction triggered in "+maxWaitTime+"ms");
     }
+
+    @Test
+    public void testPeriodicCompactionsCall()
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY) WITH compaction = {'class': 'TestCompactionClass'}");
+        TestCompactionClass cs = (TestCompactionClass) getCurrentColumnFamilyStore().getCompactionStrategyContainer().getStrategies().get(0);
+        int prCount = cs.periodicReportsCalled;
+        CompactionManager.periodicReports();
+        assertTrue(cs.periodicReportsCalled > prCount);
+
+    }
 }

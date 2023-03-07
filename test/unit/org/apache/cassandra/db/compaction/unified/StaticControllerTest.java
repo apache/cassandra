@@ -66,6 +66,12 @@ public class StaticControllerTest extends ControllerTest
     }
 
     @Test
+    public void testValidateCompactionStrategyOptions()
+    {
+        super.testValidateCompactionStrategyOptions(true);
+    }
+
+    @Test
     public void testSurvivalFactorForSharedStorage()
     {
         System.setProperty("unified_compaction.shared_storage", "true");

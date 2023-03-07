@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.unified.Controller;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Pair;
@@ -42,6 +43,8 @@ import static org.junit.Assert.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
@@ -439,5 +442,25 @@ public class BackgroundCompactionsTest
     {
         BackgroundCompactions backgroundCompactions = new BackgroundCompactions(cfs);
         backgroundCompactions.onCompleted(strategyContainer, null);
+    }
+
+    @Test
+    public void periodicReportsTest()
+    {
+        CompactionStrategyOptions options = mock(CompactionStrategyOptions.class);
+        BackgroundCompactions backgroundCompactions = mock(BackgroundCompactions.class);
+        UnifiedCompactionStrategy ucs = mock(UnifiedCompactionStrategy.class);
+        CompactionStrategyStatistics stats = mock(CompactionStrategyStatistics.class);
+
+        when(ucs.getOptions()).thenReturn(options);
+        when(ucs.getBackgroundCompactions()).thenReturn(backgroundCompactions);
+        when(options.isLogAll()).thenReturn(true);
+        when(options.getLogPeriodMinutes()).thenReturn(1);
+        when(backgroundCompactions.getStatistics(ucs)).thenReturn(stats);
+        when(ucs.getCompactionLogger()).thenReturn(compactionLogger);
+        doCallRealMethod().when(ucs).periodicReport();
+
+        ucs.periodicReport();
+        Mockito.verify(compactionLogger, times(1)).statistics(eq(ucs), eq("periodic"), any(CompactionStrategyStatistics.class));
     }
 }

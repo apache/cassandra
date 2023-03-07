@@ -68,7 +68,7 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
 
         factory.getCompactionLogger().strategyCreated(this.strategy);
 
-        if (this.strategy.getOptions().isLogAll())
+        if (this.strategy.getOptions().isLogEnabled())
             factory.getCompactionLogger().enable();
         else
             factory.getCompactionLogger().disable();
@@ -340,6 +340,12 @@ public class UnifiedCompactionContainer implements CompactionStrategyContainer
     public boolean supportsEarlyOpen()
     {
         return strategy.supportsEarlyOpen();
+    }
+
+    @Override
+    public void periodicReport()
+    {
+        strategy.periodicReport();
     }
 
     BackgroundCompactions getBackgroundCompactions()
