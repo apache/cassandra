@@ -335,6 +335,6 @@ public class AdaptiveController extends Controller
     @Override
     public String toString()
     {
-        return String.format("m: %d, o: %s, W: %d - %s", minSstableSizeMB, Arrays.toString(survivalFactors), W, calculator);
+        return String.format("m: %d, o: %s, W: %s - %s", minSstableSizeMB, Arrays.toString(survivalFactors), W, calculator);
     }
 }
