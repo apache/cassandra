@@ -1806,7 +1806,7 @@ drop_compact_storage_enabled: false
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
 
-sstable_compression:
+sstable_compressor:
 #  Defines the compression params used to read/write the sstables.  If undefined the old default is used.
   - class_name: org.apache.cassandra.io.compress.LZ4Compressor # the comnpressor class
     parameters:
