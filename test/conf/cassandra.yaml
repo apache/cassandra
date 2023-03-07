@@ -115,7 +115,5 @@ memtable:
 sstable_compressor:
     - class_name: org.apache.cassandra.io.compress.LZ4Compressor # the comnpressor class
       parameters :
-        - chunk_length_in_kb : '16384' # the chunk length for the compressor
-          min_compress_ratio : '0.0' # the minimum compression ratio.
-        # enabled : defaults to true
-        # other compressor class parameters specified here
+        - chunk_length_in_kb : '16384'
+          min_compress_ratio : '0.0'
