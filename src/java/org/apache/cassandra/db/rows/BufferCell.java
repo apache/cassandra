@@ -143,7 +143,7 @@ public class BufferCell extends AbstractCell<ByteBuffer>
     @Override
     public Cell<?> clone(ByteBufferCloner cloner)
     {
-        if (!value.hasRemaining())
+        if (!value.hasRemaining() && path == null)
             return this;
 
         return super.clone(cloner);

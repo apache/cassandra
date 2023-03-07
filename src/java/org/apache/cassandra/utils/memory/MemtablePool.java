@@ -191,7 +191,7 @@ public abstract class MemtablePool
 
         void released(long size)
         {
-            assert size >= 0;
+            assert size >= 0 : "Negative released: " + size;
             adjustAllocated(-size);
             hasRoom.signalAll();
         }
