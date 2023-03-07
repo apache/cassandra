@@ -24,14 +24,18 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.FailureDetector;
@@ -46,7 +50,10 @@ import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
 
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -57,11 +64,12 @@ public final class RemoteProcessor implements Processor
     private static final Logger logger = LoggerFactory.getLogger(RemoteProcessor.class);
     private final Supplier<Collection<InetAddressAndPort>> discoveryNodes;
     private final LocalLog log;
-
+    private final Debounce<ClusterMetadata> replayAndWaitDebounced;
     RemoteProcessor(LocalLog log, Supplier<Collection<InetAddressAndPort>> discoveryNodes)
     {
         this.log = log;
         this.discoveryNodes = discoveryNodes;
+        this.replayAndWaitDebounced = new Debounce<ClusterMetadata>(this::replayAndWaitInternal);
     }
 
     @Override
@@ -112,6 +120,23 @@ public final class RemoteProcessor implements Processor
     @Override
     @SuppressWarnings("resource")
     public ClusterMetadata replayAndWait()
+    {
+        try
+        {
+            return replayAndWaitDebounced.getAsync().get();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException("Can not replay during shutdown", e);
+        }
+        catch (ExecutionException e)
+        {
+            JVMStabilityInspector.inspectThrowable(e);
+            throw Throwables.throwAsUncheckedException(e);
+        }
+    }
+
+    private ClusterMetadata replayAndWaitInternal()
     {
         Epoch lastConsecutive = log.replayPersisted();
 
@@ -293,6 +318,45 @@ public final class RemoteProcessor implements Processor
                 return ep;
             }
             return endOfData();
+        }
+    }
+
+    public static class Debounce<T>
+    {
+        private final Callable<T> get;
+        private final AtomicReference<Future<T>> currentFuture = new AtomicReference<>();
+        private final SequentialExecutorPlus executor;
+
+        public Debounce(Callable<T> get)
+        {
+            this.executor = ExecutorFactory.Global.executorFactory().sequential("debounce");
+            this.get = get;
+        }
+
+        public Future<T> getAsync()
+        {
+            while (true)
+            {
+                Future<T> running = currentFuture.get();
+                // Anything that is done, however recent, is considered stale
+                if (running != null && !running.isDone())
+                    return running;
+
+                AsyncPromise<T> promise = new AsyncPromise<>();
+                if (currentFuture.compareAndSet(running, promise))
+                {
+                    executor.submit(() -> {
+                        try
+                        {
+                            promise.setSuccess(get.call());
+                        }
+                        catch (Throwable t)
+                        {
+                            promise.setFailure(t);
+                        }
+                    });
+                }
+            }
         }
     }
 }
