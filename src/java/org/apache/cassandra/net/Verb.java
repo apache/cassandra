@@ -275,8 +275,7 @@ public enum Verb
     ACCORD_WAIT_COMMIT_RSP          (138, P2, writeTimeout,    REQUEST_RESPONSE,  () -> WaitOnCommitSerializer.reply,         RESPONSE_HANDLER),
     ACCORD_WAIT_COMMIT_REQ          (137, P2, writeTimeout,    ACCORD,            () -> WaitOnCommitSerializer.request,       () -> AccordService.instance().verbHandler(),     ACCORD_WAIT_COMMIT_RSP),
 
-    ACCORD_INFORM_OF_TXNID_RSP(140, P2, writeTimeout, REQUEST_RESPONSE, () -> EnumSerializer.simpleReply, RESPONSE_HANDLER),
-    ACCORD_INFORM_OF_TXNID_REQ(139, P2, writeTimeout, ACCORD, () -> InformOfTxnIdSerializers.request, () -> AccordService.instance().verbHandler(), ACCORD_INFORM_OF_TXNID_RSP),
+    ACCORD_INFORM_OF_TXNID_REQ(139, P2, writeTimeout, ACCORD, () -> InformOfTxnIdSerializers.request, () -> AccordService.instance().verbHandler(), ACCORD_SIMPLE_RSP),
 
     ACCORD_INFORM_HOME_DURABLE_REQ(141, P2, writeTimeout, ACCORD, () -> InformHomeDurableSerializers.request, () -> AccordService.instance().verbHandler(), ACCORD_SIMPLE_RSP),
 
