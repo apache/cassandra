@@ -79,9 +79,9 @@ public abstract class QualifiedStatement extends CQLStatement.Raw
         return ToStringBuilder.reflectionToString(this, ToStringStyle.SHORT_PREFIX_STYLE);
     }
 
-    public static abstract class CompositeQualifiedStatement extends QualifiedStatement
+    public static abstract class Composite extends QualifiedStatement
     {
-        CompositeQualifiedStatement()
+        Composite()
         {
             super(null);
         }

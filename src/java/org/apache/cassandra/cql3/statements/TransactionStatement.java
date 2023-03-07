@@ -442,7 +442,7 @@ public class TransactionStatement implements CompositeCQLStatement, ReturningCQL
         return new AuditLogContext(AuditLogEntryType.TRANSACTION);
     }
 
-    public static class Parsed extends QualifiedStatement.CompositeQualifiedStatement
+    public static class Parsed extends QualifiedStatement.Composite
     {
         private final List<SelectStatement.RawStatement> assignments;
         private final SelectStatement.RawStatement select;

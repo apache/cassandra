@@ -607,7 +607,7 @@ public class BatchStatement implements CompositeCQLStatement
         return String.format("BatchStatement(type=%s, statements=%s)", type, statements);
     }
 
-    public static class Parsed extends QualifiedStatement.CompositeQualifiedStatement
+    public static class Parsed extends QualifiedStatement.Composite
     {
         private final Type type;
         private final Attributes.Raw attrs;
