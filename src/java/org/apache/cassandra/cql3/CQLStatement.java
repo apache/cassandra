@@ -115,4 +115,14 @@ public interface CQLStatement
     {
         public String keyspace();
     }
+
+    interface CompositeCQLStatement extends CQLStatement
+    {
+        Iterable<? extends CQLStatement> getStatements();
+    }
+
+    interface ReturningCQLStatement extends CQLStatement
+    {
+        ResultSet.ResultMetadata getResultMetadata();
+    }
 }

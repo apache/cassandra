@@ -57,7 +57,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
  */
-public class BatchStatement implements CompositeCQLStatement
+public class BatchStatement implements CQLStatement.CompositeCQLStatement
 {
     public enum Type
     {

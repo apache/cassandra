@@ -83,7 +83,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNu
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-public class TransactionStatement implements CompositeCQLStatement, ReturningCQLStatement
+public class TransactionStatement implements CQLStatement.CompositeCQLStatement, CQLStatement.ReturningCQLStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(TransactionStatement.class);
 

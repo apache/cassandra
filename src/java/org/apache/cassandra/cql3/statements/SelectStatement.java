@@ -94,7 +94,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  * QueryHandler implementations, so before reducing their accessibility
  * due consideration should be given.
  */
-public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement, ReturningCQLStatement
+public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement, CQLStatement.ReturningCQLStatement
 {
     private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
 

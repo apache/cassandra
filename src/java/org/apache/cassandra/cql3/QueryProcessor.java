@@ -989,9 +989,9 @@ public class QueryProcessor implements QueryHandler
                 statementKsName = selectStatement.keyspace();
                 statementCfName = selectStatement.table();
             }
-            else if (statement instanceof CompositeCQLStatement)
+            else if (statement instanceof CQLStatement.CompositeCQLStatement)
             {
-                for (CQLStatement stmt : ((CompositeCQLStatement) statement).getStatements())
+                for (CQLStatement stmt : ((CQLStatement.CompositeCQLStatement) statement).getStatements())
                 {
                     if (shouldInvalidate(ksName, cfName, stmt))
                         return true;
