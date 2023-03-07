@@ -129,7 +129,7 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
         indexer.onInserted(insert);
 
         dataSize += data.dataSize();
-        onAllocatedOnHeap(data.unsharedHeapSizeExcludingData());
+        heapSize += data.unsharedHeapSizeExcludingData();
         return data;
     }
 
@@ -143,12 +143,12 @@ public class BTreePartitionUpdater implements UpdateFunction<Row, Row>, ColumnDa
 
     public Cell<?> merge(Cell<?> previous, Cell<?> insert)
     {
-        if (insert != previous)
-        {
-            long timeDelta = Math.abs(insert.timestamp() - previous.timestamp());
-            if (timeDelta < colUpdateTimeDelta)
-                colUpdateTimeDelta = timeDelta;
-        }
+        if (insert == previous)
+            return insert;
+
+        long timeDelta = Math.abs(insert.timestamp() - previous.timestamp());
+        if (timeDelta < colUpdateTimeDelta)
+            colUpdateTimeDelta = timeDelta;
         if (cloner != null)
             insert = cloner.clone(insert);
         dataSize += insert.dataSize() - previous.dataSize();

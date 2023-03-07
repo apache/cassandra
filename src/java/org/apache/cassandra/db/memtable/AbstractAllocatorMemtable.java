@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -76,11 +77,20 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     @VisibleForTesting
     static MemtablePool createMemtableAllocatorPool()
     {
+        Config.MemtableAllocationType allocationType = DatabaseDescriptor.getMemtableAllocationType();
         long heapLimit = DatabaseDescriptor.getMemtableHeapSpaceInMiB() << 20;
         long offHeapLimit = DatabaseDescriptor.getMemtableOffheapSpaceInMiB() << 20;
         float memtableCleanupThreshold = DatabaseDescriptor.getMemtableCleanupThreshold();
         MemtableCleaner cleaner = AbstractAllocatorMemtable::flushLargestMemtable;
-        switch (DatabaseDescriptor.getMemtableAllocationType())
+        return createMemtableAllocatorPoolInternal(allocationType, heapLimit, offHeapLimit, memtableCleanupThreshold, cleaner);
+    }
+
+    @VisibleForTesting
+    public static MemtablePool createMemtableAllocatorPoolInternal(Config.MemtableAllocationType allocationType,
+                                                                   long heapLimit, long offHeapLimit,
+                                                                   float memtableCleanupThreshold, MemtableCleaner cleaner)
+    {
+        switch (allocationType)
         {
         case unslabbed_heap_buffers_logged:
             return new HeapPool.Logged(heapLimit, memtableCleanupThreshold, cleaner);
