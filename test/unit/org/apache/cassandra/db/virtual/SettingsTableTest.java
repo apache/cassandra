@@ -33,13 +33,12 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.StringConverter;
 import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
 import org.apache.cassandra.config.registry.PropertyRegistry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
 import org.assertj.core.util.Streams;
-
-import static org.apache.cassandra.db.virtual.SettingsTable.convertToString;
 
 public class SettingsTableTest extends CQLTester
 {
@@ -82,7 +81,7 @@ public class SettingsTableTest extends CQLTester
             i++;
             String name = r.getString("name");
             Assert.assertEquals("Unexpected result for key: " + name,
-                                convertToString(registry.get(name)), r.getString("value"));
+                                StringConverter.DEFAULT.convert(registry.get(name)), r.getString("value"));
         }
         Assert.assertEquals(table.registry().size(), i);
     }
@@ -93,7 +92,7 @@ public class SettingsTableTest extends CQLTester
         for (String key : table.registry().keys())
         {
             String q = "SELECT * FROM vts.settings WHERE name = '" + key + '\'';
-            assertRowsNet(executeNet(q), new Object[] { key, convertToString(registry.get(key)) });
+            assertRowsNet(executeNet(q), new Object[] { key, StringConverter.DEFAULT.convert((registry.get(key))) });
         }
     }
 

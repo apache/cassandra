@@ -26,6 +26,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Converters;
@@ -33,6 +34,7 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.PropertyConverter;
 import org.apache.cassandra.config.Replacement;
 import org.apache.cassandra.config.Replacements;
+import org.apache.cassandra.config.StringConverter;
 import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
 import org.apache.cassandra.config.registry.PropertyRegistry;
 import org.apache.cassandra.db.DecoratedKey;
@@ -53,7 +55,8 @@ final class SettingsTable extends AbstractMutableVirtualTable
      * The map of all replacements for configuration properties, used to
      * map old names to new names and configuration field types.
      */
-    private final Map<Class<?>, PropertyConverter<?>> converters = new HashMap<>();
+    private final Map<Class<?>, PropertyConverter<?>> stringTypeConverters = new HashMap<>();
+    private final Map<Class<?>, StringConverter<?>> typeStringConverters = new HashMap<>();
     private final BackwardsCompatablePropertyRegistry registry;
 
     SettingsTable(String keyspace)
@@ -71,21 +74,27 @@ final class SettingsTable extends AbstractMutableVirtualTable
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
         registerStringTypeConverters();
+        registerTypeStringConverters();
         this.registry = new BackwardsCompatablePropertyRegistry(registry);
     }
 
     private void registerStringTypeConverters()
     {
-        converters.put(Boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
-        converters.put(boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
-        converters.put(Integer.class, CassandraRelevantProperties.INTEGER_CONVERTER);
-        converters.put(int.class, CassandraRelevantProperties.INTEGER_CONVERTER);
-        converters.put(DurationSpec.LongNanosecondsBound.class, DurationSpec.LongNanosecondsBound::new);
-        converters.put(DurationSpec.LongMillisecondsBound.class, DurationSpec.LongMillisecondsBound::new);
-        converters.put(DurationSpec.LongSecondsBound.class, DurationSpec.LongSecondsBound::new);
-        converters.put(DurationSpec.IntMinutesBound.class, DurationSpec.IntMinutesBound::new);
-        converters.put(DurationSpec.IntSecondsBound.class, DurationSpec.IntSecondsBound::new);
-        converters.put(DurationSpec.IntMillisecondsBound.class, DurationSpec.IntMillisecondsBound::new);
+        stringTypeConverters.put(Boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
+        stringTypeConverters.put(boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
+        stringTypeConverters.put(Integer.class, CassandraRelevantProperties.INTEGER_CONVERTER);
+        stringTypeConverters.put(int.class, CassandraRelevantProperties.INTEGER_CONVERTER);
+        stringTypeConverters.put(DurationSpec.LongNanosecondsBound.class, DurationSpec.LongNanosecondsBound::new);
+        stringTypeConverters.put(DurationSpec.LongMillisecondsBound.class, DurationSpec.LongMillisecondsBound::new);
+        stringTypeConverters.put(DurationSpec.LongSecondsBound.class, DurationSpec.LongSecondsBound::new);
+        stringTypeConverters.put(DurationSpec.IntMinutesBound.class, DurationSpec.IntMinutesBound::new);
+        stringTypeConverters.put(DurationSpec.IntSecondsBound.class, DurationSpec.IntSecondsBound::new);
+        stringTypeConverters.put(DurationSpec.IntMillisecondsBound.class, DurationSpec.IntMillisecondsBound::new);
+    }
+
+    private void registerTypeStringConverters()
+    {
+        typeStringConverters.put(AuditLogOptions.class, StringConverter.DEFAULT);
     }
 
     @Override
@@ -113,7 +122,10 @@ final class SettingsTable extends AbstractMutableVirtualTable
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
             ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
         if (registry.contains(name))
-            result.row(name).column(VALUE, convertToString(registry.get(name)));
+        {
+            StringConverter<?> converter = typeStringConverters.getOrDefault(registry.type(name), StringConverter.DEFAULT);
+            runExceptionally(() -> result.row(name).column(VALUE, converter.convert(registry.get(name))), name);
+        }
         return result;
     }
 
@@ -121,25 +133,25 @@ final class SettingsTable extends AbstractMutableVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        for (String key : registry.keys())
-            result.row(key).column(VALUE, convertToString(registry.get(key)));
+        for (String name : registry.keys())
+        {
+            StringConverter<?> converter = typeStringConverters.getOrDefault(registry.type(name), StringConverter.DEFAULT);
+            runExceptionally(() -> result.row(name).column(VALUE, converter.convert(registry.get(name))), name);
+        }
         return result;
     }
 
     /**
      * Covers the case where nested value converters throw internal C* exceptions, but we want to throw an  input
      * request validation exception instead.
-     * @param converter Converter to use to convert the value.
+     * @param action Converter to use to convert the value.
      * @param name Property name.
-     * @param value String representation of the value.
-     * @return The converted value.
-     * @param <T> Type of the resulted value.
      */
-    private static <T> T convertExceptionally(PropertyConverter<T> converter, String name, String value)
+    private static void runExceptionally(Runnable action, String name)
     {
         try
         {
-            return converter.convert(value);
+            action.run();
         }
         catch (Exception e)
         {
@@ -155,15 +167,10 @@ final class SettingsTable extends AbstractMutableVirtualTable
     private void setProperty(String name, String value)
     {
         Class<?> propertyType = registry.type(name);
-        PropertyConverter<?> converter = converters.get(propertyType);
+        PropertyConverter<?> converter = stringTypeConverters.get(propertyType);
         if (converter == null)
             throw new ConfigurationException(String.format("Unknown converter for property with name '%s' and type '%s'", name, propertyType));
-        registry.set(name, value == null ? null : convertExceptionally(converter, name, value));
-    }
-
-    static String convertToString(Object value)
-    {
-        return value == null ? null : value.toString();
+        runExceptionally(() -> registry.set(name, value == null ? null : converter.convert(value)), name);
     }
 
     @VisibleForTesting
