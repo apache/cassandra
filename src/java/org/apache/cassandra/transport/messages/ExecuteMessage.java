@@ -136,7 +136,7 @@ public class ExecuteMessage extends Message.Request
 
             if (!prepared.fullyQualified
                 && !Objects.equals(state.getClientState().getRawKeyspace(), prepared.keyspace)
-                // We can not reliably detect inconsistencies for groups yet
+                // We cannot reliably detect inconsistencies for composite statements yet
                 && !(prepared.statement instanceof CQLStatement.CompositeCQLStatement)
             )
             {
