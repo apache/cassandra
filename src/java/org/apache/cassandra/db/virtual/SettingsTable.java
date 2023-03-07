@@ -19,38 +19,49 @@ package org.apache.cassandra.db.virtual;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
-import com.google.common.collect.ImmutableMap;
+import java.util.Optional;
+import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Loader;
-import org.apache.cassandra.config.Properties;
+import org.apache.cassandra.config.Converters;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.PropertyConverter;
 import org.apache.cassandra.config.Replacement;
 import org.apache.cassandra.config.Replacements;
+import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
+import org.apache.cassandra.config.registry.PropertyRegistry;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
-import org.yaml.snakeyaml.introspector.Property;
 
-final class SettingsTable extends AbstractVirtualTable
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+
+final class SettingsTable extends AbstractMutableVirtualTable
 {
     private static final String NAME = "name";
     private static final String VALUE = "value";
-
     private static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
-    protected static final Map<String, Property> PROPERTIES = ImmutableMap.copyOf(getProperties());
-
-    private final Config config;
+    /**
+     * The map of all replacements for configuration properties, used to
+     * map old names to new names and configuration field types.
+     */
+    private final Map<Class<?>, PropertyConverter<?>> converters = new HashMap<>();
+    private final BackwardsCompatablePropertyRegistry registry;
 
     SettingsTable(String keyspace)
     {
-        this(keyspace, DatabaseDescriptor.getRawConfig());
+        this(keyspace, ConfigPropertyRegistry.instance);
     }
 
-    SettingsTable(String keyspace, Config config)
+    SettingsTable(String keyspace, ConfigPropertyRegistry registry)
     {
         super(TableMetadata.builder(keyspace, "settings")
                            .comment("current settings")
@@ -59,7 +70,39 @@ final class SettingsTable extends AbstractVirtualTable
                            .addPartitionKeyColumn(NAME, UTF8Type.instance)
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
-        this.config = config;
+        registerStringTypeConverters();
+        this.registry = new BackwardsCompatablePropertyRegistry(registry);
+    }
+
+    private void registerStringTypeConverters()
+    {
+        converters.put(Boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
+        converters.put(boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
+        converters.put(Integer.class, CassandraRelevantProperties.INTEGER_CONVERTER);
+        converters.put(int.class, CassandraRelevantProperties.INTEGER_CONVERTER);
+        converters.put(DurationSpec.LongNanosecondsBound.class, DurationSpec.LongNanosecondsBound::new);
+        converters.put(DurationSpec.LongMillisecondsBound.class, DurationSpec.LongMillisecondsBound::new);
+        converters.put(DurationSpec.LongSecondsBound.class, DurationSpec.LongSecondsBound::new);
+        converters.put(DurationSpec.IntMinutesBound.class, DurationSpec.IntMinutesBound::new);
+        converters.put(DurationSpec.IntSecondsBound.class, DurationSpec.IntSecondsBound::new);
+        converters.put(DurationSpec.IntMillisecondsBound.class, DurationSpec.IntMillisecondsBound::new);
+    }
+
+    @Override
+    protected void applyColumnDeletion(ColumnValues partitionKey, ColumnValues clusteringColumns, String columnName)
+    {
+        String key = partitionKey.value(0);
+        setProperty(key, null);
+    }
+
+    @Override
+    protected void applyColumnUpdate(ColumnValues partitionKey,
+                                     ColumnValues clusteringColumns,
+                                     Optional<ColumnValue> columnValue)
+    {
+        String key = partitionKey.value(0);
+        String value = columnValue.map(v -> v.value().toString()).orElse(null);
+        setProperty(key, value);
     }
 
     @Override
@@ -69,8 +112,8 @@ final class SettingsTable extends AbstractVirtualTable
         String name = UTF8Type.instance.compose(partitionKey.getKey());
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
             ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
-        if (PROPERTIES.containsKey(name))
-            result.row(name).column(VALUE, getValue(PROPERTIES.get(name)));
+        if (registry.contains(name))
+            result.row(name).column(VALUE, convertToString(registry.get(name)));
         return result;
     }
 
@@ -78,44 +121,76 @@ final class SettingsTable extends AbstractVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        for (Map.Entry<String, Property> e : PROPERTIES.entrySet())
-            result.row(e.getKey()).column(VALUE, getValue(e.getValue()));
+        for (String key : registry.keys())
+            result.row(key).column(VALUE, convertToString(registry.get(key)));
         return result;
     }
 
-    private String getValue(Property prop)
+    /**
+     * Covers the case where nested value converters throw internal C* exceptions, but we want to throw an  input
+     * request validation exception instead.
+     * @param converter Converter to use to convert the value.
+     * @param name Property name.
+     * @param value String representation of the value.
+     * @return The converted value.
+     * @param <T> Type of the resulted value.
+     */
+    private static <T> T convertExceptionally(PropertyConverter<T> converter, String name, String value)
     {
-        Object value = prop.get(config);
+        try
+        {
+            return converter.convert(value);
+        }
+        catch (Exception e)
+        {
+            throw invalidRequest("Invalid request for property '%s'; exception: '%s'", name, e.getMessage());
+        }
+    }
+
+    /**
+     * Setter for the property.
+     * @param name the name of the property.
+     * @param value the string representation of the value of the property to set.
+     */
+    private void setProperty(String name, String value)
+    {
+        Class<?> propertyType = registry.type(name);
+        PropertyConverter<?> converter = converters.get(propertyType);
+        if (converter == null)
+            throw new ConfigurationException(String.format("Unknown converter for property with name '%s' and type '%s'", name, propertyType));
+        registry.set(name, value == null ? null : convertExceptionally(converter, name, value));
+    }
+
+    static String convertToString(Object value)
+    {
         return value == null ? null : value.toString();
     }
 
-    private static Map<String, Property> getProperties()
+    @VisibleForTesting
+    PropertyRegistry registry()
     {
-        Loader loader = Properties.defaultLoader();
-        Map<String, Property> properties = loader.flatten(Config.class);
+        return registry;
+    }
+
+    private static Map<String, Replacement> replacements(PropertyRegistry registry)
+    {
         // only handling top-level replacements for now, previous logic was only top level so not a regression
         Map<String, Replacement> replacements = Replacements.getNameReplacements(Config.class).get(Config.class);
-        if (replacements != null)
+        assert replacements != null;
+        for (Replacement r : replacements.values())
         {
-            for (Replacement r : replacements.values())
-            {
-                Property latest = properties.get(r.newName);
-                assert latest != null : "Unable to find replacement new name: " + r.newName;
-                Property conflict = properties.put(r.oldName, r.toProperty(latest));
-                // some configs kept the same name, but changed the type, if this is detected then rely on the replaced property
-                assert conflict == null || r.oldName.equals(r.newName) : String.format("New property %s attempted to replace %s, but this property already exists", latest.getName(), conflict.getName());
-            }
+            if (!registry.contains(r.newName))
+                throw new AssertionError("Unable to find replacement new name: " + r.newName);
         }
         for (Map.Entry<String, String> e : BACKWARDS_COMPATABLE_NAMES.entrySet())
         {
             String oldName = e.getKey();
-            if (properties.containsKey(oldName))
+            if (registry.contains(oldName))
                 throw new AssertionError("Name " + oldName + " is present in Config, this adds a conflict as this name had a different meaning in " + SettingsTable.class.getSimpleName());
             String newName = e.getValue();
-            Property prop = Objects.requireNonNull(properties.get(newName), newName + " cant be found for " + oldName);
-            properties.put(oldName, Properties.rename(oldName, prop));
+            replacements.put(oldName, new Replacement(Config.class, oldName, registry.type(newName), newName, Converters.IDENTITY, true));
         }
-        return properties;
+        return replacements;
     }
 
     /**
@@ -156,5 +231,62 @@ final class SettingsTable extends AbstractVirtualTable
         names.put("transparent_data_encryption_options_iv_length", "transparent_data_encryption_options.iv_length");
 
         return names;
+    }
+
+    private static class BackwardsCompatablePropertyRegistry implements PropertyRegistry
+    {
+        private final PropertyRegistry registry;
+        private final Map<String, Replacement> replacements;
+        private final Set<String> uniquePropertyKeys;
+        public BackwardsCompatablePropertyRegistry(PropertyRegistry registry)
+        {
+            this.registry = registry;
+            this.replacements = replacements(registry);
+            // Some configs kept the same name, but changed the type, so we need to make sure we don't return the same name twice.
+            this.uniquePropertyKeys = ImmutableSet.<String>builder().addAll(registry.keys()).addAll(replacements.keySet()).build();
+        }
+
+        @Override
+        public void set(String name, Object value)
+        {
+            Replacement replacement = replacements.get(name);
+            if (replacement == null)
+                registry.set(name, value);
+            else
+                registry.set(replacement.newName, replacement.converter.convert(value));
+        }
+
+        @Override
+        public <T> T get(String name)
+        {
+            Replacement replacement = replacements.get(name);
+            return replacement == null ? registry.get(name) : (T) replacement.converter.unconvert(registry.get(replacement.newName));
+        }
+
+        @Override
+        public boolean contains(String name)
+        {
+            return replacements.containsKey(name) || registry.contains(name);
+        }
+
+        @Override
+        public Iterable<String> keys()
+        {
+            return uniquePropertyKeys;
+        }
+
+        @Override
+        public Class<?> type(String name)
+        {
+            if (replacements.containsKey(name))
+                return replacements.get(name).oldType;
+            return registry.type(name);
+        }
+
+        @Override
+        public int size()
+        {
+            return uniquePropertyKeys.size();
+        }
     }
 }

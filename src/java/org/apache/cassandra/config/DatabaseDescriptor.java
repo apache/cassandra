@@ -43,7 +43,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -68,6 +67,7 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
+import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -185,7 +185,7 @@ public class DatabaseDescriptor
     private static GuardrailsOptions guardrails;
     private static StartupChecksOptions startupChecksOptions;
 
-    private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
+    private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> conf.cdc_enabled
                                        ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                        : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
 
@@ -1873,12 +1873,12 @@ public class DatabaseDescriptor
 
     public static long getRepairRpcTimeout(TimeUnit unit)
     {
-        return conf.repair_request_timeout.to(unit);
+        return ((DurationSpec.LongMillisecondsBound) ConfigPropertyRegistry.instance.get(ConfigFields.REPAIR_REQUEST_TIMEOUT)).to(unit);
     }
 
     public static void setRepairRpcTimeout(Long timeOutInMillis)
     {
-        conf.repair_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+        ConfigPropertyRegistry.instance.set(ConfigFields.REPAIR_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static boolean hasCrossNodeTimeout()
@@ -3704,22 +3704,22 @@ public class DatabaseDescriptor
 
     public static boolean getCDCBlockWrites()
     {
-        return conf.cdc_block_writes;
+        return ConfigPropertyRegistry.instance.get(ConfigFields.CDC_BLOCK_WRITES);
     }
 
     public static void setCDCBlockWrites(boolean val)
     {
-        conf.cdc_block_writes = val;
+        ConfigPropertyRegistry.instance.set(ConfigFields.CDC_BLOCK_WRITES, val);
     }
 
     public static boolean isCDCOnRepairEnabled()
     {
-        return conf.cdc_on_repair_enabled;
+        return ConfigPropertyRegistry.instance.get(ConfigFields.CDC_ON_REPAIR_ENABLED);
     }
 
     public static void setCDCOnRepairEnabled(boolean val)
     {
-        conf.cdc_on_repair_enabled = val;
+        ConfigPropertyRegistry.instance.set(ConfigFields.CDC_ON_REPAIR_ENABLED, val);
     }
 
     public static String getCDCLogLocation()

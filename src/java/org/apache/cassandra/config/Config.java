@@ -21,19 +21,17 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Supplier;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -147,8 +145,9 @@ public class Config
     @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound truncate_request_timeout = new DurationSpec.LongMillisecondsBound("60000ms");
 
+    @Mutable
     @Replaces(oldName = "repair_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public volatile DurationSpec.LongMillisecondsBound repair_request_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
+    public DurationSpec.LongMillisecondsBound repair_request_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
 
     public Integer streaming_connections_per_host = 1;
     @Replaces(oldName = "streaming_keep_alive_period_in_secs", converter = Converters.SECONDS_DURATION, deprecated = true)
@@ -390,10 +389,12 @@ public class Config
     public boolean cdc_enabled = false;
     // When true, new CDC mutations are rejected/blocked when reaching max CDC storage.
     // When false, new CDC mutations can always be added. But it will remove the oldest CDC commit log segment on full.
-    public volatile boolean cdc_block_writes = true;
+    @Mutable
+    public boolean cdc_block_writes = true;
     // When true, CDC data in SSTable go through commit logs during internodes streaming, e.g. repair
     // When false, it behaves the same as normal streaming.
-    public volatile boolean cdc_on_repair_enabled = true;
+    @Mutable
+    public boolean cdc_on_repair_enabled = true;
     public String cdc_raw_directory;
     @Replaces(oldName = "cdc_total_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound cdc_total_space = new DataStorageSpec.IntMebibytesBound("0MiB");
