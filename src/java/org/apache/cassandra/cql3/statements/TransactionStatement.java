@@ -60,6 +60,7 @@ import org.apache.cassandra.cql3.transactions.SelectReferenceSource;
 import org.apache.cassandra.db.ReadQuery;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -116,6 +117,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     private final List<ConditionStatement> conditions;
 
     private final VariableSpecifications bindVariables;
+    private final ResultSet.ResultMetadata resultMetadata;
 
     public TransactionStatement(List<NamedSelect> assignments,
                                 NamedSelect returningSelect,
@@ -130,6 +132,22 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         this.updates = updates;
         this.conditions = conditions;
         this.bindVariables = bindVariables;
+
+        if (returningSelect != null)
+        {
+            resultMetadata = returningSelect.select.getResultMetadata();
+        }
+        else if (returningReferences != null && !returningReferences.isEmpty())
+        {
+            List<ColumnSpecification> names = new ArrayList<>(returningReferences.size());
+            for (RowDataReference reference : returningReferences)
+                names.add(reference.toResultMetadata());
+            resultMetadata = new ResultSet.ResultMetadata(names);
+        }
+        else
+        {
+            resultMetadata =  ResultSet.ResultMetadata.EMPTY;
+        }
     }
 
     public List<ModificationStatement> getUpdates()
@@ -183,16 +201,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     @Override
     public ResultSet.ResultMetadata getResultMetadata()
     {
-        if (returningSelect != null)
-            return returningSelect.select.getResultMetadata();
-        if (returningReferences != null && !returningReferences.isEmpty())
-        {
-            List<ColumnSpecification> names = new ArrayList<>(returningReferences.size());
-            for (RowDataReference reference : returningReferences)
-                names.add(reference.toResultMetadata());
-            return new ResultSet.ResultMetadata(names);
-        }
-        return ResultSet.ResultMetadata.EMPTY;
+        return resultMetadata;
     }
 
     TxnNamedRead createNamedRead(NamedSelect namedSelect, QueryOptions options, ClientState state)
@@ -373,7 +382,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 @SuppressWarnings("unchecked")
                 SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
                 Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
-                ResultSetBuilder result = new ResultSetBuilder(returningSelect.select.getResultMetadata(), selectors, null);
+                ResultSetBuilder result = new ResultSetBuilder(resultMetadata, selectors, null);
                 if (selectQuery.queries.size() == 1)
                 {
                     FilteredPartition partition = data.get(TxnDataName.returning());
@@ -395,24 +404,24 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
             if (returningReferences != null)
             {
-                List<ColumnSpecification> names = new ArrayList<>(returningReferences.size());
+                List<AbstractType<?>> resultType = new ArrayList<>(returningReferences.size());
                 List<ColumnMetadata> columns = new ArrayList<>(returningReferences.size());
 
                 for (RowDataReference reference : returningReferences)
                 {
                     ColumnMetadata forMetadata = reference.toResultMetadata();
-                    names.add(forMetadata);
+                    resultType.add(forMetadata.type);
                     columns.add(reference.column());
                 }
 
-                ResultSetBuilder result = new ResultSetBuilder(new ResultSet.ResultMetadata(names), Selection.noopSelector(), null);
+                ResultSetBuilder result = new ResultSetBuilder(resultMetadata, Selection.noopSelector(), null);
                 result.newRow(options.getProtocolVersion(), null, null, columns);
 
                 for (int i = 0; i < returningReferences.size(); i++)
                 {
                     RowDataReference reference = returningReferences.get(i);
                     TxnReference txnReference = reference.toTxnReference(options);
-                    ByteBuffer buffer = txnReference.toByteBuffer(data, names.get(i).type);
+                    ByteBuffer buffer = txnReference.toByteBuffer(data, resultType.get(i));
                     result.add(buffer);
                 }
 
