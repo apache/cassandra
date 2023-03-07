@@ -55,10 +55,9 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    public ClusterMetadata replayAndWait()
+    protected ClusterMetadata tryReplayAndWait()
     {
-        log.waitForHighestConsecutive();
-        ClusterMetadata metadata = log.metadata();
+        ClusterMetadata metadata = log.waitForHighestConsecutive();
 
         Set<Replica> replicas = metadata.fullCMSMembersAsReplicas();
 

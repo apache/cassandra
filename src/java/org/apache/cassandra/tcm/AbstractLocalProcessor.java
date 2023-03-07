@@ -40,7 +40,7 @@ public abstract class AbstractLocalProcessor implements Processor
     }
 
     @Override
-    public Commit.Result commit(Entry.Id entryId, Transformation transform, final Epoch lastKnown)
+    public final Commit.Result commit(Entry.Id entryId, Transformation transform, final Epoch lastKnown)
     {
         Transformation.Result result;
 
@@ -92,7 +92,8 @@ public abstract class AbstractLocalProcessor implements Processor
             // if we're rejected, just try to catch up to the latest distributed state
             if (result.isRejected())
             {
-                Epoch replayed = replayAndWait().epoch;
+                Epoch replayed = replayAndWait(jitter).epoch;
+
                 // Retry if replay has changed the epoch, return rejection otherwise.
                 if (!replayed.isAfter(previous.epoch))
                     return result.rejected();
@@ -122,12 +123,35 @@ public abstract class AbstractLocalProcessor implements Processor
             else
             {
                 // It may happen that we have raced with a different processor, in which case we need to catch up and retry.
-                replayAndWait();
+                replayAndWait(jitter);
                 jitter.maybeSleep();
             }
         }
     }
 
+    @Override
+    public final ClusterMetadata replayAndWait()
+    {
+        return replayAndWait(new Retry.Jitter());
+    }
+
+    protected final ClusterMetadata replayAndWait(Retry retry)
+    {
+        while (true)
+        {
+            try
+            {
+                return tryReplayAndWait();
+            }
+            catch (Throwable t)
+            {
+                if (retry.reachedMax())
+                    throw new IllegalStateException(String.format("Could not succeed with replay after %s tries.", retry.currentTries()));
+            }
+        }
+    }
+
+    protected abstract ClusterMetadata tryReplayAndWait();
     protected abstract boolean tryCommitOne(Entry.Id entryId, Transformation transform,
                                             Epoch previousEpoch, Epoch nextEpoch,
                                             long previousPeriod, long nextPeriod, boolean sealPeriod);

@@ -122,7 +122,7 @@ public class FailedLeaveTest extends FuzzTestBase
             Epoch currentEpoch = getClusterMetadataVersion(cmsInstance);
             Assert.assertEquals(startEpoch.getEpoch() + 2, currentEpoch.getEpoch());
 
-            // Node 2's leaving failed due to the streaming errors. If decommission is called again on the it should
+            // Node 2's leaving failed due to the streaming errors. If decommission is called again on the node, it should
             // resume where it left off. Allow streaming to succeed this time and verify that the node is able to
             // finish leaving.
             cluster.get(3).runOnInstance(() -> BB.failReceivingStream.set(false));

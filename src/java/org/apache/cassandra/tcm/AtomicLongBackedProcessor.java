@@ -68,7 +68,7 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
     }
 
     @Override
-    public ClusterMetadata replayAndWait()
+    protected ClusterMetadata tryReplayAndWait()
     {
         return log.waitForHighestConsecutive();
     }
