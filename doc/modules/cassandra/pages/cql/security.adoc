@@ -483,7 +483,7 @@ and use of any function in keyspace in `CREATE AGGREGATE`
 
 |`UNMASK` |`KEYSPACE` | See the clear contents of masked columns on any table in keyspace
 
-|`UNMASK` |`TABLE` | See the clear contents of masked columns on specified table
+|`UNMASK` |`TABLE` | See the clear contents of masked columns on the specified table
 |===
 
 [[grant-permission-statement]]

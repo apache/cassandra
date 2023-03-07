@@ -74,7 +74,7 @@ The `UNMASK` permission allows users to retrieve the unmasked values of masked c
 The masks will only be applied to the results of a `SELECT` query if the user doesn't have the `UNMASK` permission.
 Ordinary users are created without the `UNMASK` permission, whereas superusers do have it.
 
-As an example, suppose that we have table with masked columns:
+As an example, suppose that we have a table with masked columns:
 
 [source,cql]
 ----
