@@ -280,7 +280,12 @@ public class BTreeRow extends AbstractRow
     public ComplexColumnData getComplexColumnData(ColumnMetadata c)
     {
         assert c.isComplex();
-        return (ComplexColumnData) BTree.<Object>find(btree, ColumnMetadata.asymmetricColumnDataComparator, c);
+        return (ComplexColumnData) getColumnData(c);
+    }
+
+    public ColumnData getColumnData(ColumnMetadata c)
+    {
+        return (ColumnData) BTree.<Object>find(btree, ColumnMetadata.asymmetricColumnDataComparator, c);
     }
 
     @Override
