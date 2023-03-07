@@ -91,19 +91,17 @@ public class UpgradeTestBase extends DistributedTestBase
     public static final Semver v3X = new Semver("3.11.0", SemverType.LOOSE);
     public static final Semver v40 = new Semver("4.0-alpha1", SemverType.LOOSE);
     public static final Semver v41 = new Semver("4.1-alpha1", SemverType.LOOSE);
-    public static final Semver v42 = new Semver("4.2-alpha1", SemverType.LOOSE);
+    public static final Semver v50 = new Semver("5.0-alpha1", SemverType.LOOSE);
 
     protected static final SimpleGraph<Semver> SUPPORTED_UPGRADE_PATHS = new SimpleGraph.Builder<Semver>()
                                                                          .addEdge(v30, v3X)
                                                                          .addEdge(v30, v40)
                                                                          .addEdge(v30, v41)
-                                                                         .addEdge(v30, v42)
                                                                          .addEdge(v3X, v40)
                                                                          .addEdge(v3X, v41)
-                                                                         .addEdge(v3X, v42)
                                                                          .addEdge(v40, v41)
-                                                                         .addEdge(v40, v42)
-                                                                         .addEdge(v41, v42)
+                                                                         .addEdge(v40, v50)
+                                                                         .addEdge(v41, v50)
                                                                          .build();
 
     // the last is always the current

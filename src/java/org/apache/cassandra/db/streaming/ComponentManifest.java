@@ -19,26 +19,30 @@
 package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 
+/**
+ * SSTable components and their sizes to be tranfered via entire-sstable-streaming
+ */
 public final class ComponentManifest implements Iterable<Component>
 {
-    private static final List<Component> STREAM_COMPONENTS = ImmutableList.of(Component.DATA, Component.PRIMARY_INDEX, Component.STATS,
-                                                                             Component.COMPRESSION_INFO, Component.FILTER, Component.SUMMARY,
-                                                                             Component.DIGEST, Component.CRC);
-
     private final LinkedHashMap<Component, Long> components;
 
     public ComponentManifest(Map<Component, Long> components)
@@ -49,11 +53,11 @@ public final class ComponentManifest implements Iterable<Component>
     @VisibleForTesting
     public static ComponentManifest create(Descriptor descriptor)
     {
-        LinkedHashMap<Component, Long> components = new LinkedHashMap<>(STREAM_COMPONENTS.size());
+        LinkedHashMap<Component, Long> components = new LinkedHashMap<>(descriptor.getFormat().streamingComponents().size());
 
-        for (Component component : STREAM_COMPONENTS)
+        for (Component component : descriptor.getFormat().streamingComponents())
         {
-            File file = new File(descriptor.filenameFor(component));
+            File file = descriptor.fileFor(component);
             if (!file.exists())
                 continue;
 
@@ -111,45 +115,58 @@ public final class ComponentManifest implements Iterable<Component>
                '}';
     }
 
-    public static final IVersionedSerializer<ComponentManifest> serializer = new IVersionedSerializer<ComponentManifest>()
+    public static final Map<SSTableFormat.Type, IVersionedSerializer<ComponentManifest>> serializers;
+
+    static
     {
-        public void serialize(ComponentManifest manifest, DataOutputPlus out, int version) throws IOException
+        ImmutableMap.Builder<SSTableFormat.Type, IVersionedSerializer<ComponentManifest>> b = ImmutableMap.builder();
+        for (SSTableFormat.Type formatType : SSTableFormat.Type.values())
         {
-            out.writeUnsignedVInt32(manifest.components.size());
-            for (Map.Entry<Component, Long> entry : manifest.components.entrySet())
+            IVersionedSerializer<ComponentManifest> serializer = new IVersionedSerializer<ComponentManifest>()
             {
-                out.writeUTF(entry.getKey().name);
-                out.writeUnsignedVInt(entry.getValue());
-            }
+
+                public void serialize(ComponentManifest manifest, DataOutputPlus out, int version) throws IOException
+                {
+                    out.writeUnsignedVInt32(manifest.components.size());
+                    for (Map.Entry<Component, Long> entry : manifest.components.entrySet())
+                    {
+                        out.writeUTF(entry.getKey().name);
+                        out.writeUnsignedVInt(entry.getValue());
+                    }
+                }
+
+                public ComponentManifest deserialize(DataInputPlus in, int version) throws IOException
+                {
+                    int size = in.readUnsignedVInt32();
+
+                    LinkedHashMap<Component, Long> components = new LinkedHashMap<>(size);
+
+                    for (int i = 0; i < size; i++)
+                    {
+                        Component component = Component.parse(in.readUTF(), formatType);
+                        long length = in.readUnsignedVInt();
+                        components.put(component, length);
+                    }
+
+                    return new ComponentManifest(components);
+                }
+
+                public long serializedSize(ComponentManifest manifest, int version)
+                {
+                    long size = TypeSizes.sizeofUnsignedVInt(manifest.components.size());
+                    for (Map.Entry<Component, Long> entry : manifest.components.entrySet())
+                    {
+                        size += TypeSizes.sizeof(entry.getKey().name);
+                        size += TypeSizes.sizeofUnsignedVInt(entry.getValue());
+                    }
+                    return size;
+                }
+            };
+
+            b.put(formatType, serializer);
         }
-
-        public ComponentManifest deserialize(DataInputPlus in, int version) throws IOException
-        {
-            int size = in.readUnsignedVInt32();
-
-            LinkedHashMap<Component, Long> components = new LinkedHashMap<>(size);
-
-            for (int i = 0; i < size; i++)
-            {
-                Component component = Component.parse(in.readUTF());
-                long length = in.readUnsignedVInt();
-                components.put(component, length);
-            }
-
-            return new ComponentManifest(components);
-        }
-
-        public long serializedSize(ComponentManifest manifest, int version)
-        {
-            long size = TypeSizes.sizeofUnsignedVInt(manifest.components.size());
-            for (Map.Entry<Component, Long> entry : manifest.components.entrySet())
-            {
-                size += TypeSizes.sizeof(entry.getKey().name);
-                size += TypeSizes.sizeofUnsignedVInt(entry.getValue());
-            }
-            return size;
-        }
-    };
+        serializers = b.build();
+    }
 
     @Override
     public Iterator<Component> iterator()

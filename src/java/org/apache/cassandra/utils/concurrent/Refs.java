@@ -20,8 +20,13 @@
  */
 package org.apache.cassandra.utils.concurrent;
 
-import java.util.*;
-
+import java.util.AbstractCollection;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Function;
@@ -204,7 +209,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
     /**
      * Acquire a reference to all of the provided objects, or none
      */
-    public static <T extends RefCounted<T>> Refs<T> tryRef(Iterable<T> reference)
+    public static <T extends RefCounted<T>> Refs<T> tryRef(Iterable<? extends T> reference)
     {
         HashMap<T, Ref<T>> refs = new HashMap<>();
         for (T rc : reference)
@@ -220,7 +225,7 @@ public final class Refs<T extends RefCounted<T>> extends AbstractCollection<T> i
         return new Refs<T>(refs);
     }
 
-    public static <T extends RefCounted<T>> Refs<T> ref(Iterable<T> reference)
+    public static <T extends RefCounted<T>> Refs<T> ref(Iterable<? extends T> reference)
     {
         Refs<T> refs = tryRef(reference);
         if (refs != null)

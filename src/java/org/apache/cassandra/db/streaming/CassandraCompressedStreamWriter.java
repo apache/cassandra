@@ -27,12 +27,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.streaming.ProgressInfo;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -71,7 +71,7 @@ public class CassandraCompressedStreamWriter extends CassandraStreamWriter
             int sectionIdx = 0;
 
             // stream each of the required sections of the file
-            String filename = sstable.descriptor.filenameFor(Component.DATA);
+            String filename = sstable.descriptor.fileFor(Components.DATA).toString();
             for (Section section : sections)
             {
                 // length of the section to stream

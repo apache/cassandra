@@ -33,6 +33,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,11 +45,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
@@ -78,6 +83,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -185,6 +191,8 @@ public class DatabaseDescriptor
     private static GuardrailsOptions guardrails;
     private static StartupChecksOptions startupChecksOptions;
 
+    private static Map<String, Supplier<SSTableFormat<?, ?>>> sstableFormatFactories;
+
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> conf.cdc_enabled
                                        ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                        : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
@@ -247,6 +255,8 @@ public class DatabaseDescriptor
 
         setConfig(loadConfig());
 
+        applySSTableFormats();
+
         applySimpleConfig();
 
         applyPartitioner();
@@ -265,6 +275,14 @@ public class DatabaseDescriptor
     }
 
     /**
+     * Equivalent to {@link #clientInitialization(boolean) clientInitialization(true, Config::new)}.
+     */
+    public static void clientInitialization(boolean failIfDaemonOrTool)
+    {
+        clientInitialization(failIfDaemonOrTool, Config::new);
+    }
+
+    /**
      * Initializes this class as a client, which means that just an empty configuration will
      * be used.
      *
@@ -272,7 +290,7 @@ public class DatabaseDescriptor
      *                           {@link #toolInitialization()} has been performed before, an
      *                           {@link AssertionError} will be thrown.
      */
-    public static void clientInitialization(boolean failIfDaemonOrTool)
+    public static void clientInitialization(boolean failIfDaemonOrTool, Supplier<Config> configSupplier)
     {
         if (!failIfDaemonOrTool && (daemonInitialized || toolInitialized))
         {
@@ -291,8 +309,9 @@ public class DatabaseDescriptor
         clientInitialized = true;
         setDefaultFailureDetector();
         Config.setClientMode(true);
-        conf = new Config();
+        conf = configSupplier.get();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
+        applySSTableFormats();
     }
 
     public static boolean isClientInitialized()
@@ -379,6 +398,8 @@ public class DatabaseDescriptor
     private static void applyAll() throws ConfigurationException
     {
         //InetAddressAndPort cares that applySimpleConfig runs first
+        applySSTableFormats();
+
         applySimpleConfig();
 
         applyPartitioner();
@@ -1328,6 +1349,74 @@ public class DatabaseDescriptor
         }
 
         paritionerName = partitioner.getClass().getCanonicalName();
+    }
+
+    @VisibleForTesting
+    public static Map<String, Supplier<SSTableFormat<?, ?>>> loadSSTableFormatFactories(List<ParameterizedClass> configuredFormats)
+    {
+        ImmutableMap.Builder<String, Supplier<SSTableFormat<?, ?>>> sstableFormatFactories = ImmutableMap.builderWithExpectedSize(configuredFormats.size());
+        Set<String> names = new HashSet<>(configuredFormats.size());
+        Set<Integer> ids = new HashSet<>(configuredFormats.size());
+
+        for (ParameterizedClass formatConfig : configuredFormats)
+        {
+            assert formatConfig.parameters != null;
+            Map<String, String> params = new HashMap<>(formatConfig.parameters);
+
+            String name = params.get(Config.SSTABLE_FORMAT_NAME);
+            if (name == null)
+                throw new ConfigurationException("Missing 'name' parameter in sstable format configuration for " + formatConfig.class_name);
+            if (!name.matches("^[a-z]+$"))
+                throw new ConfigurationException("'name' parameter in sstable format configuration for " + formatConfig.class_name + " must be non-empty, lower-case letters only string");
+            if (names.contains(name))
+                throw new ConfigurationException("Name '" + name + "' of sstable format " + formatConfig.class_name + " is already defined for another sstable format");
+            params.remove(Config.SSTABLE_FORMAT_NAME);
+
+            String idString = params.get(Config.SSTABLE_FORMAT_ID);
+            if (idString == null)
+                throw new ConfigurationException("Missing 'id' parameter in sstable format configuration for " + formatConfig.class_name);
+            int id;
+            try
+            {
+                id = Integer.parseInt(idString);
+            }
+            catch (RuntimeException ex)
+            {
+                throw new ConfigurationException("'id' parameter in sstable format configuration for " + formatConfig.class_name + " must be an integer");
+            }
+            if (id < 0 || id > 127)
+                throw new ConfigurationException("'id' parameter in sstable format configuration for " + formatConfig.class_name + " must be within bounds [0..127] range");
+            if (ids.contains(id))
+                throw new ConfigurationException("ID '" + id + "' of sstable format " + formatConfig.class_name + " is already defined for another sstable format");
+            params.remove(Config.SSTABLE_FORMAT_ID);
+
+            Supplier<SSTableFormat<?, ?>> factory = () -> {
+                Class<SSTableFormat<?, ?>> cls = FBUtilities.classForName(formatConfig.class_name, "sstable format");
+                if (!SSTableFormat.class.isAssignableFrom(cls))
+                    throw new ConfigurationException(String.format("Class %s for sstable format %s does not implement %s", formatConfig.class_name, name, SSTableFormat.class.getName()));
+
+                SSTableFormat<?, ?> sstableFormat = FBUtilities.instanceOrConstruct(cls.getName(), "sstable format");
+                sstableFormat.setup(id, name, params);
+                return sstableFormat;
+            };
+            sstableFormatFactories.put(name, factory);
+            names.add(name);
+            ids.add(id);
+        }
+
+        return sstableFormatFactories.build();
+    }
+
+    private static void applySSTableFormats()
+    {
+        if (sstableFormatFactories != null)
+            logger.warn("Reinitializing SSTableFactories - this should happen only in tests");
+
+        sstableFormatFactories = loadSSTableFormatFactories(conf.sstable_formats);
+
+        Iterable<SSTableFormat.Type> types = SSTableFormat.Type.values(); // make sure we know where those types get initialized
+        types.forEach(t -> t.info.allComponents()); // make sure to reach all supported components for a type so that we know all of them are registered
+        logger.info("Supported sstable formats are: {}", Lists.newArrayList(types).stream().map(f -> f.name + " -> " + f.info.getClass().getName() + " with singleton components: " + f.info.allComponents()).collect(Collectors.joining(", ")));
     }
 
     /**
@@ -3208,6 +3297,12 @@ public class DatabaseDescriptor
         return conf.file_cache_enabled;
     }
 
+    @VisibleForTesting
+    public static void setFileCacheEnabled(boolean enabled)
+    {
+        conf.file_cache_enabled = enabled;
+    }
+
     public static int getFileCacheSizeInMiB()
     {
         if (conf.file_cache_size == null)
@@ -4577,5 +4672,10 @@ public class DatabaseDescriptor
     public static void setClientRequestSizeMetricsEnabled(boolean enabled)
     {
         conf.client_request_size_metrics_enabled = enabled;
+    }
+
+    public static Map<String, Supplier<SSTableFormat<?, ?>>> getSSTableFormatFactories()
+    {
+        return Objects.requireNonNull(sstableFormatFactories, "Forgot to initialize DatabaseDescriptor?");
     }
 }

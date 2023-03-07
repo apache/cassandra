@@ -17,33 +17,51 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.*;
-import java.util.function.LongPredicate;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongPredicate;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
-
-import org.apache.cassandra.db.transform.DuplicateRowChecker;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.AbstractCompactionController;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
+import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.CompactionTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.TimeUUID;
@@ -385,8 +403,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
      * The result produced by this iterator is such that when merged with tombSource it produces the same output
      * as the merge of dataSource and tombSource.
      */
-    private static class GarbageSkippingUnfilteredRowIterator extends WrappingUnfilteredRowIterator
+    private static class GarbageSkippingUnfilteredRowIterator implements WrappingUnfilteredRowIterator
     {
+        private final UnfilteredRowIterator wrapped;
+
         final UnfilteredRowIterator tombSource;
         final DeletionTime partitionLevelDeletion;
         final Row staticRow;
@@ -413,7 +433,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
          */
         protected GarbageSkippingUnfilteredRowIterator(UnfilteredRowIterator dataSource, UnfilteredRowIterator tombSource, boolean cellLevelGC)
         {
-            super(dataSource);
+            this.wrapped = dataSource;
             this.tombSource = tombSource;
             this.cellLevelGC = cellLevelGC;
             metadata = dataSource.metadata();
@@ -433,6 +453,12 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             dataNext = advance(dataSource);
         }
 
+        @Override
+        public UnfilteredRowIterator wrapped()
+        {
+            return wrapped;
+        }
+
         private static Unfiltered advance(UnfilteredRowIterator source)
         {
             return source.hasNext() ? source.next() : null;
@@ -446,7 +472,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         public void close()
         {
-            super.close();
+            wrapped.close();
             tombSource.close();
         }
 

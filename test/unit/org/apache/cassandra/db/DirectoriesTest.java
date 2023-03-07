@@ -71,6 +71,7 @@ import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
@@ -225,14 +226,14 @@ public class DirectoriesTest
         File snapshotDir = new File(tableDir, Directories.SNAPSHOT_SUBDIR + File.pathSeparator() + tag);
         snapshotDir.tryCreateDirectories();
 
-        Descriptor sstableDesc = new Descriptor(snapshotDir, KS, table.name, sstableId(1), SSTableFormat.Type.BIG);
+        Descriptor sstableDesc = new Descriptor(snapshotDir, KS, table.name, sstableId(1), SSTableFormat.Type.current());
         createFakeSSTable(sstableDesc);
 
         SnapshotManifest manifest = null;
         if (createManifest)
         {
             File manifestFile = Directories.getSnapshotManifestFile(snapshotDir);
-            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.filenameFor(Component.DATA)), new DurationSpec.IntSecondsBound("1m"), now(), ephemeral);
+            manifest = new SnapshotManifest(Collections.singletonList(sstableDesc.fileFor(Components.DATA).absolutePath()), new DurationSpec.IntSecondsBound("1m"), now(), ephemeral);
             manifest.serializeToJsonFile(manifestFile);
         }
         else if (ephemeral)
@@ -245,16 +246,16 @@ public class DirectoriesTest
 
     private List<File> createFakeSSTable(File dir, String cf, int gen)
     {
-        Descriptor desc = new Descriptor(dir, KS, cf, sstableId(gen), SSTableFormat.Type.BIG);
+        Descriptor desc = new Descriptor(dir, KS, cf, sstableId(gen), SSTableFormat.Type.current());
         return createFakeSSTable(desc);
     }
 
     private List<File> createFakeSSTable(Descriptor desc)
     {
         List<File> components = new ArrayList<>(3);
-        for (Component c : new Component[]{ Component.DATA, Component.PRIMARY_INDEX, Component.FILTER })
+        for (Component c : SSTableFormat.Type.current().info.uploadComponents())
         {
-            File f = new File(desc.filenameFor(c));
+            File f = desc.fileFor(c);
             f.createFileIfNotExists();
             components.add(f);
         }
@@ -287,7 +288,7 @@ public class DirectoriesTest
             Directories directories = new Directories(cfm, toDataDirectories(tempDataDir));
             assertEquals(cfDir(cfm), directories.getDirectoryForNewSSTables());
 
-            Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, sstableId(1), SSTableFormat.Type.BIG);
+            Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, sstableId(1), SSTableFormat.Type.current());
             File snapshotDir = new File(cfDir(cfm), File.pathSeparator() + Directories.SNAPSHOT_SUBDIR + File.pathSeparator() + LEGACY_SNAPSHOT_NAME);
             assertEquals(snapshotDir.toCanonical(), Directories.getSnapshotDirectory(desc, LEGACY_SNAPSHOT_NAME));
 
@@ -363,7 +364,7 @@ public class DirectoriesTest
         {
             String tag = "test";
             Directories directories = new Directories(cfm, toDataDirectories(tempDataDir));
-            Descriptor parentDesc = new Descriptor(directories.getDirectoryForNewSSTables(), KS, cfm.name, sstableId(0), SSTableFormat.Type.BIG);
+            Descriptor parentDesc = new Descriptor(directories.getDirectoryForNewSSTables(), KS, cfm.name, sstableId(0), SSTableFormat.Type.current());
             File parentSnapshotDirectory = Directories.getSnapshotDirectory(parentDesc, tag);
 
             List<String> files = new LinkedList<>();
@@ -410,8 +411,8 @@ public class DirectoriesTest
         {
             assertEquals(cfDir(INDEX_CFM), dir);
         }
-        Descriptor parentDesc = new Descriptor(parentDirectories.getDirectoryForNewSSTables(), KS, PARENT_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
-        Descriptor indexDesc = new Descriptor(indexDirectories.getDirectoryForNewSSTables(), KS, INDEX_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
+        Descriptor parentDesc = new Descriptor(parentDirectories.getDirectoryForNewSSTables(), KS, PARENT_CFM.name, sstableId(0), SSTableFormat.Type.current());
+        Descriptor indexDesc = new Descriptor(indexDirectories.getDirectoryForNewSSTables(), KS, INDEX_CFM.name, sstableId(0), SSTableFormat.Type.current());
 
         // snapshot dir should be created under its parent's
         File parentSnapshotDirectory = Directories.getSnapshotDirectory(parentDesc, "test");
@@ -424,10 +425,10 @@ public class DirectoriesTest
         assertTrue(indexDirectories.snapshotExists("test"));
 
         // check true snapshot size
-        Descriptor parentSnapshot = new Descriptor(parentSnapshotDirectory, KS, PARENT_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
-        createFile(parentSnapshot.filenameFor(Component.DATA), 30);
-        Descriptor indexSnapshot = new Descriptor(indexSnapshotDirectory, KS, INDEX_CFM.name, sstableId(0), SSTableFormat.Type.BIG);
-        createFile(indexSnapshot.filenameFor(Component.DATA), 40);
+        Descriptor parentSnapshot = new Descriptor(parentSnapshotDirectory, KS, PARENT_CFM.name, sstableId(0), SSTableFormat.Type.current());
+        createFile(parentSnapshot.fileFor(Components.DATA), 30);
+        Descriptor indexSnapshot = new Descriptor(indexSnapshotDirectory, KS, INDEX_CFM.name, sstableId(0), SSTableFormat.Type.current());
+        createFile(indexSnapshot.fileFor(Components.DATA), 40);
 
         assertEquals(30, parentDirectories.trueSnapshotsSize());
         assertEquals(40, indexDirectories.trueSnapshotsSize());
@@ -444,16 +445,15 @@ public class DirectoriesTest
         assertEquals(parentBackupDirectory, indexBackupDirectory.parent());
     }
 
-    private File createFile(String fileName, int size)
+    private File createFile(File file, int size)
     {
-        File newFile = new File(fileName);
-        try (FileOutputStreamPlus writer = new FileOutputStreamPlus(newFile);)
+        try (FileOutputStreamPlus writer = new FileOutputStreamPlus(file);)
         {
             writer.write(new byte[size]);
             writer.flush();
         }
         catch (IOException ignore) {}
-        return newFile;
+        return file;
     }
 
     @Test
@@ -572,7 +572,7 @@ public class DirectoriesTest
             final String n = Long.toString(nanoTime());
             Callable<File> directoryGetter = () ->
             {
-                Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, sstableId(1), SSTableFormat.Type.BIG);
+                Descriptor desc = new Descriptor(cfDir(cfm), KS, cfm.name, sstableId(1), SSTableFormat.Type.current());
                 return Directories.getSnapshotDirectory(desc, n);
             };
             List<Future<File>> invoked = Executors.newFixedThreadPool(2).invokeAll(Arrays.asList(directoryGetter, directoryGetter));
@@ -737,7 +737,7 @@ public class DirectoriesTest
             Directories dirs = new Directories(cfm, paths);
             for (DataDirectory dir : paths)
             {
-                Descriptor d = Descriptor.fromFilename(new File(dir.location, getNewFilename(cfm, false)).toString());
+                Descriptor d = Descriptor.fromFile(new File(dir.location, getNewFilename(cfm, false)));
                 String p = dirs.getDataDirectoryForFile(d).location.absolutePath() + File.pathSeparator();
                 assertTrue(p.startsWith(dir.location.absolutePath() + File.pathSeparator()));
             }
@@ -766,9 +766,9 @@ public class DirectoriesTest
         for (TableMetadata tm : CFM)
         {
             Directories dirs = new Directories(tm, Sets.newHashSet(dd1, dd2));
-            Descriptor desc = Descriptor.fromFilename(new File(ddir1.resolve(getNewFilename(tm, false))));
+            Descriptor desc = Descriptor.fromFile(new File(ddir1.resolve(getNewFilename(tm, false))));
             assertEquals(new File(ddir1), dirs.getDataDirectoryForFile(desc).location);
-            desc = Descriptor.fromFilename(new File(ddir2.resolve(getNewFilename(tm, false))));
+            desc = Descriptor.fromFile(new File(ddir2.resolve(getNewFilename(tm, false))));
             assertEquals(new File(ddir2), dirs.getDataDirectoryForFile(desc).location);
         }
     }
@@ -816,9 +816,9 @@ public class DirectoriesTest
         for (TableMetadata tm : CFM)
         {
             Directories dirs = new Directories(tm, Sets.newHashSet(dd1, dd2));
-            Descriptor desc = Descriptor.fromFilename(new File(ddir1.resolve(getNewFilename(tm, oldStyle))));
+            Descriptor desc = Descriptor.fromFile(new File(ddir1.resolve(getNewFilename(tm, oldStyle))));
             assertEquals(new File(ddir1), dirs.getDataDirectoryForFile(desc).location);
-            desc = Descriptor.fromFilename(new File(ddir2.resolve(getNewFilename(tm, oldStyle))));
+            desc = Descriptor.fromFile(new File(ddir2.resolve(getNewFilename(tm, oldStyle))));
             assertEquals(new File(ddir2), dirs.getDataDirectoryForFile(desc).location);
         }
     }

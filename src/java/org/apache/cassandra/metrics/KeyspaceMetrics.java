@@ -20,6 +20,9 @@ package org.apache.cassandra.metrics;
 import java.util.Set;
 import java.util.function.ToLongFunction;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
@@ -27,10 +30,10 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.io.sstable.GaugeProvider;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
 import org.apache.cassandra.metrics.TableMetrics.ReleasableMetric;
-
-import com.google.common.collect.Sets;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -68,12 +71,6 @@ public class KeyspaceMetrics
     /** Uncompressed/logical size of SSTables belonging to tables in this keyspace, scaled down by replication factor */
     public final Gauge<Long> unreplicatedUncompressedLiveDiskSpaceUsed;
     public final Gauge<Long> totalDiskSpaceUsed;
-    /** Disk space used by bloom filter */
-    public final Gauge<Long> bloomFilterDiskSpaceUsed;
-    /** Off heap memory used by bloom filter */
-    public final Gauge<Long> bloomFilterOffHeapMemoryUsed;
-    /** Off heap memory used by index summary */
-    public final Gauge<Long> indexSummaryOffHeapMemoryUsed;
     /** Off heap memory used by compression meta data*/
     public final Gauge<Long> compressionMetadataOffHeapMemoryUsed;
     /** (Local) read metrics */
@@ -175,6 +172,8 @@ public class KeyspaceMetrics
     public final Meter rowIndexSizeAborts;
     public final Histogram rowIndexSize;
 
+    public final ImmutableMap<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
+
     public final MetricNameFactory factory;
     private final Keyspace keyspace;
 
@@ -217,12 +216,6 @@ public class KeyspaceMetrics
                                                                         metric -> metric.uncompressedLiveDiskSpaceUsed.getCount() / keyspace.getReplicationStrategy().getReplicationFactor().fullReplicas);
         totalDiskSpaceUsed = createKeyspaceGauge("TotalDiskSpaceUsed", metric -> metric.totalDiskSpaceUsed.getCount());
 
-        bloomFilterDiskSpaceUsed = createKeyspaceGauge("BloomFilterDiskSpaceUsed",
-                metric -> metric.bloomFilterDiskSpaceUsed.getValue());
-        bloomFilterOffHeapMemoryUsed = createKeyspaceGauge("BloomFilterOffHeapMemoryUsed",
-                metric -> metric.bloomFilterOffHeapMemoryUsed.getValue());
-        indexSummaryOffHeapMemoryUsed = createKeyspaceGauge("IndexSummaryOffHeapMemoryUsed",
-                metric -> metric.indexSummaryOffHeapMemoryUsed.getValue());
         compressionMetadataOffHeapMemoryUsed = createKeyspaceGauge("CompressionMetadataOffHeapMemoryUsed",
                 metric -> metric.compressionMetadataOffHeapMemoryUsed.getValue());
 
@@ -280,6 +273,8 @@ public class KeyspaceMetrics
         rowIndexSizeWarnings = createKeyspaceMeter("RowIndexSizeWarnings");
         rowIndexSizeAborts = createKeyspaceMeter("RowIndexSizeAborts");
         rowIndexSize = createKeyspaceHistogram("RowIndexSize", false);
+
+        formatSpecificGauges = createFormatSpecificGauges(keyspace);
     }
 
     /**
@@ -291,6 +286,24 @@ public class KeyspaceMetrics
         {
             metric.release();
         }
+    }
+
+    private ImmutableMap<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> createFormatSpecificGauges(Keyspace keyspace)
+    {
+        ImmutableMap.Builder<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> builder = ImmutableMap.builder();
+        for (SSTableFormat.Type formatType : SSTableFormat.Type.values())
+        {
+            ImmutableMap.Builder<String, Gauge<? extends Number>> gauges = ImmutableMap.builder();
+            for (GaugeProvider<?> gaugeProvider : formatType.info.getFormatSpecificMetricsProviders().getGaugeProviders())
+            {
+                String finalName = gaugeProvider.name;
+                allMetrics.add(() -> releaseMetric(finalName));
+                Gauge<? extends Number> gauge = Metrics.register(factory.createMetricName(finalName), gaugeProvider.getKeyspaceGauge(keyspace));
+                gauges.put(gaugeProvider.name, gauge);
+            }
+            builder.put(formatType, gauges.build());
+        }
+        return builder.build();
     }
 
     /**

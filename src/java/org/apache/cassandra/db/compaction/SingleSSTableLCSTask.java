@@ -27,8 +27,8 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 
@@ -82,7 +82,7 @@ public class SingleSSTableLCSTask extends AbstractCompactionTask
             catch (Throwable t)
             {
                 transaction.abort();
-                throw new CorruptSSTableException(t, sstable.descriptor.filenameFor(Component.DATA));
+                throw new CorruptSSTableException(t, sstable.descriptor.fileFor(Components.DATA));
             }
             cfs.getTracker().notifySSTableMetadataChanged(sstable, metadataBefore);
         }

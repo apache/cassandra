@@ -17,13 +17,18 @@
  */
 package org.apache.cassandra.utils;
 
+import java.io.IOException;
+
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.utils.concurrent.SharedCloseable;
 
 public interface IFilter extends SharedCloseable
 {
     interface FilterKey
     {
-        /** Places the murmur3 hash of the key in the given long array of size at least two. */
+        /**
+         * Places the murmur3 hash of the key in the given long array of size at least two.
+         */
         void filterHash(long[] dest);
     }
 
@@ -33,7 +38,9 @@ public interface IFilter extends SharedCloseable
 
     void clear();
 
-    long serializedSize();
+    long serializedSize(boolean oldSerializationFormat);
+
+    void serialize(DataOutputStreamPlus out, boolean oldSerializationFormat) throws IOException;
 
     void close();
 
@@ -41,7 +48,10 @@ public interface IFilter extends SharedCloseable
 
     /**
      * Returns the amount of memory in bytes used off heap.
+     *
      * @return the amount of memory in bytes used off heap
      */
     long offHeapSize();
+
+    boolean isInformative();
 }

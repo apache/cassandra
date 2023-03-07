@@ -300,6 +300,16 @@ public final class Generators
 
     public static Gen<ByteBuffer> bytes(int min, int max)
     {
+        return bytes(min, max, SourceDSL.arbitrary().constant(BBCases.HEAP));
+    }
+
+    public static Gen<ByteBuffer> bytesAnyType(int min, int max)
+    {
+        return bytes(min, max, SourceDSL.arbitrary().enumValues(BBCases.class));
+    }
+
+    private static Gen<ByteBuffer> bytes(int min, int max, Gen<BBCases> cases)
+    {
         if (min < 0)
             throw new IllegalArgumentException("Asked for negative bytes; given " + min);
         if (max > MAX_BLOB_LENGTH)
@@ -314,11 +324,31 @@ public final class Generators
             // to add more randomness, also shift offset in the array so the same size doesn't yield the same bytes
             int offset = (int) rnd.next(Constraint.between(0, MAX_BLOB_LENGTH - size));
 
-            return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size);
+            return handleCases(cases, rnd, offset, size);
         };
+    };
+
+    private enum BBCases { HEAP, READ_ONLY_HEAP, DIRECT, READ_ONLY_DIRECT }
+
+    private static ByteBuffer handleCases(Gen<BBCases> cases, RandomnessSource rnd, int offset, int size) {
+        switch (cases.generate(rnd))
+        {
+            case HEAP: return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size);
+            case READ_ONLY_HEAP: return ByteBuffer.wrap(LazySharedBlob.SHARED_BYTES, offset, size).asReadOnlyBuffer();
+            case DIRECT: return directBufferFromSharedBlob(offset, size);
+            case READ_ONLY_DIRECT: return directBufferFromSharedBlob(offset, size).asReadOnlyBuffer();
+            default: throw new AssertionError("can't wait for jdk 17!");
+        }
     }
 
-    /**
+    private static ByteBuffer directBufferFromSharedBlob(int offset, int size) {
+        ByteBuffer bb = ByteBuffer.allocateDirect(size);
+        bb.put(LazySharedBlob.SHARED_BYTES, offset, size);
+        bb.flip();
+        return bb;
+    }
+
+     /**
      * Implements a valid utf-8 generator.
      *
      * Implementation note, currently relies on getBytes to strip out non-valid utf-8 chars, so is slow
