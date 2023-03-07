@@ -1093,7 +1093,7 @@ public class Config
     public volatile boolean top_partitions_enabled = true;
 
     @Nullable
-    public Map<String,String> sstable_compression;
+    public ParameterizedClass sstable_compressor;
 
     public static Supplier<Config> getOverrideLoadConfig()
     {
