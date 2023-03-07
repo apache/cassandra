@@ -1,0 +1,20 @@
+= New Features in Apache Cassandra 4.1
+
+This section covers the new features in Apache Cassandra 4.1.
+
+
+* https://issues.apache.org/jira/browse/CASSANDRA-17164[Paxos v2]
+* link:/_/blog/Apache-Cassandra-4.1-Features-Guardrails-Framework.html[Guardrails]
+* link:/_/blog/Apache-Cassandra-4.1-Configuration-Standardization.html[New and Improved Configuration Format]
+* link:/_/blog/Apache-Cassandra-4.1-Features-Client-side-Password-Hashing.html[Client-side Password Hashing]
+* link:/_/blog/Apache-Cassandra-4.1-Denylisting-Partitions.html[Partition Denylist]
+* Lots of CQL improvements
+* link:/_/blog/Apache-Cassandra-4.1-New-SSTable-Identifiers.html[New SSTable Identifiers]
+* https://issues.apache.org/jira/browse/CASSANDRA-17423[Native Transport rate limiting]
+* https://issues.apache.org/jira/browse/CASSANDRA-16310[Top partition tracking per table]
+* https://issues.apache.org/jira/browse/CASSANDRA-14309[Hint Window consistency]
+* https://issues.apache.org/jira/browse/CASSANDRA-17044[Pluggability]
+** link:/_/blog/Apache-Cassandra-4.1-Features-Pluggable-Memtable-Implementations.html[Memtable]
+** Encryption
+** link:/_/blog/Apache-Cassandra-4.1-Features-Authentication-Plugin-Support-for-CQLSH.html[CQLSH Authentication]
+* and much link:https://github.com/apache/cassandra/blob/cassandra-4.1/NEWS.txt[more]

@@ -1,4 +1,6 @@
-= New Features in Apache Cassandra 5.0
+= New Features
+
+== New Features in Apache Cassandra 5.0
 
 This section covers the new features in Apache Cassandra 5.0.
 
@@ -9,3 +11,6 @@ This section covers the new features in Apache Cassandra 5.0.
 * https://issues.apache.org/jira/browse/CASSANDRA-8877[TTL and writetime on collections and UDTs]
 * https://cwiki.apache.org/confluence/x/YyD1D[Transactional Cluster Metadata]
 * https://issues.apache.org/jira/browse/CASSANDRA-16895[JDK 17]
+
+include:cassandra:new/4.2-new.adoc[leveloffset='+1']
+include:cassandra:new/4.1-new.adoc[leveloffset='+1']
