@@ -991,8 +991,7 @@ public class QueryProcessor implements QueryHandler
             }
             else if (statement instanceof CompositeCQLStatement)
             {
-                CompositeCQLStatement transactionStatement = (CompositeCQLStatement) statement;
-                for (CQLStatement stmt : transactionStatement.getStatements())
+                for (CQLStatement stmt : ((CompositeCQLStatement) statement).getStatements())
                 {
                     if (shouldInvalidate(ksName, cfName, stmt))
                         return true;
