@@ -127,6 +127,35 @@ public final class CompressionParams
         return cp;
     }
 
+    public static CompressionParams fromParameterizedClass(ParameterizedClass parameterizedClass)
+    {
+        Map<String, String> options = new HashMap<>(parameterizedClass.parameters);
+        options.put( CLASS, parameterizedClass.class_name);
+
+        String sstableCompressionClass;
+
+
+        if (!removeEnabled(options))
+        {
+            sstableCompressionClass = null;
+
+            if (!options.isEmpty())
+                throw new ConfigurationException(format("If the '%s' option is set to false no other options must be specified", ENABLED));
+        }
+        else
+        {
+            sstableCompressionClass = removeSstableCompressionClass(options);
+        }
+
+        int chunkLength = removeChunkLength(options);
+        double minCompressRatio = removeMinCompressRatio(options);
+
+        CompressionParams cp = new CompressionParams(sstableCompressionClass, options, chunkLength, minCompressRatio);
+        cp.validate();
+
+        return cp;
+    }
+    
     public Class<? extends ICompressor> klass()
     {
         return sstableCompressor.getClass();
