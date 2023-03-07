@@ -106,7 +106,6 @@ public abstract class ConsensusTableMigrationState
         public void onSuccess(@Nullable RepairResult repairResult)
         {
             checkNotNull(repairResult, "repairResult should not be null");
-
             ConsensusMigrationRepairResult migrationResult = repairResult.consensusMigrationRepairResult;
 
             // Need to repair both Paxos and base table state
@@ -495,6 +494,21 @@ public abstract class ConsensusTableMigrationState
             builder.put("migratingRangesByEpoch", rangesByEpoch);
             return builder.build();
         }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            TableMigrationState that = (TableMigrationState) o;
+            return keyspaceName.equals(that.keyspaceName) && tableName.equals(that.tableName) && tableId.equals(that.tableId) && targetProtocol == that.targetProtocol && migratedRanges.equals(that.migratedRanges) && migratingRangesByEpoch.equals(that.migratingRangesByEpoch) && migratingRanges.equals(that.migratingRanges) && migratingAndMigratedRanges.equals(that.migratingAndMigratedRanges);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(keyspaceName, tableName, tableId, targetProtocol, migratedRanges, migratingRangesByEpoch, migratingRanges, migratingAndMigratedRanges);
+        }
     }
 
     // TODO this will mostly go away once we can move TableMigrationState into the table schema
@@ -578,6 +592,21 @@ public abstract class ConsensusTableMigrationState
                 builder.add(tms.toMap());
             }
             return builder.build();
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            MigrationStateSnapshot that = (MigrationStateSnapshot) o;
+            return tableStates.equals(that.tableStates) && epoch.equals(that.epoch);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(tableStates, epoch);
         }
     }
 

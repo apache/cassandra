@@ -29,6 +29,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,12 +39,16 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.api.LogResult;
+import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.impl.FileLogAction;
 import org.apache.cassandra.distributed.impl.Instance;
+import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
@@ -67,6 +73,7 @@ import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOU
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.STREAM_LIMITED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_AND_STREAM_LIMITED;
 import static org.apache.cassandra.simulator.ActionSchedule.Mode.TIME_LIMITED;
+import static org.assertj.core.api.Fail.fail;
 
 @SuppressWarnings("unused")
 abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
@@ -100,7 +107,7 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
                                                   long seed, int[] primaryKeys,
                                                   long runForNanos, LongSupplier jitter)
     {
-        super(runForNanos < 0 ? STREAM_LIMITED : clusterOptions.topologyChangeLimit < 0 ? TIME_LIMITED : TIME_AND_STREAM_LIMITED,
+        super(runForNanos < 0 ? STREAM_LIMITED : (clusterOptions.topologyChangeLimit <= 0 && clusterOptions.consensusChangeLimit <= 0) ? TIME_LIMITED : TIME_AND_STREAM_LIMITED,
               simulated, cluster, scheduler, runForNanos, jitter);
         this.readRatio = readRatio;
         this.concurrency = concurrency;
@@ -184,6 +191,139 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
         };
     }
 
+    // TODO These (nodetools, stats) are just for debugging and should be removed before merge
+    private static String nodetool(ICoordinator coordinator, String... commandAndArgs)
+    {
+        NodeToolResult nodetoolResult = coordinator.instance().nodetoolResult(commandAndArgs);
+        if (!nodetoolResult.getStdout().isEmpty())
+            System.out.println(nodetoolResult.getStdout());
+        if (!nodetoolResult.getStderr().isEmpty())
+            System.err.println(nodetoolResult.getStderr());
+        if (nodetoolResult.getError() != null)
+            fail("Failed nodetool " + Arrays.asList(commandAndArgs), nodetoolResult.getError());
+        // TODO why does standard out end up in stderr in nodetool?
+        return nodetoolResult.getStdout();
+    }
+
+    protected int getAccordCoordinateCount()
+    {
+        return getAccordWriteCount() + getAccordReadCount();
+    }
+
+    protected int getCasWriteCount()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += Ints.checkedCast(instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Latency.CASWrite"));
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getCasReadCount()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += Ints.checkedCast(instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Latency.CASRead"));
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getAccordWriteCount()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += Ints.checkedCast(instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Latency.AccordWrite"));
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getAccordReadCount()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += Ints.checkedCast(instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.Latency.AccordRead"));
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getAccordMigrationRejects()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += Ints.checkedCast(instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.AccordMigrationRejects.AccordWrite"));
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getAccordMigrationSkippedReads()
+    {
+        // Skipped reads can occur at any node so sum them
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.MigrationSkippedReads.AccordWrite");
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getKeyMigrationCount()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += Ints.checkedCast(instance.metrics().getCounter("org.apache.cassandra.metrics.Table.KeyMigrationLatency.all"));
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getWriteMigrationReadCount()
+    {
+        // Migration reads can occur at any node when Accord picks where to read from
+        // So add up all of them
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.MigrationReadLatency.AccordWrite");
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getReadMigrationReadCount()
+    {
+        // Migration reads can occur at any node when Accord picks where to read from
+        // So add up all of them
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.MigrationReadLatency.AccordRead");
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getCasWriteBeginRejects()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += Ints.checkedCast(instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.PaxosBeginMigrationRejects.CASWrite"));
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getCasReadBeginRejects()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += Ints.checkedCast(instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.PaxosBeginMigrationRejects.CASRead"));
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getCasWriteAcceptRejects()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += Ints.checkedCast(instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.PaxosAcceptMigrationRejects.CASWrite"));
+        return Ints.checkedCast(sum);
+    }
+
+    protected int getCasReadAcceptRejects()
+    {
+        long sum = 0;
+        for (IInvokableInstance instance : cluster)
+            sum += Ints.checkedCast(instance.metrics().getCounter("org.apache.cassandra.metrics.ClientRequest.PaxosAcceptMigrationRejects.CASRead"));
+        return Ints.checkedCast(sum);
+    }
+
+    protected Metrics getMetrics(int coordinatorIndex)
+    {
+        return cluster.get(coordinatorIndex).metrics();
+    }
+
     public ActionPlan plan()
     {
         ActionPlan plan = new KeyspaceActions(simulated, KEYSPACE, TABLE, createTableStmt(), cluster,
@@ -197,6 +337,42 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
             ),
             ActionList.of(
                 cluster.stream().map(i -> checkErrorLogs(i)),
+                Stream.of(new Action("Log consensus migration", Action.Modifiers.NONE) {
+                    @Override
+                    protected ActionList performSimple()
+                    {
+                        int accordCoordinateCount = getAccordCoordinateCount();
+                        int accordMigrationRejects = getAccordMigrationRejects();
+                        int accordMigrationSkippedRead = getAccordMigrationSkippedReads();
+                        int accordReadCount = getAccordReadCount();
+                        int accordWriteCount = getAccordWriteCount();
+                        int casReadAcceptRejects = getCasReadAcceptRejects();
+                        int casReadBeginRejects = getCasReadBeginRejects();
+                        int casWriteAcceptRejects = getCasReadAcceptRejects();
+                        int casWriteBeginRejects = getCasReadBeginRejects();
+                        int casReadCount = getCasReadCount();
+                        int casWriteCount = getCasWriteCount();
+                        int keyMigrationCount = getKeyMigrationCount();
+                        int readMigrationReadCount = getReadMigrationReadCount();
+                        int writeMigrationReadCount = getWriteMigrationReadCount();
+                        System.out.println(cluster.get(1).unsafeCallOnThisThread(() -> StorageService.instance.listConsensusMigrations(ImmutableSet.of(KEYSPACE), ImmutableSet.of(TABLE), "yaml")));
+                        System.out.println("accordCoordinateCount: " + accordCoordinateCount);
+                        System.out.println("accordMigrationRejects: " + accordMigrationRejects);
+                        System.out.println("accordMigrationSkippedRead: " + accordMigrationSkippedRead);
+                        System.out.println("accordReadCount: " + accordReadCount);
+                        System.out.println("accordWriteCount: " + accordWriteCount);
+                        System.out.println("casReadAcceptRejects: " + casReadAcceptRejects);
+                        System.out.println("casReadBeginRejects: " + casReadBeginRejects);
+                        System.out.println("casWriteAcceptRejects: " + casWriteAcceptRejects);
+                        System.out.println("casWriteBeginRejects: " + casWriteBeginRejects);
+                        System.out.println("casReadCount: " + casReadCount);
+                        System.out.println("casWriteCount: " + casWriteCount);
+                        System.out.println("keyMigrationCount: " + keyMigrationCount);
+                        System.out.println("readMigrationReadCount: " + readMigrationReadCount);
+                        System.out.println("writeMigrationReadCount: " + writeMigrationReadCount);
+                        return ActionList.empty();
+                    }
+                }),
                 cluster.stream().map(i -> SimulatedActionTask.unsafeTask("Shutdown " + i.broadcastAddress(), RELIABLE, RELIABLE_NO_TIMEOUTS, simulated, i, i::shutdown))
             )
         ));

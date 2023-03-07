@@ -61,25 +61,26 @@ import org.apache.cassandra.simulator.RandomSource.Choices;
 import org.apache.cassandra.simulator.asm.InterceptAsClassTransformer;
 import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
+import org.apache.cassandra.simulator.cluster.ClusterActions.ConsensusChange;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
 import org.apache.cassandra.simulator.systems.Failures;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
+import org.apache.cassandra.simulator.systems.InterceptingExecutorFactory;
 import org.apache.cassandra.simulator.systems.InterceptingGlobalMethods;
 import org.apache.cassandra.simulator.systems.InterceptingGlobalMethods.ThreadLocalRandomCheck;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
-import org.apache.cassandra.simulator.systems.InterceptingExecutorFactory;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods.IfInterceptibleThread;
 import org.apache.cassandra.simulator.systems.NetworkConfig;
 import org.apache.cassandra.simulator.systems.NetworkConfig.PhaseConfig;
 import org.apache.cassandra.simulator.systems.SchedulerConfig;
-import org.apache.cassandra.simulator.systems.SimulatedFutureActionScheduler;
-import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.systems.SimulatedBallots;
 import org.apache.cassandra.simulator.systems.SimulatedExecution;
 import org.apache.cassandra.simulator.systems.SimulatedFailureDetector;
+import org.apache.cassandra.simulator.systems.SimulatedFutureActionScheduler;
 import org.apache.cassandra.simulator.systems.SimulatedMessageDelivery;
 import org.apache.cassandra.simulator.systems.SimulatedSnitch;
+import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.simulator.utils.ChanceRange;
 import org.apache.cassandra.simulator.utils.IntRange;
@@ -145,6 +146,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected TopologyChange[] topologyChanges = TopologyChange.values();
         protected int topologyChangeLimit = -1;
 
+        protected ConsensusChange[] consensusChanges = ConsensusChange.values();
+        protected int consensusChangeLimit = -1;
+
         protected int primaryKeyCount;
         protected int secondsToSimulate;
 
@@ -170,7 +174,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                               schedulerLongDelayNanos = new LongRange(50, 5000, MICROSECONDS, NANOSECONDS),
                                       clockDriftNanos = new LongRange(1, 5000, MILLISECONDS, NANOSECONDS),
                        clockDiscontinuitIntervalNanos = new LongRange(10, 60, SECONDS, NANOSECONDS),
-                          topologyChangeIntervalNanos = new LongRange(5, 15, SECONDS, NANOSECONDS);
+                          topologyChangeIntervalNanos = new LongRange(5, 15, SECONDS, NANOSECONDS),
+                         consensusChangeIntervalNanos = new LongRange(1, 5, SECONDS, NANOSECONDS);
 
 
 
@@ -186,6 +191,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected HeapPool.Logged.Listener memoryListener;
         protected SimulatedTime.Listener timeListener = (i1, i2) -> {};
         protected LongConsumer onThreadLocalRandomCheck;
+
+        protected String legacyPaxosStrategy = "migration";
 
         public Debug debug()
         {
@@ -278,6 +285,24 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         public Builder<S> topologyChangeLimit(int topologyChangeLimit)
         {
             this.topologyChangeLimit = topologyChangeLimit;
+            return this;
+        }
+
+        public Builder<S> consensusChanges(ConsensusChange[] consensusChanges)
+        {
+            this.consensusChanges = consensusChanges;
+            return this;
+        }
+
+        public Builder<S> consensusChangeIntervalNanos(LongRange consensusChangeIntervalNanos)
+        {
+            this.consensusChangeIntervalNanos = consensusChangeIntervalNanos;
+            return this;
+        }
+
+        public Builder<S> consensusChangeLimit(int consensusChangeLimit)
+        {
+            this.consensusChangeLimit = consensusChangeLimit;
             return this;
         }
 
@@ -514,6 +539,12 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return this;
         }
 
+        public Builder<S> legacyPaxosStrategy(String strategy)
+        {
+            this.legacyPaxosStrategy = strategy;
+            return this;
+        }
+
         public abstract ClusterSimulation<S> create(long seed) throws IOException;
     }
 
@@ -689,6 +720,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              .set("disk_access_mode", "standard")
                              .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
                              .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
+                             .set("legacy_paxos_strategy", builder.legacyPaxosStrategy)
                          )))
                          .withInstanceInitializer(new IInstanceInitializer()
                          {
@@ -769,6 +801,8 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         RunnableActionScheduler scheduler = builder.schedulerFactory.create(random);
         ClusterActions.Options options = new ClusterActions.Options(builder.topologyChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.topologyChangeIntervalNanos, random),
                                                                     Choices.random(random, builder.topologyChanges),
+                                                                    builder.consensusChangeLimit, Choices.uniform(KindOfSequence.values()).choose(random).period(builder.consensusChangeIntervalNanos, random),
+                                                                    Choices.random(random, builder.consensusChanges),
                                                                     minRf, initialRf, maxRf, null);
         simulation = factory.create(simulated, scheduler, cluster, options);
     }

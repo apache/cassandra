@@ -48,6 +48,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.WriteType;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
+import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
 import org.apache.cassandra.net.IVerbHandler;
@@ -55,6 +56,7 @@ import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
@@ -176,6 +178,18 @@ public class AccordService implements IAccordService, Shutdownable
         AccordClientRequestMetrics metrics = isForWrite ? accordWriteMetrics : accordReadMetrics;
         try
         {
+            // Synchronization is a temporary solution to make sure whatever epoch we find has the config created in Accord
+            long currentEpoch;
+            synchronized (ClusterMetadataService.instance)
+            {
+                currentEpoch = ClusterMetadataService.instance.metadata.epoch.getEpoch();
+            }
+            if (node.topology().localForEpoch(currentEpoch).ranges().isEmpty())
+            {
+                metrics.unavailables.mark();
+                throw new UnavailableException("There are no local shards to run the transaction on", ConsistencyLevel.ANY, 0, 0);
+            }
+
             logger.debug("Starting barrier key: {} epoch: {} barrierType: {} isForWrite {}", keyOrRange, epoch, barrierType, isForWrite);
             Future<Timestamp> future = node.barrier(keyOrRange, epoch, barrierType);
             long deadlineNanos = queryStartNanos + DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS);
@@ -244,6 +258,18 @@ public class AccordService implements IAccordService, Shutdownable
         AccordClientRequestMetrics metrics = txn.isWrite() ? accordWriteMetrics : accordReadMetrics;
         try
         {
+            // Synchronziation is a temporary solution to make sure whatever epoch we find has the config created in Accord
+            long epoch;
+            synchronized (ClusterMetadataService.instance)
+            {
+                epoch = ClusterMetadataService.instance.metadata.epoch.getEpoch();
+            }
+            if (node.topology().localForEpoch(epoch).ranges().isEmpty())
+            {
+                metrics.unavailables.mark();
+                throw new UnavailableException("There are no local shards to run the transaction on", consistencyLevel, 0, 0);
+            }
+
             metrics.keySize.update(txn.keys().size());
             Future<Result> future = node.coordinate(txn);
             long deadlineNanos = queryStartNanos + DatabaseDescriptor.getTransactionTimeout(TimeUnit.NANOSECONDS);

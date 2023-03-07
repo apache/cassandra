@@ -24,6 +24,8 @@ import java.util.List;
 import accord.api.ConfigurationService;
 import accord.local.Node;
 import accord.topology.Topology;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 
 /**
  * Currently a stubbed out config service meant to be triggered from a dtest
@@ -61,7 +63,7 @@ public class AccordConfigurationService implements ConfigurationService
     @Override
     public void fetchTopologyForEpoch(long epoch)
     {
-        throw new UnsupportedOperationException();
+        ClusterMetadataService.instance.maybeCatchup(Epoch.create(Epoch.FIRST.getPeriod(), epoch));
     }
 
     @Override
