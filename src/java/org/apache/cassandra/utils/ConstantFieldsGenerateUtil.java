@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.utils;
 
-import java.io.File;
-import java.io.FileWriter;
+import java.io.File; //checkstyle: permit this import
+import java.io.FileWriter; //checkstyle: permit this import
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.URL;
@@ -51,15 +51,15 @@ public class ConstantFieldsGenerateUtil
         {
             String configPackage = configClazz.getPackage().getName();
             URL root = configClazz.getProtectionDomain().getCodeSource().getLocation();
-            destDir = Paths.get(new File(root.toURI()).getParentFile().getParent(),
+            destDir = Paths.get(new File(root.toURI()).getParentFile().getParent(), // checkstyle: permit this instantiation
                                 "src/java/",
                                 COMPILE.matcher(configPackage).replaceAll("/"),
-                                "/").toFile().getAbsolutePath();
+                                "/").toFile().getAbsolutePath(); // checkstyle: permit this invocation
         }
         else
             destDir = args[0];
 
-        File configFieldsClass = Paths.get(destDir,configClazz.getSimpleName() + CLASS_POSTFIX + ".java").toFile();
+        File configFieldsClass = Paths.get(destDir,configClazz.getSimpleName() + CLASS_POSTFIX + ".java").toFile(); // checkstyle: permit this invocation
         System.out.println("File: " + configFieldsClass.getAbsolutePath());
         if (configFieldsClass.getParentFile().mkdirs() && configFieldsClass.createNewFile())
             System.out.println("Created new file: " + configFieldsClass.getAbsolutePath());

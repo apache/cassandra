@@ -21,7 +21,6 @@ package org.apache.cassandra.db.virtual;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
@@ -31,11 +30,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
-import org.apache.cassandra.config.registry.PropertyRegistry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.assertj.core.util.Streams;
 

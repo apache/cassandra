@@ -48,7 +48,7 @@ import org.apache.cassandra.diag.LastEventIdBroadcasterMBean;
 import org.apache.cassandra.gms.FailureDetectorMBean;
 import org.apache.cassandra.gms.GossiperMBean;
 import org.apache.cassandra.hints.HintsServiceMBean;
-import org.apache.cassandra.io.sstable.IndexSummaryManagerMBean;
+import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryManagerMBean;
 import org.apache.cassandra.locator.EndpointSnitchInfoMBean;
 import org.apache.cassandra.net.MessagingServiceMBean;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
