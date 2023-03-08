@@ -210,7 +210,8 @@ public final class SessionInfo implements Serializable
         return new SessionSummary(FBUtilities.getBroadcastAddressAndPort(), peer, receivingSummaries, sendingSummaries);
     }
 
-    public String getFailureReason() {
+    public String getFailureReason()
+    {
         return failureReason;
     }
 }

@@ -22,6 +22,7 @@ import java.net.SocketTimeoutException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -701,8 +702,8 @@ public class StreamSession
             state(State.FAILED); // make sure subsequent error handling sees the session in a final state 
             channel.sendControlMessage(new SessionFailedMessage()).awaitUninterruptibly();
         }
-        StringBuilder boundedStktrace = boundStacktrace(e.getStackTrace(), 2); //bound the stacktrace with a specified limit on the number of lines
-        return closeSession(State.FAILED, "Failed because of an unkown exception\n" + Throwables.getRootCause(e) + boundedStktrace.toString());
+        boundStackTrace(e, 2, new HashSet<>()); //bound the stacktrace with a specified limit on the number of lines
+        return closeSession(State.FAILED, "Failed because of an unkown exception\n" + Throwables.getStackTraceAsString(e));
     }
 
     private void logError(Throwable e)
@@ -1338,18 +1339,26 @@ public class StreamSession
                '}';
     }
 
-    public StringBuilder boundStacktrace(StackTraceElement[] stacktrace, int limit)
+    public static void boundStackTrace(Throwable e, int limit, HashSet<Throwable> visited)
     {
-        if (limit >= stacktrace.length) {
-            throw new IllegalArgumentException("Invalid limit size: " + limit);
+        if (e == null)
+            return;
+
+        if (visited.contains(e))
+            throw new IllegalArgumentException("Exception cycle detected");
+        else
+            visited.add(e);
+
+        if (e.getStackTrace().length == 0)
+        {
+            if (e != null)
+                boundStackTrace(e.getCause(), limit, visited);
+            return;
         }
 
-        StringBuilder out = new StringBuilder(limit);
-        for (int i = 0; i < limit; i++)
-        {
-            out.append('\n');
-            out.append('\t').append(stacktrace[i]);
-        }
-        return out;
+        StackTraceElement[] stackTrace = e.getStackTrace();
+        StackTraceElement[] limitedStackTrace = Arrays.copyOfRange(stackTrace, 0, limit);
+        e.setStackTrace(limitedStackTrace);
+        boundStackTrace(e.getCause(), limit, visited);
     }
 }

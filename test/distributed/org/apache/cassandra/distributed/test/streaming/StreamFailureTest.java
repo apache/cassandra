@@ -82,7 +82,7 @@ public class StreamFailureTest extends TestBaseImpl
     private void streamTest(boolean zeroCopyStreaming, String reason, Integer failedNode) throws IOException
     {
         try (Cluster cluster = Cluster.build(2)
-                                      .withInstanceInitializer(BBHelper::install)
+                                      .withInstanceInitializer(BBStreamHelper::install)
                                       .withConfig(c -> c.with(Feature.values())
                                                         .set("stream_entire_sstables", zeroCopyStreaming)
                                                         // when die, this will try to halt JVM, which is easier to validate in the test
@@ -106,7 +106,7 @@ public class StreamFailureTest extends TestBaseImpl
     private void streamTimeoutTest(String reason) throws IOException
     {
         try (Cluster cluster = Cluster.build(2)
-                                      .withInstanceInitializer(BB::install)
+                                      .withInstanceInitializer(BBStreamTimeoutHelper::install)
                                       .withConfig(c -> c.with(Feature.values())
                                                         // when die, this will try to halt JVM, which is easier to validate in the test
                                                         // other levels require checking state of the subsystems
@@ -206,7 +206,7 @@ public class StreamFailureTest extends TestBaseImpl
 
     }
 
-    public static class BB
+    public static class BBStreamTimeoutHelper
     {
         @SuppressWarnings("unused")
         public static int writeDirectlyToChannel(ByteBuffer buf, @SuperCall Callable<Integer> zuper) throws Exception
@@ -248,26 +248,25 @@ public class StreamFailureTest extends TestBaseImpl
                 return;
             new ByteBuddy().rebase(SequentialWriter.class)
                            .method(named("writeDirectlyToChannel").and(takesArguments(1)))
-                           .intercept(MethodDelegation.to(BB.class))
+                           .intercept(MethodDelegation.to(BBStreamTimeoutHelper.class))
                            .make()
                            .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
 
             new ByteBuddy().rebase(RangeAwareSSTableWriter.class)
                            .method(named("append").and(takesArguments(1)))
-                           .intercept(MethodDelegation.to(BB.class))
+                           .intercept(MethodDelegation.to(BBStreamTimeoutHelper.class))
                            .make()
                            .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
         }
 
     }
 
-    public static class BBHelper
+    public static class BBStreamHelper
     {
         @SuppressWarnings("unused")
         public static int writeDirectlyToChannel(ByteBuffer buf, @SuperCall Callable<Integer> zuper) throws Exception
         {
             if (isCaller(BigTableZeroCopyWriter.class.getName(), "write"))
-                //throw new java.nio.channels.ClosedChannelException();
                 throw new RuntimeException("TEST");
             // different context; pass through
             return zuper.call();
@@ -301,13 +300,13 @@ public class StreamFailureTest extends TestBaseImpl
                 return;
             new ByteBuddy().rebase(SequentialWriter.class)
                            .method(named("writeDirectlyToChannel").and(takesArguments(1)))
-                           .intercept(MethodDelegation.to(BBHelper.class))
+                           .intercept(MethodDelegation.to(BBStreamHelper.class))
                            .make()
                            .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
 
             new ByteBuddy().rebase(RangeAwareSSTableWriter.class)
                            .method(named("append").and(takesArguments(1)))
-                           .intercept(MethodDelegation.to(BBHelper.class))
+                           .intercept(MethodDelegation.to(BBStreamHelper.class))
                            .make()
                            .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
 
