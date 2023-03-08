@@ -134,6 +134,7 @@ import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.Clock;
@@ -1805,15 +1806,6 @@ public class StorageProxy implements StorageProxyMBean
     public static PartitionIterator read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
     throws UnavailableException, IsBootstrappingException, ReadFailureException, ReadTimeoutException, InvalidRequestException
     {
-        if (!isSafeToPerformRead(group.queries))
-        {
-            readMetrics.unavailables.mark();
-            readMetricsForLevel(consistencyLevel).unavailables.mark();
-            IsBootstrappingException exception = new IsBootstrappingException();
-            logRequestException(exception, group.queries);
-            throw exception;
-        }
-
         if (DatabaseDescriptor.getPartitionDenylistEnabled() && DatabaseDescriptor.getDenylistReadsEnabled())
         {
             for (SinglePartitionReadCommand command : group.queries)
@@ -1832,14 +1824,16 @@ public class StorageProxy implements StorageProxyMBean
              : readRegular(group, consistencyLevel, queryStartNanoTime);
     }
 
-    public static boolean isSafeToPerformRead(List<SinglePartitionReadCommand> queries)
+    public static boolean hasJoined()
     {
-        return isSafeToPerformRead() || systemKeyspaceQuery(queries);
-    }
+        ClusterMetadata metadata = ClusterMetadata.current();
+        if (metadata == null)
+            return false;
 
-    public static boolean isSafeToPerformRead()
-    {
-        return !StorageService.instance.isBootstrapMode();
+        if (metadata.myNodeId() == null)
+            return false;
+
+        return metadata.myNodeState() == NodeState.JOINED;
     }
 
     private static PartitionIterator readWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)

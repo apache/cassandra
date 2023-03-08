@@ -114,7 +114,7 @@ final class HintsDispatchExecutor
         return scheduledDispatches.computeIfAbsent(hostId, uuid -> executor.submit(new DispatchHintsTask(store, hostId)));
     }
 
-    Future transfer(HintsCatalog catalog, Supplier<UUID> hostIdSupplier)
+    Future<?> transfer(HintsCatalog catalog, Supplier<UUID> hostIdSupplier)
     {
         return executor.submit(new TransferHintsTask(catalog, hostIdSupplier));
     }

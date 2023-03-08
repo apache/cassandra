@@ -26,7 +26,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
@@ -90,6 +89,8 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -109,7 +110,6 @@ import static org.apache.cassandra.db.Keyspace.openAndGetStore;
 import static org.apache.cassandra.exceptions.RequestFailureReason.TIMEOUT;
 import static org.apache.cassandra.config.DatabaseDescriptor.*;
 import static org.apache.cassandra.db.ConsistencyLevel.*;
-import static org.apache.cassandra.gms.ApplicationState.RELEASE_VERSION;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.locator.ReplicaLayout.forTokenWriteLiveAndDown;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
@@ -316,7 +316,7 @@ public class Paxos
     /**
      * Encapsulates the peers we will talk to for this operation.
      */
-    static class Participants implements ForRead<EndpointsForToken, Participants>, Supplier<Participants>
+    static class Participants implements ForRead<EndpointsForToken, Participants>
     {
         final Keyspace keyspace;
 
@@ -357,8 +357,13 @@ public class Paxos
          */
         final int sizeOfReadQuorum;
 
-        Participants(Keyspace keyspace, ConsistencyLevel consistencyForConsensus, ReplicaLayout.ForTokenWrite all, ReplicaLayout.ForTokenWrite electorate, EndpointsForToken live)
+        final Epoch epoch;
+        final Function<ClusterMetadata, Participants> recompute;
+
+        Participants(Epoch epoch, Keyspace keyspace, ConsistencyLevel consistencyForConsensus, ReplicaLayout.ForTokenWrite all, ReplicaLayout.ForTokenWrite electorate, EndpointsForToken live,
+                     Function<ClusterMetadata, Participants> recompute)
         {
+            this.epoch = epoch;
             this.keyspace = keyspace;
             this.replicationStrategy = all.replicationStrategy();
             this.consistencyForConsensus = consistencyForConsensus;
@@ -371,6 +376,7 @@ public class Paxos
             this.allLive = live;
             this.sizeOfReadQuorum = electorate.natural().size() / 2 + 1;
             this.sizeOfConsensusQuorum = sizeOfReadQuorum + electorate.pending().size();
+            this.recompute = recompute;
         }
 
         @Override
@@ -386,11 +392,26 @@ public class Paxos
             return electorateNatural;
         }
 
-        public boolean stillAppliesTo(ClusterMetadata metadata)
+        @Override
+        public boolean stillAppliesTo(ClusterMetadata newMetadata)
         {
-            // TODO: currently, Paxos consistency verification is being done via Participants class.
-            // Since there is already a consistency check that is existing and available there, we postpone this until later.
-            return true;
+            if (newMetadata.epoch.equals(epoch))
+                return true;
+
+            Participants newParticipants = recompute.apply(newMetadata);
+            return newParticipants.electorate.equals(electorate);
+        }
+
+        @Override
+        public void collectSuccess(InetAddressAndPort inetAddressAndPort)
+        {
+
+        }
+
+        @Override
+        public void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailureReason t)
+        {
+
         }
 
         static Participants get(ClusterMetadata metadata, TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
@@ -401,7 +422,8 @@ public class Paxos
                                                      ? all.filter(InOurDc.replicas()) : all;
 
             EndpointsForToken live = all.all().filter(FailureDetector.isReplicaAlive);
-            return new Participants(Keyspace.open(table.keyspace), consistencyForConsensus, all, electorate, live);
+            return new Participants(metadata.epoch, Keyspace.open(table.keyspace), consistencyForConsensus, all, electorate, live,
+                                    (cm) -> get(cm, table, token, consistencyForConsensus));
         }
 
         static Participants get(TableMetadata table, Token token, ConsistencyLevel consistencyForConsensus)
@@ -455,12 +477,6 @@ public class Paxos
         }
 
         @Override
-        public Participants get()
-        {
-            return this;
-        }
-
-        @Override
         public Keyspace keyspace()
         {
             return keyspace;
@@ -494,16 +510,6 @@ public class Paxos
         public Participants withContacts(EndpointsForToken newContacts)
         {
             throw new UnsupportedOperationException();
-        }
-
-        public void collectSuccess(InetAddressAndPort inetAddressAndPort)
-        {
-            // TODO
-        }
-
-        public void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailureReason t)
-        {
-            // TODO
         }
     }
 
@@ -661,13 +667,13 @@ public class Paxos
         return cas(key, request, consistencyForConsensus, consistencyForCommit, clientState, nanoTime(), proposeDeadline, commitDeadline);
     }
     private static RowIterator cas(DecoratedKey partitionKey,
-                                  CASRequest request,
-                                  ConsistencyLevel consistencyForConsensus,
-                                  ConsistencyLevel consistencyForCommit,
-                                  ClientState clientState,
-                                  long start,
-                                  long proposeDeadline,
-                                  long commitDeadline
+                                   CASRequest request,
+                                   ConsistencyLevel consistencyForConsensus,
+                                   ConsistencyLevel consistencyForCommit,
+                                   ClientState clientState,
+                                   long start,
+                                   long proposeDeadline,
+                                   long commitDeadline
                                   )
             throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
@@ -1056,7 +1062,7 @@ public class Paxos
                     // round's proposal (if any).
                     PaxosPrepare.Success success = prepare.success();
 
-                    DataResolver<?, ?> resolver = new DataResolver(query, success.participants, NoopReadRepair.instance, query.creationTimeNanos());
+                    DataResolver<?, ?> resolver = new DataResolver<>(query, () -> success.participants, NoopReadRepair.instance, query.creationTimeNanos());
                     for (int i = 0 ; i < success.responses.size() ; ++i)
                         resolver.preprocess(success.responses.get(i));
 
@@ -1262,13 +1268,15 @@ public class Paxos
 
     static boolean isOldParticipant(Replica replica)
     {
-        String version = Gossiper.instance.getForEndpoint(replica.endpoint(), RELEASE_VERSION);
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId addr = metadata.directory.peerId(replica.endpoint());
+        CassandraVersion version = ClusterMetadata.current().directory.version(addr).cassandraVersion;
         if (version == null)
             return false;
 
         try
         {
-            return new CassandraVersion(version).compareTo(MODERN_PAXOS_RELEASE) < 0;
+            return version.compareTo(MODERN_PAXOS_RELEASE) < 0;
         }
         catch (Throwable t)
         {

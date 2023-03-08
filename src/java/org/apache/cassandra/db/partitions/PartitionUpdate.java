@@ -778,12 +778,19 @@ public class PartitionUpdate extends AbstractBTreePartition
                                        false);
         }
 
-        public static boolean isEmpty(ByteBuffer in, DeserializationHelper.Flag flag, DecoratedKey key) throws IOException
+        public static boolean isEmpty(ByteBuffer in, DeserializationHelper.Flag flag, DecoratedKey key, int version) throws IOException
         {
             int position = in.position();
             position += 16; // CFMetaData.serializer.deserialize(in, version);
             if (position >= in.limit())
                 throw new EOFException();
+
+            if (version >= MessagingService.VERSION_50)
+            {
+                long epoch = VIntCoding.getUnsignedVInt(in, position);
+                position += VIntCoding.computeVIntSize(epoch);
+            }
+
             // DecoratedKey key = metadata.decorateKey(ByteBufferUtil.readWithVIntLength(in));
             int keyLength = VIntCoding.getUnsignedVInt32(in, position);
             position += keyLength + VIntCoding.computeUnsignedVIntSize(keyLength);

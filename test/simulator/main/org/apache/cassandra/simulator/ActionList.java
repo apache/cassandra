@@ -66,6 +66,11 @@ public class ActionList extends AbstractCollection<Action>
         return actions[i];
     }
 
+    public Action asAction(Action.Modifiers self, Action.Modifiers children, String description)
+    {
+        return Actions.of(self, children, description, () -> this);
+    }
+
     public Iterator<Action> iterator()
     {
         return Iterators.forArray(actions);

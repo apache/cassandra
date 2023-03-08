@@ -3580,11 +3580,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         logger.info("starting decom with {} {}", metadata.epoch, self);
-        if (InProgressSequences.isLeave(metadata.inProgressSequences.get(self)))
-        {
-            finishInProgressSequences(self);
-            return;
-        }
+        if (metadata.inProgressSequences.contains(self))
+            throw new IllegalArgumentException("Can not decomission a node that has an in-progress sequence");
 
         ClusterMetadataService.instance().commit(new PrepareLeave(self,
                                                                   force,
@@ -3596,6 +3593,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                                                                    reason));
                                                  });
         finishInProgressSequences(self);
+        finishLeaving();
     }
 
     public void finishLeaving()
@@ -3618,7 +3616,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // let op be responsible for killing the process
     }
 
-    public Future streamHints()
+    public Future<?> streamHints()
     {
         return HintsService.instance.transferHints(this::getPreferredHintsStreamTarget);
     }

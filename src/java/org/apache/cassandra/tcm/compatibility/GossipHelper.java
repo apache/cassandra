@@ -309,6 +309,7 @@ public class GossipHelper
     {
         return fromEndpointStates(epStates, DatabaseDescriptor.getPartitioner(), schema);
     }
+
     @VisibleForTesting
     public static ClusterMetadata fromEndpointStates(Map<InetAddressAndPort, EndpointState> epStates, IPartitioner partitioner, DistributedSchema schema)
     {

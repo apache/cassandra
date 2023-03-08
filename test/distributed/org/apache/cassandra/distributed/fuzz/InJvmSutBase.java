@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.StringUtils;
@@ -58,20 +59,33 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
 
     private final ExecutorService executor;
     public final CLUSTER cluster;
-    private final AtomicLong cnt = new AtomicLong();
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
+    private final Supplier<Integer> loadBalancingStrategy;
 
     public InJvmSutBase(CLUSTER cluster)
     {
-        this(cluster, 10);
+        this(cluster, roundRobin(cluster), 10);
     }
 
-    public InJvmSutBase(CLUSTER cluster, int threads)
+    public InJvmSutBase(CLUSTER cluster, Supplier<Integer> loadBalancingStrategy, int threads)
     {
         this.cluster = cluster;
         this.executor = Executors.newFixedThreadPool(threads);
+        this.loadBalancingStrategy = loadBalancingStrategy;
     }
 
+    public static Supplier<Integer> roundRobin(ICluster<?> cluster)
+    {
+        return new Supplier<Integer>()
+        {
+            private final AtomicLong cnt = new AtomicLong();
+
+            public Integer get()
+            {
+                return (int) (cnt.getAndIncrement() % cluster.size() + 1);
+            }
+        };
+    }
     public CLUSTER cluster()
     {
         return cluster;
@@ -109,7 +123,7 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
 
     public Object[][] execute(String statement, ConsistencyLevel cl, Object... bindings)
     {
-        return execute(statement, cl, (int) (cnt.getAndIncrement() % cluster.size() + 1), bindings);
+        return execute(statement, cl, loadBalancingStrategy.get(), bindings);
     }
 
     public Object[][] execute(String statement, ConsistencyLevel cl, int coordinator, Object... bindings)
@@ -144,7 +158,7 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
         {
             // TODO: find a better way to work around timeouts
             if (t.getMessage().contains("timed out"))
-                return execute(statement, cl, coordinator, bindings);
+                return execute(statement, cl, bindings);
 
             logger.error(String.format("Caught error while trying execute statement %s (%s): %s",
                                        statement, Arrays.toString(bindings), t.getMessage()),
@@ -161,7 +175,7 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
 
         try
         {
-            int coordinator = (int) (cnt.getAndIncrement() % cluster.size() + 1);
+            int coordinator = loadBalancingStrategy.get();
             IMessageFilters filters = cluster.filters();
 
             // Drop exactly one coordinated message

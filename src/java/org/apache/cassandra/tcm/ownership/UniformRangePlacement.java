@@ -223,8 +223,7 @@ public class UniformRangePlacement implements PlacementProvider
     {
         DataPlacements startPlacements = calculatePlacements(metadata, keyspaces);
         DataPlacements finalPlacements = calculatePlacements(metadata.transformer()
-                                                                     .unproposeTokens(replaced)
-                                                                     .proposeToken(replacement, metadata.tokenMap.tokens(replaced))
+                                                                     .replaced(replaced, replacement)
                                                                      .build()
                                                              .metadata,
                                                              keyspaces);

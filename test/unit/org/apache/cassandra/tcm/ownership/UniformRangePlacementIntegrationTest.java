@@ -93,11 +93,11 @@ public class UniformRangePlacementIntegrationTest
             rf.put(dc, 3);
         }
 
-        Map<PlacementSimulator.Range, List<PlacementSimulator.Node>> predicted = PlacementSimulator.replicate(nodes, rf);
+        PlacementSimulator.ReplicatedRanges predicted = PlacementSimulator.replicate(nodes, rf);
 
         ReplicationParams replicationParams = ClusterMetadata.current().schema.getKeyspaces().get("test_nts").get().params.replication;
         MetadataChangeSimulationTest.match(placements.get(replicationParams).reads,
-                                           predicted);
+                                           predicted.asMap());
     }
 }
 

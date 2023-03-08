@@ -366,27 +366,47 @@ public class ClusterMetadataService
 
     public static Replication.ReplicationHandler replicationHandler()
     {
-        return ClusterMetadataService.instance().replicationHandler;
+        // Make it possible to get Verb without throwing NPE during simulation
+        ClusterMetadataService instance = ClusterMetadataService.instance();
+        if (instance == null)
+            return null;
+        return instance.replicationHandler;
     }
 
     public static Replication.LogNotifyHandler logNotifyHandler()
     {
-        return ClusterMetadataService.instance().logNotifyHandler;
+        // Make it possible to get Verb without throwing NPE during simulation
+        ClusterMetadataService instance = ClusterMetadataService.instance();
+        if (instance == null)
+            return null;
+        return instance.logNotifyHandler;
     }
 
     public static IVerbHandler<Replay> replayRequestHandler()
     {
-        return ClusterMetadataService.instance().replayRequestHandler;
+        // Make it possible to get Verb without throwing NPE during simulation
+        ClusterMetadataService instance = ClusterMetadataService.instance();
+        if (instance == null)
+            return null;
+        return instance.replayRequestHandler;
     }
 
     public static IVerbHandler<Commit> commitRequestHandler()
     {
-        return ClusterMetadataService.instance().commitRequestHandler;
+        // Make it possible to get Verb without throwing NPE during simulation
+        ClusterMetadataService instance = ClusterMetadataService.instance();
+        if (instance == null)
+            return null;
+        return instance.commitRequestHandler;
     }
 
     public static IVerbHandler<NoPayload> currentEpochRequestHandler()
     {
-        return ClusterMetadataService.instance().currentEpochHandler;
+        // Make it possible to get Verb without throwing NPE during simulation
+        ClusterMetadataService instance = ClusterMetadataService.instance();
+        if (instance == null)
+            return null;
+        return instance.currentEpochHandler;
     }
 
     public PlacementProvider placementProvider()
@@ -421,7 +441,11 @@ public class ClusterMetadataService
             return false;
 
         Epoch ourEpoch = ClusterMetadata.current().epoch;
-        while (theirEpoch.isAfter(ourEpoch))
+
+        if (ourEpoch.isEqualOrAfter(theirEpoch))
+            return true;
+
+        for (int i = 0; i < 2; i++)
         {
             if (state() == State.GOSSIP)
             {
@@ -433,14 +457,12 @@ public class ClusterMetadataService
 
             replayAndWait();
             ourEpoch = ClusterMetadata.current().epoch;
-            if (theirEpoch.isAfter(ourEpoch))
-            {
-                throw new IllegalStateException(String.format("Could not catch up to epoch %s even after replay. Highest seen after replay is %s.",
-                                                              theirEpoch, ourEpoch));
-            }
-            return true;
+            if (ourEpoch.isEqualOrAfter(theirEpoch))
+                return true;
         }
-        return false;
+
+        throw new IllegalStateException(String.format("Could not catch up to epoch %s even after replay. Highest seen after replay is %s.",
+                                                      theirEpoch, ourEpoch));
     }
 
     public ClusterMetadata replayAndWait()

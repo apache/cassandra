@@ -127,7 +127,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
                 {
                     return true;
                 }
-
+                break;
             case MID_REPLACE:
                 try
                 {
@@ -160,6 +160,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
                 {
                     return true;
                 }
+                break;
             case FINISH_REPLACE:
                 try
                 {

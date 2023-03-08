@@ -36,7 +36,6 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.fuzz.HarryHelper;
-import org.apache.cassandra.distributed.fuzz.InJVMTokenAwareVisitorExecutor;
 import org.apache.cassandra.distributed.fuzz.InJvmSut;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.ApplicationState;
@@ -74,7 +73,7 @@ public class ConsistentLeaveTest extends FuzzTestBase
             IInvokableInstance leavingInstance = cluster.get(2);
             waitForCMSToQuiesce(cluster, cmsInstance);
 
-            configBuilder.setSUT(() -> new InJvmSut(cluster));
+            configBuilder.setSUT(() -> new InJvmSut(cluster, () -> 1));
             Run run = configBuilder.build().createRun();
 
             cluster.coordinator(1).execute("CREATE KEYSPACE " + run.schemaSpec.keyspace +
@@ -95,10 +94,8 @@ public class ConsistentLeaveTest extends FuzzTestBase
             pending.call();
 
             assertGossipStatus(cluster, leavingInstance.config().num(), "LEAVING");
-            // Streaming for unbootstrap has finished, any rows from the first batch should have been transferred
-            // from the leaving node to the new replicas. Continue to write at ONE, replication of these rows will
-            // happen via the pending range mechanism
-            visitor = new GeneratingVisitor(run, new InJVMTokenAwareVisitorExecutor(run, MutatingRowVisitor::new, SystemUnderTest.ConsistencyLevel.ONE));
+            // TODO: rewrite the test to check only PENDING ranges.
+            visitor = new GeneratingVisitor(run, new MutatingVisitor.MutatingVisitExecutor(run, new MutatingRowVisitor(run), SystemUnderTest.ConsistencyLevel.ALL));
             for (int i = 0; i < WRITES; i++)
                 visitor.visit();
 

@@ -18,23 +18,22 @@
 
 package org.apache.cassandra.simulator.cluster;
 
-import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.NetworkTopologyStrategy;
+import org.apache.cassandra.distributed.test.log.PlacementSimulator;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.ActionListener;
@@ -42,12 +41,14 @@ import org.apache.cassandra.simulator.ActionPlan;
 import org.apache.cassandra.simulator.Actions;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.OrderOn.StrictSequential;
+import org.apache.cassandra.simulator.systems.InterceptedExecution;
+import org.apache.cassandra.simulator.systems.InterceptingExecutor;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
-import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 
-import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.LOCAL_SERIAL;
+import static org.apache.cassandra.simulator.Action.Modifiers.RELIABLE_NO_TIMEOUTS;
 import static org.apache.cassandra.simulator.Debug.EventType.CLUSTER;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.CHANGE_RF;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.JOIN;
@@ -69,7 +70,7 @@ public class KeyspaceActions extends ClusterActions
 
     // working state
     final NodesByDc all;
-    final NodesByDc prejoin;
+    final NodesByDc registered;
     final NodesByDc joined;
     final NodesByDc left;
 
@@ -101,13 +102,13 @@ public class KeyspaceActions extends ClusterActions
             ++dcSizes[dc];
 
         this.all = new NodesByDc(nodeLookup, dcSizes);
-        this.prejoin = new NodesByDc(nodeLookup, dcSizes);
+        this.registered = new NodesByDc(nodeLookup, dcSizes);
         this.joined = new NodesByDc(nodeLookup, dcSizes);
         this.left = new NodesByDc(nodeLookup, dcSizes);
 
         for (int i = 1 ; i <= nodeLookup.nodeToDc.length ; ++i)
         {
-            this.prejoin.add(i);
+            this.registered.add(i);
             this.all.add(i);
         }
 
@@ -145,18 +146,24 @@ public class KeyspaceActions extends ClusterActions
         {
             for (int i = 0 ; i < options.initialRf[dc] ; ++i)
             {
-                int join = prejoin.removeRandom(random, dc);
+                int join = registered.removeRandom(random, dc);
                 joined.add(join);
             }
         }
 
         updateTopology(recomputeTopology());
         int[] joined = this.joined.toArray();
-        int[] prejoin = this.prejoin.toArray();
+        int[] prejoin = this.registered.toArray();
         return Actions.StrictAction.of("Initialize", () -> {
-            return ActionList.of(initializeCluster(joined, prejoin),
-                                 schemaChange("Create Keyspace", KeyspaceActions.this, 1, createKeyspaceCql),
-                                 schemaChange("Create Table", KeyspaceActions.this, 1, createTableCql));
+            List<Action> actions = new ArrayList<>();
+            actions.add(initializeCluster(joined, prejoin));
+            actions.add(schemaChange("Create Keyspace", KeyspaceActions.this, 1, createKeyspaceCql));
+            actions.add(schemaChange("Create Table", KeyspaceActions.this, 1, createTableCql));
+            cluster.stream().forEach(i -> actions.add(invoke("Quiesce " + i.broadcastAddress(), RELIABLE_NO_TIMEOUTS, RELIABLE_NO_TIMEOUTS,
+                                                             new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) i.executor(),
+                                                                                                                   () -> i.runOnInstance(() -> ClusterMetadataService.instance().log().waitForHighestConsecutive())))));
+
+            return ActionList.of(actions);
         });
     }
 
@@ -175,14 +182,60 @@ public class KeyspaceActions extends ClusterActions
         }));
     }
 
+    private PlacementSimulator.ReplicatedRanges placements(NodesByDc nodesByDc, NodeLookup lookup, int[] rfs)
+    {
+        List<PlacementSimulator.Node> nodes = new ArrayList<>();
+        for (int dcIdx = 0; dcIdx < nodesByDc.dcs.length; dcIdx++)
+        {
+            int[] nodesInDc = nodesByDc.dcs[dcIdx];
+            for (int i = 0; i < nodesByDc.dcSizes[dcIdx]; i++)
+            {
+                int nodeIdx = nodesInDc[i];
+                nodes.add(new PlacementSimulator.Node(tokenOf(nodeIdx).token, nodeIdx, lookup.dcOf(nodeIdx) + 1, 1));
+            }
+        }
+
+        Map<String, Integer> rf = new HashMap<>();
+        for (int i = 0; i < rfs.length; i++)
+            rf.put(PlacementSimulator.DEFAULT_LOOKUP.dc(i + 1), rfs[i]);
+
+        return PlacementSimulator.replicate(nodes, rf);
+    }
+
+    private Topology recomputeTopology(PlacementSimulator.ReplicatedRanges readPlacements,
+                                       PlacementSimulator.ReplicatedRanges writePlacements)
+    {
+        int[][] replicasForKey = new int[primaryKeys.length][];
+        int[][] pendingReplicasForKey = new int[primaryKeys.length][];
+        for (int i = 0 ; i < primaryKeys.length ; ++i)
+        {
+            int primaryKey = primaryKeys[i];
+            LongToken token = new Murmur3Partitioner().getToken(Int32Type.instance.decompose(primaryKey));
+            List<PlacementSimulator.Node> readReplicas = readPlacements.replicasFor(token.token);
+            List<PlacementSimulator.Node> writeReplicas = writePlacements.replicasFor(token.token);
+
+            replicasForKey[i] = readReplicas.stream().mapToInt(PlacementSimulator.Node::idx).toArray();
+            Set<PlacementSimulator.Node> pendingReplicas = new HashSet<>(writeReplicas);
+            pendingReplicas.removeAll(readReplicas);
+            replicasForKey[i] = readReplicas.stream().mapToInt(PlacementSimulator.Node::idx).toArray();
+            pendingReplicasForKey[i] = pendingReplicas.stream().mapToInt(PlacementSimulator.Node::idx).toArray();
+        }
+
+        int[] membersOfRing = joined.toArray();
+        long[] membersOfRingTokens = IntStream.of(membersOfRing).mapToLong(nodeLookup::tokenOf).toArray();
+
+        return new Topology(primaryKeys, membersOfRing, membersOfRingTokens, membersOfQuorum(), currentRf.clone(),
+                            quorumRf(), replicasForKey, pendingReplicasForKey);
+    }
+
     private Action next()
     {
         if (options.topologyChangeLimit >= 0 && topologyChangeCount++ > options.topologyChangeLimit)
             return null;
 
-        while (!ops.isEmpty() && (!prejoin.isEmpty() || joined.size() > sum(minRf)))
+        while (!ops.isEmpty() && (!registered.isEmpty() || joined.size() > sum(minRf)))
         {
-            if (options.changePaxosVariantTo != null && !haveChangedVariant && random.decide(1f / (1 + prejoin.size())))
+            if (options.changePaxosVariantTo != null && !haveChangedVariant && random.decide(1f / (1 + registered.size())))
             {
                 haveChangedVariant = true;
                 return schedule(new OnClusterSetPaxosVariant(KeyspaceActions.this, options.changePaxosVariantTo));
@@ -193,8 +246,8 @@ public class KeyspaceActions extends ClusterActions
 
             // try to pick an action (and simply loop again if we cannot for this dc)
             TopologyChange next;
-            if (prejoin.size(dc) > 0 && joined.size(dc) > currentRf[dc]) next = options.allChoices.choose(random);
-            else if (prejoin.size(dc) > 0 && ops.contains(JOIN)) next = options.choicesNoLeave.choose(random);
+            if (registered.size(dc) > 0 && joined.size(dc) > currentRf[dc]) next = options.allChoices.choose(random);
+            else if (registered.size(dc) > 0 && ops.contains(JOIN)) next = options.choicesNoLeave.choose(random);
             else if (joined.size(dc) > currentRf[dc] && ops.contains(LEAVE)) next = options.choicesNoJoin.choose(random);
             else if (joined.size(dc) > minRf[dc]) next = CHANGE_RF;
             else continue;
@@ -202,46 +255,50 @@ public class KeyspaceActions extends ClusterActions
             // TODO (feature): introduce some time period between cluster actions
             switch (next)
             {
+                case JOIN:
+                {
+                    Topology before = topology;
+                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, nodeLookup, currentRf);
+                    int join = registered.removeRandom(random, dc);
+                    joined.add(join);
+                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, nodeLookup, currentRf);
+                    Topology during = recomputeTopology(placementsBefore, placementsAfter);
+                    updateTopology(during);
+                    Topology after = recomputeTopology(placementsAfter, placementsAfter);
+                    Action action = new OnClusterJoin(KeyspaceActions.this, before, during, after, join);
+                    return scheduleAndUpdateTopologyOnCompletion(action, after);
+                }
                 case REPLACE:
                 {
                     Topology before = topology;
-                    int join = prejoin.removeRandom(random, dc);
+                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, nodeLookup, currentRf);
+                    int join = registered.removeRandom(random, dc);
                     int leave = joined.selectRandom(random, dc);
                     joined.add(join);
                     joined.remove(leave);
                     left.add(leave);
+                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, nodeLookup, currentRf);
                     nodeLookup.setTokenOf(join, nodeLookup.tokenOf(leave));
-                    Collection<Token> token = singleton(tokenOf(leave));
-
-                    Topology during = recomputeTopology();
+                    Topology during = recomputeTopology(placementsBefore, placementsAfter);
                     updateTopology(during);
-                    Topology after = recomputeTopology();
+                    Topology after = recomputeTopology(placementsAfter, placementsAfter);
                     Action action = new OnClusterReplace(KeyspaceActions.this, before, during, after, leave, join);
                     return scheduleAndUpdateTopologyOnCompletion(action, after);
                     // if replication factor is 2, cannot perform safe replacements
                     // however can have operations that began earlier during RF=2
                     // so need to introduce some concept of barriers/ordering/sync points
                 }
-                case JOIN:
-                {
-                    Topology before = topology;
-                    int join = prejoin.removeRandom(random, dc);
-                    joined.add(join);
-                    Collection<Token> token = singleton(tokenOf(join));
-                    Topology during = recomputeTopology();
-                    updateTopology(during);
-                    Topology after = recomputeTopology();
-                    Action action = new OnClusterJoin(KeyspaceActions.this, before, during, after, join);
-                    return scheduleAndUpdateTopologyOnCompletion(action, after);
-                }
+
                 case LEAVE:
                 {
                     Topology before = topology;
+                    PlacementSimulator.ReplicatedRanges placementsBefore = placements(joined, nodeLookup, currentRf);
                     int leave = joined.removeRandom(random, dc);
                     left.add(leave);
-                    Topology during = recomputeTopology();
+                    PlacementSimulator.ReplicatedRanges placementsAfter = placements(joined, nodeLookup, currentRf);
+                    Topology during = recomputeTopology(placementsBefore, placementsAfter);
                     updateTopology(during);
-                    Topology after = recomputeTopology();
+                    Topology after = recomputeTopology(placementsAfter, placementsAfter);
                     Action action = new OnClusterLeave(KeyspaceActions.this, before, during, after, leave);
                     return scheduleAndUpdateTopologyOnCompletion(action, after);
                 }
@@ -314,21 +371,8 @@ public class KeyspaceActions extends ClusterActions
 
     private Topology recomputeTopology()
     {
-        AbstractReplicationStrategy strategy = strategy();
-        Map<InetSocketAddress, Integer> lookup = Cluster.getUniqueAddressLookup(cluster, i -> i.config().num());
-        int[][] replicasForKey = new int[primaryKeys.length][];
-        int[][] pendingReplicasForKey = new int[primaryKeys.length][];
-        for (int i = 0 ; i < primaryKeys.length ; ++i)
-        {
-            int primaryKey = primaryKeys[i];
-            Token token = new Murmur3Partitioner().getToken(Int32Type.instance.decompose(primaryKey));
-            replicasForKey[i] = strategy.calculateNaturalReplicas(token, ClusterMetadata.current())
-                                        .endpointList().stream().mapToInt(lookup::get).toArray();
-        }
-        int[] membersOfRing = joined.toArray();
-        long[] membersOfRingTokens = IntStream.of(membersOfRing).mapToLong(nodeLookup::tokenOf).toArray();
-        return new Topology(primaryKeys, membersOfRing, membersOfRingTokens, membersOfQuorum(), currentRf.clone(),
-                            quorumRf(), replicasForKey, pendingReplicasForKey);
+        PlacementSimulator.ReplicatedRanges ranges = placements(joined, nodeLookup, currentRf);
+        return recomputeTopology(ranges, ranges);
     }
 
     private int quorumRf()
@@ -355,20 +399,7 @@ public class KeyspaceActions extends ClusterActions
         return sum;
     }
 
-    private InetAddressAndPort inet(int node)
-    {
-        return InetAddressAndPort.getByAddress(cluster.get(node).config().broadcastAddress());
-    }
-
-    AbstractReplicationStrategy strategy()
-    {
-        Map<String, String> rf = new HashMap<>();
-        for (int i = 0 ; i < snitch.dcCount() ; ++i)
-            rf.put(snitch.nameOfDc(i), Integer.toString(currentRf[i]));
-        return new NetworkTopologyStrategy(keyspace, rf);
-    }
-
-    private Token tokenOf(int node)
+    private LongToken tokenOf(int node)
     {
         return new LongToken(Long.parseLong(cluster.get(nodeLookup.tokenOf(node)).config().getString("initial_token")));
     }

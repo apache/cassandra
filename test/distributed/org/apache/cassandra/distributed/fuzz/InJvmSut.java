@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -52,7 +53,12 @@ public class InJvmSut extends InJvmSutBase<IInvokableInstance, Cluster>
 
     public InJvmSut(Cluster cluster)
     {
-        super(cluster, 10);
+        super(cluster, roundRobin(cluster), 10);
+    }
+
+    public InJvmSut(Cluster cluster, Supplier<Integer> lbs)
+    {
+        super(cluster, lbs, 10);
     }
 
     @JsonTypeName("in_jvm")

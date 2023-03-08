@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.log;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Optional;
 
 import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
@@ -34,6 +35,7 @@ import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
@@ -207,7 +209,18 @@ public class Replication
         {
             log.append(message.payload);
             if (log.hasGaps())
-                ClusterMetadataService.instance().replayAndWait();
+            {
+                Optional<Epoch> highestPending = log.highestPending();
+                if (highestPending.isPresent())
+                {
+                    ClusterMetadataService.instance().maybeCatchup(highestPending.get());
+                }
+                else if (ClusterMetadata.current().epoch.isBefore(message.payload.transformations.latestEpoch()))
+                {
+                    throw new IllegalStateException(String.format("Should have caught up to at least %s, but got only %s",
+                                                                  message.payload.transformations.latestEpoch(), ClusterMetadata.current().epoch));
+                }
+            }
             else
                 log.waitForHighestConsecutive();
 

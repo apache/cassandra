@@ -21,6 +21,7 @@ package org.apache.cassandra.simulator.cluster;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
@@ -36,6 +37,7 @@ import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -48,21 +50,23 @@ import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.Actions.StrictAction;
 import org.apache.cassandra.simulator.Debug;
 import org.apache.cassandra.simulator.RandomSource.Choices;
-import org.apache.cassandra.simulator.systems.InterceptedExecution;
 import org.apache.cassandra.simulator.systems.InterceptingExecutor;
 import org.apache.cassandra.simulator.systems.NonInterceptible;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.KindOfSequence;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
+import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.distributed.impl.UnsafeGossipHelper.addToRingNormalRunner;
 import static org.apache.cassandra.simulator.Action.Modifiers.NO_TIMEOUTS;
 import static org.apache.cassandra.simulator.Debug.EventType.CLUSTER;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.JOIN;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.LEAVE;
 import static org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange.REPLACE;
+import static org.apache.cassandra.simulator.systems.InterceptedExecution.*;
 import static org.apache.cassandra.simulator.systems.NonInterceptible.Permit.REQUIRED;
 import static org.apache.cassandra.simulator.utils.KindOfSequence.UNIFORM;
-
 
 // TODO (feature): add Gossip failures (up to some acceptable number)
 // TODO (feature): add node down/up (need to coordinate bootstrap/repair execution around this)
@@ -190,20 +194,31 @@ public class ClusterActions extends SimulatedSystems
             List<Action> actions = new ArrayList<>();
 
             cluster.stream().forEach(i -> actions.add(invoke("Startup " + i.broadcastAddress(), NO_TIMEOUTS, NO_TIMEOUTS,
-                                                             new InterceptedExecution.InterceptedRunnableExecution((InterceptingExecutor) i.executor(), i::startup))));
+                                                             new InterceptedRunnableExecution((InterceptingExecutor) i.executor(), i::startup))));
 
             List<InetSocketAddress> endpoints = cluster.stream().map(IInstance::broadcastAddress).collect(Collectors.toList());
-            cluster.forEach(i -> actions.add(resetGossipState(i, endpoints)));
 
             for (int add : joined)
             {
-                actions.add(transitivelyReliable("Add " + add + " to ring", cluster.get(add), addToRingNormalRunner(cluster.get(add))));
-                actions.addAll(sendLocalGossipStateToAll(add));
+                IInvokableInstance i = cluster.get(add);
+                actions.add(unsafeJoin(i));
             }
 
+            actions.addAll(Quiesce.all(ClusterActions.this));
             debug.debug(CLUSTER, time, cluster, null, null);
             return ActionList.of(actions);
         });
+    }
+
+    Action unsafeJoin(IInvokableInstance i)
+    {
+        return invoke("Initial cluster participant " + i.broadcastAddress(), NO_TIMEOUTS, NO_TIMEOUTS,
+                      new InterceptedRunnableExecution((InterceptingExecutor) i.executor(),
+                                                       () -> i.runOnInstance(() -> {
+                                                           ClusterMetadataService.instance().commit(new UnsafeJoin(ClusterMetadata.current().myNodeId(),
+                                                                                                                   new HashSet<>(BootStrapper.getBootstrapTokens(ClusterMetadata.current(), FBUtilities.getBroadcastAddressAndPort())),
+                                                                                                                   ClusterMetadataService.instance().placementProvider()));
+                                                       })));
     }
 
     Action resetGossipState(IInvokableInstance i, List<InetSocketAddress> endpoints)
@@ -236,7 +251,7 @@ public class ClusterActions extends SimulatedSystems
             Arrays.sort(vs1);
             Arrays.sort(vs2);
             if (!Arrays.equals(vs1, vs2))
-                throw new AssertionError();
+                throw new AssertionError(String.format("(from replicasForPrimaryKey) %s != %s (predicted)", Arrays.toString(vs1), Arrays.toString(vs2)));
         }
     }
 
@@ -246,7 +261,7 @@ public class ClusterActions extends SimulatedSystems
         Keyspace keyspace = Keyspace.open(keyspaceName);
         TableMetadata metadata = keyspace.getColumnFamilyStore(table).metadata.get();
         DecoratedKey key = metadata.partitioner.decorateKey(Int32Type.instance.decompose(primaryKey));
-        // we return a Set because simulator can easily encounter point where nodes are both natural and pending
+
         return ReplicaLayout.forTokenWriteLiveAndDown(keyspace, key.getToken()).all().asList(Replica::endpoint);
     }
 
@@ -277,7 +292,6 @@ public class ClusterActions extends SimulatedSystems
         return on(action, IntStream.of(on));
     }
 
-    ActionList gossipWithAll(int from) { return toAll(OnInstanceGossipWith.factory(this), from); }
     ActionList sendShutdownToAll(int from) { return toAll(OnInstanceSendShutdown.factory(this), from); }
     ActionList sendLocalGossipStateToAll(int from) { return toAll(OnInstanceSendLocalGossipState.factory(this), from); }
     ActionList flushAndCleanup(int[] on) { return on(OnInstanceFlushAndCleanup.factory(this), on); }

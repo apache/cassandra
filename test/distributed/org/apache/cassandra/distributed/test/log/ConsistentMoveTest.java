@@ -33,13 +33,13 @@ import harry.model.sut.SystemUnderTest;
 import harry.visitors.GeneratingVisitor;
 import harry.visitors.LoggingVisitor;
 import harry.visitors.MutatingRowVisitor;
+import harry.visitors.MutatingVisitor;
 import harry.visitors.Visitor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.fuzz.HarryHelper;
-import org.apache.cassandra.distributed.fuzz.InJVMTokenAwareVisitorExecutor;
 import org.apache.cassandra.distributed.fuzz.InJvmSut;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.ApplicationState;
@@ -111,10 +111,8 @@ public class ConsistentMoveTest extends FuzzTestBase
             Epoch nextEpoch = finishedMoving.call();
             waitForCMSToQuiesce(cluster, nextEpoch);
 
-            // Streaming for unbootstrap has finished, any rows from the first batch should have been transferred
-            // from the leaving node to the new replicas. Continue to write at ONE, replication of these rows will
-            // happen via the pending range mechanism
-            visitor = new GeneratingVisitor(run, new InJVMTokenAwareVisitorExecutor(run, MutatingRowVisitor::new, SystemUnderTest.ConsistencyLevel.ONE));
+            // TODO: rewrite the test to check only PENDING ranges.
+            visitor = new GeneratingVisitor(run, new MutatingVisitor.MutatingVisitExecutor(run, new MutatingRowVisitor(run), SystemUnderTest.ConsistencyLevel.ALL));
             for (int i = 0; i < WRITES; i++)
                 visitor.visit();
 

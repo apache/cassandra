@@ -25,6 +25,54 @@ import org.junit.Test;
 
 import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
 
+/**
+ * In order to run these tests in your IDE, you need to first build a simulator jar
+ *
+ *    ant simulator-jars
+ *
+ * And then run your test using the following settings:
+ *
+ *        -Dstorage-config=$MODULE_DIR$/test/conf
+ *        -Djava.awt.headless=true
+ *        -javaagent:$MODULE_DIR$/lib/jamm-0.3.2.jar
+ *        -ea
+ *        -Dcassandra.debugrefcount=true
+ *        -Xss384k
+ *        -XX:SoftRefLRUPolicyMSPerMB=0
+ *        -XX:ActiveProcessorCount=2
+ *        -XX:HeapDumpPath=build/test
+ *        -Dcassandra.test.driver.connection_timeout_ms=10000
+ *        -Dcassandra.test.driver.read_timeout_ms=24000
+ *        -Dcassandra.memtable_row_overhead_computation_step=100
+ *        -Dcassandra.test.use_prepared=true
+ *        -Dcassandra.test.sstableformatdevelopment=true
+ *        -Djava.security.egd=file:/dev/urandom
+ *        -Dcassandra.testtag=.jdk1.8
+ *        -Dcassandra.keepBriefBrief=true
+ *        -Dcassandra.strict.runtime.checks=true
+ *        -Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true
+ *        -Dcassandra.test.flush_local_schema_changes=false
+ *        -Dcassandra.test.messagingService.nonGracefulShutdown=true
+ *        -Dcassandra.use_nix_recursive_delete=true
+ *        -DQT_SHRINKS=0
+ *        -Dlog4j2.configurationFile=$MODULE_DIR$/test/conf/log4j2-simulator.xml
+ *        -Dcassandra.ring_delay_ms=10000
+ *        -Dcassandra.tolerate_sstable_size=true
+ *        -Dcassandra.skip_sync=true
+ *        -Dcassandra.debugrefcount=false
+ *        -Dcassandra.test.simulator.determinismcheck=strict
+ *        -Dcassandra.test.simulator.print_asm=none
+ *        -javaagent:$MODULE_DIR$/build/test/lib/jars/simulator-asm.jar
+ *        -Xbootclasspath/a:$MODULE_DIR$/build/test/lib/jars/simulator-bootstrap.jar
+ *        -XX:ActiveProcessorCount=4
+ *        -XX:-TieredCompilation
+ *        -XX:-BackgroundCompilation
+ *        -XX:CICompilerCount=1
+ *        -XX:Tier4CompileThreshold=1000
+ *        -XX:ReservedCodeCacheSize=256M
+ *        -Xmx8G
+ *        -Xmx1024m
+ */
 public class ShortPaxosSimulationTest
 {
     @Test

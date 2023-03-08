@@ -20,22 +20,28 @@ package org.apache.cassandra.simulator.cluster;
 
 import java.net.InetSocketAddress;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
-import org.apache.cassandra.simulator.Actions.ReliableAction;
+import org.apache.cassandra.simulator.Actions;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.InProgressSequence;
+import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
+import org.apache.cassandra.tcm.transformations.PrepareReplace;
 
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.STRICT;
@@ -46,74 +52,117 @@ class OnClusterReplace extends OnClusterChangeTopology
 {
     final int leaving;
     final int joining;
+    final Topology during;
 
     OnClusterReplace(KeyspaceActions actions, Topology before, Topology during, Topology after, int leaving, int joining)
     {
         super(lazy(() -> String.format("node%d Replacing node%d", joining, leaving)), actions, STRICT, NONE, before, after, during.pendingKeys());
         this.leaving = leaving;
         this.joining = joining;
+        this.during = during;
     }
 
     public ActionList performSimple()
     {
-        // need to mark it as DOWN, and perhaps shut it down
-        Map<InetSocketAddress, IInvokableInstance> lookup = Cluster.getUniqueAddressLookup(actions.cluster);
-        IInvokableInstance leaveInstance = actions.cluster.get(leaving);
         IInvokableInstance joinInstance = actions.cluster.get(joining);
-        before(leaveInstance);
-        UUID hostId = leaveInstance.unsafeCallOnThisThread(SystemKeyspace::getLocalHostId);
-        String movingToken = leaveInstance.unsafeCallOnThisThread(() -> Utils.currentToken().toString());
-        List<Map.Entry<String, String>> repairRanges = leaveInstance.unsafeApplyOnThisThread(
-            (String keyspaceName) -> StorageService.instance.getLocalAndPendingRanges(keyspaceName).stream()
-                                                            .map(OnClusterReplace::toStringEntry)
-                                                            .collect(Collectors.toList()),
-            actions.keyspace
-        );
+        before(joinInstance);
+        UUID leavingNodeId = actions.cluster.get(leaving).unsafeCallOnThisThread(() -> ClusterMetadata.current().myNodeId().uuid);
+        List<Action> actionList = new ArrayList<>();
+        actionList.add(new SubmitPrepareReplace(actions, leavingNodeId, joining));
+        actionList.add(new OnInstanceTopologyChangePaxosRepair(actions, joining, "Replace"));
 
-        int[] others = repairRanges.stream().mapToInt(
-            repairRange -> lookup.get(leaveInstance.unsafeApplyOnThisThread(
-                (String keyspaceName, String tk) -> {
-                    ClusterMetadata metadata = ClusterMetadata.current();
-                    KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspaceName);
-                    return metadata.placements.get(keyspaceMetadata.params.replication).reads
-                           .forToken(Utils.parseToken(tk))
-                           .stream().map(Replica::endpoint)
-                           .filter(i -> !i.equals(getBroadcastAddressAndPort()))
-                           .findFirst()
-                           .orElseThrow(IllegalStateException::new);
-                },
-                actions.keyspace, repairRange.getValue())
+        actionList.add(Actions.of(Modifiers.STRICT, Modifiers.RELIABLE_NO_TIMEOUTS, "Start Replace", () -> {
+            List<Action> local = new ArrayList<>();
+
+            List<Map.Entry<String, String>> repairRanges = actions.cluster.get(leaving).unsafeApplyOnThisThread(
+            (String keyspaceName) -> {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                return metadata.placements.get(metadata.schema.getKeyspace(keyspaceName).getMetadata().params.replication)
+                       .writes.ranges()
+                              .stream()
+                              .map(OnClusterReplace::toStringEntry)
+                              .collect(Collectors.toList());
+            }, actions.keyspace);
+
+
+            Map<InetSocketAddress, IInvokableInstance> lookup = Cluster.getUniqueAddressLookup(actions.cluster);
+
+            int[] others = repairRanges.stream().mapToInt(
+            repairRange -> lookup.get(actions.cluster.get(leaving).unsafeApplyOnThisThread(
+                                      (String keyspaceName, String tk) -> {
+                                          ClusterMetadata metadata = ClusterMetadata.current();
+                                          KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspaceName);
+                                          return metadata.placements.get(keyspaceMetadata.params.replication).reads
+                                                 .forToken(Utils.parseToken(tk))
+                                                 .stream().map(Replica::endpoint)
+                                                 .filter(i -> !i.equals(getBroadcastAddressAndPort()))
+                                                 .findFirst()
+                                                 .orElseThrow(IllegalStateException::new);
+                                      },
+                                      actions.keyspace, repairRange.getValue())
             ).config().num()
-        ).toArray();
+            ).toArray();
 
-        return ActionList.of(
-        // first sync gossip so that newly joined nodes are known by all, so that when we markdown we do not throw UnavailableException
-        ReliableAction.transitively("Sync Gossip", () -> actions.gossipWithAll(leaving)),
+            local.add(new OnClusterRepairRanges(actions, others, true, false, repairRanges));
+            local.add(new ExecuteNextStep(actions, joining, Transformation.Kind.START_REPLACE));
+            local.addAll(Quiesce.all(actions));
+            return ActionList.of(local);
+        }));
 
-        // "shutdown" the leaving instance
-        new OnClusterUpdateGossip(actions,
-                                      ActionList.of(new OnInstanceMarkShutdown(actions, leaving),
-                                                    new OnClusterMarkDown(actions, leaving)),
-                                      new OnInstanceSendShutdownToAll(actions, leaving)),
+        actionList.add(Actions.of(Modifiers.STRICT, Modifiers.RELIABLE_NO_TIMEOUTS, "Mid Replace", () -> {
+            List<Action> local = new ArrayList<>();
+            local.add(new ExecuteNextStep(actions, joining, Transformation.Kind.MID_REPLACE));
+            local.addAll(Quiesce.all(actions));
+            return ActionList.of(local);
+        }));
 
-        // TODO (safety): confirm repair does not include this node
+        actionList.add(Actions.of(Modifiers.STRICT, Modifiers.RELIABLE_NO_TIMEOUTS, "Finish Replace", () -> {
+            List<Action> local = new ArrayList<>();
+            local.add(new ExecuteNextStep(actions, joining, Transformation.Kind.FINISH_REPLACE));
+            local.addAll(Quiesce.all(actions));
+            return ActionList.of(local);
+        }));
 
-        // note that in the case of node replacement, we must perform a paxos repair before AND mid-transition.
-        // the first ensures the paxos state is flushed to the base table's sstables, so that the replacing node
-        // must receive a copy of all earlier operations (since the old node is now "offline")
+        return ActionList.of(actionList);
+    }
 
-        new OnClusterRepairRanges(actions, others, true, false, repairRanges),
+    private static class SubmitPrepareReplace extends ClusterReliableAction
+    {
+        public SubmitPrepareReplace(ClusterActions actions, UUID leavingNodeId, int joining)
+        {
+            super("Prepare Replace", actions, joining, () -> {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                ClusterMetadataService.instance().commit(new PrepareReplace(new NodeId(leavingNodeId),
+                                                                            metadata.myNodeId(),
+                                                                            ClusterMetadataService.instance().placementProvider(),
+                                                                            true,
+                                                                            true));
+            });
+        }
+    }
 
-        // stream/repair from a peer
-        new OnClusterUpdateGossip(actions, joining, new OnInstanceSetBootstrapReplacing(actions, joining, leaving, hostId, movingToken)),
+    private static class ExecuteNextStep extends ClusterReliableAction
+    {
+        private ExecuteNextStep(ClusterActions actions, int on, Transformation.Kind kind)
+        {
+            this(actions, on, kind.ordinal());
+        }
 
-        new OnInstanceSyncSchemaForBootstrap(actions, joining),
-        new OnInstanceTopologyChangePaxosRepair(actions, joining, "Replace"),
-        new OnInstanceBootstrap(actions, joinInstance, movingToken, true),
+        private ExecuteNextStep(ClusterActions actions, int on, int kind)
+        {
+            super(String.format("Execute next step of the replace operation: %s", Transformation.Kind.values()[kind]), actions, on, () -> {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                InProgressSequence<?> sequence = metadata.inProgressSequences.get(metadata.myNodeId());
 
-        // setup the node's own gossip state for natural ownership, and return gossip actions to disseminate
-        new OnClusterUpdateGossip(actions, joining, new OnInstanceSetNormal(actions, joining, hostId, movingToken))
-        );
+                if (!(sequence instanceof BootstrapAndReplace))
+                    throw new IllegalStateException(String.format("Can not resume replace as it does not appear to have been started. Found: %s", sequence));
+
+                BootstrapAndReplace bootstrapAndReplace = ((BootstrapAndReplace) sequence);
+                assert bootstrapAndReplace.next.ordinal() == kind : String.format("Expected next step to be %s, but got %s", Transformation.Kind.values()[kind], bootstrapAndReplace.next);
+                boolean res = bootstrapAndReplace.executeNext();
+                assert res;
+            });
+        }
     }
 
     static Map.Entry<String, String> toStringEntry(Range<Token> range)

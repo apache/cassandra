@@ -790,7 +790,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             Stream peers = cluster.stream().filter(instance -> instance.isValid());
             ClusterMetadataService.instance().replayAndWait();
             NodeId self = Register.maybeRegister();
-            if (ClusterMetadata.current().directory.peerState(self) != NodeState.JOINED)
+            boolean joinRing = config.get(Constants.KEY_DTEST_JOIN_RING) == null || (boolean) config.get(Constants.KEY_DTEST_JOIN_RING);
+            if (ClusterMetadata.current().directory.peerState(self) != NodeState.JOINED && joinRing)
             {
                 ClusterMetadataService.instance().commit(new UnsafeJoin(self,
                                                                         new HashSet<>(BootStrapper.getBootstrapTokens(ClusterMetadata.current(), FBUtilities.getBroadcastAddressAndPort())),

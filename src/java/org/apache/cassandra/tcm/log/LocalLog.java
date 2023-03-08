@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeUnit;
@@ -156,6 +157,18 @@ public abstract class LocalLog implements Closeable
                 start = entry.epoch;
         }
         return false;
+    }
+
+    public Optional<Epoch> highestPending()
+    {
+        try
+        {
+            return Optional.of(pending.last().epoch);
+        }
+        catch (NoSuchElementException eag)
+        {
+            return Optional.empty();
+        }
     }
 
     public Replication getCommittedEntries(Epoch since)

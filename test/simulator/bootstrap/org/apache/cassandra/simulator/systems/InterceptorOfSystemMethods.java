@@ -38,6 +38,10 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 public interface InterceptorOfSystemMethods
 {
     void waitUntil(long deadlineNanos) throws InterruptedException;
+    default void sleep(Object unit, long period) throws InterruptedException
+    {
+        sleepUninterriptibly(period, (TimeUnit) unit);
+    }
     void sleep(long period, TimeUnit units) throws InterruptedException;
     void sleepUninterriptibly(long period, TimeUnit units);
     boolean waitUntil(Object monitor, long deadlineNanos) throws InterruptedException;

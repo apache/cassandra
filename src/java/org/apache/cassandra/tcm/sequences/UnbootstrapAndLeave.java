@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -56,6 +55,7 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLeave>
@@ -169,7 +169,6 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
                     JVMStabilityInspector.inspectThrowable(t);
                     return true;
                 }
-                StorageService.instance.finishLeaving();
                 break;
             default:
                 throw new IllegalStateException("Can't proceed with leave from " + next);
@@ -251,6 +250,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
         logger.debug("waiting for stream acks.");
         streamSuccess.get();
         hintsSuccess.get();
+
         logger.debug("stream acks all received.");
     }
 

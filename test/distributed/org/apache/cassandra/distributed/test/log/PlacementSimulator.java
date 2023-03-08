@@ -383,7 +383,7 @@ public class PlacementSimulator
         List<Node> finalNodes = new ArrayList<>();
         for (int i = 0; i < origNodes.size(); i++)
         {
-            if (origNodes.get(i).idx == oldLocation.idx)
+            if (origNodes.get(i).nodeIdx == oldLocation.nodeIdx)
                 continue;
             finalNodes.add(origNodes.get(i));
         }
@@ -391,7 +391,7 @@ public class PlacementSimulator
         Collections.sort(finalNodes, Node::compareTo);
 
         Map<Range, List<Node>> start = splitReplicated(replicate(origNodes, baseState.rf), newToken);
-        Map<Range, List<Node>> end = splitReplicated(replicate(finalNodes, baseState.rf), oldLocation.token);
+        Map<Range, List<Node>> end = splitReplicated(replicate(finalNodes, baseState.rf), oldLocation.tokenIdx);
 
         Map<Range, Diff<Node>> fromStartToEnd = diff(start, end);
 
@@ -475,8 +475,8 @@ public class PlacementSimulator
             Map<Range, List<Node>> writePlacements = model.writePlacements;
             writePlacements = PlacementSimulator.apply(writePlacements, diff);
 
-            return model.withWritePlacements(mergeReplicated(writePlacements, oldLocation.token))
-                        .withReadPlacements(mergeReplicated(model.readPlacements, oldLocation.token))
+            return model.withWritePlacements(mergeReplicated(writePlacements, oldLocation.tokenIdx))
+                        .withReadPlacements(mergeReplicated(model.readPlacements, oldLocation.tokenIdx))
                         .withNodes(newNodes);
         },
         (model) -> {
@@ -506,7 +506,7 @@ public class PlacementSimulator
 
         // remove leaving node from list of nodes
         Node toRemove = baseState.nodes.stream()
-                                       .filter(n -> n.token == token)
+                                       .filter(n -> n.tokenIdx == token)
                                        .findFirst()
                                        .orElseThrow(() -> new IllegalArgumentException("Can't find node to remove with token" + token));
         List<Node> afterLeaveNodes = new ArrayList<>(baseState.nodes);
@@ -569,8 +569,8 @@ public class PlacementSimulator
                 newNodes.remove(toRemove);
                 Collections.sort(newNodes, Node::compareTo);
                 Map<Range, List<Node>> writes = PlacementSimulator.apply(model.writePlacements, step3WriteCommands);
-                return model.withReadPlacements(mergeReplicated(model.readPlacements, toRemove.token))
-                            .withWritePlacements(mergeReplicated(writes, toRemove.token))
+                return model.withReadPlacements(mergeReplicated(model.readPlacements, toRemove.tokenIdx))
+                            .withWritePlacements(mergeReplicated(writes, toRemove.tokenIdx))
                             .withNodes(newNodes);
             },
             (model) -> { // revert
@@ -585,7 +585,7 @@ public class PlacementSimulator
     {
         // find the node with the specified token
         Node toReplace = baseState.nodes.stream()
-                                        .filter(n -> n.token == token)
+                                        .filter(n -> n.tokenIdx == token)
                                         .findFirst()
                                         .orElseThrow(IllegalArgumentException::new);
 
@@ -688,8 +688,8 @@ public class PlacementSimulator
             // bootstrap_diffBased implementation and the real code doesn't do this, only the endpoint matters for
             // correctness, so we limit this comparison to endpoints only.
             Assert.assertEquals(String.format("For key: %s\n", k),
-                                expected.get(k).stream().map(n -> n.idx).sorted().collect(Collectors.toList()),
-                                actual.get(k).stream().map(n -> n.idx).sorted().collect(Collectors.toList()));
+                                expected.get(k).stream().map(n -> n.nodeIdx).sorted().collect(Collectors.toList()),
+                                actual.get(k).stream().map(n -> n.nodeIdx).sorted().collect(Collectors.toList()));
         });
     }
 
@@ -891,16 +891,16 @@ public class PlacementSimulator
         for (int i = nodes.size() - 1; i >= 0; i--)
         {
             Node node = nodes.get(i);
-            if (!inserted && splitAt > node.token)
+            if (!inserted && splitAt > node.tokenIdx)
             {
                 // We're trying to split rightmost range
                 if (previous == null)
                 {
-                    newNodes.add(new Node(splitAt, nodes.get(0).idx));
+                    newNodes.add(new Node(splitAt, nodes.get(0).nodeIdx));
                 }
                 else
                 {
-                    newNodes.add(new Node(splitAt, previous.idx));
+                    newNodes.add(new Node(splitAt, previous.nodeIdx));
                 }
                 inserted = true;
             }
@@ -911,7 +911,7 @@ public class PlacementSimulator
 
         // Leftmost is split
         if (!inserted)
-            newNodes.add(new Node(splitAt, previous.idx));
+            newNodes.add(new Node(splitAt, previous.nodeIdx));
 
         newNodes.sort(Node::compareTo);
         return Collections.unmodifiableList(newNodes);
@@ -925,8 +925,8 @@ public class PlacementSimulator
         List<Node> newNodes = new ArrayList<>();
         for (Node node : nodes)
         {
-            if (node.token == tokenToMove)
-                newNodes.add(new Node(node.token, newOwner));
+            if (node.tokenIdx == tokenToMove)
+                newNodes.add(new Node(node.tokenIdx, newOwner));
             else
                 newNodes.add(node);
         }
@@ -986,9 +986,9 @@ public class PlacementSimulator
         return Collections.unmodifiableMap(replication);
     }
 
-    public static Map<Range, List<Node>> replicate(List<Node> nodes, Map<String, Integer> rfs)
+    public static ReplicatedRanges replicate(List<Node> nodes, Map<String, Integer> rfs)
     {
-        nodes.sort(Comparator.comparing(n -> n.token));
+        nodes.sort(Comparator.comparing(n -> n.tokenIdx));
         Map<String, DatacenterNodes> template = new HashMap<>();
 
         Map<String, List<Node>> nodesByDC = nodesByDC(nodes);
@@ -1009,7 +1009,7 @@ public class PlacementSimulator
         }
 
         List<Range> ranges = toRanges(nodes);
-        Map<Range, Map<String, List<Node>>> replication = new TreeMap<>();
+        NavigableMap<Range, Map<String, List<Node>>> replication = new TreeMap<>();
 
         for (Range range : ranges)
         {
@@ -1050,21 +1050,87 @@ public class PlacementSimulator
         return combine(replication);
     }
 
-    private static Map<Range, List<Node>> combine(Map<Range, Map<String, List<Node>>> orig)
+    private static ReplicatedRanges combine(NavigableMap<Range, Map<String, List<Node>>> orig)
     {
-        Map<Range, List<Node>> res = new HashMap<>();
+
+        Range[] ranges = new Range[orig.size()];
+        int idx = 0;
+        NavigableMap<Range, List<Node>> flattened = new TreeMap<>();
         for (Map.Entry<Range, Map<String, List<Node>>> e : orig.entrySet())
         {
+            List<Node> placementsForRange = new ArrayList<>();
             for (List<Node> v : e.getValue().values())
-                res.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).addAll(v);
-
+                placementsForRange.addAll(v);
+            ranges[idx++] = e.getKey();
+            flattened.put(e.getKey(), placementsForRange);
         }
-        return res;
+        return new ReplicatedRanges(ranges, flattened);
     }
 
-    private static <K, T1, T2> Map<K, T2> mapValues(Map<K, T1> allDCs, Function<T1, T2> map)
+    public static class ReplicatedRanges
     {
-        Map<K, T2> res = new HashMap<>();
+
+        // todo use map to lookup placements for range here
+        private final Range[] ranges;
+        private final NavigableMap<Range, List<Node>> placementsForRange;
+
+        public ReplicatedRanges(Range[] ranges, NavigableMap<Range, List<Node>> placementsForRange)
+        {
+            this.ranges = ranges;
+            this.placementsForRange = placementsForRange;
+        }
+
+        public List<Node> replicasFor(long token)
+        {
+            int idx = indexedBinarySearch(ranges, range -> {
+                // exclusive start, so token at the start belongs to a lower range
+                if (token <= range.start)
+                    return 1;
+                // ie token > start && token <= end
+                if (token <= range.end ||range.end == Long.MIN_VALUE)
+                    return 0;
+
+                return -1;
+            });
+            assert idx >= 0 : String.format("Somehow ranges %s do not contain token %d", Arrays.toString(ranges), token);
+            return placementsForRange.get(ranges[idx]);
+        }
+
+        public NavigableMap<Range, List<Node>> asMap()
+        {
+            return placementsForRange;
+        }
+
+        private static <T> int indexedBinarySearch(T[] arr, CompareTo<T> comparator)
+        {
+            int low = 0;
+            int high = arr.length - 1;
+
+            while (low <= high)
+            {
+                int mid = (low + high) >>> 1;
+                T midEl = arr[mid];
+                int cmp = comparator.compareTo(midEl);
+
+                if (cmp < 0)
+                    low = mid + 1;
+                else if (cmp > 0)
+                    high = mid - 1;
+                else
+                    return mid;
+            }
+            return -(low + 1); // key not found
+        }
+    }
+
+    public interface CompareTo<V>
+    {
+        int compareTo(V v);
+    }
+
+    private static <K extends Comparable<K>, T1, T2> Map<K, T2> mapValues(Map<K, T1> allDCs, Function<T1, T2> map)
+    {
+        NavigableMap<K, T2> res = new TreeMap<>();
         for (Map.Entry<K, T1> e : allDCs.entrySet())
         {
             res.put(e.getKey(), map.apply(e.getValue()));
@@ -1169,9 +1235,9 @@ public class PlacementSimulator
         Set<Integer> ids = new HashSet<>();
         for (Node node : nodes)
         {
-            if (!ids.contains(node.idx))
+            if (!ids.contains(node.nodeIdx))
             {
-                ids.add(node.idx);
+                ids.add(node.nodeIdx);
                 newNodes.add(node);
             }
         }
@@ -1185,7 +1251,7 @@ public class PlacementSimulator
     {
         for (int i = 0; i < nodes.size(); i++)
         {
-            if (range.end != Long.MIN_VALUE && nodes.get(i).token >= range.end)
+            if (range.end != Long.MIN_VALUE && nodes.get(i).tokenIdx >= range.end)
                 return i;
         }
         return -1;
@@ -1198,7 +1264,7 @@ public class PlacementSimulator
     {
         List<Long> tokens = new ArrayList<>();
         for (Node node : nodes)
-            tokens.add(node.token);
+            tokens.add(node.tokenIdx);
         tokens.add(Long.MIN_VALUE);
         tokens.sort(Long::compareTo);
 
@@ -1252,6 +1318,10 @@ public class PlacementSimulator
         }
     }
 
+
+    /**
+     * A Range is responsible for the tokens between (start, end].
+     */
     public static class Range implements Comparable<Range>
     {
         public final long start;
@@ -1267,7 +1337,7 @@ public class PlacementSimulator
         public boolean contains(long min, long max)
         {
             assert max > min;
-            return min >= start && (max <= end || end == Long.MIN_VALUE);
+            return min > start && (max <= end || end == Long.MIN_VALUE);
         }
 
         public boolean contains(long token)
@@ -1307,23 +1377,29 @@ public class PlacementSimulator
 
     public interface Lookup
     {
-        String id(int idx);
-        String dc(int idx);
-        String rack(int idx);
-        NodeId nodeId(int idx);
+        String id(int nodeIdx);
+        String dc(int dcIdx);
+        String rack(int rackIdx);
+        NodeId nodeId(int nodeIdx);
+        long token(long tokenIdx);
         InetAddressAndPort addr(int idx);
     }
 
     public static class DefaultLookup implements Lookup
     {
-        public String id(int idx)
+        public String id(int nodeIdx)
         {
-            return String.format("127.0.%d.%d", idx / 256, idx % 256);
+            return String.format("127.0.%d.%d", nodeIdx / 256, nodeIdx % 256);
         }
 
-        public NodeId nodeId(int idx)
+        public NodeId nodeId(int nodeIdx)
         {
-            return ClusterMetadata.current().directory.peerId(addr(idx));
+            return ClusterMetadata.current().directory.peerId(addr(nodeIdx));
+        }
+
+        public long token(long tokenIdx)
+        {
+            return tokenIdx;
         }
 
         public InetAddressAndPort addr(int idx)
@@ -1352,73 +1428,74 @@ public class PlacementSimulator
     public static Lookup DEFAULT_LOOKUP = new DefaultLookup();
     public static class Node implements Comparable<Node>
     {
-        private final long token;
-        private final int idx;
-        private final int dc;
-        private final int rack;
+        private final long tokenIdx;
+        private final int nodeIdx;
+        private final int dcIdx;
+        private final int rackIdx;
         private final Lookup lookup;
 
-        public Node(long token, int idx)
+        public Node(long tokenIdx, int nodeIdx)
         {
-            this(token, idx, 1, 1, DEFAULT_LOOKUP);
+            this(tokenIdx, nodeIdx, 1, 1, DEFAULT_LOOKUP);
         }
 
-        public Node(long token, int idx, int dc, int rack)
+        public Node(long tokenIdx, int idx, int dc, int rack)
         {
-            this(token, idx, dc, rack, DEFAULT_LOOKUP);
+            this(tokenIdx, idx, dc, rack, DEFAULT_LOOKUP);
         }
-        public Node(long token, int idx, int dc, int rack, Lookup lookup)
+
+        public Node(long tokenIdx, int idx, int dcIdx, int rackIdx, Lookup lookup)
         {
-            this.token = token;
-            this.idx = idx;
-            this.dc = dc;
-            this.rack = rack;
+            this.tokenIdx = tokenIdx;
+            this.nodeIdx = idx;
+            this.dcIdx = dcIdx;
+            this.rackIdx = rackIdx;
             this.lookup = lookup;
         }
 
         public InetAddressAndPort addr()
         {
-            return lookup.addr(idx);
+            return lookup.addr(nodeIdx);
         }
 
         public NodeId nodeId()
         {
-            return lookup.nodeId(idx);
+            return lookup.nodeId(nodeIdx);
         }
 
         public String id()
         {
-            return lookup.id(idx);
+            return lookup.id(nodeIdx);
         }
 
         public int idx()
         {
-            return idx;
+            return nodeIdx;
         }
 
         public String dc()
         {
-            return lookup.dc(dc);
+            return lookup.dc(dcIdx);
         }
 
         public String rack()
         {
-            return lookup.rack(rack);
+            return lookup.rack(rackIdx);
         }
 
         public long token()
         {
-            return token;
+            return lookup.token(tokenIdx);
         }
 
         public Murmur3Partitioner.LongToken longToken()
         {
-            return new Murmur3Partitioner.LongToken(token);
+            return new Murmur3Partitioner.LongToken(token());
         }
 
         public Node withNewToken(long newToken)
         {
-            return new Node(newToken, idx, dc, rack, lookup);
+            return new Node(newToken, nodeIdx, dcIdx, rackIdx, lookup);
         }
 
         public boolean equals(Object o)
@@ -1426,22 +1503,22 @@ public class PlacementSimulator
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Node node = (Node) o;
-            return Objects.equals(idx, node.idx);
+            return Objects.equals(nodeIdx, node.nodeIdx);
         }
 
         public int hashCode()
         {
-            return Objects.hash(idx);
+            return Objects.hash(nodeIdx);
         }
 
         public int compareTo(Node o)
         {
-            return Long.compare(token, o.token);
+            return Long.compare(token(), o.token());
         }
 
         public String toString()
         {
-            return "" + idx + "@" + token;
+            return "" + nodeIdx + "@" + tokenIdx;
         }
     }
 

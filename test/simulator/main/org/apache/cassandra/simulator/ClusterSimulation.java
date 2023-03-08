@@ -41,6 +41,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
@@ -686,6 +687,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("file_cache_size", "16MiB")
                                    .set("use_deterministic_table_id", true)
                                    .set("disk_access_mode", disk_access_mode)
+                                   .set(Constants.KEY_DTEST_JOIN_RING, false)
                                    .set("failure_detector", SimulatedFailureDetector.Instance.class.getName());
                              if (commitlogCompressed)
                                  config.set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()));

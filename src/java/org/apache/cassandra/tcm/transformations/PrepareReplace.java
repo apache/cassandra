@@ -138,9 +138,6 @@ public class PrepareReplace implements Transformation
                                                            joinTokenRing,
                                                            streamData);
 
-
-
-
         LockedRanges newLockedRanges = lockedRanges.lock(unlockKey, rangesToLock);
         ClusterMetadata.Transformer proposed = prev.transformer()
                                                    .with(newLockedRanges)

@@ -32,7 +32,6 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -49,11 +48,8 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
     {
         ClusterMetadataService.instance().maybeCatchup(message.epoch());
 
-        if (StorageService.instance.isBootstrapMode())
-            throw new RuntimeException("Cannot service reads while bootstrapping!");
-
-        ReadCommand command = message.payload;
         ClusterMetadata metadata = ClusterMetadata.current();
+        ReadCommand command = message.payload;
 
         checkTokenOwnership(metadata, message);
         MessageParams.reset();

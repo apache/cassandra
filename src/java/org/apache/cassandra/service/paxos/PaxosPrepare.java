@@ -44,6 +44,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.net.IVerbHandler;
@@ -485,7 +486,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             return;
 
         // if the electorate has changed, finish so we can retry with the updated view of the ring
-        if (!Electorate.get(request.table, request.partitionKey, consistency(request.ballot)).equals(participants.electorate))
+        if (!participants.stillAppliesTo(ClusterMetadata.current()))
         {
             signalDone(ELECTORATE_MISMATCH);
             return;
@@ -961,6 +962,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         @Nullable final ReadResponse readResponse;
         // latestAcceptedButNotCommitted and latestCommitted were the same before and after the read occurred, and no incomplete promise was witnessed
         final boolean hadProposalStability;
+        // it would be great if we could get rid of this, but probably we need to preserve for migration purposes
         final Map<InetAddressAndPort, EndpointState> gossipInfo;
         @Nullable final Ballot supersededBy;
 
