@@ -77,7 +77,8 @@ public class DefaultFSErrorHandlerTest
 
     public DefaultFSErrorHandlerTest(Config.DiskFailurePolicy policy,
                                      boolean gossipRunningFSError,
-                                     boolean gossipRunningCorruptedSStableException) {
+                                     boolean gossipRunningCorruptedSStableException)
+    {
         this.testDiskPolicy = policy;
         this.gossipRunningFSError = gossipRunningFSError;
         this.gossipRunningCorruptedSStableException = gossipRunningCorruptedSStableException;

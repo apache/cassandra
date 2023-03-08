@@ -69,8 +69,8 @@ public class JVMStabilityInspectorThrowableTest extends TestBaseImpl
     private boolean expectGossiperEnabled;
 
     public JVMStabilityInspectorThrowableTest(DiskFailurePolicy policy, boolean testCorrupted,
-                                              boolean expectNativeTransportRunning,
-                                              boolean expectGossiperEnabled) {
+                                              boolean expectNativeTransportRunning, boolean expectGossiperEnabled)
+    {
         this.testPolicy = policy;
         this.testCorrupted = testCorrupted;
         this.expectNativeTransportRunning = expectNativeTransportRunning;
