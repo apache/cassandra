@@ -53,12 +53,14 @@ import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.base.Throwables.getRootCause;
+
 import static java.lang.String.format;
 import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.*;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.STREAMING_SESSION_PARALLELTRANSFERS;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.streaming.StreamSession.createLogTag;
 import static org.apache.cassandra.streaming.messages.StreamMessage.serialize;
 import static org.apache.cassandra.streaming.messages.StreamMessage.serializedSize;
@@ -122,6 +124,7 @@ public class StreamingMultiplexedChannel
         this.session = session;
         this.factory = factory;
         this.to = to;
+        assert messagingVersion >= VERSION_40;
         this.messagingVersion = messagingVersion;
         this.controlChannel = controlChannel;
 

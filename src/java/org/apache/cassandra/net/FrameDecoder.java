@@ -51,10 +51,6 @@ import static org.apache.cassandra.utils.ByteBufferUtil.copyBytes;
           LZ4 compression with custom frame format; payload is protected by CRC32
  * 3. {@link FrameDecoderUnprotected}:
           no compression; no integrity protection
- * 4. {@link FrameDecoderLegacy}:
-          no compression; no integrity protection; turns unframed streams of legacy messages (< 4.0) into frames
- * 5. {@link FrameDecoderLegacyLZ4}
- *        LZ4 compression using standard LZ4 frame format; groups legacy messages (< 4.0) into frames
  */
 public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
 {
@@ -275,10 +271,6 @@ public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
             // netty will probably have mis-predicted the space needed
             allocator.putUnusedPortion(buf);
             channelRead(ShareableBytes.wrap(buf));
-        }
-        else if (msg instanceof ShareableBytes) // legacy LZ4 decoder
-        {
-            channelRead((ShareableBytes) msg);
         }
         else
         {

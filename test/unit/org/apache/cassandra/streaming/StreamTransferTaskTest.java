@@ -67,7 +67,7 @@ public class StreamTransferTaskTest
         @Override
         public NettyStreamingChannel create(InetSocketAddress to, int messagingVersion, StreamingChannel.Kind kind)
         {
-            return new NettyStreamingChannel(messagingVersion, new TestChannel(), kind);
+            return new NettyStreamingChannel(new TestChannel(), kind);
         }
     };
 

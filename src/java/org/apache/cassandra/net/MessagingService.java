@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -29,13 +30,11 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
-
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import com.google.common.collect.Lists;
+import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -47,9 +46,12 @@ import org.apache.cassandra.metrics.MessagingMetrics;
 import org.apache.cassandra.service.AbstractWriteResponseHandler;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
+
 import static org.apache.cassandra.concurrent.Stage.MUTATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -208,11 +210,13 @@ public class MessagingService extends MessagingServiceMBeanImpl
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
 
     // 8 bits version, so don't waste versions
+    @Deprecated
     public static final int VERSION_30 = 10;
+    @Deprecated
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
     public static final int VERSION_50 = 13; // c14227 TTL overflow, 'uint' timestamps
-    public static final int minimum_version = VERSION_30;
+    public static final int minimum_version = VERSION_40;
     public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_50;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
@@ -236,7 +240,9 @@ public class MessagingService extends MessagingServiceMBeanImpl
 
     public enum Version
     {
+        @Deprecated
         VERSION_30(10),
+        @Deprecated
         VERSION_3014(11),
         VERSION_40(12),
         VERSION_50(13);
@@ -246,6 +252,16 @@ public class MessagingService extends MessagingServiceMBeanImpl
         Version(int value)
         {
             this.value = value;
+        }
+
+        public static List<Version> supportedVersions()
+        {
+            List<Version> versions = Lists.newArrayList();
+            for (Version version : values())
+                if (minimum_version <= version.value)
+                    versions.add(version);
+
+            return Collections.unmodifiableList(versions);
         }
     }
 

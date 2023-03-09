@@ -199,18 +199,11 @@ public class ProxyHandlerConnectionsTest
                 boolean expire = i % 2 == 0;
                 Message.Builder builder = Message.builder(Verb._TEST_1, 1L);
 
-                if (settings.right.acceptVersions == ConnectionTest.legacy)
-                {
-                    // backdate messages; leave 500 milliseconds to leave outbound path
-                    builder.withCreatedAt(nanoTime - (expire ? 0 : MILLISECONDS.toNanos(1500)));
-                }
-                else
-                {
-                    // Give messages 500 milliseconds to leave outbound path
-                    builder.withCreatedAt(nanoTime)
-                           .withExpiresAt(nanoTime + (expire ? MILLISECONDS.toNanos(500) : MILLISECONDS.toNanos(3000)));
-                }
-                outbound.enqueue(builder.build());
+                // Give messages 500 milliseconds to leave outbound path
+                builder.withCreatedAt(nanoTime)
+                       .withExpiresAt(nanoTime + (expire ? MILLISECONDS.toNanos(500) : MILLISECONDS.toNanos(3000)));
+
+                    outbound.enqueue(builder.build());
             }
             enqueueDone.countDown();
 

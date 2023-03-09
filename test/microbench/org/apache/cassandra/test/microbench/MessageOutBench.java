@@ -104,10 +104,4 @@ public class MessageOutBench
             return msgOut.serializedSize(messagingVersion);
         }
     }
-
-    @Benchmark
-    public int serializePre40() throws Exception
-    {
-        return serialize(MessagingService.VERSION_30);
-    }
 }
