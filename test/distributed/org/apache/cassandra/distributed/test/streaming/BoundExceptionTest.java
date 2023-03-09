@@ -18,7 +18,6 @@
 package org.apache.cassandra.distributed.test.streaming;
 
 import java.io.IOException;
-import java.util.HashSet;
 
 import com.google.common.base.Throwables;
 import org.junit.Test;
@@ -33,112 +32,112 @@ public class BoundExceptionTest
     private static final int LIMIT = 2;
 
     @Test
-    public void testSingleException() {
-        try {
-            throw new RuntimeException("test exception");
-        } catch (Exception e) {
-            StreamSession.boundStackTrace(e, LIMIT, new HashSet<>());
-            String expectedStackTrace = "java.lang.RuntimeException: test exception\n" +
-                                        "\tat org.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testSingleException(BoundExceptionTest.java:38)\n" +
+    public void testSingleException()
+    {
+        Throwable boundedStackTrace = StreamSession.boundStackTrace(new RuntimeException("test exception"), LIMIT);
+
+        String expectedStackTrace = "java.lang.RuntimeException: test exception\n" +
+                                        "\tat org.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testSingleException(BoundExceptionTest.java:37)\n" +
                                         "\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n";
-            assertEquals(expectedStackTrace,Throwables.getStackTraceAsString(e));
-            assertEquals(e.getStackTrace().length, LIMIT);
-        }
+
+        assertEquals(expectedStackTrace,Throwables.getStackTraceAsString(boundedStackTrace));
+        assertEquals(boundedStackTrace.getStackTrace().length, LIMIT);
     }
 
     @Test
-    public void testNestedException() {
-        try {
-            throw new RuntimeException(new IllegalArgumentException("the disk /foo/var is bad", new IOException("Bad disk somewhere")));
-        } catch (Exception e) {
-            StreamSession.boundStackTrace(e, LIMIT, new HashSet<>());
-            String expectedStackTrace = "java.lang.RuntimeException: java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
-                                        "\tat org.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testNestedException(BoundExceptionTest.java:52)\n" +
-                                        "\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n" +
-                                        "Caused by: java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
-                                        "\t... " + LIMIT + " more\n" +
-                                        "Caused by: java.io.IOException: Bad disk somewhere\n" +
-                                        "\t... " + LIMIT + " more\n";
-            assertEquals(expectedStackTrace,Throwables.getStackTraceAsString(e));
-            assertEquals(e.getStackTrace().length, LIMIT);
+    public void testNestedException()
+    {
+        Throwable exceptionToTest = new RuntimeException(new IllegalArgumentException("the disk /foo/var is bad", new IOException("Bad disk somewhere")));
+        Throwable boundedStackTrace = StreamSession.boundStackTrace(exceptionToTest, LIMIT);
+
+        String expectedStackTrace1 = "java.lang.RuntimeException: java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
+                                    "\tat org.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testNestedException(BoundExceptionTest.java:50)\n";
+        String expectedStackTrace2 = "java.lang.IllegalArgumentException: the disk /foo/var is bad\n";
+        String expectedStackTrace3 = "java.io.IOException: Bad disk somewhere\n";
+
+        String boundedStackTraceAsString = Throwables.getStackTraceAsString(boundedStackTrace);
+
+        assertTrue(boundedStackTraceAsString.contains(expectedStackTrace1));
+        assertTrue(boundedStackTraceAsString.contains(expectedStackTrace2));
+        assertTrue(boundedStackTraceAsString.contains(expectedStackTrace3));
+
+        while (boundedStackTrace != null)
+        {
+            assertEquals(boundedStackTrace.getStackTrace().length, LIMIT);
+            boundedStackTrace = boundedStackTrace.getCause();
         }
     }
 
     @Test
     public void testExceptionCycle()
     {
-        try {
-            throw new Exception("Test exception 1");
-        }
-        catch (Exception e1) {
-            try {
-                throw new RuntimeException("Test exception 2");
-            }
-            catch (Exception e2) {
-                e1.initCause(e2);
-                e2.initCause(e1);
+        Exception e1 = new Exception("Test exception 1");
+        Exception e2 = new RuntimeException("Test exception 2");
 
-                causeCycle(e1);
-            }
-        }
-    }
+        e1.initCause(e2);
+        e2.initCause(e1);
 
-    private static void causeCycle(Exception e) {
-        try {
-            throw e;
-        } catch (Exception e1) {
-            try {
-                StreamSession.boundStackTrace(e1, LIMIT, new HashSet<>());
-            }
-            catch (Exception e2) {
-                String expectedStackTrace = "java.lang.IllegalArgumentException: Exception cycle detected";
-                assertTrue(Throwables.getStackTraceAsString(e2).contains(expectedStackTrace));
-            }
-        }
+        Throwable boundedStackTrace = StreamSession.boundStackTrace(e1, LIMIT);
+        String expectedStackTrace1 = "java.lang.Exception: Test exception 1\n" +
+                                    "\tat org.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testExceptionCycle(BoundExceptionTest.java:74)\n";
+        String expectedStackTrace2 = "java.lang.RuntimeException: Test exception 2\n" +
+                                     "\tat org.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testExceptionCycle(BoundExceptionTest.java:75)\n";
+        String expectedStackTrace3 = "[CIRCULAR REFERENCE: java.lang.Exception: Test exception 1]\n";
+
+        String boundedStackTraceAsString = Throwables.getStackTraceAsString(boundedStackTrace);
+
+        assertTrue(boundedStackTraceAsString.contains(expectedStackTrace1));
+        assertTrue(boundedStackTraceAsString.contains(expectedStackTrace2));
+        assertTrue(boundedStackTraceAsString.contains(expectedStackTrace3));
+        assertEquals(boundedStackTrace.getStackTrace().length, LIMIT);
     }
 
     @Test
-    public void testEmptyStackTrace() {
-        try {
-            throw new NullPointerException("there are words here");
-        } catch (Exception e) {
-            e.setStackTrace(new StackTraceElement[0]);
-            StreamSession.boundStackTrace(e, LIMIT, new HashSet<>());
-            String expectedStackTrace = "java.lang.NullPointerException: there are words here\n";
-            assertEquals(expectedStackTrace,Throwables.getStackTraceAsString(e));
-            assertEquals(e.getStackTrace().length, 0);
-        }
+    public void testEmptyStackTrace()
+    {
+        Throwable exceptionToTest = new NullPointerException("there are words here");
+        exceptionToTest.setStackTrace(new StackTraceElement[0]);
+
+        Throwable boundedStackTrace = StreamSession.boundStackTrace(exceptionToTest, LIMIT);
+        String expectedStackTrace = "java.lang.NullPointerException: there are words here\n";
+
+        assertEquals(expectedStackTrace,Throwables.getStackTraceAsString(boundedStackTrace));
+        assertEquals(boundedStackTrace.getStackTrace().length, 0);
     }
 
     @Test
-    public void testNullException() {
-        try {
-            throw null;
-        } catch (Exception e) {
-            StreamSession.boundStackTrace(e, LIMIT, new HashSet<>());
-            String expectedException = "java.lang.NullPointerException\n" +
-                                       "\tat org.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testNullException(BoundExceptionTest.java:116)\n" +
-                                       "\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n";
-            assertEquals(expectedException, Throwables.getStackTraceAsString(e));
-        }
+    public void testLimitLargerThanStackTrace()
+    {
+        Throwable exceptionToTest = new NullPointerException("there are words here");
+        Throwable boundedStackTrace = StreamSession.boundStackTrace(exceptionToTest, LIMIT);
+        Throwable reboundedStackTrace = StreamSession.boundStackTrace(boundedStackTrace, LIMIT + 2);
+
+        assertEquals(reboundedStackTrace, boundedStackTrace);
+        assertEquals(reboundedStackTrace.getStackTrace().length, LIMIT);
     }
 
     @Test
-    public void testEmptyNestedStackTrace() {
-        try {
-            throw new RuntimeException(new IllegalArgumentException("the disk /foo/var is bad", new IOException("Bad disk somewhere")));
-        } catch (Exception e) {
-            e.setStackTrace(new StackTraceElement[0]);
-            e.getCause().setStackTrace(new StackTraceElement[0]);
-            StreamSession.boundStackTrace(e, LIMIT, new HashSet<>());
-            String expectedException = "java.lang.RuntimeException: java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
-                                       "Caused by: java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
-                                       "Caused by: java.io.IOException: Bad disk somewhere\n" +
-                                       "\tat org.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testEmptyNestedStackTrace(BoundExceptionTest.java:129)\n" +
-                                       "\tat java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n";
-            assertEquals(expectedException, Throwables.getStackTraceAsString(e));
+    public void testEmptyNestedStackTrace()
+    {
+        Throwable exceptionToTest = new RuntimeException(new IllegalArgumentException("the disk /foo/var is bad", new IOException("Bad disk somewhere")));
+
+        exceptionToTest.setStackTrace(new StackTraceElement[0]);
+        exceptionToTest.getCause().setStackTrace(new StackTraceElement[0]);
+        exceptionToTest.getCause().getCause().setStackTrace(new StackTraceElement[0]);
+
+        Throwable boundedStackTrace = StreamSession.boundStackTrace(exceptionToTest, LIMIT);
+        String expectedStackTrace = "java.lang.RuntimeException: java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
+                                     "Caused by: java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
+                                     "Caused by: java.io.IOException: Bad disk somewhere\n";
+
+        String boundedStackTraceAsString = Throwables.getStackTraceAsString(boundedStackTrace);
+
+        assertEquals(boundedStackTraceAsString, expectedStackTrace);
+
+        while (boundedStackTrace != null)
+        {
+            assertEquals(boundedStackTrace.getStackTrace().length, 0);
+            boundedStackTrace = boundedStackTrace.getCause();
         }
     }
-
-
 }
