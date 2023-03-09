@@ -89,7 +89,6 @@ _install_hooks() {
   install_hook "$git_dir" "post-checkout" true
   install_hook "$git_dir" "post-switch"   false
   install_hook "$git_dir" "pre-commit"    false
-  install_hook "$git_dir" "pre-push"      false
 }
 
 _git_config_set() {
