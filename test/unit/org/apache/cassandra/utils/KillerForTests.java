@@ -29,6 +29,11 @@ public class KillerForTests extends JVMStabilityInspector.Killer
     @Override
     protected void killCurrentJVM(Throwable t, boolean quiet)
     {
+        if (killed)
+        {
+            // Can only be killed once
+            return;
+        }
         this.killed = true;
         this.quiet = quiet;
     }
