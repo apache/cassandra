@@ -35,16 +35,12 @@ import static org.junit.Assert.assertTrue;
 
 public class ForwardingInfoTest
 {
-    @Test
-    public void testCurrent() throws Exception
-    {
-        testVersion(MessagingService.current_version);
-    }
 
     @Test
-    public void test30() throws Exception
+    public void testSupportedVersions() throws Exception
     {
-        testVersion(MessagingService.VERSION_30);
+        for (MessagingService.Version version : MessagingService.Version.supportedVersions())
+            testVersion(version.value);
     }
 
     private void testVersion(int version) throws Exception

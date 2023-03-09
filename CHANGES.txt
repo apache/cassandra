@@ -1,4 +1,5 @@
 5.0
+ * Lift MessagingService.minimum_version to 40 (CASSANDRA-18314)
  * CEP-7: Storage Attached Indexes (CASSANDRA-16052)
  * Add equals/hashCode override for ServerEncryptionOptions (CASSANDRA-18428)
  * Upgrade ECJ to version 3.33.0 (CASSANDRA-18190)

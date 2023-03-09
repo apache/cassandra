@@ -37,10 +37,11 @@ public class InetAddressAndPortSerializerTest
         InetAddressAndPort ipv4 = InetAddressAndPort.getByName("127.0.0.1:42");
         InetAddressAndPort ipv6 = InetAddressAndPort.getByName("[2001:db8:0:0:0:ff00:42:8329]:42");
 
-        testAddress(ipv4, MessagingService.VERSION_30);
-        testAddress(ipv6, MessagingService.VERSION_30);
-        testAddress(ipv4, MessagingService.current_version);
-        testAddress(ipv6, MessagingService.current_version);
+        for (MessagingService.Version version : MessagingService.Version.supportedVersions())
+        {
+            testAddress(ipv4, version.value);
+            testAddress(ipv6, version.value);
+        }
     }
 
     private void testAddress(InetAddressAndPort address, int version) throws Exception
