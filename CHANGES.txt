@@ -4,6 +4,7 @@
  * Split and order IDEA workspace template VM_PARAMETERS (CASSANDRA-18242)
 Merged from 3.11:
 Merged from 3.0:
+ * Fix default file system error handler for disk_failure_policy die (CASSANDRA-18294)
 
 4.0.8
  * Log warning message on aggregation queries without key or on multiple keys (CASSANDRA-18219)
