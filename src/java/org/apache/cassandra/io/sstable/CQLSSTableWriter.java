@@ -510,7 +510,7 @@ public class CQLSSTableWriter implements Closeable
             if (insertStatement == null)
                 throw new IllegalStateException("No insert statement specified, you should provide an insert statement through using()");
 
-            synchronized (CQLSSTableWriter.class)
+            synchronized (Schema.instance)
             {
                 if (Schema.instance.getKeyspaceMetadata(SchemaConstants.SCHEMA_KEYSPACE_NAME) == null)
                     Schema.instance.load(Schema.getSystemKeyspaceMetadata());
