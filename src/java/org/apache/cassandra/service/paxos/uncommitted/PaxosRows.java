@@ -40,7 +40,6 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.DeserializationHelper;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -96,7 +95,7 @@ public class PaxosRows
             return null;
 
         Ballot ballot = ballotCell.accessor().toBallot(ballotCell.value());
-        int version = getInt(row, PROPOSAL_VERSION, MessagingService.VERSION_30);
+        int version = getInt(row, PROPOSAL_VERSION, MessagingService.VERSION_40);
         PartitionUpdate update = getUpdate(row, PROPOSAL_UPDATE, version);
         return ballotCell.isExpiring()
                ? new AcceptedWithTTL(ballot, update, ballotCell.localDeletionTime())
@@ -110,7 +109,7 @@ public class PaxosRows
             return Committed.none(partitionKey, metadata);
 
         Ballot ballot = ballotCell.accessor().toBallot(ballotCell.value());
-        int version = getInt(row, COMMIT_VERSION, MessagingService.VERSION_30);
+        int version = getInt(row, COMMIT_VERSION, MessagingService.VERSION_40);
         PartitionUpdate update = getUpdate(row, COMMIT_UPDATE, version);
         return ballotCell.isExpiring()
                ? new CommittedWithTTL(ballot, update, ballotCell.localDeletionTime())
@@ -140,22 +139,8 @@ public class PaxosRows
         Cell cell = row.getCell(cmeta);
         if (cell == null)
             throw new IllegalStateException();
-        try
-        {
-            return PartitionUpdate.fromBytes(cell.buffer(), version);
-        }
-        catch (RuntimeException e)
-        {
-            // the legacy behaviors of not deleting proposal_version along with proposal and proposal_ballot on commit,
-            // and accepting proposals younger than the most recent commit combined with the right sequence of tombstone
-            // purging and retention over a few compactions can result in 3.x format proposals without a proposal version
-            // value, causing deserialization to fail when looking up the table. So here we detect that and attempt to
-            // deserialize with the current version
-            if (e.getCause() instanceof UnknownTableException && version == MessagingService.VERSION_30)
-                return PartitionUpdate.fromBytes(cell.buffer(), MessagingService.current_version);
 
-            throw e;
-        }
+        return PartitionUpdate.fromBytes(cell.buffer(), version);
     }
 
     private static Ballot getBallot(Row row, ColumnMetadata cmeta)
