@@ -108,21 +108,21 @@ public class SSTableCompressionOptions
 
     public boolean equals(SSTableCompressionOptions other)
     {
-        return Objects.equal( type, other.type ) &&
-               Objects.equal( enabled, other.enabled ) &&
-               Objects.equal( min_compress_ratio, other.min_compress_ratio) &&
-               Objects.equal( chunk_length, other.chunk_length ) &&
-               Objects.equal( compressor, other.compressor);
+        return Objects.equal(type, other.type) &&
+               Objects.equal(enabled, other.enabled) &&
+               Objects.equal(min_compress_ratio, other.min_compress_ratio) &&
+               Objects.equal(chunk_length, other.chunk_length) &&
+               Objects.equal(compressor, other.compressor);
     }
 
     @Override
     public int hashCode()
     {
         return new HashCodeBuilder(29, 1597)
-               .append( type.ordinal() )
-               .append( chunk_length )
-               .append( min_compress_ratio )
-               .append( compressor )
+               .append(type.ordinal())
+               .append(chunk_length)
+               .append(min_compress_ratio)
+               .append(compressor)
                .toHashCode();
     }
 }
