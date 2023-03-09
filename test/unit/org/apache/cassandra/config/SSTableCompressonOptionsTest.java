@@ -46,8 +46,8 @@ public class SSTableCompressonOptionsTest
 
     private void assertParams(boolean enabled, int chunk_length, Class<?> compressor)
     {
-        assertThat(enabled).isEqualTo(  params.isEnabled() );
-        assertThat(chunk_length).isEqualTo(  params.chunkLength() );
+        assertThat(enabled).isEqualTo(params.isEnabled());
+        assertThat(chunk_length).isEqualTo(params.chunkLength());
         if (compressor != null)
         {
             assertThat(params.getSstableCompressor()).isInstanceOf(compressor);
@@ -84,7 +84,7 @@ public class SSTableCompressonOptionsTest
         options.type = Config.CompressorType.none;
         params = options.getCompressionParams();
         // none is noever enabled.
-        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null );
+        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
 
         options.chunk_length = "5MiB";
         params = options.getCompressionParams();
@@ -164,7 +164,7 @@ public class SSTableCompressonOptionsTest
     @Test
     public void customTest() {
         options.type = Config.CompressorType.custom;
-        options.compressor = new ParameterizedClass(TestCompressor.class.getName(), Collections.emptyMap() );
+        options.compressor = new ParameterizedClass(TestCompressor.class.getName(), Collections.emptyMap());
         params = options.getCompressionParams();
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, TestCompressor.class);
 
@@ -177,11 +177,11 @@ public class SSTableCompressonOptionsTest
         assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
         options.enabled = true;
 
-        options.compressor = new ParameterizedClass("", Collections.emptyMap() );
+        options.compressor = new ParameterizedClass("", Collections.emptyMap());
         assertThatThrownBy(() -> options.getCompressionParams()).isInstanceOf(ConfigurationException.class)
           .hasMessageContaining("Missing or empty sub-option 'class'");
 
-        options.compressor = new ParameterizedClass(null, Collections.emptyMap() );
+        options.compressor = new ParameterizedClass(null, Collections.emptyMap());
         assertThatThrownBy(() -> options.getCompressionParams()).isInstanceOf(ConfigurationException.class)
                                                                 .hasMessageContaining("Missing or empty sub-option 'class'");
 
