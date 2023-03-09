@@ -1932,7 +1932,7 @@ sstable_formats:
       name: big
 
 sstable_compressor:
-#  Defines the compression params used to read/write the sstables.  If undefined the old default is used.
+#  Defines the compression params used to read/write the sstables.  If undefined the default is LZ4 with 16kb chunk length. To disable compression set `class_name: org.apache.cassandra.io.compress.NoopCompressor`
   - class_name: org.apache.cassandra.io.compress.LZ4Compressor # the comnpressor class
     parameters:
       - chunk_length_in_kb: '16384'
