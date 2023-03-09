@@ -125,3 +125,23 @@ include::example$CQL/ddm_revoke_unmask.cql[]
 Please note that the anonymous user that is used when authentication is disabled has all the permissions.
 Since it includes the `UNMASK` permission, that anonymous user will always see the clear data.
 In other words, attaching data masking functions to columns only makes sense if authentication is enabled.
+
+Users without the `UNMASK` permission are not allowed to use masked columns in the `WHERE` clause of a `SELECT` query.
+This prevents malicious users from figuring out the clear data by running exhaustive queries. For instance:
+
+[source,cql]
+----
+include::example$CQL/ddm_select_without_select_masked.cql[]
+----
+
+However, there are some use cases where trusted database users just need a useful way to produce masked data
+that will be served to untrusted external users.
+For example, a trusted app can connect to the database and extract masked data that will be served to its end users.
+In that case the trusted user (the app) can be given the `SELECT_MASKED` permission.
+That permission allows to use masked columns in the `WHERE` clause of a `SELECT` query,
+while still seeing the masked data in the query results. For instance:
+
+[source,cql]
+----
+include::example$CQL/ddm_select_with_select_masked.cql[]
+----

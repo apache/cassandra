@@ -82,6 +82,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
+import static java.lang.String.format;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
@@ -241,6 +242,21 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         for (Function function : getFunctions())
             state.ensurePermission(Permission.EXECUTE, function);
+
+        if (!state.hasTablePermission(table, Permission.UNMASK) &&
+            !state.hasTablePermission(table, Permission.SELECT_MASKED))
+        {
+            List<ColumnMetadata> queriedMaskedColumns = table.columns()
+                                                             .stream()
+                                                             .filter(ColumnMetadata::isMasked)
+                                                             .filter(restrictions::isRestricted)
+                                                             .collect(Collectors.toList());
+
+            if (!queriedMaskedColumns.isEmpty())
+                throw new UnauthorizedException(format("User %s has no UNMASK nor SELECT_MASKED permission on table %s.%s, " +
+                                                       "cannot query masked columns %s",
+                                                       state.getUser().getName(), keyspace(), table(), queriedMaskedColumns));
+        }
     }
 
     public void validate(ClientState state) throws InvalidRequestException
@@ -261,7 +277,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
         int pageSize = options.getPageSize();
-        boolean unmask = !table.hasMaskedColumns() || state.getClientState().hasUnmaskPermission(table);
+        boolean unmask = !table.hasMaskedColumns() || state.getClientState().hasTablePermission(table, Permission.UNMASK);
 
         Selectors selectors = selection.newSelectors(options);
         AggregationSpecification aggregationSpec = getAggregationSpec(options);
@@ -504,7 +520,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
         int pageSize = options.getPageSize();
-        boolean unmask = state.getClientState().hasUnmaskPermission(table);
+        boolean unmask = state.getClientState().hasTablePermission(table, Permission.UNMASK);
 
         Selectors selectors = selection.newSelectors(options);
         AggregationSpecification aggregationSpec = getAggregationSpec(options);

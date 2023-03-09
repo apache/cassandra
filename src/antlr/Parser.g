@@ -1128,7 +1128,7 @@ listPermissionsStatement returns [ListPermissionsStatement stmt]
     ;
 
 permission returns [Permission perm]
-    : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE | K_DESCRIBE | K_EXECUTE | K_UNMASK)
+    : p=(K_CREATE | K_ALTER | K_DROP | K_SELECT | K_MODIFY | K_AUTHORIZE | K_DESCRIBE | K_EXECUTE | K_UNMASK | K_SELECT_MASKED)
     { $perm = Permission.valueOf($p.text.toUpperCase()); }
     ;
 
@@ -1958,5 +1958,6 @@ basic_unreserved_keyword returns [String str]
         | K_UNSET
         | K_MASKED
         | K_UNMASK
+        | K_SELECT_MASKED
         ) { $str = $k.text; }
     ;

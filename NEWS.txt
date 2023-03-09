@@ -131,6 +131,8 @@ New features
       the masked data during queries, but they don't change the stored data.
     - Added new UNMASK permission. It allows to see the clear data of columns with an attached mask. Superusers have it
       by default, whereas regular users don't have it by default.
+    - Added new SELECT_MASKED permission. It allows to run SELECT queries selecting the clear values of masked columns.
+      Superusers have it by default, whereas regular users don't have it by default.
 
 Upgrading
 ---------

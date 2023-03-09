@@ -414,7 +414,7 @@ public class ClientState
         ensurePermission(table.keyspace, perm, table.resource);
     }
 
-    public boolean hasUnmaskPermission(TableMetadata table)
+    public boolean hasTablePermission(TableMetadata table, Permission perm)
     {
         if (isInternal)
             return true;
@@ -429,7 +429,7 @@ public class ClientState
             resources = Lists.reverse(resources);
 
         for (IResource r : resources)
-            if (authorize(r).contains(Permission.UNMASK))
+            if (authorize(r).contains(perm))
                 return true;
 
         return false;

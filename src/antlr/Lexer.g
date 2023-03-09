@@ -220,6 +220,7 @@ K_LIKE:        L I K E;
 
 K_MASKED:      M A S K E D;
 K_UNMASK:      U N M A S K;
+K_SELECT_MASKED: S E L E C T '_' M A S K E D;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
