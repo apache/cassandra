@@ -202,6 +202,8 @@ Upgrading
      communicate with AWS IMDS of version 2. This change is transparent, there does not need 
      to be done anything upon upgrade. Furthermore, IMDS of version 2 can be configured to be required in AWS EC2 console.
      Consult cassandra-rackdc.properties for more details. (CASSANDRA-16555)
+    - JMX MBean `org.apache.cassandra.metrics:type=BufferPool` without scope has been removed.
+      Use instead `org.apache.cassandra.metrics:type=BufferPool,scope=chunk-cache`.  (CASSANDRA-17668)
 
 
 Deprecation

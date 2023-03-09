@@ -64,13 +64,4 @@ public class BufferPoolMetrics
         size = Metrics.register(factory.createMetricName("Size"), bufferPool::sizeInBytes);
     }
 
-    /**
-     * used to register alias for 3.0/3.11 compatibility
-     */
-    public void register3xAlias()
-    {
-        MetricNameFactory legacyFactory = new DefaultNameFactory("BufferPool");
-        Metrics.registerMBean(misses, legacyFactory.createMetricName("Misses").getMBeanName());
-        Metrics.registerMBean(size, legacyFactory.createMetricName("Size").getMBeanName());
-    }
 }
