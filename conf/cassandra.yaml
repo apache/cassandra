@@ -1668,6 +1668,24 @@ report_unconfirmed_repaired_data_mismatches: false
 # Defaults to false to disable dynamic data masking.
 # dynamic_data_masking_enabled: false
 
+#sstable_compressor:
+  # Defines the compression params used to read/write the sstables.  If undefined the default is LZ4 with 16kb chunk
+  #   length. To disable compression set `class_name: org.apache.cassandra.io.compress.NoopCompressor` or
+  #   set the `enable` parameter as `false`
+  #enable=false # defaults to true
+
+  #chunk_length: 16KiB : defaults to 16KiB
+  # min_compress_ratio is only used in snappy and custom implementations.
+  #min_compress_ratio: 0.0 : defaults to 0.0 see CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
+  # type should be one of the `CompressorType` values:
+  #    lz4,  none,  noop,  snappy,  deflate,  zstd, or custom
+  #type: custom
+  # if custom type is specified compressor class and parameters must be provided
+  #compressor:
+  #  class_name: org.apache.cassandra.io.compress.LZ4Compressor # the compressor class
+  #  parameters:
+  #   - param1 : value
+
 #########################
 # EXPERIMENTAL FEATURES #
 #########################
@@ -1917,6 +1935,7 @@ drop_compact_storage_enabled: false
 #    heartbeat_file: /var/lib/cassandra/data/cassandra-heartbeat
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
+
 
 
 # Supported sstable formats
