@@ -26,6 +26,7 @@ import java.net.MalformedURLException;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.rmi.server.RMISocketFactory;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -46,6 +47,7 @@ import com.google.common.base.Objects;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.RateLimiter;
 
 import org.junit.*;
 
@@ -70,6 +72,7 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
@@ -111,6 +114,7 @@ import org.awaitility.Awaitility;
 import static com.datastax.driver.core.SocketOptions.DEFAULT_CONNECT_TIMEOUT_MILLIS;
 import static com.datastax.driver.core.SocketOptions.DEFAULT_READ_TIMEOUT_MILLIS;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -691,6 +695,60 @@ public abstract class CQLTester
         ColumnFamilyStore store = getCurrentColumnFamilyStore();
         if (store != null)
             store.cleanupCache();
+    }
+
+    public void snapshot(String snapshotName)
+    {
+        snapshot(snapshotName, null, now());
+    }
+
+    public void snapshot(String snapshotName, Instant creationTime)
+    {
+        snapshot(snapshotName, null, creationTime);
+    }
+
+    public void snapshot(String snapshotName, DurationSpec.IntSecondsBound ttl)
+    {
+        snapshot(snapshotName, false, ttl, null, now());
+    }
+
+    public void snapshot(String snapshotName, DurationSpec.IntSecondsBound ttl, Instant creationTime)
+    {
+        snapshot(snapshotName, false, ttl, null, creationTime);
+    }
+
+    public void snapshot(String snapshotName, boolean ephemeral, DurationSpec.IntSecondsBound ttl, Instant creationTime)
+    {
+        snapshot(snapshotName, ephemeral,false, ttl, null, creationTime);
+    }
+
+    public void snapshot(String snapshotName, boolean skipMemtable, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
+    {
+        snapshot(snapshotName, false, skipMemtable, ttl, rateLimiter, creationTime);
+    }
+
+    public void snapshot(String snapshotName, boolean ephemeral, boolean skipMemtable, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
+    {
+        ColumnFamilyStore store = getCurrentColumnFamilyStore();
+        if(store != null)
+        {
+            store.snapshot(snapshotName, null, ephemeral, skipMemtable, ttl, rateLimiter, creationTime);
+        }
+    }
+
+    public void clearSnapshotForKeyspace(String keyspace)
+    {
+        clearSnapshot(null, keyspace);
+    }
+
+    public void clearSnapshot(String snapshotName, String keyspace)
+    {
+        clearSnapshot(Collections.emptyMap(), snapshotName, keyspace);
+    }
+
+    public void clearSnapshot(Map<String, Object> options, String snapshotName, String keyspace)
+    {
+        StorageService.instance.clearSnapshot(options, snapshotName, keyspace);
     }
 
     public static FunctionName parseFunctionName(String qualifiedName)
