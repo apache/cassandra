@@ -36,7 +36,6 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
-import org.apache.cassandra.cql3.functions.masking.MaskingFunction;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -936,9 +935,9 @@ public final class SchemaKeyspace
     {
         KeyspaceParams params = fetchKeyspaceParams(keyspaceName);
         Types types = fetchTypes(keyspaceName);
-        Tables tables = fetchTables(keyspaceName, types);
-        Views views = fetchViews(keyspaceName, types);
         UserFunctions functions = fetchFunctions(keyspaceName, types);
+        Tables tables = fetchTables(keyspaceName, types, functions);
+        Views views = fetchViews(keyspaceName, types, functions);
         return KeyspaceMetadata.create(keyspaceName, params, tables, views, types, functions);
     }
 
@@ -967,7 +966,7 @@ public final class SchemaKeyspace
         return types.build();
     }
 
-    private static Tables fetchTables(String keyspaceName, Types types)
+    private static Tables fetchTables(String keyspaceName, Types types, UserFunctions functions)
     {
         String query = format("SELECT table_name FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, TABLES);
 
@@ -977,7 +976,7 @@ public final class SchemaKeyspace
             String tableName = row.getString("table_name");
             try
             {
-                tables.add(fetchTable(keyspaceName, tableName, types));
+                tables.add(fetchTable(keyspaceName, tableName, types, functions));
             }
             catch (MissingColumns exc)
             {
@@ -1006,7 +1005,7 @@ public final class SchemaKeyspace
         return tables.build();
     }
 
-    private static TableMetadata fetchTable(String keyspaceName, String tableName, Types types)
+    private static TableMetadata fetchTable(String keyspaceName, String tableName, Types types, UserFunctions functions)
     {
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, TABLES);
         UntypedResultSet rows = query(query, keyspaceName, tableName);
@@ -1018,7 +1017,7 @@ public final class SchemaKeyspace
         return TableMetadata.builder(keyspaceName, tableName, TableId.fromUUID(row.getUUID("id")))
                             .flags(flags)
                             .params(createTableParamsFromRow(row))
-                            .addColumns(fetchColumns(keyspaceName, tableName, types))
+                            .addColumns(fetchColumns(keyspaceName, tableName, types, functions))
                             .droppedColumns(fetchDroppedColumns(keyspaceName, tableName))
                             .indexes(fetchIndexes(keyspaceName, tableName))
                             .triggers(fetchTriggers(keyspaceName, tableName))
@@ -1062,7 +1061,7 @@ public final class SchemaKeyspace
         return builder.build();
     }
 
-    private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types)
+    private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types, UserFunctions functions)
     {
         String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMNS);
         UntypedResultSet columnRows = query(query, keyspace, table);
@@ -1070,7 +1069,7 @@ public final class SchemaKeyspace
             throw new MissingColumns("Columns not found in schema table for " + keyspace + '.' + table);
 
         List<ColumnMetadata> columns = new ArrayList<>();
-        columnRows.forEach(row -> columns.add(createColumnFromRow(row, types)));
+        columnRows.forEach(row -> columns.add(createColumnFromRow(row, types, functions)));
 
         if (columns.stream().noneMatch(ColumnMetadata::isPartitionKey))
             throw new MissingColumns("No partition key columns found in schema table for " + keyspace + "." + table);
@@ -1079,7 +1078,7 @@ public final class SchemaKeyspace
     }
 
     @VisibleForTesting
-    public static ColumnMetadata createColumnFromRow(UntypedResultSet.Row row, Types types)
+    public static ColumnMetadata createColumnFromRow(UntypedResultSet.Row row, Types types, UserFunctions functions)
     {
         String keyspace = row.getString("keyspace_name");
         String table = row.getString("table_name");
@@ -1112,11 +1111,16 @@ public final class SchemaKeyspace
                 argumentTypes.add(CQLTypeParser.parse(keyspace, argumentType, types));
             }
 
-            Function function = FunctionResolver.get(keyspace, functionName, argumentTypes, null, null, null);
-            if (!(function instanceof MaskingFunction))
+            Function function = FunctionResolver.get(keyspace, functionName, argumentTypes, null, null, null, functions);
+            if (function == null)
+            {
+                throw new AssertionError(format("Unable to find masking function %s(%s) for column %s.%s.%s",
+                                                functionName, argumentTypes, keyspace, table, name));
+            }
+            else if (!(function instanceof ScalarFunction))
             {
                 throw new AssertionError(format("Column %s.%s.%s is unexpectedly masked with function %s " +
-                                                "which is not a known native masking function",
+                                                "which is not a scalar masking function",
                                                 keyspace, table, name, function));
             }
 
@@ -1133,7 +1137,7 @@ public final class SchemaKeyspace
                     values.add(argumentTypes.get(i + 1).fromString(valuesAsCQL.get(i)));
             }
 
-            mask = new ColumnMask((MaskingFunction) function, values);
+            mask = new ColumnMask((ScalarFunction) function, values);
         }
 
         return new ColumnMetadata(keyspace, table, name, type, position, kind, mask);
@@ -1204,17 +1208,17 @@ public final class SchemaKeyspace
         return new TriggerMetadata(name, classOption);
     }
 
-    private static Views fetchViews(String keyspaceName, Types types)
+    private static Views fetchViews(String keyspaceName, Types types, UserFunctions functions)
     {
         String query = format("SELECT view_name FROM %s.%s WHERE keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, VIEWS);
 
         Views.Builder views = org.apache.cassandra.schema.Views.builder();
         for (UntypedResultSet.Row row : query(query, keyspaceName))
-            views.put(fetchView(keyspaceName, row.getString("view_name"), types));
+            views.put(fetchView(keyspaceName, row.getString("view_name"), types, functions));
         return views.build();
     }
 
-    private static ViewMetadata fetchView(String keyspaceName, String viewName, Types types)
+    private static ViewMetadata fetchView(String keyspaceName, String viewName, Types types, UserFunctions functions)
     {
         String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND view_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, VIEWS);
         UntypedResultSet rows = query(query, keyspaceName, viewName);
@@ -1227,7 +1231,7 @@ public final class SchemaKeyspace
         boolean includeAll = row.getBoolean("include_all_columns");
         String whereClauseString = row.getString("where_clause");
 
-        List<ColumnMetadata> columns = fetchColumns(keyspaceName, viewName, types);
+        List<ColumnMetadata> columns = fetchColumns(keyspaceName, viewName, types, functions);
 
         TableMetadata metadata =
             TableMetadata.builder(keyspaceName, viewName, TableId.fromUUID(row.getUUID("id")))

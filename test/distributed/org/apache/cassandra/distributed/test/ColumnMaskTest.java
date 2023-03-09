@@ -93,25 +93,33 @@ public class ColumnMaskTest extends TestBaseImpl
         {
             IInvokableInstance node = cluster.get(1);
 
+            cluster.schemaChange(withKeyspace("CREATE FUNCTION %s.custom_mask(column text, replacement text) " +
+                                              "RETURNS NULL ON NULL INPUT " +
+                                              "RETURNS text " +
+                                              "LANGUAGE java " +
+                                              "AS 'return replacement;'"));
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (" +
                                               "a text MASKED WITH DEFAULT, " +
                                               "b text MASKED WITH mask_replace('redacted'), " +
                                               "c text MASKED WITH mask_inner(null, 1), " +
                                               "d text MASKED WITH mask_inner(3, null), " +
+                                              "e text MASKED WITH %<s.custom_mask('obscured'), " +
                                               "PRIMARY KEY (a, b))"));
-            node.executeInternal(withKeyspace("INSERT INTO %s.t(a, b, c, d) VALUES ('secret1', 'secret1', 'secret1', 'secret1')"));
-            node.executeInternal(withKeyspace("INSERT INTO %s.t(a, b, c, d) VALUES ('secret2', 'secret2', 'secret2', 'secret2')"));
+            String insert = withKeyspace("INSERT INTO %s.t(a, b, c, d, e) VALUES (?, ?, ?, ?, ?)");
+            node.executeInternal(insert, "secret1", "secret1", "secret1", "secret1", "secret1");
+            node.executeInternal(insert, "secret2", "secret2", "secret2", "secret2", "secret2");
             assertRowsWithRestart(node,
-                                  row("****", "redacted", "******1", "sec****"),
-                                  row("****", "redacted", "******2", "sec****"));
+                                  row("****", "redacted", "******1", "sec****", "obscured"),
+                                  row("****", "redacted", "******2", "sec****", "obscured"));
 
             cluster.schemaChange(withKeyspace("ALTER TABLE %s.t ALTER a DROP MASKED"));
             cluster.schemaChange(withKeyspace("ALTER TABLE %s.t ALTER b MASKED WITH mask_null()"));
             cluster.schemaChange(withKeyspace("ALTER TABLE %s.t ALTER c MASKED WITH mask_inner(null, null, '#')"));
             cluster.schemaChange(withKeyspace("ALTER TABLE %s.t ALTER d MASKED WITH mask_inner(3, 1, '#')"));
+            cluster.schemaChange(withKeyspace("ALTER TABLE %s.t ALTER e MASKED WITH %<s.custom_mask('censored')"));
             assertRowsWithRestart(node,
-                                  row("secret1", null, "#######", "sec###1"),
-                                  row("secret2", null, "#######", "sec###2"));
+                                  row("secret1", null, "#######", "sec###1", "censored"),
+                                  row("secret2", null, "#######", "sec###2", "censored"));
         }
     }
 

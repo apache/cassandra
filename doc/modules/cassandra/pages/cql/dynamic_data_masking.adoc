@@ -145,3 +145,30 @@ while still seeing the masked data in the query results. For instance:
 ----
 include::example$CQL/ddm_select_with_select_masked.cql[]
 ----
+
+== Custom functions
+
+xref:cql/functions.adoc#user-defined-scalar-functions[User-defined functions (UDFs)] can be attached to a table column.
+The column value to mask will be passed as the first argument of the attached UDF.
+Thus, the UDFs attached to a column should have at least one argument,
+and that argument should have the same type as the masked column.
+Also, the attached UDF should return values of the same type as the maked column. For instance:
+
+[source,cql]
+----
+include::example$CQL/ddm_create_table_with_udf.cql[]
+----
+
+This creates a dependency between the table schema and the functions.
+Any attempt to drop the function will be rejected while this dependency exists.
+Thus, to drop the function you should first drop the mask.
+This can be done with:
+
+[source,cql]
+----
+include::example$CQL/ddm_drop_mask.cql[]
+----
+
+Dropping the column, or its containing table, or its containing keyspace would also remove the dependency.
+
+xref:cql/functions.adoc#aggregate-functions[Aggregate functions] cannot be used as masking functions.

@@ -1754,6 +1754,11 @@ public abstract class CQLTester
         return expected;
     }
 
+    public static Object[][] rows(Object[]... rows)
+    {
+        return rows;
+    }
+
     protected void assertEmpty(UntypedResultSet result) throws Throwable
     {
         if (result != null && !result.isEmpty())

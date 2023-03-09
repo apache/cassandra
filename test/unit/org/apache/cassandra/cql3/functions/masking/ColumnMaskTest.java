@@ -194,29 +194,6 @@ public class ColumnMaskTest extends ColumnMaskTester
     }
 
     @Test
-    public void testColumnMaskingWithNotNativeFunction() throws Throwable
-    {
-        String udf = createFunction(KEYSPACE,
-                                    "text",
-                                    "CREATE FUNCTION %s(k text) " +
-                                    "CALLED ON NULL INPUT " +
-                                    "RETURNS text " +
-                                    "LANGUAGE java AS $$return k;$$");
-
-        // create table
-        assertInvalidMessage(format("User defined function %s() cannot be used for masking table columns", udf),
-                             format("CREATE TABLE %s.%s (k int PRIMARY KEY, v text MASKED WITH %s())",
-                                    keyspace(), createTableName(), udf));
-
-        // alter table
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, v text)");
-        assertInvalidMessage(format("User defined function %s() cannot be used for masking table columns", udf),
-                             format("ALTER TABLE %%s ALTER v MASKED WITH %s()", udf));
-
-        assertTableColumnsAreNotMasked("k", "v");
-    }
-
-    @Test
     @SuppressWarnings("resource")
     public void testPreparedStatement() throws Throwable
     {

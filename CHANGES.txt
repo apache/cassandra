@@ -1,4 +1,5 @@
 4.2
+ * Add support for using UDFs as masking functions (CASSANDRA-18071)
  * Add SELECT_MASKED permission (CASSANDRA-18070)
  * Add UNMASK permission (CASSANDRA-18069)
  * Add masking functions to column metadata (CASSANDRA-18068)

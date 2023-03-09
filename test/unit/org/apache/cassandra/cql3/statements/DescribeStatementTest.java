@@ -961,9 +961,4 @@ public class DescribeStatementTest extends CQLTester
             executeNet(v, "USE " + useKs);
         return v;
     }
-
-    private static Object[][] rows(Object[]... rows)
-    {
-        return rows;
-    }
 }

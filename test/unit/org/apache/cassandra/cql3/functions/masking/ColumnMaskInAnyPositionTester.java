@@ -243,7 +243,10 @@ public abstract class ColumnMaskInAnyPositionTester extends ColumnMaskTester
 
     private String functionName()
     {
-        return mask.equals("DEFAULT") ? "mask_default" : StringUtils.substringBefore(mask, "(");
+        if (mask.equals("DEFAULT"))
+            return "mask_default";
+
+        return StringUtils.remove(StringUtils.substringBefore(mask, "("), KEYSPACE + ".");
     }
 
     private void assertTableColumnsAreMasked(String... columns) throws Throwable
