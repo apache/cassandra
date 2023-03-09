@@ -19,18 +19,14 @@
 package org.apache.cassandra.cql3.functions.masking;
 
 import java.util.Arrays;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.AuthenticationException;
-import com.datastax.driver.core.exceptions.UnauthorizedException;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.awaitility.Awaitility;
-import org.awaitility.core.ThrowingRunnable;
 
 import static java.lang.String.format;
 
@@ -66,6 +62,8 @@ public class UnmaskPermissionTest extends CQLTester
     @BeforeClass
     public static void beforeClass()
     {
+        DatabaseDescriptor.setPermissionsValidity(0);
+        DatabaseDescriptor.setRolesValidity(0);
         CQLTester.setUpClass();
         requireAuthentication();
         requireNetwork();
@@ -102,31 +100,28 @@ public class UnmaskPermissionTest extends CQLTester
     }
 
     @Test
-    public void testUnmaskDefaults()
+    public void testUnmaskDefaults() throws Throwable
     {
-        assertWithAuthSpin(() -> {
+        // ordinary user without changed permissions should see masked data
+        useUser(OTHER_USER, PASSWORD);
+        assertMasked(KEYSPACE_1, TABLE_1);
+        assertMasked(KEYSPACE_1, TABLE_2);
+        assertMasked(KEYSPACE_2, TABLE_1);
 
-            // ordinary user without changed permissions should see masked data
-            useUser(OTHER_USER, PASSWORD);
-            assertMasked(KEYSPACE_1, TABLE_1);
-            assertMasked(KEYSPACE_1, TABLE_2);
-            assertMasked(KEYSPACE_2, TABLE_1);
+        // super user should see unmasked data
+        useSuperUser();
+        assertClear(KEYSPACE_1, TABLE_1);
+        assertClear(KEYSPACE_1, TABLE_2);
+        assertClear(KEYSPACE_2, TABLE_1);
 
-            // super user should see unmasked data
-            useSuperUser();
-            assertClear(KEYSPACE_1, TABLE_1);
-            assertClear(KEYSPACE_1, TABLE_2);
-            assertClear(KEYSPACE_2, TABLE_1);
-
-            // internal user should see unmasked data
-            assertClearInternal(KEYSPACE_1, TABLE_1);
-            assertClearInternal(KEYSPACE_1, TABLE_2);
-            assertClearInternal(KEYSPACE_2, TABLE_1);
-        });
+        // internal user should see unmasked data
+        assertClearInternal(KEYSPACE_1, TABLE_1);
+        assertClearInternal(KEYSPACE_1, TABLE_2);
+        assertClearInternal(KEYSPACE_2, TABLE_1);
     }
 
     @Test
-    public void testUnmaskOnAllKeyspaces()
+    public void testUnmaskOnAllKeyspaces() throws Throwable
     {
         assertPermissions(format("GRANT UNMASK ON ALL KEYSPACES TO %s", USER), () -> {
             assertClear(KEYSPACE_1, TABLE_1);
@@ -142,7 +137,7 @@ public class UnmaskPermissionTest extends CQLTester
     }
 
     @Test
-    public void testUnmaskOnKeyspace()
+    public void testUnmaskOnKeyspace() throws Throwable
     {
         assertPermissions(format("GRANT UNMASK ON KEYSPACE %s TO %s", KEYSPACE_1, USER), () -> {
             assertClear(KEYSPACE_1, TABLE_1);
@@ -158,7 +153,7 @@ public class UnmaskPermissionTest extends CQLTester
     }
 
     @Test
-    public void testUnmaskOnTable()
+    public void testUnmaskOnTable() throws Throwable
     {
         assertPermissions(format("GRANT UNMASK ON TABLE %s.%s TO %s", KEYSPACE_1, TABLE_1, USER), () -> {
             assertClear(KEYSPACE_1, TABLE_1);
@@ -173,51 +168,32 @@ public class UnmaskPermissionTest extends CQLTester
         });
     }
 
-    private void assertPermissions(String alterPermissionsQuery, ThrowingRunnable assertion)
+    private void assertPermissions(String alterPermissionsQuery, ThrowingRunnable assertion) throws Throwable
     {
-        assertWithAuthSpin(() -> {
+        // alter permissions as superuser
+        useSuperUser();
+        executeNet(alterPermissionsQuery);
 
-            // alter permissions as superuser
-            useSuperUser();
-            executeNet(alterPermissionsQuery);
+        // verify the tested user permissions
+        useUser(USER, PASSWORD);
+        assertion.run();
 
-            // verify the tested user permissions
-            useUser(USER, PASSWORD);
-            assertion.run();
+        // the ordinary user without modified permissions should keep seeing masked data
+        useUser(OTHER_USER, PASSWORD);
+        assertMasked(KEYSPACE_1, TABLE_1);
+        assertMasked(KEYSPACE_1, TABLE_2);
+        assertMasked(KEYSPACE_2, TABLE_1);
 
-            // the ordinary user without modified permissions should keep seeing masked data
-            useUser(OTHER_USER, PASSWORD);
-            assertMasked(KEYSPACE_1, TABLE_1);
-            assertMasked(KEYSPACE_1, TABLE_2);
-            assertMasked(KEYSPACE_2, TABLE_1);
+        // super user should keep seeing unmasked data
+        useSuperUser();
+        assertClear(KEYSPACE_1, TABLE_1);
+        assertClear(KEYSPACE_1, TABLE_2);
+        assertClear(KEYSPACE_2, TABLE_1);
 
-            // super user should keep seeing unmasked data
-            useSuperUser();
-            assertClear(KEYSPACE_1, TABLE_1);
-            assertClear(KEYSPACE_1, TABLE_2);
-            assertClear(KEYSPACE_2, TABLE_1);
-
-            // internal user should keep seeing unmasked data
-            assertClearInternal(KEYSPACE_1, TABLE_1);
-            assertClearInternal(KEYSPACE_1, TABLE_2);
-            assertClearInternal(KEYSPACE_2, TABLE_1);
-        });
-    }
-
-    private void assertWithAuthSpin(ThrowingRunnable assertion)
-    {
-        // auth changes can take some time to propagate
-        Awaitility.await().atMost(1, TimeUnit.MINUTES).untilAsserted(() -> {
-            try
-            {
-                assertion.run();
-            }
-            catch (AuthenticationException | UnauthorizedException e)
-            {
-                reinitializeNetwork();
-                throw new AssertionError(e);
-            }
-        });
+        // internal user should keep seeing unmasked data
+        assertClearInternal(KEYSPACE_1, TABLE_1);
+        assertClearInternal(KEYSPACE_1, TABLE_2);
+        assertClearInternal(KEYSPACE_2, TABLE_1);
     }
 
     private void assertMasked(String keyspace, String table) throws Throwable
@@ -236,5 +212,11 @@ public class UnmaskPermissionTest extends CQLTester
     {
         assertRows(execute(format(SELECT_WILDCARD, keyspace, table)), CLEAR_ROW);
         assertRows(execute(format(SELECT_COLUMNS, keyspace, table)), CLEAR_ROW);
+    }
+
+    @FunctionalInterface
+    private interface ThrowingRunnable
+    {
+        void run() throws Throwable;
     }
 }

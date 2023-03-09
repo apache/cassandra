@@ -261,7 +261,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
         int pageSize = options.getPageSize();
-        boolean unmask = state.getClientState().hasUnmaskPermission(table);
+        boolean unmask = !table.hasMaskedColumns() || state.getClientState().hasUnmaskPermission(table);
 
         Selectors selectors = selection.newSelectors(options);
         AggregationSpecification aggregationSpec = getAggregationSpec(options);
@@ -1414,8 +1414,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
             if (!restrictions.keyIsInRelation())
                 return null;
 
-            List<Integer> idToSort = new ArrayList<Integer>(orderingColumns.size());
-            List<Comparator<ByteBuffer>> sorters = new ArrayList<Comparator<ByteBuffer>>(orderingColumns.size());
+            List<Integer> idToSort = new ArrayList<>(orderingColumns.size());
+            List<Comparator<ByteBuffer>> sorters = new ArrayList<>(orderingColumns.size());
 
             for (ColumnMetadata orderingColumn : orderingColumns.keySet())
             {

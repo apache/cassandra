@@ -57,13 +57,13 @@ public final class SimpleSelector extends Selector
     {
         private final int idx;
         private final ColumnMetadata column;
-        private final boolean unmask;
+        private final boolean useForPostOrdering;
 
-        private SimpleSelectorFactory(int idx, ColumnMetadata def, boolean unmask)
+        private SimpleSelectorFactory(int idx, ColumnMetadata def, boolean useForPostOrdering)
         {
             this.idx = idx;
             this.column = def;
-            this.unmask = unmask;
+            this.useForPostOrdering = useForPostOrdering;
         }
 
         @Override
@@ -86,7 +86,7 @@ public final class SimpleSelector extends Selector
         @Override
         public Selector newInstance(QueryOptions options)
         {
-            return new SimpleSelector(column, idx, unmask);
+            return new SimpleSelector(column, idx, useForPostOrdering);
         }
 
         @Override
@@ -119,15 +119,15 @@ public final class SimpleSelector extends Selector
 
     public final ColumnMetadata column;
     private final int idx;
-    private final boolean unmask;
+    private final boolean useForPostOrdering;
     private ByteBuffer current;
     private ColumnTimestamps writetimes;
     private ColumnTimestamps ttls;
     private boolean isSet;
 
-    public static Factory newFactory(final ColumnMetadata def, final int idx, boolean unmask)
+    public static Factory newFactory(final ColumnMetadata def, final int idx, boolean useForPostOrdering)
     {
-        return new SimpleSelectorFactory(idx, def, unmask);
+        return new SimpleSelectorFactory(idx, def, useForPostOrdering);
     }
 
     @Override
@@ -148,10 +148,10 @@ public final class SimpleSelector extends Selector
             /*
             We apply the column mask of the column unless:
             - The column doesn't have a mask
-            - This selector is for a query with ORDER BY post-ordering, indicated by this.unmask
-            - The input row is for a user with UNMASK permission, indicated by input.umask()
+            - This selector is for a query with ORDER BY post-ordering, indicated by this.useForPostOrdering
+            - The input row is for a user with UNMASK permission, indicated by input.unmask()
              */
-            ColumnMask mask = unmask || input.unmask() ? null : column.getMask();
+            ColumnMask mask = useForPostOrdering || input.unmask() ? null : column.getMask();
             ByteBuffer value = input.getValue(idx);
             current = mask == null ? value : mask.mask(input.getProtocolVersion(), value);
         }
@@ -196,12 +196,12 @@ public final class SimpleSelector extends Selector
         return column.name.toString();
     }
 
-    private SimpleSelector(ColumnMetadata column, int idx, boolean unmask)
+    private SimpleSelector(ColumnMetadata column, int idx, boolean useForPostOrdering)
     {
         super(Kind.SIMPLE_SELECTOR);
         this.column = column;
         this.idx = idx;
-        this.unmask = unmask;
+        this.useForPostOrdering = useForPostOrdering;
     }
 
     @Override
