@@ -131,6 +131,7 @@ New features
       `maxTimestamp - minTimestamp`, effectively non-zero for SSTables produced by TimeWindowCompactionStrategy.
     - Added local read/write ratio to tablestats.
     - Added system_views.max_sstable_size and system_views.max_sstable_duration tables.
+    - Added virtual table system_views.snapshots to see all snapshots from CQL shell.
 
 Upgrading
 ---------
