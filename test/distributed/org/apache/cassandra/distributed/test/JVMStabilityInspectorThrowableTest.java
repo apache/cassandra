@@ -19,11 +19,15 @@
 package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -40,6 +44,8 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallab
 import org.apache.cassandra.distributed.shared.AbstractBuilder;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.ForwardingSSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -52,21 +58,46 @@ import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
-public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseImpl
+@RunWith(Parameterized.class)
+public class JVMStabilityInspectorThrowableTest extends TestBaseImpl
 {
-    @Test
-    public void testAbstractLocalAwareExecutorServiceOnIgnoredDiskFailurePolicy() throws Exception
+    private DiskFailurePolicy testPolicy;
+    private boolean testCorrupted;
+    private boolean expectNativeTransportRunning;;
+    private boolean expectGossiperEnabled;
+
+    public JVMStabilityInspectorThrowableTest(DiskFailurePolicy policy, boolean testCorrupted,
+                                              boolean expectNativeTransportRunning, boolean expectGossiperEnabled)
     {
-        test(DiskFailurePolicy.ignore, true, true);
+        this.testPolicy = policy;
+        this.testCorrupted = testCorrupted;
+        this.expectNativeTransportRunning = expectNativeTransportRunning;
+        this.expectGossiperEnabled = expectGossiperEnabled;
+    }
+
+    @Parameterized.Parameters
+    public static Collection<Object[]> generateData()
+    {
+        return Arrays.asList(new Object[][]{
+                             { DiskFailurePolicy.ignore, true, true, true},
+                             { DiskFailurePolicy.stop, true, true,  true},
+                             { DiskFailurePolicy.stop_paranoid, true, false, false},
+                             { DiskFailurePolicy.best_effort, true, true, true},
+                             { DiskFailurePolicy.ignore, false, true, true},
+                             { DiskFailurePolicy.stop, false, false, false},
+                             { DiskFailurePolicy.stop_paranoid, false, false, false},
+                             { DiskFailurePolicy.best_effort, false, true, true}
+                             }
+        );
     }
 
     @Test
-    public void testAbstractLocalAwareExecutorServiceOnStopParanoidDiskFailurePolicy() throws Exception
+    public void testAbstractLocalAwareExecutorServiceOnPolicies() throws Exception
     {
-        test(DiskFailurePolicy.stop_paranoid, false, false);
+        test(testPolicy, testCorrupted, expectNativeTransportRunning, expectGossiperEnabled);
     }
 
-    private static void test(DiskFailurePolicy policy, boolean expectNativeTransportRunning, boolean expectGossiperEnabled) throws Exception
+    private static void test(DiskFailurePolicy policy, boolean shouldTestCorrupted, boolean expectNativeTransportRunning, boolean expectGossiperEnabled) throws Exception
     {
         String table = policy.name();
         try (final Cluster cluster = init(getCluster(policy).start()))
@@ -85,16 +116,16 @@ public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseIm
 
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + "." + table + " (id bigint PRIMARY KEY)");
             node.executeInternal("INSERT INTO " + KEYSPACE + "." + table + " (id) VALUES (?)", 0L);
-            corruptTable(node, KEYSPACE, table);
+            throwThrowable(node, KEYSPACE, table, shouldTestCorrupted);
 
             try
             {
                 cluster.coordinator(1).execute("SELECT * FROM " + KEYSPACE + '.' + table + " WHERE id=?", ConsistencyLevel.ONE, 0L);
-                Assert.fail("Select should fail as we corrupted SSTable on purpose.");
+                Assert.fail("Select should fail as we expect corrupted sstable or FS error.");
             }
             catch (final Exception ex)
             {
-                // we expect that above query fails as we corrupted an sstable
+                // we expect that above query fails as we corrupted an sstable or throw FS error when read
             }
 
             waitForStop(!expectGossiperEnabled, node, new SerializableCallable<Boolean>()
@@ -155,7 +186,7 @@ public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseIm
         }
     }
 
-    private static void corruptTable(IInvokableInstance node, String keyspace, String table)
+    private static void throwThrowable(IInvokableInstance node, String keyspace, String table, boolean shouldTestCorrupted)
     {
         node.runOnInstance(() -> {
             ColumnFamilyStore cf = Keyspace.open(keyspace).getColumnFamilyStore(table);
@@ -164,7 +195,7 @@ public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseIm
             Set<SSTableReader> remove = cf.getLiveSSTables();
             Set<SSTableReader> replace = new HashSet<>();
             for (SSTableReader r : remove)
-                replace.add(new CorruptedSSTableReader(r));
+                replace.add(new CorruptedSSTableReader(r, shouldTestCorrupted));
 
             cf.getTracker().removeUnsafe(remove);
             cf.addSSTables(replace);
@@ -181,26 +212,37 @@ public class JVMStabilityInspectorCorruptSSTableExceptionTest extends TestBaseIm
 
     private static final class CorruptedSSTableReader extends ForwardingSSTableReader
     {
-        public CorruptedSSTableReader(SSTableReader delegate)
+        private boolean shouldThrowCorrupted;
+        public CorruptedSSTableReader(SSTableReader delegate, boolean shouldThrowCorrupted)
         {
             super(delegate);
+            this.shouldThrowCorrupted = shouldThrowCorrupted;
         }
 
         @Override
         public UnfilteredRowIterator iterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed, SSTableReadsListener listener)
         {
-            throw throwCorrupted();
+            if (shouldThrowCorrupted)
+                throw throwCorrupted();
+            throw throwFSError();
         }
 
         @Override
         public UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
         {
-            throw throwCorrupted();
+            if (shouldThrowCorrupted)
+                throw throwCorrupted();
+            throw throwFSError();
         }
 
         private CorruptSSTableException throwCorrupted()
         {
             throw new CorruptSSTableException(new IOException("failed to get position"), descriptor.baseFilename());
+        }
+
+        private FSError throwFSError()
+        {
+            throw new FSReadError(new IOException("failed to get position"), descriptor.baseFilename());
         }
     }
 }
