@@ -128,11 +128,7 @@ public final class CompressionParams
     {
         return !CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.getBoolean()
                ? noCompression()
-               : new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
-                                       DEFAULT_CHUNK_LENGTH,
-                                       calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
-                                       DEFAULT_MIN_COMPRESS_RATIO,
-                                       Collections.emptyMap());
+               : lz4();
     }
     public static CompressionParams noCompression()
     {
