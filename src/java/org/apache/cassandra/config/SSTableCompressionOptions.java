@@ -57,7 +57,7 @@ public class SSTableCompressionOptions
 
         int chunk_length_in_kb = chunk_length.isBlank()
                                  ? CompressionParams.DEFAULT_CHUNK_LENGTH
-                                 : new DataStorageSpec.IntKibibytesBound( this.chunk_length ).toKibibytes();
+                                 : new DataStorageSpec.IntKibibytesBound(this.chunk_length).toKibibytes();
 
         double min_compress_ratio_as_dbl = this.min_compress_ratio == null || this.min_compress_ratio < 0.0
                                            ? CompressionParams.DEFAULT_MIN_COMPRESS_RATIO : this.min_compress_ratio;
@@ -72,9 +72,9 @@ public class SSTableCompressionOptions
             case snappy:
                return CompressionParams.snappy(chunk_length_in_kb, min_compress_ratio_as_dbl);
             case deflate:
-                return CompressionParams.deflate( chunk_length_in_kb );
+                return CompressionParams.deflate(chunk_length_in_kb);
             case zstd:
-                return CompressionParams.zstd( chunk_length_in_kb );
+                return CompressionParams.zstd(chunk_length_in_kb);
             case custom:
                 if (compressor == null)
                 {
@@ -87,7 +87,7 @@ public class SSTableCompressionOptions
                 CompressionParams cp = new CompressionParams(compressor.class_name,
                                              compressor.parameters == null ? Collections.emptyMap() : compressor.parameters,
                                              chunk_length_in_kb,
-                                             min_compress_ratio_as_dbl );
+                                             min_compress_ratio_as_dbl);
                 if (cp.getSstableCompressor() == null)
                 {
                     throw new ConfigurationException(format("Missing '%s' is not a valid compressor class name.", compressor.class_name));
