@@ -1046,7 +1046,7 @@ public class Config
     public volatile boolean top_partitions_enabled = true;
 
     @Nullable
-    public ParameterizedClass sstable_compressor;
+    public SSTableCompressionOptions sstable_compressor;
 
     public static Supplier<Config> getOverrideLoadConfig()
     {
@@ -1135,6 +1135,17 @@ public class Config
         disabled,
         warn,
         exception
+    }
+
+    public enum CompressorType
+    {
+        lz4,
+        none,
+        noop,
+        snappy,
+        deflate,
+        zstd,
+        custom,
     }
 
     private static final Set<String> SENSITIVE_KEYS = new HashSet<String>() {{

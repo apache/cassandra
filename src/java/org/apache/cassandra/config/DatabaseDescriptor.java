@@ -909,7 +909,7 @@ public class DatabaseDescriptor
         if (conf.paxos_state_purging == null)
             conf.paxos_state_purging = PaxosStatePurging.legacy;
 
-        sstableCompression = conf.sstable_compressor != null ? CompressionParams.fromParameterizedClass(conf.sstable_compressor) : CompressionParams.defaultCompression();
+        sstableCompression = conf.sstable_compressor != null ? conf.sstable_compressor.getCompressionParams() : CompressionParams.defaultCompression();
 
         logInitializationOutcome(logger);
     }
@@ -4405,7 +4405,8 @@ public class DatabaseDescriptor
         conf.min_tracked_partition_tombstone_count = value;
     }
 
-    public static CompressionParams getSstableCompression() {
+    public static CompressionParams getSSTableCompression()
+    {
         return sstableCompression;
     }
 
