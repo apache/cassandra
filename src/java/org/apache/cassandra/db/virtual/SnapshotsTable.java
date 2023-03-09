@@ -18,16 +18,20 @@
 
 package org.apache.cassandra.db.virtual;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.TimeZone;
 import javax.management.openmbean.TabularData;
 import javax.management.openmbean.TabularDataSupport;
+
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.db.SnapshotDetailsTabularData;
 import org.apache.cassandra.db.marshal.BooleanType;
-import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
@@ -40,9 +44,11 @@ public class SnapshotsTable extends AbstractVirtualTable
     private static final String TABLE_NAME = "table_name";
     private static final String TRUE_SIZE = "true_size";
     private static final String SIZE_ON_DISK = "size_on_disk";
-    private static final String CREATE_TIME = "created_at";
-    private static final String EXPIRATION_TIME = "expires_at";
+    private static final String CREATED_AT = "created_at";
+    private static final String EXPIRES_AT = "expires_at";
     private static final String EPHEMERAL = "ephemeral";
+
+    private final DateFormat df;
 
     SnapshotsTable(String keyspace)
     {
@@ -53,12 +59,15 @@ public class SnapshotsTable extends AbstractVirtualTable
                            .addPartitionKeyColumn(ID, UTF8Type.instance)
                            .addClusteringColumn(KEYSPACE_NAME, UTF8Type.instance)
                            .addClusteringColumn(TABLE_NAME, UTF8Type.instance)
-                           .addRegularColumn(TRUE_SIZE, LongType.instance)
-                           .addRegularColumn(SIZE_ON_DISK, LongType.instance)
-                           .addRegularColumn(CREATE_TIME, UTF8Type.instance)
-                           .addRegularColumn(EXPIRATION_TIME, UTF8Type.instance)
+                           .addRegularColumn(TRUE_SIZE, UTF8Type.instance)
+                           .addRegularColumn(SIZE_ON_DISK, UTF8Type.instance)
+                           .addRegularColumn(CREATED_AT, TimestampType.instance)
+                           .addRegularColumn(EXPIRES_AT, TimestampType.instance)
                            .addRegularColumn(EPHEMERAL, BooleanType.instance)
                            .build());
+
+        df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'");
+        df.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
     @Override
@@ -67,27 +76,47 @@ public class SnapshotsTable extends AbstractVirtualTable
         SimpleDataSet result = new SimpleDataSet(metadata());
 
         // include snapshots with ttl and ephemeral
-        Map<String, TabularData> snapshotDetails = StorageService.instance.getSnapshotDetails(ImmutableMap.of("no_ttl", "false", "include_ephemeral", "true"));
-        for (Map.Entry<String, TabularData> entry : snapshotDetails.entrySet())
+        Map<String, String> options = ImmutableMap.of("no_ttl", "false", "include_ephemeral", "true");
+        Map<String, TabularData> snapshotDetails = StorageService.instance.getSnapshotDetails(options);
+
+        for (Map.Entry<String, TabularData> snapshotDetailsEntry : snapshotDetails.entrySet())
         {
-            String snapshotName = entry.getKey();
-            TabularDataSupport snapInfo = (TabularDataSupport) entry.getValue();
-            assert snapInfo.getTabularType() == SnapshotDetailsTabularData.TABULAR_TYPE;
-            Set<?> values = entry.getValue().keySet();
-            for (Object eachValue : values)
+            String snapshotName = snapshotDetailsEntry.getKey();
+            TabularDataSupport snapshotDetail = (TabularDataSupport) snapshotDetailsEntry.getValue();
+            assert snapshotDetail.getTabularType() == SnapshotDetailsTabularData.TABULAR_TYPE;
+
+            for (Object eachValue : snapshotDetail.keySet())
             {
-                final List<?> value = (List<?>) eachValue;
-                assert value != null && value.size() == 8 : "snapshot info must have 8 elements";
-                String[] rowValue = value.toArray(new String[value.size()]);
+                List<?> value = (List<?>) eachValue;
+                assert value != null && value.size() == 8 : "snapshot detail must have 8 elements";
+                Object[] rowValue = value.toArray();
+
+                Date createdAt = parseTimestamp((String) rowValue[5]);
+                Date expiresAt = parseTimestamp((String) rowValue[6]);
+
                 result.row(snapshotName, rowValue[1], rowValue[2])
                       .column(TRUE_SIZE, rowValue[3])
                       .column(SIZE_ON_DISK, rowValue[4])
-                      .column(CREATE_TIME, rowValue[5])
-                      .column(EXPIRATION_TIME, rowValue[6])
-                      .column(EPHEMERAL, Boolean.valueOf(rowValue[7]));
+                      .column(CREATED_AT, createdAt)
+                      .column(EXPIRES_AT, expiresAt)
+                      .column(EPHEMERAL, Boolean.valueOf((String) rowValue[7]));
             }
         }
 
         return result;
+    }
+
+    private Date parseTimestamp(String timestamp)
+    {
+        if (timestamp == null)
+            return null;
+        try
+        {
+            return df.parse(timestamp);
+        }
+        catch (Exception ex)
+        {
+            throw new IllegalStateException(String.format("Unable to parse timestamp %s", timestamp), ex);
+        }
     }
 }

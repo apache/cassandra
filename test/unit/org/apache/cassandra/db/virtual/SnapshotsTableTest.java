@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.virtual;
 
 import java.time.Instant;
+import java.util.Date;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.After;
@@ -32,10 +33,10 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 public class SnapshotsTableTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
-    private final String SNAPSHOT_TTL = "snapshotTtl";
-    private final String SNAPSHOT_NO_TTL = "snapshotNoTtl";
-    private final String SNAPSHOT_EPHEMERAL = "snapshotEphemeral";
-    private final DurationSpec.IntSecondsBound ttl = new DurationSpec.IntSecondsBound ("4h");
+    private static final String SNAPSHOT_TTL = "snapshotTtl";
+    private static final String SNAPSHOT_NO_TTL = "snapshotNoTtl";
+    private static final String SNAPSHOT_EPHEMERAL = "snapshotEphemeral";
+    private static final DurationSpec.IntSecondsBound ttl = new DurationSpec.IntSecondsBound("4h");
 
     @Before
     public void before() throws Throwable
@@ -44,10 +45,10 @@ public class SnapshotsTableTest extends CQLTester
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
 
         createTable("CREATE TABLE %s (pk int, ck int, PRIMARY KEY (pk, ck))");
+
         for (int i = 0; i != 10; ++i)
-        {
             execute("INSERT INTO %s (pk, ck) VALUES (?, ?)", i, i);
-        }
+
         flush();
     }
 
@@ -63,34 +64,36 @@ public class SnapshotsTableTest extends CQLTester
     @Test
     public void testSnapshots() throws Throwable
     {
-        Instant createTime = Instant.now();
-        String createTimeStr = createTime.toString();
-        snapshot(SNAPSHOT_NO_TTL, createTime);
-        snapshot(SNAPSHOT_TTL, ttl, createTime);
-        snapshot(SNAPSHOT_EPHEMERAL, true, null, createTime);
+        Instant now = Instant.now();
+        Date createdAt = new Date(now.toEpochMilli());
+        Date expiresAt = new Date(now.plusSeconds(ttl.toSeconds()).toEpochMilli());
+
+        snapshot(SNAPSHOT_NO_TTL, now);
+        snapshot(SNAPSHOT_TTL, ttl, now);
+        snapshot(SNAPSHOT_EPHEMERAL, true, null, now);
 
         // query all from snapshots virtual table
         UntypedResultSet result = execute("SELECT id, keyspace_name, table_name, created_at, expires_at, ephemeral FROM vts.snapshots");
         assertRows(result,
-                   row(SNAPSHOT_EPHEMERAL, CQLTester.KEYSPACE, currentTable(), createTimeStr, null, true),
-                   row(SNAPSHOT_NO_TTL, CQLTester.KEYSPACE, currentTable(), createTimeStr, null, false),
-                   row(SNAPSHOT_TTL, CQLTester.KEYSPACE, currentTable(), createTimeStr, createTime.plusSeconds(ttl.toSeconds()).toString(), false));
+                   row(SNAPSHOT_EPHEMERAL, CQLTester.KEYSPACE, currentTable(), createdAt, null, true),
+                   row(SNAPSHOT_NO_TTL, CQLTester.KEYSPACE, currentTable(), createdAt, null, false),
+                   row(SNAPSHOT_TTL, CQLTester.KEYSPACE, currentTable(), createdAt, expiresAt, false));
 
         // query with conditions
-        result = execute("SELECT id, keyspace_name, table_name, created_at, expires_at, ephemeral FROM vts.snapshots where ephemeral = true ");
+        result = execute("SELECT id, keyspace_name, table_name, created_at, expires_at, ephemeral FROM vts.snapshots where ephemeral = true");
         assertRows(result,
-                   row(SNAPSHOT_EPHEMERAL, CQLTester.KEYSPACE, currentTable(), createTimeStr, null, true));
+                   row(SNAPSHOT_EPHEMERAL, CQLTester.KEYSPACE, currentTable(), createdAt, null, true));
 
         result = execute("SELECT id, keyspace_name, table_name, created_at, expires_at, ephemeral FROM vts.snapshots where id = ?", SNAPSHOT_TTL);
         assertRows(result,
-                   row(SNAPSHOT_TTL, CQLTester.KEYSPACE, currentTable(), createTimeStr, createTime.plusSeconds(ttl.toSeconds()).toString(), false));
+                   row(SNAPSHOT_TTL, CQLTester.KEYSPACE, currentTable(), createdAt, expiresAt, false));
 
         // clear some snapshots
         clearSnapshot(SNAPSHOT_NO_TTL, CQLTester.KEYSPACE);
 
         result = execute("SELECT id, keyspace_name, table_name, created_at, expires_at, ephemeral FROM vts.snapshots");
         assertRows(result,
-                   row(SNAPSHOT_EPHEMERAL, CQLTester.KEYSPACE, currentTable(), createTimeStr, null, true),
-                   row(SNAPSHOT_TTL, CQLTester.KEYSPACE, currentTable(), createTimeStr, createTime.plusSeconds(ttl.toSeconds()).toString(), false));
+                   row(SNAPSHOT_EPHEMERAL, CQLTester.KEYSPACE, currentTable(), createdAt, null, true),
+                   row(SNAPSHOT_TTL, CQLTester.KEYSPACE, currentTable(), createdAt, expiresAt, false));
     }
 }
