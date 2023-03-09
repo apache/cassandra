@@ -113,6 +113,7 @@
  * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
 Merged from 4.1:
+ * Fix too early schema version change in system local table (CASSANDRA-18291)
  * Fix copying of JAR of a trigger to temporary file (CASSANDRA-18264)
  * Fix possible NoSuchFileException when removing a snapshot (CASSANDRA-18211)
  * PaxosPrepare may add instances to the Electorate that are not in gossip (CASSANDRA-18194)
