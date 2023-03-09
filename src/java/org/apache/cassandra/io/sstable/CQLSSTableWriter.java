@@ -557,7 +557,7 @@ public class CQLSSTableWriter implements Closeable
             Preconditions.checkState(Sets.difference(SchemaConstants.LOCAL_SYSTEM_KEYSPACE_NAMES, Schema.instance.getKeyspaces()).isEmpty(),
                                      "Local keyspaces were not loaded. If this is running as a client, please make sure to add %s=true system property.",
                                      CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.getKey());
-            synchronized (CQLSSTableWriter.class)
+            synchronized (Schema.instance)
             {
 
                 String keyspaceName = schemaStatement.keyspace();
