@@ -89,6 +89,7 @@ public class Schema implements SchemaProvider
     public static final Schema instance = new Schema();
 
     private volatile Keyspaces distributedKeyspaces = Keyspaces.none();
+    private volatile Keyspaces distributedAndLocalKeyspaces;
 
     private final Keyspaces localKeyspaces;
 
@@ -120,6 +121,7 @@ public class Schema implements SchemaProvider
         this.localKeyspaces = (CassandraRelevantProperties.FORCE_LOAD_LOCAL_KEYSPACES.getBoolean() || isDaemonInitialized() || isToolInitialized())
                               ? Keyspaces.of(SchemaKeyspace.metadata(), SystemKeyspace.metadata())
                               : Keyspaces.none();
+        this.distributedAndLocalKeyspaces = this.localKeyspaces;
 
         this.localKeyspaces.forEach(this::loadNew);
         this.updateHandler = SchemaUpdateHandlerFactoryProvider.instance.get().getSchemaUpdateHandler(online, this::mergeAndUpdateVersion);
@@ -130,6 +132,7 @@ public class Schema implements SchemaProvider
     {
         this.online = online;
         this.localKeyspaces = localKeyspaces;
+        this.distributedAndLocalKeyspaces = this.localKeyspaces;
         this.updateHandler = updateHandler;
     }
 
@@ -171,6 +174,7 @@ public class Schema implements SchemaProvider
             reload(previous, ksm);
 
         distributedKeyspaces = distributedKeyspaces.withAddedOrUpdated(ksm);
+        distributedAndLocalKeyspaces = distributedAndLocalKeyspaces.withAddedOrUpdated(ksm);
     }
 
     private synchronized void loadNew(KeyspaceMetadata ksm)
@@ -259,18 +263,9 @@ public class Schema implements SchemaProvider
         }
     }
 
-    /**
-     * @deprecated use {@link #distributedAndLocalKeyspaces()}
-     */
-    @Deprecated
-    public Keyspaces snapshot()
-    {
-        return distributedAndLocalKeyspaces();
-    }
-
     public Keyspaces distributedAndLocalKeyspaces()
     {
-        return Keyspaces.builder().add(localKeyspaces).add(distributedKeyspaces).build();
+        return distributedAndLocalKeyspaces;
     }
 
     public Keyspaces distributedKeyspaces()
@@ -299,6 +294,7 @@ public class Schema implements SchemaProvider
     private synchronized void unload(KeyspaceMetadata ksm)
     {
         distributedKeyspaces = distributedKeyspaces.without(ksm.name);
+        distributedAndLocalKeyspaces = distributedAndLocalKeyspaces.without(ksm.name);
 
         this.tableMetadataRefCache = tableMetadataRefCache.withRemovedRefs(ksm);
 
@@ -606,12 +602,12 @@ public class Schema implements SchemaProvider
     @VisibleForTesting
     public synchronized void mergeAndUpdateVersion(SchemaTransformationResult result, boolean dropData)
     {
-        if (online)
-            SystemKeyspace.updateSchemaVersion(result.after.getVersion());
         result = localDiff(result);
         schemaChangeNotifier.notifyPreChanges(result);
         merge(result.diff, dropData);
         updateVersion(result.after.getVersion());
+        if (online)
+            SystemKeyspace.updateSchemaVersion(result.after.getVersion());
     }
 
     public SchemaTransformationResult transform(SchemaTransformation transformation)
