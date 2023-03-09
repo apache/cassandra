@@ -19,7 +19,6 @@
 package org.apache.cassandra.config;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Map;
@@ -45,7 +44,7 @@ public class SSTableCompressonOptionsTest
     private SSTableCompressionOptions options = new SSTableCompressionOptions();
     private CompressionParams params;
 
-    private void assertParams( boolean enabled, int chunk_length, Class<?> compressor)
+    private void assertParams(boolean enabled, int chunk_length, Class<?> compressor)
     {
         assertThat(enabled).isEqualTo(  params.isEnabled() );
         assertThat(chunk_length).isEqualTo(  params.chunkLength() );
@@ -62,22 +61,22 @@ public class SSTableCompressonOptionsTest
     public void defaultTest()
     {
         params = options.getCompressionParams();
-        assertParams( true, CompressionParams.DEFAULT_CHUNK_LENGTH, LZ4Compressor.class);
+        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, LZ4Compressor.class);
     }
 
     @Test
     public void lz4Test() {
         options.type = Config.CompressorType.lz4;
         params = options.getCompressionParams();
-        assertParams( true, CompressionParams.DEFAULT_CHUNK_LENGTH, LZ4Compressor.class);
+        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, LZ4Compressor.class);
 
         options.chunk_length = "5MiB";
         params = options.getCompressionParams();
-        assertParams( true, 5 * 1024, LZ4Compressor.class);
+        assertParams(true, 5 * 1024, LZ4Compressor.class);
 
         options.enabled = false;
         params = options.getCompressionParams();
-        assertParams( false, CompressionParams.DEFAULT_CHUNK_LENGTH, null );
+        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
     }
 
     @Test
@@ -85,16 +84,16 @@ public class SSTableCompressonOptionsTest
         options.type = Config.CompressorType.none;
         params = options.getCompressionParams();
         // none is noever enabled.
-        assertParams( false, CompressionParams.DEFAULT_CHUNK_LENGTH, null );
+        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null );
 
         options.chunk_length = "5MiB";
         params = options.getCompressionParams();
         // none does not set chunk length
-        assertParams( false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
+        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
 
         options.enabled = false;
         params = options.getCompressionParams();
-        assertParams( false, CompressionParams.DEFAULT_CHUNK_LENGTH, null );
+        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
 
     }
 
@@ -107,11 +106,11 @@ public class SSTableCompressonOptionsTest
         options.chunk_length = "5MiB";
         params = options.getCompressionParams();
         // noop does not set chunk length
-        assertParams( true, CompressionParams.DEFAULT_CHUNK_LENGTH, NoopCompressor.class);
+        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, NoopCompressor.class);
 
         options.enabled = false;
         params = options.getCompressionParams();
-        assertParams( false, CompressionParams.DEFAULT_CHUNK_LENGTH, null );
+        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
     }
 
     @Test
@@ -122,14 +121,14 @@ public class SSTableCompressonOptionsTest
 
         options.chunk_length = "5MiB";
         params = options.getCompressionParams();
-        assertParams( true, 5 * 1024, SnappyCompressor.class);
+        assertParams(true, 5 * 1024, SnappyCompressor.class);
 
         params = options.getCompressionParams();
-        assertParams( true, 5 * 1024, SnappyCompressor.class);
+        assertParams(true, 5 * 1024, SnappyCompressor.class);
 
         options.enabled = false;
         params = options.getCompressionParams();
-        assertParams( false, CompressionParams.DEFAULT_CHUNK_LENGTH, null );
+        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
     }
 
     @Test
@@ -140,11 +139,11 @@ public class SSTableCompressonOptionsTest
 
         options.chunk_length = "5MiB";
         params = options.getCompressionParams();
-        assertParams( true, 5 * 1024, DeflateCompressor.class);
+        assertParams(true, 5 * 1024, DeflateCompressor.class);
 
         options.enabled = false;
         params = options.getCompressionParams();
-        assertParams( false, CompressionParams.DEFAULT_CHUNK_LENGTH, null );
+        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
     }
 
     @Test
@@ -155,11 +154,11 @@ public class SSTableCompressonOptionsTest
 
         options.chunk_length = "5MiB";
         params = options.getCompressionParams();
-        assertParams( true, 5 * 1024, ZstdCompressor.class);
+        assertParams(true, 5 * 1024, ZstdCompressor.class);
 
         options.enabled = false;
         params = options.getCompressionParams();
-        assertParams( false, CompressionParams.DEFAULT_CHUNK_LENGTH, null );
+        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
     }
 
     @Test
@@ -171,11 +170,11 @@ public class SSTableCompressonOptionsTest
 
         options.chunk_length = "5MiB";
         params = options.getCompressionParams();
-        assertParams( true, 5 * 1024, TestCompressor.class);
+        assertParams(true, 5 * 1024, TestCompressor.class);
 
         options.enabled = false;
         params = options.getCompressionParams();
-        assertParams( false, CompressionParams.DEFAULT_CHUNK_LENGTH, null );
+        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
         options.enabled = true;
 
         options.compressor = new ParameterizedClass("", Collections.emptyMap() );
