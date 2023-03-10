@@ -729,11 +729,8 @@ public abstract class CQLTester
 
     public void snapshot(String snapshotName, boolean ephemeral, boolean skipMemtable, DurationSpec.IntSecondsBound ttl, RateLimiter rateLimiter, Instant creationTime)
     {
-        ColumnFamilyStore store = getCurrentColumnFamilyStore();
-        if(store != null)
-        {
-            store.snapshot(snapshotName, null, ephemeral, skipMemtable, ttl, rateLimiter, creationTime);
-        }
+        Optional.ofNullable(getCurrentColumnFamilyStore())
+                .map(cfs -> cfs.snapshot(snapshotName, null, ephemeral, skipMemtable, ttl, rateLimiter, creationTime));
     }
 
     public void clearSnapshotForKeyspace(String keyspace)
