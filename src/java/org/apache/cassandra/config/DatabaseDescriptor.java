@@ -130,6 +130,7 @@ public class DatabaseDescriptor
     private static final int MAX_NUM_TOKENS = 1536;
 
     private static Config conf;
+    private static ConfigPropertyRegistry confRegistry;
 
     /**
      * Request timeouts can not be less than below defined value (see CASSANDRA-9375)
@@ -255,6 +256,8 @@ public class DatabaseDescriptor
 
         setConfig(loadConfig());
 
+        applyConfigurationConstraints();
+
         applySSTableFormats();
 
         applySimpleConfig();
@@ -339,6 +342,11 @@ public class DatabaseDescriptor
         return conf;
     }
 
+    public static ConfigPropertyRegistry getConfigRegistry()
+    {
+        return confRegistry;
+    }
+
     @VisibleForTesting
     public static Config loadConfig() throws ConfigurationException
     {
@@ -393,10 +401,13 @@ public class DatabaseDescriptor
     private static void setConfig(Config config)
     {
         conf = config;
+        confRegistry = new ConfigPropertyRegistry(() -> config);
     }
 
     private static void applyAll() throws ConfigurationException
     {
+        applyConfigurationConstraints();
+
         //InetAddressAndPort cares that applySimpleConfig runs first
         applySSTableFormats();
 
@@ -1407,6 +1418,11 @@ public class DatabaseDescriptor
         return sstableFormatFactories.build();
     }
 
+    private static void applyConfigurationConstraints()
+    {
+        confRegistry.addPropertyValidator(ConfigFields.DEFAULT_KEYSPACE_RF, DatabaseDescriptor::defaultKeyspaceRFValidator, Integer.TYPE);
+    }
+
     private static void applySSTableFormats()
     {
         if (sstableFormatFactories != null)
@@ -1962,12 +1978,12 @@ public class DatabaseDescriptor
 
     public static long getRepairRpcTimeout(TimeUnit unit)
     {
-        return ((DurationSpec.LongMillisecondsBound) ConfigPropertyRegistry.instance.get(ConfigFields.REPAIR_REQUEST_TIMEOUT)).to(unit);
+        return ((DurationSpec.LongMillisecondsBound) confRegistry.get(ConfigFields.REPAIR_REQUEST_TIMEOUT)).to(unit);
     }
 
     public static void setRepairRpcTimeout(Long timeOutInMillis)
     {
-        ConfigPropertyRegistry.instance.set(ConfigFields.REPAIR_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
+        confRegistry.set(ConfigFields.REPAIR_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static boolean hasCrossNodeTimeout()
@@ -2434,22 +2450,22 @@ public class DatabaseDescriptor
 
     public static int getTombstoneWarnThreshold()
     {
-        return conf.tombstone_warn_threshold;
+        return confRegistry.get(ConfigFields.TOMBSTONE_WARN_THRESHOLD);
     }
 
     public static void setTombstoneWarnThreshold(int threshold)
     {
-        conf.tombstone_warn_threshold = threshold;
+        confRegistry.set(ConfigFields.TOMBSTONE_WARN_THRESHOLD, threshold);
     }
 
     public static int getTombstoneFailureThreshold()
     {
-        return conf.tombstone_failure_threshold;
+        return confRegistry.get(ConfigFields.TOMBSTONE_FAILURE_THRESHOLD);
     }
 
     public static void setTombstoneFailureThreshold(int threshold)
     {
-        conf.tombstone_failure_threshold = threshold;
+        confRegistry.set(ConfigFields.TOMBSTONE_FAILURE_THRESHOLD, threshold);
     }
 
     public static int getCachedReplicaRowsWarnThreshold()
@@ -3799,22 +3815,22 @@ public class DatabaseDescriptor
 
     public static boolean getCDCBlockWrites()
     {
-        return ConfigPropertyRegistry.instance.get(ConfigFields.CDC_BLOCK_WRITES);
+        return confRegistry.get(ConfigFields.CDC_BLOCK_WRITES);
     }
 
     public static void setCDCBlockWrites(boolean val)
     {
-        ConfigPropertyRegistry.instance.set(ConfigFields.CDC_BLOCK_WRITES, val);
+        confRegistry.set(ConfigFields.CDC_BLOCK_WRITES, val);
     }
 
     public static boolean isCDCOnRepairEnabled()
     {
-        return ConfigPropertyRegistry.instance.get(ConfigFields.CDC_ON_REPAIR_ENABLED);
+        return confRegistry.get(ConfigFields.CDC_ON_REPAIR_ENABLED);
     }
 
     public static void setCDCOnRepairEnabled(boolean val)
     {
-        ConfigPropertyRegistry.instance.set(ConfigFields.CDC_ON_REPAIR_ENABLED, val);
+        confRegistry.set(ConfigFields.CDC_ON_REPAIR_ENABLED, val);
     }
 
     public static String getCDCLogLocation()
@@ -3866,12 +3882,12 @@ public class DatabaseDescriptor
 
     public static ConsistencyLevel getIdealConsistencyLevel()
     {
-        return conf.ideal_consistency_level;
+        return confRegistry.get(ConfigFields.IDEAL_CONSISTENCY_LEVEL);
     }
 
     public static void setIdealConsistencyLevel(ConsistencyLevel cl)
     {
-        conf.ideal_consistency_level = cl;
+        confRegistry.set(ConfigFields.IDEAL_CONSISTENCY_LEVEL, cl);
     }
 
     public static int getRepairCommandPoolSize()
@@ -4319,112 +4335,108 @@ public class DatabaseDescriptor
 
     public static boolean getReadThresholdsEnabled()
     {
-        return conf.read_thresholds_enabled;
+        return confRegistry.get(ConfigFields.READ_THRESHOLDS_ENABLED);
     }
 
     public static void setReadThresholdsEnabled(boolean value)
     {
-        if (conf.read_thresholds_enabled != value)
-        {
-            conf.read_thresholds_enabled = value;
-            logger.info("updated read_thresholds_enabled to {}", value);
-        }
+        confRegistry.set(ConfigFields.READ_THRESHOLDS_ENABLED, value);
     }
 
     @Nullable
     public static DataStorageSpec.LongBytesBound getCoordinatorReadSizeWarnThreshold()
     {
-        return conf.coordinator_read_size_warn_threshold;
+        return confRegistry.get(ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD);
     }
 
     public static void setCoordinatorReadSizeWarnThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        logger.info("updating  coordinator_read_size_warn_threshold to {}", value);
-        conf.coordinator_read_size_warn_threshold = value;
+        confRegistry.set(ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD, value);
     }
 
     @Nullable
     public static DataStorageSpec.LongBytesBound getCoordinatorReadSizeFailThreshold()
     {
-        return conf.coordinator_read_size_fail_threshold;
+        return confRegistry.get(ConfigFields.COORDINATOR_READ_SIZE_FAIL_THRESHOLD);
     }
 
     public static void setCoordinatorReadSizeFailThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        logger.info("updating  coordinator_read_size_fail_threshold to {}", value);
-        conf.coordinator_read_size_fail_threshold = value;
+        confRegistry.set(ConfigFields.COORDINATOR_READ_SIZE_FAIL_THRESHOLD, value);
     }
 
     @Nullable
     public static DataStorageSpec.LongBytesBound getLocalReadSizeWarnThreshold()
     {
-        return conf.local_read_size_warn_threshold;
+        return confRegistry.get(ConfigFields.LOCAL_READ_SIZE_WARN_THRESHOLD);
     }
 
     public static void setLocalReadSizeWarnThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        logger.info("updating  local_read_size_warn_threshold to {}", value);
-        conf.local_read_size_warn_threshold = value;
+        confRegistry.set(ConfigFields.LOCAL_READ_SIZE_WARN_THRESHOLD, value);
     }
 
     @Nullable
     public static DataStorageSpec.LongBytesBound getLocalReadSizeFailThreshold()
     {
-        return conf.local_read_size_fail_threshold;
+        return confRegistry.get(ConfigFields.LOCAL_READ_SIZE_FAIL_THRESHOLD);
     }
 
     public static void setLocalReadSizeFailThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        logger.info("updating  local_read_size_fail_threshold to {}", value);
-        conf.local_read_size_fail_threshold = value;
+        confRegistry.set(ConfigFields.LOCAL_READ_SIZE_FAIL_THRESHOLD, value);
     }
 
     @Nullable
     public static DataStorageSpec.LongBytesBound getRowIndexReadSizeWarnThreshold()
     {
-        return conf.row_index_read_size_warn_threshold;
+        return confRegistry.get(ConfigFields.ROW_INDEX_READ_SIZE_WARN_THRESHOLD);
     }
 
     public static void setRowIndexReadSizeWarnThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        logger.info("updating  row_index_size_warn_threshold to {}", value);
-        conf.row_index_read_size_warn_threshold = value;
+        confRegistry.set(ConfigFields.ROW_INDEX_READ_SIZE_WARN_THRESHOLD, value);
     }
 
     @Nullable
     public static DataStorageSpec.LongBytesBound getRowIndexReadSizeFailThreshold()
     {
-        return conf.row_index_read_size_fail_threshold;
+        return confRegistry.get(ConfigFields.ROW_INDEX_READ_SIZE_FAIL_THRESHOLD);
     }
 
     public static void setRowIndexReadSizeFailThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        logger.info("updating  row_index_read_size_fail_threshold to {}", value);
-        conf.row_index_read_size_fail_threshold = value;
+        confRegistry.set(ConfigFields.ROW_INDEX_READ_SIZE_FAIL_THRESHOLD, value);
+
     }
 
-    public static int getDefaultKeyspaceRF() { return conf.default_keyspace_rf; }
+    public static int getDefaultKeyspaceRF()
+    {
+        return confRegistry.get(ConfigFields.DEFAULT_KEYSPACE_RF);
+    }
 
     public static void setDefaultKeyspaceRF(int value) throws IllegalArgumentException
     {
-        if (value < 1)
+        confRegistry.set(ConfigFields.DEFAULT_KEYSPACE_RF, value);
+    }
+
+    public static void defaultKeyspaceRFValidator(int oldValue, int newValue) throws IllegalArgumentException
+    {
+        if (newValue < 1)
         {
             throw new IllegalArgumentException("default_keyspace_rf cannot be less than 1");
         }
 
-        if (value < guardrails.getMinimumReplicationFactorFailThreshold())
+        if (newValue < guardrails.getMinimumReplicationFactorFailThreshold())
         {
-            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_replication_factor_fail_threshold (%d)", value, guardrails.getMinimumReplicationFactorFailThreshold()));
+            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_replication_factor_fail_threshold (%d)", newValue, guardrails.getMinimumReplicationFactorFailThreshold()));
         }
 
-        if (guardrails.getMaximumReplicationFactorFailThreshold() != -1 && value > guardrails.getMaximumReplicationFactorFailThreshold())
+        if (guardrails.getMaximumReplicationFactorFailThreshold() != -1 && newValue > guardrails.getMaximumReplicationFactorFailThreshold())
         {
-            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be greater than maximum_replication_factor_fail_threshold (%d)", value, guardrails.getMaximumReplicationFactorFailThreshold()));
+            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be greater than maximum_replication_factor_fail_threshold (%d)", newValue, guardrails.getMaximumReplicationFactorFailThreshold()));
         }
-
-        conf.default_keyspace_rf = value;
     }
-
 
     public static boolean getUseStatementsEnabled()
     {

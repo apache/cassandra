@@ -514,16 +514,25 @@ public class Config
 
     public MemtableAllocationType memtable_allocation_type = MemtableAllocationType.heap_buffers;
 
-    public volatile boolean read_thresholds_enabled = false;
-    public volatile DataStorageSpec.LongBytesBound coordinator_read_size_warn_threshold = null;
-    public volatile DataStorageSpec.LongBytesBound coordinator_read_size_fail_threshold = null;
-    public volatile DataStorageSpec.LongBytesBound local_read_size_warn_threshold = null;
-    public volatile DataStorageSpec.LongBytesBound local_read_size_fail_threshold = null;
-    public volatile DataStorageSpec.LongBytesBound row_index_read_size_warn_threshold = null;
-    public volatile DataStorageSpec.LongBytesBound row_index_read_size_fail_threshold = null;
+    @Mutable
+    public boolean read_thresholds_enabled = false;
+    @Mutable
+    public DataStorageSpec.LongBytesBound coordinator_read_size_warn_threshold = null;
+    @Mutable
+    public DataStorageSpec.LongBytesBound coordinator_read_size_fail_threshold = null;
+    @Mutable
+    public DataStorageSpec.LongBytesBound local_read_size_warn_threshold = null;
+    @Mutable
+    public DataStorageSpec.LongBytesBound local_read_size_fail_threshold = null;
+    @Mutable
+    public DataStorageSpec.LongBytesBound row_index_read_size_warn_threshold = null;
+    @Mutable
+    public DataStorageSpec.LongBytesBound row_index_read_size_fail_threshold = null;
 
-    public volatile int tombstone_warn_threshold = 1000;
-    public volatile int tombstone_failure_threshold = 100000;
+    @Mutable
+    public int tombstone_warn_threshold = 1000;
+    @Mutable
+    public int tombstone_failure_threshold = 100000;
 
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
@@ -548,7 +557,8 @@ public class Config
      * Maintain statistics on whether writes achieve the ideal consistency level
      * before expiring and becoming hints
      */
-    public volatile ConsistencyLevel ideal_consistency_level = null;
+    @Mutable
+    public ConsistencyLevel ideal_consistency_level = null;
 
     @Deprecated
     public int windows_timer_interval = 0;
@@ -690,6 +700,7 @@ public class Config
 
     // Default keyspace replication factors allow validation of newly created keyspaces
     // and good defaults if no replication factor is provided by the user
+    @Mutable
     public volatile int default_keyspace_rf = 1;
 
     /**

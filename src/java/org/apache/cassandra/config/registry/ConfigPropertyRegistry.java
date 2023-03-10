@@ -26,9 +26,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -47,30 +49,22 @@ import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 
 /**
  * This is a simple configuration property registry that stores all the {@link Config} settings.
- * It is a singleton and can be accessed via {@link #instance} field.
  */
 public class ConfigPropertyRegistry implements PropertyRegistry
 {
-    public static final ConfigPropertyRegistry instance = new ConfigPropertyRegistry();
     private static final Logger logger = LoggerFactory.getLogger(ConfigPropertyRegistry.class);
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Map<String, ConfigurationProperty> properties;
     private final Map<PropertyChangeListener.ChangeType, PropertyChangeListenerList> propertyChangeListeners = new EnumMap<>(PropertyChangeListener.ChangeType.class);
-    private final Map<String, List<PropertyChangeListenerWrapper<?>>> propertyConstraints = new HashMap<>();
+    private final Map<String, List<PropertyChangeListenerWrapper<?>>> validatorsMap = new HashMap<>();
 
-    public ConfigPropertyRegistry()
-    {
-        this(DatabaseDescriptor::getRawConfig);
-    }
-
-    @VisibleForTesting
-    public ConfigPropertyRegistry(Supplier<Config> config)
+    public ConfigPropertyRegistry(Supplier<Config> configProvider)
     {
         properties = ImmutableMap.copyOf(Properties.defaultLoader()
                                                    .flatten(Config.class)
                                                    .entrySet()
                                                    .stream()
-                                                   .map(e -> new AbstractMap.SimpleEntry<>(e.getKey(), new ConfigurationProperty(config, e.getValue())))
+                                                   .map(e -> new AbstractMap.SimpleEntry<>(e.getKey(), new ConfigurationProperty(configProvider, e.getValue())))
                                                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
         for (PropertyChangeListener.ChangeType type : PropertyChangeListener.ChangeType.values())
             propertyChangeListeners.put(type, new PropertyChangeListenerList());
@@ -81,22 +75,35 @@ public class ConfigPropertyRegistry implements PropertyRegistry
      * @param name the name of the property.
      * @param value the value to set.
      */
-    @Override public void set(String name, Object value)
+    @Override public void set(String name, @Nullable Object value)
     {
         ConfigurationProperty property = properties.get(name);
         validatePropertyExists(property, name);
 
-        Object oldValue = get(name);
-        List<PropertyChangeListenerWrapper<?>> constraints = propertyConstraints.get(name);
-        if (constraints != null)
+        List<PropertyChangeListenerWrapper<?>> validators = validatorsMap.get(name);
+        if (validators != null)
         {
-            for (PropertyChangeListenerWrapper<?> constraint : constraints)
-                constraint.onChange(name, oldValue, value);
+            rwLock.readLock().lock();
+            try
+            {
+                Object oldValue = properties.get(name).get();
+                for (PropertyChangeListenerWrapper<?> lsnr : validators)
+                    lsnr.castValueAndListen(name, oldValue, value);
+            }
+            catch (Exception e)
+            {
+                throw new ConfigurationException(String.format("Error validating property with name '%s', cause: %s", name, e.getMessage()), e);
+            }
+            finally
+            {
+                rwLock.readLock().unlock();
+            }
         }
 
         rwLock.writeLock().lock();
         try
         {
+            Object oldValue = properties.get(name).get();
             propertyChangeListeners.get(PropertyChangeListener.ChangeType.BEFORE).fire(name, oldValue, value);
             property.set(value);
             propertyChangeListeners.get(PropertyChangeListener.ChangeType.AFTER).fire(name, oldValue, value);
@@ -190,12 +197,12 @@ public class ConfigPropertyRegistry implements PropertyRegistry
         propertyChangeListeners.get(type).add(name, new PropertyChangeListenerWrapper<>(listener, listenerType));
     }
 
-    public <T> void addPropertyConstraint(String name, Consumer<T> constraint, Class<T> constraintType)
+    public <T> void addPropertyValidator(String name, BiConsumer<T, T> validator, Class<T> type)
     {
         validatePropertyExists(properties.get(name), name);
-        validatePropertyType(properties.get(name), name, constraintType);
-        propertyConstraints.computeIfAbsent(name, k -> new ArrayList<>())
-                           .add(new PropertyChangeListenerWrapper<>(new PropertyConstraint<>(constraint), constraintType));
+        validatePropertyType(properties.get(name), name, type);
+        validatorsMap.computeIfAbsent(name, k -> new ArrayList<>())
+                     .add(new PropertyChangeListenerWrapper<>((prop, oldValue, newValue) -> validator.accept(oldValue, newValue), type));
     }
 
     private static void validatePropertyExists(ConfigurationProperty property, String name)
@@ -210,31 +217,12 @@ public class ConfigPropertyRegistry implements PropertyRegistry
             throw new ConfigurationException(String.format("Property with name '%s' expects type '%s', but got '%s'.", name, property.getType(), targetType));
     }
 
-    private static class PropertyConstraint<T> implements PropertyChangeListener<T>
+    private static <T> Class<T> primitiveToWrapperType(Class<T> type)
     {
-        private final Consumer<T> constraint;
-
-        public PropertyConstraint(Consumer<T> constraint)
-        {
-            this.constraint = constraint;
-        }
-
-        @Override
-        public void onChange(String name, T oldValue, T newValue)
-        {
-            try
-            {
-                constraint.accept(newValue);
-            }
-            catch (Exception e)
-            {
-                throw new IllegalStateException(String.format("Failed constraint check. Unable to set property with name '%s' from '%s' to '%s'.",
-                                                              name, oldValue, newValue), e);
-            }
-        }
+        return type.isPrimitive() ? (Class<T>) primitiveToWrapper(type) : type;
     }
 
-    private static class PropertyChangeListenerWrapper<T> implements PropertyChangeListener<T>
+    private static class PropertyChangeListenerWrapper<T>
     {
         private final PropertyChangeListener<T> listener;
         private final Class<T> type;
@@ -245,26 +233,10 @@ public class ConfigPropertyRegistry implements PropertyRegistry
             this.type = type;
         }
 
-        /** {@inheritDoc} */
-        @Override
-        public void onChange(String name, Object oldValue, Object newValue)
+        public void castValueAndListen(String name, Object oldValue, Object newValue)
         {
-            try
-            {
-                T castedOldValue = primitiveToWrapperType(type).cast(oldValue);
-                T castedNewValue = primitiveToWrapperType(type).cast(newValue);
-                listener.onChange(name, castedOldValue, castedNewValue);
-            }
-            catch (ClassCastException e)
-            {
-                throw new ConfigurationException(String.format("Property with name '%s' expects type '%s', but got '%s'.",
-                                                               name, type, oldValue.getClass()), e);
-            }
-        }
-
-        private static <T> Class<T> primitiveToWrapperType(Class<T> type)
-        {
-            return type.isPrimitive() ? (Class<T>) primitiveToWrapper(type) : type;
+            // Casting to the type of the listener is safe because we validate the type of the property on listener's registration.
+            listener.onChange(name, primitiveToWrapperType(type).cast(oldValue), primitiveToWrapperType(type).cast(newValue));
         }
     }
 
@@ -286,7 +258,7 @@ public class ConfigPropertyRegistry implements PropertyRegistry
                 return;
 
             for (PropertyChangeListenerWrapper<?> listener : listeners.get(name))
-                listener.onChange(name, oldValue, newValue);
+                listener.castValueAndListen(name, oldValue, newValue);
         }
     }
 

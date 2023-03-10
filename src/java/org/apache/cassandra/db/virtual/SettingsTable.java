@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
@@ -30,12 +31,13 @@ import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Converters;
+import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.PropertyConverter;
 import org.apache.cassandra.config.Replacement;
 import org.apache.cassandra.config.Replacements;
 import org.apache.cassandra.config.StringConverter;
-import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
 import org.apache.cassandra.config.registry.PropertyRegistry;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -61,10 +63,10 @@ final class SettingsTable extends AbstractMutableVirtualTable
 
     SettingsTable(String keyspace)
     {
-        this(keyspace, ConfigPropertyRegistry.instance);
+        this(keyspace, DatabaseDescriptor.getConfigRegistry());
     }
 
-    SettingsTable(String keyspace, ConfigPropertyRegistry registry)
+    SettingsTable(String keyspace, PropertyRegistry registry)
     {
         super(TableMetadata.builder(keyspace, "settings")
                            .comment("current settings")
@@ -90,6 +92,11 @@ final class SettingsTable extends AbstractMutableVirtualTable
         stringTypeConverters.put(DurationSpec.IntMinutesBound.class, DurationSpec.IntMinutesBound::new);
         stringTypeConverters.put(DurationSpec.IntSecondsBound.class, DurationSpec.IntSecondsBound::new);
         stringTypeConverters.put(DurationSpec.IntMillisecondsBound.class, DurationSpec.IntMillisecondsBound::new);
+        stringTypeConverters.put(DataStorageSpec.LongBytesBound.class, DataStorageSpec.LongBytesBound::new);
+        stringTypeConverters.put(DataStorageSpec.IntBytesBound.class, DataStorageSpec.IntBytesBound::new);
+        stringTypeConverters.put(DataStorageSpec.IntKibibytesBound.class, DataStorageSpec.IntKibibytesBound::new);
+        stringTypeConverters.put(DataStorageSpec.LongMebibytesBound.class, DataStorageSpec.LongMebibytesBound::new);
+        stringTypeConverters.put(DataStorageSpec.IntMebibytesBound.class, DataStorageSpec.IntMebibytesBound::new);
     }
 
     private void registerTypeStringConverters()
@@ -254,7 +261,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         }
 
         @Override
-        public void set(String name, Object value)
+        public void set(String name, @Nullable Object value)
         {
             Replacement replacement = replacements.get(name);
             if (replacement == null)

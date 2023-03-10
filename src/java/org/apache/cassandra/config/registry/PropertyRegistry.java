@@ -18,9 +18,14 @@
 
 package org.apache.cassandra.config.registry;
 
+import javax.annotation.Nullable;
+
+/**
+ * A registry of Cassandra's configuration properties that can be set at runtime.
+ */
 public interface PropertyRegistry
 {
-    void set(String name, Object value);
+    void set(String name, @Nullable Object value);
     <T> T get(String name);
     boolean contains(String name);
     Iterable<String> keys();

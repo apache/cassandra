@@ -21,7 +21,16 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.FileStore;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -37,7 +46,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
 import org.apache.cassandra.config.registry.PropertyChangeListener;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.ICompressor;
@@ -142,9 +152,9 @@ public class CommitLog implements CommitLogMBean
             executor.start();
             started = true;
 
-            ConfigPropertyRegistry.instance.addPropertyConstraint(CDC_BLOCK_WRITES, v -> ensureCDCEnabled(), Boolean.TYPE);
-            ConfigPropertyRegistry.instance.addPropertyConstraint(CDC_ON_REPAIR_ENABLED, v -> ensureCDCEnabled(), Boolean.TYPE);
-            ConfigPropertyRegistry.instance.addPropertyChangeListener(CDC_BLOCK_WRITES, PropertyChangeListener.ChangeType.BEFORE,
+            DatabaseDescriptor.getConfigRegistry().addPropertyValidator(CDC_BLOCK_WRITES, (oldVal, newVal) -> ensureCDCEnabled(), Boolean.TYPE);
+            DatabaseDescriptor.getConfigRegistry().addPropertyValidator(CDC_ON_REPAIR_ENABLED, (oldVal, newVal) -> ensureCDCEnabled(), Boolean.TYPE);
+            DatabaseDescriptor.getConfigRegistry().addPropertyChangeListener(CDC_BLOCK_WRITES, PropertyChangeListener.ChangeType.BEFORE,
                                                                       this::cdcBlockWritesBeforeChangeListener, Boolean.TYPE);
         }
         catch (Throwable t)
@@ -460,7 +470,7 @@ public class CommitLog implements CommitLogMBean
     @Override
     public void setCDCOnRepairEnabled(boolean value)
     {
-        ConfigPropertyRegistry.instance.set(CDC_ON_REPAIR_ENABLED, value);
+        DatabaseDescriptor.getConfigRegistry().set(CDC_ON_REPAIR_ENABLED, value);
     }
 
     private void ensureCDCEnabled()

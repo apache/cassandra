@@ -21,23 +21,26 @@ package org.apache.cassandra.db.virtual;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.ConfigFields;
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.StringConverter;
 import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.assertj.core.util.Streams;
 
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 /**
  * The set of tests for {@link SettingsTable} for updating settings through virtual table. Since the Config class and
@@ -59,7 +62,7 @@ public class UpdateSettingsTableTest extends CQLTester
     public void prepare()
     {
         // Creating a new instence will avoid calling listeners registered in the registry.
-        registry = new ConfigPropertyRegistry();
+        registry = new ConfigPropertyRegistry(DatabaseDescriptor::getRawConfig);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(new SettingsTable(KS_NAME, registry))));
         Streams.stream(registry.keys())
                .filter(k -> registry.isWritable(k))
@@ -75,6 +78,15 @@ public class UpdateSettingsTableTest extends CQLTester
     }
 
     @Test
+    public void testUpdateWithNull() throws Throwable
+    {
+        // Settings table called as apply column deletion. So, we need to test that we can delete a value.
+        assertNotNull(registry.get(ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD));
+        updateConfigurationProperty(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
+                                     ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD, null);
+    }
+
+    @Test
     public void testInsertSettings() throws Throwable
     {
         for (String propertyName : updatableProperties)
@@ -85,7 +97,7 @@ public class UpdateSettingsTableTest extends CQLTester
     {
         Object oldValue = registry.get(propertyName);
         Object[] testValues = defaultTestValues.get(registry.type(propertyName));
-        Assert.assertNotNull(String.format("No test values found for setting '%s' with type '%s'",
+        assertNotNull(String.format("No test values found for setting '%s' with type '%s'",
                                            propertyName, registry.type(propertyName)), testValues);
         Object value = getNextValue(defaultTestValues.get(registry.type(propertyName)), oldValue);
         updateConfigurationProperty(statement, propertyName, value);
@@ -94,9 +106,9 @@ public class UpdateSettingsTableTest extends CQLTester
 
     private void updateConfigurationProperty(String statement, String propertyName, Object value) throws Throwable
     {
-        assertRowsNet(executeNet(statement, stringValue(value), propertyName));
+        assertRowsNet(executeNet(statement, StringConverter.DEFAULT.convert(value), propertyName));
         assertEquals(value, registry.get(propertyName));
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, stringValue(value) });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, StringConverter.DEFAULT.convert((value)) });
     }
 
     private static Object getNextValue(Object[] values, Object currentValue)
@@ -107,14 +119,12 @@ public class UpdateSettingsTableTest extends CQLTester
         for (int i = 0; i < values.length; i++)
         {
             if (values[i].toString().equals(currentValue.toString()))
-                return values[(i + 1) % values.length];
-        }
-        return null;
-    }
+                continue;
 
-    private static @Nullable String stringValue(Object obj)
-    {
-        return obj == null ? null : obj.toString();
+            return values[i];
+        }
+        fail("No next value found for " + currentValue);
+        return null;
     }
 
     private static Map<Class<?>, Object[]> registerTestConfigurationValues()
@@ -133,6 +143,11 @@ public class UpdateSettingsTableTest extends CQLTester
                            .put(DurationSpec.IntMinutesBound.class, new Object[]{ new DurationSpec.IntMinutesBound("1m"), new DurationSpec.IntMinutesBound("2m") })
                            .put(DurationSpec.IntSecondsBound.class, new Object[]{ new DurationSpec.IntSecondsBound("1s"), new DurationSpec.IntSecondsBound("2s") })
                            .put(DurationSpec.IntMillisecondsBound.class, new Object[]{ new DurationSpec.IntMillisecondsBound("100ms"), new DurationSpec.IntMillisecondsBound("200ms") })
+                           .put(DataStorageSpec.LongBytesBound.class, new Object[]{ new DataStorageSpec.LongBytesBound("100B"), new DataStorageSpec.LongBytesBound("200B") })
+                           .put(DataStorageSpec.IntBytesBound.class, new Object[]{ new DataStorageSpec.IntBytesBound("100B"), new DataStorageSpec.IntBytesBound("200B") })
+                           .put(DataStorageSpec.IntKibibytesBound.class, new Object[]{ new DataStorageSpec.IntKibibytesBound("100KiB"), new DataStorageSpec.IntKibibytesBound("200KiB") })
+                           .put(DataStorageSpec.LongMebibytesBound.class, new Object[]{ new DataStorageSpec.LongMebibytesBound("100MiB"), new DataStorageSpec.LongMebibytesBound("200MiB") })
+                           .put(DataStorageSpec.IntMebibytesBound.class, new Object[]{ new DataStorageSpec.IntMebibytesBound("100MiB"), new DataStorageSpec.IntMebibytesBound("200MiB") })
                            .build();
     }
 }

@@ -974,9 +974,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
-        ConfigPropertyRegistry.instance.addPropertyConstraint(REPAIR_REQUEST_TIMEOUT,
-                                                             t -> Preconditions.checkState(t.toMilliseconds() > 0),
-                                                              DurationSpec.LongMillisecondsBound.class);
+        DatabaseDescriptor.getConfigRegistry().addPropertyValidator(REPAIR_REQUEST_TIMEOUT,
+                                                                    (oldVal, newVal) -> Preconditions.checkState(newVal.toMilliseconds() > 0),
+                                                                    DurationSpec.LongMillisecondsBound.class);
 
         completeInitialization();
     }
@@ -6432,7 +6432,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setTombstoneWarnThreshold(int threshold)
     {
         DatabaseDescriptor.setTombstoneWarnThreshold(threshold);
-        logger.info("updated tombstone_warn_threshold to {}", threshold);
     }
 
     public int getTombstoneFailureThreshold()
