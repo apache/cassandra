@@ -30,6 +30,7 @@ import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
+import accord.utils.RandomSource;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
@@ -45,10 +46,10 @@ public class AccordGenerators
 
     public static Gen<TxnId> ids()
     {
-        return ids(epochs()::nextLong, Gen.Random::nextLong, Gen.Random::nextInt);
+        return ids(epochs()::nextLong, RandomSource::nextLong, RandomSource::nextInt);
     }
 
-    public static Gen<TxnId> ids(ToLongFunction<Gen.Random> epochs, ToLongFunction<Gen.Random> hlcs, ToIntFunction<Gen.Random> nodes)
+    public static Gen<TxnId> ids(ToLongFunction<RandomSource> epochs, ToLongFunction<RandomSource> hlcs, ToIntFunction<RandomSource> nodes)
     {
         Gen<Txn.Kind> kinds = Gens.enums().all(Txn.Kind.class);
         Gen<Routable.Domain> domains = Gens.enums().all(Routable.Domain.class);
