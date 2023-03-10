@@ -1,5 +1,5 @@
---- config-2_1.yml	2023-02-02 21:26:13.000000000 -0500
-+++ config-2_1.yml.MIDRES	2023-02-02 21:27:09.000000000 -0500
+--- config_template.yml	2023-02-02 21:26:13.000000000 -0500
++++ config_template.yml.MIDRES	2023-02-02 21:27:09.000000000 -0500
 @@ -158,14 +158,14 @@
  j8_par_executor: &j8_par_executor
    executor:
