@@ -48,7 +48,12 @@ public class SnapshotsTable extends AbstractVirtualTable
     private static final String EXPIRES_AT = "expires_at";
     private static final String EPHEMERAL = "ephemeral";
 
-    private final DateFormat df;
+    private final static DateFormat df;
+    static
+    {
+        df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'");
+        df.setTimeZone(TimeZone.getTimeZone("UTC"));
+    }
 
     SnapshotsTable(String keyspace)
     {
@@ -65,9 +70,6 @@ public class SnapshotsTable extends AbstractVirtualTable
                            .addRegularColumn(EXPIRES_AT, TimestampType.instance)
                            .addRegularColumn(EPHEMERAL, BooleanType.instance)
                            .build());
-
-        df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'");
-        df.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
     @Override
@@ -106,7 +108,7 @@ public class SnapshotsTable extends AbstractVirtualTable
         return result;
     }
 
-    private Date parseTimestamp(String timestamp)
+    public static Date parseTimestamp(String timestamp)
     {
         if (timestamp == null)
             return null;
