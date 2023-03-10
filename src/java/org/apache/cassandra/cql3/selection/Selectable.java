@@ -156,7 +156,7 @@ public interface Selectable extends AssignmentTestable
             /*
              * expectedType will be null if we have no constraint on what the type should be. For instance, if this term is a bind marker:
              *   - it will be null if we do "SELECT ? FROM foo"
-             *   - it won't be null (and be LongType) if we do "SELECT bigintAsBlob(?) FROM foo" because the function constrain it.
+             *   - it won't be null (and be LongType) if we do "SELECT bigint_as_blob(?) FROM foo" because the function constrain it.
              *
              * In the first case, we have to error out: we need to infer the type of the metadata of a SELECT at preparation time, which we can't
              * here (users will have to do "SELECT (varint)? FROM foo" for instance).

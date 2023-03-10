@@ -65,14 +65,14 @@ public class FrozenUDTTest extends TestBaseImpl
         {
             cluster.schemaChange("create type " + KEYSPACE + ".a (foo text)");
             cluster.schemaChange("create table " + KEYSPACE + ".x (id int, ck frozen<a>, i int, primary key (id, ck))");
-            cluster.coordinator(1).execute("insert into " + KEYSPACE + ".x (id, ck, i) VALUES (1, system.fromjson('{\"foo\":\"\"}'), 1)", ConsistencyLevel.ALL);
-            cluster.coordinator(1).execute("insert into " + KEYSPACE + ".x (id, ck, i) VALUES (1, system.fromjson('{\"foo\":\"a\"}'), 2)", ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute("insert into " + KEYSPACE + ".x (id, ck, i) VALUES (1, system.from_json('{\"foo\":\"\"}'), 1)", ConsistencyLevel.ALL);
+            cluster.coordinator(1).execute("insert into " + KEYSPACE + ".x (id, ck, i) VALUES (1, system.from_json('{\"foo\":\"a\"}'), 2)", ConsistencyLevel.ALL);
             cluster.forEach(i -> i.flush(KEYSPACE));
 
             Runnable check = () -> {
-                assertRows(cluster.coordinator(1).execute("select i from " + KEYSPACE + ".x WHERE id = 1 and ck = system.fromjson('{\"foo\":\"\"}')", ConsistencyLevel.ALL),
+                assertRows(cluster.coordinator(1).execute("select i from " + KEYSPACE + ".x WHERE id = 1 and ck = system.from_json('{\"foo\":\"\"}')", ConsistencyLevel.ALL),
                            row(1));
-                assertRows(cluster.coordinator(1).execute("select i from " + KEYSPACE + ".x WHERE id = 1 and ck = system.fromjson('{\"foo\":\"a\"}')", ConsistencyLevel.ALL),
+                assertRows(cluster.coordinator(1).execute("select i from " + KEYSPACE + ".x WHERE id = 1 and ck = system.from_json('{\"foo\":\"a\"}')", ConsistencyLevel.ALL),
                            row(2));
             };
 
@@ -80,10 +80,10 @@ public class FrozenUDTTest extends TestBaseImpl
             cluster.schemaChange("alter type " + KEYSPACE + ".a add bar text");
             check.run();
 
-            assertRows(cluster.coordinator(1).execute("select i from " + KEYSPACE + ".x WHERE id = 1 and ck = system.fromjson('{\"foo\":\"\",\"bar\":\"\"}')", ConsistencyLevel.ALL));
-            cluster.coordinator(1).execute("insert into " + KEYSPACE + ".x (id, ck, i) VALUES (1, system.fromjson('{\"foo\":\"\",\"bar\":\"\"}'), 3)", ConsistencyLevel.ALL);
+            assertRows(cluster.coordinator(1).execute("select i from " + KEYSPACE + ".x WHERE id = 1 and ck = system.from_json('{\"foo\":\"\",\"bar\":\"\"}')", ConsistencyLevel.ALL));
+            cluster.coordinator(1).execute("insert into " + KEYSPACE + ".x (id, ck, i) VALUES (1, system.from_json('{\"foo\":\"\",\"bar\":\"\"}'), 3)", ConsistencyLevel.ALL);
             check.run();
-            assertRows(cluster.coordinator(1).execute("select i from " + KEYSPACE + ".x WHERE id = 1 and ck = system.fromjson('{\"foo\":\"\",\"bar\":\"\"}')", ConsistencyLevel.ALL),
+            assertRows(cluster.coordinator(1).execute("select i from " + KEYSPACE + ".x WHERE id = 1 and ck = system.from_json('{\"foo\":\"\",\"bar\":\"\"}')", ConsistencyLevel.ALL),
                        row(3));
         }
     }
@@ -143,11 +143,11 @@ public class FrozenUDTTest extends TestBaseImpl
 
     private String json(int i)
     {
-        return String.format("system.fromjson('{\"foo\":\"%d\"}')", i);
+        return String.format("system.from_json('{\"foo\":\"%d\"}')", i);
     }
 
     private String json(int i, int j)
     {
-        return String.format("system.fromjson('{\"foo\":\"%d\", \"bar\":\"%d\"}')", i, j);
+        return String.format("system.from_json('{\"foo\":\"%d\", \"bar\":\"%d\"}')", i, j);
     }
 }

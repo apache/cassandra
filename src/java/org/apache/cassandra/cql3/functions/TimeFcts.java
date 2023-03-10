@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,11 +39,11 @@ public abstract class TimeFcts
 
     public static void addFunctionsTo(NativeFunctions functions)
     {
-        functions.addAll(now("now", TimeUUIDType.instance),
-                         now("currenttimeuuid", TimeUUIDType.instance),
-                         now("currenttimestamp", TimestampType.instance),
-                         now("currentdate", SimpleDateType.instance),
-                         now("currenttime", TimeType.instance),
+        functions.addAll(new NowFunction("now", TimeUUIDType.instance),
+                         new NowFunction("current_timeuuid", TimeUUIDType.instance),
+                         new NowFunction("current_timestamp", TimestampType.instance),
+                         new NowFunction("current_date", SimpleDateType.instance),
+                         new NowFunction("current_time", TimeType.instance),
                          minTimeuuidFct,
                          maxTimeuuidFct,
                          toDate(TimeUUIDType.instance),
@@ -61,26 +62,46 @@ public abstract class TimeFcts
                          floorTime);
     }
 
-    public static final NativeFunction now(final String name, final TemporalType<?> type)
+    private static class NowFunction extends NativeScalarFunction
     {
-        return new NativeScalarFunction(name, type)
+        private final TemporalType<?> type;
+
+        public NowFunction(String name, TemporalType<?> type)
         {
-            @Override
-            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-            {
-                return type.now();
-            }
+            super(name, type);
+            this.type = type;
+        }
 
-            @Override
-            public boolean isPure()
-            {
-                return false; // as it returns non-identical results for identical arguments
-            }
-        };
-    };
+        @Override
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        {
+            return type.now();
+        }
 
-    public static final NativeFunction minTimeuuidFct = new NativeScalarFunction("mintimeuuid", TimeUUIDType.instance, TimestampType.instance)
+        @Override
+        public boolean isPure()
+        {
+            return false; // as it returns non-identical results for identical arguments
+        }
+
+        @Override
+        public NativeFunction withLegacyName()
+        {
+            String name = name().name;
+            return name.contains("current") ? new NowFunction(StringUtils.remove(name, '_'), type) : null;
+        }
+    }
+
+    public static final NativeFunction minTimeuuidFct = new MinTimeuuidFunction(false);
+
+    private static final class MinTimeuuidFunction extends NativeScalarFunction
     {
+        public MinTimeuuidFunction(boolean legacy)
+        {
+            super(legacy ? "mintimeuuid" : "min_timeuuid", TimeUUIDType.instance, TimestampType.instance);
+        }
+
+        @Override
         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = parameters.get(0);
@@ -89,10 +110,24 @@ public abstract class TimeFcts
 
             return TimeUUID.minAtUnixMillis(TimestampType.instance.compose(bb).getTime()).toBytes();
         }
-    };
 
-    public static final NativeFunction maxTimeuuidFct = new NativeScalarFunction("maxtimeuuid", TimeUUIDType.instance, TimestampType.instance)
+        @Override
+        public NativeFunction withLegacyName()
+        {
+            return new MinTimeuuidFunction(true);
+        }
+    }
+
+    public static final NativeFunction maxTimeuuidFct = new MaxTimeuuidFunction(false);
+
+    private static final class MaxTimeuuidFunction extends NativeScalarFunction
     {
+        public MaxTimeuuidFunction(boolean legacy)
+        {
+            super(legacy ? "maxtimeuuid" : "max_timeuuid", TimeUUIDType.instance, TimestampType.instance);
+        }
+
+        @Override
         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = parameters.get(0);
@@ -101,86 +136,146 @@ public abstract class TimeFcts
 
             return TimeUUID.maxAtUnixMillis(TimestampType.instance.compose(bb).getTime()).toBytes();
         }
-    };
 
-   /**
-    * Creates a function that convert a value of the specified type into a <code>DATE</code>.
-    * @param type the temporal type
-    * @return a function that convert a value of the specified type into a <code>DATE</code>.
-    */
-   public static final NativeScalarFunction toDate(final TemporalType<?> type)
-   {
-       return new NativeScalarFunction("todate", SimpleDateType.instance, type)
-       {
-           public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-           {
-               ByteBuffer bb = parameters.get(0);
-               if (bb == null || !bb.hasRemaining())
-                   return null;
-
-               long millis = type.toTimeInMillis(bb);
-               return SimpleDateType.instance.fromTimeInMillis(millis);
-           }
-
-           @Override
-           public boolean isMonotonic()
-           {
-               return true;
-           }
-       };
-   }
-
-   /**
-    * Creates a function that convert a value of the specified type into a <code>TIMESTAMP</code>.
-    * @param type the temporal type
-    * @return a function that convert a value of the specified type into a <code>TIMESTAMP</code>.
-    */
-   public static final NativeScalarFunction toTimestamp(final TemporalType<?> type)
-   {
-       return new NativeScalarFunction("totimestamp", TimestampType.instance, type)
-       {
-           public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-           {
-               ByteBuffer bb = parameters.get(0);
-               if (bb == null || !bb.hasRemaining())
-                   return null;
-
-               long millis = type.toTimeInMillis(bb);
-               return TimestampType.instance.fromTimeInMillis(millis);
-           }
-
-           @Override
-           public boolean isMonotonic()
-           {
-               return true;
-           }
-       };
-   }
+        @Override
+        public NativeFunction withLegacyName()
+        {
+            return new MaxTimeuuidFunction(true);
+        }
+    }
 
     /**
-     * Creates a function that convert a value of the specified type into an UNIX timestamp.
+     * Creates a function that converts a value of the specified type into a {@code DATE}.
+     *
      * @param type the temporal type
-     * @return a function that convert a value of the specified type into an UNIX timestamp.
+     * @return a function that convert a value of the specified type into a <code>DATE</code>.
      */
-    public static final NativeScalarFunction toUnixTimestamp(final TemporalType<?> type)
+    public static NativeScalarFunction toDate(TemporalType<?> type)
     {
-        return new NativeScalarFunction("tounixtimestamp", LongType.instance, type)
+        return new ToDateFunction(type, false);
+    }
+
+    private static class ToDateFunction extends NativeScalarFunction
+    {
+        private final TemporalType<?> type;
+
+        public ToDateFunction(TemporalType<?> type, boolean useLegacyName)
         {
-            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-            {
-                ByteBuffer bb = parameters.get(0);
-                if (bb == null || !bb.hasRemaining())
-                    return null;
+            super(useLegacyName ? "todate" : "to_date", SimpleDateType.instance, type);
+            this.type = type;
+        }
 
-                return ByteBufferUtil.bytes(type.toTimeInMillis(bb));
-            }
+        @Override
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        {
+            ByteBuffer bb = parameters.get(0);
+            if (bb == null || !bb.hasRemaining())
+                return null;
 
-            @Override
-            public boolean isMonotonic()
-            {
-                return true;
-            }
-        };
+            long millis = type.toTimeInMillis(bb);
+            return SimpleDateType.instance.fromTimeInMillis(millis);
+        }
+
+        @Override
+        public boolean isMonotonic()
+        {
+            return true;
+        }
+
+        @Override
+        public NativeFunction withLegacyName()
+        {
+            return new ToDateFunction(type, true);
+        }
+    }
+
+    /**
+     * Creates a function that converts a value of the specified type into a {@code TIMESTAMP}.
+     *
+     * @param type the temporal type
+     * @return a function that convert a value of the specified type into a {@code TIMESTAMP}.
+     */
+    public static NativeScalarFunction toTimestamp(TemporalType<?> type)
+    {
+        return new ToTimestampFunction(type, false);
+    }
+
+    private static class ToTimestampFunction extends NativeScalarFunction
+    {
+        private final TemporalType<?> type;
+
+        public ToTimestampFunction(TemporalType<?> type, boolean useLegacyName)
+        {
+            super(useLegacyName ? "totimestamp" : "to_timestamp", TimestampType.instance, type);
+            this.type = type;
+        }
+
+        @Override
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        {
+            ByteBuffer bb = parameters.get(0);
+            if (bb == null || !bb.hasRemaining())
+                return null;
+
+            long millis = type.toTimeInMillis(bb);
+            return TimestampType.instance.fromTimeInMillis(millis);
+        }
+
+        @Override
+        public boolean isMonotonic()
+        {
+            return true;
+        }
+
+        @Override
+        public NativeFunction withLegacyName()
+        {
+            return new ToTimestampFunction(type, true);
+        }
+    }
+
+    /**
+     * Creates a function that converts a value of the specified type into a UNIX timestamp.
+     *
+     * @param type the temporal type
+     * @return a function that convert a value of the specified type into a UNIX timestamp.
+     */
+    public static NativeScalarFunction toUnixTimestamp(TemporalType<?> type)
+    {
+        return new ToUnixTimestampFunction(type, false);
+    }
+
+    private static class ToUnixTimestampFunction extends NativeScalarFunction
+    {
+        private final TemporalType<?> type;
+
+        private ToUnixTimestampFunction(TemporalType<?> type, boolean useLegacyName)
+        {
+            super(useLegacyName ? "tounixtimestamp" : "to_unix_timestamp", LongType.instance, type);
+            this.type = type;
+        }
+
+        @Override
+        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        {
+            ByteBuffer bb = parameters.get(0);
+            if (bb == null || !bb.hasRemaining())
+                return null;
+
+            return ByteBufferUtil.bytes(type.toTimeInMillis(bb));
+        }
+
+        @Override
+        public boolean isMonotonic()
+        {
+            return true;
+        }
+
+        @Override
+        public NativeFunction withLegacyName()
+        {
+            return new ToUnixTimestampFunction(type, true);
+        }
     }
 
     /**
@@ -188,7 +283,7 @@ public abstract class TimeFcts
      */
      private static abstract class FloorFunction extends NativeScalarFunction
      {
-         private static final Long ZERO = Long.valueOf(0);
+         private static final Long ZERO = 0L;
 
          protected FloorFunction(AbstractType<?> returnType,
                                  AbstractType<?>... argsType)
