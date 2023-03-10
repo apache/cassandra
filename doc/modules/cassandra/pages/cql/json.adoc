@@ -51,9 +51,9 @@ collections (maps and lists) or a JSON-encoded string representation of
 the collection.
 
 The following table describes the encodings that Cassandra will accept
-in `INSERT JSON` values (and `fromJson()` arguments) as well as the
+in `INSERT JSON` values (and `from_json()` arguments) as well as the
 format Cassandra will use when returning data for `SELECT JSON`
-statements (and `fromJson()`):
+statements (and `from_json()`):
 
 [cols=",,,",options="header",]
 |===
@@ -110,16 +110,16 @@ are returned.
 | `varint` | integer, string | integer | Variable length; may overflow 32 or 64 bit integers in client-side decoder
 |===
 
-== The fromJson() Function
+== The from_json() Function
 
-The `fromJson()` function may be used similarly to `INSERT JSON`, but
+The `from_json()` function may be used similarly to `INSERT JSON`, but
 for a single column value. It may only be used in the `VALUES` clause of
 an `INSERT` statement or as one of the column values in an `UPDATE`,
 `DELETE`, or `SELECT` statement. For example, it cannot be used in the
 selection clause of a `SELECT` statement.
 
-== The toJson() Function
+== The to_json() Function
 
-The `toJson()` function may be used similarly to `SELECT JSON`, but for
+The `to_json()` function may be used similarly to `SELECT JSON`, but for
 a single column value. It may only be used in the selection clause of a
 `SELECT` statement.

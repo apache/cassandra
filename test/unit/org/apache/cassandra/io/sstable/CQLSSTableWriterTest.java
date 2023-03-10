@@ -854,7 +854,7 @@ public class CQLSSTableWriterTest
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
-                                                  .using("INSERT INTO " + qualifiedTable + " (k, c1, c2, v) VALUES (?, ?, ?, textAsBlob(?))")
+                                                  .using("INSERT INTO " + qualifiedTable + " (k, c1, c2, v) VALUES (?, ?, ?, text_as_blob(?))")
                                                   .build();
 
         writer.addRow(1, 2, 3, "abc");

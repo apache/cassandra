@@ -1,12 +1,12 @@
 // Without alias
-SELECT intAsBlob(4) FROM t;
+SELECT int_as_blob(4) FROM t;
 
-//  intAsBlob(4)
-// --------------
+//  int_as_blob(4)
+// ----------------
 //  0x00000004
 
 // With alias
-SELECT intAsBlob(4) AS four FROM t;
+SELECT int_as_blob(4) AS four FROM t;
 
 //  four
 // ------------

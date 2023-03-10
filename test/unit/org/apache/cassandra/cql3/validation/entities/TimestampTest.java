@@ -71,7 +71,7 @@ public class TimestampTest extends CQLTester
 
 
         // wrap writetime(), ttl() in other functions (test for CASSANDRA-8451)
-        res = getRows(execute("SELECT k, c, blobAsBigint(bigintAsBlob(writetime(c))), ttl(c) FROM %s"));
+        res = getRows(execute("SELECT k, c, blob_as_bigint(bigint_as_blob(writetime(c))), ttl(c) FROM %s"));
         Assert.assertEquals(2, res.length);
 
         for (Object[] r : res)
@@ -83,7 +83,7 @@ public class TimestampTest extends CQLTester
                 assertTrue(r[3] instanceof Integer || r[2] instanceof Long);
         }
 
-        res = getRows(execute("SELECT k, c, writetime(c), blobAsInt(intAsBlob(ttl(c))) FROM %s"));
+        res = getRows(execute("SELECT k, c, writetime(c), blob_as_int(int_as_blob(ttl(c))) FROM %s"));
         Assert.assertEquals(2, res.length);
 
 

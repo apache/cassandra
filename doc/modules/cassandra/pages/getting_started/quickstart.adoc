@@ -55,10 +55,10 @@ CREATE TABLE IF NOT EXISTS store.shopping_cart  (
 # Insert some data
 INSERT INTO store.shopping_cart
 (userid, item_count, last_update_timestamp)
-VALUES ('9876', 2, toTimeStamp(toDate(now))));
+VALUES ('9876', 2, to_timestamp(to_date(now))));
 INSERT INTO store.shopping_cart
 (userid, item_count, last_update_timestamp)
-VALUES (1234, 5, toTimeStamp(toDate(now))));
+VALUES (1234, 5, to_timestamp(toDate(now))));
 ----
 
 You should now have a _cqlshrc_ file and _<currentdir>/scripts/data.cql_ file.

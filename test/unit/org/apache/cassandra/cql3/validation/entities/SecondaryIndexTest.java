@@ -1184,39 +1184,39 @@ public class SecondaryIndexTest extends CQLTester
 
         beforeAndAfterFlush(() -> {
             // Test clustering columns restrictions
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c = textAsBlob('');"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c = text_as_blob('');"));
 
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) = (textAsBlob(''));"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) = (text_as_blob(''));"));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c IN (textAsBlob(''), textAsBlob('1'));"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c IN (text_as_blob(''), text_as_blob('1'));"),
                        row(bytes("foo123"), bytes("1"), bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) IN ((textAsBlob('')), (textAsBlob('1')));"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) IN ((text_as_blob('')), (text_as_blob('1')));"),
                        row(bytes("foo123"), bytes("1"), bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c > textAsBlob('') AND v = textAsBlob('1') ALLOW FILTERING;"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c > text_as_blob('') AND v = text_as_blob('1') ALLOW FILTERING;"),
                        row(bytes("foo123"), bytes("1"), bytes("1")),
                        row(bytes("foo123"), bytes("2"), bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c >= textAsBlob('') AND v = textAsBlob('1') ALLOW FILTERING;"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c >= text_as_blob('') AND v = text_as_blob('1') ALLOW FILTERING;"),
                        row(bytes("foo123"), bytes("1"), bytes("1")),
                        row(bytes("foo123"), bytes("2"), bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) >= (textAsBlob('')) AND v = textAsBlob('1') ALLOW FILTERING;"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) >= (text_as_blob('')) AND v = text_as_blob('1') ALLOW FILTERING;"),
                        row(bytes("foo123"), bytes("1"), bytes("1")),
                        row(bytes("foo123"), bytes("2"), bytes("1")));
 
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c <= textAsBlob('') AND v = textAsBlob('1') ALLOW FILTERING;"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c <= text_as_blob('') AND v = text_as_blob('1') ALLOW FILTERING;"));
 
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) <= (textAsBlob('')) AND v = textAsBlob('1') ALLOW FILTERING;"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) <= (text_as_blob('')) AND v = text_as_blob('1') ALLOW FILTERING;"));
 
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) < (textAsBlob('')) AND v = textAsBlob('1') ALLOW FILTERING;"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) < (text_as_blob('')) AND v = text_as_blob('1') ALLOW FILTERING;"));
 
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c < textAsBlob('') AND v = textAsBlob('1') ALLOW FILTERING;"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c < text_as_blob('') AND v = text_as_blob('1') ALLOW FILTERING;"));
 
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c > textAsBlob('') AND c < textAsBlob('') AND v = textAsBlob('1') ALLOW FILTERING;"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c > text_as_blob('') AND c < text_as_blob('') AND v = text_as_blob('1') ALLOW FILTERING;"));
 
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) > (textAsBlob('')) AND (c) < (textAsBlob('')) AND v = textAsBlob('1') ALLOW FILTERING;"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) > (text_as_blob('')) AND (c) < (text_as_blob('')) AND v = text_as_blob('1') ALLOW FILTERING;"));
         });
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)",
@@ -1224,50 +1224,50 @@ public class SecondaryIndexTest extends CQLTester
 
         beforeAndAfterFlush(() -> {
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c = textAsBlob('');"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c = text_as_blob('');"),
                        row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) = (textAsBlob(''));"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) = (text_as_blob(''));"),
                        row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c IN (textAsBlob(''), textAsBlob('1'));"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c IN (text_as_blob(''), text_as_blob('1'));"),
                        row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1")),
                        row(bytes("foo123"), bytes("1"), bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) IN ((textAsBlob('')), (textAsBlob('1')));"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) IN ((text_as_blob('')), (text_as_blob('1')));"),
                        row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1")),
                        row(bytes("foo123"), bytes("1"), bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c > textAsBlob('') AND v = textAsBlob('1') ALLOW FILTERING;"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c > text_as_blob('') AND v = text_as_blob('1') ALLOW FILTERING;"),
                        row(bytes("foo123"), bytes("1"), bytes("1")),
                        row(bytes("foo123"), bytes("2"), bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c >= textAsBlob('') AND v = textAsBlob('1') ALLOW FILTERING;"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c >= text_as_blob('') AND v = text_as_blob('1') ALLOW FILTERING;"),
                        row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1")),
                        row(bytes("foo123"), bytes("1"), bytes("1")),
                        row(bytes("foo123"), bytes("2"), bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) >= (textAsBlob('')) AND v = textAsBlob('1') ALLOW FILTERING;"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) >= (text_as_blob('')) AND v = text_as_blob('1') ALLOW FILTERING;"),
                        row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1")),
                        row(bytes("foo123"), bytes("1"), bytes("1")),
                        row(bytes("foo123"), bytes("2"), bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c <= textAsBlob('') AND v = textAsBlob('1') ALLOW FILTERING;"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c <= text_as_blob('') AND v = text_as_blob('1') ALLOW FILTERING;"),
                        row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1")));
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) <= (textAsBlob('')) AND v = textAsBlob('1') ALLOW FILTERING;"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) <= (text_as_blob('')) AND v = text_as_blob('1') ALLOW FILTERING;"),
                        row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1")));
 
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c < textAsBlob('') AND v = textAsBlob('1') ALLOW FILTERING;"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c < text_as_blob('') AND v = text_as_blob('1') ALLOW FILTERING;"));
 
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) < (textAsBlob('')) AND v = textAsBlob('1') ALLOW FILTERING;"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) < (text_as_blob('')) AND v = text_as_blob('1') ALLOW FILTERING;"));
 
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND c >= textAsBlob('') AND c < textAsBlob('') AND v = textAsBlob('1') ALLOW FILTERING;"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND c >= text_as_blob('') AND c < text_as_blob('') AND v = text_as_blob('1') ALLOW FILTERING;"));
 
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND (c) >= (textAsBlob('')) AND c < textAsBlob('') AND v = textAsBlob('1') ALLOW FILTERING;"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND (c) >= (text_as_blob('')) AND c < text_as_blob('') AND v = text_as_blob('1') ALLOW FILTERING;"));
 
             // Test restrictions on non-primary key value
-            assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND v = textAsBlob('');"));
+            assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND v = text_as_blob('');"));
         });
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)",
@@ -1275,7 +1275,7 @@ public class SecondaryIndexTest extends CQLTester
 
         beforeAndAfterFlush(() -> {
 
-            assertRows(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND v = textAsBlob('');"),
+            assertRows(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND v = text_as_blob('');"),
                        row(bytes("foo123"), bytes("3"), EMPTY_BYTE_BUFFER));
         });
     }

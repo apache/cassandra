@@ -1171,12 +1171,12 @@ public class DeleteTest extends CQLTester
         createTable("CREATE TABLE %s (pk blob, c blob, v blob, PRIMARY KEY (pk, c))");
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)", bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1"));
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c = textAsBlob('');");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c = text_as_blob('');");
 
         assertEmpty(execute("SELECT * FROM %s"));
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)", bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1"));
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c IN (textAsBlob(''), textAsBlob('1'));");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c IN (text_as_blob(''), text_as_blob('1'));");
 
         assertEmpty(execute("SELECT * FROM %s"));
 
@@ -1184,27 +1184,27 @@ public class DeleteTest extends CQLTester
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)", bytes("foo123"), bytes("1"), bytes("1"));
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)", bytes("foo123"), bytes("2"), bytes("2"));
 
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c > textAsBlob('')");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c > text_as_blob('')");
 
         assertRows(execute("SELECT * FROM %s"),
                    row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1")));
 
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c >= textAsBlob('')");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c >= text_as_blob('')");
 
         assertEmpty(execute("SELECT * FROM %s"));
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)", bytes("foo123"), bytes("1"), bytes("1"));
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)", bytes("foo123"), bytes("2"), bytes("2"));
 
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c > textAsBlob('')");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c > text_as_blob('')");
 
         assertEmpty(execute("SELECT * FROM %s"));
 
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)", bytes("foo123"), bytes("1"), bytes("1"));
         execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)", bytes("foo123"), bytes("2"), bytes("2"));
 
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c <= textAsBlob('')");
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c < textAsBlob('')");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c <= text_as_blob('')");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c < text_as_blob('')");
 
         assertRows(execute("SELECT * FROM %s"),
                    row(bytes("foo123"), bytes("1"), bytes("1")),
@@ -1217,12 +1217,12 @@ public class DeleteTest extends CQLTester
         createTable("CREATE TABLE %s (pk blob, c1 blob, c2 blob, v blob, PRIMARY KEY (pk, c1, c2))");
 
         execute("INSERT INTO %s (pk, c1, c2, v) VALUES (?, ?, ?, ?)", bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1"), bytes("1"));
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c1 = textAsBlob('');");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c1 = text_as_blob('');");
 
         assertEmpty(execute("SELECT * FROM %s"));
 
         execute("INSERT INTO %s (pk, c1, c2, v) VALUES (?, ?, ?, ?)", bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1"), bytes("1"));
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c1 IN (textAsBlob(''), textAsBlob('1')) AND c2 = textAsBlob('1');");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c1 IN (text_as_blob(''), text_as_blob('1')) AND c2 = text_as_blob('1');");
 
         assertEmpty(execute("SELECT * FROM %s"));
 
@@ -1230,27 +1230,27 @@ public class DeleteTest extends CQLTester
         execute("INSERT INTO %s (pk, c1, c2, v) VALUES (?, ?, ?, ?)", bytes("foo123"), bytes("1"), bytes("1"), bytes("1"));
         execute("INSERT INTO %s (pk, c1, c2, v) VALUES (?, ?, ?, ?)", bytes("foo123"), bytes("1"), bytes("2"), bytes("3"));
 
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c1 > textAsBlob('')");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c1 > text_as_blob('')");
 
         assertRows(execute("SELECT * FROM %s"),
                    row(bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1"), bytes("0")));
 
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c1 >= textAsBlob('')");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c1 >= text_as_blob('')");
 
         assertEmpty(execute("SELECT * FROM %s"));
 
         execute("INSERT INTO %s (pk, c1, c2, v) VALUES (?, ?, ?, ?)", bytes("foo123"), bytes("1"), bytes("1"), bytes("1"));
         execute("INSERT INTO %s (pk, c1, c2, v) VALUES (?, ?, ?, ?)", bytes("foo123"), bytes("1"), bytes("2"), bytes("3"));
 
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c1 > textAsBlob('')");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c1 > text_as_blob('')");
 
         assertEmpty(execute("SELECT * FROM %s"));
 
         execute("INSERT INTO %s (pk, c1, c2, v) VALUES (?, ?, ?, ?)", bytes("foo123"), bytes("1"), bytes("1"), bytes("1"));
         execute("INSERT INTO %s (pk, c1, c2, v) VALUES (?, ?, ?, ?)", bytes("foo123"), bytes("1"), bytes("2"), bytes("3"));
 
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c1 <= textAsBlob('')");
-        execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c1 < textAsBlob('')");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c1 <= text_as_blob('')");
+        execute("DELETE FROM %s WHERE pk = text_as_blob('foo123') AND c1 < text_as_blob('')");
 
         assertRows(execute("SELECT * FROM %s"),
                    row(bytes("foo123"), bytes("1"), bytes("1"), bytes("1")),
