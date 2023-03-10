@@ -19,7 +19,6 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Arrays;
-import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -40,6 +39,7 @@ import accord.messages.Request;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.TopologyManager;
+import accord.utils.DefaultRandom;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.Shutdownable;
 import accord.utils.async.AsyncResult;
@@ -144,7 +144,7 @@ public class AccordService implements IAccordService, Shutdownable
                              () -> null,
                              new KeyspaceSplitter(new EvenSplit<>(getConcurrentAccordOps(), getPartitioner().accordSplitter())),
                              new AccordAgent(),
-                             new Random(),
+                             new DefaultRandom(),
                              scheduler,
                              SizeOfIntersectionSorter.SUPPLIER,
                              SimpleProgressLog::new,

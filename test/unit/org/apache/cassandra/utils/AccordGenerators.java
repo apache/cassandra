@@ -18,48 +18,26 @@
 
 package org.apache.cassandra.utils;
 
-import java.util.function.ToIntFunction;
-import java.util.function.ToLongFunction;
-
 import accord.local.Command;
-import accord.local.Node;
 import accord.primitives.PartialTxn;
-import accord.primitives.Routable;
 import accord.primitives.Timestamp;
-import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 
+import static accord.utils.AccordGens.txnIds;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
 
 public class AccordGenerators
 {
     private AccordGenerators() {}
 
-    public static Gen.LongGen epochs()
-    {
-        return Gens.longs().between(0, Timestamp.MAX_EPOCH);
-    }
-
-    public static Gen<TxnId> ids()
-    {
-        return ids(epochs()::nextLong, Gen.Random::nextLong, Gen.Random::nextInt);
-    }
-
-    public static Gen<TxnId> ids(ToLongFunction<Gen.Random> epochs, ToLongFunction<Gen.Random> hlcs, ToIntFunction<Gen.Random> nodes)
-    {
-        Gen<Txn.Kind> kinds = Gens.enums().all(Txn.Kind.class);
-        Gen<Routable.Domain> domains = Gens.enums().all(Routable.Domain.class);
-        return rs -> new TxnId(epochs.applyAsLong(rs), hlcs.applyAsLong(rs), kinds.next(rs), domains.next(rs), new Node.Id(nodes.applyAsInt(rs)));
-    }
-
     private enum SupportedCommandTypes { notWitnessed, preaccepted, committed }
 
     public static Gen<Command> commands()
     {
-        Gen<TxnId> ids = ids();
+        Gen<TxnId> ids = txnIds();
         //TODO switch to Status once all types are supported
         Gen<SupportedCommandTypes> supportedTypes = Gens.enums().all(SupportedCommandTypes.class);
         //TODO goes against fuzz testing, and also limits to a very specific table existing...

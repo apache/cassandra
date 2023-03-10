@@ -62,6 +62,7 @@ import accord.primitives.TxnId;
 import accord.primitives.Writes;
 import accord.utils.Gen;
 import accord.utils.Gens;
+import accord.utils.RandomSource;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.AsyncResult;
 import org.apache.cassandra.SchemaLoader;
@@ -481,7 +482,7 @@ public class AsyncOperationTest
         });
     }
 
-    private static void createCommand(AccordCommandStore commandStore, Gen.Random rs, List<TxnId> ids)
+    private static void createCommand(AccordCommandStore commandStore, RandomSource rs, List<TxnId> ids)
     {
         // to simulate CommandsForKey not being found, use createCommittedAndPersist periodically as it does not update
         if (rs.nextBoolean()) ids.forEach(id -> createCommittedAndPersist(commandStore, id));
@@ -489,7 +490,7 @@ public class AsyncOperationTest
         commandStore.clearCache();
     }
 
-    private static Map<TxnId, Boolean> selectFailedTxn(Gen.Random rs, List<TxnId> ids)
+    private static Map<TxnId, Boolean> selectFailedTxn(RandomSource rs, List<TxnId> ids)
     {
         Map<TxnId, Boolean> failed = Maps.newHashMapWithExpectedSize(ids.size());
         for (TxnId id : ids)
