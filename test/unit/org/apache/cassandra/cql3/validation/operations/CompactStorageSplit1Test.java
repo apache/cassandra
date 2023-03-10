@@ -778,11 +778,11 @@ public class CompactStorageSplit1Test extends CQLTester
         execute("INSERT INTO %s (pk, v) VALUES (?, ?)", bytes("foo123"), bytes("1"));
 
         // Test restrictions on non-primary key value
-        assertEmpty(execute("SELECT * FROM %s WHERE pk = textAsBlob('foo123') AND v = textAsBlob('');"));
+        assertEmpty(execute("SELECT * FROM %s WHERE pk = text_as_blob('foo123') AND v = text_as_blob('');"));
 
         execute("INSERT INTO %s (pk, v) VALUES (?, ?)", bytes("foo124"), EMPTY_BYTE_BUFFER);
 
-        assertRows(execute("SELECT * FROM %s WHERE v = textAsBlob('');"),
+        assertRows(execute("SELECT * FROM %s WHERE v = text_as_blob('');"),
                    row(bytes("foo124"), EMPTY_BYTE_BUFFER));
     }
 

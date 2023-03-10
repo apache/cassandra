@@ -58,6 +58,9 @@ public class NativeFunctions
     public void add(NativeFunction function)
     {
         functions.put(function.name(), function);
+        NativeFunction legacyFunction = function.withLegacyName();
+        if (legacyFunction != null)
+            functions.put(legacyFunction.name(), legacyFunction);
     }
 
     public void addAll(NativeFunction... functions)
@@ -83,6 +86,14 @@ public class NativeFunctions
     }
 
     /**
+     * @return all the registered pre-built functions.
+     */
+    public Collection<NativeFunction> getFunctions()
+    {
+        return functions.values();
+    }
+
+    /**
      * Returns all the registered functions factories with the specified name.
      *
      * @param name a function name
@@ -91,6 +102,14 @@ public class NativeFunctions
     public Collection<FunctionFactory> getFactories(FunctionName name)
     {
         return factories.get(name);
+    }
+
+    /**
+     * @return all the registered functions factories.
+     */
+    public Collection<FunctionFactory> getFactories()
+    {
+        return factories.values();
     }
 
     /**

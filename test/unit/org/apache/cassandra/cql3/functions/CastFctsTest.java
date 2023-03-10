@@ -326,7 +326,7 @@ public class CastFctsTest extends CQLTester
         assertRows(execute("SELECT v FROM %s"), row(3));
 
         // Cast of placeholder without type hint
-        assertInvalidRequestMessage("Ambiguous call to function system.castAsInt",
+        assertInvalidRequestMessage("Ambiguous call to function system.cast_as_int",
                                     "INSERT INTO %s (k, v) VALUES (1, CAST(? AS int))", 3.4f);
 
         // Type hint of cast
@@ -363,7 +363,7 @@ public class CastFctsTest extends CQLTester
         assertRows(execute("SELECT v FROM %s"), row(3));
 
         // Cast of placeholder without type hint
-        assertInvalidRequestMessage("Ambiguous call to function system.castAsInt",
+        assertInvalidRequestMessage("Ambiguous call to function system.cast_as_int",
                                     "UPDATE %s SET v = CAST(? AS int) WHERE k = 1", 3.4f);
 
         // Type hint of cast
@@ -405,7 +405,7 @@ public class CastFctsTest extends CQLTester
         assertRows(execute("SELECT v FROM %s WHERE k = ?", 3), row(3));
 
         // Cast of placeholder without type hint
-        assertInvalidRequestMessage("Ambiguous call to function system.castAsInt",
+        assertInvalidRequestMessage("Ambiguous call to function system.cast_as_int",
                                     "UPDATE %s SET v = ? WHERE k = CAST(? AS int)", 3, 3.4f);
 
         // Type hint of cast
@@ -444,7 +444,7 @@ public class CastFctsTest extends CQLTester
         assertRows(execute("SELECT k FROM %s WHERE k = CAST((float) ? AS int)", 3.4f), row(3));
 
         // Cast of placeholder without type hint
-        assertInvalidRequestMessage("Ambiguous call to function system.castAsInt",
+        assertInvalidRequestMessage("Ambiguous call to function system.cast_as_int",
                                     "SELECT k FROM %s WHERE k = CAST(? AS int)", 3.4f);
 
         // Type hint of cast
@@ -483,7 +483,7 @@ public class CastFctsTest extends CQLTester
         assertEmpty(execute("SELECT * FROM %s WHERE k = ?", 3));
 
         // Cast of placeholder without type hint
-        assertInvalidRequestMessage("Ambiguous call to function system.castAsInt",
+        assertInvalidRequestMessage("Ambiguous call to function system.cast_as_int",
                                     "DELETE FROM %s WHERE k = CAST(? AS int)", 3.4f);
 
         // Type hint of cast

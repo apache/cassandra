@@ -175,6 +175,9 @@ Deprecation
           `getColumnIndexCacheSizeInKiB` and `setColumnIndexCacheSizeInKiB` respectively
         - deprecate the getter/setter methods `getBatchSizeWarnThreshold` and `setBatchSizeWarnThreshold` in favor of
           `getBatchSizeWarnThresholdInKiB` and `setBatchSizeWarnThresholdInKiB` respectively
+    - All native CQL functions names that don't use the snake case names are deprecated in favour of equivalent names
+      using snake casing. Thus, `totimestamp` is deprecated in favour of `to_timestamp`, `intasblob` in favour
+      of `int_as_blob`, `castAsInt` in favour of `cast_as_int`, etc.
 
 4.1
 ===

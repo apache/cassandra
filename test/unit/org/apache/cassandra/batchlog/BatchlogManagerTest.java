@@ -170,7 +170,7 @@ public class BatchlogManagerTest
 
         for (int i = 0; i < 100; i++)
         {
-            String query = String.format("SELECT * FROM \"%s\".\"%s\" WHERE key = intAsBlob(%d)", KEYSPACE1, CF_STANDARD1, i);
+            String query = String.format("SELECT * FROM \"%s\".\"%s\" WHERE key = int_as_blob(%d)", KEYSPACE1, CF_STANDARD1, i);
             UntypedResultSet result = executeInternal(query);
             assertNotNull(result);
             if (i < 50)
@@ -248,7 +248,7 @@ public class BatchlogManagerTest
         // We should see half of Standard2-targeted mutations written after the replay and all of Standard3 mutations applied.
         for (int i = 0; i < 1000; i++)
         {
-            UntypedResultSet result = executeInternal(String.format("SELECT * FROM \"%s\".\"%s\" WHERE key = intAsBlob(%d)", KEYSPACE1, CF_STANDARD2,i));
+            UntypedResultSet result = executeInternal(String.format("SELECT * FROM \"%s\".\"%s\" WHERE key = int_as_blob(%d)", KEYSPACE1, CF_STANDARD2,i));
             assertNotNull(result);
             if (i >= 500)
             {
@@ -264,7 +264,7 @@ public class BatchlogManagerTest
 
         for (int i = 0; i < 1000; i++)
         {
-            UntypedResultSet result = executeInternal(String.format("SELECT * FROM \"%s\".\"%s\" WHERE key = intAsBlob(%d)", KEYSPACE1, CF_STANDARD3, i));
+            UntypedResultSet result = executeInternal(String.format("SELECT * FROM \"%s\".\"%s\" WHERE key = int_as_blob(%d)", KEYSPACE1, CF_STANDARD3, i));
             assertNotNull(result);
             assertEquals(ByteBufferUtil.bytes(i), result.one().getBytes("key"));
             assertEquals("name" + i, result.one().getString("name"));

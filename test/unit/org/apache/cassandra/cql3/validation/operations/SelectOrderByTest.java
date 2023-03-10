@@ -73,17 +73,17 @@ public class SelectOrderByTest extends CQLTester
 
         beforeAndAfterFlush(() -> {
             // order by the only column in the selection
-            assertRows(execute("SELECT blobAsInt(intAsBlob(b)) FROM %s WHERE a=? ORDER BY b ASC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(b)) FROM %s WHERE a=? ORDER BY b ASC", 0),
                        row(0), row(1), row(2));
 
-            assertRows(execute("SELECT blobAsInt(intAsBlob(b)) FROM %s WHERE a=? ORDER BY b DESC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(b)) FROM %s WHERE a=? ORDER BY b DESC", 0),
                        row(2), row(1), row(0));
 
             // order by a column not in the selection
-            assertRows(execute("SELECT blobAsInt(intAsBlob(c)) FROM %s WHERE a=? ORDER BY b ASC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(c)) FROM %s WHERE a=? ORDER BY b ASC", 0),
                        row(0), row(1), row(2));
 
-            assertRows(execute("SELECT blobAsInt(intAsBlob(c)) FROM %s WHERE a=? ORDER BY b DESC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(c)) FROM %s WHERE a=? ORDER BY b DESC", 0),
                        row(2), row(1), row(0));
 
             assertInvalid("SELECT * FROM %s WHERE a=? ORDER BY c ASC", 0);
@@ -109,7 +109,7 @@ public class SelectOrderByTest extends CQLTester
             assertRows(execute("SELECT c.a FROM %s WHERE a=? ORDER BY b DESC", 0),
                        row(2), row(1), row(0));
 
-            assertRows(execute("SELECT blobAsInt(intAsBlob(c.a)) FROM %s WHERE a=? ORDER BY b DESC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(c.a)) FROM %s WHERE a=? ORDER BY b DESC", 0),
                        row(2), row(1), row(0));
         });
         dropTable("DROP TABLE %s");
@@ -198,39 +198,39 @@ public class SelectOrderByTest extends CQLTester
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 2, 5);
 
         beforeAndAfterFlush(() -> {
-            assertInvalid("SELECT blobAsInt(intAsBlob(b)) FROM %s WHERE a=? ORDER BY c ASC", 0);
-            assertInvalid("SELECT blobAsInt(intAsBlob(b)) FROM %s WHERE a=? ORDER BY c DESC", 0);
-            assertInvalid("SELECT blobAsInt(intAsBlob(b)) FROM %s WHERE a=? ORDER BY b ASC, c DESC", 0);
-            assertInvalid("SELECT blobAsInt(intAsBlob(b)) FROM %s WHERE a=? ORDER BY b DESC, c ASC", 0);
-            assertInvalid("SELECT blobAsInt(intAsBlob(b)) FROM %s WHERE a=? ORDER BY d ASC", 0);
+            assertInvalid("SELECT blob_as_int(int_as_blob(b)) FROM %s WHERE a=? ORDER BY c ASC", 0);
+            assertInvalid("SELECT blob_as_int(int_as_blob(b)) FROM %s WHERE a=? ORDER BY c DESC", 0);
+            assertInvalid("SELECT blob_as_int(int_as_blob(b)) FROM %s WHERE a=? ORDER BY b ASC, c DESC", 0);
+            assertInvalid("SELECT blob_as_int(int_as_blob(b)) FROM %s WHERE a=? ORDER BY b DESC, c ASC", 0);
+            assertInvalid("SELECT blob_as_int(int_as_blob(b)) FROM %s WHERE a=? ORDER BY d ASC", 0);
 
             // select and order by b
-            assertRows(execute("SELECT blobAsInt(intAsBlob(b)) FROM %s WHERE a=? ORDER BY b ASC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(b)) FROM %s WHERE a=? ORDER BY b ASC", 0),
                        row(0), row(0), row(0), row(1), row(1), row(1));
-            assertRows(execute("SELECT blobAsInt(intAsBlob(b)) FROM %s WHERE a=? ORDER BY b DESC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(b)) FROM %s WHERE a=? ORDER BY b DESC", 0),
                        row(1), row(1), row(1), row(0), row(0), row(0));
 
-            assertRows(execute("SELECT b, blobAsInt(intAsBlob(b)) FROM %s WHERE a=? ORDER BY b ASC", 0),
+            assertRows(execute("SELECT b, blob_as_int(int_as_blob(b)) FROM %s WHERE a=? ORDER BY b ASC", 0),
                        row(0, 0), row(0, 0), row(0, 0), row(1, 1), row(1, 1), row(1, 1));
-            assertRows(execute("SELECT b, blobAsInt(intAsBlob(b)) FROM %s WHERE a=? ORDER BY b DESC", 0),
+            assertRows(execute("SELECT b, blob_as_int(int_as_blob(b)) FROM %s WHERE a=? ORDER BY b DESC", 0),
                        row(1, 1), row(1, 1), row(1, 1), row(0, 0), row(0, 0), row(0, 0));
 
             // select c, order by b
-            assertRows(execute("SELECT blobAsInt(intAsBlob(c)) FROM %s WHERE a=? ORDER BY b ASC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(c)) FROM %s WHERE a=? ORDER BY b ASC", 0),
                        row(0), row(1), row(2), row(0), row(1), row(2));
-            assertRows(execute("SELECT blobAsInt(intAsBlob(c)) FROM %s WHERE a=? ORDER BY b DESC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(c)) FROM %s WHERE a=? ORDER BY b DESC", 0),
                        row(2), row(1), row(0), row(2), row(1), row(0));
 
             // select c, order by b, c
-            assertRows(execute("SELECT blobAsInt(intAsBlob(c)) FROM %s WHERE a=? ORDER BY b ASC, c ASC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(c)) FROM %s WHERE a=? ORDER BY b ASC, c ASC", 0),
                        row(0), row(1), row(2), row(0), row(1), row(2));
-            assertRows(execute("SELECT blobAsInt(intAsBlob(c)) FROM %s WHERE a=? ORDER BY b DESC, c DESC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(c)) FROM %s WHERE a=? ORDER BY b DESC, c DESC", 0),
                        row(2), row(1), row(0), row(2), row(1), row(0));
 
             // select d, order by b, c
-            assertRows(execute("SELECT blobAsInt(intAsBlob(d)) FROM %s WHERE a=? ORDER BY b ASC, c ASC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(d)) FROM %s WHERE a=? ORDER BY b ASC, c ASC", 0),
                        row(0), row(1), row(2), row(3), row(4), row(5));
-            assertRows(execute("SELECT blobAsInt(intAsBlob(d)) FROM %s WHERE a=? ORDER BY b DESC, c DESC", 0),
+            assertRows(execute("SELECT blob_as_int(int_as_blob(d)) FROM %s WHERE a=? ORDER BY b DESC, c DESC", 0),
                        row(5), row(4), row(3), row(2), row(1), row(0));
         });
     }

@@ -2251,7 +2251,7 @@ public class SelectGroupByTest extends CQLTester
                            row(2, toTimestamp("2016-09-27 16:25:00 UTC"), 10, 10, 1L),
                            row(2, toTimestamp("2016-09-27 16:30:00 UTC"), 11, 11, 1L));
 
-                assertRows(execute("SELECT pk, floor(toTimestamp(time), 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(toTimestamp(time), 5m" + startingTime + ")"),
+                assertRows(execute("SELECT pk, floor(to_timestamp(time), 5m" + startingTime + "), min(v), max(v), count(v) FROM %s GROUP BY pk, floor(to_timestamp(time), 5m" + startingTime + ")"),
                            row(1, toTimestamp("2016-09-27 16:10:00 UTC"), 1, 3, 3L),
                            row(1, toTimestamp("2016-09-27 16:15:00 UTC"), 4, 4, 1L),
                            row(1, toTimestamp("2016-09-27 16:20:00 UTC"), 5, 6, 2L),
