@@ -95,8 +95,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -186,8 +184,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -252,8 +248,6 @@ jobs:
         path: /tmp/cassandra/pylib
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -363,8 +357,6 @@ jobs:
         destination: dtest_j8_with_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -519,8 +511,6 @@ jobs:
         destination: dtest_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -606,8 +596,6 @@ jobs:
         destination: dtest_j8_large_with_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -725,8 +713,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -799,8 +785,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -890,8 +874,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -1001,8 +983,6 @@ jobs:
         destination: dtest_j11_without_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -1093,8 +1073,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -1212,8 +1190,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -1303,8 +1279,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -1422,8 +1396,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -1533,8 +1505,6 @@ jobs:
         destination: dtest_j8_without_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -1643,8 +1613,6 @@ jobs:
         destination: dtest_j11_without_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -1735,8 +1703,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -1932,8 +1898,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -2019,8 +1983,6 @@ jobs:
         destination: dtest_j11_large_with_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -2154,8 +2116,6 @@ jobs:
         destination: dtest_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -2265,8 +2225,6 @@ jobs:
         destination: dtest_j8_without_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -2375,8 +2333,6 @@ jobs:
         destination: dtest_j11_dtests_offheap_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -2462,8 +2418,6 @@ jobs:
         destination: dtest_j11_large_without_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -2554,8 +2508,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -2665,8 +2617,6 @@ jobs:
         destination: dtest_j8_with_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -2775,8 +2725,6 @@ jobs:
         destination: dtest_j11_without_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -2841,8 +2789,6 @@ jobs:
         path: /tmp/cassandra/pylib
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -2960,8 +2906,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -3034,8 +2978,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -3154,8 +3096,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -3288,8 +3228,6 @@ jobs:
         destination: dtest_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -3422,8 +3360,6 @@ jobs:
         destination: dtest_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -3557,8 +3493,6 @@ jobs:
         destination: dtest_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -3676,8 +3610,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -3792,8 +3724,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -3911,8 +3841,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -3984,8 +3912,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -4076,8 +4002,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -4162,8 +4086,6 @@ jobs:
         destination: dtest_j8_large_without_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -4277,8 +4199,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -4351,8 +4271,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -4462,8 +4380,6 @@ jobs:
         destination: dtest_j8_dtests_offheap_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -4596,8 +4512,6 @@ jobs:
         destination: dtest_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -4687,8 +4601,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -4844,8 +4756,6 @@ jobs:
         destination: dtest_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -4936,8 +4846,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -5027,8 +4935,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -5146,8 +5052,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -5257,8 +5161,6 @@ jobs:
         destination: dtest_j8_without_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -5367,8 +5269,6 @@ jobs:
         destination: dtest_j11_dtests_offheap_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -5459,8 +5359,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -5569,8 +5467,6 @@ jobs:
         destination: dtest_j11_dtests_offheap_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -5661,8 +5557,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -5780,8 +5674,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -5915,8 +5807,6 @@ jobs:
         destination: dtest_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -6035,8 +5925,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -6145,8 +6033,6 @@ jobs:
         destination: dtest_j8_dtests_offheap_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -6236,8 +6122,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -6370,8 +6254,6 @@ jobs:
         destination: dtest_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -6480,8 +6362,6 @@ jobs:
         destination: dtest_j11_with_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -6567,8 +6447,6 @@ jobs:
         destination: dtest_j8_upgradetests_without_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -6675,8 +6553,6 @@ jobs:
         destination: dtest_j11_dtests_offheap_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -6767,8 +6643,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -6877,8 +6751,6 @@ jobs:
         destination: dtest_j11_with_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -6969,8 +6841,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -7061,8 +6931,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -7153,8 +7021,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -7264,8 +7130,6 @@ jobs:
         destination: dtest_j11_with_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -7356,8 +7220,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -7442,8 +7304,6 @@ jobs:
         destination: dtest_j8_dtests_offheap_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -7561,8 +7421,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -7680,8 +7538,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -7772,8 +7628,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -7881,8 +7735,6 @@ jobs:
         - .m2
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -7968,8 +7820,6 @@ jobs:
         destination: dtest_j8_without_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -8054,8 +7904,6 @@ jobs:
         destination: dtest_j8_with_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -8118,8 +7966,6 @@ jobs:
         path: /tmp/cassandra/pylib
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -8210,8 +8056,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -8318,8 +8162,6 @@ jobs:
         destination: dtest_j11_without_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -8515,8 +8357,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -8588,8 +8428,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -8707,8 +8545,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -8817,8 +8653,6 @@ jobs:
         destination: dtest_j8_dtests_offheap_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -8951,8 +8785,6 @@ jobs:
         destination: dtest_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -9070,8 +8902,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -9178,8 +9008,6 @@ jobs:
         - .m2
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -9288,8 +9116,6 @@ jobs:
         destination: dtest_j8_with_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -9379,8 +9205,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -9453,8 +9277,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -9517,8 +9339,6 @@ jobs:
         path: /tmp/cassandra/pylib
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -9625,8 +9445,6 @@ jobs:
         destination: dtest_j11_with_vnodes_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -9717,8 +9535,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -9851,8 +9667,6 @@ jobs:
         destination: dtest_logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -9942,8 +9756,6 @@ jobs:
         destination: logs
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
@@ -10048,8 +9860,6 @@ jobs:
         - dtest_jars
     environment:
     - ANT_HOME: /usr/share/ant
-    - JAVA11_HOME: /usr/lib/jvm/java-11-openjdk-amd64
-    - JAVA8_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - LANG: en_US.UTF-8
     - KEEP_TEST_DIR: true
     - DEFAULT_DIR: /home/cassandra/cassandra-dtest
