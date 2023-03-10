@@ -22,7 +22,6 @@ import java.net.SocketTimeoutException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,7 +40,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -703,8 +701,8 @@ public class StreamSession
             state(State.FAILED); // make sure subsequent error handling sees the session in a final state 
             channel.sendControlMessage(new SessionFailedMessage()).awaitUninterruptibly();
         }
-        Throwable boundedThrowable = boundStackTrace(e, 2); //bound the stacktrace with a specified limit on the number of lines
-        return closeSession(State.FAILED, "Failed because of an unkown exception\n" + Throwables.getStackTraceAsString(boundedThrowable));
+        StringBuilder boundedThrowable = boundStackTrace(e, 2); //bound the stacktrace with a specified limit on the number of lines
+        return closeSession(State.FAILED, "Failed because of an unkown exception\n" + boundedThrowable);
     }
 
     private void logError(Throwable e)
@@ -1340,32 +1338,41 @@ public class StreamSession
                '}';
     }
 
-    public static Throwable boundStackTrace(Throwable e, int limit)
+    public static StringBuilder boundStackTrace(Throwable e, int limit)
     {
         Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
-        return boundStackTrace(e, limit, visited);
+        StringBuilder out = new StringBuilder();
+        return boundStackTrace(e, limit, visited, out);
     }
 
-    public static Throwable boundStackTrace(Throwable e, int limit, Set<Throwable> visited)
+    public static StringBuilder boundStackTrace(Throwable e, int limit, Set<Throwable> visited, StringBuilder out)
     {
         if (e == null)
-            return e;
+            return null;
 
         if (!visited.add(e))
-            return e;
+            return out.append("[CIRCULAR REFERENCE: ").append(e.getClass().getName()).append(": ").append(e.getMessage()).append("]");
         visited.add(e);
 
         if (e.getStackTrace().length == 0 || e.getStackTrace().length < limit)
         {
-            boundStackTrace(e.getCause(), limit, visited);
-            return e;
+            out.append(e.getClass().getName()).append(": ").append(e.getMessage()).append('\n');
+            boundStackTrace(e.getCause(), limit, visited, out);
+            return out;
         }
 
         StackTraceElement[] stackTrace = e.getStackTrace();
-        StackTraceElement[] limitedStackTrace = Arrays.copyOfRange(stackTrace, 0, limit);
-        e.setStackTrace(limitedStackTrace);
-        boundStackTrace(e.getCause(), limit, visited);
+        StringBuilder stackTraceBuilder = new StringBuilder();
+        stackTraceBuilder.append(e.getClass().getName() + ": " + e.getMessage()).append('\n');
 
-        return e;
+        for (int i = 0; i < limit; i++)
+        {
+            stackTraceBuilder.append('\t').append(stackTrace[i]);
+            if (e.getCause() == null && i == limit - 1) continue;
+            stackTraceBuilder.append('\n');
+        }
+
+        boundStackTrace(e.getCause(), limit, visited, out.append(stackTraceBuilder));
+        return out;
     }
 }
