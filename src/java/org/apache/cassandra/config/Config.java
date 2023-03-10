@@ -666,6 +666,8 @@ public class Config
 
     public AuthEnforcementFlag auth_enforcement_flag = AuthEnforcementFlag.none;
 
+    public Long auth_check_interval_in_ms = 30*60*1000L;
+
     public Boolean auto_repair_enabled = true;
 
     // This should be false for production, this is only set to true for Cassandra dtest so auto repair won't be triggerd

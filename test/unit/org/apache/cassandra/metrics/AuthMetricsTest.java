@@ -54,11 +54,14 @@ public class AuthMetricsTest
     private static final String TEST_PW = "testpassword";
     private static final String TEST_WRONG_USER = "testwronguser";
     private static final String TEST_WRONG_PW = "testwrongpassword";
+    private static final String TEST_WRONG_DELAYED_USER = "testwrongdelayeduser";
+
 
     private static PasswordAuthenticator authenticator;
     private final boolean authEnabled = DatabaseDescriptor.getAuthenticator().requireAuthentication();
     AuthEnforcementFlag authEnforcementFlag;
     long test_user_success_count, test_user_failure_count, test_wrong_user_success_count, test_wrong_user_failure_count;
+    long test_wrong_delayed_user_count, prevCalls;
 
     public AuthMetricsTest(AuthEnforcementFlag authEnforcementFlag)
     {
@@ -69,12 +72,17 @@ public class AuthMetricsTest
             test_user_failure_count = 2;
             test_wrong_user_success_count = 0;
             test_wrong_user_failure_count = 2;
+            test_wrong_delayed_user_count = 4;
+            // prevCalls = 2 since testDelayedAuthMetrics was called 2 times when soft_enforcement_flag was "hard"
+            prevCalls = 2;
         } else {
             // authEnforcementFlag = "hard"
             test_user_success_count = 2;
             test_user_failure_count = 1;
             test_wrong_user_success_count = 0;
             test_wrong_user_failure_count = 1;
+            test_wrong_delayed_user_count = 0;
+            prevCalls = 0;
         }
     }
 
@@ -104,6 +112,9 @@ public class AuthMetricsTest
                       "CREATE KEYSPACE testks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",
                       "CREATE TABLE testks.table1 (key text PRIMARY KEY, col1 int, col2 int)"),
         "cassandra", "cassandra");
+        executeWithCredentials(
+        Collections.singletonList(getCreateRoleCql(TEST_WRONG_DELAYED_USER, true, true, TEST_PW)),
+        "cassandra", "cassandra");
 
     }
 
@@ -116,6 +127,8 @@ public class AuthMetricsTest
     @Test
     public void testAuthMetrics()
     {
+        DatabaseDescriptor.setAuthCheckIntervalInMillis(30*60*1000L); // confirming the default value of auth check interval
+
         long test_user_success_count_old = AuthMetricsManager.getMetrics(TEST_USER, authEnabled, authEnforcementFlag.name()).userSuccessMetrics.getCount();
         long test_user_failure_count_old = AuthMetricsManager.getMetrics(TEST_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount();
         long test_wrong_user_success_count_old = AuthMetricsManager.getMetrics(TEST_WRONG_USER, authEnabled, authEnforcementFlag.name()).userSuccessMetrics.getCount();
@@ -140,6 +153,27 @@ public class AuthMetricsTest
         assertEquals(test_user_failure_count_new - test_user_failure_count_old, test_user_failure_count);
         assertEquals(test_wrong_user_success_count_new - test_wrong_user_success_count_old, test_wrong_user_success_count);
         assertEquals(test_wrong_user_failure_count_new - test_wrong_user_failure_count_old, test_wrong_user_failure_count);
+    }
+
+    /*
+    * testDelayedAuthMetrics is used to test the case when a wrong-auth user has logged in the cassandra using
+    * auth_enforcement_flag = "soft" and is still making queries. We need metrics to see if a wrong-auth user is
+    * making queries at regular interval of x minutes (30 miuntes)
+    * */
+    @Test
+    public void testDelayedAuthMetrics() {
+        String cql = "SELECT * FROM testks.table1";
+
+        DatabaseDescriptor.setAuthCheckIntervalInMillis(0L);
+
+        executeWithCredentials(Collections.singletonList(cql), TEST_WRONG_DELAYED_USER, TEST_WRONG_PW);
+        long sessionCallsCount = AuthMetricsManager.getMetrics(TEST_WRONG_DELAYED_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
+        long test_wrong_delayed_user_count_old = AuthMetricsManager.getMetrics(TEST_WRONG_DELAYED_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
+
+        executeWithCredentials(Arrays.asList(cql, cql, cql, cql, cql), TEST_WRONG_DELAYED_USER, TEST_WRONG_PW);
+        long test_wrong_delayed_user_count_new = AuthMetricsManager.getMetrics(TEST_WRONG_DELAYED_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
+
+        assertEquals(test_wrong_delayed_user_count_new - test_wrong_delayed_user_count_old, sessionCallsCount + test_wrong_delayed_user_count);
     }
 
     /**

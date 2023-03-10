@@ -4806,6 +4806,14 @@ public class DatabaseDescriptor
         conf.auth_enforcement_flag = authEnforcementFlag;
     }
 
+    public static Long getAuthCheckIntervalInMillis() {
+        return conf.auth_check_interval_in_ms;
+    }
+
+    public static void setAuthCheckIntervalInMillis(Long interval) {
+        conf.auth_check_interval_in_ms = interval;
+    }
+
     public static Boolean isAutoRepairEnabled()
     {
         return conf.auto_repair_enabled;

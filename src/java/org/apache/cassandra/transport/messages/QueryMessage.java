@@ -23,9 +23,12 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.metrics.AuthMetricsManager;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
@@ -110,6 +113,13 @@ public class QueryMessage extends Message.Request
             if (traceRequest)
                 traceQuery(state);
 
+            if (state.getClientState() != null) {
+                AuthenticatedUser authUser = state.getClientState().getUser();
+                if (authUser != null && authUser.logWrongAuthWithSoftEnforcement()){
+                    logger.warn("Error: Active session with wrong credentials for user: " + authUser.getName());
+                    AuthMetricsManager.getMetrics(authUser.getName(), true, Config.AuthEnforcementFlag.soft.name()).userFailureMetrics.inc();
+                }
+            }
             long queryStartTime = currentTimeMillis();
 
             QueryHandler queryHandler = ClientState.getCQLQueryHandler();

@@ -196,7 +196,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
             }
             if (softEnforcementFlag) {
                 logger.warn(String.format("Error: Allowing user (%s) to login because auth_enforcement_flag = soft", username));
-                return new AuthenticatedUser(username, true);
+                return new AuthenticatedUser(username, true, true);
             }
             throw e;
         }
@@ -266,7 +266,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
                 AuthMetricsManager.getMetrics(EMPTY_USER_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
             }
             if (softEnforcementFlag) {
-                return new AuthenticatedUser(EMPTY_USER_USERNAME, true);
+                return new AuthenticatedUser(EMPTY_USER_USERNAME, true, true);
             }
             throw new AuthenticationException(String.format("Required key '%s' is missing", USERNAME_KEY));
         }
@@ -278,7 +278,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
                 AuthMetricsManager.getMetrics(EMPTY_PWD_USERNAME, authEnabled, authEnforcementFlagEnum.name()).userFailureMetrics.inc();
             }
             if (softEnforcementFlag) {
-                return new AuthenticatedUser(EMPTY_PWD_USERNAME, true);
+                return new AuthenticatedUser(EMPTY_PWD_USERNAME, true, true);
             }
             throw new AuthenticationException(String.format("Required key '%s' is missing for provided username %s", PASSWORD_KEY, username));
         }

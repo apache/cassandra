@@ -52,21 +52,23 @@ public class AuthenticatedUser
 
     // Primary Role of the logged in user
     private final RoleResource role;
-
+    private final boolean isWrongAuthWithSoftEnforcement;
     private final boolean forceCanLogin;
+    public long lastWrongAuthTimestamp;
 
-    public AuthenticatedUser(String name, boolean forceCanLogin)
+    public AuthenticatedUser(String name, boolean forceCanLogin, boolean isWrongAuthWithSoftEnforcement)
     {
         this.name = name;
         this.role = RoleResource.role(name);
         this.forceCanLogin = forceCanLogin;
+        this.isWrongAuthWithSoftEnforcement = isWrongAuthWithSoftEnforcement;
+        if (isWrongAuthWithSoftEnforcement)
+            setLastWrongAuthTimestamp();
     }
 
     public AuthenticatedUser(String name)
     {
-        this.name = name;
-        this.role = RoleResource.role(name);
-        this.forceCanLogin = false;
+        this(name, false, false);
     }
 
     public String getName()
@@ -154,6 +156,26 @@ public class AuthenticatedUser
     public boolean hasLocalAccess()
     {
         return networkPermissionsCache.get(this.getPrimaryRole()).canAccess(Datacenters.thisDatacenter());
+    }
+
+    public long getLastWrongAuthTimestamp() {
+        return this.lastWrongAuthTimestamp;
+    }
+
+    public void setLastWrongAuthTimestamp () {
+        this.lastWrongAuthTimestamp = System.currentTimeMillis();
+    }
+
+    public boolean logWrongAuthWithSoftEnforcement()
+    {
+        if (!isWrongAuthWithSoftEnforcement) return false;
+        long currentTimeInMillis = System.currentTimeMillis();
+        if (currentTimeInMillis - getLastWrongAuthTimestamp() >= DatabaseDescriptor.getAuthCheckIntervalInMillis())
+        {
+            setLastWrongAuthTimestamp();
+            return true;
+        }
+        return false;
     }
 
     @Override
