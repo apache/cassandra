@@ -26,6 +26,7 @@ import org.junit.Test;
 
 import accord.impl.CommandsForKey;
 import accord.primitives.TxnId;
+import accord.utils.AccordGens;
 import accord.utils.Gens;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -56,7 +57,7 @@ public class CommandsForKeySerializerTest
     {
         DataOutputBuffer buffer = new DataOutputBuffer();
         int version = MessagingService.Version.VERSION_40.value;
-        qt().forAll(Gens.lists(AccordGenerators.ids()).ofSizeBetween(0, 10)).check(ids -> {
+        qt().forAll(Gens.lists(AccordGens.txnIds()).ofSizeBetween(0, 10)).check(ids -> {
             buffer.clear();
 
             long expectedSize = CommandsForKeySerializer.depsIdSerializer.serializedSize(ids, version);
