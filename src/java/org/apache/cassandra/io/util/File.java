@@ -132,7 +132,7 @@ public class File implements Comparable<File>
     public File(Path path)
     {
         if (path != null && path.getFileSystem() != filesystem)
-            throw new IllegalArgumentException("Incompatible file system");
+            throw new IllegalArgumentException("Incompatible file system; path FileSystem (" + path.getFileSystem() + ") is not the same reference (" + filesystem + ")");
 
         this.path = path;
     }
