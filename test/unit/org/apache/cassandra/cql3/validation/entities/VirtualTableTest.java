@@ -1050,7 +1050,7 @@ public class VirtualTableTest extends CQLTester
     }
 
     @Test
-    public void testDisallowedFilteringOnTable() throws Throwable
+    public void testDisallowedFilteringOnRegularColumn() throws Throwable
     {
         try
         {
@@ -1064,9 +1064,29 @@ public class VirtualTableTest extends CQLTester
     }
 
     @Test
-    public void testAllowedFilteringOnTable() throws Throwable
+    public void testDisallowedFilteringOnClusteringColumn() throws Throwable
+    {
+        try
+        {
+            executeNet(format("SELECT * FROM %s.%s WHERE c = 'abc'", KS_NAME, VT5_NAME));
+            fail(format("should fail as %s.%s is not allowed to be filtered on implicitly.", KS_NAME, VT5_NAME));
+        }
+        catch (InvalidQueryException ex)
+        {
+            assertTrue(ex.getMessage().contains("Cannot execute this query as it might involve data filtering and thus may have unpredictable performance"));
+        }
+    }
+
+    @Test
+    public void testAllowedFilteringOnRegularColumn() throws Throwable
     {
         executeNet(format("SELECT * FROM %s.%s WHERE v2 = 5", KS_NAME, VT1_NAME));
+    }
+
+    @Test
+    public void testAllowedFilteringOnClusteringColumn() throws Throwable
+    {
+        executeNet(format("SELECT * FROM %s.%s WHERE c = 'abc'", KS_NAME, VT1_NAME));
     }
 
     @FunctionalInterface
