@@ -1458,7 +1458,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 // We will potentially filter data if either:
                 //  - Have more than one IndexExpression
                 //  - Have no index expression and the row filter is not the identity
-                checkFalse(restrictions.needFiltering(), StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+                if (restrictions.requiresAllowFilteringIfNotSpecified())
+                    checkFalse(restrictions.needFiltering(), StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
             }
         }
 
