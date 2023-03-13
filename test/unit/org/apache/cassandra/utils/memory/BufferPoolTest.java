@@ -1018,6 +1018,38 @@ public class BufferPoolTest
         assertEquals(0, bufferPool.usedSizeInBytes());
     }
 
+    @Test
+    public void testPuttingUnusedPortion()
+    {
+        final int expectedCapacity = BufferPool.TINY_ALLOCATION_UNIT * 4;
+        final int quarterUnit = BufferPool.TINY_ALLOCATION_UNIT / 4;
+        final int requestedCapacity = expectedCapacity - 3 * quarterUnit;
+
+        ByteBuffer buffer = bufferPool.getAtLeast(requestedCapacity, BufferType.OFF_HEAP);
+        assertNotNull(buffer);
+        assertEquals(expectedCapacity, buffer.capacity());
+        assertEquals(expectedCapacity, bufferPool.usedSizeInBytes());
+
+        buffer.limit(requestedCapacity); // 3.25 x unit
+        bufferPool.putUnusedPortion(buffer);
+
+        // the unused portion was too small to be returned, the buffer remains unchanged
+        assertEquals(expectedCapacity, buffer.capacity());
+        // used size is didn't change either
+        assertEquals(expectedCapacity, bufferPool.usedSizeInBytes());
+
+        buffer.limit(expectedCapacity - BufferPool.TINY_ALLOCATION_UNIT); // 3.0 x unit
+        bufferPool.putUnusedPortion(buffer);
+
+        // now we should notice a change
+        assertEquals(BufferPool.TINY_ALLOCATION_UNIT * 3, buffer.capacity());
+        assertEquals(BufferPool.TINY_ALLOCATION_UNIT * 3, bufferPool.usedSizeInBytes());
+
+        bufferPool.put(buffer);
+
+        assertEquals(0, bufferPool.usedSizeInBytes());
+    }
+
     private BufferPool.Chunk allocate(int num, int bufferSize, List<ByteBuffer> buffers)
     {
         for (int i = 0; i < num; i++)
