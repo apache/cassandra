@@ -464,22 +464,6 @@ public class CommitLog implements CommitLogMBean
     }
 
     /**
-     * Shuts down the threads used by the commit log, blocking until completion.
-     * TODO this should accept a timeout, and throw TimeoutException
-     */
-    synchronized public void shutdownBlocking() throws InterruptedException
-    {
-        if (!started)
-            return;
-
-        started = false;
-        executor.shutdown();
-        executor.awaitTermination();
-        segmentManager.shutdown();
-        segmentManager.awaitTermination(1L, TimeUnit.MINUTES);
-    }
-
-    /**
      * FOR TESTING PURPOSES
      * @return the number of files recovered
      */
@@ -501,17 +485,35 @@ public class CommitLog implements CommitLogMBean
                                           DatabaseDescriptor.getEncryptionContext());
     }
 
-    /**
-     * FOR TESTING PURPOSES
-     */
-    @VisibleForTesting
-    synchronized public void stopUnsafe(boolean deleteSegments)
+    private synchronized void shutdown()
     {
         if (!started)
             return;
 
         started = false;
         executor.shutdown();
+        segmentManager.shutdown();
+    }
+
+    /**
+     * Shuts down the threads used by the commit log, blocking until completion.
+     * TODO this should accept a timeout, and throw TimeoutException
+     */
+    public void shutdownBlocking() throws InterruptedException
+    {
+        shutdown();
+        executor.awaitTermination();
+        segmentManager.awaitTermination(1L, TimeUnit.MINUTES);
+    }
+
+    /**
+     * FOR TESTING PURPOSES
+     */
+    @VisibleForTesting
+    synchronized public void stopUnsafe(boolean deleteSegments)
+    {
+        shutdown();
+
         try
         {
             executor.awaitTermination();
