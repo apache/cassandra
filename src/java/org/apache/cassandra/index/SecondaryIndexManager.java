@@ -206,7 +206,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         // we call add for every index definition in the collection as
         // some may not have been created here yet, only added to schema
         for (IndexMetadata tableIndex : tableIndexes)
-            addIndex(tableIndex, false);
+            addIndex(tableIndex, SystemKeyspace.isIndexBuilt(baseTable.keyspace, tableIndex.name));
     }
 
     private Future<?> reloadIndex(IndexMetadata indexDef)
