@@ -150,6 +150,8 @@ Upgrading
      to TimeWindowCompactionStrategy before upgrading to this version.
    - The deprecated functions `dateOf` and `unixTimestampOf` have been removed. They were deprecated and replaced by
      `toTimestamp` and `toUnixTimestamp` in Cassandra 2.2.
+   - Hadoop integration is no longer available (CASSANDRA-18323). If you want to process Cassandra data by big data frameworks, 
+     please upgrade your infrastructure to use Cassandra Spark connector.
 
 Deprecation
 -----------
