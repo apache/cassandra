@@ -231,7 +231,6 @@ public class StreamFailureTest extends TestBaseImpl
 
         private static boolean isCaller(String klass, String method)
         {
-            //TODO is there a cleaner way to check this?
             StackTraceElement[] stack = Thread.currentThread().getStackTrace();
             for (int i = 0; i < stack.length; i++)
             {
@@ -283,7 +282,6 @@ public class StreamFailureTest extends TestBaseImpl
 
         private static boolean isCaller(String klass, String method)
         {
-            //TODO is there a cleaner way to check this?
             StackTraceElement[] stack = Thread.currentThread().getStackTrace();
             for (int i = 0; i < stack.length; i++)
             {

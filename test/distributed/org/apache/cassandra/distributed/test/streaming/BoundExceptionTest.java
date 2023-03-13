@@ -18,6 +18,7 @@
 package org.apache.cassandra.distributed.test.streaming;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.junit.Test;
 
@@ -36,8 +37,8 @@ public class BoundExceptionTest
         StringBuilder boundedStackTrace = StreamSession.boundStackTrace(exceptionToTest, LIMIT);
 
         String expectedStackTrace = "java.lang.RuntimeException: test exception\n" +
-                                    "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testSingleException(BoundExceptionTest.java:35)\n" +
-                                    "\tjava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)";
+                                    "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testSingleException(BoundExceptionTest.java:36)\n" +
+                                    "\tjava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n";
 
         assertEquals(expectedStackTrace,boundedStackTrace.toString());
     }
@@ -49,7 +50,7 @@ public class BoundExceptionTest
         StringBuilder boundedStackTrace = StreamSession.boundStackTrace(exceptionToTest, LIMIT);
 
         String expectedStackTrace = "java.lang.RuntimeException: java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
-                                     "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testNestedException(BoundExceptionTest.java:48)\n" +
+                                     "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testNestedException(BoundExceptionTest.java:49)\n" +
                                      "\tjava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n" +
                                      "java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
                                      "java.io.IOException: Bad disk somewhere\n";
@@ -68,10 +69,10 @@ public class BoundExceptionTest
 
         StringBuilder boundedStackTrace = StreamSession.boundStackTrace(e1, LIMIT);
         String expectedStackTrace = "java.lang.Exception: Test exception 1\n" +
-                                     "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testExceptionCycle(BoundExceptionTest.java:63)\n" +
+                                     "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testExceptionCycle(BoundExceptionTest.java:64)\n" +
                                      "\tjava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n" +
                                      "java.lang.RuntimeException: Test exception 2\n" +
-                                     "[CIRCULAR REFERENCE: java.lang.Exception: Test exception 1]";
+                                     "[CIRCULAR REFERENCE: java.lang.Exception: Test exception 1]\n";
 
         assertEquals(expectedStackTrace, boundedStackTrace.toString());
     }
@@ -99,8 +100,8 @@ public class BoundExceptionTest
         String expectedStackTrace = "java.lang.RuntimeException: java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
                                     "java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
                                     "java.io.IOException: Bad disk somewhere\n" +
-                                    "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testEmptyNestedStackTrace(BoundExceptionTest.java:94)\n" +
-                                    "\tjava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)";
+                                    "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testEmptyNestedStackTrace(BoundExceptionTest.java:95)\n" +
+                                    "\tjava.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)\n";
 
         assertEquals(expectedStackTrace, boundedStackTrace.toString());
     }
@@ -109,15 +110,13 @@ public class BoundExceptionTest
     public void testLimitLargerThanStackTrace()
     {
         Throwable exceptionToTest = new RuntimeException(new IllegalArgumentException("the disk /foo/var is bad", new IOException("Bad disk somewhere")));
-        StackTraceElement[] stackTrace = new StackTraceElement[1];
-        stackTrace[0] = exceptionToTest.getStackTrace()[0];
-        exceptionToTest.setStackTrace(stackTrace);
+        exceptionToTest.setStackTrace(Arrays.copyOf(exceptionToTest.getStackTrace(), 1));
 
         StringBuilder boundedStackTrace = StreamSession.boundStackTrace(exceptionToTest, LIMIT);
         String expectedStackTrace = "java.lang.RuntimeException: java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
-                                    "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testLimitLargerThanStackTrace(BoundExceptionTest.java:111)\n" +
+                                    "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testLimitLargerThanStackTrace(BoundExceptionTest.java:112)\n" +
                                     "java.lang.IllegalArgumentException: the disk /foo/var is bad\n" +
-                                    "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testLimitLargerThanStackTrace(BoundExceptionTest.java:111)\n" +
+                                    "\torg.apache.cassandra.distributed.test.streaming.BoundExceptionTest.testLimitLargerThanStackTrace(BoundExceptionTest.java:112)\n" +
                                     "java.io.IOException: Bad disk somewhere\n";
 
         assertEquals(expectedStackTrace, boundedStackTrace.toString());

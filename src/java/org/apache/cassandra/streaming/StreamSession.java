@@ -1342,8 +1342,7 @@ public class StreamSession
     {
         Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         StringBuilder out = new StringBuilder();
-        int counter = limit;
-        return boundStackTrace(e, limit, counter, visited, out);
+        return boundStackTrace(e, limit, limit, visited, out);
     }
 
     public static StringBuilder boundStackTrace(Throwable e, int limit, int counter, Set<Throwable> visited, StringBuilder out)
@@ -1352,27 +1351,19 @@ public class StreamSession
             return out;
 
         if (!visited.add(e))
-            return out.append("[CIRCULAR REFERENCE: ").append(e.getClass().getName()).append(": ").append(e.getMessage()).append("]");
+            return out.append("[CIRCULAR REFERENCE: ").append(e.getClass().getName() + ": " + e.getMessage()).append("]").append('\n');
         visited.add(e);
-
-        int stackTraceSize = e.getStackTrace().length;
 
         StackTraceElement[] stackTrace = e.getStackTrace();
         out.append(e.getClass().getName() + ": " + e.getMessage()).append('\n');
 
-        int i = 0;
-        while (i < Math.min(stackTraceSize, limit) && counter > 0)
+        for (int i = 0, size = Math.min(e.getStackTrace().length, limit); i < size && counter > 0; i++)
         {
-            out.append('\t').append(stackTrace[i]);
-            if (e.getCause() == null && i == limit - 1) break;
-            out.append('\n');
-            i++;
-            counter = counter - 1;
+            out.append('\t').append(stackTrace[i]).append('\n');
+            counter--;
         }
 
-        limit = stackTraceSize == 0 || limit < 1 ? limit : limit - visited.size();
         boundStackTrace(e.getCause(), limit, counter, visited, out);
-
         return out;
     }
 }
