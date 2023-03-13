@@ -20,7 +20,6 @@ package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOError;
 import java.io.IOException;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -380,7 +379,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
                                           dataFile.length(),
                                           scrubCompactionId,
                                           ImmutableSet.of(sstable),
-                                          Paths.get(sstable.getFilename()).getParent().toString());
+                                          File.getPath(sstable.getFilename()).getParent().toString());
             }
             catch (Exception e)
             {
