@@ -20,24 +20,29 @@ package org.apache.cassandra.simulator.debug;
 
 import java.util.function.Supplier;
 
+import org.agrona.collections.Long2LongHashMap;
 import org.apache.cassandra.simulator.RandomSource;
-import org.hsqldb.lib.IntKeyLongValueHashMap;
 
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 
 public class SelfReconcilingRandom implements Supplier<RandomSource>
 {
-    static class Map extends IntKeyLongValueHashMap
+    static class Map extends Long2LongHashMap
     {
+        public Map(long missingValue)
+        {
+            super(missingValue);
+        }
+
         public boolean put(int i, long v)
         {
             int size = this.size();
-            super.addOrRemove((long)i, (long)v, (Object)null, (Object)null, false);
+            super.put(i, v);
             return size != this.size();
         }
     }
-    final Map map = new Map();
-    long[] tmp = new long[1];
+
+    final Map map = new Map(Long.MIN_VALUE);
     boolean isNextPrimary = true;
 
     static abstract class AbstractVerifying extends RandomSource.Abstract
@@ -113,10 +118,11 @@ public class SelfReconcilingRandom implements Supplier<RandomSource>
         {
             void next(long v)
             {
-                if (!map.get(++cur, tmp))
+                long value = map.get(++cur);
+                if (value == Long.MIN_VALUE)
                     throw failWithOOM();
                 map.remove(cur);
-                if (tmp[0] != v)
+                if (value != v)
                     throw failWithOOM();
             }
 
