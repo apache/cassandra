@@ -290,7 +290,6 @@ public abstract class Cell<V> extends ColumnData
             }
 
             Cell cell = accessor.factory().cell(column, timestamp, ttl, localDeletionTime, value, path);
-            logger.info("Read flags {} for cell {} path {}", flags, cell, cell.path());
             return cell;
         }
 

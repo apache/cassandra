@@ -38,13 +38,16 @@ import org.apache.cassandra.service.ConsensusTableMigrationState.MigrationStateS
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REQUEST_CM;
 import static org.apache.cassandra.net.Verb.UPDATE_CM;
+import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 
+@Simulate(with=MONITORS)
 public class ClusterMetadataService
 {
     private static final Logger logger = LoggerFactory.getLogger(ClusterMetadataService.class);
@@ -73,6 +76,10 @@ public class ClusterMetadataService
             metadata = result.success().metadata;
             AccordService.instance().createEpochFromConfigUnsafe();
             propagateUpdate();
+        }
+        else
+        {
+            logger.info("Cluster metadata transformation rejected because: {}", result.rejected().reason);
         }
         return metadata;
     }
@@ -117,8 +124,14 @@ public class ClusterMetadataService
             {
                 for (MigrationStateSnapshot snapshot : FutureCombiner.allOf(results).get())
                 {
-                    if (snapshot.epoch.compareTo(metadata.epoch) > 0)
-                        metadata = new ClusterMetadata(snapshot.epoch, snapshot);
+                    synchronized (this)
+                    {
+                        if (snapshot.epoch.compareTo(metadata.epoch) > 0)
+                        {
+                            metadata = new ClusterMetadata(snapshot.epoch, snapshot);
+                            AccordService.instance().createEpochFromConfigUnsafe();
+                        }
+                    }
                 }
             }
             catch (InterruptedException e)

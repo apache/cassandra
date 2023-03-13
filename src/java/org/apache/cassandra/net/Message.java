@@ -72,6 +72,7 @@ import static org.apache.cassandra.utils.vint.VIntCoding.skipUnsignedVInt;
  *
  * @param <T> The type of the message payload.
  */
+// TODO when this is version 50 instead of 42 redo the header serialization to not have if, just one for the two versions
 public class Message<T> implements ReplyContext
 {
     private static final Logger logger = LoggerFactory.getLogger(Message.class);
@@ -212,7 +213,7 @@ public class Message<T> implements ReplyContext
 
     public static <T> Message<T> synthetic(InetAddressAndPort from, Verb verb, T payload)
     {
-        return new Message<>(new Header(-1, verb, from, -1, -1, 0, NO_PARAMS), payload);
+        return new Message<>(new Header(-1, verb, from, -1, -1, 0, NO_PARAMS, ClusterMetadata.current().epoch), payload);
     }
 
     public static <T> Message<T> out(Verb verb, T payload, long expiresAtNanos)
@@ -257,7 +258,7 @@ public class Message<T> implements ReplyContext
         if (expiresAtNanos == 0)
             expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
 
-        return new Message<>(new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, buildParams(paramType, paramValue)), payload);
+        return new Message<>(new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, buildParams(paramType, paramValue), ClusterMetadata.current().epoch), payload);
     }
 
     public static <T> Message<T> internalResponse(Verb verb, T payload)
@@ -269,13 +270,16 @@ public class Message<T> implements ReplyContext
     /**
      * Used by the {@code MultiRangeReadCommand} to split multi-range responses from a replica
      * into single-range responses.
+     *
+     * TODO This is only used in test? Should it be removed?
      */
+    @VisibleForTesting
     public static <T> Message<T> remoteResponse(InetAddressAndPort from, Verb verb, T payload)
     {
         assert verb.isResponse();
         long createdAtNanos = approxTime.now();
         long expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
-        return new Message<>(new Header(0, verb, from, createdAtNanos, expiresAtNanos, 0, NO_PARAMS), payload);
+        return new Message<>(new Header(0, verb, from, createdAtNanos, expiresAtNanos, 0, NO_PARAMS, ClusterMetadata.current().epoch), payload);
     }
 
     /** Builds a response Message with provided payload, and all the right fields inferred from request Message */
@@ -431,7 +435,7 @@ public class Message<T> implements ReplyContext
     public static class Header
     {
         public final long id;
-        public final Epoch epoch = ClusterMetadata.current().epoch;
+        public final Epoch epoch;
         public final Verb verb;
         public final InetAddressAndPort from;
         public final long createdAtNanos;
@@ -439,7 +443,7 @@ public class Message<T> implements ReplyContext
         private final int flags;
         private final Map<ParamType, Object> params;
 
-        private Header(long id, Verb verb, InetAddressAndPort from, long createdAtNanos, long expiresAtNanos, int flags, Map<ParamType, Object> params)
+        private Header(long id, Verb verb, InetAddressAndPort from, long createdAtNanos, long expiresAtNanos, int flags, Map<ParamType, Object> params, Epoch epoch)
         {
             this.id = id;
             this.verb = verb;
@@ -448,21 +452,22 @@ public class Message<T> implements ReplyContext
             this.createdAtNanos = createdAtNanos;
             this.flags = flags;
             this.params = params;
+            this.epoch = epoch;
         }
 
         Header withFlag(MessageFlag flag)
         {
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flag.addTo(flags), params);
+            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flag.addTo(flags), params, epoch);
         }
 
         Header withParam(ParamType type, Object value)
         {
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, addParam(params, type, value));
+            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, addParam(params, type, value), epoch);
         }
 
         Header withParams(Map<ParamType, Object> values)
         {
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, addParams(params, values));
+            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, addParams(params, values), epoch);
         }
 
         boolean callBackOnFailure()
@@ -529,6 +534,8 @@ public class Message<T> implements ReplyContext
         private long createdAtNanos;
         private long expiresAtNanos;
         private long id;
+
+        private Epoch epoch = ClusterMetadata.current().epoch;
 
         private boolean hasId;
 
@@ -630,6 +637,12 @@ public class Message<T> implements ReplyContext
             return this;
         }
 
+        public Builder<T> withEpoch(Epoch epoch)
+        {
+            this.epoch = epoch;
+            return this;
+        }
+
         public Message<T> build()
         {
             if (verb == null)
@@ -639,7 +652,7 @@ public class Message<T> implements ReplyContext
             if (payload == null)
                 throw new IllegalArgumentException();
 
-            return new Message<>(new Header(hasId ? id : nextId(), verb, from, createdAtNanos, expiresAtNanos, flags, params), payload);
+            return new Message<>(new Header(hasId ? id : nextId(), verb, from, createdAtNanos, expiresAtNanos, flags, params, epoch), payload);
         }
     }
 
@@ -754,7 +767,7 @@ public class Message<T> implements ReplyContext
          */
         int inferMessageSize(ByteBuffer buf, int index, int limit, int version) throws InvalidLegacyProtocolMagic
         {
-            int size = version >= VERSION_40 ? inferMessageSizePost40(buf, index, limit) : inferMessageSizePre40(buf, index, limit);
+            int size = version >= VERSION_40 ? inferMessageSizePost40(buf, index, limit, version) : inferMessageSizePre40(buf, index, limit);
             if (size > DatabaseDescriptor.getInternodeMaxMessageSizeInBytes())
                 throw new OversizedMessageException(size);
             return size;
@@ -795,6 +808,8 @@ public class Message<T> implements ReplyContext
             out.writeUnsignedVInt(NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
             out.writeUnsignedVInt32(header.verb.id);
             out.writeUnsignedVInt32(header.flags);
+            if (version >= VERSION_42)
+                out.writeUnsignedVInt(header.epoch.getEpoch());
             serializeParams(header.params, out, version);
         }
 
@@ -807,17 +822,22 @@ public class Message<T> implements ReplyContext
             long expiresAtNanos = getExpiresAtNanos(creationTimeNanos, currentTimeNanos, TimeUnit.MILLISECONDS.toNanos(in.readUnsignedVInt()));
             Verb verb = Verb.fromId(in.readUnsignedVInt32());
             int flags = in.readUnsignedVInt32();
+            Epoch epoch = ClusterMetadata.current().epoch;
+            if (version >= VERSION_42)
+                epoch = Epoch.create(Epoch.FIRST.getPeriod(), in.readUnsignedVInt());
             Map<ParamType, Object> params = deserializeParams(in, version);
-            return new Header(id, verb, peer, creationTimeNanos, expiresAtNanos, flags, params);
+            return new Header(id, verb, peer, creationTimeNanos, expiresAtNanos, flags, params, epoch);
         }
 
-        private void skipHeaderPost40(DataInputPlus in) throws IOException
+        private void skipHeaderPost40(DataInputPlus in, int version) throws IOException
         {
             skipUnsignedVInt(in); // id
             in.skipBytesFully(4); // createdAt
             skipUnsignedVInt(in); // expiresIn
             skipUnsignedVInt(in); // verb
             skipUnsignedVInt(in); // flags
+            if (version >= VERSION_42)
+                skipUnsignedVInt(in); // epoch
             skipParamsPost40(in); // params
         }
 
@@ -829,6 +849,8 @@ public class Message<T> implements ReplyContext
             size += sizeofUnsignedVInt(NANOSECONDS.toMillis(header.expiresAtNanos - header.createdAtNanos));
             size += sizeofUnsignedVInt(header.verb.id);
             size += sizeofUnsignedVInt(header.flags);
+            if (version >= VERSION_42)
+                size += sizeofUnsignedVInt(header.epoch.getEpoch());
             size += serializedParamsSize(header.params, version);
             return Ints.checkedCast(size);
         }
@@ -854,12 +876,19 @@ public class Message<T> implements ReplyContext
             int flags = getUnsignedVInt32(buf, index);
             index += computeUnsignedVIntSize(flags);
 
+            Epoch epoch = ClusterMetadata.current().epoch;
+            if (version >= VERSION_42)
+            {
+                epoch = Epoch.create(Epoch.FIRST.getPeriod(), getUnsignedVInt(buf, index));
+                index += computeUnsignedVIntSize(epoch.getEpoch());
+            }
+
             Map<ParamType, Object> params = extractParams(buf, index, version);
 
             long createdAtNanos = calculateCreationTimeNanos(createdAtMillis, timeSnapshot, currentTimeNanos);
             long expiresAtNanos = getExpiresAtNanos(createdAtNanos, currentTimeNanos, TimeUnit.MILLISECONDS.toNanos(expiresInMillis));
 
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params);
+            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params, epoch);
         }
 
         private <T> void serializePost40(Message<T> message, DataOutputPlus out, int version) throws IOException
@@ -879,7 +908,7 @@ public class Message<T> implements ReplyContext
 
         private <T> Message<T> deserializePost40(DataInputPlus in, Header header, int version) throws IOException
         {
-            skipHeaderPost40(in);
+            skipHeaderPost40(in, version);
             skipUnsignedVInt(in); // payload size, not needed by payload deserializer
             T payload = (T) header.verb.serializer().deserialize(in, version);
             return new Message<>(header, payload);
@@ -894,7 +923,7 @@ public class Message<T> implements ReplyContext
             return Ints.checkedCast(size);
         }
 
-        private int inferMessageSizePost40(ByteBuffer buf, int readerIndex, int readerLimit)
+        private int inferMessageSizePost40(ByteBuffer buf, int readerIndex, int readerLimit, int version)
         {
             int index = readerIndex;
 
@@ -921,6 +950,14 @@ public class Message<T> implements ReplyContext
             if (flagsSize < 0)
                 return -1;
             index += flagsSize;
+
+            if (version >= VERSION_42)
+            {
+                int epochSize = computeUnsignedVIntSize(buf, index, readerLimit);
+                if (epochSize < 0)
+                    return -1;
+                index += epochSize;
+            }
 
             int paramsSize = extractParamsSizePost40(buf, index, readerLimit);
             if (paramsSize < 0)
@@ -962,7 +999,7 @@ public class Message<T> implements ReplyContext
             Verb verb = Verb.fromId(in.readInt());
             Map<ParamType, Object> params = deserializeParams(in, version);
             int flags = removeFlagsFromLegacyParams(params);
-            return new Header(id, verb, from, creationTimeNanos, verb.expiresAtNanos(creationTimeNanos), flags, params);
+            return new Header(id, verb, from, creationTimeNanos, verb.expiresAtNanos(creationTimeNanos), flags, params, ClusterMetadata.current().epoch);
         }
 
         private static final int PRE_40_MESSAGE_PREFIX_SIZE = 12; // protocol magic + id + createdAt
@@ -1011,7 +1048,7 @@ public class Message<T> implements ReplyContext
             long createdAtNanos = calculateCreationTimeNanos(createdAtMillis, timeSnapshot, currentTimeNanos);
             long expiresAtNanos = verb.expiresAtNanos(createdAtNanos);
 
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params);
+            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params, ClusterMetadata.current().epoch);
         }
 
         private <T> void serializePre40(Message<T> message, DataOutputPlus out, int version) throws IOException
@@ -1129,7 +1166,7 @@ public class Message<T> implements ReplyContext
             params.put(ParamType.FAILURE_RESPONSE, LegacyFlag.instance);
             params.put(ParamType.FAILURE_REASON, post40.payload);
 
-            Header header = new Header(post40.id(), post40.verb().toPre40Verb(), post40.from(), post40.createdAtNanos(), post40.expiresAtNanos(), 0, params);
+            Header header = new Header(post40.id(), post40.verb().toPre40Verb(), post40.from(), post40.createdAtNanos(), post40.expiresAtNanos(), 0, params, post40.epoch());
             return new Message<>(header, NoPayload.noPayload);
         }
 
@@ -1144,7 +1181,7 @@ public class Message<T> implements ReplyContext
             if (null == reason)
                 reason = RequestFailureReason.UNKNOWN;
 
-            Header header = new Header(pre40.id(), Verb.FAILURE_RSP, pre40.from(), pre40.createdAtNanos(), pre40.expiresAtNanos(), pre40.header.flags, params);
+            Header header = new Header(pre40.id(), Verb.FAILURE_RSP, pre40.from(), pre40.createdAtNanos(), pre40.expiresAtNanos(), pre40.header.flags, params, pre40.epoch());
             return new Message<>(header, reason);
         }
 
