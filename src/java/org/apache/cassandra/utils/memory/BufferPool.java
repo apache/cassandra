@@ -874,7 +874,8 @@ public class BufferPool
         public void putUnusedPortion(ByteBuffer buffer)
         {
             Chunk chunk = Chunk.getParentChunk(buffer);
-            int size = buffer.capacity() - buffer.limit();
+            int originalCapacity = buffer.capacity();
+            int size = originalCapacity - buffer.limit();
 
             if (chunk == null)
             {
@@ -883,7 +884,8 @@ public class BufferPool
             }
 
             chunk.freeUnusedPortion(buffer);
-            memoryInUse.add(-size);
+            // Calculate the actual freed bytes which may be different from `size` when pooling is involved
+            memoryInUse.add(buffer.capacity() - originalCapacity);
         }
 
         public ByteBuffer get(int size)
