@@ -65,7 +65,7 @@ public class SnapshotLoader
 
     public SnapshotLoader(String[] dataDirectories)
     {
-        this(Arrays.stream(dataDirectories).map(File::new).map(File::toPath).collect(Collectors.toList()));
+        this(Arrays.stream(dataDirectories).map(File::getPath).collect(Collectors.toList()));
     }
 
     public SnapshotLoader(Collection<Path> dataDirs)
