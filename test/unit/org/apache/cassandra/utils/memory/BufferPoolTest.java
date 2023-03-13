@@ -905,7 +905,7 @@ public class BufferPoolTest
         assertNotEquals(chunk1, chunk3);
         assertNotEquals(chunk2, chunk3);
 
-        // verify chunk2 got evicted, it doesn't have a owner
+        // verify chunk2 got evicted, it doesn't have an owner
         assertNotNull(chunk0.owner());
         assertEquals(BufferPool.Chunk.Status.IN_USE, chunk0.status());
         assertNotNull(chunk1.owner());
