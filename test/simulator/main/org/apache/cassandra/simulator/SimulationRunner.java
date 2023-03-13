@@ -365,8 +365,13 @@ public class SimulationRunner
                 }
                 catch (Throwable t)
                 {
-                    logger.error("Failed on seed {}", Long.toHexString(seed), t);
+                    throw new SimulationException(seed, t);
                 }
+            }
+            catch (Throwable t)
+            {
+                if (t instanceof SimulationException) throw t;
+                throw new SimulationException(seed, "Failure creating the simulation", t);
             }
         }
     }
