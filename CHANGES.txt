@@ -1,4 +1,5 @@
 5.0
+ * Remove org.apache.cassandra.hadoop code (CASSANDRA-18323)
  * Remove deprecated CQL functions dateOf and unixTimestampOf (CASSANDRA-18328)
  * Remove DateTieredCompactionStrategy (CASSANDRA-18043)
  * Add system_views.max_sstable_size and system_views.max_sstable_duration tables (CASSANDRA-18333)
