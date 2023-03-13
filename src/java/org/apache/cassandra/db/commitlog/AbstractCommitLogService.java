@@ -328,7 +328,7 @@ public abstract class AbstractCommitLogService
         while (lastSyncedAt < syncTime);
     }
 
-    protected void awaitTermination() throws InterruptedException
+    public void awaitTermination() throws InterruptedException
     {
         executor.awaitTermination(5L, MINUTES);
     }
