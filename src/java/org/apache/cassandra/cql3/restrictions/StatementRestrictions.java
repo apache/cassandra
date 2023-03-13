@@ -286,7 +286,7 @@ public final class StatementRestrictions
             validateSecondaryIndexSelections();
     }
 
-    private boolean requiresAllowFilteringIfNotSpecified()
+    public boolean requiresAllowFilteringIfNotSpecified()
     {
         if (!table.isVirtual())
             return true;
