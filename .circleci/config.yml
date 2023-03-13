@@ -3909,7 +3909,7 @@ jobs:
     - REPEATED_UTESTS_LONG_COUNT: 100
     - REPEATED_UTESTS_STRESS: null
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS: org.apache.cassandra.simulator.test.ShortPaxosSimulationTest
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
     - REPEATED_JVM_DTESTS: null
     - REPEATED_JVM_DTESTS_COUNT: 500
@@ -10355,7 +10355,7 @@ jobs:
     - REPEATED_UTESTS_LONG_COUNT: 100
     - REPEATED_UTESTS_STRESS: null
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS: org.apache.cassandra.simulator.test.ShortPaxosSimulationTest
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
     - REPEATED_JVM_DTESTS: null
     - REPEATED_JVM_DTESTS_COUNT: 500
@@ -13136,6 +13136,9 @@ workflows:
         requires:
         - start_j11_utests_system_keyspace_directory
         - j11_build
+    - j11_simulator_dtests_repeat:
+        requires:
+        - j11_build
   java8_tests:
     jobs:
     - j8_build: {}
@@ -13301,5 +13304,8 @@ workflows:
     - j8_cqlsh_dtests_py311_offheap:
         requires:
         - start_j8_cqlsh_tests_offheap
+        - j8_build
+    - j8_simulator_dtests_repeat:
+        requires:
         - j8_build
   version: 2
