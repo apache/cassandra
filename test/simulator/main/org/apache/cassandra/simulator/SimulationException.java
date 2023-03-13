@@ -32,6 +32,6 @@ public class SimulationException extends RuntimeException
 
     private static String createMsg(long seed, String msg)
     {
-        return String.format("Failed on seed %s%s", Long.toHexString(seed), msg == null ? "" : "; " + msg);
+        return String.format("Failed on seed 0x%s%s", Long.toHexString(seed), msg == null ? "" : "; " + msg);
     }
 }
