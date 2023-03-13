@@ -603,7 +603,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     assert config.networkTopology().contains(config.broadcastAddress()) : String.format("Network topology %s doesn't contain the address %s",
                                                                                                         config.networkTopology(), config.broadcastAddress());
                     DistributedTestSnitch.assign(config.networkTopology());
-                    CassandraDaemon.getInstanceForTesting().activate();
+                    CassandraDaemon.getInstanceForTesting().activate(false);
                     // TODO: filters won't work for the messages dispatched during startup
                     registerInboundFilter(cluster);
                     registerOutboundFilter(cluster);

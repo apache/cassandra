@@ -731,7 +731,7 @@ public class CassandraDaemon
     /**
      * A convenience method to initialize and start the daemon in one shot.
      */
-    public void activate()
+    public void activate(boolean closeStdOutErr)
     {
         // Do not put any references to DatabaseDescriptor above the forceStaticInitialization call.
         try
@@ -749,12 +749,11 @@ public class CassandraDaemon
                 new File(pidFile).deleteOnExit();
             }
 
-            // TODO: this should definitely be done differently
-//            if (CASSANDRA_FOREGROUND.getString() == null)
-//            {
-//                System.out.close();
-//                System.err.close();
-//            }
+            if (closeStdOutErr)
+            {
+                System.out.close();
+                System.err.close();
+            }
 
             start();
 
@@ -870,7 +869,7 @@ public class CassandraDaemon
 
     public static void main(String[] args)
     {
-        instance.activate();
+        instance.activate(CASSANDRA_FOREGROUND.getString() == null);
     }
 
     public void clearConnectionHistory()
