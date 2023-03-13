@@ -648,4 +648,29 @@ public class Util
         }
         return () -> DisallowedDirectories.clearUnwritableUnsafe();
     }
+
+    /**
+     * Finds the first instance where a supplied object is inserted in the default HashSet before a preceeding
+     * instance.
+     * @param supplier The supplier of the objects to test.
+     * @return The last object created, the one that inserts before a previous instance.
+     * @param <T> the type of object returned by the supplier.
+     */
+    public static <T> T findFirstUnordered(java.util.function.Supplier<T> supplier)
+    {
+        HashSet<T> set = new HashSet<>(2);
+        T first = supplier.get();
+        while (true)
+        {
+            set.clear();
+            T second = supplier.get();
+            set.add(first);
+            set.add(second);
+            if (set.iterator().next() != first)
+                return second;
+
+            first = second;
+        }
+    }
+
 }

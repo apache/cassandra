@@ -692,7 +692,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Set<SSTableReader> newSSTables = new HashSet<>();
 
         Directories.SSTableLister lister = getDirectories().sstableLister(Directories.OnTxnErr.IGNORE).skipTemporary(true);
-        for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
+        for (Map.Entry<Descriptor, Set<Component>> entry : lister.sortedList().entrySet())
         {
             Descriptor descriptor = entry.getKey();
 
