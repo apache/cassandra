@@ -30,8 +30,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
-
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 public abstract class TimeFcts
@@ -47,8 +45,6 @@ public abstract class TimeFcts
                          now("currenttime", TimeType.instance),
                          minTimeuuidFct,
                          maxTimeuuidFct,
-                         dateOfFct,
-                         unixTimestampOfFct,
                          toDate(TimeUUIDType.instance),
                          toTimestamp(TimeUUIDType.instance),
                          toUnixTimestamp(TimeUUIDType.instance),
@@ -104,57 +100,6 @@ public abstract class TimeFcts
                 return null;
 
             return TimeUUID.maxAtUnixMillis(TimestampType.instance.compose(bb).getTime()).toBytes();
-        }
-    };
-
-    /**
-     * Function that convert a value of <code>TIMEUUID</code> into a value of type <code>TIMESTAMP</code>.
-     * @deprecated Replaced by the {@link #toTimestamp} function
-     */
-    public static final NativeScalarFunction dateOfFct = new NativeScalarFunction("dateof", TimestampType.instance, TimeUUIDType.instance)
-    {
-        private volatile boolean hasLoggedDeprecationWarning;
-
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-        {
-            if (!hasLoggedDeprecationWarning)
-            {
-                hasLoggedDeprecationWarning = true;
-                logger.warn("The function 'dateof' is deprecated." +
-                            " Use the function 'toTimestamp' instead.");
-            }
-
-            ByteBuffer bb = parameters.get(0);
-            if (bb == null)
-                return null;
-
-            long timeInMillis = TimeUUID.deserialize(bb).unix(MILLISECONDS);
-            return ByteBufferUtil.bytes(timeInMillis);
-        }
-    };
-
-    /**
-     * Function that convert a value of type <code>TIMEUUID</code> into an UNIX timestamp.
-     * @deprecated Replaced by the {@link #toUnixTimestamp} function
-     */
-    public static final NativeScalarFunction unixTimestampOfFct = new NativeScalarFunction("unixtimestampof", LongType.instance, TimeUUIDType.instance)
-    {
-        private volatile boolean hasLoggedDeprecationWarning;
-
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-        {
-            if (!hasLoggedDeprecationWarning)
-            {
-                hasLoggedDeprecationWarning = true;
-                logger.warn("The function 'unixtimestampof' is deprecated." +
-                            " Use the function 'toUnixTimestamp' instead.");
-            }
-
-            ByteBuffer bb = parameters.get(0);
-            if (bb == null)
-                return null;
-
-            return ByteBufferUtil.bytes(TimeUUID.deserialize(bb).unix(MILLISECONDS));
         }
     };
 
