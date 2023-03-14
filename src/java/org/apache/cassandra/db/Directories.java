@@ -65,6 +65,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileStoreUtils;
 import org.apache.cassandra.io.util.FileUtils;
@@ -972,6 +973,18 @@ public class Directories
         {
             filter();
             return ImmutableMap.copyOf(components);
+        }
+
+        /**
+         * Returns a sorted version of the {@code list} method.
+         * Descriptors are sorted by generation.
+         * @return a List of descriptors to their components.
+         */
+        public List<Map.Entry<Descriptor, Set<Component>>> sortedList()
+        {
+            List<Map.Entry<Descriptor, Set<Component>>> sortedEntries = new ArrayList<>(list().entrySet());
+            sortedEntries.sort((o1, o2) -> SSTableIdFactory.COMPARATOR.compare(o1.getKey().id, o2.getKey().id));
+            return sortedEntries;
         }
 
         public List<File> listFiles()
