@@ -52,10 +52,12 @@ public class ConfigFields
     public static final String PERMISSIONS_CACHE_MAX_ENTRIES = "permissions_cache_max_entries";
     public static final String PERMISSIONS_UPDATE_INTERVAL = "permissions_update_interval";
     public static final String PERMISSIONS_VALIDITY = "permissions_validity";
+    public static final String PHI_CONVICT_THRESHOLD = "phi_convict_threshold";
     public static final String RANGE_REQUEST_TIMEOUT = "range_request_timeout";
     public static final String READ_REQUEST_TIMEOUT = "read_request_timeout";
     public static final String READ_THRESHOLDS_ENABLED = "read_thresholds_enabled";
     public static final String REPAIR_REQUEST_TIMEOUT = "repair_request_timeout";
+    public static final String REPAIR_SESSION_SPACE = "repair_session_space";
     public static final String REQUEST_TIMEOUT = "request_timeout";
     public static final String ROLES_CACHE_ACTIVE_UPDATE = "roles_cache_active_update";
     public static final String ROLES_CACHE_MAX_ENTRIES = "roles_cache_max_entries";
@@ -63,11 +65,13 @@ public class ConfigFields
     public static final String ROLES_VALIDITY = "roles_validity";
     public static final String ROW_INDEX_READ_SIZE_FAIL_THRESHOLD = "row_index_read_size_fail_threshold";
     public static final String ROW_INDEX_READ_SIZE_WARN_THRESHOLD = "row_index_read_size_warn_threshold";
+    public static final String SLOW_QUERY_LOG_TIMEOUT = "slow_query_log_timeout";
     public static final String SSTABLE_PREEMPTIVE_OPEN_INTERVAL = "sstable_preemptive_open_interval";
     public static final String TOMBSTONE_FAILURE_THRESHOLD = "tombstone_failure_threshold";
     public static final String TOMBSTONE_WARN_THRESHOLD = "tombstone_warn_threshold";
     public static final String TRANSFER_HINTS_ON_DECOMMISSION = "transfer_hints_on_decommission";
     public static final String TRUNCATE_REQUEST_TIMEOUT = "truncate_request_timeout";
     public static final String USE_DETERMINISTIC_TABLE_ID = "use_deterministic_table_id";
+    public static final String USE_OFFHEAP_MERKLE_TREES = "use_offheap_merkle_trees";
     public static final String WRITE_REQUEST_TIMEOUT = "write_request_timeout";
 }

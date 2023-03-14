@@ -510,10 +510,7 @@ public class DatabaseDescriptor
         }
 
         /* phi convict threshold for FailureDetector */
-        if (conf.phi_convict_threshold < 5 || conf.phi_convict_threshold > 16)
-        {
-            throw new ConfigurationException("phi_convict_threshold must be between 5 and 16, but was " + conf.phi_convict_threshold, false);
-        }
+        phiConvictThesholdBounds(conf.phi_convict_threshold, conf.phi_convict_threshold);
 
         /* Thread per pool */
         if (conf.concurrent_reads < 2)
@@ -571,10 +568,7 @@ public class DatabaseDescriptor
         if (conf.repair_session_space == null)
             conf.repair_session_space = new DataStorageSpec.IntMebibytesBound(Math.max(1, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
 
-        if (conf.repair_session_space.toMebibytes() < 1)
-            throw new ConfigurationException("repair_session_space must be > 0, but was " + conf.repair_session_space);
-        else if (conf.repair_session_space.toMebibytes() > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
-            logger.warn("A repair_session_space of " + conf.repair_session_space+ " mebibytes is likely to cause heap pressure");
+        repairSessionSpaceConstraint(null, conf.repair_session_space);
 
         checkForLowestAcceptedTimeouts(conf);
 
@@ -1433,22 +1427,40 @@ public class DatabaseDescriptor
     private static void applyConfigurationConstraints()
     {
         confRegistry.addPropertyValidator(ConfigFields.DEFAULT_KEYSPACE_RF, DatabaseDescriptor::defaultKeyspaceRFValidator, Integer.TYPE);
-        confRegistry.addPropertyValidator(ConfigFields.REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.READ_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.RANGE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.WRITE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.COUNTER_WRITE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.CAS_CONTENTION_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.TRUNCATE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.REPAIR_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.READ_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.RANGE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.WRITE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.COUNTER_WRITE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.CAS_CONTENTION_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.TRUNCATE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.REPAIR_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.PHI_CONVICT_THRESHOLD, DatabaseDescriptor::phiConvictThesholdBounds, Double.TYPE);
+        confRegistry.addPropertyValidator(ConfigFields.REPAIR_SESSION_SPACE, DatabaseDescriptor::repairSessionSpaceConstraint, DataStorageSpec.IntMebibytesBound.class);
     }
 
-    private static void lowestThanAcceptedTimeout(DurationSpec.LongMillisecondsBound oldValue, DurationSpec.LongMillisecondsBound newValue)
+    private static void lowestThanAcceptedTimeoutConstraint(DurationSpec.LongMillisecondsBound oldValue, DurationSpec.LongMillisecondsBound newValue)
     {
         if (newValue == null) return;
         if (newValue.toMilliseconds() < LOWEST_ACCEPTED_TIMEOUT.toMilliseconds())
             throw new IllegalStateException(String.format("Invalid timeout '%s' is less than lowest acceptable value '%s'",
                                                           newValue.toMilliseconds(), LOWEST_ACCEPTED_TIMEOUT.toMilliseconds()));
+    }
+
+    private static void phiConvictThesholdBounds(double oldValue, double newValue)
+    {
+        if (newValue < 5 || newValue > 16)
+            throw new ConfigurationException(String.format("%s must be between 5 and 16, but was %s", ConfigFields.PHI_CONVICT_THRESHOLD, newValue), false);
+    }
+
+    private static void repairSessionSpaceConstraint(DataStorageSpec.IntMebibytesBound oldValue, DataStorageSpec.IntMebibytesBound newValue)
+    {
+        if (newValue == null) return;
+        int sizeInMiB = newValue.toMebibytes();
+        if (sizeInMiB < 1)
+            throw new ConfigurationException(String.format("%s must be > 0, but was %s", ConfigFields.REPAIR_SESSION_SPACE, sizeInMiB));
+        else if (sizeInMiB > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
+            logger.warn("A {} of {} mebibytes is likely to cause heap pressure", ConfigFields.REPAIR_SESSION_SPACE, newValue);
     }
 
     /**
@@ -2009,7 +2021,7 @@ public class DatabaseDescriptor
 
     public static long getSlowQueryTimeout(TimeUnit unit)
     {
-        return conf.slow_query_log_timeout.to(unit);
+        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.SLOW_QUERY_LOG_TIMEOUT).to(unit);
     }
 
     /**
@@ -2032,12 +2044,12 @@ public class DatabaseDescriptor
 
     public static double getPhiConvictThreshold()
     {
-        return conf.phi_convict_threshold;
+        return confRegistry.get(ConfigFields.PHI_CONVICT_THRESHOLD);
     }
 
     public static void setPhiConvictThreshold(double phiConvictThreshold)
     {
-        conf.phi_convict_threshold = phiConvictThreshold;
+        confRegistry.set(ConfigFields.PHI_CONVICT_THRESHOLD, phiConvictThreshold);
     }
 
     public static int getConcurrentReaders()
@@ -3604,19 +3616,12 @@ public class DatabaseDescriptor
 
     public static int getRepairSessionSpaceInMiB()
     {
-        return conf.repair_session_space.toMebibytes();
+        return confRegistry.<DataStorageSpec.IntMebibytesBound>get(ConfigFields.REPAIR_SESSION_SPACE).toMebibytes();
     }
 
     public static void setRepairSessionSpaceInMiB(int sizeInMiB)
     {
-        if (sizeInMiB < 1)
-            throw new ConfigurationException("Cannot set repair_session_space to " + sizeInMiB +
-                                             " < 1 mebibyte");
-        else if (sizeInMiB > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
-            logger.warn("A repair_session_space of " + conf.repair_session_space +
-                        " is likely to cause heap pressure.");
-
-        conf.repair_session_space = new DataStorageSpec.IntMebibytesBound(sizeInMiB);
+        confRegistry.set(ConfigFields.REPAIR_SESSION_SPACE, new DataStorageSpec.IntMebibytesBound(sizeInMiB));
     }
 
     public static int getPaxosRepairParallelism()
@@ -4033,13 +4038,12 @@ public class DatabaseDescriptor
 
     public static boolean useOffheapMerkleTrees()
     {
-        return conf.use_offheap_merkle_trees;
+        return confRegistry.get(ConfigFields.USE_OFFHEAP_MERKLE_TREES);
     }
 
     public static void useOffheapMerkleTrees(boolean value)
     {
-        logger.info("Setting use_offheap_merkle_trees to {}", value);
-        conf.use_offheap_merkle_trees = value;
+        confRegistry.set(ConfigFields.USE_OFFHEAP_MERKLE_TREES, value);
     }
 
     public static Function<CommitLog, AbstractCommitLogSegmentManager> getCommitLogSegmentMgrProvider()

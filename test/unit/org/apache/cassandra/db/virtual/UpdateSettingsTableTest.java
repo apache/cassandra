@@ -133,6 +133,8 @@ public class UpdateSettingsTableTest extends CQLTester
         return ImmutableMap.<Class<?>, Object[]>builder()
                            .put(Boolean.class, new Object[]{ true, false })
                            .put(boolean.class, new Object[]{ true, false })
+                           .put(Double.class, new Object[]{ 4.0, 5.0 })
+                           .put(double.class, new Object[]{ 4.0, 5.0 })
                            .put(Integer.class, new Object[]{ 1, 2 })
                            .put(int.class, new Object[]{ 1, 2 })
                            .put(Long.class, new Object[]{ 1L, 2L })

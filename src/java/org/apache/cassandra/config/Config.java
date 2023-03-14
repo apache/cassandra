@@ -47,7 +47,7 @@ import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
  * <p>
- * Properties declared with {@link Mutable} annotation are mutated via JMX and
+ * Properties annotated with {@link Mutable} are mutated via JMX and
  * {@code org.apache.cassandra.db.virtual.SettingsTable} virtual table.
  */
 public class Config
@@ -172,10 +172,11 @@ public class Config
     @Replaces(oldName = "cross_node_timeout", converter = Converters.IDENTITY, deprecated = true)
     public boolean internode_timeout = true;
 
-    @Replaces(oldName = "slow_query_log_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public volatile DurationSpec.LongMillisecondsBound slow_query_log_timeout = new DurationSpec.LongMillisecondsBound("500ms");
+    @Mutable @Replaces(oldName = "slow_query_log_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public DurationSpec.LongMillisecondsBound slow_query_log_timeout = new DurationSpec.LongMillisecondsBound("500ms");
 
-    public volatile double phi_convict_threshold = 8.0;
+    @Mutable
+    public double phi_convict_threshold = 8.0;
 
     public int concurrent_reads = 32;
     public int concurrent_writes = 32;
@@ -207,10 +208,11 @@ public class Config
     // Limit the maximum depth of repair session merkle trees
     @Deprecated
     public volatile Integer repair_session_max_tree_depth = null;
-    @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
-    public volatile DataStorageSpec.IntMebibytesBound repair_session_space = null;
+    @Mutable @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
+    public DataStorageSpec.IntMebibytesBound repair_session_space = null;
 
-    public volatile boolean use_offheap_merkle_trees = true;
+    @Mutable
+    public boolean use_offheap_merkle_trees = true;
 
     public int storage_port = 7000;
     public int ssl_storage_port = 7001;
