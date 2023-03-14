@@ -19,7 +19,6 @@ package org.apache.cassandra.db.partitions;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
-import java.util.NavigableSet;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
@@ -215,24 +214,6 @@ public final class AtomicBTreePartition extends AbstractBTreePartition
     public Row lastRow()
     {
         return allocator.ensureOnHeap().applyToRow(super.lastRow());
-    }
-
-    @Override
-    public UnfilteredRowIterator unfilteredIterator(ColumnFilter selection, Slices slices, boolean reversed)
-    {
-        return allocator.ensureOnHeap().applyToPartition(super.unfilteredIterator(selection, slices, reversed));
-    }
-
-    @Override
-    public UnfilteredRowIterator unfilteredIterator(ColumnFilter selection, NavigableSet<Clustering<?>> clusteringsInQueryOrder, boolean reversed)
-    {
-        return allocator.ensureOnHeap().applyToPartition(super.unfilteredIterator(selection, clusteringsInQueryOrder, reversed));
-    }
-
-    @Override
-    public UnfilteredRowIterator unfilteredIterator()
-    {
-        return allocator.ensureOnHeap().applyToPartition(super.unfilteredIterator());
     }
 
     @Override

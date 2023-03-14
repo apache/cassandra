@@ -395,12 +395,16 @@ public class CompactionManager implements CompactionManagerMBean
      * @param operation the operation to run
      * @param jobs the number of threads to use - 0 means use all available. It never uses more than concurrent_compactors threads
      * @return status of the operation
-     * @throws ExecutionException
-     * @throws InterruptedException
      */
     @SuppressWarnings("resource")
-    private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs, final OneSSTableOperation operation, int jobs, OperationType operationType)
+    private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs,
+                                                           final OneSSTableOperation operation,
+                                                           int jobs,
+                                                           OperationType operationType)
     {
+        String operationName = operationType.name();
+        String keyspace = cfs.keyspace.getName();
+        String table = cfs.getTableName();
         return cfs.withAllSSTables(operationType, (compacting) -> {
             logger.info("Starting {} for {}.{}", operationType, cfs.keyspace.getName(), cfs.getTableName());
             List<LifecycleTransaction> transactions = new ArrayList<>();
@@ -413,7 +417,7 @@ public class CompactionManager implements CompactionManagerMBean
                 Iterable<SSTableReader> sstables = Lists.newArrayList(operation.filterSSTables(compacting));
                 if (Iterables.isEmpty(sstables))
                 {
-                    logger.info("No sstables to {} for {}.{}", operationType.name(), cfs.keyspace.getName(), cfs.name);
+                    logger.info("No sstables to {} for {}.{}", operationName, keyspace, table);
                     return AllSSTableOpStatus.SUCCESSFUL;
                 }
 
@@ -430,7 +434,7 @@ public class CompactionManager implements CompactionManagerMBean
                             return this;
                         }
                     };
-                    Future<?> fut = executor.submitIfRunning(callable, "paralell sstable operation");
+                    Future<?> fut = executor.submitIfRunning(callable, "parallel SSTable operation");
                     if (!fut.isCancelled())
                         futures.add(fut);
                     else
@@ -444,7 +448,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
                 FBUtilities.waitOnFutures(futures);
                 assert compacting.originals().isEmpty();
-                logger.info("Finished {} for {}.{} successfully", operationType, cfs.keyspace.getName(), cfs.getTableName());
+                logger.info("Finished {} for {}.{} successfully", operationType, keyspace, table);
                 return AllSSTableOpStatus.SUCCESSFUL;
             }
             finally
@@ -460,7 +464,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
                 Throwable fail = Throwables.close(null, transactions);
                 if (fail != null)
-                    logger.error("Failed to cleanup lifecycle transactions ({} for {}.{})", operationType, cfs.keyspace.getName(), cfs.getTableName(), fail);
+                    logger.error("Failed to cleanup lifecycle transactions ({} for {}.{})", operationType, keyspace, table, fail);
             }
         });
     }

@@ -126,6 +126,10 @@ public class TableMetrics
     public final Gauge<Integer> liveSSTableCount;
     /** Number of SSTables with old version on disk for this CF */
     public final Gauge<Integer> oldVersionSSTableCount;
+    /** Maximum duration of an SSTable for this table, computed as maxTimestamp - minTimestamp*/
+    public final Gauge<Long> maxSSTableDuration;
+    /** Maximum size of SSTable of this table - the physical size on disk of all components for such SSTable in bytes*/
+    public final Gauge<Long> maxSSTableSize;
     /** Disk space used by SSTables belonging to this table */
     public final Counter liveDiskSpaceUsed;
     /** Uncompressed/logical disk space used by SSTables belonging to this table */
@@ -631,6 +635,35 @@ public class TableMetrics
                     if (!sstable.descriptor.version.isLatestVersion())
                         count++;
                 return count;
+            }
+        });
+        maxSSTableDuration = createTableGauge("MaxSSTableDuration", new Gauge<Long>()
+        {
+            @Override
+            public Long getValue()
+            {
+                return cfs.getTracker()
+                          .getView()
+                          .liveSSTables()
+                          .stream()
+                          .filter(sstable -> sstable.getMinTimestamp() != Long.MAX_VALUE && sstable.getMaxTimestamp() != Long.MAX_VALUE)
+                          .map(ssTableReader -> ssTableReader.getMaxTimestamp() - ssTableReader.getMinTimestamp())
+                          .max(Long::compare)
+                          .orElse(0L);
+            }
+        });
+        maxSSTableSize = createTableGauge("MaxSSTableSize", new Gauge<Long>()
+        {
+            @Override
+            public Long getValue()
+            {
+                return cfs.getTracker()
+                          .getView()
+                          .liveSSTables()
+                          .stream()
+                          .map(SSTableReader::bytesOnDisk)
+                          .max(Long::compare)
+                          .orElse(0L);
             }
         });
         liveDiskSpaceUsed = createTableCounter("LiveDiskSpaceUsed");
