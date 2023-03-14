@@ -55,12 +55,13 @@ public class TimeuuidTest extends CQLTester
 
         assertRowCount(execute("SELECT * FROM %s WHERE k = 0 AND t = ?", rows[0][1]), 1);
 
-        assertInvalid("SELECT dateOf(k) FROM %s WHERE k = 0 AND t = ?", rows[0][1]);
+        assertInvalidMessage("k cannot be passed as argument 0 of function",
+                             "SELECT minTimeuuid(k) FROM %s WHERE k = 0 AND t = ?", rows[0][1]);
 
         for (int i = 0; i < 4; i++)
         {
             long timestamp = ((TimeUUID) rows[i][1]).unix(MILLISECONDS);
-            assertRows(execute("SELECT dateOf(t), unixTimestampOf(t) FROM %s WHERE k = 0 AND t = ?", rows[i][1]),
+            assertRows(execute("SELECT toTimestamp(t), toUnixTimestamp(t) FROM %s WHERE k = 0 AND t = ?", rows[i][1]),
                        row(new Date(timestamp), timestamp));
         }
 

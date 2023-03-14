@@ -148,6 +148,8 @@ Upgrading
    - Added API for alternative sstable implementations. For details, see src/java/org/apache/cassandra/io/sstable/SSTable_API.md
    - DateTieredCompactionStrategy was removed. Please change the compaction strategy for the tables using this strategy
      to TimeWindowCompactionStrategy before upgrading to this version.
+   - The deprecated functions `dateOf` and `unixTimestampOf` have been removed. They were deprecated and replaced by
+     `toTimestamp` and `toUnixTimestamp` in Cassandra 2.2.
 
 Deprecation
 -----------
