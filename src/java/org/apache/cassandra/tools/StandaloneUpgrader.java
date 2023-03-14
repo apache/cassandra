@@ -84,8 +84,8 @@ public class StandaloneUpgrader
 
             Collection<SSTableReader> readers = new ArrayList<>();
 
-            // Upgrade sstables
-            for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
+            // Upgrade sstables in id order
+            for (Map.Entry<Descriptor, Set<Component>> entry : lister.sortedList())
             {
                 Set<Component> components = entry.getValue();
                 if (!components.containsAll(entry.getKey().getFormat().primaryComponents()))

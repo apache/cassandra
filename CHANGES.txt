@@ -142,6 +142,7 @@ Merged from 4.0:
  * Restore internode custom tracing on 4.0's new messaging system (CASSANDRA-17981)
 Merged from 3.11:
 Merged from 3.0:
+ * Fix the ordering of sstables when running sstableupgrade tool (CASSANDRA-18143)
  * Fix default file system error handler for disk_failure_policy die (CASSANDRA-18294)
  * Introduce check for names of test classes (CASSANDRA-17964)
  * Suppress CVE-2022-41915 (CASSANDRA-18147)
