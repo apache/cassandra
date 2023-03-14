@@ -230,7 +230,7 @@ public class OverflowTest extends CQLTester
         createTable("CREATE TABLE %s (k int PRIMARY KEY, t timeuuid,)");
 
         execute("INSERT INTO %s (k) VALUES (0)");
-        Object[][] rows = getRows(execute("SELECT dateOf(t) FROM %s WHERE k=0"));
+        Object[][] rows = getRows(execute("SELECT toTimestamp(t) FROM %s WHERE k=0"));
         assertNull(rows[0][0]);
     }
 

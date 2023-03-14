@@ -18,7 +18,7 @@
 #
 -->
 
-h1. Cassandra Query Language (CQL) v3.4.6
+h1. Cassandra Query Language (CQL) v3.4.7
 
 
 
@@ -2149,8 +2149,6 @@ A number of functions are provided to "convert" a @timeuuid@, a @timestamp@ or a
 |@toUnixTimestamp@   |@timeuuid@      |Converts the @timeuuid@ argument into a @bigInt@ raw value|
 |@toUnixTimestamp@   |@timestamp@     |Converts the @timestamp@ argument into a @bigInt@ raw value|
 |@toUnixTimestamp@   |@date@          |Converts the @date@ argument into a @bigInt@ raw value|
-|@dateOf@            |@timeuuid@      |Similar to @toTimestamp(timeuuid)@ (DEPRECATED)|
-|@unixTimestampOf@   |@timeuuid@      |Similar to @toUnixTimestamp(timeuuid)@ (DEPRECATED)|
 
 h4(#floorFun). Floor function
 
@@ -2568,6 +2566,10 @@ The following type names are not currently used by CQL, but are reserved for pot
 h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
+
+h3. 3.4.7
+
+* Remove deprecated functions @dateOf@ and @unixTimestampOf@, replaced by @toTimestamp@ and @toUnixTimestamp@.
 
 h3. 3.4.6
 

@@ -923,7 +923,7 @@ public class SelectTest extends CQLTester
         for (int i = 0; i < 5; i++)
             execute("INSERT INTO %s (k, t) VALUES (?, now())", i);
 
-        execute("SELECT dateOf(t) FROM %s");
+        execute("SELECT toTimestamp(t) FROM %s");
     }
 
     /**
