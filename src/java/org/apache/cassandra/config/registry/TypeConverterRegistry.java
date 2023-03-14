@@ -48,6 +48,8 @@ public class TypeConverterRegistry
         addFromStringConverter(registry, Boolean.TYPE, CassandraRelevantProperties.BOOLEAN_CONVERTER);
         addFromStringConverter(registry, Integer.class, CassandraRelevantProperties.INTEGER_CONVERTER);
         addFromStringConverter(registry, Integer.TYPE, CassandraRelevantProperties.INTEGER_CONVERTER);
+        addFromStringConverter(registry, Long.class, CassandraRelevantProperties.LONG_CONVERTER);
+        addFromStringConverter(registry, Long.TYPE, CassandraRelevantProperties.LONG_CONVERTER);
         // Cassandra specific types.
         addFromStringConverter(registry, DurationSpec.LongNanosecondsBound.class, DurationSpec.LongNanosecondsBound::new);
         addFromStringConverter(registry, DurationSpec.LongMillisecondsBound.class, DurationSpec.LongMillisecondsBound::new);
@@ -61,7 +63,7 @@ public class TypeConverterRegistry
         addFromStringConverter(registry, DataStorageSpec.LongMebibytesBound.class, DataStorageSpec.LongMebibytesBound::new);
         addFromStringConverter(registry, DataStorageSpec.IntMebibytesBound.class, DataStorageSpec.IntMebibytesBound::new);
         // Cassandra Enum types.
-        addFromStringConverter(registry, ConsistencyLevel.class, ConsistencyLevel::valueOf);
+        addFromStringConverter(registry, ConsistencyLevel.class, ConsistencyLevel::fromStringIgnoreCase);
     }
 
     public static <T> void addFromStringConverter(TypeConverterRegistry registry, Class<T> to, PropertyConverter<T> converter)
