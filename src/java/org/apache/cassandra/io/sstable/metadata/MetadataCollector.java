@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
@@ -150,7 +151,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
 
     public MetadataCollector(ClusteringComparator comparator)
     {
-        this(comparator, StorageService.instance.getLocalHostUUID());
+        this(comparator, Optional.ofNullable(StorageService.instance.getLocalHostUUID()).orElseGet(SystemKeyspace::getLocalHostId));
     }
 
     public MetadataCollector(ClusteringComparator comparator, UUID originatingHostId)
