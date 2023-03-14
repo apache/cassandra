@@ -433,7 +433,7 @@ public class TableStatsHolder implements StatsHolder
 
     private String millisToDuration(long millis)
     {
-        return DurationFormatUtils.formatDurationWords(millis / 1000, true, true);
+        return DurationFormatUtils.formatDurationWords(millis, true, true);
     }
 
     /**
