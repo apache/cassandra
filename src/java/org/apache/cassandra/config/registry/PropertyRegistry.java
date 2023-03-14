@@ -25,8 +25,16 @@ import javax.annotation.Nullable;
  */
 public interface PropertyRegistry
 {
+    /**
+     * Update configuration property with the given name to the given value. The value may be the same
+     * as the property's value, or it may be represented as a string. In the latter case a corresponding
+     * will be called to get the property's value matching type.
+     * @param name Property name.
+     * @param value Value to set.
+     */
     void set(String name, @Nullable Object value);
     <T> T get(String name);
+    String getString(String name);
     boolean contains(String name);
     Iterable<String> keys();
     Class<?> type(String name);

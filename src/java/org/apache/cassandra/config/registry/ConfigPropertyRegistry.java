@@ -32,13 +32,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Mutable;
 import org.apache.cassandra.config.Properties;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -55,8 +53,9 @@ public class ConfigPropertyRegistry implements PropertyRegistry
     private static final Logger logger = LoggerFactory.getLogger(ConfigPropertyRegistry.class);
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Map<String, ConfigurationProperty> properties;
+    private final TypeConverterRegistry typeConverterRegistry = new TypeConverterRegistry();
     private final Map<PropertyChangeListener.ChangeType, PropertyChangeListenerList> propertyChangeListeners = new EnumMap<>(PropertyChangeListener.ChangeType.class);
-    private final Map<String, List<PropertyChangeListenerWrapper<?>>> validatorsMap = new HashMap<>();
+    private final Map<String, List<PropertyTypeSafeWrapper<?>>> validatorsMap = new HashMap<>();
 
     public ConfigPropertyRegistry(Supplier<Config> configProvider)
     {
@@ -66,53 +65,59 @@ public class ConfigPropertyRegistry implements PropertyRegistry
                                                    .stream()
                                                    .map(e -> new AbstractMap.SimpleEntry<>(e.getKey(), new ConfigurationProperty(configProvider, e.getValue())))
                                                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        // Initialize the property change listeners.
         for (PropertyChangeListener.ChangeType type : PropertyChangeListener.ChangeType.values())
             propertyChangeListeners.put(type, new PropertyChangeListenerList());
     }
 
-    /**
-     * Setter for the property with the given name. Can accept {@code null} value.
-     * @param name the name of the property.
-     * @param value the value to set.
-     */
     @Override public void set(String name, @Nullable Object value)
     {
         ConfigurationProperty property = properties.get(name);
         validatePropertyExists(property, name);
+        setInternal(property, value);
+    }
 
-        List<PropertyChangeListenerWrapper<?>> validators = validatorsMap.get(name);
-        if (validators != null)
-        {
-            rwLock.readLock().lock();
-            try
-            {
-                Object oldValue = properties.get(name).get();
-                for (PropertyChangeListenerWrapper<?> lsnr : validators)
-                    lsnr.castValueAndListen(name, oldValue, value);
-            }
-            catch (Exception e)
-            {
-                throw new ConfigurationException(String.format("Error validating property with name '%s', cause: %s", name, e.getMessage()), e);
-            }
-            finally
-            {
-                rwLock.readLock().unlock();
-            }
-        }
-
+    /**
+     * Setter for the property with the given name. Can accept {@code null} value.
+     * @param property The property.
+     * @param value The value to set.
+     */
+    private void setInternal(ConfigurationProperty property, @Nullable Object value)
+    {
         rwLock.writeLock().lock();
         try
         {
-            Object oldValue = properties.get(name).get();
-            propertyChangeListeners.get(PropertyChangeListener.ChangeType.BEFORE).fire(name, oldValue, value);
-            property.set(value);
-            propertyChangeListeners.get(PropertyChangeListener.ChangeType.AFTER).fire(name, oldValue, value);
+            Class<?> originalType = property.getType();
+            Class<?> sourceType = value == null ? null : value.getClass();
+            Object convertedValue = value;
+            // Do conversion if the value is not null and the type is not the same as the property type.
+            if (value != null && !originalType.equals(sourceType))
+            {
+                TypeConverter<?, ?> converter = typeConverterRegistry.converter(sourceType, originalType);
+                if (converter == null)
+                    throw new ConfigurationException(String.format("No converter found for type '%s'", sourceType.getName()));
+
+                convertedValue = converter.convertRaw(value);
+            }
+            // Do validation first for converted new value.
+            List<PropertyTypeSafeWrapper<?>> validators = validatorsMap.get(property.getName());
+            if (validators != null)
+            {
+                Object oldValue = property.getValue();
+                for (PropertyTypeSafeWrapper<?> wrapper : validators)
+                    wrapper.fireSafe(property.getName(), oldValue, convertedValue);
+            }
+            // Do set the value only if the validation passes.
+            Object oldValue = property.getValue();
+            propertyChangeListeners.get(PropertyChangeListener.ChangeType.BEFORE).fire(property.getName(), oldValue, convertedValue);
+            property.setValue(value);
+            propertyChangeListeners.get(PropertyChangeListener.ChangeType.AFTER).fire(property.getName(), oldValue, convertedValue);
             // This potentially may expose the values that are not safe to see in logs on production.
-            logger.info("Property '{}' updated from '{}' to '{}'.", name, oldValue, value);
+            logger.info("Property '{}' updated from '{}' to '{}'.", property.getName(), oldValue, convertedValue);
         }
         catch (Exception e)
         {
-            throw new ConfigurationException(String.format("Error updating property with name '%s', cause: %s", name, e.getMessage()), e);
+            throw new ConfigurationException(String.format("Error updating property '%s', cause: %s", property, e.getMessage()), e);
         }
         finally
         {
@@ -124,18 +129,24 @@ public class ConfigPropertyRegistry implements PropertyRegistry
      * @param name the property name to get.
      * @return The value of the property with the given name.
      */
-    @Override public <T> T get(String name)
+    @SuppressWarnings("unchecked")
+    public <T> T get(String name)
     {
         rwLock.readLock().lock();
         try
         {
             validatePropertyExists(properties.get(name), name);
-            return (T) properties.get(name).get();
+            return (T) properties.get(name).getValue();
         }
         finally
         {
             rwLock.readLock().unlock();
         }
+    }
+
+    @Override public String getString(String name)
+    {
+        return typeConverterRegistry.converter(type(name), String.class, TypeConverter.DEFAULT).convert(get(name));
     }
 
     /**
@@ -194,7 +205,7 @@ public class ConfigPropertyRegistry implements PropertyRegistry
     {
         validatePropertyExists(properties.get(name), name);
         validatePropertyType(properties.get(name), name, listenerType);
-        propertyChangeListeners.get(type).add(name, new PropertyChangeListenerWrapper<>(listener, listenerType));
+        propertyChangeListeners.get(type).add(name, new PropertyTypeSafeWrapper<>(listener, listenerType));
     }
 
     public <T> void addPropertyValidator(String name, BiConsumer<T, T> validator, Class<T> type)
@@ -202,7 +213,7 @@ public class ConfigPropertyRegistry implements PropertyRegistry
         validatePropertyExists(properties.get(name), name);
         validatePropertyType(properties.get(name), name, type);
         validatorsMap.computeIfAbsent(name, k -> new ArrayList<>())
-                     .add(new PropertyChangeListenerWrapper<>((prop, oldValue, newValue) -> validator.accept(oldValue, newValue), type));
+                     .add(new PropertyTypeSafeWrapper<>((prop, oldValue, newValue) -> validator.accept(oldValue, newValue), type));
     }
 
     private static void validatePropertyExists(ConfigurationProperty property, String name)
@@ -211,9 +222,9 @@ public class ConfigPropertyRegistry implements PropertyRegistry
             throw new ConfigurationException(String.format("Property with name '%s' is not availabe.", name));
     }
 
-    private static void validatePropertyType(ConfigurationProperty property, String name, Class<?> targetType)
+    private static void validatePropertyType(ConfigurationProperty property, String name, @Nullable Class<?> targetType)
     {
-        if (!property.getType().equals(targetType))
+        if (targetType != null && !property.getType().equals(targetType))
             throw new ConfigurationException(String.format("Property with name '%s' expects type '%s', but got '%s'.", name, property.getType(), targetType));
     }
 
@@ -222,18 +233,18 @@ public class ConfigPropertyRegistry implements PropertyRegistry
         return type.isPrimitive() ? (Class<T>) primitiveToWrapper(type) : type;
     }
 
-    private static class PropertyChangeListenerWrapper<T>
+    private static class PropertyTypeSafeWrapper<T>
     {
         private final PropertyChangeListener<T> listener;
         private final Class<T> type;
 
-        public PropertyChangeListenerWrapper(PropertyChangeListener<T> listener, Class<T> type)
+        public PropertyTypeSafeWrapper(PropertyChangeListener<T> listener, Class<T> type)
         {
             this.listener = listener;
             this.type = type;
         }
 
-        public void castValueAndListen(String name, Object oldValue, Object newValue)
+        public void fireSafe(String name, Object oldValue, Object newValue)
         {
             // Casting to the type of the listener is safe because we validate the type of the property on listener's registration.
             listener.onChange(name, primitiveToWrapperType(type).cast(oldValue), primitiveToWrapperType(type).cast(newValue));
@@ -245,20 +256,20 @@ public class ConfigPropertyRegistry implements PropertyRegistry
      */
     private static class PropertyChangeListenerList
     {
-        private final Map<String, List<PropertyChangeListenerWrapper<?>>> listeners = new HashMap<>();
+        private final Map<String, List<PropertyTypeSafeWrapper<?>>> wrappers = new HashMap<>();
 
-        public void add(String name, PropertyChangeListenerWrapper<?> listener)
+        public void add(String name, PropertyTypeSafeWrapper<?> listener)
         {
-            listeners.computeIfAbsent(name, k -> new ArrayList<>()).add(listener);
+            wrappers.computeIfAbsent(name, k -> new ArrayList<>()).add(listener);
         }
 
         public void fire(String name, Object oldValue, Object newValue)
         {
-            if (listeners.get(name) == null)
+            if (wrappers.get(name) == null)
                 return;
 
-            for (PropertyChangeListenerWrapper<?> listener : listeners.get(name))
-                listener.castValueAndListen(name, oldValue, newValue);
+            for (PropertyTypeSafeWrapper<?> wrapper : wrappers.get(name))
+                wrapper.fireSafe(name, oldValue, newValue);
         }
     }
 
@@ -273,6 +284,11 @@ public class ConfigPropertyRegistry implements PropertyRegistry
             this.accessor = accessor;
         }
 
+        public String getName()
+        {
+            return accessor.getName();
+        }
+
         public Class<?> getType()
         {
             return accessor.getType();
@@ -283,7 +299,7 @@ public class ConfigPropertyRegistry implements PropertyRegistry
             return accessor.getAnnotation(Mutable.class) != null;
         }
 
-        public void set(Object value)
+        public void setValue(Object value)
         {
             if (!isWritable())
                 throw new ConfigurationException(String.format("Property with name '%s' must be writable.", accessor.getName()));
@@ -298,7 +314,7 @@ public class ConfigPropertyRegistry implements PropertyRegistry
             }
         }
 
-        public Object get()
+        public Object getValue()
         {
             try
             {
@@ -308,6 +324,13 @@ public class ConfigPropertyRegistry implements PropertyRegistry
             {
                 throw new ConfigurationException(String.format("Error getting with name '%s', cause: %s", accessor.getName(), e.getMessage()), e);
             }
+        }
+
+        @Override public String toString()
+        {
+            return "ConfigurationProperty[name=" + getName() + ", " +
+                   "type=" + getType() +
+                   ", isWritable=" + isWritable() + ']';
         }
     }
 }

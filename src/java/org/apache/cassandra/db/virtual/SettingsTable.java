@@ -27,18 +27,13 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.audit.AuditLogOptions;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Converters;
-import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.config.PropertyConverter;
 import org.apache.cassandra.config.Replacement;
 import org.apache.cassandra.config.Replacements;
-import org.apache.cassandra.config.StringConverter;
 import org.apache.cassandra.config.registry.PropertyRegistry;
+import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -53,12 +48,6 @@ final class SettingsTable extends AbstractMutableVirtualTable
     private static final String NAME = "name";
     private static final String VALUE = "value";
     private static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
-    /**
-     * The map of all replacements for configuration properties, used to
-     * map old names to new names and configuration field types.
-     */
-    private final Map<Class<?>, PropertyConverter<?>> stringTypeConverters = new HashMap<>();
-    private final Map<Class<?>, StringConverter<?>> typeStringConverters = new HashMap<>();
     private final BackwardsCompatablePropertyRegistry registry;
 
     SettingsTable(String keyspace)
@@ -75,40 +64,14 @@ final class SettingsTable extends AbstractMutableVirtualTable
                            .addPartitionKeyColumn(NAME, UTF8Type.instance)
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
-        registerStringTypeConverters();
-        registerTypeStringConverters();
         this.registry = new BackwardsCompatablePropertyRegistry(registry);
-    }
-
-    private void registerStringTypeConverters()
-    {
-        stringTypeConverters.put(Boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
-        stringTypeConverters.put(boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
-        stringTypeConverters.put(Integer.class, CassandraRelevantProperties.INTEGER_CONVERTER);
-        stringTypeConverters.put(int.class, CassandraRelevantProperties.INTEGER_CONVERTER);
-        stringTypeConverters.put(DurationSpec.LongNanosecondsBound.class, DurationSpec.LongNanosecondsBound::new);
-        stringTypeConverters.put(DurationSpec.LongMillisecondsBound.class, DurationSpec.LongMillisecondsBound::new);
-        stringTypeConverters.put(DurationSpec.LongSecondsBound.class, DurationSpec.LongSecondsBound::new);
-        stringTypeConverters.put(DurationSpec.IntMinutesBound.class, DurationSpec.IntMinutesBound::new);
-        stringTypeConverters.put(DurationSpec.IntSecondsBound.class, DurationSpec.IntSecondsBound::new);
-        stringTypeConverters.put(DurationSpec.IntMillisecondsBound.class, DurationSpec.IntMillisecondsBound::new);
-        stringTypeConverters.put(DataStorageSpec.LongBytesBound.class, DataStorageSpec.LongBytesBound::new);
-        stringTypeConverters.put(DataStorageSpec.IntBytesBound.class, DataStorageSpec.IntBytesBound::new);
-        stringTypeConverters.put(DataStorageSpec.IntKibibytesBound.class, DataStorageSpec.IntKibibytesBound::new);
-        stringTypeConverters.put(DataStorageSpec.LongMebibytesBound.class, DataStorageSpec.LongMebibytesBound::new);
-        stringTypeConverters.put(DataStorageSpec.IntMebibytesBound.class, DataStorageSpec.IntMebibytesBound::new);
-    }
-
-    private void registerTypeStringConverters()
-    {
-        typeStringConverters.put(AuditLogOptions.class, StringConverter.DEFAULT);
     }
 
     @Override
     protected void applyColumnDeletion(ColumnValues partitionKey, ColumnValues clusteringColumns, String columnName)
     {
         String key = partitionKey.value(0);
-        setProperty(key, null);
+        runExceptionally(() -> registry.set(key, null), key);
     }
 
     @Override
@@ -118,7 +81,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         String key = partitionKey.value(0);
         String value = columnValue.map(v -> v.value().toString()).orElse(null);
-        setProperty(key, value);
+        runExceptionally(() -> registry.set(key, value), key);
     }
 
     @Override
@@ -130,8 +93,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
             ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
         if (registry.contains(name))
         {
-            StringConverter<?> converter = typeStringConverters.getOrDefault(registry.type(name), StringConverter.DEFAULT);
-            runExceptionally(() -> result.row(name).column(VALUE, converter.convert(registry.get(name))), name);
+            runExceptionally(() -> result.row(name).column(VALUE, registry.getString(name)), name);
         }
         return result;
     }
@@ -141,10 +103,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         for (String name : registry.keys())
-        {
-            StringConverter<?> converter = typeStringConverters.getOrDefault(registry.type(name), StringConverter.DEFAULT);
-            runExceptionally(() -> result.row(name).column(VALUE, converter.convert(registry.get(name))), name);
-        }
+            runExceptionally(() -> result.row(name).column(VALUE, registry.getString(name)), name);
         return result;
     }
 
@@ -164,20 +123,6 @@ final class SettingsTable extends AbstractMutableVirtualTable
         {
             throw invalidRequest("Invalid request for property '%s'; exception: '%s'", name, e.getMessage());
         }
-    }
-
-    /**
-     * Setter for the property.
-     * @param name the name of the property.
-     * @param value the string representation of the value of the property to set.
-     */
-    private void setProperty(String name, String value)
-    {
-        Class<?> propertyType = registry.type(name);
-        PropertyConverter<?> converter = stringTypeConverters.get(propertyType);
-        if (converter == null)
-            throw new ConfigurationException(String.format("Unknown converter for property with name '%s' and type '%s'", name, propertyType));
-        runExceptionally(() -> registry.set(name, value == null ? null : converter.convert(value)), name);
     }
 
     @VisibleForTesting
@@ -267,14 +212,22 @@ final class SettingsTable extends AbstractMutableVirtualTable
             if (replacement == null)
                 registry.set(name, value);
             else
-                registry.set(replacement.newName, replacement.converter.convert(value));
+                throw new ConfigurationException(String.format("Unable to set '%s' as it is deprecated and is read only; use '%s' instead", name, replacement.newName));
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         public <T> T get(String name)
         {
             Replacement replacement = replacements.get(name);
             return replacement == null ? registry.get(name) : (T) replacement.converter.unconvert(registry.get(replacement.newName));
+        }
+
+        @Override
+        public String getString(String name)
+        {
+            Replacement replacement = replacements.get(name);
+            return replacement == null ? registry.getString(name) : TypeConverter.DEFAULT.convert(get(name));
         }
 
         @Override

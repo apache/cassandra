@@ -32,8 +32,8 @@ import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.config.StringConverter;
 import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
+import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.cql3.CQLTester;
 import org.assertj.core.util.Streams;
 
@@ -106,9 +106,9 @@ public class UpdateSettingsTableTest extends CQLTester
 
     private void updateConfigurationProperty(String statement, String propertyName, Object value) throws Throwable
     {
-        assertRowsNet(executeNet(statement, StringConverter.DEFAULT.convert(value), propertyName));
+        assertRowsNet(executeNet(statement, TypeConverter.DEFAULT.convert(value), propertyName));
         assertEquals(value, registry.get(propertyName));
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, StringConverter.DEFAULT.convert((value)) });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, TypeConverter.DEFAULT.convert((value)) });
     }
 
     private static Object getNextValue(Object[] values, Object currentValue)

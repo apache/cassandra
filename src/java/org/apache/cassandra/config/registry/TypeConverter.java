@@ -16,14 +16,19 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.config;
+package org.apache.cassandra.config.registry;
 
-/**
- * A converter that converts given type to a string.
- * @param <T> The type to convert to.
- */
-public interface StringConverter<T>
+import javax.annotation.Nullable;
+
+public interface TypeConverter<F, T>
 {
-    StringConverter<Object> DEFAULT = value -> value == null ? null : value.toString();
-    String convert(T value);
+    TypeConverter<Object, String> DEFAULT = (value) -> value == null ? null : value.toString();
+
+    @Nullable T convert(@Nullable F value);
+
+    @SuppressWarnings("unchecked")
+    default T convertRaw(Object value)
+    {
+        return convert((F) value);
+    }
 }
