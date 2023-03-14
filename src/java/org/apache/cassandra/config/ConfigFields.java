@@ -28,18 +28,26 @@ package org.apache.cassandra.config;
  */
 public class ConfigFields
 {
+    public static final String AUTO_HINTS_CLEANUP_ENABLED = "auto_hints_cleanup_enabled";
     public static final String CDC_BLOCK_WRITES = "cdc_block_writes";
     public static final String CDC_ON_REPAIR_ENABLED = "cdc_on_repair_enabled";
     public static final String COORDINATOR_READ_SIZE_FAIL_THRESHOLD = "coordinator_read_size_fail_threshold";
     public static final String COORDINATOR_READ_SIZE_WARN_THRESHOLD = "coordinator_read_size_warn_threshold";
     public static final String DEFAULT_KEYSPACE_RF = "default_keyspace_rf";
     public static final String IDEAL_CONSISTENCY_LEVEL = "ideal_consistency_level";
+    public static final String INCREMENTAL_BACKUPS = "incremental_backups";
     public static final String LOCAL_READ_SIZE_FAIL_THRESHOLD = "local_read_size_fail_threshold";
     public static final String LOCAL_READ_SIZE_WARN_THRESHOLD = "local_read_size_warn_threshold";
+    public static final String MAX_HINTS_SIZE_PER_HOST = "max_hints_size_per_host";
+    public static final String PERMISSIONS_CACHE_MAX_ENTRIES = "permissions_cache_max_entries";
+    public static final String PERMISSIONS_UPDATE_INTERVAL = "permissions_update_interval";
+    public static final String PERMISSIONS_VALIDITY = "permissions_validity";
     public static final String READ_THRESHOLDS_ENABLED = "read_thresholds_enabled";
     public static final String REPAIR_REQUEST_TIMEOUT = "repair_request_timeout";
     public static final String ROW_INDEX_READ_SIZE_FAIL_THRESHOLD = "row_index_read_size_fail_threshold";
     public static final String ROW_INDEX_READ_SIZE_WARN_THRESHOLD = "row_index_read_size_warn_threshold";
+    public static final String SSTABLE_PREEMPTIVE_OPEN_INTERVAL = "sstable_preemptive_open_interval";
     public static final String TOMBSTONE_FAILURE_THRESHOLD = "tombstone_failure_threshold";
     public static final String TOMBSTONE_WARN_THRESHOLD = "tombstone_warn_threshold";
+    public static final String TRANSFER_HINTS_ON_DECOMMISSION = "transfer_hints_on_decommission";
 }

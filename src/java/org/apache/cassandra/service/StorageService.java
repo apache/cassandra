@@ -6650,7 +6650,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setTransferHintsOnDecommission(boolean enabled)
     {
         DatabaseDescriptor.setTransferHintsOnDecommission(enabled);
-        logger.info("updated transfer_hints_on_decommission to {}", enabled);
     }
 
     @Override

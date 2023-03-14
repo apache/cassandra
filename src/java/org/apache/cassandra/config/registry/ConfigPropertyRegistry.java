@@ -91,7 +91,7 @@ public class ConfigPropertyRegistry implements PropertyRegistry
             Class<?> sourceType = value == null ? null : value.getClass();
             Object convertedValue = value;
             // Do conversion if the value is not null and the type is not the same as the property type.
-            if (value != null && !originalType.equals(sourceType))
+            if (value != null && !primitiveToWrapperType(originalType).equals(sourceType))
             {
                 TypeConverter<?, ?> converter = typeConverterRegistry.converter(sourceType, originalType);
                 if (converter == null)

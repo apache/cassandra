@@ -46,8 +46,9 @@ import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
- *
- * Properties declared as volatile can be mutated via JMX.
+ * <p>
+ * Properties declared with {@link Mutable} annotation are mutated via JMX and
+ * {@code org.apache.cassandra.db.virtual.SettingsTable} virtual table.
  */
 public class Config
 {
@@ -80,11 +81,12 @@ public class Config
     public String authorizer;
     public String role_manager;
     public String network_authorizer;
-    @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public volatile DurationSpec.IntMillisecondsBound permissions_validity = new DurationSpec.IntMillisecondsBound("2s");
-    public volatile int permissions_cache_max_entries = 1000;
-    @Replaces(oldName = "permissions_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
-    public volatile DurationSpec.IntMillisecondsBound permissions_update_interval = null;
+    @Mutable @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public DurationSpec.IntMillisecondsBound permissions_validity = new DurationSpec.IntMillisecondsBound("2s");
+    @Mutable
+    public int permissions_cache_max_entries = 1000;
+    @Mutable @Replaces(oldName = "permissions_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
+    public DurationSpec.IntMillisecondsBound permissions_update_interval = null;
     public volatile boolean permissions_cache_active_update = false;
     @Replaces(oldName = "roles_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public volatile DurationSpec.IntMillisecondsBound roles_validity = new DurationSpec.IntMillisecondsBound("2s");
@@ -439,20 +441,24 @@ public class Config
     public DurationSpec.IntMillisecondsBound hints_flush_period = new DurationSpec.IntMillisecondsBound("10s");
     @Replaces(oldName = "max_hints_file_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound max_hints_file_size = new DataStorageSpec.IntMebibytesBound("128MiB");
-    public volatile DataStorageSpec.LongBytesBound max_hints_size_per_host = new DataStorageSpec.LongBytesBound("0B"); // 0 means disabled
+    @Mutable
+    public DataStorageSpec.LongBytesBound max_hints_size_per_host = new DataStorageSpec.LongBytesBound("0B"); // 0 means disabled
 
     public ParameterizedClass hints_compression;
-    public volatile boolean auto_hints_cleanup_enabled = false;
-    public volatile boolean transfer_hints_on_decommission = true;
-
-    public volatile boolean incremental_backups = false;
+    @Mutable
+    public boolean auto_hints_cleanup_enabled = false;
+    @Mutable
+    public boolean transfer_hints_on_decommission = true;
+    @Mutable
+    public boolean incremental_backups = false;
     public boolean trickle_fsync = false;
     @Replaces(oldName = "trickle_fsync_interval_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntKibibytesBound trickle_fsync_interval = new DataStorageSpec.IntKibibytesBound("10240KiB");
 
+    @Mutable
     @Nullable
     @Replaces(oldName = "sstable_preemptive_open_interval_in_mb", converter = Converters.NEGATIVE_MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
-    public volatile DataStorageSpec.IntMebibytesBound sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound("50MiB");
+    public DataStorageSpec.IntMebibytesBound sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound("50MiB");
 
     public volatile boolean key_cache_migrate_during_compaction = true;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;

@@ -46,11 +46,14 @@ public class TypeConverterRegistry
         // Primitive types.
         addFromStringConverter(registry, Boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
         addFromStringConverter(registry, Boolean.TYPE, CassandraRelevantProperties.BOOLEAN_CONVERTER);
+        addFromStringConverter(registry, Double.class, CassandraRelevantProperties.DOUBLE_CONVERTER);
+        addFromStringConverter(registry, Double.TYPE, CassandraRelevantProperties.DOUBLE_CONVERTER);
         addFromStringConverter(registry, Integer.class, CassandraRelevantProperties.INTEGER_CONVERTER);
         addFromStringConverter(registry, Integer.TYPE, CassandraRelevantProperties.INTEGER_CONVERTER);
         addFromStringConverter(registry, Long.class, CassandraRelevantProperties.LONG_CONVERTER);
         addFromStringConverter(registry, Long.TYPE, CassandraRelevantProperties.LONG_CONVERTER);
-        // Cassandra specific types.
+        addFromStringConverter(registry, String.class, CassandraRelevantProperties.STRING_CONVERTER);
+        // Cassandra specific configuration types.
         addFromStringConverter(registry, DurationSpec.LongNanosecondsBound.class, DurationSpec.LongNanosecondsBound::new);
         addFromStringConverter(registry, DurationSpec.LongMillisecondsBound.class, DurationSpec.LongMillisecondsBound::new);
         addFromStringConverter(registry, DurationSpec.LongSecondsBound.class, DurationSpec.LongSecondsBound::new);
@@ -74,7 +77,7 @@ public class TypeConverterRegistry
             {
                 if (to.isPrimitive() && StringUtils.isEmpty(value))
                     throw new ConfigurationException("Primitive type " + to + " cannot be null or empty");
-                return StringUtils.isEmpty(value) ? null : converter.convert(value);
+                return value == null ? null : converter.convert(value);
             }
         });
     }

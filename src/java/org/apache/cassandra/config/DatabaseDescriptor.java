@@ -1522,37 +1522,35 @@ public class DatabaseDescriptor
 
     public static int getPermissionsValidity()
     {
-        return conf.permissions_validity.toMilliseconds();
+        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.PERMISSIONS_VALIDITY).toMilliseconds();
     }
 
     public static void setPermissionsValidity(int timeout)
     {
-        conf.permissions_validity = new DurationSpec.IntMillisecondsBound(timeout);
+        confRegistry.set(ConfigFields.PERMISSIONS_VALIDITY, new DurationSpec.IntMillisecondsBound(timeout));
     }
 
     public static int getPermissionsUpdateInterval()
     {
-        return conf.permissions_update_interval == null
-             ? conf.permissions_validity.toMilliseconds()
-             : conf.permissions_update_interval.toMilliseconds();
+        return confRegistry.get(ConfigFields.PERMISSIONS_UPDATE_INTERVAL) == null
+             ? getPermissionsValidity() :
+               confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.PERMISSIONS_UPDATE_INTERVAL).toMilliseconds();
     }
 
     public static void setPermissionsUpdateInterval(int updateInterval)
     {
-        if (updateInterval == -1)
-            conf.permissions_update_interval = null;
-        else
-            conf.permissions_update_interval = new DurationSpec.IntMillisecondsBound(updateInterval);
+        DurationSpec.IntMillisecondsBound interval = updateInterval == -1 ? null : new DurationSpec.IntMillisecondsBound(updateInterval);
+        confRegistry.set(ConfigFields.PERMISSIONS_UPDATE_INTERVAL, interval);
     }
 
     public static int getPermissionsCacheMaxEntries()
     {
-        return conf.permissions_cache_max_entries;
+        return confRegistry.get(ConfigFields.PERMISSIONS_CACHE_MAX_ENTRIES);
     }
 
-    public static int setPermissionsCacheMaxEntries(int maxEntries)
+    public static void setPermissionsCacheMaxEntries(int maxEntries)
     {
-        return conf.permissions_cache_max_entries = maxEntries;
+        confRegistry.set(ConfigFields.PERMISSIONS_CACHE_MAX_ENTRIES, maxEntries);
     }
 
     public static boolean getPermissionsCacheActiveUpdate()
@@ -1978,7 +1976,7 @@ public class DatabaseDescriptor
 
     public static long getRepairRpcTimeout(TimeUnit unit)
     {
-        return ((DurationSpec.LongMillisecondsBound) confRegistry.get(ConfigFields.REPAIR_REQUEST_TIMEOUT)).to(unit);
+        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.REPAIR_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setRepairRpcTimeout(Long timeOutInMillis)
@@ -3153,18 +3151,18 @@ public class DatabaseDescriptor
 
     public static void setMaxHintsSizePerHostInMiB(int value)
     {
-        conf.max_hints_size_per_host = new DataStorageSpec.LongBytesBound(value, MEBIBYTES);
+        confRegistry.set(ConfigFields.MAX_HINTS_SIZE_PER_HOST, new DataStorageSpec.LongBytesBound(value, MEBIBYTES));
     }
 
     public static int getMaxHintsSizePerHostInMiB()
     {
         // Warnings: this conversion rounds down while converting bytes to mebibytes
-        return Ints.saturatedCast(conf.max_hints_size_per_host.unit().toMebibytes(conf.max_hints_size_per_host.quantity()));
+        return Ints.saturatedCast(confRegistry.<DataStorageSpec.LongBytesBound>get(ConfigFields.MAX_HINTS_SIZE_PER_HOST).toMebibytes());
     }
 
     public static long getMaxHintsSizePerHost()
     {
-        return conf.max_hints_size_per_host.toBytes();
+        return confRegistry.<DataStorageSpec.LongBytesBound>get(ConfigFields.MAX_HINTS_SIZE_PER_HOST).toBytes();
     }
 
     public static File getHintsDirectory()
@@ -3280,32 +3278,32 @@ public class DatabaseDescriptor
 
     public static boolean isAutoHintsCleanupEnabled()
     {
-        return conf.auto_hints_cleanup_enabled;
+        return confRegistry.get(ConfigFields.AUTO_HINTS_CLEANUP_ENABLED);
     }
 
     public static void setAutoHintsCleanupEnabled(boolean value)
     {
-        conf.auto_hints_cleanup_enabled = value;
+        confRegistry.set(ConfigFields.AUTO_HINTS_CLEANUP_ENABLED, value);
     }
 
     public static boolean getTransferHintsOnDecommission()
     {
-        return conf.transfer_hints_on_decommission;
+        return confRegistry.get(ConfigFields.TRANSFER_HINTS_ON_DECOMMISSION);
     }
 
     public static void setTransferHintsOnDecommission(boolean enabled)
     {
-        conf.transfer_hints_on_decommission = enabled;
+        confRegistry.set(ConfigFields.TRANSFER_HINTS_ON_DECOMMISSION, enabled);
     }
 
     public static boolean isIncrementalBackupsEnabled()
     {
-        return conf.incremental_backups;
+        return confRegistry.get(ConfigFields.INCREMENTAL_BACKUPS);
     }
 
     public static void setIncrementalBackupsEnabled(boolean value)
     {
-        conf.incremental_backups = value;
+        confRegistry.set(ConfigFields.INCREMENTAL_BACKUPS, value);
     }
 
     public static boolean getFileCacheEnabled()
@@ -3382,18 +3380,15 @@ public class DatabaseDescriptor
     /** This method can return negative number for disabled */
     public static int getSSTablePreemptiveOpenIntervalInMiB()
     {
-        if (conf.sstable_preemptive_open_interval == null)
-            return -1;
-        return conf.sstable_preemptive_open_interval.toMebibytes();
+        DataStorageSpec.IntMebibytesBound interval = confRegistry.get(ConfigFields.SSTABLE_PREEMPTIVE_OPEN_INTERVAL);
+        return interval == null ? -1 : interval.toMebibytes();
     }
 
     /** Negative number for disabled */
     public static void setSSTablePreemptiveOpenIntervalInMiB(int mib)
     {
-        if (mib < 0)
-            conf.sstable_preemptive_open_interval = null;
-        else
-            conf.sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound(mib);
+        DataStorageSpec.IntMebibytesBound value = mib < 0 ? null : new DataStorageSpec.IntMebibytesBound(mib);
+        confRegistry.set(ConfigFields.SSTABLE_PREEMPTIVE_OPEN_INTERVAL, value);
     }
 
     public static boolean getTrickleFsync()

@@ -618,6 +618,19 @@ public enum CassandraRelevantProperties
         }
     };
 
+    public static final PropertyConverter<Double> DOUBLE_CONVERTER = value ->
+    {
+        try
+        {
+            return Double.parseDouble(value);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException(String.format("Invalid value for system property: " +
+                                                           "expected double value but got '%s'", value));
+        }
+    };
+
     /**
      * @return whether a system property is present or not.
      */
