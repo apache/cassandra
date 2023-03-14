@@ -35,6 +35,7 @@ import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
 import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.assertj.core.util.Streams;
 
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
@@ -148,6 +149,7 @@ public class UpdateSettingsTableTest extends CQLTester
                            .put(DataStorageSpec.IntKibibytesBound.class, new Object[]{ new DataStorageSpec.IntKibibytesBound("100KiB"), new DataStorageSpec.IntKibibytesBound("200KiB") })
                            .put(DataStorageSpec.LongMebibytesBound.class, new Object[]{ new DataStorageSpec.LongMebibytesBound("100MiB"), new DataStorageSpec.LongMebibytesBound("200MiB") })
                            .put(DataStorageSpec.IntMebibytesBound.class, new Object[]{ new DataStorageSpec.IntMebibytesBound("100MiB"), new DataStorageSpec.IntMebibytesBound("200MiB") })
+                           .put(ConsistencyLevel.class, new Object[]{ ConsistencyLevel.ONE, ConsistencyLevel.TWO })
                            .build();
     }
 }

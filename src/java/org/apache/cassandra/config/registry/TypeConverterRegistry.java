@@ -29,6 +29,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.PropertyConverter;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 public class TypeConverterRegistry
@@ -42,11 +43,12 @@ public class TypeConverterRegistry
 
     private static void registerConverters(TypeConverterRegistry registry)
     {
-        // From string converters.
+        // Primitive types.
         addFromStringConverter(registry, Boolean.class, CassandraRelevantProperties.BOOLEAN_CONVERTER);
         addFromStringConverter(registry, Boolean.TYPE, CassandraRelevantProperties.BOOLEAN_CONVERTER);
         addFromStringConverter(registry, Integer.class, CassandraRelevantProperties.INTEGER_CONVERTER);
         addFromStringConverter(registry, Integer.TYPE, CassandraRelevantProperties.INTEGER_CONVERTER);
+        // Cassandra specific types.
         addFromStringConverter(registry, DurationSpec.LongNanosecondsBound.class, DurationSpec.LongNanosecondsBound::new);
         addFromStringConverter(registry, DurationSpec.LongMillisecondsBound.class, DurationSpec.LongMillisecondsBound::new);
         addFromStringConverter(registry, DurationSpec.LongSecondsBound.class, DurationSpec.LongSecondsBound::new);
@@ -58,6 +60,8 @@ public class TypeConverterRegistry
         addFromStringConverter(registry, DataStorageSpec.IntKibibytesBound.class, DataStorageSpec.IntKibibytesBound::new);
         addFromStringConverter(registry, DataStorageSpec.LongMebibytesBound.class, DataStorageSpec.LongMebibytesBound::new);
         addFromStringConverter(registry, DataStorageSpec.IntMebibytesBound.class, DataStorageSpec.IntMebibytesBound::new);
+        // Cassandra Enum types.
+        addFromStringConverter(registry, ConsistencyLevel.class, ConsistencyLevel::valueOf);
     }
 
     public static <T> void addFromStringConverter(TypeConverterRegistry registry, Class<T> to, PropertyConverter<T> converter)
@@ -88,7 +92,7 @@ public class TypeConverterRegistry
     {
         ConversionKey key = new ConversionKey(from, to);
         if (!converters.containsKey(key) && defaultConverter == null)
-            throw new IllegalArgumentException("No converter registered for " + from + " to " + to);
+            throw new IllegalArgumentException(String.format("No converter registered to convert from '%s' to '%s'.", from, to));
         return (TypeConverter<?, T>) converters.getOrDefault(key, defaultConverter);
     }
 

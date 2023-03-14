@@ -110,7 +110,7 @@ public class ConfigPropertyRegistry implements PropertyRegistry
             // Do set the value only if the validation passes.
             Object oldValue = property.getValue();
             propertyChangeListeners.get(PropertyChangeListener.ChangeType.BEFORE).fire(property.getName(), oldValue, convertedValue);
-            property.setValue(value);
+            property.setValue(convertedValue);
             propertyChangeListeners.get(PropertyChangeListener.ChangeType.AFTER).fire(property.getName(), oldValue, convertedValue);
             // This potentially may expose the values that are not safe to see in logs on production.
             logger.info("Property '{}' updated from '{}' to '{}'.", property.getName(), oldValue, convertedValue);
