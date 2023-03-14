@@ -24,7 +24,7 @@ package org.apache.cassandra.config.registry;
 public interface PropertyChangeListener<T>
 {
     /**
-     * Called on configuration property event occurr.
+     * Called on configuration change property event occurr.
      *
      * @param name     the name of the property.
      * @param oldValue the old value of the property.

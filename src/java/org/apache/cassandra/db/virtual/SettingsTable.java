@@ -71,7 +71,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     protected void applyColumnDeletion(ColumnValues partitionKey, ColumnValues clusteringColumns, String columnName)
     {
         String key = partitionKey.value(0);
-        runExceptionally(() -> registry.set(key, null), key);
+        runWithExceptionHandling(() -> registry.set(key, null), key);
     }
 
     @Override
@@ -81,7 +81,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         String key = partitionKey.value(0);
         String value = columnValue.map(v -> v.value().toString()).orElse(null);
-        runExceptionally(() -> registry.set(key, value), key);
+        runWithExceptionHandling(() -> registry.set(key, value), key);
     }
 
     @Override
@@ -92,9 +92,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
             ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
         if (registry.contains(name))
-        {
-            runExceptionally(() -> result.row(name).column(VALUE, registry.getString(name)), name);
-        }
+            runWithExceptionHandling(() -> result.row(name).column(VALUE, registry.getString(name)), name);
         return result;
     }
 
@@ -103,7 +101,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         for (String name : registry.keys())
-            runExceptionally(() -> result.row(name).column(VALUE, registry.getString(name)), name);
+            runWithExceptionHandling(() -> result.row(name).column(VALUE, registry.getString(name)), name);
         return result;
     }
 
@@ -113,7 +111,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
      * @param action Converter to use to convert the value.
      * @param name Property name.
      */
-    private static void runExceptionally(Runnable action, String name)
+    private static void runWithExceptionHandling(Runnable action, String name)
     {
         try
         {
@@ -192,6 +190,13 @@ final class SettingsTable extends AbstractMutableVirtualTable
         return names;
     }
 
+    /**
+     * This class is used to provide backwards compatable support for the settings table in case the {@link Config}
+     * metadata changes. This class will provide the old names for the properties, but will use the new name to
+     * get the value from the {@link Config} object.
+     * <p>
+     * Updating a configuration property object will throw an exception if you will try to update a deprecated property.
+     */
     private static class BackwardsCompatablePropertyRegistry implements PropertyRegistry
     {
         private final PropertyRegistry registry;

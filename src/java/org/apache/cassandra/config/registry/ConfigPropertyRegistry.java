@@ -46,7 +46,8 @@ import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 
 
 /**
- * This is a simple configuration property registry that stores all the {@link Config} settings.
+ * This is a simple configuration property registry that stores all the {@link Config} settings, it doesn't
+ * take into account any configuration changes that might happen during properties replacement between releases.
  */
 public class ConfigPropertyRegistry implements PropertyRegistry
 {
@@ -93,7 +94,7 @@ public class ConfigPropertyRegistry implements PropertyRegistry
             // Do conversion if the value is not null and the type is not the same as the property type.
             if (value != null && !primitiveToWrapperType(originalType).equals(sourceType))
             {
-                TypeConverter<?, ?> converter = typeConverterRegistry.converter(sourceType, originalType);
+                TypeConverter<?, ?> converter = typeConverterRegistry.getConverter(sourceType, originalType);
                 if (converter == null)
                     throw new ConfigurationException(String.format("No converter found for type '%s'", sourceType.getName()));
 
@@ -146,7 +147,7 @@ public class ConfigPropertyRegistry implements PropertyRegistry
 
     @Override public String getString(String name)
     {
-        return typeConverterRegistry.converter(type(name), String.class, TypeConverter.DEFAULT).convert(get(name));
+        return typeConverterRegistry.getConverterOrDefault(type(name), String.class, TypeConverter.DEFAULT).convert(get(name));
     }
 
     /**

@@ -32,6 +32,11 @@ import org.apache.cassandra.config.PropertyConverter;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
+/**
+ * Registry of type converters, use {@link #getConverter(Class, Class)} to get a converter for a specific type.
+ * By default, the {@link TypeConverter#DEFAULT} can be used to convert any configuration property type to a string,
+ * that, in turn, rely on the {@link Object#toString()} method of a configuration property.
+ */
 public class TypeConverterRegistry
 {
     private final Map<ConversionKey, TypeConverter<?, ?>> converters = new HashMap<>();
@@ -87,13 +92,13 @@ public class TypeConverterRegistry
         converters.put(new ConversionKey(from, to), converter);
     }
 
-    public <T> TypeConverter<?, T> converter(Class<?> from, Class<T> to)
+    public <T> TypeConverter<?, T> getConverter(Class<?> from, Class<T> to)
     {
-        return converter(from, to, null);
+        return getConverterOrDefault(from, to, null);
     }
 
     @SuppressWarnings("unchecked")
-    public <T> TypeConverter<?, T> converter(Class<?> from, Class<T> to, TypeConverter<?, T> defaultConverter)
+    public <T> TypeConverter<?, T> getConverterOrDefault(Class<?> from, Class<T> to, TypeConverter<?, T> defaultConverter)
     {
         ConversionKey key = new ConversionKey(from, to);
         if (!converters.containsKey(key) && defaultConverter == null)
