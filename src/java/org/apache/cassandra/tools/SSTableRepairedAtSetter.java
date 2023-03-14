@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
 import java.util.List;
@@ -73,7 +72,7 @@ public class SSTableRepairedAtSetter
         List<String> fileNames;
         if (args[2].equals("-f"))
         {
-            fileNames = Files.readAllLines(Paths.get(args[3]), Charset.defaultCharset());
+            fileNames = Files.readAllLines(File.getPath(args[3]), Charset.defaultCharset());
         }
         else
         {
