@@ -1,4 +1,5 @@
 5.0
+ * Upgrade maven-shade-plugin to 3.4.1 to fix shaded dtest JAR build (CASSANDRA-18136)
  * Upgrade to Opcodes.ASM9 (CASSANDRA-17971)
  * Add MaxSSTableSize and MaxSSTableDuration metrics and propagate them together with local read/write ratio to tablestats (CASSANDRA-18283)
  * Add more logging around CompactionManager operations (CASSANDRA-18268)
