@@ -17,35 +17,44 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.*;
+import java.io.File;
+import java.io.FilenameFilter;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.UUID;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
-
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 
-import static org.apache.cassandra.db.commitlog.CommitLogSegment.*;
+import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
+import static org.apache.cassandra.db.commitlog.CommitLogSegment.CommitLogSegmentFileComparator;
+import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
@@ -58,6 +67,11 @@ public class CommitLog implements CommitLogMBean
     private static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
 
     public static final CommitLog instance = CommitLog.construct();
+
+    // we used to try to avoid instantiating commitlog (thus creating an empty segment ready for writes)
+    // until after recover was finished.  this turns out to be fragile; it is less error-prone to go
+    // ahead and allow writes before recover(), and just skip active segments when we do.
+    private static final FilenameFilter unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
 
     // we only permit records HALF the size of a commit log, to ensure we don't spin allocating many mostly
     // empty segments when writing large records
@@ -106,6 +120,19 @@ public class CommitLog implements CommitLogMBean
         return this;
     }
 
+    public boolean hasFilesToReplay()
+    {
+        return getUnmanagedFiles().length > 0;
+    }
+
+    private File[] getUnmanagedFiles()
+    {
+        File[] files = new File(DatabaseDescriptor.getCommitLogLocation()).listFiles(unmanagedFilesFilter);
+        if (files == null)
+            return new File[0];
+        return files;
+    }
+
     /**
      * Perform recovery on commit logs located in the directory specified by the config file.
      *
@@ -117,19 +144,8 @@ public class CommitLog implements CommitLogMBean
         if (allocator.createReserveSegments)
             return 0;
 
-        FilenameFilter unmanagedFilesFilter = new FilenameFilter()
-        {
-            public boolean accept(File dir, String name)
-            {
-                // we used to try to avoid instantiating commitlog (thus creating an empty segment ready for writes)
-                // until after recover was finished.  this turns out to be fragile; it is less error-prone to go
-                // ahead and allow writes before recover(), and just skip active segments when we do.
-                return CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
-            }
-        };
-
         // submit all existing files in the commit log dir for archiving prior to recovery - CASSANDRA-6904
-        for (File file : new File(DatabaseDescriptor.getCommitLogLocation()).listFiles(unmanagedFilesFilter))
+        for (File file : getUnmanagedFiles())
         {
             archiver.maybeArchive(file.getPath(), file.getName());
             archiver.maybeWaitForArchiving(file.getName());
@@ -138,7 +154,7 @@ public class CommitLog implements CommitLogMBean
         assert archiver.archivePending.isEmpty() : "Not all commit log archive tasks were completed before restore";
         archiver.maybeRestoreArchive();
 
-        File[] files = new File(DatabaseDescriptor.getCommitLogLocation()).listFiles(unmanagedFilesFilter);
+        File[] files = getUnmanagedFiles();
         int replayed = 0;
         allocator.enableReserveSegmentCreation();
         if (files.length == 0)
@@ -174,7 +190,7 @@ public class CommitLog implements CommitLogMBean
 
     private static UUID getLocalHostId()
     {
-        return Optional.ofNullable(StorageService.instance.getLocalHostUUID()).orElseGet(SystemKeyspace::getLocalHostId);
+        return StorageService.instance.getLocalHostUUID();
     }
 
     /**
