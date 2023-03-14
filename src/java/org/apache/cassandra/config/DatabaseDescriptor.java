@@ -1418,11 +1418,6 @@ public class DatabaseDescriptor
         return sstableFormatFactories.build();
     }
 
-    private static void applyConfigurationConstraints()
-    {
-        confRegistry.addPropertyValidator(ConfigFields.DEFAULT_KEYSPACE_RF, DatabaseDescriptor::defaultKeyspaceRFValidator, Integer.TYPE);
-    }
-
     private static void applySSTableFormats()
     {
         if (sstableFormatFactories != null)
@@ -1433,6 +1428,27 @@ public class DatabaseDescriptor
         Iterable<SSTableFormat.Type> types = SSTableFormat.Type.values(); // make sure we know where those types get initialized
         types.forEach(t -> t.info.allComponents()); // make sure to reach all supported components for a type so that we know all of them are registered
         logger.info("Supported sstable formats are: {}", Lists.newArrayList(types).stream().map(f -> f.name + " -> " + f.info.getClass().getName() + " with singleton components: " + f.info.allComponents()).collect(Collectors.joining(", ")));
+    }
+
+    private static void applyConfigurationConstraints()
+    {
+        confRegistry.addPropertyValidator(ConfigFields.DEFAULT_KEYSPACE_RF, DatabaseDescriptor::defaultKeyspaceRFValidator, Integer.TYPE);
+        confRegistry.addPropertyValidator(ConfigFields.REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.READ_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.RANGE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.WRITE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.COUNTER_WRITE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.CAS_CONTENTION_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.TRUNCATE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
+        confRegistry.addPropertyValidator(ConfigFields.REPAIR_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeout, DurationSpec.LongMillisecondsBound.class);
+    }
+
+    private static void lowestThanAcceptedTimeout(DurationSpec.LongMillisecondsBound oldValue, DurationSpec.LongMillisecondsBound newValue)
+    {
+        if (newValue == null) return;
+        if (newValue.toMilliseconds() < LOWEST_ACCEPTED_TIMEOUT.toMilliseconds())
+            throw new IllegalStateException(String.format("Invalid timeout '%s' is less than lowest acceptable value '%s'",
+                                                          newValue.toMilliseconds(), LOWEST_ACCEPTED_TIMEOUT.toMilliseconds()));
     }
 
     /**
@@ -1555,102 +1571,98 @@ public class DatabaseDescriptor
 
     public static boolean getPermissionsCacheActiveUpdate()
     {
-        return conf.permissions_cache_active_update;
+        return confRegistry.get(ConfigFields.PERMISSIONS_CACHE_ACTIVE_UPDATE);
     }
 
     public static void setPermissionsCacheActiveUpdate(boolean update)
     {
-        conf.permissions_cache_active_update = update;
+        confRegistry.set(ConfigFields.PERMISSIONS_CACHE_ACTIVE_UPDATE, update);
     }
 
     public static int getRolesValidity()
     {
-        return conf.roles_validity.toMilliseconds();
+        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.ROLES_VALIDITY).toMilliseconds();
     }
 
     public static void setRolesValidity(int validity)
     {
-        conf.roles_validity = new DurationSpec.IntMillisecondsBound(validity);
+        confRegistry.set(ConfigFields.ROLES_VALIDITY, new DurationSpec.IntMillisecondsBound(validity));
     }
 
     public static int getRolesUpdateInterval()
     {
-        return conf.roles_update_interval == null
-             ? conf.roles_validity.toMilliseconds()
-             : conf.roles_update_interval.toMilliseconds();
+        return confRegistry.get(ConfigFields.ROLES_UPDATE_INTERVAL) == null
+             ? getRolesValidity() :
+               confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.ROLES_UPDATE_INTERVAL).toMilliseconds();
     }
 
     public static void setRolesCacheActiveUpdate(boolean update)
     {
-        conf.roles_cache_active_update = update;
+        confRegistry.set(ConfigFields.ROLES_CACHE_ACTIVE_UPDATE, update);
     }
 
     public static boolean getRolesCacheActiveUpdate()
     {
-        return conf.roles_cache_active_update;
+        return confRegistry.get(ConfigFields.ROLES_CACHE_ACTIVE_UPDATE);
     }
 
     public static void setRolesUpdateInterval(int interval)
     {
-        if (interval == -1)
-            conf.roles_update_interval = null;
-        else
-            conf.roles_update_interval = new DurationSpec.IntMillisecondsBound(interval);
+        DurationSpec.IntMillisecondsBound updateInterval = interval == -1 ? null : new DurationSpec.IntMillisecondsBound(interval);
+        confRegistry.set(ConfigFields.ROLES_UPDATE_INTERVAL, updateInterval);
     }
 
     public static int getRolesCacheMaxEntries()
     {
-        return conf.roles_cache_max_entries;
+        return confRegistry.get(ConfigFields.ROLES_CACHE_MAX_ENTRIES);
     }
 
-    public static int setRolesCacheMaxEntries(int maxEntries)
+    public static void setRolesCacheMaxEntries(int maxEntries)
     {
-        return conf.roles_cache_max_entries = maxEntries;
+        confRegistry.set(ConfigFields.ROLES_CACHE_MAX_ENTRIES, maxEntries);
     }
 
     public static int getCredentialsValidity()
     {
-        return conf.credentials_validity.toMilliseconds();
+        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.CREDENTIALS_VALIDITY).toMilliseconds();
     }
 
     public static void setCredentialsValidity(int timeout)
     {
-        conf.credentials_validity = new DurationSpec.IntMillisecondsBound(timeout);
+        confRegistry.set(ConfigFields.CREDENTIALS_VALIDITY, new DurationSpec.IntMillisecondsBound(timeout));
     }
 
     public static int getCredentialsUpdateInterval()
     {
-        return conf.credentials_update_interval == null
-               ? conf.credentials_validity.toMilliseconds()
-               : conf.credentials_update_interval.toMilliseconds();
+        return confRegistry.get(ConfigFields.CREDENTIALS_UPDATE_INTERVAL) == null
+               ? getCredentialsValidity() :
+                 confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.CREDENTIALS_UPDATE_INTERVAL).toMilliseconds();
     }
 
     public static void setCredentialsUpdateInterval(int updateInterval)
     {
-        if (updateInterval == -1)
-            conf.credentials_update_interval = null;
-        else
-            conf.credentials_update_interval = new DurationSpec.IntMillisecondsBound(updateInterval);
+        DurationSpec.IntMillisecondsBound interval = updateInterval == -1 ? null : new DurationSpec.IntMillisecondsBound(updateInterval);
+        confRegistry.set(ConfigFields.CREDENTIALS_UPDATE_INTERVAL, interval);
     }
 
     public static int getCredentialsCacheMaxEntries()
     {
-        return conf.credentials_cache_max_entries;
+        return confRegistry.get(ConfigFields.CREDENTIALS_CACHE_MAX_ENTRIES);
     }
 
-    public static int setCredentialsCacheMaxEntries(int maxEntries)
+    public static void setCredentialsCacheMaxEntries(int maxEntries)
     {
-        return conf.credentials_cache_max_entries = maxEntries;
+        confRegistry.set(ConfigFields.CREDENTIALS_CACHE_MAX_ENTRIES, maxEntries);
     }
 
     public static boolean getCredentialsCacheActiveUpdate()
     {
-        return conf.credentials_cache_active_update;
+        return confRegistry.get(ConfigFields.CREDENTIALS_CACHE_ACTIVE_UPDATE);
     }
 
     public static void setCredentialsCacheActiveUpdate(boolean update)
     {
-        conf.credentials_cache_active_update = update;
+        confRegistry.set(ConfigFields.CREDENTIALS_CACHE_ACTIVE_UPDATE, update);
     }
 
     public static int getMaxValueSize()
@@ -1899,6 +1911,7 @@ public class DatabaseDescriptor
         return conf.native_transport_idle_timeout.toMilliseconds();
     }
 
+    @VisibleForTesting
     public static void setNativeTransportIdleTimeout(long nativeTransportTimeout)
     {
         conf.native_transport_idle_timeout = new DurationSpec.LongMillisecondsBound(nativeTransportTimeout);
@@ -1906,72 +1919,72 @@ public class DatabaseDescriptor
 
     public static long getRpcTimeout(TimeUnit unit)
     {
-        return conf.request_timeout.to(unit);
+        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setRpcTimeout(long timeOutInMillis)
     {
-        conf.request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+        confRegistry.set(ConfigFields.REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getReadRpcTimeout(TimeUnit unit)
     {
-        return conf.read_request_timeout.to(unit);
+        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.READ_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setReadRpcTimeout(long timeOutInMillis)
     {
-        conf.read_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+        confRegistry.set(ConfigFields.READ_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getRangeRpcTimeout(TimeUnit unit)
     {
-        return conf.range_request_timeout.to(unit);
+        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.RANGE_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setRangeRpcTimeout(long timeOutInMillis)
     {
-        conf.range_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+        confRegistry.set(ConfigFields.RANGE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getWriteRpcTimeout(TimeUnit unit)
     {
-        return conf.write_request_timeout.to(unit);
+        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.WRITE_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setWriteRpcTimeout(long timeOutInMillis)
     {
-        conf.write_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+        confRegistry.set(ConfigFields.WRITE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getCounterWriteRpcTimeout(TimeUnit unit)
     {
-        return conf.counter_write_request_timeout.to(unit);
+        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.COUNTER_WRITE_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setCounterWriteRpcTimeout(long timeOutInMillis)
     {
-        conf.counter_write_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+        confRegistry.set(ConfigFields.COUNTER_WRITE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getCasContentionTimeout(TimeUnit unit)
     {
-        return conf.cas_contention_timeout.to(unit);
+        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.CAS_CONTENTION_TIMEOUT).to(unit);
     }
 
     public static void setCasContentionTimeout(long timeOutInMillis)
     {
-        conf.cas_contention_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+        confRegistry.set(ConfigFields.CAS_CONTENTION_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getTruncateRpcTimeout(TimeUnit unit)
     {
-        return conf.truncate_request_timeout.to(unit);
+        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.TRUNCATE_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setTruncateRpcTimeout(long timeOutInMillis)
     {
-        conf.truncate_request_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+        confRegistry.set(ConfigFields.TRUNCATE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getRepairRpcTimeout(TimeUnit unit)

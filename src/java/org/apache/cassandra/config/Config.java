@@ -87,19 +87,24 @@ public class Config
     public int permissions_cache_max_entries = 1000;
     @Mutable @Replaces(oldName = "permissions_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
     public DurationSpec.IntMillisecondsBound permissions_update_interval = null;
-    public volatile boolean permissions_cache_active_update = false;
-    @Replaces(oldName = "roles_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public volatile DurationSpec.IntMillisecondsBound roles_validity = new DurationSpec.IntMillisecondsBound("2s");
-    public volatile int roles_cache_max_entries = 1000;
-    @Replaces(oldName = "roles_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
-    public volatile DurationSpec.IntMillisecondsBound roles_update_interval = null;
-    public volatile boolean roles_cache_active_update = false;
-    @Replaces(oldName = "credentials_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public volatile DurationSpec.IntMillisecondsBound credentials_validity = new DurationSpec.IntMillisecondsBound("2s");
-    public volatile int credentials_cache_max_entries = 1000;
-    @Replaces(oldName = "credentials_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
-    public volatile DurationSpec.IntMillisecondsBound credentials_update_interval = null;
-    public volatile boolean credentials_cache_active_update = false;
+    @Mutable
+    public boolean permissions_cache_active_update = false;
+    @Mutable @Replaces(oldName = "roles_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public DurationSpec.IntMillisecondsBound roles_validity = new DurationSpec.IntMillisecondsBound("2s");
+    @Mutable
+    public int roles_cache_max_entries = 1000;
+    @Mutable @Replaces(oldName = "roles_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
+    public DurationSpec.IntMillisecondsBound roles_update_interval = null;
+    @Mutable
+    public boolean roles_cache_active_update = false;
+    @Mutable @Replaces(oldName = "credentials_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public DurationSpec.IntMillisecondsBound credentials_validity = new DurationSpec.IntMillisecondsBound("2s");
+    @Mutable
+    public int credentials_cache_max_entries = 1000;
+    @Mutable @Replaces(oldName = "credentials_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
+    public DurationSpec.IntMillisecondsBound credentials_update_interval = null;
+    @Mutable
+    public boolean credentials_cache_active_update = false;
 
     /* Hashing strategy Random or OPHF */
     public String partitioner;
@@ -133,29 +138,28 @@ public class Config
     @Replaces(oldName = "native_transport_idle_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public DurationSpec.LongMillisecondsBound native_transport_idle_timeout = new DurationSpec.LongMillisecondsBound("0ms");
 
-    @Replaces(oldName = "request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public volatile DurationSpec.LongMillisecondsBound request_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
+    @Mutable @Replaces(oldName = "request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public DurationSpec.LongMillisecondsBound request_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
 
-    @Replaces(oldName = "read_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public volatile DurationSpec.LongMillisecondsBound read_request_timeout = new DurationSpec.LongMillisecondsBound("5000ms");
+    @Mutable @Replaces(oldName = "read_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public DurationSpec.LongMillisecondsBound read_request_timeout = new DurationSpec.LongMillisecondsBound("5000ms");
 
-    @Replaces(oldName = "range_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public volatile DurationSpec.LongMillisecondsBound range_request_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
+    @Mutable @Replaces(oldName = "range_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public DurationSpec.LongMillisecondsBound range_request_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
 
-    @Replaces(oldName = "write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public volatile DurationSpec.LongMillisecondsBound write_request_timeout = new DurationSpec.LongMillisecondsBound("2000ms");
+    @Mutable @Replaces(oldName = "write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public DurationSpec.LongMillisecondsBound write_request_timeout = new DurationSpec.LongMillisecondsBound("2000ms");
 
-    @Replaces(oldName = "counter_write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public volatile DurationSpec.LongMillisecondsBound counter_write_request_timeout = new DurationSpec.LongMillisecondsBound("5000ms");
+    @Mutable @Replaces(oldName = "counter_write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public DurationSpec.LongMillisecondsBound counter_write_request_timeout = new DurationSpec.LongMillisecondsBound("5000ms");
 
-    @Replaces(oldName = "cas_contention_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public volatile DurationSpec.LongMillisecondsBound cas_contention_timeout = new DurationSpec.LongMillisecondsBound("1800ms");
+    @Mutable @Replaces(oldName = "cas_contention_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public DurationSpec.LongMillisecondsBound cas_contention_timeout = new DurationSpec.LongMillisecondsBound("1800ms");
 
-    @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public volatile DurationSpec.LongMillisecondsBound truncate_request_timeout = new DurationSpec.LongMillisecondsBound("60000ms");
+    @Mutable @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public DurationSpec.LongMillisecondsBound truncate_request_timeout = new DurationSpec.LongMillisecondsBound("60000ms");
 
-    @Mutable
-    @Replaces(oldName = "repair_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    @Mutable @Replaces(oldName = "repair_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public DurationSpec.LongMillisecondsBound repair_request_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
 
     public Integer streaming_connections_per_host = 1;

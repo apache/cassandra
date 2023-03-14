@@ -1543,7 +1543,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setRpcTimeout(long value)
     {
         DatabaseDescriptor.setRpcTimeout(value);
-        logger.info("set rpc timeout to {} ms", value);
     }
 
     public long getRpcTimeout()
