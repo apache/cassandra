@@ -118,6 +118,12 @@ public class InboundMessageHandler extends AbstractMessageHandler
         this.consumer = consumer;
     }
 
+    @Override
+    protected void onDecoderReactivated()
+    {
+        // No-op for this implementation, as the InboundMessageHandler should not use ClientMetrics
+    }
+
     protected boolean processOneContainedMessage(ShareableBytes bytes, Limit endpointReserve, Limit globalReserve) throws IOException
     {
         ByteBuffer buf = bytes.get();
