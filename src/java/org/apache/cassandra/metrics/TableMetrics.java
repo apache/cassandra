@@ -649,7 +649,7 @@ public class TableMetrics
                           .filter(sstable -> sstable.getMinTimestamp() != Long.MAX_VALUE && sstable.getMaxTimestamp() != Long.MAX_VALUE)
                           .map(ssTableReader -> ssTableReader.getMaxTimestamp() - ssTableReader.getMinTimestamp())
                           .max(Long::compare)
-                          .orElse(0L);
+                          .orElse(0L) / 1000;
             }
         });
         maxSSTableSize = createTableGauge("MaxSSTableSize", new Gauge<Long>()
