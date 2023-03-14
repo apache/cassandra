@@ -44,7 +44,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
 import org.apache.cassandra.config.registry.PropertyChangeListener;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
