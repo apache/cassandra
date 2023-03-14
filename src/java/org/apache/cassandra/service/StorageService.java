@@ -1585,7 +1585,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setInternodeTcpConnectTimeoutInMS(int value)
     {
         DatabaseDescriptor.setInternodeTcpConnectTimeoutInMS(value);
-        logger.info("set internode tcp connect timeout to {} ms", value);
     }
 
     public int getInternodeTcpConnectTimeoutInMS()
@@ -1596,7 +1595,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setInternodeTcpUserTimeoutInMS(int value)
     {
         DatabaseDescriptor.setInternodeTcpUserTimeoutInMS(value);
-        logger.info("set internode tcp user timeout to {} ms", value);
     }
 
     public int getInternodeTcpUserTimeoutInMS()
@@ -1606,9 +1604,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setInternodeStreamingTcpUserTimeoutInMS(int value)
     {
-        Preconditions.checkArgument(value >= 0, "TCP user timeout cannot be negative for internode streaming connection. Got %s", value);
         DatabaseDescriptor.setInternodeStreamingTcpUserTimeoutInMS(value);
-        logger.info("set internode streaming tcp user timeout to {} ms", value);
     }
 
     public int getInternodeStreamingTcpUserTimeoutInMS()

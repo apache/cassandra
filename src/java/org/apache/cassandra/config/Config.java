@@ -265,18 +265,18 @@ public class Config
 
     // Defensive settings for protecting Cassandra from true network partitions. See (CASSANDRA-14358) for details.
     // The amount of time to wait for internode tcp connections to establish.
-    @Replaces(oldName = "internode_tcp_connect_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public volatile DurationSpec.IntMillisecondsBound internode_tcp_connect_timeout = new DurationSpec.IntMillisecondsBound("2s");
+    @Mutable @Replaces(oldName = "internode_tcp_connect_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public DurationSpec.IntMillisecondsBound internode_tcp_connect_timeout = new DurationSpec.IntMillisecondsBound("2s");
     // The amount of time unacknowledged data is allowed on a connection before we throw out the connection
     // Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
     // (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
     // (which picks up the OS default) and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
-    @Replaces(oldName = "internode_tcp_user_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public volatile DurationSpec.IntMillisecondsBound internode_tcp_user_timeout = new DurationSpec.IntMillisecondsBound("30s");
+    @Mutable @Replaces(oldName = "internode_tcp_user_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public DurationSpec.IntMillisecondsBound internode_tcp_user_timeout = new DurationSpec.IntMillisecondsBound("30s");
     // Similar to internode_tcp_user_timeout but used specifically for streaming connection.
     // The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
-    @Replaces(oldName = "internode_streaming_tcp_user_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public volatile DurationSpec.IntMillisecondsBound internode_streaming_tcp_user_timeout = new DurationSpec.IntMillisecondsBound("300s"); // 5 minutes
+    @Mutable @Replaces(oldName = "internode_streaming_tcp_user_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public DurationSpec.IntMillisecondsBound internode_streaming_tcp_user_timeout = new DurationSpec.IntMillisecondsBound("300s"); // 5 minutes
 
     public boolean start_native_transport = true;
     public int native_transport_port = 9042;
@@ -286,10 +286,13 @@ public class Config
     public DataStorageSpec.IntMebibytesBound native_transport_max_frame_size = new DataStorageSpec.IntMebibytesBound("16MiB");
     /** do bcrypt hashing in a limited pool to prevent cpu load spikes; note: any value < 1 will be set to 1 on init **/
     public int native_transport_max_auth_threads = 4;
-    public volatile long native_transport_max_concurrent_connections = -1L;
-    public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
+    @Mutable
+    public long native_transport_max_concurrent_connections = -1L;
+    @Mutable
+    public long native_transport_max_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
-    public volatile boolean native_transport_allow_older_protocols = true;
+    @Mutable
+    public boolean native_transport_allow_older_protocols = true;
     // Below 2 parameters were fixed in 4.0 + to get default value when ==-1 (old name and value format) or ==null(new name and value format),
     // not <=0 as it is in previous versions. Throwing config exceptions on < -1
     @Replaces(oldName = "native_transport_max_concurrent_requests_in_bytes_per_ip", converter = Converters.BYTES_CUSTOM_DATASTORAGE, deprecated = true)

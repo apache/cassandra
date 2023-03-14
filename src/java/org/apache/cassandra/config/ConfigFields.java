@@ -44,10 +44,16 @@ public class ConfigFields
     public static final String HINTED_HANDOFF_ENABLED = "hinted_handoff_enabled";
     public static final String IDEAL_CONSISTENCY_LEVEL = "ideal_consistency_level";
     public static final String INCREMENTAL_BACKUPS = "incremental_backups";
+    public static final String INTERNODE_STREAMING_TCP_USER_TIMEOUT = "internode_streaming_tcp_user_timeout";
+    public static final String INTERNODE_TCP_CONNECT_TIMEOUT = "internode_tcp_connect_timeout";
+    public static final String INTERNODE_TCP_USER_TIMEOUT = "internode_tcp_user_timeout";
     public static final String LOCAL_READ_SIZE_FAIL_THRESHOLD = "local_read_size_fail_threshold";
     public static final String LOCAL_READ_SIZE_WARN_THRESHOLD = "local_read_size_warn_threshold";
     public static final String MAX_HINTS_SIZE_PER_HOST = "max_hints_size_per_host";
     public static final String MAX_HINT_WINDOW = "max_hint_window";
+    public static final String NATIVE_TRANSPORT_ALLOW_OLDER_PROTOCOLS = "native_transport_allow_older_protocols";
+    public static final String NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS = "native_transport_max_concurrent_connections";
+    public static final String NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS_PER_IP = "native_transport_max_concurrent_connections_per_ip";
     public static final String PERMISSIONS_CACHE_ACTIVE_UPDATE = "permissions_cache_active_update";
     public static final String PERMISSIONS_CACHE_MAX_ENTRIES = "permissions_cache_max_entries";
     public static final String PERMISSIONS_UPDATE_INTERVAL = "permissions_update_interval";

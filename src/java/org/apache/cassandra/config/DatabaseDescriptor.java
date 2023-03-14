@@ -2673,32 +2673,32 @@ public class DatabaseDescriptor
 
     public static int getInternodeTcpConnectTimeoutInMS()
     {
-        return conf.internode_tcp_connect_timeout.toMilliseconds();
+        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.INTERNODE_TCP_CONNECT_TIMEOUT).toMilliseconds();
     }
 
     public static void setInternodeTcpConnectTimeoutInMS(int value)
     {
-        conf.internode_tcp_connect_timeout = new DurationSpec.IntMillisecondsBound(value);
+        confRegistry.set(ConfigFields.INTERNODE_TCP_CONNECT_TIMEOUT, new DurationSpec.IntMillisecondsBound(value));
     }
 
     public static int getInternodeTcpUserTimeoutInMS()
     {
-        return conf.internode_tcp_user_timeout.toMilliseconds();
+        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.INTERNODE_TCP_USER_TIMEOUT).toMilliseconds();
     }
 
     public static void setInternodeTcpUserTimeoutInMS(int value)
     {
-        conf.internode_tcp_user_timeout = new DurationSpec.IntMillisecondsBound(value);
+        confRegistry.set(ConfigFields.INTERNODE_TCP_USER_TIMEOUT, new DurationSpec.IntMillisecondsBound(value));
     }
 
     public static int getInternodeStreamingTcpUserTimeoutInMS()
     {
-        return conf.internode_streaming_tcp_user_timeout.toMilliseconds();
+        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.INTERNODE_STREAMING_TCP_USER_TIMEOUT).toMilliseconds();
     }
 
     public static void setInternodeStreamingTcpUserTimeoutInMS(int value)
     {
-        conf.internode_streaming_tcp_user_timeout = new DurationSpec.IntMillisecondsBound(value);
+        confRegistry.set(ConfigFields.INTERNODE_STREAMING_TCP_USER_TIMEOUT, new DurationSpec.IntMillisecondsBound(value));
     }
 
     public static int getInternodeMaxMessageSizeInBytes()
@@ -2781,22 +2781,22 @@ public class DatabaseDescriptor
 
     public static long getNativeTransportMaxConcurrentConnections()
     {
-        return conf.native_transport_max_concurrent_connections;
+        return confRegistry.get(ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS);
     }
 
     public static void setNativeTransportMaxConcurrentConnections(long nativeTransportMaxConcurrentConnections)
     {
-        conf.native_transport_max_concurrent_connections = nativeTransportMaxConcurrentConnections;
+        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS, nativeTransportMaxConcurrentConnections);
     }
 
     public static long getNativeTransportMaxConcurrentConnectionsPerIp()
     {
-        return conf.native_transport_max_concurrent_connections_per_ip;
+        return confRegistry.get(ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS_PER_IP);
     }
 
     public static void setNativeTransportMaxConcurrentConnectionsPerIp(long native_transport_max_concurrent_connections_per_ip)
     {
-        conf.native_transport_max_concurrent_connections_per_ip = native_transport_max_concurrent_connections_per_ip;
+        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS_PER_IP, native_transport_max_concurrent_connections_per_ip);
     }
 
     public static boolean useNativeTransportLegacyFlusher()
@@ -2806,12 +2806,12 @@ public class DatabaseDescriptor
 
     public static boolean getNativeTransportAllowOlderProtocols()
     {
-        return conf.native_transport_allow_older_protocols;
+        return confRegistry.get(ConfigFields.NATIVE_TRANSPORT_ALLOW_OLDER_PROTOCOLS);
     }
 
     public static void setNativeTransportAllowOlderProtocols(boolean isEnabled)
     {
-        conf.native_transport_allow_older_protocols = isEnabled;
+        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_ALLOW_OLDER_PROTOCOLS, isEnabled);
     }
 
     public static long getCommitLogSyncGroupWindow()
