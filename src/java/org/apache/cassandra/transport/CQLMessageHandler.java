@@ -143,6 +143,12 @@ public class CQLMessageHandler<M extends Message> extends AbstractMessageHandler
         return super.process(frame);
     }
 
+    @Override
+    protected void onDecoderReactivated()
+    {
+        ClientMetrics.instance.unpauseConnection();
+    }
+
     /**
      * Checks limits on bytes in flight and the request rate limiter (if enabled), then takes one of three actions:
      * 
