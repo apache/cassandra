@@ -3119,12 +3119,12 @@ public class DatabaseDescriptor
 
     public static void setHintedHandoffEnabled(boolean hintedHandoffEnabled)
     {
-        conf.hinted_handoff_enabled = hintedHandoffEnabled;
+        confRegistry.set(ConfigFields.HINTED_HANDOFF_ENABLED, hintedHandoffEnabled);
     }
 
     public static boolean hintedHandoffEnabled()
     {
-        return conf.hinted_handoff_enabled;
+        return confRegistry.get(ConfigFields.HINTED_HANDOFF_ENABLED);
     }
 
     public static Set<String> hintedHandoffDisabledDCs()
@@ -3134,12 +3134,12 @@ public class DatabaseDescriptor
 
     public static boolean useDeterministicTableID()
     {
-        return conf != null && conf.use_deterministic_table_id;
+        return confRegistry.get(ConfigFields.USE_DETERMINISTIC_TABLE_ID);
     }
 
     public static void useDeterministicTableID(boolean value)
     {
-        conf.use_deterministic_table_id = value;
+        confRegistry.set(ConfigFields.USE_DETERMINISTIC_TABLE_ID, value);
     }
 
     public static void enableHintsForDC(String dc)
@@ -3154,12 +3154,12 @@ public class DatabaseDescriptor
 
     public static void setMaxHintWindow(int ms)
     {
-        conf.max_hint_window = new DurationSpec.IntMillisecondsBound(ms);
+        confRegistry.set(ConfigFields.MAX_HINT_WINDOW, new DurationSpec.IntMillisecondsBound(ms));
     }
 
     public static int getMaxHintWindow()
     {
-        return conf.max_hint_window.toMilliseconds();
+        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.MAX_HINT_WINDOW).toMilliseconds();
     }
 
     public static void setMaxHintsSizePerHostInMiB(int value)
@@ -4462,16 +4462,12 @@ public class DatabaseDescriptor
 
     public static boolean getForceNewPreparedStatementBehaviour()
     {
-        return conf.force_new_prepared_statement_behaviour;
+        return confRegistry.get(ConfigFields.FORCE_NEW_PREPARED_STATEMENT_BEHAVIOUR);
     }
 
     public static void setForceNewPreparedStatementBehaviour(boolean value)
     {
-        if (value != conf.force_new_prepared_statement_behaviour)
-        {
-            logger.info("Setting force_new_prepared_statement_behaviour to {}", value);
-            conf.force_new_prepared_statement_behaviour = value;
-        }
+        confRegistry.set(ConfigFields.FORCE_NEW_PREPARED_STATEMENT_BEHAVIOUR, value);
     }
 
     public static DurationSpec.LongNanosecondsBound getStreamingStateExpires()

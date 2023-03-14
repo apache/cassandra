@@ -110,14 +110,16 @@ public class Config
     public String partitioner;
 
     public boolean auto_bootstrap = true;
-    public volatile boolean hinted_handoff_enabled = true;
+    @Mutable
+    public boolean hinted_handoff_enabled = true;
     public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
-    @Replaces(oldName = "max_hint_window_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public volatile DurationSpec.IntMillisecondsBound max_hint_window = new DurationSpec.IntMillisecondsBound("3h");
+    @Mutable @Replaces(oldName = "max_hint_window_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public DurationSpec.IntMillisecondsBound max_hint_window = new DurationSpec.IntMillisecondsBound("3h");
     public String hints_directory;
     public boolean hint_window_persistent_enabled = true;
 
-    public volatile boolean force_new_prepared_statement_behaviour = false;
+    @Mutable
+    public boolean force_new_prepared_statement_behaviour = false;
 
     public ParameterizedClass seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
@@ -125,7 +127,8 @@ public class Config
     public DiskFailurePolicy disk_failure_policy = DiskFailurePolicy.ignore;
     public CommitFailurePolicy commit_failure_policy = CommitFailurePolicy.stop;
 
-    public volatile boolean use_deterministic_table_id = false;
+    @Mutable
+    public boolean use_deterministic_table_id = false;
 
     /* initial token in the ring */
     public String initial_token;
