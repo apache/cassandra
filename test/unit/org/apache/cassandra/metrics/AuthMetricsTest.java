@@ -55,6 +55,7 @@ public class AuthMetricsTest
     private static final String TEST_WRONG_USER = "testwronguser";
     private static final String TEST_WRONG_PW = "testwrongpassword";
     private static final String TEST_WRONG_DELAYED_USER = "testwrongdelayeduser";
+    private static final String TEST_NON_EXISTING_USER = "testnonexistinguser";
 
 
     private static PasswordAuthenticator authenticator;
@@ -112,8 +113,10 @@ public class AuthMetricsTest
                       "CREATE KEYSPACE testks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}",
                       "CREATE TABLE testks.table1 (key text PRIMARY KEY, col1 int, col2 int)"),
         "cassandra", "cassandra");
+
+        // creating a non-super user role. However if auth_enforcement_flag is true then it acts as super user.
         executeWithCredentials(
-        Collections.singletonList(getCreateRoleCql(TEST_WRONG_DELAYED_USER, true, true, TEST_PW)),
+        Collections.singletonList(getCreateRoleCql(TEST_WRONG_DELAYED_USER, true, false, TEST_PW)),
         "cassandra", "cassandra");
 
     }
@@ -159,19 +162,32 @@ public class AuthMetricsTest
     * testDelayedAuthMetrics is used to test the case when a wrong-auth user has logged in the cassandra using
     * auth_enforcement_flag = "soft" and is still making queries. We need metrics to see if a wrong-auth user is
     * making queries at regular interval of x minutes (30 miuntes)
+    * Successful SELECT query is made by wrong-auth user since its acting as super user in this session
     * */
     @Test
     public void testDelayedAuthMetrics() {
         String cql = "SELECT * FROM testks.table1";
+        long sessionCallsCount, test_wrong_delayed_user_count_old, test_wrong_delayed_user_count_new;
 
         DatabaseDescriptor.setAuthCheckIntervalInMillis(0L);
 
         executeWithCredentials(Collections.singletonList(cql), TEST_WRONG_DELAYED_USER, TEST_WRONG_PW);
-        long sessionCallsCount = AuthMetricsManager.getMetrics(TEST_WRONG_DELAYED_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
-        long test_wrong_delayed_user_count_old = AuthMetricsManager.getMetrics(TEST_WRONG_DELAYED_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
+        sessionCallsCount = AuthMetricsManager.getMetrics(TEST_WRONG_DELAYED_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
+        test_wrong_delayed_user_count_old = AuthMetricsManager.getMetrics(TEST_WRONG_DELAYED_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
 
         executeWithCredentials(Arrays.asList(cql, cql, cql, cql, cql), TEST_WRONG_DELAYED_USER, TEST_WRONG_PW);
-        long test_wrong_delayed_user_count_new = AuthMetricsManager.getMetrics(TEST_WRONG_DELAYED_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
+        test_wrong_delayed_user_count_new = AuthMetricsManager.getMetrics(TEST_WRONG_DELAYED_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
+
+        assertEquals(test_wrong_delayed_user_count_new - test_wrong_delayed_user_count_old, sessionCallsCount + test_wrong_delayed_user_count);
+
+
+        // test for non existing role
+        executeWithCredentials(Collections.singletonList(cql), TEST_NON_EXISTING_USER, TEST_WRONG_PW);
+        sessionCallsCount = AuthMetricsManager.getMetrics(TEST_NON_EXISTING_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
+        test_wrong_delayed_user_count_old = AuthMetricsManager.getMetrics(TEST_NON_EXISTING_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
+
+        executeWithCredentials(Arrays.asList(cql, cql, cql, cql, cql), TEST_NON_EXISTING_USER, TEST_WRONG_PW);
+        test_wrong_delayed_user_count_new = AuthMetricsManager.getMetrics(TEST_NON_EXISTING_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount() - prevCalls;
 
         assertEquals(test_wrong_delayed_user_count_new - test_wrong_delayed_user_count_old, sessionCallsCount + test_wrong_delayed_user_count);
     }
