@@ -20,7 +20,6 @@ package org.apache.cassandra.security;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -279,7 +278,7 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
 
     private String readPEMFile(String file) throws IOException
     {
-        return new String(Files.readAllBytes(Paths.get(file)));
+        return new String(Files.readAllBytes(File.getPath(file)));
     }
 
     /**

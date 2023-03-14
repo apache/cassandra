@@ -20,7 +20,6 @@ package org.apache.cassandra.security;
 
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.cert.X509Certificate;
@@ -130,7 +129,7 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
     protected KeyManagerFactory buildKeyManagerFactory() throws SSLException
     {
 
-        try (InputStream ksf = Files.newInputStream(Paths.get(keystore)))
+        try (InputStream ksf = Files.newInputStream(File.getPath(keystore)))
         {
             final String algorithm = this.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : this.algorithm;
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
@@ -159,7 +158,7 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
     @Override
     protected TrustManagerFactory buildTrustManagerFactory() throws SSLException
     {
-        try (InputStream tsf = Files.newInputStream(Paths.get(truststore)))
+        try (InputStream tsf = Files.newInputStream(File.getPath(truststore)))
         {
             final String algorithm = this.algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : this.algorithm;
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);

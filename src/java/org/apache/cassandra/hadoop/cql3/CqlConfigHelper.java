@@ -20,7 +20,6 @@ package org.apache.cassandra.hadoop.cql3;
 *
 */
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.io.InputStream;
 import java.io.IOException;
 import java.security.KeyManagementException;
@@ -52,6 +51,7 @@ import com.datastax.driver.core.QueryOptions;
 import com.datastax.driver.core.SSLOptions;
 import com.datastax.driver.core.SocketOptions;
 import org.apache.cassandra.hadoop.ConfigHelper;
+import org.apache.cassandra.io.util.File;
 import org.apache.hadoop.conf.Configuration;
 
 
@@ -625,7 +625,7 @@ public class CqlConfigHelper
         TrustManagerFactory tmf = null;
         if (truststorePath.isPresent())
         {
-            try (InputStream tsf = Files.newInputStream(Paths.get(truststorePath.get())))
+            try (InputStream tsf = Files.newInputStream(File.getPath(truststorePath.get())))
             {
                 KeyStore ts = KeyStore.getInstance("JKS");
                 ts.load(tsf, truststorePassword.isPresent() ? truststorePassword.get().toCharArray() : null);
@@ -637,7 +637,7 @@ public class CqlConfigHelper
         KeyManagerFactory kmf = null;
         if (keystorePath.isPresent())
         {
-            try (InputStream ksf = Files.newInputStream(Paths.get(keystorePath.get())))
+            try (InputStream ksf = Files.newInputStream(File.getPath(keystorePath.get())))
             {
                 KeyStore ks = KeyStore.getInstance("JKS");
                 ks.load(ksf, keystorePassword.isPresent() ? keystorePassword.get().toCharArray() : null);

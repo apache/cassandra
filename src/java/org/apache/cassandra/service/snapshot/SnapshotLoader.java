@@ -23,7 +23,6 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
@@ -66,7 +65,7 @@ public class SnapshotLoader
 
     public SnapshotLoader(String[] dataDirectories)
     {
-        this(Arrays.stream(dataDirectories).map(Paths::get).collect(Collectors.toList()));
+        this(Arrays.stream(dataDirectories).map(File::getPath).collect(Collectors.toList()));
     }
 
     public SnapshotLoader(Collection<Path> dataDirs)
