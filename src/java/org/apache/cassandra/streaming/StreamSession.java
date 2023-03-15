@@ -701,8 +701,9 @@ public class StreamSession
             state(State.FAILED); // make sure subsequent error handling sees the session in a final state 
             channel.sendControlMessage(new SessionFailedMessage()).awaitUninterruptibly();
         }
-        StringBuilder boundedThrowable = boundStackTrace(e, 2); //bound the stacktrace with a specified limit on the number of lines
-        return closeSession(State.FAILED, "Failed because of an unkown exception\n" + boundedThrowable);
+        StringBuilder failureReason = new StringBuilder("Failed because of an unkown exception\n");
+        boundStackTrace(e, 2, failureReason); //bound the stacktrace with a specified limit on the number of lines
+        return closeSession(State.FAILED, failureReason.toString());
     }
 
     private void logError(Throwable e)
@@ -1338,10 +1339,9 @@ public class StreamSession
                '}';
     }
 
-    public static StringBuilder boundStackTrace(Throwable e, int limit)
+    public static StringBuilder boundStackTrace(Throwable e, int limit, StringBuilder out)
     {
         Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
-        StringBuilder out = new StringBuilder();
         return boundStackTrace(e, limit, limit, visited, out);
     }
 
@@ -1351,7 +1351,7 @@ public class StreamSession
             return out;
 
         if (!visited.add(e))
-            return out.append("[CIRCULAR REFERENCE: ").append(e.getClass().getName() + ": " + e.getMessage()).append("]").append('\n');
+            return out.append("[CIRCULAR REFERENCE: ").append(e.getClass().getName()).append(": ").append(e.getMessage()).append("]").append('\n');
         visited.add(e);
 
         StackTraceElement[] stackTrace = e.getStackTrace();
