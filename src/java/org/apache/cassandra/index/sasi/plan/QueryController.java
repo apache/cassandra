@@ -254,7 +254,7 @@ public class QueryController
     {
         return Sets.filter(indexes, index -> {
             SSTableReader sstable = index.getSSTable();
-            return range.startKey().compareTo(sstable.last) <= 0 && (range.stopKey().isMinimum() || sstable.first.compareTo(range.stopKey()) <= 0);
+            return range.startKey().compareTo(sstable.getLast()) <= 0 && (range.stopKey().isMinimum() || sstable.getFirst().compareTo(range.stopKey()) <= 0);
         });
     }
 }
