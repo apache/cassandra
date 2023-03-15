@@ -82,7 +82,7 @@ public class UpdateSettingsTableTest extends CQLTester
     public void testUpdateWithNull() throws Throwable
     {
         // Settings table called as apply column deletion. So, we need to test that we can delete a value.
-        assertNotNull(registry.get(ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD));
+        assertNotNull(registry.get(registry.type(ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD), ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD));
         updateConfigurationProperty(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
                                      ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD, null);
     }
@@ -96,7 +96,7 @@ public class UpdateSettingsTableTest extends CQLTester
 
     private void doUpdateSettingAndRevertBack(String statement, String propertyName) throws Throwable
     {
-        Object oldValue = registry.get(propertyName);
+        Object oldValue = registry.get(registry.type(propertyName), propertyName);
         Object[] testValues = defaultTestValues.get(registry.type(propertyName));
         assertNotNull(String.format("No test values found for setting '%s' with type '%s'",
                                            propertyName, registry.type(propertyName)), testValues);
@@ -108,7 +108,7 @@ public class UpdateSettingsTableTest extends CQLTester
     private void updateConfigurationProperty(String statement, String propertyName, Object value) throws Throwable
     {
         assertRowsNet(executeNet(statement, TypeConverter.DEFAULT.convert(value), propertyName));
-        assertEquals(value, registry.get(propertyName));
+        assertEquals(value, registry.get(registry.type(propertyName), propertyName));
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, TypeConverter.DEFAULT.convert((value)) });
     }
 

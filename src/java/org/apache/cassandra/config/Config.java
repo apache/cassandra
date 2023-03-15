@@ -719,7 +719,7 @@ public class Config
     // Default keyspace replication factors allow validation of newly created keyspaces
     // and good defaults if no replication factor is provided by the user
     @Mutable
-    public volatile int default_keyspace_rf = 1;
+    public int default_keyspace_rf = 1;
 
     /**
      * flags for enabling tracking repaired state of data during reads

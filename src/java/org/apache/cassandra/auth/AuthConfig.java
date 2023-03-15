@@ -60,9 +60,9 @@ public final class AuthConfig
         // work with PasswordAuthenticator, so log a message if some other authenticator
         // is in use and non-default values are detected
         if (!(authenticator instanceof PasswordAuthenticator)
-            && (registry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.CREDENTIALS_UPDATE_INTERVAL) != null
-                || registry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.CREDENTIALS_VALIDITY).toMilliseconds() != 2000
-                || registry.<Integer>get(ConfigFields.CREDENTIALS_CACHE_MAX_ENTRIES) != 1000))
+            && (registry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.CREDENTIALS_UPDATE_INTERVAL) != null
+                || registry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.CREDENTIALS_VALIDITY).toMilliseconds() != 2000
+                || registry.get(Integer.TYPE, ConfigFields.CREDENTIALS_CACHE_MAX_ENTRIES) != 1000))
         {
             logger.info("Configuration options credentials_update_interval, credentials_validity and " +
                         "credentials_cache_max_entries may not be applicable for the configured authenticator ({})",

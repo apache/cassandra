@@ -81,7 +81,7 @@ public class SettingsTableTest extends CQLTester
             i++;
             String name = r.getString("name");
             String value = r.getString("value");
-            String expected = TypeConverter.DEFAULT.convert(registry.get(name));
+            String expected = TypeConverter.DEFAULT.convert(registry.get(registry.type(name), name));
             Assert.assertEquals("Unexpected result for key: " + name, expected, value);
         }
         Assert.assertEquals(table.registry().size(), i);
@@ -93,7 +93,7 @@ public class SettingsTableTest extends CQLTester
         for (String key : table.registry().keys())
         {
             String q = "SELECT * FROM vts.settings WHERE name = '" + key + '\'';
-            assertRowsNet(executeNet(q), new Object[] { key, TypeConverter.DEFAULT.convert(registry.get(key)) });
+            assertRowsNet(executeNet(q), new Object[] { key, TypeConverter.DEFAULT.convert(registry.get(registry.type(key), key)) });
         }
     }
 

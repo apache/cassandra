@@ -119,6 +119,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         }
         catch (Exception e)
         {
+            e.printStackTrace(System.out);
             throw invalidRequest("Invalid request for property '%s'; exception: '%s'", name, e.getMessage());
         }
     }
@@ -222,17 +223,20 @@ final class SettingsTable extends AbstractMutableVirtualTable
 
         @SuppressWarnings("unchecked")
         @Override
-        public <T> T get(String name)
+        public <T> T get(Class<T> cls, String name)
         {
             Replacement replacement = replacements.get(name);
-            return replacement == null ? registry.get(name) : (T) replacement.converter.unconvert(registry.get(replacement.newName));
+            return replacement == null ?
+                   registry.get(cls, name) :
+                   (T) replacement.converter.unconvert(registry.get(newReplacementType(replacement), replacement.newName));
         }
 
         @Override
         public String getString(String name)
         {
             Replacement replacement = replacements.get(name);
-            return replacement == null ? registry.getString(name) : TypeConverter.DEFAULT.convert(get(name));
+
+            return replacement == null ? registry.getString(name) : TypeConverter.DEFAULT.convert(get(newReplacementType(replacement), name));
         }
 
         @Override
@@ -259,6 +263,12 @@ final class SettingsTable extends AbstractMutableVirtualTable
         public int size()
         {
             return uniquePropertyKeys.size();
+        }
+
+        private static Class<?> newReplacementType(Replacement replacement)
+        {
+            // If the new type is null, then the old type is the same as the new type (e.g. the property's name changed, but not its type).
+            return replacement.converter.getNewType() == null ? replacement.oldType : replacement.converter.getNewType();
         }
     }
 }

@@ -29,7 +29,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
@@ -127,17 +126,24 @@ public class ConfigPropertyRegistry implements PropertyRegistry
     }
 
     /**
+     * @param cls Class to cast the property value to.
      * @param name the property name to get.
      * @return The value of the property with the given name.
      */
-    @SuppressWarnings("unchecked")
-    public <T> T get(String name)
+    public <T> T get(Class<T> cls, String name)
     {
         rwLock.readLock().lock();
         try
         {
             validatePropertyExists(properties.get(name), name);
-            return (T) properties.get(name).getValue();
+            Class<?> propertyType = type(name);
+            if (cls.equals(propertyType))
+                return primitiveToWrapperType(cls).cast(properties.get(name).getValue());
+            else if (cls.equals(String.class))
+                return cls.cast(typeConverterRegistry.getConverterOrDefault(propertyType, String.class, TypeConverter.DEFAULT).convert(properties.get(name).getValue()));
+            else
+                throw new ConfigurationException(String.format("Property '%s' is of type '%s' and cannot be cast to '%s'",
+                                                               name, type(name).getName(), cls.getName()));
         }
         finally
         {
@@ -147,7 +153,7 @@ public class ConfigPropertyRegistry implements PropertyRegistry
 
     @Override public String getString(String name)
     {
-        return typeConverterRegistry.getConverterOrDefault(type(name), String.class, TypeConverter.DEFAULT).convert(get(name));
+        return get(String.class, name);
     }
 
     /**

@@ -1550,7 +1550,7 @@ public class DatabaseDescriptor
 
     public static int getPermissionsValidity()
     {
-        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.PERMISSIONS_VALIDITY).toMilliseconds();
+        return confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.PERMISSIONS_VALIDITY).toMilliseconds();
     }
 
     public static void setPermissionsValidity(int timeout)
@@ -1560,9 +1560,9 @@ public class DatabaseDescriptor
 
     public static int getPermissionsUpdateInterval()
     {
-        return confRegistry.get(ConfigFields.PERMISSIONS_UPDATE_INTERVAL) == null
+        return confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.PERMISSIONS_UPDATE_INTERVAL) == null
              ? getPermissionsValidity() :
-               confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.PERMISSIONS_UPDATE_INTERVAL).toMilliseconds();
+               confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.PERMISSIONS_UPDATE_INTERVAL).toMilliseconds();
     }
 
     public static void setPermissionsUpdateInterval(int updateInterval)
@@ -1573,7 +1573,7 @@ public class DatabaseDescriptor
 
     public static int getPermissionsCacheMaxEntries()
     {
-        return confRegistry.get(ConfigFields.PERMISSIONS_CACHE_MAX_ENTRIES);
+        return confRegistry.get(Integer.TYPE, ConfigFields.PERMISSIONS_CACHE_MAX_ENTRIES);
     }
 
     public static void setPermissionsCacheMaxEntries(int maxEntries)
@@ -1583,7 +1583,7 @@ public class DatabaseDescriptor
 
     public static boolean getPermissionsCacheActiveUpdate()
     {
-        return confRegistry.get(ConfigFields.PERMISSIONS_CACHE_ACTIVE_UPDATE);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.PERMISSIONS_CACHE_ACTIVE_UPDATE);
     }
 
     public static void setPermissionsCacheActiveUpdate(boolean update)
@@ -1593,7 +1593,7 @@ public class DatabaseDescriptor
 
     public static int getRolesValidity()
     {
-        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.ROLES_VALIDITY).toMilliseconds();
+        return confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.ROLES_VALIDITY).toMilliseconds();
     }
 
     public static void setRolesValidity(int validity)
@@ -1603,9 +1603,9 @@ public class DatabaseDescriptor
 
     public static int getRolesUpdateInterval()
     {
-        return confRegistry.get(ConfigFields.ROLES_UPDATE_INTERVAL) == null
+        return confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.ROLES_UPDATE_INTERVAL) == null
              ? getRolesValidity() :
-               confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.ROLES_UPDATE_INTERVAL).toMilliseconds();
+               confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.ROLES_UPDATE_INTERVAL).toMilliseconds();
     }
 
     public static void setRolesCacheActiveUpdate(boolean update)
@@ -1615,7 +1615,7 @@ public class DatabaseDescriptor
 
     public static boolean getRolesCacheActiveUpdate()
     {
-        return confRegistry.get(ConfigFields.ROLES_CACHE_ACTIVE_UPDATE);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.ROLES_CACHE_ACTIVE_UPDATE);
     }
 
     public static void setRolesUpdateInterval(int interval)
@@ -1626,7 +1626,7 @@ public class DatabaseDescriptor
 
     public static int getRolesCacheMaxEntries()
     {
-        return confRegistry.get(ConfigFields.ROLES_CACHE_MAX_ENTRIES);
+        return confRegistry.get(Integer.TYPE, ConfigFields.ROLES_CACHE_MAX_ENTRIES);
     }
 
     public static void setRolesCacheMaxEntries(int maxEntries)
@@ -1636,7 +1636,7 @@ public class DatabaseDescriptor
 
     public static int getCredentialsValidity()
     {
-        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.CREDENTIALS_VALIDITY).toMilliseconds();
+        return confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.CREDENTIALS_VALIDITY).toMilliseconds();
     }
 
     public static void setCredentialsValidity(int timeout)
@@ -1646,9 +1646,9 @@ public class DatabaseDescriptor
 
     public static int getCredentialsUpdateInterval()
     {
-        return confRegistry.get(ConfigFields.CREDENTIALS_UPDATE_INTERVAL) == null
+        return confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.CREDENTIALS_UPDATE_INTERVAL) == null
                ? getCredentialsValidity() :
-                 confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.CREDENTIALS_UPDATE_INTERVAL).toMilliseconds();
+                 confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.CREDENTIALS_UPDATE_INTERVAL).toMilliseconds();
     }
 
     public static void setCredentialsUpdateInterval(int updateInterval)
@@ -1659,7 +1659,7 @@ public class DatabaseDescriptor
 
     public static int getCredentialsCacheMaxEntries()
     {
-        return confRegistry.get(ConfigFields.CREDENTIALS_CACHE_MAX_ENTRIES);
+        return confRegistry.get(Integer.TYPE, ConfigFields.CREDENTIALS_CACHE_MAX_ENTRIES);
     }
 
     public static void setCredentialsCacheMaxEntries(int maxEntries)
@@ -1669,7 +1669,7 @@ public class DatabaseDescriptor
 
     public static boolean getCredentialsCacheActiveUpdate()
     {
-        return confRegistry.get(ConfigFields.CREDENTIALS_CACHE_ACTIVE_UPDATE);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.CREDENTIALS_CACHE_ACTIVE_UPDATE);
     }
 
     public static void setCredentialsCacheActiveUpdate(boolean update)
@@ -1931,7 +1931,7 @@ public class DatabaseDescriptor
 
     public static long getRpcTimeout(TimeUnit unit)
     {
-        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.REQUEST_TIMEOUT).to(unit);
+        return confRegistry.get(DurationSpec.LongMillisecondsBound.class, ConfigFields.REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setRpcTimeout(long timeOutInMillis)
@@ -1941,7 +1941,7 @@ public class DatabaseDescriptor
 
     public static long getReadRpcTimeout(TimeUnit unit)
     {
-        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.READ_REQUEST_TIMEOUT).to(unit);
+        return confRegistry.get(DurationSpec.LongMillisecondsBound.class, ConfigFields.READ_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setReadRpcTimeout(long timeOutInMillis)
@@ -1951,7 +1951,7 @@ public class DatabaseDescriptor
 
     public static long getRangeRpcTimeout(TimeUnit unit)
     {
-        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.RANGE_REQUEST_TIMEOUT).to(unit);
+        return confRegistry.get(DurationSpec.LongMillisecondsBound.class, ConfigFields.RANGE_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setRangeRpcTimeout(long timeOutInMillis)
@@ -1961,7 +1961,7 @@ public class DatabaseDescriptor
 
     public static long getWriteRpcTimeout(TimeUnit unit)
     {
-        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.WRITE_REQUEST_TIMEOUT).to(unit);
+        return confRegistry.get(DurationSpec.LongMillisecondsBound.class, ConfigFields.WRITE_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setWriteRpcTimeout(long timeOutInMillis)
@@ -1971,7 +1971,7 @@ public class DatabaseDescriptor
 
     public static long getCounterWriteRpcTimeout(TimeUnit unit)
     {
-        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.COUNTER_WRITE_REQUEST_TIMEOUT).to(unit);
+        return confRegistry.get(DurationSpec.LongMillisecondsBound.class, ConfigFields.COUNTER_WRITE_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setCounterWriteRpcTimeout(long timeOutInMillis)
@@ -1981,7 +1981,7 @@ public class DatabaseDescriptor
 
     public static long getCasContentionTimeout(TimeUnit unit)
     {
-        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.CAS_CONTENTION_TIMEOUT).to(unit);
+        return confRegistry.get(DurationSpec.LongMillisecondsBound.class, ConfigFields.CAS_CONTENTION_TIMEOUT).to(unit);
     }
 
     public static void setCasContentionTimeout(long timeOutInMillis)
@@ -1991,7 +1991,7 @@ public class DatabaseDescriptor
 
     public static long getTruncateRpcTimeout(TimeUnit unit)
     {
-        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.TRUNCATE_REQUEST_TIMEOUT).to(unit);
+        return confRegistry.get(DurationSpec.LongMillisecondsBound.class, ConfigFields.TRUNCATE_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setTruncateRpcTimeout(long timeOutInMillis)
@@ -2001,7 +2001,7 @@ public class DatabaseDescriptor
 
     public static long getRepairRpcTimeout(TimeUnit unit)
     {
-        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.REPAIR_REQUEST_TIMEOUT).to(unit);
+        return confRegistry.get(DurationSpec.LongMillisecondsBound.class, ConfigFields.REPAIR_REQUEST_TIMEOUT).to(unit);
     }
 
     public static void setRepairRpcTimeout(Long timeOutInMillis)
@@ -2021,7 +2021,7 @@ public class DatabaseDescriptor
 
     public static long getSlowQueryTimeout(TimeUnit unit)
     {
-        return confRegistry.<DurationSpec.LongMillisecondsBound>get(ConfigFields.SLOW_QUERY_LOG_TIMEOUT).to(unit);
+        return confRegistry.get(DurationSpec.LongMillisecondsBound.class, ConfigFields.SLOW_QUERY_LOG_TIMEOUT).to(unit);
     }
 
     /**
@@ -2044,7 +2044,7 @@ public class DatabaseDescriptor
 
     public static double getPhiConvictThreshold()
     {
-        return confRegistry.get(ConfigFields.PHI_CONVICT_THRESHOLD);
+        return confRegistry.get(Double.TYPE, ConfigFields.PHI_CONVICT_THRESHOLD);
     }
 
     public static void setPhiConvictThreshold(double phiConvictThreshold)
@@ -2473,7 +2473,7 @@ public class DatabaseDescriptor
 
     public static int getTombstoneWarnThreshold()
     {
-        return confRegistry.get(ConfigFields.TOMBSTONE_WARN_THRESHOLD);
+        return confRegistry.get(Integer.TYPE, ConfigFields.TOMBSTONE_WARN_THRESHOLD);
     }
 
     public static void setTombstoneWarnThreshold(int threshold)
@@ -2483,7 +2483,7 @@ public class DatabaseDescriptor
 
     public static int getTombstoneFailureThreshold()
     {
-        return confRegistry.get(ConfigFields.TOMBSTONE_FAILURE_THRESHOLD);
+        return confRegistry.get(Integer.TYPE, ConfigFields.TOMBSTONE_FAILURE_THRESHOLD);
     }
 
     public static void setTombstoneFailureThreshold(int threshold)
@@ -2673,7 +2673,7 @@ public class DatabaseDescriptor
 
     public static int getInternodeTcpConnectTimeoutInMS()
     {
-        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.INTERNODE_TCP_CONNECT_TIMEOUT).toMilliseconds();
+        return confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.INTERNODE_TCP_CONNECT_TIMEOUT).toMilliseconds();
     }
 
     public static void setInternodeTcpConnectTimeoutInMS(int value)
@@ -2683,7 +2683,7 @@ public class DatabaseDescriptor
 
     public static int getInternodeTcpUserTimeoutInMS()
     {
-        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.INTERNODE_TCP_USER_TIMEOUT).toMilliseconds();
+        return confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.INTERNODE_TCP_USER_TIMEOUT).toMilliseconds();
     }
 
     public static void setInternodeTcpUserTimeoutInMS(int value)
@@ -2693,7 +2693,7 @@ public class DatabaseDescriptor
 
     public static int getInternodeStreamingTcpUserTimeoutInMS()
     {
-        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.INTERNODE_STREAMING_TCP_USER_TIMEOUT).toMilliseconds();
+        return confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.INTERNODE_STREAMING_TCP_USER_TIMEOUT).toMilliseconds();
     }
 
     public static void setInternodeStreamingTcpUserTimeoutInMS(int value)
@@ -2781,7 +2781,7 @@ public class DatabaseDescriptor
 
     public static long getNativeTransportMaxConcurrentConnections()
     {
-        return confRegistry.get(ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS);
+        return confRegistry.get(Long.TYPE, ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS);
     }
 
     public static void setNativeTransportMaxConcurrentConnections(long nativeTransportMaxConcurrentConnections)
@@ -2791,7 +2791,7 @@ public class DatabaseDescriptor
 
     public static long getNativeTransportMaxConcurrentConnectionsPerIp()
     {
-        return confRegistry.get(ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS_PER_IP);
+        return confRegistry.get(Long.TYPE, ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS_PER_IP);
     }
 
     public static void setNativeTransportMaxConcurrentConnectionsPerIp(long native_transport_max_concurrent_connections_per_ip)
@@ -2806,7 +2806,7 @@ public class DatabaseDescriptor
 
     public static boolean getNativeTransportAllowOlderProtocols()
     {
-        return confRegistry.get(ConfigFields.NATIVE_TRANSPORT_ALLOW_OLDER_PROTOCOLS);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.NATIVE_TRANSPORT_ALLOW_OLDER_PROTOCOLS);
     }
 
     public static void setNativeTransportAllowOlderProtocols(boolean isEnabled)
@@ -3136,7 +3136,7 @@ public class DatabaseDescriptor
 
     public static boolean hintedHandoffEnabled()
     {
-        return confRegistry.get(ConfigFields.HINTED_HANDOFF_ENABLED);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.HINTED_HANDOFF_ENABLED);
     }
 
     public static Set<String> hintedHandoffDisabledDCs()
@@ -3146,7 +3146,7 @@ public class DatabaseDescriptor
 
     public static boolean useDeterministicTableID()
     {
-        return confRegistry.get(ConfigFields.USE_DETERMINISTIC_TABLE_ID);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.USE_DETERMINISTIC_TABLE_ID);
     }
 
     public static void useDeterministicTableID(boolean value)
@@ -3171,7 +3171,7 @@ public class DatabaseDescriptor
 
     public static int getMaxHintWindow()
     {
-        return confRegistry.<DurationSpec.IntMillisecondsBound>get(ConfigFields.MAX_HINT_WINDOW).toMilliseconds();
+        return confRegistry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.MAX_HINT_WINDOW).toMilliseconds();
     }
 
     public static void setMaxHintsSizePerHostInMiB(int value)
@@ -3182,12 +3182,12 @@ public class DatabaseDescriptor
     public static int getMaxHintsSizePerHostInMiB()
     {
         // Warnings: this conversion rounds down while converting bytes to mebibytes
-        return Ints.saturatedCast(confRegistry.<DataStorageSpec.LongBytesBound>get(ConfigFields.MAX_HINTS_SIZE_PER_HOST).toMebibytes());
+        return Ints.saturatedCast(confRegistry.get(DataStorageSpec.LongBytesBound.class, ConfigFields.MAX_HINTS_SIZE_PER_HOST).toMebibytes());
     }
 
     public static long getMaxHintsSizePerHost()
     {
-        return confRegistry.<DataStorageSpec.LongBytesBound>get(ConfigFields.MAX_HINTS_SIZE_PER_HOST).toBytes();
+        return confRegistry.get(DataStorageSpec.LongBytesBound.class, ConfigFields.MAX_HINTS_SIZE_PER_HOST).toBytes();
     }
 
     public static File getHintsDirectory()
@@ -3303,7 +3303,7 @@ public class DatabaseDescriptor
 
     public static boolean isAutoHintsCleanupEnabled()
     {
-        return confRegistry.get(ConfigFields.AUTO_HINTS_CLEANUP_ENABLED);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.AUTO_HINTS_CLEANUP_ENABLED);
     }
 
     public static void setAutoHintsCleanupEnabled(boolean value)
@@ -3313,7 +3313,7 @@ public class DatabaseDescriptor
 
     public static boolean getTransferHintsOnDecommission()
     {
-        return confRegistry.get(ConfigFields.TRANSFER_HINTS_ON_DECOMMISSION);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.TRANSFER_HINTS_ON_DECOMMISSION);
     }
 
     public static void setTransferHintsOnDecommission(boolean enabled)
@@ -3323,7 +3323,7 @@ public class DatabaseDescriptor
 
     public static boolean isIncrementalBackupsEnabled()
     {
-        return confRegistry.get(ConfigFields.INCREMENTAL_BACKUPS);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.INCREMENTAL_BACKUPS);
     }
 
     public static void setIncrementalBackupsEnabled(boolean value)
@@ -3405,7 +3405,7 @@ public class DatabaseDescriptor
     /** This method can return negative number for disabled */
     public static int getSSTablePreemptiveOpenIntervalInMiB()
     {
-        DataStorageSpec.IntMebibytesBound interval = confRegistry.get(ConfigFields.SSTABLE_PREEMPTIVE_OPEN_INTERVAL);
+        DataStorageSpec.IntMebibytesBound interval = confRegistry.get(DataStorageSpec.IntMebibytesBound.class, ConfigFields.SSTABLE_PREEMPTIVE_OPEN_INTERVAL);
         return interval == null ? -1 : interval.toMebibytes();
     }
 
@@ -3616,7 +3616,7 @@ public class DatabaseDescriptor
 
     public static int getRepairSessionSpaceInMiB()
     {
-        return confRegistry.<DataStorageSpec.IntMebibytesBound>get(ConfigFields.REPAIR_SESSION_SPACE).toMebibytes();
+        return confRegistry.get(DataStorageSpec.IntMebibytesBound.class, ConfigFields.REPAIR_SESSION_SPACE).toMebibytes();
     }
 
     public static void setRepairSessionSpaceInMiB(int sizeInMiB)
@@ -3828,7 +3828,7 @@ public class DatabaseDescriptor
 
     public static boolean getCDCBlockWrites()
     {
-        return confRegistry.get(ConfigFields.CDC_BLOCK_WRITES);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.CDC_BLOCK_WRITES);
     }
 
     public static void setCDCBlockWrites(boolean val)
@@ -3838,7 +3838,7 @@ public class DatabaseDescriptor
 
     public static boolean isCDCOnRepairEnabled()
     {
-        return confRegistry.get(ConfigFields.CDC_ON_REPAIR_ENABLED);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.CDC_ON_REPAIR_ENABLED);
     }
 
     public static void setCDCOnRepairEnabled(boolean val)
@@ -3895,7 +3895,7 @@ public class DatabaseDescriptor
 
     public static ConsistencyLevel getIdealConsistencyLevel()
     {
-        return confRegistry.get(ConfigFields.IDEAL_CONSISTENCY_LEVEL);
+        return confRegistry.get(ConsistencyLevel.class, ConfigFields.IDEAL_CONSISTENCY_LEVEL);
     }
 
     public static void setIdealConsistencyLevel(ConsistencyLevel cl)
@@ -4038,7 +4038,7 @@ public class DatabaseDescriptor
 
     public static boolean useOffheapMerkleTrees()
     {
-        return confRegistry.get(ConfigFields.USE_OFFHEAP_MERKLE_TREES);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.USE_OFFHEAP_MERKLE_TREES);
     }
 
     public static void useOffheapMerkleTrees(boolean value)
@@ -4347,7 +4347,7 @@ public class DatabaseDescriptor
 
     public static boolean getReadThresholdsEnabled()
     {
-        return confRegistry.get(ConfigFields.READ_THRESHOLDS_ENABLED);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.READ_THRESHOLDS_ENABLED);
     }
 
     public static void setReadThresholdsEnabled(boolean value)
@@ -4358,7 +4358,7 @@ public class DatabaseDescriptor
     @Nullable
     public static DataStorageSpec.LongBytesBound getCoordinatorReadSizeWarnThreshold()
     {
-        return confRegistry.get(ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD);
+        return confRegistry.get(DataStorageSpec.LongBytesBound.class, ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD);
     }
 
     public static void setCoordinatorReadSizeWarnThreshold(@Nullable DataStorageSpec.LongBytesBound value)
@@ -4369,7 +4369,7 @@ public class DatabaseDescriptor
     @Nullable
     public static DataStorageSpec.LongBytesBound getCoordinatorReadSizeFailThreshold()
     {
-        return confRegistry.get(ConfigFields.COORDINATOR_READ_SIZE_FAIL_THRESHOLD);
+        return confRegistry.get(DataStorageSpec.LongBytesBound.class, ConfigFields.COORDINATOR_READ_SIZE_FAIL_THRESHOLD);
     }
 
     public static void setCoordinatorReadSizeFailThreshold(@Nullable DataStorageSpec.LongBytesBound value)
@@ -4380,7 +4380,7 @@ public class DatabaseDescriptor
     @Nullable
     public static DataStorageSpec.LongBytesBound getLocalReadSizeWarnThreshold()
     {
-        return confRegistry.get(ConfigFields.LOCAL_READ_SIZE_WARN_THRESHOLD);
+        return confRegistry.get(DataStorageSpec.LongBytesBound.class, ConfigFields.LOCAL_READ_SIZE_WARN_THRESHOLD);
     }
 
     public static void setLocalReadSizeWarnThreshold(@Nullable DataStorageSpec.LongBytesBound value)
@@ -4391,7 +4391,7 @@ public class DatabaseDescriptor
     @Nullable
     public static DataStorageSpec.LongBytesBound getLocalReadSizeFailThreshold()
     {
-        return confRegistry.get(ConfigFields.LOCAL_READ_SIZE_FAIL_THRESHOLD);
+        return confRegistry.get(DataStorageSpec.LongBytesBound.class, ConfigFields.LOCAL_READ_SIZE_FAIL_THRESHOLD);
     }
 
     public static void setLocalReadSizeFailThreshold(@Nullable DataStorageSpec.LongBytesBound value)
@@ -4402,7 +4402,7 @@ public class DatabaseDescriptor
     @Nullable
     public static DataStorageSpec.LongBytesBound getRowIndexReadSizeWarnThreshold()
     {
-        return confRegistry.get(ConfigFields.ROW_INDEX_READ_SIZE_WARN_THRESHOLD);
+        return confRegistry.get(DataStorageSpec.LongBytesBound.class, ConfigFields.ROW_INDEX_READ_SIZE_WARN_THRESHOLD);
     }
 
     public static void setRowIndexReadSizeWarnThreshold(@Nullable DataStorageSpec.LongBytesBound value)
@@ -4413,7 +4413,7 @@ public class DatabaseDescriptor
     @Nullable
     public static DataStorageSpec.LongBytesBound getRowIndexReadSizeFailThreshold()
     {
-        return confRegistry.get(ConfigFields.ROW_INDEX_READ_SIZE_FAIL_THRESHOLD);
+        return confRegistry.get(DataStorageSpec.LongBytesBound.class, ConfigFields.ROW_INDEX_READ_SIZE_FAIL_THRESHOLD);
     }
 
     public static void setRowIndexReadSizeFailThreshold(@Nullable DataStorageSpec.LongBytesBound value)
@@ -4424,7 +4424,7 @@ public class DatabaseDescriptor
 
     public static int getDefaultKeyspaceRF()
     {
-        return confRegistry.get(ConfigFields.DEFAULT_KEYSPACE_RF);
+        return confRegistry.get(Integer.TYPE, ConfigFields.DEFAULT_KEYSPACE_RF);
     }
 
     public static void setDefaultKeyspaceRF(int value) throws IllegalArgumentException
@@ -4466,7 +4466,7 @@ public class DatabaseDescriptor
 
     public static boolean getForceNewPreparedStatementBehaviour()
     {
-        return confRegistry.get(ConfigFields.FORCE_NEW_PREPARED_STATEMENT_BEHAVIOUR);
+        return confRegistry.get(Boolean.TYPE, ConfigFields.FORCE_NEW_PREPARED_STATEMENT_BEHAVIOUR);
     }
 
     public static void setForceNewPreparedStatementBehaviour(boolean value)

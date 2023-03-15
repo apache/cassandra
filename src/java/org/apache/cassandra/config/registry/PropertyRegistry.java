@@ -31,7 +31,7 @@ import javax.annotation.Nullable;
  * type, and if the conversion fails, an exception will be thrown. You can use the {@code String} as a value to be converted,
  * or you can use the property's type as a value. In the latter case, no conversion will be performed.
  * <p>
- * You can use {@link #get(String)} to get a property's value, to read the value, the registry will try to convert the
+ * You can use {@link #get(Class, String)} to get a property's value, to read the value, the registry will try to convert the
  * property's value if the {@link #getString(String)} to String type (the converter is called to convert the value to String).
  */
 public interface PropertyRegistry
@@ -49,11 +49,12 @@ public interface PropertyRegistry
      * Get property's value by name, The exception will be thrown if the property is not present in the registry or
      * the property's value cannot be converted to given generic type.
      *
+     * @param <T>  Type to convert to.
+     * @param cls Class to convert to.
      * @param name Property name.
      * @return Property's value matching the property's type in the Config.
-     * @param <T> Type to convert to.
      */
-    <T> T get(String name);
+    <T> T get(Class<T> cls, String name);
 
     /**
      * Get property's value by name and convert it to the String type. The exception will be thrown if the property
