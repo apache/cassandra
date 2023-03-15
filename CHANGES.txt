@@ -1,4 +1,5 @@
 4.0.9
+ * Backport CASSANDRA-17205 to 4.0 branch - Remove self-reference in SSTableTidier (CASSANDRA-18332)
  * Avoid loading the preferred IP for BulkLoader streaming (CASSANDRA-18370)
  * Fix BufferPool incorrect memoryInUse when putUnusedPortion is used (CASSANDRA-18311)
  * Improve memtable allocator accounting when updating AtomicBTreePartition (CASSANDRA-18125)
