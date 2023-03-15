@@ -546,7 +546,14 @@ public class PartitionUpdate extends AbstractBTreePartition
      */
     public static SimpleBuilder simpleBuilder(TableMetadata metadata, Object... partitionKeyValues)
     {
-        return new SimpleBuilders.PartitionUpdateBuilder(metadata, partitionKeyValues);
+        // Here we dereference the current version of the supplied TableMetadata. The reason for this is that in some
+        // places we still reference static TableMetadata instances.
+        // For instance, TraceKeyspace contains Sessions & Events static members which are created at startup when the
+        // current epoch is Epoch.EMPTY. These are used to construct mutations when tracing is enabled and when the
+        // mutations are serialised and sent between replica & coordinator the epoch comparisons in PartitionUpdate
+        // deserializer trigger an IncompatibleSchemaException.
+        // TODO ultimately remove the use of static TableMetadata instances in System/Tracing/Auth keyspaces.
+        return new SimpleBuilders.PartitionUpdateBuilder(metadata.ref.get(), partitionKeyValues);
     }
 
     public void validateIndexedColumns()
