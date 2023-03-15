@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.audit;
 
-import java.nio.file.Paths;
 import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -27,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLog;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
@@ -42,7 +42,7 @@ public class BinAuditLogger implements IAuditLogger
 
     public BinAuditLogger(AuditLogOptions auditLoggingOptions)
     {
-        this.binLog = new BinLog.Builder().path(Paths.get(auditLoggingOptions.audit_logs_dir))
+        this.binLog = new BinLog.Builder().path(File.getPath(auditLoggingOptions.audit_logs_dir))
                                           .rollCycle(auditLoggingOptions.roll_cycle)
                                           .blocking(auditLoggingOptions.block)
                                           .maxQueueWeight(auditLoggingOptions.max_queue_weight)

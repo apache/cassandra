@@ -20,7 +20,6 @@ package org.apache.cassandra.service.snapshot;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
@@ -320,7 +319,7 @@ public class TableSnapshot
         if (Directories.isSecondaryIndexFolder(snapshotFilePath.getParent()))
         {
             // Snapshot file structure format is {data_dir}/snapshots/{snapshot_name}/.{index}/{sstable-component}.db
-            liveDir = Paths.get(liveDir.getParent().toString(), snapshotFilePath.getParent().getFileName().toString());
+            liveDir = File.getPath(liveDir.getParent().toString(), snapshotFilePath.getParent().getFileName().toString());
         }
         return new File(liveDir.toString(), snapshotFilePath.getFileName().toString());
     }

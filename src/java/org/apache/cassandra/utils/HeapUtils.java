@@ -24,7 +24,6 @@ import java.io.InputStreamReader;
 import java.lang.management.ManagementFactory;
 import java.nio.file.FileStore;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.management.MBeanServer;
@@ -118,7 +117,7 @@ public final class HeapUtils
 
                     HotSpotDiagnosticMXBean mxBean = ManagementFactory.newPlatformMXBeanProxy(server, "com.sun.management:type=HotSpotDiagnostic", HotSpotDiagnosticMXBean.class);
                     String filename = String.format("pid%s-epoch%s.hprof", HeapUtils.getProcessId().toString(), currentTimeMillis());
-                    String fullPath = Paths.get(absoluteBasePath.toString(), filename).toString();
+                    String fullPath = File.getPath(absoluteBasePath.toString(), filename).toString();
 
                     logger.info("Writing heap dump to {} on partition w/ {} free bytes...", absoluteBasePath, freeSpaceBytes);
                     mxBean.dumpHeap(fullPath, false);

@@ -28,7 +28,6 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.file.FileStore;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -4605,9 +4604,9 @@ public class DatabaseDescriptor
             logger.warn("Neither -XX:HeapDumpPath nor cassandra.yaml:heap_dump_path are set; unable to create a directory to hold the output.");
             return false;
         }
-        if (PathUtils.exists(Paths.get(conf.heap_dump_path)))
+        if (PathUtils.exists(File.getPath(conf.heap_dump_path)))
             return true;
-        return PathUtils.createDirectoryIfNotExists(Paths.get(conf.heap_dump_path));
+        return PathUtils.createDirectoryIfNotExists(File.getPath(conf.heap_dump_path));
     }
 
     /**
@@ -4626,13 +4625,13 @@ public class DatabaseDescriptor
         {
             Pattern HEAP_DUMP_PATH_SPLITTER = Pattern.compile("HeapDumpPath=");
             String fullHeapPathString = HEAP_DUMP_PATH_SPLITTER.split(pathArg.get())[1];
-            Path absolutePath = Paths.get(fullHeapPathString).toAbsolutePath();
+            Path absolutePath = File.getPath(fullHeapPathString).toAbsolutePath();
             Path basePath = fullHeapPathString.endsWith(".hprof") ? absolutePath.subpath(0, absolutePath.getNameCount() - 1) : absolutePath;
-            return Paths.get("/").resolve(basePath);
+            return File.getPath("/").resolve(basePath);
         }
         if (conf.heap_dump_path == null)
             throw new ConfigurationException("Attempted to get heap dump path without -XX:HeapDumpPath or cassandra.yaml:heap_dump_path set.");
-        return Paths.get(conf.heap_dump_path);
+        return File.getPath(conf.heap_dump_path);
     }
 
     public static void setDumpHeapOnUncaughtException(boolean enabled)

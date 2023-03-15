@@ -26,7 +26,6 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
@@ -386,7 +385,7 @@ public class StartupChecks
             {
                 try
                 {
-                    Path p = Paths.get(dataDirectory);
+                    Path p = File.getPath(dataDirectory);
                     FileStore fs = Files.getFileStore(p);
 
                     String blockDirectory = fs.name();
@@ -455,7 +454,7 @@ public class StartupChecks
 
         private long getMaxMapCount()
         {
-            final Path path = Paths.get(MAX_MAP_COUNT_PATH);
+            final Path path = File.getPath(MAX_MAP_COUNT_PATH);
             try (final BufferedReader bufferedReader = Files.newBufferedReader(path))
             {
                 final String data = bufferedReader.readLine();
@@ -772,7 +771,7 @@ public class StartupChecks
                 String deviceName = blockDirComponents[2].replaceAll("[0-9]*$", "");
                 if (StringUtils.isNotEmpty(deviceName))
                 {
-                    readAheadKBPath = Paths.get(String.format(READ_AHEAD_KB_SETTING_PATH, deviceName));
+                    readAheadKBPath = File.getPath(String.format(READ_AHEAD_KB_SETTING_PATH, deviceName));
                 }
             }
         }

@@ -21,7 +21,6 @@ package org.apache.cassandra.service;
 import java.io.BufferedReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -139,7 +138,7 @@ public class FileSystemOwnershipCheck implements StartupCheck
         {
             logger.info("Checking for fs ownership details in file hierarchy for {}", dataDir);
             int foundFiles = 0;
-            Path dir = Paths.get(dataDir).normalize();
+            Path dir = File.getPath(dataDir).normalize();
             do
             {
                 File tokenFile = resolve(dir, tokenFilename);
