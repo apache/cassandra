@@ -80,10 +80,7 @@ public class TypeConverterRegistry
         {
             @Nullable @Override public T convert(@Nullable Object value)
             {
-                if (value == null)
-                    return null;
-                if (!(value instanceof String))
-                    throw new IllegalArgumentException(String.format("Cannot convert from '%s' to '%s'.", value.getClass(), to));
+                if (value == null) return null;
                 String stringValue = (String) value;
                 if (to.isPrimitive() && StringUtils.isEmpty(stringValue))
                     throw new ConfigurationException("Primitive type " + to + " cannot be null or empty");

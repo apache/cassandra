@@ -33,5 +33,10 @@ public interface TypeConverter<T>
 {
     TypeConverter<String> DEFAULT = (value) -> value == null ? null : value.toString();
 
+    /**
+     * Converts a value to the target type.
+     * @param value Value to convert.
+     * @return Converted value.
+     */
     @Nullable T convert(@Nullable Object value);
 }
