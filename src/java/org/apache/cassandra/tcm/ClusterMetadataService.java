@@ -18,11 +18,9 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -91,6 +89,7 @@ public class ClusterMetadataService
             {
                 synchronized (this)
                 {
+                    // This is mostly nonsense you can only safely update on one node
                     if (metadata != startingMetadata)
                         continue;
                     metadata = result.success().metadata;
@@ -141,29 +140,40 @@ public class ClusterMetadataService
        }
     }
 
+    public static void log(String message)
+    {
+        System.out.println(FBUtilities.getBroadcastAddressAndPort().toString() + ":" + Thread.currentThread().getName() + " " + message);
+    }
+
     public ClusterMetadata maybeCatchup(Epoch theirEpoch)
     {
         int iteration = 0;
-        while (theirEpoch.isAfter(metadata.epoch))
+        while (true)
         {
-//            System.out.println(Thread.currentThread().getName() + " " + iteration + " Need catch up our epoch " + metadata.epoch + " and their epoch " + theirEpoch);
+            // Temporary hack to make sure Accord has finished updating config for the new epoch
+            synchronized (this)
+            {
+                if (theirEpoch.isEqualOrBefore(metadata.epoch))
+                    return metadata;
+            }
+            log(iteration + " Need catch up our epoch " + metadata.epoch + " and their epoch " + theirEpoch);
             iteration++;
             Message<NoPayload> out = Message.out(REQUEST_CM, noPayload);
-            List<Future<MigrationStateSnapshot>> resultFutures = new ArrayList<>();
+            Map<InetAddressAndPort, Future<MigrationStateSnapshot>> resultFutures = new HashMap<>();
             for (InetAddressAndPort endpoint : StorageService.instance.getTokenMetadata().getAllEndpoints())
             {
                 if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
                     continue;
-                resultFutures.add(MessagingService.instance().<MigrationStateSnapshot>sendWithResult(out, endpoint).map(m -> m.payload));
+                resultFutures.put(endpoint, MessagingService.instance().<MigrationStateSnapshot>sendWithResult(out, endpoint).map(m -> m.payload));
             }
 
-            long deadline = nanoTime() + TimeUnit.SECONDS.toNanos(5);
-            for (Future<MigrationStateSnapshot> future : resultFutures)
+            long deadline = nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            for (Map.Entry<InetAddressAndPort, Future<MigrationStateSnapshot>> entry : resultFutures.entrySet())
             {
                 MigrationStateSnapshot snapshot;
                 try
                 {
-                    snapshot = future.get(Math.max(0, deadline - nanoTime()), TimeUnit.NANOSECONDS);
+                    snapshot = entry.getValue().get(Math.max(0, deadline - nanoTime()), TimeUnit.NANOSECONDS);
                 }
                 catch (InterruptedException e)
                 {
@@ -180,32 +190,28 @@ public class ClusterMetadataService
                 }
                 catch (TimeoutException e)
                 {
+                    log("Timed out waiting for a response from " + entry.getKey());
                     continue;
                 }
                 synchronized (this)
                 {
-//                    System.out.println(Thread.currentThread().getName() + " Comparing our epoch " + metadata.epoch + " to return epoch " + snapshot.epoch);
+                    log("Comparing our epoch " + metadata.epoch + " to return epoch " + snapshot.epoch);
                     if (snapshot.epoch.compareTo(metadata.epoch) > 0 && !pendingTopologyUpdates.contains(snapshot))
                     {
-//                        System.out.println(Thread.currentThread().getName() + " Adding their update to the queue " + snapshot.epoch);
+                        log("Adding their update to the queue " + snapshot.epoch);
                         pendingTopologyUpdates.add(snapshot);
                     }
                     // Apply everything we found
                     while (!pendingTopologyUpdates.isEmpty() && pendingTopologyUpdates.peek().epoch.getEpoch() == ClusterMetadataService.instance.metadata.epoch.getEpoch() + 1)
                     {
                         snapshot = pendingTopologyUpdates.poll();
-//                        System.out.println(Thread.currentThread().getName() + " applying update " + snapshot.epoch);
+                        log("applying update " + snapshot.epoch);
                         metadata = new ClusterMetadata(snapshot.epoch, snapshot);
                         AccordService.instance().createEpochFromConfigUnsafe();
                     }
                 }
             }
         }
-
-        if (metadata.epoch.compareTo(theirEpoch) < 0)
-            throw new IllegalStateException("Unable to find updated cluster metadata that should exist");
-
-        return metadata;
     }
 
     public static final IVerbHandler<MigrationStateSnapshot> updateHandler = message ->

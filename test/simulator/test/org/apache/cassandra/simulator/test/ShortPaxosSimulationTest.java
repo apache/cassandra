@@ -39,7 +39,7 @@ public class ShortPaxosSimulationTest
         //"--legacy-paxos-strategy", "accord",
 //        PaxosSimulationRunner.main(new String[] { "run", "--legacy-paxos-strategy", "accord", "-n", "3...6", "-t", "1000", "--cluster-action-limit", "-1", "-c", "2", "-s", "30" });
         PaxosSimulationRunner.main(new String[] { "run",
-                                                  "--seed", "0xcb644d45d0d90d3a",
+//                                                  "--seed", "0xcb644d45d0d90d3a",
                                                   "--legacy-paxos-strategy", "migration",
                                                   "-n", "3...6",
                                                   "-t", "1000",
