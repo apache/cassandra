@@ -495,7 +495,7 @@ public class CompactionStrategyManagerTest
     private int getSSTableIndex(Integer[] boundaries, SSTableReader reader)
     {
         int index = 0;
-        int firstKey = Integer.parseInt(new String(ByteBufferUtil.getArray(reader.first.getKey())));
+        int firstKey = Integer.parseInt(new String(ByteBufferUtil.getArray(reader.getFirst().getKey())));
         while (boundaries[index] <= firstKey)
             index++;
         logger.debug("Index for SSTable {} on boundary {} is {}", reader.descriptor.id, Arrays.toString(boundaries), index);

@@ -109,7 +109,7 @@ public class DiskBoundaries
             return getBoundariesFromSSTableDirectory(sstable.descriptor);
         }
 
-        int pos = Collections.binarySearch(positions, sstable.first);
+        int pos = Collections.binarySearch(positions, sstable.getFirst());
         assert pos < 0; // boundaries are .minkeybound and .maxkeybound so they should never be equal
         return -pos - 1;
     }
@@ -146,7 +146,7 @@ public class DiskBoundaries
     {
         int diskIndex = getDiskIndex(sstable);
         PartitionPosition diskLast = positions.get(diskIndex);
-        return directories.get(diskIndex).equals(currentLocation) && sstable.last.compareTo(diskLast) <= 0;
+        return directories.get(diskIndex).equals(currentLocation) && sstable.getLast().compareTo(diskLast) <= 0;
     }
 
     private int getDiskIndex(DecoratedKey key)

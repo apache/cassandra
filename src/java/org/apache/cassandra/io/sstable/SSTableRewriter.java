@@ -152,7 +152,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
                 writer.openEarly(reader -> {
                     transaction.update(reader, false);
                     currentlyOpenedEarlyAt = writer.getFilePointer();
-                    moveStarts(reader.last);
+                    moveStarts(reader.getLast());
                     transaction.checkpoint();
                 });
             }
@@ -202,10 +202,10 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             final SSTableReader latest = transaction.current(sstable);
 
             // skip any sstables that we know to already be shadowed
-            if (latest.first.compareTo(lowerbound) > 0)
+            if (latest.getFirst().compareTo(lowerbound) > 0)
                 continue;
 
-            if (lowerbound.compareTo(latest.last) >= 0)
+            if (lowerbound.compareTo(latest.getLast()) >= 0)
             {
                 if (!transaction.isObsolete(latest))
                     transaction.obsolete(latest);
@@ -255,7 +255,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             writer.setMaxDataAge(maxAge);
             SSTableReader reader = writer.openFinalEarly();
             transaction.update(reader, false);
-            moveStarts(reader.last);
+            moveStarts(reader.getLast());
             transaction.checkpoint();
         }
 
