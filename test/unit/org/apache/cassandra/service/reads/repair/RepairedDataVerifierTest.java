@@ -243,12 +243,12 @@ public class RepairedDataVerifierTest
 
     private long confirmedCount()
     {
-        return metrics.confirmedRepairedInconsistencies.table.getCount();
+        return metrics.confirmedRepairedInconsistencies.tableOrKeyspaceMeter().getCount();
     }
 
     private long unconfirmedCount()
     {
-        return metrics.unconfirmedRepairedInconsistencies.table.getCount();
+        return metrics.unconfirmedRepairedInconsistencies.tableOrKeyspaceMeter().getCount();
     }
 
     private InetAddressAndPort peer()

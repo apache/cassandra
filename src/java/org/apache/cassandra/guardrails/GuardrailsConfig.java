@@ -200,7 +200,8 @@ public class GuardrailsConfig
                        new LinkedHashSet<>(TableAttributes.allKeywords().stream()
                                                           .sorted()
                                                           .filter(p -> !p.equals(TableParams.Option.DEFAULT_TIME_TO_LIVE.toString()) &&
-                                                                       !p.equals(TableParams.Option.COMMENT.toString()))
+                                                                       !p.equals(TableParams.Option.COMMENT.toString()) &&
+                                                                       !p.equals(TableParams.Option.EXTENSIONS.toString()))
                                                           .collect(Collectors.toList())));
 
         // for node status

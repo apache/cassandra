@@ -21,6 +21,7 @@ package org.apache.cassandra.config;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.TableMetrics;
 
 /** A class that extracts system properties for the cassandra node it runs within. */
 public enum CassandraRelevantProperties
@@ -322,8 +323,12 @@ public enum CassandraRelevantProperties
 
     SYNC_LAG_FACTOR("cassandra.commitlog_sync_block_lag_factor", "1.5"),
 
-    CDC_STREAMING_ENABLED("cassandra.cdc.enable_streaming", "true");
-    
+    CDC_STREAMING_ENABLED("cassandra.cdc.enable_streaming", "true"),
+    // Default metric aggegration strategy for tables without aggregation explicitly set.
+    TABLE_METRICS_DEFAULT_HISTOGRAMS_AGGREGATION("cassandra.table_metrics_default_histograms_aggregation", TableMetrics.MetricsAggregation.INDIVIDUAL.name()),
+    // Determines if table metrics should be also exported to shared global metric
+    TABLE_METRICS_EXPORT_GLOBALS("cassandra.table_metrics_export_globals", "true");
+
     CassandraRelevantProperties(String key, String defaultVal)
     {
         this.key = key;

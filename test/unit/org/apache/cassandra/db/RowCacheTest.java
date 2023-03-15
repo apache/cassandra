@@ -505,7 +505,7 @@ public class RowCacheTest
         //force flush for confidence that SSTables exists
         cachedStore.forceBlockingFlush(UNIT_TESTS);
 
-        ((ClearableHistogram)cachedStore.metric.sstablesPerReadHistogram.cf).clear();
+        ((ClearableHistogram)cachedStore.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram()).clear();
 
         for (int i = 0; i < 100; i++)
         {
@@ -513,14 +513,14 @@ public class RowCacheTest
 
             Util.getAll(Util.cmd(cachedStore, key).build());
 
-            long count_before = cachedStore.metric.sstablesPerReadHistogram.cf.getCount();
+            long count_before = cachedStore.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram().getCount();
             Util.getAll(Util.cmd(cachedStore, key).build());
 
             // check that SSTablePerReadHistogram has been updated by zero,
             // so count has been increased and in a 1/2 of requests there were zero read SSTables
-            long count_after = cachedStore.metric.sstablesPerReadHistogram.cf.getCount();
-            double belowMedian = cachedStore.metric.sstablesPerReadHistogram.cf.getSnapshot().getValue(0.49D);
-            double mean_after = cachedStore.metric.sstablesPerReadHistogram.cf.getSnapshot().getMean();
+            long count_after = cachedStore.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram().getCount();
+            double belowMedian = cachedStore.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram().getSnapshot().getValue(0.49D);
+            double mean_after = cachedStore.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram().getSnapshot().getMean();
             assertEquals("SSTablePerReadHistogram should be updated even key found in row cache", count_before + 1, count_after);
             assertTrue("In half of requests we have not touched SSTables, " +
                        "so 49 percentile (" + belowMedian + ") must be strongly less than 0.9", belowMedian < 0.9D);
@@ -528,7 +528,7 @@ public class RowCacheTest
                        "so mean value (" + mean_after + ") must be strongly less than 1, but greater than 0", mean_after < 0.999D && mean_after > 0.001D);
         }
 
-        assertEquals("Min value of SSTablesPerRead should be zero", 0, cachedStore.metric.sstablesPerReadHistogram.cf.getSnapshot().getMin());
+        assertEquals("Min value of SSTablesPerRead should be zero", 0, cachedStore.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram().getSnapshot().getMin());
 
         CacheService.instance.setRowCacheCapacityInMB(0);
     }

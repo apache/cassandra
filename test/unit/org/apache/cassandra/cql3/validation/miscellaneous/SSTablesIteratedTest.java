@@ -39,11 +39,11 @@ public class SSTablesIteratedTest extends CQLTester
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore(KEYSPACE_PER_TEST);
 
-        ((ClearableHistogram) cfs.metric.sstablesPerReadHistogram.cf).clear(); // resets counts
+        ((ClearableHistogram) cfs.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram()).clear(); // resets counts
 
         assertRows(execute(query), rows);
 
-        long numSSTablesIterated = cfs.metric.sstablesPerReadHistogram.cf.getSnapshot().getMax(); // max sstables read
+        long numSSTablesIterated = cfs.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram().getSnapshot().getMax(); // max sstables read
         assertEquals(String.format("Expected %d sstables iterated but got %d instead, with %d live sstables",
                                    numSSTables, numSSTablesIterated, cfs.getLiveSSTables().size()),
                      numSSTables,

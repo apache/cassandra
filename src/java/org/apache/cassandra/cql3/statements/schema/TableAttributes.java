@@ -21,12 +21,14 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -175,6 +177,13 @@ public final class TableAttributes extends PropertyDefinitions
 
         if (hasOption(Option.DEFAULT_TIME_TO_LIVE))
             builder.defaultTimeToLive(getInt(Option.DEFAULT_TIME_TO_LIVE));
+
+        // extensions in CQL are strings, but are stored as a frozen map<string,bytes>
+        if (hasOption(Option.EXTENSIONS))
+            builder.extensions(getMap(Option.EXTENSIONS)
+                               .entrySet()
+                               .stream()
+                               .collect(Collectors.toMap(Map.Entry::getKey, entry -> Bytes.fromHexString(entry.getValue()))));
 
         if (hasOption(Option.GC_GRACE_SECONDS))
             builder.gcGraceSeconds(getInt(Option.GC_GRACE_SECONDS));

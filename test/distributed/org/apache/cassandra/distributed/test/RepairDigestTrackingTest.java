@@ -610,7 +610,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
                                                      .getColumnFamilyStore(TABLE)
                                              .metric
                                              .confirmedRepairedInconsistencies
-                                             .table
+                                             .tableOrKeyspaceMeter()
                                              .getCount());
     }
 
