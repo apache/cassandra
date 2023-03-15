@@ -39,7 +39,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  */
 public class TypeConverterRegistry
 {
-    private final Map<ConversionKey, TypeConverter<?, ?>> converters = new HashMap<>();
+    private final Map<ConversionKey, TypeConverter<?>> converters = new HashMap<>();
 
     public TypeConverterRegistry()
     {
@@ -76,34 +76,39 @@ public class TypeConverterRegistry
 
     public static <T> void addFromStringConverter(TypeConverterRegistry registry, Class<T> to, PropertyConverter<T> converter)
     {
-        registry.addTypeConverter(String.class, to, new TypeConverter<String, T>()
+        registry.addTypeConverter(String.class, to, new TypeConverter<T>()
         {
-            @Nullable @Override public T convert(@Nullable String value)
+            @Nullable @Override public T convert(@Nullable Object value)
             {
-                if (to.isPrimitive() && StringUtils.isEmpty(value))
+                if (value == null)
+                    return null;
+                if (!(value instanceof String))
+                    throw new IllegalArgumentException(String.format("Cannot convert from '%s' to '%s'.", value.getClass(), to));
+                String stringValue = (String) value;
+                if (to.isPrimitive() && StringUtils.isEmpty(stringValue))
                     throw new ConfigurationException("Primitive type " + to + " cannot be null or empty");
-                return value == null ? null : converter.convert(value);
+                return converter.convert(stringValue);
             }
         });
     }
 
-    public <F, T> void addTypeConverter(Class<F> from, Class<T> to, TypeConverter<F, T> converter)
+    public <T> void addTypeConverter(Class<?> from, Class<T> to, TypeConverter<T> converter)
     {
         converters.put(new ConversionKey(from, to), converter);
     }
 
-    public <T> TypeConverter<?, T> getConverter(Class<?> from, Class<T> to)
+    public <T> TypeConverter<T> getConverter(Class<?> from, Class<T> to)
     {
         return getConverterOrDefault(from, to, null);
     }
 
     @SuppressWarnings("unchecked")
-    public <T> TypeConverter<?, T> getConverterOrDefault(Class<?> from, Class<T> to, TypeConverter<?, T> defaultConverter)
+    public <T> TypeConverter<T> getConverterOrDefault(Class<?> from, Class<T> to, TypeConverter<T> defaultConverter)
     {
         ConversionKey key = new ConversionKey(from, to);
         if (!converters.containsKey(key) && defaultConverter == null)
             throw new IllegalArgumentException(String.format("No converter registered to convert from '%s' to '%s'.", from, to));
-        return (TypeConverter<?, T>) converters.getOrDefault(key, defaultConverter);
+        return (TypeConverter<T>) converters.getOrDefault(key, defaultConverter);
     }
 
     private static class ConversionKey

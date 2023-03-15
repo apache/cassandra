@@ -94,11 +94,11 @@ public class ConfigPropertyRegistry implements PropertyRegistry
             // Do conversion if the value is not null and the type is not the same as the property type.
             if (value != null && !primitiveToWrapperType(originalType).equals(sourceType))
             {
-                TypeConverter<?, ?> converter = typeConverterRegistry.getConverter(sourceType, originalType);
+                TypeConverter<?> converter = typeConverterRegistry.getConverter(sourceType, originalType);
                 if (converter == null)
                     throw new ConfigurationException(String.format("No converter found for type '%s'", sourceType.getName()));
 
-                convertedValue = converter.convertRaw(value);
+                convertedValue = converter.convert(value);
             }
             // Do validation first for converted new value.
             List<PropertyTypeSafeWrapper<?>> validators = validatorsMap.get(property.getName());
