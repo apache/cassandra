@@ -29,6 +29,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
@@ -47,6 +48,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
@@ -60,6 +62,7 @@ import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(BMUnitRunner.class)
@@ -169,6 +172,43 @@ public class SchemaKeyspaceTest
 
         metadata = Schema.instance.getTableMetadata(keyspace, "test");
         assertEquals(extensions, metadata.params.extensions);
+    }
+
+    @Test
+    public void testMetricsExtensions()
+    {
+        createTable("SandBoxMetrics", String.format("CREATE TABLE %s (a text primary key, b int, c int) WITH extensions = {'%s': '%s'}",
+                                                          "test",
+                                                          TableMetrics.TABLE_EXTENSIONS_HISTOGRAMS_METRICS_KEY,
+                                                          TableMetrics.MetricsAggregation.AGGREGATED.asCQLString()));
+
+        TableMetadata metadata = Schema.instance.getTableMetadata("SandBoxMetrics", "test");
+        assertNotNull(metadata);
+
+        ImmutableMap<String, ByteBuffer> extensions = metadata.params.extensions;
+        assertNotNull(extensions);
+        assertFalse("extensions should not be empty", extensions.isEmpty());
+
+        assertEquals(TableMetrics.MetricsAggregation.AGGREGATED, TableMetrics.MetricsAggregation.fromMetadata(metadata));
+
+        Consumer<TableMetrics.MetricsAggregation> changeMetricAggregation = aggregation -> {
+            TableMetadata meta = Schema.instance.getTableMetadata("SandBoxMetrics", "test");
+
+            ImmutableMap<String, ByteBuffer> extensionsMap = ImmutableMap.of(TableMetrics.TABLE_EXTENSIONS_HISTOGRAMS_METRICS_KEY,
+                                                                             ByteBuffer.wrap(new byte[]{aggregation.val}));
+
+            TableMetadata alteredMetadata = meta.unbuild().extensions(extensionsMap).build();
+
+            updateTable("SandBoxMetrics", meta, alteredMetadata);
+        };
+
+        changeMetricAggregation.accept(TableMetrics.MetricsAggregation.INDIVIDUAL);
+        metadata = Schema.instance.getTableMetadata("SandBoxMetrics", "test");
+        assertEquals(TableMetrics.MetricsAggregation.INDIVIDUAL, TableMetrics.MetricsAggregation.fromMetadata(metadata));
+
+        changeMetricAggregation.accept(TableMetrics.MetricsAggregation.AGGREGATED);
+        metadata = Schema.instance.getTableMetadata("SandBoxMetrics", "test");
+        assertEquals(TableMetrics.MetricsAggregation.AGGREGATED, TableMetrics.MetricsAggregation.fromMetadata(metadata));
     }
 
     @Test

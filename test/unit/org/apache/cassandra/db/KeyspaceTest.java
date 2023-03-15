@@ -437,7 +437,7 @@ public class KeyspaceTest extends CQLTester
             cfs.forceBlockingFlush(UNIT_TESTS);
         }
 
-        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear();
+        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram()).clear();
 
         SinglePartitionReadCommand command = singlePartitionSlice(cfs, "0", slices(cfs, null, 1499, false), 1000);
         int[] expectedValues = new int[500];
@@ -445,16 +445,16 @@ public class KeyspaceTest extends CQLTester
             expectedValues[i] = i + 1000;
         assertRowsInResult(cfs, command, expectedValues);
 
-        assertEquals(5, cfs.metric.sstablesPerReadHistogram.cf.getSnapshot().getMax(), 0.1);
-        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear();
+        assertEquals(5, cfs.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram().getSnapshot().getMax(), 0.1);
+        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram()).clear();
 
         command = singlePartitionSlice(cfs, "0", slices(cfs, 1500, 2000, false), 1000);
         for (int i = 0; i < 500; i++)
             expectedValues[i] = i + 1500;
         assertRowsInResult(cfs, command, expectedValues);
 
-        assertEquals(5, cfs.metric.sstablesPerReadHistogram.cf.getSnapshot().getMax(), 0.1);
-        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear();
+        assertEquals(5, cfs.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram().getSnapshot().getMax(), 0.1);
+        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram()).clear();
 
         // reverse
         command = singlePartitionSlice(cfs, "0", slices(cfs, 1500, 2000, true), 1000);

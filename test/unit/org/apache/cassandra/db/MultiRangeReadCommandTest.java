@@ -103,11 +103,11 @@ public class MultiRangeReadCommandTest
 
         assert cfs.metric != null;
         SSTableReader sstable = Iterables.getOnlyElement(cfs.getLiveSSTables());
-        long beforeMetricsRecorded = cfs.metric.liveScannedHistogram.cf.getCount();
+        long beforeMetricsRecorded = cfs.metric.liveScannedHistogram.tableOrKeyspaceHistogram().getCount();
         long beforeSSTableRead = sstable.getReadMeter().count();
         assertEquals(limits.count(), rows(command.executeLocally(command.executionController())).size());
 
-        long metricsRecorded = cfs.metric.liveScannedHistogram.cf.getCount() - beforeMetricsRecorded;
+        long metricsRecorded = cfs.metric.liveScannedHistogram.tableOrKeyspaceHistogram().getCount() - beforeMetricsRecorded;
         assertEquals(1, metricsRecorded);
 
         long subrangeScanned =  sstable.getReadMeter().count() - beforeSSTableRead;

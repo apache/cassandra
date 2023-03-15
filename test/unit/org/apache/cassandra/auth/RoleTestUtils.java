@@ -121,7 +121,7 @@ public class RoleTestUtils
     public static long getReadCount()
     {
         ColumnFamilyStore rolesTable = Keyspace.open(SchemaConstants.AUTH_KEYSPACE_NAME).getColumnFamilyStore(AuthKeyspace.ROLES);
-        return rolesTable.metric.readLatency.latency.getCount();
+        return rolesTable.metric.readLatency.tableOrKeyspaceMetric().latency.getCount();
     }
 
     public static RoleOptions getLoginRoleOptions()

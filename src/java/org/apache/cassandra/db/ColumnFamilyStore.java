@@ -334,7 +334,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     private final Directories directories;
 
-    public final TableMetrics metric;
+    public volatile TableMetrics metric;
     public volatile long sampleReadLatencyNanos;
     public volatile long additionalWriteLatencyNanos;
 
@@ -408,6 +408,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 switchMemtableIfCurrent(currentMemtable, FlushReason.SCHEMA_CHANGE);
             else
                 currentMemtable.metadataUpdated();
+        }
+
+        if (metric.metricsAggregation != TableMetrics.MetricsAggregation.fromMetadata(metadata()))
+        { // Reload the metrics if histogram aggregation has changed
+            metric.release(); // release first because of those static tables containing metric names
+            metric = new TableMetrics(this, memtableFactory.createMemtableMetrics(metadata));
         }
     }
 
@@ -625,8 +631,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         try
         {
-            sampleReadLatencyNanos = metadata().params.speculativeRetry.calculateThreshold(metric.coordinatorReadLatency.getSnapshot(), sampleReadLatencyNanos);
-            additionalWriteLatencyNanos = metadata().params.additionalWritePolicy.calculateThreshold(metric.coordinatorWriteLatency.getSnapshot(), additionalWriteLatencyNanos);
+            sampleReadLatencyNanos = metadata().params.speculativeRetry.calculateThreshold(metric.coordinatorReadLatency.tableOrKeyspaceTimer().getSnapshot(), sampleReadLatencyNanos);
+            additionalWriteLatencyNanos = metadata().params.additionalWritePolicy.calculateThreshold(metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getSnapshot(), additionalWriteLatencyNanos);
         }
         catch (Throwable e)
         {

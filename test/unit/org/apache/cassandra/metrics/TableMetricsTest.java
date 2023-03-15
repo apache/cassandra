@@ -34,6 +34,7 @@ import com.datastax.driver.core.Session;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
@@ -46,6 +47,7 @@ public class TableMetricsTest
 
     private static final String KEYSPACE = "junit";
     private static final String TABLE = "tablemetricstest";
+    private static final String TABLE_WITH_HISTOS_AGGR = "tablemetricstest_histo_aggr";
     private static final String COUNTER_TABLE = "tablemetricscountertest";
 
     private static EmbeddedCassandraService cassandra;
@@ -75,11 +77,24 @@ public class TableMetricsTest
         return ColumnFamilyStore.getIfExists(KEYSPACE, table);
     }
 
+    private void recreateExtensionTables(String keyspace)
+    {
+        session.execute(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };", keyspace));
+
+        session.execute(String.format("DROP TABLE IF EXISTS %s.%s", keyspace, TABLE));
+        session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int, val1 text, val2 text, PRIMARY KEY(id, val1)) WITH extensions = {'HISTOGRAM_METRICS': '%s'};",
+                                      keyspace, TABLE, TableMetrics.MetricsAggregation.INDIVIDUAL.asCQLString())); // this is also the default
+
+        session.execute(String.format("DROP TABLE IF EXISTS %s.%s", keyspace, TABLE_WITH_HISTOS_AGGR));
+        session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int, val1 text, val2 text, PRIMARY KEY(id, val1)) WITH extensions = {'HISTOGRAM_METRICS': '%s'};",
+                                      keyspace, TABLE_WITH_HISTOS_AGGR, TableMetrics.MetricsAggregation.AGGREGATED.asCQLString()));
+    }
+
     private void executeBatch(boolean isLogged, int distinctPartitions, int statementsPerPartition, String... tables)
     {
         if (tables == null || tables.length == 0)
         {
-            tables = new String[] { TABLE };
+            tables = new String[]{ TABLE };
         }
         BatchStatement.Type batchType;
 
@@ -104,134 +119,207 @@ public class TableMetricsTest
     {
         PreparedStatement ps = session.prepare(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (?, ?, ?);", KEYSPACE, table));
 
-        for (int i=0; i<distinctPartitions; i++)
+        for (int i = 0; i < distinctPartitions; i++)
         {
-            for (int j=0; j<statementsPerPartition; j++)
+            for (int j = 0; j < statementsPerPartition; j++)
             {
                 batch.add(ps.bind(i, j + "a", "b"));
             }
         }
     }
 
+    private void checkWriteCounts(Keyspace keyspace, String table, long ksCount, long tableCount)
+    {
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(table);
+
+        // The table with its non-aggregated histograms will have individual table counts
+        assertEquals(tableCount, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
+        assertEquals(tableCount, cfs.metric.writeLatency.tableOrKeyspaceMetric().latency.getCount());
+
+        assertEquals(ksCount, keyspace.metric.coordinatorWriteLatency.getCount());
+        assertEquals(ksCount, keyspace.metric.writeLatency.latency.getCount());
+    }
+
     @Test
     public void testRegularStatementsExecuted()
     {
-        ColumnFamilyStore cfs = recreateTable();
-        assertEquals(0, cfs.metric.coordinatorWriteLatency.getCount());
-        assertEquals(0.0, cfs.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+        String keyspaceName = "regularstatementsks";
+        recreateExtensionTables(keyspaceName);
 
-        for (int i = 0; i < 10; i++)
-        {
-            session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", KEYSPACE, TABLE, i, "val" + i, "val" + i));
-        }
+        Keyspace keyspace = Keyspace.open(keyspaceName);
+        assertEquals(keyspace.metric.coordinatorWriteLatency.getCount(), 0);
+        assertEquals(keyspace.metric.writeLatency.latency.getCount(), 0);
 
-        assertEquals(10, cfs.metric.coordinatorWriteLatency.getCount());
-        assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
+        int numRows = 10;
+
+        checkWriteCounts(keyspace, TABLE, 0, 0);
+        checkWriteCounts(keyspace, TABLE_WITH_HISTOS_AGGR, 0, 0);
+
+        for (int i = 0; i < numRows; i++)
+            session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", keyspaceName, TABLE, i, "val" + i, "val" + i));
+
+        checkWriteCounts(keyspace, TABLE, numRows, numRows);
+        checkWriteCounts(keyspace, TABLE_WITH_HISTOS_AGGR, numRows, numRows);
+
+        for (int i = 0; i < numRows; i++)
+            session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", keyspaceName, TABLE_WITH_HISTOS_AGGR, i, "val" + i, "val" + i));
+
+        checkWriteCounts(keyspace, TABLE, numRows * 2, numRows);
+        checkWriteCounts(keyspace, TABLE_WITH_HISTOS_AGGR, numRows * 2, numRows * 2);
     }
 
     @Test
     public void testPreparedStatementsExecuted()
     {
-        ColumnFamilyStore cfs = recreateTable();
-        PreparedStatement metricsStatement = session.prepare(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (?, ?, ?)", KEYSPACE, TABLE));
+        String keyspaceName = "preparedstatementsks";
+        recreateExtensionTables(keyspaceName);
 
-        assertEquals(0, cfs.metric.coordinatorWriteLatency.getCount());
-        assertEquals(0.0, cfs.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+        Keyspace keyspace = Keyspace.open(keyspaceName);
+        assertEquals(keyspace.metric.coordinatorWriteLatency.getCount(), 0);
+        assertEquals(keyspace.metric.writeLatency.latency.getCount(), 0);
 
-        for (int i = 0; i < 10; i++)
-        {
+        int numRows = 10;
+
+        checkWriteCounts(keyspace, TABLE, 0, 0);
+        checkWriteCounts(keyspace, TABLE_WITH_HISTOS_AGGR, 0, 0);
+
+        PreparedStatement metricsStatement = session.prepare(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (?, ?, ?)", keyspaceName, TABLE));
+        for (int i = 0; i < numRows; i++)
             session.execute(metricsStatement.bind(i, "val" + i, "val" + i));
-        }
 
-        assertEquals(10, cfs.metric.coordinatorWriteLatency.getCount());
-        assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
+        checkWriteCounts(keyspace, TABLE, numRows, numRows);
+        checkWriteCounts(keyspace, TABLE_WITH_HISTOS_AGGR, numRows, numRows);
+
+        metricsStatement = session.prepare(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (?, ?, ?)", keyspaceName, TABLE_WITH_HISTOS_AGGR));
+        for (int i = 0; i < numRows; i++)
+            session.execute(metricsStatement.bind(i, "val" + i, "val" + i));
+
+        checkWriteCounts(keyspace, TABLE, numRows * 2, numRows);
+        checkWriteCounts(keyspace, TABLE_WITH_HISTOS_AGGR, numRows * 2, numRows * 2);
     }
+
+    @Test
+    public void testAlterTable()
+    {
+        // First create a table with aggregated histograms, then alter it to individual histograms, check the counts
+        String keyspaceName = "altertableks";
+        recreateExtensionTables(keyspaceName);
+        Keyspace keyspace = Keyspace.open(keyspaceName);
+
+        try
+        {
+            int numRows = 10;
+            long ksCount = keyspace.metric.coordinatorWriteLatency.getCount();
+
+            checkWriteCounts(keyspace, TABLE_WITH_HISTOS_AGGR, ksCount, ksCount);
+
+            for (int i = 0; i < numRows; i++)
+                session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", keyspace.getName(), TABLE_WITH_HISTOS_AGGR, i, "val" + i, "val" + i));
+
+            // counts are the same as the keyspace since it is aggregated
+            checkWriteCounts(keyspace, TABLE_WITH_HISTOS_AGGR, ksCount + numRows, ksCount + numRows);
+
+            session.execute(String.format("ALTER TABLE %s.%s WITH extensions = {'HISTOGRAM_METRICS': '%s'};", keyspace.getName(), TABLE_WITH_HISTOS_AGGR, TableMetrics.MetricsAggregation.INDIVIDUAL.asCQLString()));
+
+            for (int i = 0; i < numRows; i++)
+                session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", keyspace.getName(), TABLE_WITH_HISTOS_AGGR, i, "val" + i, "val" + i));
+
+            // Now we should find individual histograms counts for the table
+            checkWriteCounts(keyspace, TABLE_WITH_HISTOS_AGGR, ksCount + numRows * 2, numRows);
+        }
+        finally
+        {
+            session.execute(String.format("DROP TABLE %s.%s", keyspace.getName(), TABLE_WITH_HISTOS_AGGR));
+        }
+    }
+
 
     @Test
     public void testLoggedPartitionsPerBatch()
     {
         ColumnFamilyStore cfs = recreateTable();
-        assertEquals(0, cfs.metric.coordinatorWriteLatency.getCount());
-        assertEquals(0.0, cfs.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+        assertEquals(0, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
+        assertEquals(0.0, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0.0);
 
         executeBatch(true, 10, 2);
-        assertEquals(1, cfs.metric.coordinatorWriteLatency.getCount());
+        assertEquals(1, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
 
         executeBatch(true, 20, 2);
-        assertEquals(2, cfs.metric.coordinatorWriteLatency.getCount()); // 2 for previous batch and this batch
-        assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
+        assertEquals(2, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount()); // 2 for previous batch and this batch
+        assertGreaterThan(cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0);
     }
 
     @Test
     public void testLoggedPartitionsPerBatchMultiTable()
     {
         ColumnFamilyStore first = recreateTable();
-        assertEquals(0, first.metric.coordinatorWriteLatency.getCount());
-        assertEquals(0.0, first.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+        assertEquals(0, first.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
+        assertEquals(0.0, first.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0.0);
 
         ColumnFamilyStore second = recreateTable(TABLE + "_second");
-        assertEquals(0, second.metric.coordinatorWriteLatency.getCount());
-        assertEquals(0.0, second.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+        assertEquals(0, second.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
+        assertEquals(0.0, second.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0.0);
 
         executeBatch(true, 10, 2, TABLE, TABLE + "_second");
-        assertEquals(1, first.metric.coordinatorWriteLatency.getCount());
-        assertEquals(1, second.metric.coordinatorWriteLatency.getCount());
+        assertEquals(1, first.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
+        assertEquals(1, second.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
 
         executeBatch(true, 20, 2, TABLE, TABLE + "_second");
-        assertEquals(2, first.metric.coordinatorWriteLatency.getCount()); // 2 for previous batch and this batch
-        assertEquals(2, second.metric.coordinatorWriteLatency.getCount()); // 2 for previous batch and this batch
-        assertGreaterThan(first.metric.coordinatorWriteLatency.getMeanRate(), 0);
-        assertGreaterThan(second.metric.coordinatorWriteLatency.getMeanRate(), 0);
+        assertEquals(2, first.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount()); // 2 for previous batch and this batch
+        assertEquals(2, second.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount()); // 2 for previous batch and this batch
+        assertGreaterThan(first.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0);
+        assertGreaterThan(second.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0);
     }
 
     @Test
     public void testUnloggedPartitionsPerBatch()
     {
         ColumnFamilyStore cfs = recreateTable();
-        assertEquals(0, cfs.metric.coordinatorWriteLatency.getCount());
-        assertEquals(0.0, cfs.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+        assertEquals(0, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
+        assertEquals(0.0, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0.0);
 
         executeBatch(false, 5, 3);
-        assertEquals(1, cfs.metric.coordinatorWriteLatency.getCount());
+        assertEquals(1, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
 
         executeBatch(false, 25, 2);
-        assertEquals(2, cfs.metric.coordinatorWriteLatency.getCount()); // 2 for previous batch and this batch
-        assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
+        assertEquals(2, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount()); // 2 for previous batch and this batch
+        assertGreaterThan(cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0);
     }
 
     @Test
     public void testUnloggedPartitionsPerBatchMultiTable()
     {
         ColumnFamilyStore first = recreateTable();
-        assertEquals(0, first.metric.coordinatorWriteLatency.getCount());
-        assertEquals(0.0, first.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+        assertEquals(0, first.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
+        assertEquals(0.0, first.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0.0);
 
         ColumnFamilyStore second = recreateTable(TABLE + "_second");
-        assertEquals(0, second.metric.coordinatorWriteLatency.getCount());
-        assertEquals(0.0, second.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+        assertEquals(0, second.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
+        assertEquals(0.0, second.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0.0);
 
         executeBatch(false, 5, 3, TABLE, TABLE + "_second");
-        assertEquals(1, first.metric.coordinatorWriteLatency.getCount());
+        assertEquals(1, first.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
 
         executeBatch(false, 25, 2, TABLE, TABLE + "_second");
-        assertEquals(2, first.metric.coordinatorWriteLatency.getCount()); // 2 for previous batch and this batch
-        assertEquals(2, second.metric.coordinatorWriteLatency.getCount()); // 2 for previous batch and this batch
-        assertGreaterThan(first.metric.coordinatorWriteLatency.getMeanRate(), 0);
-        assertGreaterThan(second.metric.coordinatorWriteLatency.getMeanRate(), 0);
+        assertEquals(2, first.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount()); // 2 for previous batch and this batch
+        assertEquals(2, second.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount()); // 2 for previous batch and this batch
+        assertGreaterThan(first.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0);
+        assertGreaterThan(second.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0);
     }
 
     @Test
     public void testCounterStatement()
     {
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(KEYSPACE, COUNTER_TABLE);
-        assertEquals(0, cfs.metric.coordinatorWriteLatency.getCount());
-        assertEquals(0.0, cfs.metric.coordinatorWriteLatency.getMeanRate(), 0.0);
+        assertEquals(0, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
+        assertEquals(0.0, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0.0);
         session.execute(String.format("UPDATE %s.%s SET id_c = id_c + 1 WHERE id = 1 AND val = 'val1'", KEYSPACE, COUNTER_TABLE));
-        assertEquals(1, cfs.metric.coordinatorWriteLatency.getCount());
-        assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
+        assertEquals(1, cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getCount());
+        assertGreaterThan(cfs.metric.coordinatorWriteLatency.tableOrKeyspaceTimer().getMeanRate(), 0);
     }
 
-    private static void assertGreaterThan(double actual, double expectedLessThan) {
+    private static void assertGreaterThan(double actual, double expectedLessThan)
+    {
         assertTrue("Expected " + actual + " > " + expectedLessThan, actual > expectedLessThan);
     }
 

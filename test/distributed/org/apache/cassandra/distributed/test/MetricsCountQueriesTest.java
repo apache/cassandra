@@ -52,6 +52,6 @@ public class MetricsCountQueriesTest extends TestBaseImpl
 
     private static long readCount(IInvokableInstance instance)
     {
-        return instance.callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.latency.getCount());
+        return instance.callOnInstance(() -> Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl").metric.readLatency.tableOrKeyspaceMetric().latency.getCount());
     }
 }

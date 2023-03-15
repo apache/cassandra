@@ -141,9 +141,9 @@ public class ColumnFamilyStoreTest
                 .applyUnsafe();
         cfs.forceBlockingFlush(UNIT_TESTS);
 
-        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear(); // resets counts
+        ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram()).clear(); // resets counts
         Util.getAll(Util.cmd(cfs, "key1").includeRow("c1").build());
-        assertEquals(1, cfs.metric.sstablesPerReadHistogram.cf.getCount());
+        assertEquals(1, cfs.metric.sstablesPerReadHistogram.tableOrKeyspaceHistogram().getCount());
     }
 
     @Test

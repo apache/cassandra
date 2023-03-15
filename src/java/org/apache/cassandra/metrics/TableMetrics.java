@@ -17,23 +17,33 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
+
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.ArrayUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
@@ -42,6 +52,7 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.RatioGauge;
 import com.codahale.metrics.Timer;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -54,8 +65,10 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.ExpMovingAverage;
+import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.MovingAverage;
 import org.apache.cassandra.utils.Pair;
 
@@ -67,6 +80,63 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class TableMetrics
 {
+    // CNDB will set this to MetricsAggregation.AGGREGATED in order to support large number of tenants and dedicated
+    // tenants with a large number of tables
+    public static final String TABLE_METRICS_DEFAULT_HISTOGRAMS_AGGREGATION =
+    CassandraRelevantProperties.TABLE_METRICS_DEFAULT_HISTOGRAMS_AGGREGATION.getString();
+
+    // CNDB will set this to false as it does not need global metrics since the aggregation is done in Prometheus
+    public static final boolean EXPORT_GLOBAL_METRICS = CassandraRelevantProperties.TABLE_METRICS_EXPORT_GLOBALS.getBoolean();
+
+    private static final Logger logger = LoggerFactory.getLogger(TableMetrics.class);
+
+    public static final String TABLE_EXTENSIONS_HISTOGRAMS_METRICS_KEY = "HISTOGRAM_METRICS";
+
+    public enum MetricsAggregation
+    {
+        AGGREGATED((byte) 0x00),
+        INDIVIDUAL((byte) 0x01);
+
+        public final byte val;
+
+        MetricsAggregation(byte val)
+        {
+            this.val = val;
+        }
+
+        public static MetricsAggregation fromMetadata(TableMetadata metadata)
+        {
+            MetricsAggregation defaultValue = MetricsAggregation.valueOf(TABLE_METRICS_DEFAULT_HISTOGRAMS_AGGREGATION);
+            ByteBuffer bb = null;
+            try
+            {
+                bb = metadata.params.extensions.get(TABLE_EXTENSIONS_HISTOGRAMS_METRICS_KEY);
+                return bb == null ? defaultValue : MetricsAggregation.fromByte(bb.get(bb.position())); // do not change the position of the ByteBuffer!
+            }
+            catch (BufferUnderflowException | IllegalStateException ex)
+            {
+                logger.error("Failed to decode metadata extensions for metrics aggregation ({}), using default value {}", bb, defaultValue);
+                return defaultValue;
+            }
+        }
+
+        public static MetricsAggregation fromByte(byte val) throws IllegalStateException
+        {
+            for (MetricsAggregation aggr : values())
+            {
+                if (aggr.val == val)
+                    return aggr;
+            }
+
+            throw new IllegalStateException("Invalid byte: " + val);
+        }
+
+        public String asCQLString()
+        {
+            return "0x" + Hex.bytesToHex(val);
+        }
+    }
+
     /**
      * stores metrics that will be rolled into a single global metric
      */
@@ -75,9 +145,9 @@ public class TableMetrics
     private static final MetricNameFactory GLOBAL_FACTORY = new AllTableMetricNameFactory("Table");
     private static final MetricNameFactory GLOBAL_ALIAS_FACTORY = new AllTableMetricNameFactory("ColumnFamily");
 
-    public final static LatencyMetrics GLOBAL_READ_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Read");
-    public final static LatencyMetrics GLOBAL_WRITE_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Write");
-    public final static LatencyMetrics GLOBAL_RANGE_LATENCY = new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Range");
+    public final static Optional<LatencyMetrics> GLOBAL_READ_LATENCY = EXPORT_GLOBAL_METRICS ? Optional.of(new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Read")) : Optional.empty();
+    public final static Optional<LatencyMetrics> GLOBAL_WRITE_LATENCY = EXPORT_GLOBAL_METRICS ? Optional.of(new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Write")) : Optional.empty();
+    public final static Optional<LatencyMetrics> GLOBAL_RANGE_LATENCY = EXPORT_GLOBAL_METRICS ? Optional.of(new LatencyMetrics(GLOBAL_FACTORY, GLOBAL_ALIAS_FACTORY, "Range")) : Optional.empty();
 
     /** Total amount of data stored in the memtable that resides on-heap, including column related overhead and partitions overwritten. */
     public final Gauge<Long> memtableOnHeapDataSize;
@@ -112,11 +182,11 @@ public class TableMetrics
      * since disk costs would dominate computing costs. */
     public final MovingAverage sstablePartitionReadLatency;
     /** (Local) read metrics */
-    public final LatencyMetrics readLatency;
+    public final TableLatencyMetrics readLatency;
     /** (Local) range slice metrics */
-    public final LatencyMetrics rangeLatency;
+    public final TableLatencyMetrics rangeLatency;
     /** (Local) write metrics */
-    public final LatencyMetrics writeLatency;
+    public final TableLatencyMetrics writeLatency;
     /** The number of single partition read requests, including those dropped due to timeouts */
     public final Counter readRequests;
     /** The number of range read requests, including those dropped due to timeouts */
@@ -203,11 +273,11 @@ public class TableMetrics
      */
     public final Counter tombstoneWarnings;
     /** CAS Prepare metrics */
-    public final LatencyMetrics casPrepare;
+    public final TableLatencyMetrics casPrepare;
     /** CAS Propose metrics */
-    public final LatencyMetrics casPropose;
+    public final TableLatencyMetrics casPropose;
     /** CAS Commit metrics */
-    public final LatencyMetrics casCommit;
+    public final TableLatencyMetrics casCommit;
     /** percent of the data that is repaired */
     public final Gauge<Double> percentRepaired;
     /** Reports the size of sstables in repaired, unrepaired, and any ongoing repair buckets */
@@ -235,12 +305,12 @@ public class TableMetrics
     /** ratio of how much we anticompact vs how much we could mutate the repair status*/
     public final Gauge<Double> mutatedAnticompactionGauge;
 
-    public final Timer coordinatorReadLatency;
-    public final Timer coordinatorScanLatency;
-    public final Timer coordinatorWriteLatency;
+    public final TableTimer coordinatorReadLatency;
+    public final TableTimer coordinatorScanLatency;
+    public final TableTimer coordinatorWriteLatency;
 
     /** Time spent waiting for free memtable space, either on- or off-heap */
-    public final Histogram waitingOnFreeMemtableSpace;
+    public final TableHistogram waitingOnFreeMemtableSpace;
 
     @Deprecated
     public final Counter droppedMutations;
@@ -288,6 +358,12 @@ public class TableMetrics
     public final Sampler<ByteBuffer> topCasPartitionContention;
     /** When sampler activated, will track the slowest local reads **/
     public final Sampler<String> topLocalReadQueryTime;
+
+    /**
+     * This property determines if new metrics dedicated to this table are created, or if keyspace metrics are
+     * used instead.
+     * */
+    public final MetricsAggregation metricsAggregation;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
@@ -408,6 +484,9 @@ public class TableMetrics
      */
     public TableMetrics(final ColumnFamilyStore cfs, ReleasableMetric memtableMetrics)
     {
+        metricsAggregation = MetricsAggregation.fromMetadata(cfs.metadata());
+        logger.debug("Using {} histograms for table={}", metricsAggregation, cfs.metadata());
+
         factory = new TableMetricNameFactory(cfs, "Table");
         aliasFactory = new TableMetricNameFactory(cfs, "ColumnFamily");
 
@@ -867,10 +946,10 @@ public class TableMetrics
         tombstoneScannedCounter = createTableCounter("TombstoneScannedCounter");
         liveScannedHistogram = createTableHistogram("LiveScannedHistogram", cfs.getKeyspaceMetrics().liveScannedHistogram, false);
         colUpdateTimeDeltaHistogram = createTableHistogram("ColUpdateTimeDeltaHistogram", cfs.getKeyspaceMetrics().colUpdateTimeDeltaHistogram, false);
-        coordinatorReadLatency = createTableTimer("CoordinatorReadLatency");
-        coordinatorScanLatency = createTableTimer("CoordinatorScanLatency");
-        coordinatorWriteLatency = createTableTimer("CoordinatorWriteLatency");
-        waitingOnFreeMemtableSpace = createTableHistogram("WaitingOnFreeMemtableSpace", false);
+        coordinatorReadLatency = createTableTimer("CoordinatorReadLatency", cfs.getKeyspaceMetrics().coordinatorReadLatency);
+        coordinatorScanLatency = createTableTimer("CoordinatorScanLatency", cfs.getKeyspaceMetrics().coordinatorReadLatency);
+        coordinatorWriteLatency = createTableTimer("CoordinatorWriteLatency", cfs.getKeyspaceMetrics().coordinatorWriteLatency);
+        waitingOnFreeMemtableSpace = createTableHistogram("WaitingOnFreeMemtableSpace", cfs.getKeyspaceMetrics().waitingOnFreeMemtableSpace, false);
 
         // We do not want to capture view mutation specific metrics for a view
         // They only makes sense to capture on the base table
@@ -895,9 +974,9 @@ public class TableMetrics
 
         droppedMutations = createTableCounter("DroppedMutations");
 
-        casPrepare = createLatencyMetrics("CasPrepare", cfs.getKeyspaceMetrics().casPrepare);
-        casPropose = createLatencyMetrics("CasPropose", cfs.getKeyspaceMetrics().casPropose);
-        casCommit = createLatencyMetrics("CasCommit", cfs.getKeyspaceMetrics().casCommit);
+        casPrepare = createLatencyMetrics("CasPrepare", cfs.getKeyspaceMetrics().casPrepare, Optional.empty());
+        casPropose = createLatencyMetrics("CasPropose", cfs.getKeyspaceMetrics().casPropose, Optional.empty());
+        casCommit = createLatencyMetrics("CasCommit", cfs.getKeyspaceMetrics().casCommit, Optional.empty());
 
         repairsStarted = createTableCounter("RepairJobsStarted");
         repairsCompleted = createTableCounter("RepairJobsCompleted");
@@ -1150,13 +1229,22 @@ public class TableMetrics
 
     protected TableHistogram createTableHistogram(String name, String alias, Histogram keyspaceHistogram, boolean considerZeroes)
     {
-        Histogram cfHistogram = Metrics.histogram(factory.createMetricName(name), aliasFactory.createMetricName(alias), considerZeroes);
-        register(name, alias, cfHistogram);
-        return new TableHistogram(cfHistogram,
-                                  keyspaceHistogram,
-                                  Metrics.histogram(GLOBAL_FACTORY.createMetricName(name),
-                                                    GLOBAL_ALIAS_FACTORY.createMetricName(alias),
-                                                    considerZeroes));
+        Histogram globalHistogram = null;
+        if (EXPORT_GLOBAL_METRICS)
+        {
+            globalHistogram = Metrics.histogram(GLOBAL_FACTORY.createMetricName(name),
+                                                GLOBAL_ALIAS_FACTORY.createMetricName(alias),
+                                                considerZeroes);
+        }
+
+        Histogram tableHistogram = null;
+        if (metricsAggregation == MetricsAggregation.INDIVIDUAL)
+        {
+            tableHistogram = Metrics.histogram(factory.createMetricName(name), aliasFactory.createMetricName(alias), considerZeroes);
+            register(name, alias, tableHistogram);
+        }
+
+        return new TableHistogram(tableHistogram, keyspaceHistogram, globalHistogram);
     }
 
     protected Histogram createTableHistogram(String name, boolean considerZeroes)
@@ -1173,11 +1261,20 @@ public class TableMetrics
 
     protected TableTimer createTableTimer(String name, Timer keyspaceTimer)
     {
-        Timer cfTimer = Metrics.timer(factory.createMetricName(name), aliasFactory.createMetricName(name));
-        register(name, name, keyspaceTimer);
-        Timer global = Metrics.timer(GLOBAL_FACTORY.createMetricName(name), GLOBAL_ALIAS_FACTORY.createMetricName(name));
+        Timer globalTimer = null;
+        if (EXPORT_GLOBAL_METRICS)
+        {
+            globalTimer = Metrics.timer(GLOBAL_FACTORY.createMetricName(name), GLOBAL_ALIAS_FACTORY.createMetricName(name));
+        }
 
-        return new TableTimer(cfTimer, keyspaceTimer, global);
+        Timer tableTimer = null;
+        if (metricsAggregation == MetricsAggregation.INDIVIDUAL)
+        {
+            tableTimer = Metrics.timer(factory.createMetricName(name), aliasFactory.createMetricName(name));
+            register(name, name, keyspaceTimer);
+        }
+
+        return new TableTimer(tableTimer, keyspaceTimer, globalTimer);
     }
 
     protected Timer createTableTimer(String name)
@@ -1194,18 +1291,38 @@ public class TableMetrics
 
     protected TableMeter createTableMeter(String name, String alias, Meter keyspaceMeter)
     {
-        Meter meter = Metrics.meter(factory.createMetricName(name), aliasFactory.createMetricName(alias));
-        register(name, alias, meter);
-        return new TableMeter(meter,
-                              keyspaceMeter,
-                              Metrics.meter(GLOBAL_FACTORY.createMetricName(name),
-                                            GLOBAL_ALIAS_FACTORY.createMetricName(alias)));
+        Meter globalMeter = null;
+        if (EXPORT_GLOBAL_METRICS)
+        {
+            globalMeter = Metrics.meter(GLOBAL_FACTORY.createMetricName(name),
+                                        GLOBAL_ALIAS_FACTORY.createMetricName(alias));
+        }
+
+        Meter tableMeter = null;
+        if (metricsAggregation == MetricsAggregation.INDIVIDUAL)
+        {
+            tableMeter = Metrics.meter(factory.createMetricName(name), aliasFactory.createMetricName(alias));
+            register(name, alias, tableMeter);
+        }
+
+        return new TableMeter(tableMeter, keyspaceMeter, globalMeter);
     }
 
-    private LatencyMetrics createLatencyMetrics(String namePrefix, LatencyMetrics ... parents)
+    private TableLatencyMetrics createLatencyMetrics(String namePrefix, LatencyMetrics keyspace, Optional<LatencyMetrics> global)
     {
-        LatencyMetrics metric = new LatencyMetrics(factory, namePrefix, parents);
-        all.add(metric::release);
+        TableLatencyMetrics metric;
+        if (metricsAggregation == MetricsAggregation.INDIVIDUAL)
+        {
+            LatencyMetrics[] parents = Stream.of(Optional.of(keyspace), global).filter(Optional::isPresent)
+                                             .map(Optional::get).toArray(LatencyMetrics[]::new);
+            LatencyMetrics innerMetrics = new LatencyMetrics(factory, namePrefix, parents);
+            metric = new TableLatencyMetrics.IndividualTableLatencyMetrics(innerMetrics);
+        }
+        else
+        {
+            metric = new TableLatencyMetrics.AggregatingTableLatencyMetrics(keyspace, global);
+        }
+        all.add(metric);
         return metric;
     }
 
@@ -1257,17 +1374,105 @@ public class TableMetrics
         }
     }
 
+    public interface TableLatencyMetrics extends ReleasableMetric
+    {
+        void addNano(long latencyNanos);
+
+        LatencyMetrics tableOrKeyspaceMetric();
+
+        /**
+         * Used when {@link MetricsAggregation#AGGREGATED} is set for this table.
+         * <br/>
+         * Table latency metrics that forwards all calls to the first parent metric (keyspace metric by convention).
+         * Thanks to the forwarding, the table doesn't have to maintain its own metrics. The metrics for this table
+         * are aggregated with metrics comming from other tables that use {@link MetricsAggregation#AGGREGATED}.
+         */
+        class AggregatingTableLatencyMetrics implements TableLatencyMetrics
+        {
+            private final LatencyMetrics keyspace;
+            private final Optional<LatencyMetrics> global;
+
+            public AggregatingTableLatencyMetrics(LatencyMetrics keyspace, Optional<LatencyMetrics> global)
+            {
+                this.keyspace = keyspace;
+                this.global = global;
+                Preconditions.checkState(keyspace != null, "Keyspace metrics should not be null");
+            }
+
+            @Override
+            public void addNano(long latencyNanos)
+            {
+                keyspace.addNano(latencyNanos);
+                global.ifPresent(g -> g.addNano(latencyNanos));
+            }
+
+            @Override
+            public LatencyMetrics tableOrKeyspaceMetric()
+            {
+                return keyspace;
+            }
+
+            @Override
+            public void release()
+            {
+                // noop
+            }
+        }
+
+        /**
+         * Used when {@link MetricsAggregation#INDIVIDUAL} is set for this table.
+         * <br/>
+         * Table latency metrics that don't aggreagte, i.e. the given table maintains its own latency metrics.
+         */
+        class IndividualTableLatencyMetrics implements TableLatencyMetrics
+        {
+            private final LatencyMetrics latencyMetrics;
+
+            public IndividualTableLatencyMetrics(LatencyMetrics latencyMetrics)
+            {
+                this.latencyMetrics = latencyMetrics;
+            }
+
+            @Override
+            public void addNano(long latencyNanos)
+            {
+                latencyMetrics.addNano(latencyNanos);
+            }
+
+            @Override
+            public LatencyMetrics tableOrKeyspaceMetric()
+            {
+                return latencyMetrics;
+            }
+
+            @Override
+            public void release()
+            {
+                latencyMetrics.release();
+            }
+        }
+    }
+
     public static class TableMeter
     {
         public final Meter[] all;
-        public final Meter table;
-        public final Meter global;
+        @Nullable
+        private final Meter table;
+        private final Meter keyspace;
 
-        private TableMeter(Meter table, Meter keyspace, Meter global)
+        /**
+         * Table meter wrapper that forwards updates to all provided non-null meters.
+         *
+         * @param table meter that is {@code null} if the metrics are not collected indidually for each table, see {@link TableMetrics#metricsAggregation}.
+         * @param keyspace meter
+         * @param global meter that is {@code null} if global metrics are not collected, see {@link TableMetrics#EXPORT_GLOBAL_METRICS}
+         */
+        private TableMeter(@Nullable Meter table, Meter keyspace, @Nullable Meter global)
         {
+            Preconditions.checkState(keyspace != null, "Keyspace meter can't be null");
             this.table = table;
-            this.global = global;
-            this.all = new Meter[]{table, keyspace, global};
+            this.keyspace = keyspace;
+            this.all = Stream.of(table, keyspace, global).filter(Objects::nonNull).toArray(Meter[]::new);
         }
 
         public void mark()
@@ -1277,46 +1482,74 @@ public class TableMetrics
                 meter.mark();
             }
         }
+
+        public Meter tableOrKeyspaceMeter()
+        {
+            return table == null ? keyspace : table;
+        }
     }
 
     public static class TableHistogram
     {
-        public final Histogram[] all;
-        public final Histogram cf;
-        public final Histogram global;
+        private final Histogram[] all;
+        @Nullable
+        private final Histogram table;
+        private final Histogram keyspace;
 
-        private TableHistogram(Histogram cf, Histogram keyspace, Histogram global)
+        /**
+         * Table histogram wrapper that forwards updates to all provided non-null histograms.
+         *
+         * @param table histogram that is {@code null} if the metrics are not collected indidually for each table, see {@link TableMetrics#metricsAggregation}.
+         * @param keyspace histogram
+         * @param global histogram that is {@code null} if global metrics are not collected, see {@link TableMetrics#EXPORT_GLOBAL_METRICS}
+         */
+        private TableHistogram(@Nullable Histogram table, Histogram keyspace, @Nullable Histogram global)
         {
-            this.cf = cf;
-            this.global = global;
-            this.all = new Histogram[]{cf, keyspace, global};
+            Preconditions.checkState(keyspace != null, "Keyspace histogram can't be null");
+            this.table = table;
+            this.keyspace = keyspace;
+            this.all = Stream.of(table, keyspace, global).filter(Objects::nonNull).toArray(Histogram[]::new);
         }
 
         public void update(long i)
         {
-            for(Histogram histo : all)
+            for (Histogram histo : all)
             {
                 histo.update(i);
             }
+        }
+
+        public Histogram tableOrKeyspaceHistogram()
+        {
+            return table == null ? keyspace : table;
         }
     }
 
     public static class TableTimer
     {
-        public final Timer[] all;
-        public final Timer cf;
-        public final Timer global;
+        private final Timer[] all;
+        @Nullable
+        private final Timer cf;
+        private final Timer keyspace;
 
-        private TableTimer(Timer cf, Timer keyspace, Timer global)
+        /**
+         * Table timer wrapper that forwards updates to all provided non-null timers.
+         *
+         * @param cf timer that is {@code null} if the metrics are not collected indidually for each table, see {@link TableMetrics#metricsAggregation}.
+         * @param keyspace timer
+         * @param global timer that is {@code null} if global metrics are not collected, see {@link TableMetrics#EXPORT_GLOBAL_METRICS}
+         */
+        private TableTimer(@Nullable Timer cf, Timer keyspace, @Nullable Timer global)
         {
+            Preconditions.checkState(keyspace != null, "Keyspace timer can't be null");
             this.cf = cf;
-            this.global = global;
-            this.all = new Timer[]{cf, keyspace, global};
+            this.keyspace = keyspace;
+            this.all = Stream.of(cf, keyspace, global).filter(Objects::nonNull).toArray(Timer[]::new);
         }
 
         public void update(long i, TimeUnit unit)
         {
-            for(Timer timer : all)
+            for (Timer timer : all)
             {
                 timer.update(i, unit);
             }
@@ -1325,6 +1558,11 @@ public class TableMetrics
         public Context time()
         {
             return new Context(all);
+        }
+
+        public Timer tableOrKeyspaceTimer()
+        {
+            return cf == null ? keyspace : cf;
         }
 
         public static class Context implements AutoCloseable
