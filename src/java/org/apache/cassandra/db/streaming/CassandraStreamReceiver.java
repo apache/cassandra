@@ -252,7 +252,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                 if (cfs.isRowCacheEnabled() || cfs.metadata().isCounter())
                 {
                     List<Bounds<Token>> boundsToInvalidate = new ArrayList<>(readers.size());
-                    readers.forEach(sstable -> boundsToInvalidate.add(new Bounds<Token>(sstable.first.getToken(), sstable.last.getToken())));
+                    readers.forEach(sstable -> boundsToInvalidate.add(new Bounds<Token>(sstable.getFirst().getToken(), sstable.getLast().getToken())));
                     Set<Bounds<Token>> nonOverlappingBounds = Bounds.getNonOverlappingBounds(boundsToInvalidate);
 
                     if (cfs.isRowCacheEnabled())

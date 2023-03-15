@@ -737,10 +737,10 @@ public class LeveledCompactionStrategyTest
                 SSTableReader prev = null;
                 for (SSTableReader sstable : level)
                 {
-                    if (prev != null && sstable.first.compareTo(prev.last) <= 0)
+                    if (prev != null && sstable.getFirst().compareTo(prev.getLast()) <= 0)
                     {
-                        String levelStr = level.stream().map(s -> String.format("[%s, %s]", s.first, s.last)).collect(Collectors.joining(", "));
-                        String overlap = String.format("sstable [%s, %s] overlaps with [%s, %s] in level %d (%s) ", sstable.first, sstable.last, prev.first, prev.last, i, levelStr);
+                        String levelStr = level.stream().map(s -> String.format("[%s, %s]", s.getFirst(), s.getLast())).collect(Collectors.joining(", "));
+                        String overlap = String.format("sstable [%s, %s] overlaps with [%s, %s] in level %d (%s) ", sstable.getFirst(), sstable.getLast(), prev.getFirst(), prev.getLast(), i, levelStr);
                         Assert.fail("[seed = "+seed+"] overlap in level "+lvl+": " + overlap);
                     }
                     prev = sstable;
@@ -849,7 +849,7 @@ public class LeveledCompactionStrategyTest
                 boolean kept = true;
                 for (SSTableReader sst : newLevel)
                 {
-                    if (prev != null && prev.last.compareTo(sst.first) >= 0)
+                    if (prev != null && prev.getLast().compareTo(sst.getFirst()) >= 0)
                     {
                         newLevel.remove(sstable);
                         kept = false;

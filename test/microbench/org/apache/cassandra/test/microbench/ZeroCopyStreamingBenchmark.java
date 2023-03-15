@@ -141,7 +141,7 @@ public class ZeroCopyStreamingBenchmark
                                      .withSerializationHeader(sstable.header.toComponent())
                                      .withComponentManifest(context.manifest())
                                      .isEntireSSTable(true)
-                                     .withFirstKey(sstable.first)
+                                     .withFirstKey(sstable.getFirst())
                                      .withTableId(sstable.metadata().id)
                                      .build();
 
@@ -150,7 +150,7 @@ public class ZeroCopyStreamingBenchmark
                                                                                                0, 0, 0,
                                                                                                null), entireSSTableStreamHeader, session);
 
-            List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(sstable.first.minValue().getToken(), sstable.last.getToken()));
+            List<Range<Token>> requestedRanges = Arrays.asList(new Range<>(sstable.getFirst().minValue().getToken(), sstable.getLast().getToken()));
             CassandraStreamHeader partialSSTableStreamHeader =
             CassandraStreamHeader.builder()
                                  .withSSTableVersion(sstable.descriptor.version)

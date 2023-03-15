@@ -183,7 +183,7 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
     public final UniqueIdentifier instanceId = new UniqueIdentifier();
 
-    public static final Comparator<SSTableReader> firstKeyComparator = (o1, o2) -> o1.first.compareTo(o2.first);
+    public static final Comparator<SSTableReader> firstKeyComparator = (o1, o2) -> o1.getFirst().compareTo(o2.getFirst());
     public static final Ordering<SSTableReader> firstKeyOrdering = Ordering.from(firstKeyComparator);
 
     public static final Comparator<SSTableReader> idComparator = Comparator.comparing(t -> t.descriptor.id, SSTableIdFactory.COMPARATOR);
@@ -267,8 +267,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     private volatile double crcCheckChance;
 
-    public final DecoratedKey first;
-    public final DecoratedKey last;
+    protected final DecoratedKey first;
+    protected final DecoratedKey last;
     public final AbstractBounds<Token> bounds;
 
     /**

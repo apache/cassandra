@@ -622,8 +622,8 @@ public class SSTableReaderTest
         SSTableReader target = SSTableReader.open(store, desc);
         try
         {
-            assert target.first.equals(firstKey);
-            assert target.last.equals(lastKey);
+            assert target.getFirst().equals(firstKey);
+            assert target.getLast().equals(lastKey);
         }
         finally
         {
@@ -851,13 +851,13 @@ public class SSTableReaderTest
         {
             assert indexCfs.isIndex();
             SSTableReader sstable = indexCfs.getLiveSSTables().iterator().next();
-            assert sstable.first.getToken() instanceof LocalToken;
+            assert sstable.getFirst().getToken() instanceof LocalToken;
 
             if (sstable instanceof IndexSummarySupport<?>)
             {
-                new IndexSummaryComponent(((IndexSummarySupport<?>) sstable).getIndexSummary(), sstable.first, sstable.last).save(sstable.descriptor.fileFor(Components.SUMMARY), true);
+                new IndexSummaryComponent(((IndexSummarySupport<?>) sstable).getIndexSummary(), sstable.getFirst(), sstable.getLast()).save(sstable.descriptor.fileFor(Components.SUMMARY), true);
                 SSTableReader reopened = SSTableReader.open(store, sstable.descriptor);
-                assert reopened.first.getToken() instanceof LocalToken;
+                assert reopened.getFirst().getToken() instanceof LocalToken;
                 reopened.selfRef().release();
             }
         }

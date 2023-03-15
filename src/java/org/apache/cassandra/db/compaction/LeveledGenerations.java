@@ -154,8 +154,8 @@ class LeveledGenerations
             SSTableReader after = level.ceiling(sstable);
             SSTableReader before = level.floor(sstable);
 
-            if (before != null && before.last.compareTo(sstable.first) >= 0 ||
-                after != null && after.first.compareTo(sstable.last) <= 0)
+            if (before != null && before.getLast().compareTo(sstable.getFirst()) >= 0 ||
+                after != null && after.getFirst().compareTo(sstable.getLast()) <= 0)
             {
                 sendToL0(sstable);
             }
@@ -264,7 +264,7 @@ class LeveledGenerations
         while (tail.hasNext())
         {
             SSTableReader potentialPivot = tail.peek();
-            if (potentialPivot.first.compareTo(lastCompactedSSTable.last) > 0)
+            if (potentialPivot.getFirst().compareTo(lastCompactedSSTable.getLast()) > 0)
             {
                 pivot = potentialPivot;
                 break;
@@ -322,7 +322,7 @@ class LeveledGenerations
             for (SSTableReader sstable : get(i))
             {
                 // no overlap:
-                assert prev == null || prev.last.compareTo(sstable.first) < 0;
+                assert prev == null || prev.getLast().compareTo(sstable.getFirst()) < 0;
                 prev = sstable;
                 // make sure it does not exist in any other level:
                 for (int j = 0; j < levelCount(); j++)

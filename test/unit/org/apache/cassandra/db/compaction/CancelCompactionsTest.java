@@ -361,7 +361,7 @@ public class CancelCompactionsTest extends CQLTester
 
     long first(SSTableReader sstable)
     {
-        return (long)sstable.first.getToken().getTokenValue();
+        return (long) sstable.getFirst().getToken().getTokenValue();
     }
 
     Token token(long t)
