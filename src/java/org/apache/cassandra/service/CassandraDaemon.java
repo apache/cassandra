@@ -25,7 +25,6 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -520,7 +519,7 @@ public class CassandraDaemon
         //     the system keyspace location configured by the user (upgrade to 4.0)
         //  3) The system data are stored in the first data location and need to be moved to
         //     the system keyspace location configured by the user (system_data_file_directory has been configured)
-        Path target = Paths.get(DatabaseDescriptor.getLocalSystemKeyspacesDataFileLocations()[0]);
+        Path target = File.getPath(DatabaseDescriptor.getLocalSystemKeyspacesDataFileLocations()[0]);
 
         String[] nonLocalSystemKeyspacesFileLocations = DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations();
         String[] sources = DatabaseDescriptor.useSpecificLocationForLocalSystemData() ? nonLocalSystemKeyspacesFileLocations
@@ -530,7 +529,7 @@ public class CassandraDaemon
 
         for (String source : sources)
         {
-            Path dataFileLocation = Paths.get(source);
+            Path dataFileLocation = File.getPath(source);
 
             if (!Files.exists(dataFileLocation))
                 continue;
