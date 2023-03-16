@@ -333,7 +333,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         for (int i = 0; i < size; i++)
         {
             markedAts[i] = timestamp;
-            delTimes[i] = localDeletionTime;
+            delTimesUnsignedIntegers[i] = localDeletionTime;
         }
     }
 

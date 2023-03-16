@@ -747,7 +747,7 @@ public class Keyspace
 
     public static Iterable<Keyspace> system()
     {
-        return Iterables.transform(Schema.instance.getLocalKeyspaces().names(), Keyspace::open);
+        return Iterables.transform(Schema.instance.localKeyspaces().names(), Keyspace::open);
     }
 
     @Override

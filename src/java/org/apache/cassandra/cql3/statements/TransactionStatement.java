@@ -371,7 +371,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 @SuppressWarnings("unchecked")
                 SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) returningSelect.select.getQuery(options, 0);
                 Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
-                ResultSetBuilder result = new ResultSetBuilder(resultMetadata, selectors, null);
+                ResultSetBuilder result = new ResultSetBuilder(resultMetadata, selectors, false);
                 if (selectQuery.queries.size() == 1)
                 {
                     FilteredPartition partition = data.get(TxnDataName.returning());
@@ -380,7 +380,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 }
                 else
                 {
-                    int nowInSec = FBUtilities.nowInSeconds();
+                    long nowInSec = FBUtilities.nowInSeconds();
                     for (int i = 0; i < selectQuery.queries.size(); i++)
                     {
                         FilteredPartition partition = data.get(TxnDataName.returning(i));
@@ -403,7 +403,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                     columns.add(reference.column());
                 }
 
-                ResultSetBuilder result = new ResultSetBuilder(resultMetadata, Selection.noopSelector(), null);
+                ResultSetBuilder result = new ResultSetBuilder(resultMetadata, Selection.noopSelector(), false);
                 result.newRow(options.getProtocolVersion(), null, null, columns);
 
                 for (int i = 0; i < returningReferences.size(); i++)

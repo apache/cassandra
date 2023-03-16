@@ -426,20 +426,21 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       isTrackingWarnings());
     }
 
-    public SinglePartitionReadCommand withNowInSec(int nowInSec)
+    public SinglePartitionReadCommand withNowInSec(long nowInSec)
     {
-        return new SinglePartitionReadCommand(isDigestQuery(),
-                                              digestVersion(),
-                                              acceptsTransient(),
-                                              metadata(),
-                                              nowInSec,
-                                              columnFilter(),
-                                              rowFilter(),
-                                              limits(),
-                                              partitionKey(),
-                                              clusteringIndexFilter(),
-                                              indexMetadata(),
-                                              isTrackingWarnings());
+        return create(serializedAtEpoch(),
+                      isDigestQuery(),
+                      digestVersion(),
+                      acceptsTransient(),
+                      metadata(),
+                      nowInSec,
+                      columnFilter(),
+                      rowFilter(),
+                      limits(),
+                      partitionKey(),
+                      clusteringIndexFilter(),
+                      indexQueryPlan(),
+                      isTrackingWarnings());
     }
 
     @Override

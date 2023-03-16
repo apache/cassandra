@@ -108,7 +108,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         {
             IPartitioner partitioner = getPartitioner();
             return new TokenKey(keyspace, isMin ?
-                                         partitioner.getMinimumToken().increaseSlightly() :
+                                         partitioner.getMinimumToken().nextValidToken() :
                                          partitioner.getMaximumToken().decreaseSlightly());
         }
 

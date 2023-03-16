@@ -596,7 +596,7 @@ public abstract class Constants
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
                 if (current == null)
                     return;
-                ByteBuffer newValue = type.substract(type, current, type, bytes);
+                ByteBuffer newValue = type.substract(type.compose(current), type.compose(bytes));
                 params.addCell(column, newValue);
             }
         }

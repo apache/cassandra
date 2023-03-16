@@ -432,7 +432,7 @@ public class AccordKeyspace
 
         if (value.isEmpty() && !prev.isEmpty())
         {
-            builder.addComplexDeletion(column, new DeletionTime(timestampMicros, nowInSec));
+            builder.addComplexDeletion(column, DeletionTime.build(timestampMicros, nowInSec));
             return;
         }
 
@@ -452,7 +452,7 @@ public class AccordKeyspace
 
         if (value.isEmpty() && !prev.isEmpty())
         {
-            builder.addComplexDeletion(column, new DeletionTime(timestampMicros, nowInSec));
+            builder.addComplexDeletion(column, DeletionTime.build(timestampMicros, nowInSec));
             return;
         }
 
@@ -684,7 +684,7 @@ public class AccordKeyspace
         Set<Timestamp> deletions = Sets.difference(prev.keySet(), value.keySet());
 
         Row.Deletion deletion = !deletions.isEmpty() ?
-                                Row.Deletion.regular(new DeletionTime(timestampMicros, nowInSeconds)) :
+                                Row.Deletion.regular(DeletionTime.build(timestampMicros, nowInSeconds)) :
                                 null;
         ByteBuffer ordinalBytes = bytes(kind.ordinal());
         value.forEach((timestamp, bytes) -> {
@@ -791,7 +791,7 @@ public class AccordKeyspace
         return clustering.accessor().toBuffer(clustering.get(idx));
     }
 
-    public static SinglePartitionReadCommand getCommandsForKeyRead(CommandStore commandStore, PartitionKey key, int nowInSeconds)
+    public static SinglePartitionReadCommand getCommandsForKeyRead(CommandStore commandStore, PartitionKey key, long nowInSeconds)
     {
         return SinglePartitionReadCommand.create(CommandsForKeys, nowInSeconds,
                                                  CommandsForKeyColumns.allColumns,
