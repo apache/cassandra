@@ -125,6 +125,8 @@ public class KubernetesSecretsPEMSslContextFactory extends KubernetesSecretsSslC
     private String pemEncodedCertificates;
     private PEMBasedSslContextFactory pemBasedSslContextFactory;
 
+    public boolean checkedExpiry = false;
+
     public KubernetesSecretsPEMSslContextFactory()
     {
         pemBasedSslContextFactory = new PEMBasedSslContextFactory();
@@ -135,12 +137,12 @@ public class KubernetesSecretsPEMSslContextFactory extends KubernetesSecretsSslC
         super(parameters);
 
         pemEncodedKey = getValueFromEnv(getString(PEMConfigKey.PRIVATE_KEY_ENV_VAR, DEFAULT_PRIVATE_KEY_ENV_VAR_NAME),
-                                        DEFAULT_PRIVATE_KEY);
+                DEFAULT_PRIVATE_KEY);
         keyPassword = getValueFromEnv(getString(PEMConfigKey.PRIVATE_KEY_PASSWORD_ENV_VAR,
-                                                DEFAULT_PRIVATE_KEY_PASSWORD_ENV_VAR_NAME),
-                                      DEFAULT_PRIVATE_KEY_PASSWORD);
+                        DEFAULT_PRIVATE_KEY_PASSWORD_ENV_VAR_NAME),
+                DEFAULT_PRIVATE_KEY_PASSWORD);
         pemEncodedCertificates = getValueFromEnv(getString(PEMConfigKey.TRUSTED_CERTIFICATE_ENV_VAR, DEFAULT_TRUSTED_CERTIFICATES_ENV_VAR_NAME),
-                                                 DEFAULT_TRUSTED_CERTIFICATES);
+                DEFAULT_TRUSTED_CERTIFICATES);
 
         parameters.put(PEMBasedSslContextFactory.ConfigKey.ENCODED_KEY.getKeyName(), pemEncodedKey);
         parameters.put(PEMBasedSslContextFactory.ConfigKey.KEY_PASSWORD.getKeyName(), keyPassword);
@@ -165,7 +167,7 @@ public class KubernetesSecretsPEMSslContextFactory extends KubernetesSecretsSslC
     protected KeyManagerFactory buildKeyManagerFactory() throws SSLException
     {
         KeyManagerFactory kmf = pemBasedSslContextFactory.buildKeyManagerFactory();
-        checkedExpiry = pemBasedSslContextFactory.checkedExpiry;
+        checkedExpiry = pemBasedSslContextFactory.keystoreContext.checkedExpiry;
         return kmf;
     }
 

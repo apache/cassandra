@@ -149,35 +149,36 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
 
     public KubernetesSecretsSslContextFactory()
     {
-        keystore = getString(EncryptionOptions.ConfigKey.KEYSTORE.toString(), KEYSTORE_PATH_VALUE);
-        keystore_password = getValueFromEnv(KEYSTORE_PASSWORD_ENV_VAR_NAME,
-                                            DEFAULT_KEYSTORE_PASSWORD);
-        truststore = getString(EncryptionOptions.ConfigKey.TRUSTSTORE.toString(), TRUSTSTORE_PATH_VALUE);
-        truststore_password = getValueFromEnv(TRUSTSTORE_PASSWORD_ENV_VAR_NAME,
-                                              DEFAULT_TRUSTSTORE_PASSWORD);
+        keystoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.KEYSTORE.toString(), KEYSTORE_PATH_VALUE),
+                getValueFromEnv(KEYSTORE_PASSWORD_ENV_VAR_NAME, DEFAULT_KEYSTORE_PASSWORD));
+
+        trustStoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.TRUSTSTORE.toString(), TRUSTSTORE_PATH_VALUE),
+                getValueFromEnv(TRUSTSTORE_PASSWORD_ENV_VAR_NAME, DEFAULT_TRUSTSTORE_PASSWORD));
+
         keystoreLastUpdatedTime = System.nanoTime();
         keystoreUpdatedTimeSecretKeyPath = getString(ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_PATH,
-                                                     KEYSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
+                KEYSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
         truststoreLastUpdatedTime = keystoreLastUpdatedTime;
         truststoreUpdatedTimeSecretKeyPath = getString(ConfigKeys.TRUSTSTORE_UPDATED_TIMESTAMP_PATH,
-                                                       TRUSTSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
+                TRUSTSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
     }
 
     public KubernetesSecretsSslContextFactory(Map<String, Object> parameters)
     {
         super(parameters);
-        keystore = getString(EncryptionOptions.ConfigKey.KEYSTORE.toString(), KEYSTORE_PATH_VALUE);
-        keystore_password = getValueFromEnv(getString(ConfigKeys.KEYSTORE_PASSWORD_ENV_VAR,
-                                                      KEYSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_KEYSTORE_PASSWORD);
-        truststore = getString(EncryptionOptions.ConfigKey.TRUSTSTORE.toString(), TRUSTSTORE_PATH_VALUE);
-        truststore_password = getValueFromEnv(getString(ConfigKeys.TRUSTSTORE_PASSWORD_ENV_VAR,
-                                                        TRUSTSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_TRUSTSTORE_PASSWORD);
+        keystoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.KEYSTORE.toString(), KEYSTORE_PATH_VALUE),
+                getValueFromEnv(getString(ConfigKeys.KEYSTORE_PASSWORD_ENV_VAR,
+                        KEYSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_KEYSTORE_PASSWORD));
+
+        trustStoreContext = new FileBasedStoreContext(getString(EncryptionOptions.ConfigKey.TRUSTSTORE.toString(), TRUSTSTORE_PATH_VALUE),
+                getValueFromEnv(getString(ConfigKeys.TRUSTSTORE_PASSWORD_ENV_VAR,
+                        TRUSTSTORE_PASSWORD_ENV_VAR_NAME), DEFAULT_TRUSTSTORE_PASSWORD));
         keystoreLastUpdatedTime = System.nanoTime();
         keystoreUpdatedTimeSecretKeyPath = getString(ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_PATH,
-                                                     KEYSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
+                KEYSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
         truststoreLastUpdatedTime = keystoreLastUpdatedTime;
         truststoreUpdatedTimeSecretKeyPath = getString(ConfigKeys.TRUSTSTORE_UPDATED_TIMESTAMP_PATH,
-                                                       TRUSTSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
+                TRUSTSTORE_UPDATED_TIMESTAMP_PATH_VALUE);
     }
 
     @Override
@@ -207,10 +208,10 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
     private boolean hasKeystoreUpdated() {
         long keystoreUpdatedTime = getKeystoreLastUpdatedTime();
         logger.info("Comparing keystore timestamps oldValue {} and newValue {}", keystoreLastUpdatedTime,
-                    keystoreUpdatedTime);
+                keystoreUpdatedTime);
         if (keystoreUpdatedTime > keystoreLastUpdatedTime) {
             logger.info("Updating the keystoreLastUpdatedTime from oldValue {} to newValue {}",
-                        keystoreLastUpdatedTime, keystoreUpdatedTime);
+                    keystoreLastUpdatedTime, keystoreUpdatedTime);
             keystoreLastUpdatedTime = keystoreUpdatedTime;
             return true;
         } else {
@@ -222,10 +223,10 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
     private boolean hasTruststoreUpdated() {
         long truststoreUpdatedTime = getTruststoreLastUpdatedTime();
         logger.info("Comparing truststore timestamps oldValue {} and newValue {}", truststoreLastUpdatedTime,
-                    truststoreUpdatedTime);
+                truststoreUpdatedTime);
         if (truststoreUpdatedTime > truststoreLastUpdatedTime) {
             logger.info("Updating the truststoreLastUpdatedTime from oldValue {} to newValue {}",
-                        truststoreLastUpdatedTime, truststoreUpdatedTime);
+                    truststoreLastUpdatedTime, truststoreUpdatedTime);
             truststoreLastUpdatedTime = truststoreUpdatedTime;
             return true;
         } else {
@@ -243,7 +244,7 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
         else
         {
             logger.warn("Failed to load {}'s value. Will use existing value {}", keystoreUpdatedTimeSecretKeyPath,
-                        keystoreLastUpdatedTime);
+                    keystoreLastUpdatedTime);
             return keystoreLastUpdatedTime;
         }
     }
@@ -257,7 +258,7 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
         else
         {
             logger.warn("Failed to load {}'s value. Will use existing value {}", truststoreUpdatedTimeSecretKeyPath,
-                        truststoreLastUpdatedTime);
+                    truststoreLastUpdatedTime);
             return truststoreLastUpdatedTime;
         }
     }
@@ -280,7 +281,7 @@ public class KubernetesSecretsSslContextFactory extends FileBasedSslContextFacto
             return Long.parseLong(latestUpdatedTime);
         } catch(NumberFormatException e) {
             logger.warn("Failed to parse the latestUpdatedTime {}. Will use current time {}", latestUpdatedTime,
-                        currentUpdatedTime, e);
+                    currentUpdatedTime, e);
             return currentUpdatedTime;
         }
     }
