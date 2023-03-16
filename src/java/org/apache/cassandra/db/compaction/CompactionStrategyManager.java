@@ -485,7 +485,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     private void reloadParamsFromSchema(CompactionParams newParams)
     {
         logger.debug("Recreating compaction strategy for {}.{} - compaction parameters changed via CQL",
-                     cfs.keyspace.getName(), cfs.getTableName());
+                     cfs.getKeyspaceName(), cfs.getTableName());
 
         /*
          * It's possible for compaction to be explicitly enabled/disabled
@@ -532,7 +532,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     private void reloadParamsFromJMX(CompactionParams newParams)
     {
         logger.debug("Recreating compaction strategy for {}.{} - compaction parameters changed via JMX",
-                     cfs.keyspace.getName(), cfs.getTableName());
+                     cfs.getKeyspaceName(), cfs.getTableName());
 
         setStrategy(newParams);
 
@@ -587,12 +587,12 @@ public class CompactionStrategyManager implements INotificationConsumer
         if (newBoundaries.isEquivalentTo(oldBoundaries))
         {
             logger.debug("Not recreating compaction strategy for {}.{} - disk boundaries are equivalent",
-                         cfs.keyspace.getName(), cfs.getTableName());
+                         cfs.getKeyspaceName(), cfs.getTableName());
             return;
         }
 
         logger.debug("Recreating compaction strategy for {}.{} - disk boundaries are out of date",
-                     cfs.keyspace.getName(), cfs.getTableName());
+                     cfs.getKeyspaceName(), cfs.getTableName());
         setStrategy(params);
         startup();
     }

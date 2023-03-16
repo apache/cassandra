@@ -51,10 +51,10 @@ public class DiskBoundaryManager
             {
                 if (diskBoundaries == null || diskBoundaries.isOutOfDate())
                 {
-                    logger.debug("Refreshing disk boundary cache for {}.{}", cfs.keyspace.getName(), cfs.getTableName());
+                    logger.debug("Refreshing disk boundary cache for {}.{}", cfs.getKeyspaceName(), cfs.getTableName());
                     DiskBoundaries oldBoundaries = diskBoundaries;
                     diskBoundaries = getDiskBoundaryValue(cfs);
-                    logger.debug("Updating boundaries from {} to {} for {}.{}", oldBoundaries, diskBoundaries, cfs.keyspace.getName(), cfs.getTableName());
+                    logger.debug("Updating boundaries from {} to {} for {}.{}", oldBoundaries, diskBoundaries, cfs.getKeyspaceName(), cfs.getTableName());
                 }
             }
         }
@@ -128,7 +128,7 @@ public class DiskBoundaryManager
         && !StorageService.isReplacingSameAddress()) // When replacing same address, the node marks itself as UN locally
         {
             PendingRangeCalculatorService.instance.blockUntilFinished();
-            localRanges = tmd.getPendingRanges(cfs.keyspace.getName(), FBUtilities.getBroadcastAddressAndPort());
+            localRanges = tmd.getPendingRanges(cfs.getKeyspaceName(), FBUtilities.getBroadcastAddressAndPort());
         }
         else
         {

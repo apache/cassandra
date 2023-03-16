@@ -180,7 +180,7 @@ public class TrieMemtableMetricsTest extends SchemaLoader
 
     private TrieMemtableMetricsView getMemtableMetrics(ColumnFamilyStore cfs)
     {
-        return new TrieMemtableMetricsView(cfs.keyspace.getName(), cfs.name);
+        return new TrieMemtableMetricsView(cfs.getKeyspaceName(), cfs.name);
     }
 
     private void writeAndFlush(int rows) throws IOException, ExecutionException, InterruptedException

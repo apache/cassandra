@@ -342,7 +342,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         for (ColumnFamilyStore cfs : SchemaArgsParser.parse(schemaArgs))
         {
-            String keyspace = cfs.keyspace.getName();
+            String keyspace = cfs.getKeyspaceName();
             Collection<Range<Token>> ranges = userRanges != null
                                               ? userRanges
                                               : StorageService.instance.getLocalReplicas(keyspace).ranges();
@@ -362,7 +362,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                               : null;
         for (ColumnFamilyStore cfs : SchemaArgsParser.parse(schemaArgs))
         {
-            String keyspace = cfs.keyspace.getName();
+            String keyspace = cfs.getKeyspaceName();
             Collection<Range<Token>> ranges = userRanges != null
                                               ? userRanges
                                               : StorageService.instance.getLocalReplicas(keyspace).ranges();
@@ -382,7 +382,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                               : null;
         for (ColumnFamilyStore cfs : SchemaArgsParser.parse(schemaArgs))
         {
-            String keyspace = cfs.keyspace.getName();
+            String keyspace = cfs.getKeyspaceName();
             Collection<Range<Token>> ranges = userRanges != null
                                               ? userRanges
                                               : StorageService.instance.getLocalReplicas(keyspace).ranges();

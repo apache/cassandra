@@ -346,7 +346,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 if (history != null)
                     return history;
 
-                history = TablePaxosRepairHistory.load(keyspace.getName(), name);
+                history = TablePaxosRepairHistory.load(getKeyspaceName(), name);
                 return history;
             }
         }
@@ -487,7 +487,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         additionalWriteLatencyMicros = DatabaseDescriptor.getWriteRpcTimeout(TimeUnit.MICROSECONDS) / 2;
         memtableFactory = metadata.get().params.memtable.factory();
 
-        logger.info("Initializing {}.{}", keyspace.getName(), name);
+        logger.info("Initializing {}.{}", getKeyspaceName(), name);
 
         // Create Memtable and its metrics object only on online
         Memtable initialMemtable = null;
@@ -538,8 +538,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         if (registerBookeeping)
         {
             // register the mbean
-            mbeanName = getTableMBeanName(keyspace.getName(), name, isIndex());
-            oldMBeanName = getColumnFamilieMBeanName(keyspace.getName(), name, isIndex());
+            mbeanName = getTableMBeanName(getKeyspaceName(), name, isIndex());
+            oldMBeanName = getColumnFamilieMBeanName(getKeyspaceName(), name, isIndex());
 
             String[] objectNames = {mbeanName, oldMBeanName};
             for (String objectName : objectNames)
@@ -555,7 +555,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         repairManager = new CassandraTableRepairManager(this);
         sstableImporter = new SSTableImporter(this);
 
-        if (SchemaConstants.isSystemKeyspace(keyspace.getName()))
+        if (SchemaConstants.isSystemKeyspace(getKeyspaceName()))
             topPartitions = null;
         else
             topPartitions = new TopPartitionTracker(metadata());
@@ -884,7 +884,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public void rebuildSecondaryIndex(String idxName)
     {
-        rebuildSecondaryIndex(keyspace.getName(), metadata.name, idxName);
+        rebuildSecondaryIndex(getKeyspaceName(), metadata.name, idxName);
     }
 
     public static void rebuildSecondaryIndex(String ksName, String cfName, String... idxNames)
@@ -920,6 +920,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return name;
     }
 
+    public String getKeyspaceName()
+    {
+        return keyspace.getName();
+    }
+
     public Descriptor newSSTableDescriptor(File directory)
     {
         return newSSTableDescriptor(directory, SSTableFormat.Type.current().info.getLatestVersion(), SSTableFormat.Type.current());
@@ -934,7 +939,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         Descriptor newDescriptor = new Descriptor(version,
                                                   directory,
-                                                  keyspace.getName(),
+                                                  getKeyspaceName(),
                                                   name,
                                                   sstableIdGenerator.get(),
                                                   format);
@@ -1001,7 +1006,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         for (ColumnFamilyStore indexCfs : indexManager.getAllIndexColumnFamilyStores())
             indexCfs.getTracker().getView().getCurrentMemtable().addMemoryUsageTo(usage);
 
-        logger.info("Enqueuing flush of {}.{}, Reason: {}, Usage: {}", keyspace.getName(), name, reason, usage);
+        logger.info("Enqueuing flush of {}.{}, Reason: {}, Usage: {}", getKeyspaceName(), name, reason, usage);
     }
 
 
@@ -1248,7 +1253,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 {
                     // flush the memtable
                     flushRunnables = Flushing.flushRunnables(cfs, memtable, txn);
-                    ExecutorPlus[] executors = perDiskflushExecutors.getExecutorsFor(keyspace.getName(), name);
+                    ExecutorPlus[] executors = perDiskflushExecutors.getExecutorsFor(getKeyspaceName(), name);
 
                     for (int i = 0; i < flushRunnables.size(); i++)
                         futures.add(executors[i].submit(flushRunnables.get(i)));
@@ -1438,7 +1443,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             throw new RuntimeException(e.getMessage()
                                        + " for ks: "
-                                       + keyspace.getName() + ", table: " + name, e);
+                                       + getKeyspaceName() + ", table: " + name, e);
         }
     }
 
@@ -1456,7 +1461,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             List<Splitter.WeightedRange> weightedRanges;
             long ringVersion;
-            if (!SchemaConstants.isLocalSystemKeyspace(keyspace.getName())
+            if (!SchemaConstants.isLocalSystemKeyspace(getKeyspaceName())
                 && getPartitioner() == StorageService.instance.getTokenMetadata().partitioner)
             {
                 DiskBoundaryManager.VersionedRangesAtEndpoint versionedLocalRanges = DiskBoundaryManager.getVersionedLocalRanges(this);
@@ -1492,7 +1497,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             shardBoundaries = new ShardBoundaries(boundaries.subList(0, boundaries.size() - 1),
                                                   ringVersion);
             cachedShardBoundaries = shardBoundaries;
-            logger.debug("Memtable shard boundaries for {}.{}: {}", keyspace.getName(), getTableName(), boundaries);
+            logger.debug("Memtable shard boundaries for {}.{}: {}", getKeyspaceName(), getTableName(), boundaries);
         }
         return shardBoundaries;
     }
@@ -1620,7 +1625,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         // cleanup size estimation only counts bytes for keys local to this node
         long expectedFileSize = 0;
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).ranges();
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(getKeyspaceName()).ranges();
         for (SSTableReader sstable : sstables)
         {
             List<SSTableReader.PartitionPositionBounds> positions = sstable.getPositionsForRanges(ranges);
@@ -1987,7 +1992,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             //Not duplicating the buffer for safety because AbstractSerializer and ByteBufferUtil.bytesToHex
             //don't modify position or limit
             result.add(new CompositeDataSupport(COUNTER_COMPOSITE_TYPE, COUNTER_NAMES, new Object[] {
-                    keyspace.getName() + "." + name,
+                    getKeyspaceName() + "." + name,
                     counter.count,
                     counter.error,
                     samplerImpl.toString(counter.value) })); // string
@@ -2009,7 +2014,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public void cleanupCache()
     {
-        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(keyspace.getName()).ranges();
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalReplicas(getKeyspaceName()).ranges();
 
         for (Iterator<RowCacheKey> keyIter = CacheService.instance.rowCache.keyIterator();
              keyIter.hasNext(); )
@@ -2642,7 +2647,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // beginning if we restart before they [the CL segments] are discarded for
         // normal reasons post-truncate.  To prevent this, we store truncation
         // position in the System keyspace.
-        logger.info("Truncating {}.{}", keyspace.getName(), name);
+        logger.info("Truncating {}.{}", getKeyspaceName(), name);
 
         viewManager.stopBuild();
 
@@ -2676,7 +2681,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             public void run()
             {
-                logger.info("Truncating {}.{} with truncatedAt={}", keyspace.getName(), getTableName(), truncatedAt);
+                logger.info("Truncating {}.{} with truncatedAt={}", getKeyspaceName(), getTableName(), truncatedAt);
                 // since truncation can happen at different times on different nodes, we need to make sure
                 // that any repairs are aborted, otherwise we might clear the data on one node and then
                 // stream in data that is actually supposed to have been deleted
@@ -2703,7 +2708,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         viewManager.build();
 
-        logger.info("Truncate of {}.{} is complete", keyspace.getName(), name);
+        logger.info("Truncate of {}.{} is complete", getKeyspaceName(), name);
     }
 
     /**
@@ -2865,7 +2870,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public String toString()
     {
         return "CFS(" +
-               "Keyspace='" + keyspace.getName() + '\'' +
+               "Keyspace='" + getKeyspaceName() + '\'' +
                ", ColumnFamily='" + name + '\'' +
                ')';
     }
@@ -3305,9 +3310,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public void setNeverPurgeTombstones(boolean value)
     {
         if (neverPurgeTombstones != value)
-            logger.info("Changing neverPurgeTombstones for {}.{} from {} to {}", keyspace.getName(), getTableName(), neverPurgeTombstones, value);
+            logger.info("Changing neverPurgeTombstones for {}.{} from {} to {}", getKeyspaceName(), getTableName(), neverPurgeTombstones, value);
         else
-            logger.info("Not changing neverPurgeTombstones for {}.{}, it is {}", keyspace.getName(), getTableName(), neverPurgeTombstones);
+            logger.info("Not changing neverPurgeTombstones for {}.{}, it is {}", getKeyspaceName(), getTableName(), neverPurgeTombstones);
 
         neverPurgeTombstones = value;
     }
