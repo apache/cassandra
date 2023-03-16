@@ -57,7 +57,6 @@ import org.apache.cassandra.cql3.transactions.ConditionStatement;
 import org.apache.cassandra.cql3.transactions.ReferenceOperation;
 import org.apache.cassandra.cql3.transactions.RowDataReference;
 import org.apache.cassandra.cql3.transactions.SelectReferenceSource;
-import org.apache.cassandra.db.ReadQuery;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -77,7 +76,6 @@ import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.LazyToString;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
@@ -89,14 +87,13 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     private static final Logger logger = LoggerFactory.getLogger(TransactionStatement.class);
 
     public static final String DUPLICATE_TUPLE_NAME_MESSAGE = "The name '%s' has already been used by a LET assignment.";
-    public static final String INCOMPLETE_PRIMARY_KEY_LET_MESSAGE = "SELECT in LET assignment must specify either all primary key elements or all partition key elements and LIMIT 1. In both cases partition key elements must be always specified with equality operators; CQL %s";
-    public static final String INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE = "Normal SELECT must specify either all primary key elements or all partition key elements and LIMIT 1. In both cases partition key elements must be always specified with equality operators; CQL %s";
-    public static final String NO_CONDITIONS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify their own conditions.";
-    public static final String NO_TIMESTAMPS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify custom timestamps.";
+    public static final String INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE = "SELECT must specify either all primary key elements or all partition key elements and LIMIT 1. In both cases partition key elements must be always specified with equality operators; %s %s";
+    public static final String NO_CONDITIONS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify their own conditions; %s statement %s";
+    public static final String NO_TIMESTAMPS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify custom timestamps; %s statement %s";
     public static final String EMPTY_TRANSACTION_MESSAGE = "Transaction contains no reads or writes";
     public static final String SELECT_REFS_NEED_COLUMN_MESSAGE = "SELECT references must specify a column.";
     public static final String TRANSACTIONS_DISABLED_MESSAGE = "Accord transactions are disabled. (See accord_transactions_enabled in cassandra.yaml)";
-    public static final String ILLEGAL_RANGE_QUERY_MESSAGE = "Range queries are not allowed for reads within a transaction";
+    public static final String ILLEGAL_RANGE_QUERY_MESSAGE = "Range queries are not allowed for reads within a transaction; %s %s";
 
     static class NamedSelect
     {
@@ -207,12 +204,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     TxnNamedRead createNamedRead(NamedSelect namedSelect, QueryOptions options, ClientState state)
     {
         SelectStatement select = namedSelect.select;
-        ReadQuery readQuery = select.getQuery(options, 0);
-        checkTrue(readQuery instanceof  SinglePartitionReadQuery.Group, ILLEGAL_RANGE_QUERY_MESSAGE, select.asCQL(options, state));
-
         // We reject reads from both LET and SELECT that do not specify a single row.
         @SuppressWarnings("unchecked")
-        SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
+        SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) select.getQuery(options, 0);
 
         if (selectQuery.queries.size() != 1)
             throw new IllegalArgumentException("Within a transaction, SELECT statements must select a single partition; found " + selectQuery.queries.size() + " partitions");
@@ -223,12 +217,9 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     List<TxnNamedRead> createNamedReads(NamedSelect namedSelect, QueryOptions options, ClientState state)
     {
         SelectStatement select = namedSelect.select;
-        ReadQuery readQuery = select.getQuery(options, 0);
-        checkTrue(readQuery instanceof  SinglePartitionReadQuery.Group, ILLEGAL_RANGE_QUERY_MESSAGE, select.asCQL(options, state));
-
         // We reject reads from both LET and SELECT that do not specify a single row.
         @SuppressWarnings("unchecked")
-        SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
+        SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) select.getQuery(options, 0);
 
         if (selectQuery.queries.size() == 1)
             return Collections.singletonList(new TxnNamedRead(namedSelect.name, Iterables.getOnlyElement(selectQuery.queries)));
@@ -339,24 +330,24 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         }
     }
 
-    private static void checkAtMostOneRowSpecified(ClientState clientState, @Nullable QueryOptions options, SelectStatement select, String failureMessage)
+    /**
+     * Returns {@code true} only if the statement selects multiple clusterings in a partition
+     */
+    private static boolean isSelectingMultipleClusterings(SelectStatement select, @Nullable QueryOptions options)
     {
         if (select.getRestrictions().hasAllPrimaryKeyColumnsRestrictedByEqualities())
-            return;
+            return false;
 
         if (options == null)
         {
-            // If the limit is a non-terminal marker (because we're preparing), defer validation until execution.
+            // if the limit is a non-terminal marker (because we're preparing), defer validation until execution (when options != null)
             if (select.isLimitMarker())
-                return;
+                return false;
 
-            // The limit is already defined, so proceed with validation...
             options = QueryOptions.DEFAULT;
         }
 
-        int limit = select.getLimit(options);
-        QueryOptions finalOptions = options; // javac thinks this is mutable so requires a copy
-        checkTrue(limit == 1 && select.getRestrictions().hasAllPartitionKeyColumnsRestrictedByEqualities(), failureMessage, LazyToString.lazy(() -> select.asCQL(finalOptions, clientState)));
+        return select.getLimit(options) != 1;
     }
 
     @Override
@@ -366,21 +357,19 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
         try
         {
+            // check again since now we have query options; note that statements are quaranted to be single partition reads at this point
             for (NamedSelect assignment : assignments)
-                checkAtMostOneRowSpecified(state.getClientState(), options, assignment.select, INCOMPLETE_PRIMARY_KEY_LET_MESSAGE);
+                checkFalse(isSelectingMultipleClusterings(assignment.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "LET assignment", assignment.select.source);
 
             if (returningSelect != null)
-                checkAtMostOneRowSpecified(state.getClientState(), options, returningSelect.select, INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE);
+                checkFalse(isSelectingMultipleClusterings(returningSelect.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "returning SELECT", returningSelect.select.source);
 
             TxnData data = AccordService.instance().coordinate(createTxn(state.getClientState(), options), options.getConsistency());
 
             if (returningSelect != null)
             {
-                ReadQuery readQuery = returningSelect.select.getQuery(options, 0);
-                checkTrue(readQuery instanceof  SinglePartitionReadQuery.Group, ILLEGAL_RANGE_QUERY_MESSAGE, returningSelect.select.asCQL(options, state.getClientState()));
-
                 @SuppressWarnings("unchecked")
-                SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) readQuery;
+                SinglePartitionReadQuery.Group<SinglePartitionReadCommand> selectQuery = (SinglePartitionReadQuery.Group<SinglePartitionReadCommand>) returningSelect.select.getQuery(options, 0);
                 Selection.Selectors selectors = returningSelect.select.getSelection().newSelectors(options);
                 ResultSetBuilder result = new ResultSetBuilder(resultMetadata, selectors, null);
                 if (selectQuery.queries.size() == 1)
@@ -505,7 +494,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
 
                 SelectStatement prepared = select.prepare(bindVariables);
                 NamedSelect namedSelect = new NamedSelect(name, prepared);
-                checkAtMostOneRowSpecified(state, null, namedSelect.select, INCOMPLETE_PRIMARY_KEY_LET_MESSAGE);
+                checkAtMostOneRowSpecified(namedSelect.select, "LET assignment " + name.name());
                 preparedAssignments.add(namedSelect);
                 refSources.put(name, new SelectReferenceSource(prepared));
             }
@@ -518,7 +507,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             if (select != null)
             {
                 returningSelect = new NamedSelect(TxnDataName.returning(), select.prepare(bindVariables));
-                checkAtMostOneRowSpecified(state, null, returningSelect.select, INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE);
+                checkAtMostOneRowSpecified(returningSelect.select, "returning select");
             }
 
             List<RowDataReference> returningReferences = null;
@@ -539,8 +528,8 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 ModificationStatement.Parsed parsed = updates.get(i);
 
                 ModificationStatement prepared = parsed.prepare(state, bindVariables);
-                checkFalse(prepared.hasConditions(), NO_CONDITIONS_IN_UPDATES_MESSAGE);
-                checkFalse(prepared.isTimestampSet(), NO_TIMESTAMPS_IN_UPDATES_MESSAGE);
+                checkFalse(prepared.hasConditions(), NO_CONDITIONS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
+                checkFalse(prepared.isTimestampSet(), NO_TIMESTAMPS_IN_UPDATES_MESSAGE, prepared.type, prepared.source);
 
                 preparedUpdates.add(prepared);
             }
@@ -551,6 +540,16 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
                 preparedConditions.add(condition.prepare("[txn]", bindVariables));
 
             return new TransactionStatement(preparedAssignments, returningSelect, returningReferences, preparedUpdates, preparedConditions, bindVariables);
+        }
+
+        /**
+         * Do not use this method in execution!!! It is only allowed during prepare because it outputs a query raw text.
+         * We don't want it print it for a user who provided an identifier of someone's else prepared statement.
+         */
+        private static void checkAtMostOneRowSpecified(SelectStatement select, String name)
+        {
+            checkFalse(select.isPartitionRangeQuery(), ILLEGAL_RANGE_QUERY_MESSAGE, name, select.source);
+            checkFalse(isSelectingMultipleClusterings(select, null), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, name, select.source);
         }
     }
 }
