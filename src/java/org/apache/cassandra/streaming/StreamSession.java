@@ -701,7 +701,7 @@ public class StreamSession
             state(State.FAILED); // make sure subsequent error handling sees the session in a final state 
             channel.sendControlMessage(new SessionFailedMessage()).awaitUninterruptibly();
         }
-        StringBuilder failureReason = new StringBuilder("Failed because of an unkown exception\n");
+        StringBuilder failureReason = new StringBuilder("Failed because of an unknown exception\n");
         boundStackTrace(e, 2, failureReason); //bound the stacktrace with a specified limit on the number of lines
         return closeSession(State.FAILED, failureReason.toString());
     }
