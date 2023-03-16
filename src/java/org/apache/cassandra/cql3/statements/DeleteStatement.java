@@ -19,9 +19,20 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.List;
 
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
+
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.Attributes;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Operation;
+import org.apache.cassandra.cql3.Operations;
+import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.StatementSource;
+import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.WhereClause;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.cql3.conditions.Conditions;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
@@ -33,8 +44,6 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.Pair;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -49,9 +58,10 @@ public class DeleteStatement extends ModificationStatement
                             Operations operations,
                             StatementRestrictions restrictions,
                             Conditions conditions,
-                            Attributes attrs)
+                            Attributes attrs,
+                            StatementSource source)
     {
-        super(StatementType.DELETE, bindVariables, cfm, operations, restrictions, conditions, attrs);
+        super(StatementType.DELETE, bindVariables, cfm, operations, restrictions, conditions, attrs, source);
     }
 
     @Override
@@ -132,9 +142,10 @@ public class DeleteStatement extends ModificationStatement
                       List<Operation.RawDeletion> deletions,
                       WhereClause whereClause,
                       List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions,
-                      boolean ifExists)
+                      boolean ifExists,
+                      StatementSource source)
         {
-            super(name, StatementType.DELETE, attrs, conditions, false, ifExists);
+            super(name, StatementType.DELETE, attrs, conditions, false, ifExists, source);
             this.deletions = deletions;
             this.whereClause = whereClause;
         }
@@ -174,7 +185,8 @@ public class DeleteStatement extends ModificationStatement
                                                        operations,
                                                        restrictions,
                                                        conditions,
-                                                       attrs);
+                                                       attrs,
+                                                       source);
 
             if (stmt.hasConditions() && !restrictions.hasAllPrimaryKeyColumnsRestrictedByEqualities())
             {
