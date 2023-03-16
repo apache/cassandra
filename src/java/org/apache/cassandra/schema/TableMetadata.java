@@ -34,6 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.SchemaElement;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
@@ -428,6 +429,22 @@ public class TableMetadata implements SchemaElement
         for (ColumnMetadata column : columns.values())
         {
             if (column.isMasked())
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param function a user function
+     * @return {@code true} if the table has any masked column depending on the specified user function,
+     * {@code false} otherwise.
+     */
+    public boolean dependsOn(Function function)
+    {
+        for (ColumnMetadata column : columns.values())
+        {
+            ColumnMask mask = column.getMask();
+            if (mask != null && mask.function.name().equals(function.name()))
                 return true;
         }
         return false;

@@ -31,7 +31,6 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.cql3.functions.UserFunction;
-import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -121,26 +120,15 @@ public final class DropFunctionStatement extends AlterSchemaStatement
         if (!dependentAggregates.isEmpty())
             throw ire("Function '%s' is still referenced by aggregates %s", name, dependentAggregates);
 
-        String dependentMasks = keyspace.tables.stream()
-                                               .filter(table -> hasDependingMask(table, function))
-                                               .map(table -> table.name)
-                                               .collect(joining(", "));
+        String dependentTables =
+            keyspace.tablesUsingFunction(function)
+                    .map(table -> table.name)
+                    .collect(joining(", "));
 
-        if (!dependentMasks.isEmpty())
-            throw ire("Function '%s' is still referenced by column masks in tables %s", name, dependentMasks);
+        if (!dependentTables.isEmpty())
+            throw ire("Function '%s' is still referenced by column masks in tables %s", name, dependentTables);
 
         return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.userFunctions.without(function)));
-    }
-
-    private static boolean hasDependingMask(TableMetadata table, UserFunction function)
-    {
-        for (ColumnMetadata column : table.columns())
-        {
-            ColumnMask mask = column.getMask();
-            if (mask != null && mask.function.name().equals(function.name()))
-                return true;
-        }
-        return false;
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
