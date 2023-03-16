@@ -155,7 +155,7 @@ public class AsyncOperationTest
             Assert.assertNull(cfk);
         }));
 
-        int nowInSeconds = FBUtilities.nowInSeconds();
+        long nowInSeconds = FBUtilities.nowInSeconds();
         SinglePartitionReadCommand command = AccordKeyspace.getCommandsForKeyRead(commandStore, key, nowInSeconds);
         try(ReadExecutionController controller = command.executionController();
             FilteredPartitions partitions = FilteredPartitions.filter(command.executeLocally(controller), nowInSeconds))

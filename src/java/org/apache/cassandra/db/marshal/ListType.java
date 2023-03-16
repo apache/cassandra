@@ -124,7 +124,7 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
-    public AbstractType<?> freeze()
+    public ListType<T> freeze()
     {
         // freeze elements to match org.apache.cassandra.cql3.CQL3Type.Raw.RawCollection.freeze
         return isMultiCell ? getInstance(this.elements.freeze(), false) : this;

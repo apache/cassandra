@@ -148,7 +148,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     }
 
     @Override
-    public AbstractType<?> freeze()
+    public MapType<K, V> freeze()
     {
         // freeze key/value to match org.apache.cassandra.cql3.CQL3Type.Raw.RawCollection.freeze
         return isMultiCell ? getInstance(this.keys.freeze(), this.values.freeze(), false) : this;

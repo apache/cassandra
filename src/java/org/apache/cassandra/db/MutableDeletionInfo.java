@@ -233,7 +233,7 @@ public class MutableDeletionInfo implements DeletionInfo
     public DeletionInfo updateAllTimestampAndLocalDeletionTime(long timestamp, int localDeletionTime)
     {
         if (partitionDeletion.markedForDeleteAt() != Long.MIN_VALUE)
-            partitionDeletion = new DeletionTime(timestamp, localDeletionTime);
+            partitionDeletion = DeletionTime.build(timestamp, localDeletionTime);
 
         if (ranges != null)
             ranges.updateAllTimestampAndLocalDeletionTime(timestamp, localDeletionTime);
