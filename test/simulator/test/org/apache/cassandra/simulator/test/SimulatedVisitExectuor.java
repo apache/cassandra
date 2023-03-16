@@ -77,11 +77,11 @@ public class SimulatedVisitExectuor extends VisitExecutor
         bindings.toArray(bindingsArray);
 
         action = new SimulatedActionCallable<SimpleQueryResult>("Batch",
-                                                         Action.Modifiers.RELIABLE_NO_TIMEOUTS,
-                                                         Action.Modifiers.RELIABLE_NO_TIMEOUTS,
-                                                         simulation.simulated,
-                                                         simulation.cluster.get((int) ((lts.get(0) % simulation.cluster.size()) + 1)),
-                                                         new RetryingQuery(query, cl, bindingsArray))
+                                                                Action.Modifiers.RELIABLE_NO_TIMEOUTS,
+                                                                Action.Modifiers.RELIABLE_NO_TIMEOUTS,
+                                                                simulation.simulated,
+                                                                simulation.cluster.get((int) ((lts.get(0) % simulation.cluster.size()) + 1)),
+                                                                new RetryingQuery(query, cl, bindingsArray))
         {
             private final List<Long> localLts = new ArrayList<>(SimulatedVisitExectuor.this.lts);
 

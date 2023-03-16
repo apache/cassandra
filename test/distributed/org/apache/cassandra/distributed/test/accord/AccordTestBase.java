@@ -139,7 +139,7 @@ public abstract class AccordTestBase extends TestBaseImpl
                            .withoutVNodes()
                            .withConfig(c -> c.with(Feature.NETWORK).set("write_request_timeout", "10s")
                                                                    .set("transaction_timeout", "15s")
-                                                                   .set("legacy_paxos_strategy", "accord"))
+                                                                   .set("legacy_paxos_strategy", "migration")) // TODO: switch back to "accord" when TrM integration works
                            .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install)
                            .withInstanceInitializer(BBAccordCoordinateCountHelper::install)
                            .start());
