@@ -36,7 +36,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.apache.cassandra.cql3.statements.TransactionStatement.DUPLICATE_TUPLE_NAME_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.EMPTY_TRANSACTION_MESSAGE;
-import static org.apache.cassandra.cql3.statements.TransactionStatement.INCOMPLETE_PRIMARY_KEY_LET_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.ILLEGAL_RANGE_QUERY_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_CONDITIONS_IN_UPDATES_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_TIMESTAMPS_IN_UPDATES_MESSAGE;
@@ -162,7 +162,7 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_LET_MESSAGE, letSelect));
+                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "LET assignment row1", "at [2:15]"));
     }
 
     @Test
@@ -176,7 +176,7 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> execute(query, 2))
                   .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_LET_MESSAGE, letSelect.replace("?", "2")));
+                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "LET assignment", "at [2:15]"));
     }
 
     @Test
@@ -190,7 +190,7 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_LET_MESSAGE, letSelect));
+                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "LET assignment row1", "at [2:15]"));
     }
 
     @Test
@@ -201,7 +201,7 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, select));
+                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "returning select", "at [2:1]"));
     }
 
     @Test
@@ -212,7 +212,7 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, select));
+                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "returning select", "at [2:1]"));
     }
 
     @Test
@@ -224,7 +224,7 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(NO_CONDITIONS_IN_UPDATES_MESSAGE);
+                  .hasMessageContaining(NO_CONDITIONS_IN_UPDATES_MESSAGE, "INSERT", "at [2:3]");
     }
 
     @Test
@@ -236,7 +236,7 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(NO_TIMESTAMPS_IN_UPDATES_MESSAGE);
+                  .hasMessageContaining(NO_TIMESTAMPS_IN_UPDATES_MESSAGE, "INSERT", "at [2:3]");
     }
 
     @Test
@@ -336,26 +336,28 @@ public class TransactionStatementTest
     @Test
     public void shouldRejectNormalSelectWithIncompletePartitionKey()
     {
+        String select = "SELECT k, v FROM ks.tbl5 LIMIT 1";
         String query = "BEGIN TRANSACTION\n" +
-                       "  SELECT k, v FROM ks.tbl5 LIMIT 1;\n" +
+                       select + ";\n" +
                        "COMMIT TRANSACTION;\n";
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "SELECT v FROM ks.tbl5 LIMIT 1"));
+                  .hasMessageContaining(String.format(ILLEGAL_RANGE_QUERY_MESSAGE, "returning select", "at [2:1]"));
     }
 
     @Test
     public void shouldRejectLetSelectWithIncompletePartitionKey()
     {
+        String select = "SELECT k, v FROM ks.tbl5 WHERE token(k) > token(123) LIMIT 1";
         String query = "BEGIN TRANSACTION\n" +
-                       "  LET row1 = (SELECT k, v FROM ks.tbl5 WHERE token(k) > token(123) LIMIT 1); \n" +
+                       "  LET row1 = (" + select + "); \n" +
                        "  SELECT row1.k, row1.v;\n" +
                        "COMMIT TRANSACTION;\n";
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(InvalidRequestException.class)
-                  .hasMessageContaining(String.format(INCOMPLETE_PRIMARY_KEY_LET_MESSAGE, "SELECT v FROM ks.tbl5 WHERE token(k) > 0000007b LIMIT 1"));
+                  .hasMessageContaining(String.format(ILLEGAL_RANGE_QUERY_MESSAGE, "LET assignment row1", "at [2:15]"));
     }
 
     private static CQLStatement prepare(String query)

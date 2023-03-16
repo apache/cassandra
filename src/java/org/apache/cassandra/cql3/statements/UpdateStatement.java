@@ -24,16 +24,29 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.base.Preconditions;
+import org.apache.commons.lang3.builder.ToStringBuilder;
+import org.apache.commons.lang3.builder.ToStringStyle;
 
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.Attributes;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Relation;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.Json;
+import org.apache.cassandra.cql3.Operation;
+import org.apache.cassandra.cql3.Operations;
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.StatementSource;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.WhereClause;
 import org.apache.cassandra.cql3.conditions.ColumnCondition;
 import org.apache.cassandra.cql3.conditions.Conditions;
 import org.apache.cassandra.cql3.constraints.ColumnConstraint;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
-import org.apache.cassandra.cql3.terms.Constants;
-import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.transactions.ReferenceOperation;
 import org.apache.cassandra.cql3.transactions.ReferenceValue;
 import org.apache.cassandra.db.Clustering;
@@ -47,8 +60,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.txn.TxnReferenceOperation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
-import org.apache.commons.lang3.builder.ToStringBuilder;
-import org.apache.commons.lang3.builder.ToStringStyle;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkContainsNoDuplicates;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -70,9 +81,10 @@ public class UpdateStatement extends ModificationStatement
                             Operations operations,
                             StatementRestrictions restrictions,
                             Conditions conditions,
-                            Attributes attrs)
+                            Attributes attrs,
+                            StatementSource source)
     {
-        super(type, bindVariables, metadata, operations, restrictions, conditions, attrs);
+        super(type, bindVariables, metadata, operations, restrictions, conditions, attrs, source);
     }
 
     @Override
@@ -145,9 +157,10 @@ public class UpdateStatement extends ModificationStatement
                             Attributes.Raw attrs,
                             List<ColumnIdentifier> columnNames,
                             List<Term.Raw> columnValues,
-                            boolean ifNotExists)
+                            boolean ifNotExists,
+                            StatementSource source)
         {
-            super(name, StatementType.INSERT, attrs, null, ifNotExists, false);
+            super(name, StatementType.INSERT, attrs, null, ifNotExists, false, source);
             this.columnNames = columnNames;
             this.columnValues = columnValues;
         }
@@ -219,7 +232,8 @@ public class UpdateStatement extends ModificationStatement
                                        operations,
                                        restrictions,
                                        conditions,
-                                       attrs);
+                                       attrs,
+                                       source);
         }
     }
 
@@ -231,9 +245,9 @@ public class UpdateStatement extends ModificationStatement
         private final Json.Raw jsonValue;
         private final boolean defaultUnset;
 
-        public ParsedInsertJson(QualifiedName name, Attributes.Raw attrs, Json.Raw jsonValue, boolean defaultUnset, boolean ifNotExists)
+        public ParsedInsertJson(QualifiedName name, Attributes.Raw attrs, Json.Raw jsonValue, boolean defaultUnset, boolean ifNotExists, StatementSource source)
         {
-            super(name, StatementType.INSERT, attrs, null, ifNotExists, false);
+            super(name, StatementType.INSERT, attrs, null, ifNotExists, false, source);
             this.jsonValue = jsonValue;
             this.defaultUnset = defaultUnset;
         }
@@ -290,7 +304,8 @@ public class UpdateStatement extends ModificationStatement
                                        operations,
                                        restrictions,
                                        conditions,
-                                       attrs);
+                                       attrs,
+                                       source);
         }
     }
 
@@ -364,9 +379,10 @@ public class UpdateStatement extends ModificationStatement
                             WhereClause whereClause,
                             List<ColumnCondition.Raw> conditions,
                             boolean ifExists,
-                            boolean isForTxn)
+                            boolean isForTxn,
+                            StatementSource source)
         {
-            super(name, StatementType.UPDATE, attrs, conditions, false, ifExists);
+            super(name, StatementType.UPDATE, attrs, conditions, false, ifExists, source);
             this.updates = updates;
             this.whereClause = whereClause;
             this.isForTxn = isForTxn;
@@ -413,7 +429,8 @@ public class UpdateStatement extends ModificationStatement
                                        operations,
                                        restrictions,
                                        conditions,
-                                       attrs);
+                                       attrs,
+                                       source);
         }
     }
     
