@@ -295,12 +295,14 @@ public class Config
     public boolean native_transport_allow_older_protocols = true;
     // Below 2 parameters were fixed in 4.0 + to get default value when ==-1 (old name and value format) or ==null(new name and value format),
     // not <=0 as it is in previous versions. Throwing config exceptions on < -1
-    @Replaces(oldName = "native_transport_max_concurrent_requests_in_bytes_per_ip", converter = Converters.BYTES_CUSTOM_DATASTORAGE, deprecated = true)
-    public volatile DataStorageSpec.LongBytesBound native_transport_max_request_data_in_flight_per_ip = null;
-    @Replaces(oldName = "native_transport_max_concurrent_requests_in_bytes", converter = Converters.BYTES_CUSTOM_DATASTORAGE, deprecated = true)
-    public volatile DataStorageSpec.LongBytesBound native_transport_max_request_data_in_flight = null;
-    public volatile boolean native_transport_rate_limiting_enabled = false;
-    public volatile int native_transport_max_requests_per_second = 1000000;
+    @Mutable @Replaces(oldName = "native_transport_max_concurrent_requests_in_bytes_per_ip", converter = Converters.BYTES_CUSTOM_DATASTORAGE, deprecated = true)
+    public DataStorageSpec.LongBytesBound native_transport_max_request_data_in_flight_per_ip = null;
+    @Mutable @Replaces(oldName = "native_transport_max_concurrent_requests_in_bytes", converter = Converters.BYTES_CUSTOM_DATASTORAGE, deprecated = true)
+    public DataStorageSpec.LongBytesBound native_transport_max_request_data_in_flight = null;
+    @Mutable
+    public boolean native_transport_rate_limiting_enabled = false;
+    @Mutable
+    public int native_transport_max_requests_per_second = 1000000;
     @Replaces(oldName = "native_transport_receive_queue_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntBytesBound native_transport_receive_queue_capacity = new DataStorageSpec.IntBytesBound("1MiB");
 
@@ -325,17 +327,18 @@ public class Config
      */
     public String auto_snapshot_ttl;
 
-    public volatile long snapshot_links_per_second = 0;
+    @Mutable
+    public long snapshot_links_per_second = 0;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
-    @Replaces(oldName = "column_index_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
-    public volatile DataStorageSpec.IntKibibytesBound column_index_size = new DataStorageSpec.IntKibibytesBound("64KiB");
-    @Replaces(oldName = "column_index_cache_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
-    public volatile DataStorageSpec.IntKibibytesBound column_index_cache_size = new DataStorageSpec.IntKibibytesBound("2KiB");
-    @Replaces(oldName = "batch_size_warn_threshold_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
-    public volatile DataStorageSpec.IntKibibytesBound batch_size_warn_threshold = new DataStorageSpec.IntKibibytesBound("5KiB");
-    @Replaces(oldName = "batch_size_fail_threshold_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
-    public volatile DataStorageSpec.IntKibibytesBound batch_size_fail_threshold = new DataStorageSpec.IntKibibytesBound("50KiB");
+    @Mutable @Replaces(oldName = "column_index_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec.IntKibibytesBound column_index_size = new DataStorageSpec.IntKibibytesBound("64KiB");
+    @Mutable @Replaces(oldName = "column_index_cache_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec.IntKibibytesBound column_index_cache_size = new DataStorageSpec.IntKibibytesBound("2KiB");
+    @Mutable @Replaces(oldName = "batch_size_warn_threshold_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec.IntKibibytesBound batch_size_warn_threshold = new DataStorageSpec.IntKibibytesBound("5KiB");
+    @Mutable @Replaces(oldName = "batch_size_fail_threshold_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
+    public DataStorageSpec.IntKibibytesBound batch_size_fail_threshold = new DataStorageSpec.IntKibibytesBound("50KiB");
 
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public volatile Integer concurrent_compactors;

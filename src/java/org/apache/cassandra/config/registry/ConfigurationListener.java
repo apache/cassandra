@@ -21,7 +21,7 @@ package org.apache.cassandra.config.registry;
 /**
  * Interface for listening to configuration property changes.
  */
-public interface PropertyChangeListener<T>
+public interface ConfigurationListener<T>
 {
     /**
      * Called on configuration change property event occurr.
@@ -30,7 +30,7 @@ public interface PropertyChangeListener<T>
      * @param oldValue the old value of the property.
      * @param newValue the new value of the property.
      */
-    void onChange(String name, T oldValue, T newValue);
+    void onUpdate(String name, T oldValue, T newValue);
 
     /** Type of property change. */
     enum ChangeType

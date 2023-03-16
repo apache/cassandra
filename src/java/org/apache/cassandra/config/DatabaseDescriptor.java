@@ -72,7 +72,7 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
-import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
+import org.apache.cassandra.config.registry.ConfigurationRegistry;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -130,7 +130,7 @@ public class DatabaseDescriptor
     private static final int MAX_NUM_TOKENS = 1536;
 
     private static Config conf;
-    private static ConfigPropertyRegistry confRegistry;
+    private static ConfigurationRegistry confRegistry;
 
     /**
      * Request timeouts can not be less than below defined value (see CASSANDRA-9375)
@@ -342,7 +342,7 @@ public class DatabaseDescriptor
         return conf;
     }
 
-    public static ConfigPropertyRegistry getConfigRegistry()
+    public static ConfigurationRegistry getConfigRegistry()
     {
         return confRegistry;
     }
@@ -401,7 +401,7 @@ public class DatabaseDescriptor
     private static void setConfig(Config config)
     {
         conf = config;
-        confRegistry = new ConfigPropertyRegistry(() -> config);
+        confRegistry = new ConfigurationRegistry(() -> config);
     }
 
     private static void applyAll() throws ConfigurationException
@@ -510,7 +510,7 @@ public class DatabaseDescriptor
         }
 
         /* phi convict threshold for FailureDetector */
-        phiConvictThesholdBounds(conf.phi_convict_threshold, conf.phi_convict_threshold);
+        phiConvictThesholdBoundsConstraint(conf.phi_convict_threshold);
 
         /* Thread per pool */
         if (conf.concurrent_reads < 2)
@@ -568,7 +568,7 @@ public class DatabaseDescriptor
         if (conf.repair_session_space == null)
             conf.repair_session_space = new DataStorageSpec.IntMebibytesBound(Math.max(1, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
 
-        repairSessionSpaceConstraint(null, conf.repair_session_space);
+        repairSessionSpaceConstraint(conf.repair_session_space);
 
         checkForLowestAcceptedTimeouts(conf);
 
@@ -1426,41 +1426,85 @@ public class DatabaseDescriptor
 
     private static void applyConfigurationConstraints()
     {
-        confRegistry.addPropertyValidator(ConfigFields.DEFAULT_KEYSPACE_RF, DatabaseDescriptor::defaultKeyspaceRFValidator, Integer.TYPE);
-        confRegistry.addPropertyValidator(ConfigFields.REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.READ_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.RANGE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.WRITE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.COUNTER_WRITE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.CAS_CONTENTION_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.TRUNCATE_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.REPAIR_REQUEST_TIMEOUT, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint, DurationSpec.LongMillisecondsBound.class);
-        confRegistry.addPropertyValidator(ConfigFields.PHI_CONVICT_THRESHOLD, DatabaseDescriptor::phiConvictThesholdBounds, Double.TYPE);
-        confRegistry.addPropertyValidator(ConfigFields.REPAIR_SESSION_SPACE, DatabaseDescriptor::repairSessionSpaceConstraint, DataStorageSpec.IntMebibytesBound.class);
+        confRegistry.addPropertyConstraint(ConfigFields.DEFAULT_KEYSPACE_RF, Integer.TYPE,
+                                           DatabaseDescriptor::defaultKeyspaceRFConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.REQUEST_TIMEOUT, DurationSpec.LongMillisecondsBound.class,
+                                           DatabaseDescriptor::notNullConstraint, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.READ_REQUEST_TIMEOUT, DurationSpec.LongMillisecondsBound.class,
+                                           DatabaseDescriptor::notNullConstraint, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.RANGE_REQUEST_TIMEOUT, DurationSpec.LongMillisecondsBound.class,
+                                           DatabaseDescriptor::notNullConstraint, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.WRITE_REQUEST_TIMEOUT, DurationSpec.LongMillisecondsBound.class,
+                                           DatabaseDescriptor::notNullConstraint, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.COUNTER_WRITE_REQUEST_TIMEOUT, DurationSpec.LongMillisecondsBound.class,
+                                           DatabaseDescriptor::notNullConstraint, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.CAS_CONTENTION_TIMEOUT, DurationSpec.LongMillisecondsBound.class,
+                                           DatabaseDescriptor::notNullConstraint, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.TRUNCATE_REQUEST_TIMEOUT, DurationSpec.LongMillisecondsBound.class,
+                                           DatabaseDescriptor::notNullConstraint, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.REPAIR_REQUEST_TIMEOUT, DurationSpec.LongMillisecondsBound.class,
+                                           DatabaseDescriptor::notNullConstraint, DatabaseDescriptor::lowestThanAcceptedTimeoutConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.PHI_CONVICT_THRESHOLD, Double.TYPE, DatabaseDescriptor::phiConvictThesholdBoundsConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.REPAIR_SESSION_SPACE, DataStorageSpec.IntMebibytesBound.class,
+                                           DatabaseDescriptor::notNullConstraint, DatabaseDescriptor::repairSessionSpaceConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.NATIVE_TRANSPORT_MAX_REQUESTS_PER_SECOND, Integer.TYPE,
+                                           DatabaseDescriptor::greaterThanZeroConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.NATIVE_TRANSPORT_MAX_REQUEST_DATA_IN_FLIGHT_PER_IP, DataStorageSpec.LongBytesBound.class,
+                                           DatabaseDescriptor::notNullConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.NATIVE_TRANSPORT_MAX_REQUEST_DATA_IN_FLIGHT, DataStorageSpec.LongBytesBound.class,
+                                           DatabaseDescriptor::notNullConstraint);
+        confRegistry.addPropertyConstraint(ConfigFields.SNAPSHOT_LINKS_PER_SECOND, Long.TYPE,
+                                           DatabaseDescriptor::notLessThanZeroConstraint);
     }
 
-    private static void lowestThanAcceptedTimeoutConstraint(DurationSpec.LongMillisecondsBound oldValue, DurationSpec.LongMillisecondsBound newValue)
+    private static void defaultKeyspaceRFConstraint(Integer newValue) throws IllegalArgumentException
     {
-        if (newValue == null) return;
+        if (newValue < 1)
+            throw new IllegalArgumentException("default_keyspace_rf cannot be less than 1");
+
+        if (newValue < guardrails.getMinimumReplicationFactorFailThreshold())
+            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_replication_factor_fail_threshold (%d)",
+                                                             newValue, guardrails.getMinimumReplicationFactorFailThreshold()));
+
+        if (guardrails.getMaximumReplicationFactorFailThreshold() != -1 && newValue > guardrails.getMaximumReplicationFactorFailThreshold())
+            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be greater than maximum_replication_factor_fail_threshold (%d)",
+                                                             newValue, guardrails.getMaximumReplicationFactorFailThreshold()));
+    }
+
+    private static void lowestThanAcceptedTimeoutConstraint(DurationSpec.LongMillisecondsBound newValue)
+    {
         if (newValue.toMilliseconds() < LOWEST_ACCEPTED_TIMEOUT.toMilliseconds())
             throw new IllegalStateException(String.format("Invalid timeout '%s' is less than lowest acceptable value '%s'",
                                                           newValue.toMilliseconds(), LOWEST_ACCEPTED_TIMEOUT.toMilliseconds()));
     }
 
-    private static void phiConvictThesholdBounds(double oldValue, double newValue)
+    private static void phiConvictThesholdBoundsConstraint(double newValue)
     {
         if (newValue < 5 || newValue > 16)
             throw new ConfigurationException(String.format("%s must be between 5 and 16, but was %s", ConfigFields.PHI_CONVICT_THRESHOLD, newValue), false);
     }
 
-    private static void repairSessionSpaceConstraint(DataStorageSpec.IntMebibytesBound oldValue, DataStorageSpec.IntMebibytesBound newValue)
+    private static void repairSessionSpaceConstraint(DataStorageSpec.IntMebibytesBound newValue)
     {
-        if (newValue == null) return;
         int sizeInMiB = newValue.toMebibytes();
         if (sizeInMiB < 1)
             throw new ConfigurationException(String.format("%s must be > 0, but was %s", ConfigFields.REPAIR_SESSION_SPACE, sizeInMiB));
         else if (sizeInMiB > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
             logger.warn("A {} of {} mebibytes is likely to cause heap pressure", ConfigFields.REPAIR_SESSION_SPACE, newValue);
+    }
+
+    private static void greaterThanZeroConstraint(Integer newValue)
+    {
+        Preconditions.checkArgument(newValue > 0, "must be greater than zero");
+    }
+
+    private static void notLessThanZeroConstraint(Long newValue)
+    {
+        Preconditions.checkArgument(newValue >= 0, "must not be less than zero");
+    }
+    private static void notNullConstraint(Object newValue)
+    {
+        Preconditions.checkArgument(Objects.nonNull(newValue), "must not be null");
     }
 
     /**
@@ -2836,7 +2880,7 @@ public class DatabaseDescriptor
 
     public static long getNativeTransportMaxRequestDataInFlightPerIpInBytes()
     {
-        return conf.native_transport_max_request_data_in_flight_per_ip.toBytes();
+        return confRegistry.get(DataStorageSpec.LongBytesBound.class, ConfigFields.NATIVE_TRANSPORT_MAX_REQUEST_DATA_IN_FLIGHT_PER_IP).toBytes();
     }
 
     public static Config.PaxosVariant getPaxosVariant()
@@ -2964,7 +3008,7 @@ public class DatabaseDescriptor
         if (maxRequestDataInFlightInBytes == -1)
             maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 40;
 
-        conf.native_transport_max_request_data_in_flight_per_ip = new DataStorageSpec.LongBytesBound(maxRequestDataInFlightInBytes);
+        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_MAX_REQUEST_DATA_IN_FLIGHT_PER_IP, new DataStorageSpec.LongBytesBound(maxRequestDataInFlightInBytes));
     }
 
     public static long getNativeTransportMaxRequestDataInFlightInBytes()
@@ -2982,24 +3026,22 @@ public class DatabaseDescriptor
 
     public static int getNativeTransportMaxRequestsPerSecond()
     {
-        return conf.native_transport_max_requests_per_second;
+        return confRegistry.get(Integer.TYPE, ConfigFields.NATIVE_TRANSPORT_MAX_REQUESTS_PER_SECOND);
     }
 
     public static void setNativeTransportMaxRequestsPerSecond(int perSecond)
     {
-        Preconditions.checkArgument(perSecond > 0, "native_transport_max_requests_per_second must be greater than zero");
-        conf.native_transport_max_requests_per_second = perSecond;
+        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_MAX_REQUESTS_PER_SECOND, perSecond);
     }
 
     public static void setNativeTransportRateLimitingEnabled(boolean enabled)
     {
-        logger.info("native_transport_rate_limiting_enabled set to {}", enabled);
-        conf.native_transport_rate_limiting_enabled = enabled;
+        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_RATE_LIMITING_ENABLED, enabled);
     }
 
     public static boolean getNativeTransportRateLimitingEnabled()
     {
-        return conf.native_transport_rate_limiting_enabled;
+        return confRegistry.get(Boolean.TYPE, ConfigFields.NATIVE_TRANSPORT_RATE_LIMITING_ENABLED);
     }
 
     public static int getCommitLogSyncPeriod()
@@ -4430,24 +4472,6 @@ public class DatabaseDescriptor
     public static void setDefaultKeyspaceRF(int value) throws IllegalArgumentException
     {
         confRegistry.set(ConfigFields.DEFAULT_KEYSPACE_RF, value);
-    }
-
-    public static void defaultKeyspaceRFValidator(int oldValue, int newValue) throws IllegalArgumentException
-    {
-        if (newValue < 1)
-        {
-            throw new IllegalArgumentException("default_keyspace_rf cannot be less than 1");
-        }
-
-        if (newValue < guardrails.getMinimumReplicationFactorFailThreshold())
-        {
-            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_replication_factor_fail_threshold (%d)", newValue, guardrails.getMinimumReplicationFactorFailThreshold()));
-        }
-
-        if (guardrails.getMaximumReplicationFactorFailThreshold() != -1 && newValue > guardrails.getMaximumReplicationFactorFailThreshold())
-        {
-            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be greater than maximum_replication_factor_fail_threshold (%d)", newValue, guardrails.getMaximumReplicationFactorFailThreshold()));
-        }
     }
 
     public static boolean getUseStatementsEnabled()

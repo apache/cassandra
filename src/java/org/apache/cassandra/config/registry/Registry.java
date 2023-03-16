@@ -34,12 +34,13 @@ import javax.annotation.Nullable;
  * You can use {@link #get(Class, String)} to get a property's value, to read the value, the registry will try to convert the
  * property's value if the {@link #getString(String)} to String type (the converter is called to convert the value to String).
  */
-public interface PropertyRegistry
+public interface Registry
 {
     /**
      * Update configuration property with the given name to the given value. The value may be the same
      * as the property's value, or it may be represented as a string. In the latter case a corresponding
      * will be called to get the property's value matching type.
+     *
      * @param name Property name.
      * @param value Value to set.
      */

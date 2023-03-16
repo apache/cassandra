@@ -32,7 +32,7 @@ import org.apache.cassandra.config.Converters;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Replacement;
 import org.apache.cassandra.config.Replacements;
-import org.apache.cassandra.config.registry.PropertyRegistry;
+import org.apache.cassandra.config.registry.Registry;
 import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -48,14 +48,14 @@ final class SettingsTable extends AbstractMutableVirtualTable
     private static final String NAME = "name";
     private static final String VALUE = "value";
     private static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
-    private final BackwardsCompatablePropertyRegistry registry;
+    private final BackwardsCompatableRegistry registry;
 
     SettingsTable(String keyspace)
     {
         this(keyspace, DatabaseDescriptor.getConfigRegistry());
     }
 
-    SettingsTable(String keyspace, PropertyRegistry registry)
+    SettingsTable(String keyspace, Registry registry)
     {
         super(TableMetadata.builder(keyspace, "settings")
                            .comment("current settings")
@@ -64,7 +64,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
                            .addPartitionKeyColumn(NAME, UTF8Type.instance)
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
-        this.registry = new BackwardsCompatablePropertyRegistry(registry);
+        this.registry = new BackwardsCompatableRegistry(registry);
     }
 
     @Override
@@ -125,12 +125,12 @@ final class SettingsTable extends AbstractMutableVirtualTable
     }
 
     @VisibleForTesting
-    PropertyRegistry registry()
+    Registry registry()
     {
         return registry;
     }
 
-    private static Map<String, Replacement> replacements(PropertyRegistry registry)
+    private static Map<String, Replacement> replacements(Registry registry)
     {
         // only handling top-level replacements for now, previous logic was only top level so not a regression
         Map<String, Replacement> replacements = Replacements.getNameReplacements(Config.class).get(Config.class);
@@ -198,12 +198,12 @@ final class SettingsTable extends AbstractMutableVirtualTable
      * <p>
      * Updating a configuration property object will throw an exception if you will try to update a deprecated property.
      */
-    private static class BackwardsCompatablePropertyRegistry implements PropertyRegistry
+    private static class BackwardsCompatableRegistry implements Registry
     {
-        private final PropertyRegistry registry;
+        private final Registry registry;
         private final Map<String, Replacement> replacements;
         private final Set<String> uniquePropertyKeys;
-        public BackwardsCompatablePropertyRegistry(PropertyRegistry registry)
+        public BackwardsCompatableRegistry(Registry registry)
         {
             this.registry = registry;
             this.replacements = replacements(registry);

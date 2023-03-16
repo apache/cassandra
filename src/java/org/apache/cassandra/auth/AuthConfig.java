@@ -25,7 +25,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.config.registry.PropertyRegistry;
+import org.apache.cassandra.config.registry.Registry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -48,7 +48,7 @@ public final class AuthConfig
         initialized = true;
 
         Config conf = DatabaseDescriptor.getRawConfig();
-        PropertyRegistry registry = DatabaseDescriptor.getConfigRegistry();
+        Registry registry = DatabaseDescriptor.getConfigRegistry();
 
         IAuthenticator authenticator = new AllowAllAuthenticator();
 

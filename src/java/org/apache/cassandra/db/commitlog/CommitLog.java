@@ -44,7 +44,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.config.registry.PropertyChangeListener;
+import org.apache.cassandra.config.registry.ConfigurationListener;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.CDCWriteException;
@@ -151,10 +151,10 @@ public class CommitLog implements CommitLogMBean
             executor.start();
             started = true;
 
-            DatabaseDescriptor.getConfigRegistry().addPropertyValidator(CDC_BLOCK_WRITES, (oldVal, newVal) -> ensureCDCEnabled(), Boolean.TYPE);
-            DatabaseDescriptor.getConfigRegistry().addPropertyValidator(CDC_ON_REPAIR_ENABLED, (oldVal, newVal) -> ensureCDCEnabled(), Boolean.TYPE);
-            DatabaseDescriptor.getConfigRegistry().addPropertyChangeListener(CDC_BLOCK_WRITES, PropertyChangeListener.ChangeType.BEFORE,
-                                                                      this::cdcBlockWritesBeforeChangeListener, Boolean.TYPE);
+            DatabaseDescriptor.getConfigRegistry().addPropertyConstraint(CDC_BLOCK_WRITES, Boolean.TYPE, (newVal) -> ensureCDCEnabled());
+            DatabaseDescriptor.getConfigRegistry().addPropertyConstraint(CDC_ON_REPAIR_ENABLED, Boolean.TYPE, (newVal) -> ensureCDCEnabled());
+            DatabaseDescriptor.getConfigRegistry().addPropertyChangeListener(CDC_BLOCK_WRITES, ConfigurationListener.ChangeType.BEFORE,
+                                                                             this::cdcBlockWritesBeforeChangeListener, Boolean.TYPE);
         }
         catch (Throwable t)
         {

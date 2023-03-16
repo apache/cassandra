@@ -32,13 +32,14 @@ import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.config.registry.ConfigPropertyRegistry;
+import org.apache.cassandra.config.registry.ConfigurationRegistry;
 import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.assertj.core.util.Streams;
 
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
+import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
@@ -51,7 +52,7 @@ public class UpdateSettingsTableTest extends CQLTester
 {
     private static final List<String> updatableProperties = new ArrayList<>();
     private static final Map<Class<?>, Object[]> defaultTestValues = registerTestConfigurationValues();
-    private ConfigPropertyRegistry registry;
+    private ConfigurationRegistry registry;
 
     @BeforeClass
     public static void setUpClass()
@@ -63,7 +64,7 @@ public class UpdateSettingsTableTest extends CQLTester
     public void prepare()
     {
         // Creating a new instence will avoid calling listeners registered in the registry.
-        registry = new ConfigPropertyRegistry(DatabaseDescriptor::getRawConfig);
+        registry = new ConfigurationRegistry(DatabaseDescriptor::getRawConfig);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(new SettingsTable(KS_NAME, registry))));
         Streams.stream(registry.keys())
                .filter(k -> registry.isWritable(k))

@@ -29,9 +29,13 @@ package org.apache.cassandra.config;
 public class ConfigFields
 {
     public static final String AUTO_HINTS_CLEANUP_ENABLED = "auto_hints_cleanup_enabled";
+    public static final String BATCH_SIZE_FAIL_THRESHOLD = "batch_size_fail_threshold";
+    public static final String BATCH_SIZE_WARN_THRESHOLD = "batch_size_warn_threshold";
     public static final String CAS_CONTENTION_TIMEOUT = "cas_contention_timeout";
     public static final String CDC_BLOCK_WRITES = "cdc_block_writes";
     public static final String CDC_ON_REPAIR_ENABLED = "cdc_on_repair_enabled";
+    public static final String COLUMN_INDEX_CACHE_SIZE = "column_index_cache_size";
+    public static final String COLUMN_INDEX_SIZE = "column_index_size";
     public static final String COORDINATOR_READ_SIZE_FAIL_THRESHOLD = "coordinator_read_size_fail_threshold";
     public static final String COORDINATOR_READ_SIZE_WARN_THRESHOLD = "coordinator_read_size_warn_threshold";
     public static final String COUNTER_WRITE_REQUEST_TIMEOUT = "counter_write_request_timeout";
@@ -54,6 +58,10 @@ public class ConfigFields
     public static final String NATIVE_TRANSPORT_ALLOW_OLDER_PROTOCOLS = "native_transport_allow_older_protocols";
     public static final String NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS = "native_transport_max_concurrent_connections";
     public static final String NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS_PER_IP = "native_transport_max_concurrent_connections_per_ip";
+    public static final String NATIVE_TRANSPORT_MAX_REQUESTS_PER_SECOND = "native_transport_max_requests_per_second";
+    public static final String NATIVE_TRANSPORT_MAX_REQUEST_DATA_IN_FLIGHT = "native_transport_max_request_data_in_flight";
+    public static final String NATIVE_TRANSPORT_MAX_REQUEST_DATA_IN_FLIGHT_PER_IP = "native_transport_max_request_data_in_flight_per_ip";
+    public static final String NATIVE_TRANSPORT_RATE_LIMITING_ENABLED = "native_transport_rate_limiting_enabled";
     public static final String PERMISSIONS_CACHE_ACTIVE_UPDATE = "permissions_cache_active_update";
     public static final String PERMISSIONS_CACHE_MAX_ENTRIES = "permissions_cache_max_entries";
     public static final String PERMISSIONS_UPDATE_INTERVAL = "permissions_update_interval";
@@ -72,6 +80,7 @@ public class ConfigFields
     public static final String ROW_INDEX_READ_SIZE_FAIL_THRESHOLD = "row_index_read_size_fail_threshold";
     public static final String ROW_INDEX_READ_SIZE_WARN_THRESHOLD = "row_index_read_size_warn_threshold";
     public static final String SLOW_QUERY_LOG_TIMEOUT = "slow_query_log_timeout";
+    public static final String SNAPSHOT_LINKS_PER_SECOND = "snapshot_links_per_second";
     public static final String SSTABLE_PREEMPTIVE_OPEN_INTERVAL = "sstable_preemptive_open_interval";
     public static final String TOMBSTONE_FAILURE_THRESHOLD = "tombstone_failure_threshold";
     public static final String TOMBSTONE_WARN_THRESHOLD = "tombstone_warn_threshold";
