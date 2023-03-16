@@ -58,12 +58,10 @@ respectively for JDK11+17:
 Alternatively, you can run the `generate.sh` script with the flags `-f`/`-p`
 to regenerate the `config.yml` file from `config_template.yml` using free or paid resources.
 For JDK11 and 17 you can run the `generate_11_and_17.sh` script with the flags
-`-f`/`-p` to regenerate the `config_11_and_17.yml` file from `config_template_11_and_17.yml`
+`-f`/`-p` to regenerate the `config.yml` file from `config_template_11_and_17.yml`
 using free or paid resources. The two scripts validate and apply any changes to the 
 `config_template.yml`and `config_template_11_and_17.yml` files, and they require the
 [CircleCI CLI](https://circleci.com/docs/2.0/local-cli/#install) to be installed.
-To enable the JDK11+17 workflow, you can copy temporarily `config_11_and_17.yml`
-to `config.yml`
 
 ## Setting environment variables
 Both `config_template.yml` and `config.yml` files contain a set of environment variables

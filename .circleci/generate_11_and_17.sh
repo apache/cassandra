@@ -33,9 +33,9 @@ print_help()
   echo "Usage: $0 [-f|-p|-a|-e|-i]"
   echo "   -a Generate the config_11_and_17.yml, config_11_and_17.yml.FREE and config_11_and_17.yml.PAID expanded configuration"
   echo "      files from the main config_template.yml reusable configuration file."
-  echo "      Use this for permanent changes in config that will be committed to the main repo."
-  echo "   -f Generate config_11_and_17.yml for tests compatible with the CircleCI free tier resources"
-  echo "   -p Generate config_11_and_17.yml for tests compatible with the CircleCI paid tier resources"
+  echo "      Use this for permanent changes in config_11_and_17.yml that will be committed to the main repo."
+  echo "   -f Generate config.yml for tests compatible with the CircleCI free tier resources"
+  echo "   -p Generate config.yml for tests compatible with the CircleCI paid tier resources"
   echo "   -e <key=value> Environment variables to be used in the generated config_11_and_17.yml, e.g.:"
   echo "                   -e DTEST_BRANCH=CASSANDRA-8272"
   echo "                   -e DTEST_REPO=https://github.com/adelapena/cassandra-dtest.git"
@@ -135,19 +135,19 @@ fi
 
 if $free; then
   ($all || $paid) && die "Cannot use option -f with options -a or -p"
-  echo "Generating new config_11_and_17.yml file for free tier from config_template_11_and_17.yml"
-  echo "If you want to use this config in CircleCI, you need to run cp $BASEDIR/config_11_and_17.yml $BASEDIR/config.yml"
+  echo "Generating new config.yml file for free tier from config_template_11_and_17.yml"
   circleci config process $BASEDIR/config_template_11_and_17.yml > $BASEDIR/config_11_and_17.yml.FREE.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config_11_and_17.yml.FREE.tmp > $BASEDIR/config_11_and_17.yml
+  cat $BASEDIR/license.yml $BASEDIR/config_11_and_17.yml.FREE.tmp > $BASEDIR/config.yml
+  cp $BASEDIR/config.yml $BASEDIR/config_11_and_17.yml
   rm $BASEDIR/config_11_and_17.yml.FREE.tmp
 
 elif $paid; then
   ($all || $free) && die "Cannot use option -p with options -a or -f"
-  echo "Generating new config_template_11_and_17.yml file for paid tier from config_template_11_and_17.yml"
-  echo "If you want to use this config in CircleCI, you need to run cp $BASEDIR/config_11_and_17.yml $BASEDIR/config.yml"
+  echo "Generating new config.yml file for paid tier from config_template_11_and_17.yml"
   patch -o $BASEDIR/config_template_11_and_17.yml.PAID $BASEDIR/config_template_11_and_17.yml $BASEDIR/config_template_11_and_17.yml.PAID.patch
   circleci config process $BASEDIR/config_template_11_and_17.yml.PAID > $BASEDIR/config_11_and_17.yml.PAID.tmp
-  cat $BASEDIR/license.yml $BASEDIR/config_11_and_17.yml.PAID.tmp > $BASEDIR/config_11_and_17.yml
+  cat $BASEDIR/license.yml $BASEDIR/config_11_and_17.yml.PAID.tmp > $BASEDIR/config.yml
+  cp $BASEDIR/config.yml $BASEDIR/config_11_and_17.yml
   rm $BASEDIR/config_template_11_and_17.yml.PAID $BASEDIR/config_11_and_17.yml.PAID.tmp
 
 elif $all; then
@@ -155,8 +155,6 @@ elif $all; then
   echo "Generating new default config_11_and_17.yml file for free tier and FREE/PAID templates from config_template_11_and_17.yml."
   echo "Make sure you commit the newly generated config_11_and_17.yml, config_11_and_17.yml.FREE and config_11_and_17.yml.PAID files"
   echo "after running this command if you want them to persist."
-  echo "This command also reverts any changes that might have been applied to config.yml for test purposes"
-  echo "To persist changes to config.yml, please, use generate.sh script"
 
   # setup config for free tier
   circleci config process $BASEDIR/config_template_11_and_17.yml > $BASEDIR/config_11_and_17.yml.FREE.tmp
@@ -169,11 +167,8 @@ elif $all; then
   cat $BASEDIR/license.yml $BASEDIR/config_11_and_17.yml.PAID.tmp > $BASEDIR/config_11_and_17.yml.PAID
   rm $BASEDIR/config_template_11_and_17.yml.PAID $BASEDIR/config_11_and_17.yml.PAID.tmp
 
-  # copy free tier into config.yml to make sure this gets updated
+  # copy free tier into config_11_and_17.yml to make sure this gets updated
   cp $BASEDIR/config_11_and_17.yml.FREE $BASEDIR/config_11_and_17.yml
-
-  # revert any changes to config.yml which might have happened only for test purposes
-  cp $BASEDIR/config.yml.FREE $BASEDIR/config.yml
 
 elif (! ($has_env_vars)); then
   print_help
@@ -227,6 +222,7 @@ if $has_env_vars; then
     val=$2
     echo "  $key: $val"
     sed -i.bak "s|- $key:.*|- $key: $val|" $BASEDIR/config.yml
+    cp $BASEDIR/config.yml $BASEDIR/config_11_and_17.yml
   done
   unset IFS
 fi
@@ -302,6 +298,7 @@ delete_repeated_jobs()
   fi
 }
 
+delete_repeated_jobs "config.yml"
 delete_repeated_jobs "config_11_and_17.yml"
 if $all; then
   delete_repeated_jobs "config_11_and_17.yml.FREE"
