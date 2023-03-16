@@ -18,14 +18,21 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import accord.topology.Shard;
 import accord.topology.Topology;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.SentinelKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 public class AccordTopologyUtils
 {
@@ -52,49 +59,44 @@ public class AccordTopologyUtils
         return new TokenRange(new TokenKey(keyspace, left), new TokenKey(keyspace, right));
     }
 
-//    private static List<Shard> createShards(String keyspace, TokenMetadata tokenMetadata)
-//    {
-//        AbstractReplicationStrategy replication = Keyspace.open(keyspace).getReplicationStrategy();
-//        Set<Token> tokenSet = new HashSet<>(tokenMetadata.sortedTokens());
-//        tokenSet.addAll(tokenMetadata.getBootstrapTokens().keySet());
-//        tokenMetadata.getMovingEndpoints().forEach(p -> tokenSet.add(p.left));
-//        List<Token> tokens = new ArrayList<>(tokenSet);
-//        tokens.sort(Comparator.naturalOrder());
-//
-//        List<Shard> shards = new ArrayList<>(tokens.size() + 1);
-//        Shard finalShard = null;
-//        for (int i=0, mi=tokens.size(); i<mi; i++)
-//        {
-//            Token token = tokens.get(i);
-//            EndpointsForToken natural = replication.getNaturalReplicasForToken(token);
-//            EndpointsForToken pending = tokenMetadata.pendingEndpointsForToken(token, keyspace);
-//            if (i == 0)
-//            {
-//                shards.add(createShard(minRange(keyspace, token), natural, pending));
-//                finalShard = createShard(maxRange(keyspace, tokens.get(mi-1)), natural, pending);
-//            }
-//            else
-//            {
-//                Token prev = tokens.get(i - 1);
-//                shards.add(createShard(range(keyspace, prev, token), natural, pending));
-//            }
-//        }
-//        shards.add(finalShard);
-//
-//        return shards;
-//    }
+    public static List<Shard> createShards(String keyspace, ClusterMetadata clusterMetadata)
+    {
+        KeyspaceMetadata keyspaceMetadata = Keyspace.open(keyspace).getMetadata();
+        List<Token> tokens = new ArrayList<>(clusterMetadata.tokenMap.tokens());
+        tokens.sort(Comparator.naturalOrder());
+
+        List<Shard> shards = new ArrayList<>(tokens.size() + 1);
+        Shard finalShard = null;
+        for (int i = 0, mi = tokens.size(); i < mi; i++)
+        {
+            Token token = tokens.get(i);
+            EndpointsForToken natural = clusterMetadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(token).get();
+            EndpointsForToken pending = clusterMetadata.pendingEndpointsFor(keyspaceMetadata, token).get();
+            if (i == 0)
+            {
+                shards.add(createShard(minRange(keyspace, token), natural, pending));
+                finalShard = createShard(maxRange(keyspace, tokens.get(mi - 1)), natural, pending);
+            }
+            else
+            {
+                Token prev = tokens.get(i - 1);
+                shards.add(createShard(range(keyspace, prev, token), natural, pending));
+            }
+        }
+        shards.add(finalShard);
+
+        return shards;
+    }
 
     public static Topology createTopology(long epoch)
     {
-        throw new UnsupportedOperationException("git rebase should rewrite the history so this logic is based off TCM... TokenMetadata doesn't exist on trunk anymore");
-//        TokenMetadata tokenMetadata = StorageService.instance.getTokenMetadata();
-//        List<String> keyspaces = new ArrayList<>(Schema.instance.distributedKeyspaces().names());
-//        keyspaces.sort(String::compareTo);
-//
-//        List<Shard> shards = new ArrayList<>();
-//        for (String keyspace : keyspaces)
-//            shards.addAll(createShards(keyspace, tokenMetadata));
-//
-//        return new Topology(epoch, shards.toArray(new Shard[0]));
+        List<String> keyspaces = new ArrayList<>(Schema.instance.distributedKeyspaces().names());
+        keyspaces.sort(String::compareTo);
+
+        List<Shard> shards = new ArrayList<>();
+        for (String keyspace : keyspaces)
+            shards.addAll(createShards(keyspace, ClusterMetadata.current()));
+
+        return new Topology(epoch, shards.toArray(new Shard[0]));
     }
 }

@@ -1948,15 +1948,14 @@ public final class SystemKeyspace
 
     public static void writePreparedStatement(String loggedKeyspace, MD5Digest key, String cql)
     {
-        executeInternal(format("INSERT INTO %s (logged_keyspace, prepared_id, query_string) VALUES (?, ?, ?)",
-                               PreparedStatements.toString()),
+        executeInternal(format("INSERT INTO %s (logged_keyspace, prepared_id, query_string) VALUES (?, ?, ?)", PreparedStatements),
                         loggedKeyspace, key.byteBuffer(), cql);
         logger.debug("stored prepared statement for logged keyspace '{}': '{}'", loggedKeyspace, cql);
     }
 
     public static void removePreparedStatement(MD5Digest key)
     {
-        executeInternal(format("DELETE FROM %s WHERE prepared_id = ?", PreparedStatements.toString()),
+        executeInternal(format("DELETE FROM %s WHERE prepared_id = ?", PreparedStatements),
                         key.byteBuffer());
     }
 

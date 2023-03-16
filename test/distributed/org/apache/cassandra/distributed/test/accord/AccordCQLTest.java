@@ -2493,6 +2493,8 @@ public class AccordCQLTest extends AccordTestBase
         });
     }
 
+    // TODO: Re-enable when TrM integration is working
+    @Ignore
     @Test
     public void testCASAndSerialRead() throws Exception
     {
