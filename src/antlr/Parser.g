@@ -34,6 +34,8 @@ options {
 
     protected List<RowDataReference.Raw> references;
 
+    private Token statementBeginMarker;
+
     public static final Set<String> reservedTypeNames = new HashSet<String>()
     {{
         add("byte");
@@ -216,6 +218,19 @@ options {
     {
         // Do nothing.
     }
+
+    public Token stmtBegins()
+    {
+        statementBeginMarker = input.LT(1);
+        return statementBeginMarker;
+    }
+
+    public StatementSource stmtSrc()
+    {
+        StatementSource stmtSrc = StatementSource.create(statementBeginMarker);
+        statementBeginMarker = null;
+        return stmtSrc;
+    }
 }
 
 /** STATEMENTS **/
@@ -291,6 +306,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
         List<Selectable.Raw> groups = new ArrayList<>();
         boolean allowFiltering = false;
         boolean isJson = false;
+        stmtBegins();
     }
     : K_SELECT
         // json is a valid column name. By consequence, we need to resolve the ambiguity for "json - json"
@@ -310,7 +326,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
                                                                              isJson,
                                                                              null);
           WhereClause where = wclause == null ? WhereClause.empty() : wclause.build();
-          $expr = new SelectStatement.RawStatement(cf, params, $sclause.selectors, where, limit, perPartitionLimit);
+          $expr = new SelectStatement.RawStatement(cf, params, $sclause.selectors, where, limit, perPartitionLimit, stmtSrc());
       }
     ;
     
@@ -323,11 +339,12 @@ letStatement returns [SelectStatement.RawStatement expr]
         Term.Raw limit = null;
     }
     : K_LET txnVar=IDENT '='
-      '(' K_SELECT assignments=letSelectors K_FROM cf=columnFamilyName K_WHERE wclause=whereClause ( K_LIMIT rows=intValue { limit = rows; } )? ')'
+      '(' { stmtBegins(); } K_SELECT assignments=letSelectors K_FROM cf=columnFamilyName K_WHERE wclause=whereClause ( K_LIMIT rows=intValue { limit = rows; } )? ')'
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(Collections.emptyMap(), Collections.emptyList(), false, false, false, $txnVar.text);
           WhereClause where = wclause == null ? WhereClause.empty() : wclause.build();
-          $expr = new SelectStatement.RawStatement(cf, params, assignments, where, limit, null);
+
+          $expr = new SelectStatement.RawStatement(cf, params, assignments, where, limit, null, stmtSrc());
       }
     ;
     
@@ -530,6 +547,9 @@ groupByClause[List<Selectable.Raw> groups]
  *
  */
 insertStatement returns [ModificationStatement.Parsed expr]
+    @init {
+        stmtBegins();
+    }
     : K_INSERT K_INTO cf=columnFamilyName
         ( st1=normalInsertStatement[cf] { $expr = st1; }
         | K_JSON st2=jsonInsertStatement[cf] { $expr = st2; })
@@ -548,7 +568,7 @@ normalInsertStatement [QualifiedName qn] returns [UpdateStatement.ParsedInsert e
       ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
       ( usingClause[attrs] )?
       {
-          $expr = new UpdateStatement.ParsedInsert(qn, attrs, columnNames, values, ifNotExists);
+          $expr = new UpdateStatement.ParsedInsert(qn, attrs, columnNames, values, ifNotExists, stmtSrc());
       }
     ;
 
@@ -568,7 +588,7 @@ jsonInsertStatement [QualifiedName qn] returns [UpdateStatement.ParsedInsertJson
       ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
       ( usingClause[attrs] )?
       {
-          $expr = new UpdateStatement.ParsedInsertJson(qn, attrs, val, defaultUnset, ifNotExists);
+          $expr = new UpdateStatement.ParsedInsertJson(qn, attrs, val, defaultUnset, ifNotExists, stmtSrc());
       }
     ;
 
@@ -599,6 +619,7 @@ updateStatement returns [UpdateStatement.ParsedUpdate expr]
         Attributes.Raw attrs = new Attributes.Raw();
         UpdateStatement.OperationCollector operations = new UpdateStatement.OperationCollector();
         boolean ifExists = false;
+        stmtBegins();
     }
     : K_UPDATE cf=columnFamilyName
       ( usingClause[attrs] )?
@@ -612,7 +633,8 @@ updateStatement returns [UpdateStatement.ParsedUpdate expr]
                                                    wclause.build(),
                                                    conditions == null ? Collections.<Pair<ColumnIdentifier, ColumnCondition.Raw>>emptyList() : conditions,
                                                    ifExists,
-                                                   isParsingTxn);
+                                                   isParsingTxn,
+                                                   stmtSrc());
      }
     ;
 
@@ -634,6 +656,7 @@ deleteStatement returns [DeleteStatement.Parsed expr]
         Attributes.Raw attrs = new Attributes.Raw();
         List<Operation.RawDeletion> columnDeletions = Collections.emptyList();
         boolean ifExists = false;
+        stmtBegins();
     }
     : K_DELETE ( dels=deleteSelection { columnDeletions = dels; } )?
       K_FROM cf=columnFamilyName
@@ -646,7 +669,8 @@ deleteStatement returns [DeleteStatement.Parsed expr]
                                              columnDeletions,
                                              wclause.build(),
                                              conditions == null ? Collections.<Pair<ColumnIdentifier, ColumnCondition.Raw>>emptyList() : conditions,
-                                             ifExists);
+                                             ifExists,
+                                             stmtSrc());
       }
     ;
 

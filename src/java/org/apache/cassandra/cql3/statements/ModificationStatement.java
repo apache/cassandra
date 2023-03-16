@@ -35,7 +35,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Iterables;
-
 import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,6 +52,7 @@ import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.StatementSource;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.cql3.Validation;
 import org.apache.cassandra.cql3.VariableSpecifications;
@@ -75,24 +75,49 @@ import org.apache.cassandra.cql3.selection.ResultSetBuilder;
 import org.apache.cassandra.cql3.selection.Selection;
 import org.apache.cassandra.cql3.selection.Selection.Selectors;
 import org.apache.cassandra.cql3.transactions.ReferenceOperation;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.CBuilder;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.SinglePartitionReadQuery;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
+import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.BooleanType;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.PartitionIterators;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.accord.txn.TxnReferenceOperation;
+import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
+import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
-import org.apache.cassandra.service.accord.txn.TxnReferenceOperation;
-import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
-import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -138,13 +163,16 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     private final RegularAndStaticColumns requiresRead;
 
+    public final StatementSource source;
+
     public ModificationStatement(StatementType type,
                                  VariableSpecifications bindVariables,
                                  TableMetadata metadata,
                                  Operations operations,
                                  StatementRestrictions restrictions,
                                  Conditions conditions,
-                                 Attributes attrs)
+                                 Attributes attrs,
+                                 StatementSource source)
     {
         this.type = type;
         this.bindVariables = bindVariables;
@@ -153,6 +181,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         this.operations = operations;
         this.conditions = conditions;
         this.attrs = attrs;
+        this.source = source;
 
         if (!conditions.isEmpty())
         {
@@ -991,13 +1020,15 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         private final List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions;
         private final boolean ifNotExists;
         private final boolean ifExists;
+        protected final StatementSource source;
 
         protected Parsed(QualifiedName name,
                          StatementType type,
                          Attributes.Raw attrs,
                          List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions,
                          boolean ifNotExists,
-                         boolean ifExists)
+                         boolean ifExists,
+                         StatementSource source)
         {
             super(name);
             this.type = type;
@@ -1005,6 +1036,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             this.conditions = conditions == null ? Collections.emptyList() : conditions;
             this.ifNotExists = ifNotExists;
             this.ifExists = ifExists;
+            this.source = source;
         }
 
         public ModificationStatement prepare(ClientState state)
@@ -1133,6 +1165,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
                                    null,
                                    null,
                                    ONE,
-                                   null);
+                                   null,
+                                   StatementSource.INTERNAL);
     }
 }
