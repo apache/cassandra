@@ -56,6 +56,7 @@ import org.apache.cassandra.cql3.QualifiedName;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.StatementSource;
 import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.WhereClause;
 import org.apache.cassandra.cql3.functions.Function;
@@ -187,6 +188,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
      */
     private final ColumnComparator<List<ByteBuffer>> orderingComparator;
 
+    public final StatementSource source;
+
     // Used by forSelection below
     public static final Parameters defaultParameters = new Parameters(Collections.emptyList(),
                                                                        Collections.emptyList(),
@@ -203,7 +206,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                            AggregationSpecification.Factory aggregationSpecFactory,
                            ColumnComparator<List<ByteBuffer>> orderingComparator,
                            Term limit,
-                           Term perPartitionLimit)
+                           Term perPartitionLimit,
+                           StatementSource source)
     {
         this.table = table;
         this.bindVariables = bindVariables;
@@ -215,6 +219,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         this.parameters = parameters;
         this.limit = limit;
         this.perPartitionLimit = perPartitionLimit;
+        this.source = source;
     }
 
     @Override
@@ -275,7 +280,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                                    null,
                                    null,
                                    null,
-                                   null);
+                                   null,
+                                   StatementSource.INTERNAL);
     }
 
     @Override
@@ -443,7 +449,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                               long nowInSec,
                               DataLimits limit)
     {
-        boolean isPartitionRangeQuery = restrictions.isKeyRange() || restrictions.usesSecondaryIndexing();
+        boolean isPartitionRangeQuery = isPartitionRangeQuery();
 
         if (isPartitionRangeQuery)
         {
@@ -749,6 +755,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
     public StatementRestrictions getRestrictions()
     {
         return restrictions;
+    }
+
+    public boolean isPartitionRangeQuery()
+    {
+        return isForPartitionRange(restrictions);
     }
 
     private ReadQuery getSliceCommands(QueryOptions options, ClientState state, ColumnFilter columnFilter,
@@ -1216,6 +1227,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             cqlRows.rows.sort(comparator);
     }
 
+    private static boolean isForPartitionRange(StatementRestrictions restrictions)
+    {
+        return restrictions.isKeyRange() || restrictions.usesSecondaryIndexing();
+    }
+
     public static class RawStatement extends QualifiedStatement
     {
         public final Parameters parameters;
@@ -1224,13 +1240,15 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         public final Term.Raw limit;
         public final Term.Raw perPartitionLimit;
         private ClientState state;
+        private final StatementSource source;
 
         public RawStatement(QualifiedName cfName,
                             Parameters parameters,
                             List<RawSelector> selectClause,
                             WhereClause whereClause,
                             Term.Raw limit,
-                            Term.Raw perPartitionLimit)
+                            Term.Raw perPartitionLimit,
+                            StatementSource source)
         {
             super(cfName);
             this.parameters = parameters;
@@ -1238,6 +1256,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             this.whereClause = whereClause;
             this.limit = limit;
             this.perPartitionLimit = perPartitionLimit;
+            this.source = source;
         }
 
         public SelectStatement prepare(ClientState state)
@@ -1326,7 +1345,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
                                        aggregationSpecFactory,
                                        orderingComparator,
                                        prepareLimit(variableSpecifications, limit, keyspace(), limitReceiver()),
-                                       prepareLimit(variableSpecifications, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
+                                       prepareLimit(variableSpecifications, perPartitionLimit, keyspace(), perPartitionLimitReceiver()),
+                                       source);
         }
 
         private Set<ColumnMetadata> getResultSetOrdering(StatementRestrictions restrictions, Map<ColumnMetadata, Ordering> orderingColumns)
@@ -1657,7 +1677,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
         private void checkNeedsFiltering(TableMetadata table, StatementRestrictions restrictions) throws InvalidRequestException
         {
             // non-key-range non-indexed queries cannot involve filtering underneath
-            if (!parameters.allowFiltering && (restrictions.isKeyRange() || restrictions.usesSecondaryIndexing()))
+            if (!parameters.allowFiltering && isForPartitionRange(restrictions))
             {
                 // We will potentially filter data if the row filter is not the identity and there isn't any index group
                 // supporting all the expressions in the filter.
@@ -1868,7 +1888,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
 
     private String loggableTokens(QueryOptions options, ClientState state)
     {
-        if (restrictions.isKeyRange() || restrictions.usesSecondaryIndexing())
+        if (isPartitionRangeQuery())
         {
             AbstractBounds<PartitionPosition> bounds = restrictions.getPartitionKeyBounds(options);
             return "token range: " + (bounds.inclusiveLeft() ? '[' : '(') +
@@ -1905,7 +1925,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
 
         sb.append("SELECT ").append(queriedColumns().toCQLString());
         sb.append(" FROM ").append(table.keyspace).append('.').append(table.name);
-        if (restrictions.isKeyRange() || restrictions.usesSecondaryIndexing())
+        if (isPartitionRangeQuery())
         {
             // partition range
             ClusteringIndexFilter clusteringIndexFilter = makeClusteringIndexFilter(options, state, columnFilter);
