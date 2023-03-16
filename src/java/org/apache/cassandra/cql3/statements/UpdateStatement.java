@@ -84,6 +84,12 @@ public class UpdateStatement extends ModificationStatement
     }
 
     @Override
+    protected ModificationStatement withOperations(Operations operations)
+    {
+        return new UpdateStatement(type, bindVariables, metadata, operations, restrictions, conditions, attrs, source);
+    }
+
+    @Override
     public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering<?> clustering, UpdateParameters params)
     {
         if (updatesRegularRows())
@@ -137,6 +143,7 @@ public class UpdateStatement extends ModificationStatement
     {
         private final List<ColumnIdentifier> columnNames;
         private final List<Term.Raw> columnValues;
+        private final boolean isForTxn;
 
         /**
          * A parsed <code>INSERT</code> statement.
@@ -152,11 +159,13 @@ public class UpdateStatement extends ModificationStatement
                             List<ColumnIdentifier> columnNames,
                             List<Term.Raw> columnValues,
                             boolean ifNotExists,
-                            StatementSource source)
+                            StatementSource source,
+                            boolean isForTxn)
         {
             super(name, StatementType.INSERT, attrs, null, ifNotExists, false, source);
             this.columnNames = columnNames;
             this.columnValues = columnValues;
+            this.isForTxn = isForTxn;
         }
 
         @Override
@@ -176,7 +185,7 @@ public class UpdateStatement extends ModificationStatement
             checkContainsNoDuplicates(columnNames, "The column names contains duplicates");
 
             WhereClause.Builder whereClause = new WhereClause.Builder();
-            Operations operations = new Operations(type);
+            Operations operations = new Operations(type, isForTxn);
             boolean hasClusteringColumnsSet = false;
 
             for (int i = 0; i < columnNames.size(); i++)
@@ -237,12 +246,14 @@ public class UpdateStatement extends ModificationStatement
     {
         private final Json.Raw jsonValue;
         private final boolean defaultUnset;
+        private final boolean isForTxn;
 
-        public ParsedInsertJson(QualifiedName name, Attributes.Raw attrs, Json.Raw jsonValue, boolean defaultUnset, boolean ifNotExists, StatementSource source)
+        public ParsedInsertJson(QualifiedName name, Attributes.Raw attrs, Json.Raw jsonValue, boolean defaultUnset, boolean ifNotExists, StatementSource source, boolean isForTxn)
         {
             super(name, StatementType.INSERT, attrs, null, ifNotExists, false, source);
             this.jsonValue = jsonValue;
             this.defaultUnset = defaultUnset;
+            this.isForTxn = isForTxn;
         }
 
         @Override
@@ -258,7 +269,7 @@ public class UpdateStatement extends ModificationStatement
             Json.Prepared prepared = jsonValue.prepareAndCollectMarkers(metadata, defs, bindVariables);
 
             WhereClause.Builder whereClause = new WhereClause.Builder();
-            Operations operations = new Operations(type);
+            Operations operations = new Operations(type, isForTxn);
             boolean hasClusteringColumnsSet = false;
 
             for (ColumnMetadata def : defs)
@@ -387,7 +398,7 @@ public class UpdateStatement extends ModificationStatement
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
-            Operations operations = new Operations(type);
+            Operations operations = new Operations(type, isForTxn);
 
             for (Pair<ColumnIdentifier, Operation.RawUpdate> entry : updates.operations)
             {
