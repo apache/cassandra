@@ -286,17 +286,17 @@ public class SSTableReaderTest
             // With persistence enabled, we should be able to retrieve the state of the meter.
             sstable.maybePersistSSTableReadMeter();
 
-            UntypedResultSet meter = SystemKeyspace.readSSTableActivity(store.keyspace.getName(), store.name, sstable.descriptor.id);
+            UntypedResultSet meter = SystemKeyspace.readSSTableActivity(store.getKeyspaceName(), store.name, sstable.descriptor.id);
             assertFalse(meter.isEmpty());
 
             Util.getAll(Util.cmd(store, key).includeRow("0").build());
             assertEquals(3, sstable.getReadMeter().count());
 
             // After cleaning existing state and disabling persistence, there should be no meter state to read.
-            SystemKeyspace.clearSSTableReadMeter(store.keyspace.getName(), store.name, sstable.descriptor.id);
+            SystemKeyspace.clearSSTableReadMeter(store.getKeyspaceName(), store.name, sstable.descriptor.id);
             DatabaseDescriptor.setSStableReadRatePersistenceEnabled(false);
             sstable.maybePersistSSTableReadMeter();
-            meter = SystemKeyspace.readSSTableActivity(store.keyspace.getName(), store.name, sstable.descriptor.id);
+            meter = SystemKeyspace.readSSTableActivity(store.getKeyspaceName(), store.name, sstable.descriptor.id);
             assertTrue(meter.isEmpty());
         }
         finally

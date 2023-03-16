@@ -677,7 +677,7 @@ public class CompactionsCQLTest extends CQLTester
 
     private void readAndValidate(boolean asc, ColumnFamilyStore cfs) throws Throwable
     {
-        String kscf = cfs.keyspace.getName() + "." + cfs.name;
+        String kscf = cfs.getKeyspaceName() + "." + cfs.name;
         executeFormattedQuery("select * from " + kscf + " where id = 0 order by id2 "+(asc ? "ASC" : "DESC"));
 
         boolean gotException = false;
@@ -912,7 +912,7 @@ public class CompactionsCQLTest extends CQLTester
 
     private void loadTestSStables(ColumnFamilyStore cfs, File ksDir) throws IOException
     {
-        Keyspace.open(cfs.keyspace.getName()).getColumnFamilyStore(cfs.name).truncateBlocking();
+        Keyspace.open(cfs.getKeyspaceName()).getColumnFamilyStore(cfs.name).truncateBlocking();
         for (File cfDir : cfs.getDirectories().getCFDirectories())
         {
             File tableDir = new File(ksDir, cfs.name);

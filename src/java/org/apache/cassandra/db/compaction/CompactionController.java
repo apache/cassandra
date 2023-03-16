@@ -109,7 +109,7 @@ public class CompactionController extends AbstractCompactionController
 
         if (cfs.getNeverPurgeTombstones())
         {
-            logger.debug("not refreshing overlaps for {}.{} - neverPurgeTombstones is enabled", cfs.keyspace.getName(), cfs.getTableName());
+            logger.debug("not refreshing overlaps for {}.{} - neverPurgeTombstones is enabled", cfs.getKeyspaceName(), cfs.getTableName());
             return;
         }
 

@@ -1260,7 +1260,7 @@ public class TableMetrics
 
         TableMetricNameFactory(ColumnFamilyStore cfs, String type)
         {
-            this.keyspaceName = cfs.keyspace.getName();
+            this.keyspaceName = cfs.getKeyspaceName();
             this.tableName = cfs.name;
             this.isIndex = cfs.isIndex();
             this.type = type;

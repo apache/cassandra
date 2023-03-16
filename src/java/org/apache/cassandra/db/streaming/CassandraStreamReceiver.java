@@ -261,7 +261,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                         if (invalidatedKeys > 0)
                             logger.debug("[Stream #{}] Invalidated {} row cache entries on table {}.{} after stream " +
                                          "receive task completed.", session.planId(), invalidatedKeys,
-                                         cfs.keyspace.getName(), cfs.getTableName());
+                                         cfs.getKeyspaceName(), cfs.getTableName());
                     }
 
                     if (cfs.metadata().isCounter())
@@ -270,7 +270,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                         if (invalidatedKeys > 0)
                             logger.debug("[Stream #{}] Invalidated {} counter cache entries on table {}.{} after stream " +
                                          "receive task completed.", session.planId(), invalidatedKeys,
-                                         cfs.keyspace.getName(), cfs.getTableName());
+                                         cfs.getKeyspaceName(), cfs.getTableName());
                     }
                 }
             }
