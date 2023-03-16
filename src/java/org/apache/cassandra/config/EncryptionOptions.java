@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
@@ -72,8 +74,10 @@ public class EncryptionOptions
      */
     public final ParameterizedClass ssl_context_factory;
     public final String keystore;
+    @Nullable
     public final String keystore_password;
     public final String truststore;
+    @Nullable
     public final String truststore_password;
     public final List<String> cipher_suites;
     protected String protocol;
@@ -147,9 +151,9 @@ public class EncryptionOptions
         ssl_context_factory = new ParameterizedClass("org.apache.cassandra.security.DefaultSslContextFactory",
                                                      new HashMap<>());
         keystore = "conf/.keystore";
-        keystore_password = "cassandra";
+        keystore_password = null;
         truststore = "conf/.truststore";
-        truststore_password = "cassandra";
+        truststore_password = null;
         cipher_suites = null;
         protocol = null;
         accepted_protocols = null;
@@ -608,6 +612,7 @@ public class EncryptionOptions
         @Replaces(oldName = "enable_legacy_ssl_storage_port", deprecated = true)
         public final boolean legacy_ssl_storage_port_enabled;
         public final String outbound_keystore;
+        @Nullable
         public final String outbound_keystore_password;
 
         public ServerEncryptionOptions()
@@ -627,8 +632,8 @@ public class EncryptionOptions
                                        InternodeEncryption internode_encryption, boolean legacy_ssl_storage_port_enabled)
         {
             super(sslContextFactoryClass, keystore, keystore_password, truststore, truststore_password, cipher_suites,
-            protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-            null, optional);
+                  protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
+                  null, optional);
             this.internode_encryption = internode_encryption;
             this.legacy_ssl_storage_port_enabled = legacy_ssl_storage_port_enabled;
             this.outbound_keystore = outbound_keystore;
@@ -672,10 +677,10 @@ public class EncryptionOptions
             if (require_client_auth && (internode_encryption == InternodeEncryption.rack || internode_encryption == InternodeEncryption.dc))
             {
                 logger.warn("Setting require_client_auth is incompatible with 'rack' and 'dc' internode_encryption values."
-                          + " It is possible for an internode connection to pretend to be in the same rack/dc by spoofing"
-                          + " its broadcast address in the handshake and bypass authentication. To ensure that mutual TLS"
-                          + " authentication is not bypassed, please set internode_encryption to 'all'. Continuing with"
-                          + " insecure configuration.");
+                            + " It is possible for an internode connection to pretend to be in the same rack/dc by spoofing"
+                            + " its broadcast address in the handshake and bypass authentication. To ensure that mutual TLS"
+                            + " authentication is not bypassed, please set internode_encryption to 'all'. Continuing with"
+                            + " insecure configuration.");
             }
 
             // regardless of the optional flag, if the internode encryption is set to rack or dc

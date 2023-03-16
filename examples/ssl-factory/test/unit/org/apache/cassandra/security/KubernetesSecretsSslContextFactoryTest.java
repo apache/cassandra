@@ -147,7 +147,7 @@ public class KubernetesSecretsSslContextFactoryTest
         Assert.assertNotNull(trustManagerFactory);
     }
 
-    @Test(expected = IOException.class)
+    @Test(expected = IllegalArgumentException.class)
     public void buildKeyManagerFactoryWithInvalidKeystoreFile() throws IOException
     {
         Map<String, Object> config = new HashMap<>();

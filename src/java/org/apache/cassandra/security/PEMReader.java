@@ -42,6 +42,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
 import com.google.common.collect.ImmutableSet;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -100,7 +101,7 @@ public final class PEMReader
         String base64EncodedKey = extractBase64EncodedKey(pemKey);
         byte[] derKeyBytes = decodeBase64(base64EncodedKey);
 
-        if (keyPassword != null)
+        if (!StringUtils.isEmpty(keyPassword))
         {
             logger.debug("Encrypted key's length: {}, key's password length: {}",
                          derKeyBytes.length, keyPassword.length());
