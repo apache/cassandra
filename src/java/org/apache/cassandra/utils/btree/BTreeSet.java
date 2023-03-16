@@ -27,6 +27,7 @@ import java.util.ListIterator;
 import java.util.NavigableSet;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -37,7 +38,6 @@ import com.google.common.collect.Ordering;
 import org.apache.cassandra.utils.btree.BTree.Dir;
 
 import static org.apache.cassandra.utils.btree.BTree.findIndex;
-
 
 public class BTreeSet<V> extends AbstractSet<V> implements NavigableSet<V>, List<V>
 {

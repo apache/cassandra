@@ -428,7 +428,7 @@ public class BTreeRow extends AbstractRow
      * Returns a copy of the row where all timestamps for live data have replaced by {@code newTimestamp} and
      * all deletion timestamp by {@code newTimestamp - 1}.
      *
-     * This exists for the Paxos path, see {@link PartitionUpdate#updateAllTimestamp} for additional details.
+     * This exists for the Paxos path, see {@link PartitionUpdate.Builder#updateAllTimestamp} for additional details.
      */
     public Row updateAllTimestamp(long newTimestamp)
     {
@@ -450,7 +450,7 @@ public class BTreeRow extends AbstractRow
         // should get rid of said deletion.
         Deletion newDeletion = deletion.isLive() || (deletion.isShadowable() && !primaryKeyLivenessInfo.isEmpty())
                                ? Deletion.LIVE
-                               : new Deletion(new DeletionTime(newTimestamp - 1, newLocalDeletionTime), deletion.isShadowable());
+                               : new Deletion(DeletionTime.build(newTimestamp - 1, newLocalDeletionTime), deletion.isShadowable());
         return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateAllTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime));
     }
 

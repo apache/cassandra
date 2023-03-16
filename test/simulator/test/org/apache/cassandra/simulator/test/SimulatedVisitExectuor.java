@@ -31,6 +31,7 @@ import org.apache.cassandra.harry.tracker.DataTracker;
 import org.apache.cassandra.harry.visitors.MutatingRowVisitor;
 import org.apache.cassandra.harry.visitors.VisitExecutor;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.impl.Query;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.systems.InterceptedExecution;
@@ -75,12 +76,12 @@ public class SimulatedVisitExectuor extends VisitExecutor
         Object[] bindingsArray = new Object[bindings.size()];
         bindings.toArray(bindingsArray);
 
-        action = new SimulatedActionCallable<Object[][]>("Batch",
-                                                         Action.Modifiers.RELIABLE_NO_TIMEOUTS,
-                                                         Action.Modifiers.RELIABLE_NO_TIMEOUTS,
-                                                         simulation.simulated,
-                                                         simulation.cluster.get((int) ((lts.get(0) % simulation.cluster.size()) + 1)),
-                                                         new RetryingQuery(query, cl, bindingsArray))
+        action = new SimulatedActionCallable<SimpleQueryResult>("Batch",
+                                                                Action.Modifiers.RELIABLE_NO_TIMEOUTS,
+                                                                Action.Modifiers.RELIABLE_NO_TIMEOUTS,
+                                                                simulation.simulated,
+                                                                simulation.cluster.get((int) ((lts.get(0) % simulation.cluster.size()) + 1)),
+                                                                new RetryingQuery(query, cl, bindingsArray))
         {
             private final List<Long> localLts = new ArrayList<>(SimulatedVisitExectuor.this.lts);
 
@@ -103,7 +104,7 @@ public class SimulatedVisitExectuor extends VisitExecutor
             }
 
             @Override
-            public void accept(Object[][] result, Throwable failure)
+            public void accept(SimpleQueryResult result, Throwable failure)
             {
                 if (failure != null)
                     simulated.failures.accept(failure);
@@ -153,7 +154,7 @@ public class SimulatedVisitExectuor extends VisitExecutor
         }
 
         @Override
-        public Object[][] call()
+        public SimpleQueryResult call()
         {
             while (true)
             {
