@@ -1262,7 +1262,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
     {
         if (BigFormat.isDefault())
         {
-            Descriptor descriptor = new Descriptor(dataFolder, cfs.keyspace.getName(), cfs.getTableName(), new SequenceBasedSSTableId(generation), SSTableFormat.Type.current());
+            Descriptor descriptor = new Descriptor(dataFolder, cfs.getKeyspaceName(), cfs.getTableName(), new SequenceBasedSSTableId(generation), SSTableFormat.Type.current());
             Set<Component> components = ImmutableSet.of(Components.DATA, Components.PRIMARY_INDEX, Components.FILTER, Components.TOC);
             for (Component component : components)
             {

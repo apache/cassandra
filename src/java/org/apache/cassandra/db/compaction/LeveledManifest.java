@@ -660,7 +660,7 @@ public class LeveledManifest
         }
 
         logger.trace("Estimating {} compactions to do for {}.{}",
-                     Arrays.toString(estimated), cfs.keyspace.getName(), cfs.name);
+                     Arrays.toString(estimated), cfs.getKeyspaceName(), cfs.name);
         return Ints.checkedCast(tasks);
     }
 

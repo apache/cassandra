@@ -165,7 +165,7 @@ public class MockSchema
     {
         SSTableFormat<?, ?> format = SSTableFormat.Type.current().info;
         Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
-                                               cfs.keyspace.getName(),
+                                               cfs.getKeyspaceName(),
                                                cfs.getTableName(),
                                                sstableId(generation),
                                                format.getType());

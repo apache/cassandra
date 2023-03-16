@@ -155,7 +155,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
 
     public String getFilename()
     {
-        return String.join("/", cfs.keyspace.getName(), cfs.getTableName());
+        return String.join("/", cfs.getKeyspaceName(), cfs.getTableName());
     }
 
     @Override
