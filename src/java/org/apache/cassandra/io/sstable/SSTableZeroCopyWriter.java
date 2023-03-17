@@ -122,12 +122,6 @@ public class SSTableZeroCopyWriter extends SSTable implements SSTableMultiWriter
     }
 
     @Override
-    public Collection<SSTableReader> finish(long repairedAt, long maxDataAge, boolean openResult)
-    {
-        return finish(openResult);
-    }
-
-    @Override
     public Collection<SSTableReader> finish(boolean openResult)
     {
         setOpenResult(openResult);
