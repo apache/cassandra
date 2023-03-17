@@ -108,13 +108,13 @@ public class SSTableExpiredBlockers
         Multimap<SSTableReader, SSTableReader> blockers = ArrayListMultimap.create();
         for (SSTableReader sstable : sstables)
         {
-            if (sstable.getSSTableMetadata().maxLocalDeletionTime < gcBefore)
+            if (sstable.getMaxLocalDeletionTime() < gcBefore)
             {
                 for (SSTableReader potentialBlocker : sstables)
                 {
                     if (!potentialBlocker.equals(sstable) &&
                         potentialBlocker.getMinTimestamp() <= sstable.getMaxTimestamp() &&
-                        potentialBlocker.getSSTableMetadata().maxLocalDeletionTime > gcBefore)
+                        potentialBlocker.getMaxLocalDeletionTime() > gcBefore)
                         blockers.put(potentialBlocker, sstable);
                 }
             }
@@ -127,7 +127,7 @@ public class SSTableExpiredBlockers
         StringBuilder sb = new StringBuilder();
 
         for (SSTableReader sstable : sstables)
-            sb.append(String.format("[%s (minTS = %d, maxTS = %d, maxLDT = %d)]", sstable, sstable.getMinTimestamp(), sstable.getMaxTimestamp(), sstable.getSSTableMetadata().maxLocalDeletionTime)).append(", ");
+            sb.append(String.format("[%s (minTS = %d, maxTS = %d, maxLDT = %d)]", sstable, sstable.getMinTimestamp(), sstable.getMaxTimestamp(), sstable.getMaxLocalDeletionTime())).append(", ");
 
         return sb.toString();
     }
