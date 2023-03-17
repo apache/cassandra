@@ -36,7 +36,6 @@ public interface SSTableMultiWriter extends Transactional
      */
     boolean append(UnfilteredRowIterator partition);
 
-    Collection<SSTableReader> finish(long repairedAt, long maxDataAge, boolean openResult);
     Collection<SSTableReader> finish(boolean openResult);
     Collection<SSTableReader> finished();
 
