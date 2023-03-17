@@ -173,11 +173,11 @@ public class CompactionController extends AbstractCompactionController
             Set<SSTableReader> fullyExpired = new HashSet<>();
             for (SSTableReader candidate : compacting)
             {
-                if (candidate.getSSTableMetadata().maxLocalDeletionTime < gcBefore)
+                if (candidate.getMaxLocalDeletionTime() < gcBefore)
                 {
                     fullyExpired.add(candidate);
                     logger.trace("Dropping overlap ignored expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
-                                 candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
+                                 candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
                 }
             }
             return fullyExpired;
@@ -190,13 +190,13 @@ public class CompactionController extends AbstractCompactionController
         {
             // Overlapping might include fully expired sstables. What we care about here is
             // the min timestamp of the overlapping sstables that actually contain live data.
-            if (sstable.getSSTableMetadata().maxLocalDeletionTime >= gcBefore)
+            if (sstable.getMaxLocalDeletionTime() >= gcBefore)
                 minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
         }
 
         for (SSTableReader candidate : compacting)
         {
-            if (candidate.getSSTableMetadata().maxLocalDeletionTime < gcBefore)
+            if (candidate.getMaxLocalDeletionTime() < gcBefore)
                 candidates.add(candidate);
             else
                 minTimestamp = Math.min(minTimestamp, candidate.getMinTimestamp());
@@ -224,7 +224,7 @@ public class CompactionController extends AbstractCompactionController
             else
             {
                logger.trace("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
-                        candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
+                        candidate, candidate.getMaxLocalDeletionTime(), gcBefore);
             }
         }
         return new HashSet<>(candidates);
