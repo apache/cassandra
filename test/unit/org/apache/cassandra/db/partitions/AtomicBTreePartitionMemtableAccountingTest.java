@@ -322,7 +322,7 @@ public class AtomicBTreePartitionMemtableAccountingTest
 
                 OpOrder.Group writeOp = opOrder.getCurrent();
                 Cloner cloner = allocator.cloner(writeOp);
-                partition.addAll(update, cloner, writeOp, indexer);
+                partition.addAllWithSizeDelta(update, cloner, writeOp, indexer);
                 opOrder.newBarrier().issue();
 
                 assertThat(allocator.onHeap().owns()).isGreaterThanOrEqualTo(0L);
@@ -338,7 +338,7 @@ public class AtomicBTreePartitionMemtableAccountingTest
                 opOrder.newBarrier().issue();
                 OpOrder.Group writeOp = opOrder.getCurrent();
                 Cloner cloner = recreatedAllocator.cloner(writeOp);
-                recreated.addAll(update, cloner, writeOp, indexer);
+                recreated.addAllWithSizeDelta(update, cloner, writeOp, indexer);
             }
 
             // offheap allocators don't release on heap memory, so expect the same

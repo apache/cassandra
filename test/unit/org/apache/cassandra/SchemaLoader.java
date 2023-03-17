@@ -274,7 +274,7 @@ public class SchemaLoader
 
     public static void createKeyspace(String name, KeyspaceParams params, Tables tables, Types types)
     {
-        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables, Views.none(), types, UserFunctions.none()));
+        SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables, Views.none(), types, Functions.none()));
     }
 
     public static void setupAuth(IRoleManager roleManager, IAuthenticator authenticator, IAuthorizer authorizer, INetworkAuthorizer networkAuthorizer)
@@ -286,7 +286,6 @@ public class SchemaLoader
         SchemaTestUtil.announceNewKeyspace(AuthKeyspace.metadata());
         DatabaseDescriptor.getRoleManager().setup();
         DatabaseDescriptor.getAuthenticator().setup();
-        DatabaseDescriptor.getInternodeAuthenticator().setupInternode();
         DatabaseDescriptor.getAuthorizer().setup();
         DatabaseDescriptor.getNetworkAuthorizer().setup();
         Schema.instance.registerListener(new AuthSchemaChangeListener());

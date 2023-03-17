@@ -148,7 +148,6 @@ public class QueryMessage extends Message.Request
     @Override
     public String toString()
     {
-        return String.format("QUERY %s [pageSize = %d] at consistency %s", 
-                             query, options.getPageSize(), options.getConsistency());
+        return String.format("QUERY %s [pageSize = %d]", query, options.getPageSize());
     }
 }

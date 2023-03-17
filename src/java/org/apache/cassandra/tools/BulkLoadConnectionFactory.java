@@ -53,7 +53,7 @@ public class BulkLoadConnectionFactory extends NettyStreamingConnectionFactory
                                    int messagingVersion,
                                    StreamingChannel.Kind kind) throws IOException
     {
-        // The preferred address is always overwritten in create(). This method override only exists so we can avoid
+        // The preferred address is always overwritten in create(). This method override only exists so we can avoid 
         // falling back to the NettyStreamingConnectionFactory implementation.
         OutboundConnectionSettings template = new OutboundConnectionSettings(getByAddress(to), getByAddress(preferred));
         return create(template, messagingVersion, kind);

@@ -55,7 +55,7 @@ final class UserTypeSelector extends Selector
         protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             UserType type = (UserType) readType(metadata, in);
-            int size = in.readUnsignedVInt32();
+            int size = (int) in.readUnsignedVInt();
             Map<FieldIdentifier, Selector> fields = new HashMap<>(size);
             for (int i = 0; i < size; i++)
             {
@@ -182,10 +182,10 @@ final class UserTypeSelector extends Selector
             field.addFetchedColumns(builder);
     }
 
-    public void addInput(InputRow input)
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
         for (Selector field : fields.values())
-            field.addInput(input);
+            field.addInput(protocolVersion, input);
     }
 
     public ByteBuffer getOutput(ProtocolVersion protocolVersion)
@@ -272,7 +272,7 @@ final class UserTypeSelector extends Selector
     protected void serialize(DataOutputPlus out, int version) throws IOException
     {
         writeType(out, type);
-        out.writeUnsignedVInt32(fields.size());
+        out.writeUnsignedVInt(fields.size());
 
         for (Map.Entry<FieldIdentifier, Selector> field : fields.entrySet())
         {

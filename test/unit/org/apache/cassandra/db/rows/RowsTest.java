@@ -200,12 +200,6 @@ public class RowsTest
         {
             this.hasLegacyCounterShards |= hasLegacyCounterShards;
         }
-
-        @Override
-        public void updatePartitionDeletion(DeletionTime dt)
-        {
-            update(dt);
-        }
     }
 
     private static long secondToTs(int now)

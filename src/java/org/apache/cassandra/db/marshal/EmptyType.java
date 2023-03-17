@@ -33,8 +33,6 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 /**
@@ -69,18 +67,6 @@ public class EmptyType extends AbstractType<Void>
     public static final EmptyType instance = new EmptyType();
 
     private EmptyType() {super(ComparisonType.CUSTOM);} // singleton
-
-    @Override
-    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
-    {
-        return null;
-    }
-
-    @Override
-    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
-    {
-        return accessor.empty();
-    }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
@@ -181,11 +167,5 @@ public class EmptyType extends AbstractType<Void>
         {
             super(message);
         }
-    }
-
-    @Override
-    public ByteBuffer getMaskedValue()
-    {
-        return ByteBufferUtil.EMPTY_BYTE_BUFFER;
     }
 }

@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import javax.management.openmbean.*;
 
+import com.google.common.base.Throwables;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 
@@ -31,8 +32,7 @@ public class SnapshotDetailsTabularData
             "True size",
             "Size on disk",
             "Creation time",
-            "Expiration time",
-            "Ephemeral"};
+            "Expiration time",};
 
     private static final String[] ITEM_DESCS = new String[]{"snapshot_name",
             "keyspace_name",
@@ -40,8 +40,7 @@ public class SnapshotDetailsTabularData
             "TrueDiskSpaceUsed",
             "TotalDiskSpaceUsed",
             "created_at",
-            "expires_at",
-            "ephemeral"};
+            "expires_at",};
 
     private static final String TYPE_NAME = "SnapshotDetails";
 
@@ -57,7 +56,7 @@ public class SnapshotDetailsTabularData
     {
         try
         {
-            ITEM_TYPES = new OpenType[]{ SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING };
+            ITEM_TYPES = new OpenType[]{ SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.STRING };
 
             COMPOSITE_TYPE = new CompositeType(TYPE_NAME, ROW_DESC, ITEM_NAMES, ITEM_DESCS, ITEM_TYPES);
 
@@ -65,7 +64,7 @@ public class SnapshotDetailsTabularData
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);
+            throw Throwables.propagate(e);
         }
     }
 
@@ -78,9 +77,8 @@ public class SnapshotDetailsTabularData
             final String liveSize =  FileUtils.stringifyFileSize(details.computeTrueSizeBytes());
             String createdAt = safeToString(details.getCreatedAt());
             String expiresAt = safeToString(details.getExpiresAt());
-            String ephemeral = Boolean.toString(details.isEphemeral());
             result.put(new CompositeDataSupport(COMPOSITE_TYPE, ITEM_NAMES,
-                    new Object[]{ details.getTag(), details.getKeyspaceName(), details.getTableName(), liveSize, totalSize, createdAt, expiresAt, ephemeral }));
+                    new Object[]{ details.getTag(), details.getKeyspaceName(), details.getTableName(), liveSize, totalSize, createdAt, expiresAt }));
         }
         catch (OpenDataException e)
         {

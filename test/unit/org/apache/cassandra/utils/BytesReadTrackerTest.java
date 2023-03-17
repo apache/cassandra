@@ -18,6 +18,10 @@
  */
 package org.apache.cassandra.utils;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -25,17 +29,10 @@ import java.io.DataOutputStream;
 
 import org.junit.Test;
 
-import org.apache.cassandra.Util;
 import org.apache.cassandra.io.util.BytesReadTracker;
-import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.io.util.TrackedInputStream;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class BytesReadTrackerTest
 {
@@ -102,9 +99,9 @@ public class BytesReadTrackerTest
             out.close();
         }
 
-        DataInputStreamPlus in = new DataInputBuffer(testData);
-        BytesReadTracker tracker = inputStream ? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
-        DataInputPlus reader = inputStream ? Util.DataInputStreamPlusImpl.wrap((TrackedInputStream) tracker) : (DataInputPlus) tracker;
+        DataInputPlus.DataInputStreamPlus in = new DataInputPlus.DataInputStreamPlus(new ByteArrayInputStream(testData));
+        BytesReadTracker tracker = inputStream? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
+        DataInputPlus reader = inputStream? new DataInputPlus.DataInputStreamPlus((TrackedInputStream)tracker) : (DataInputPlus) tracker;
 
         try
         {
@@ -175,9 +172,9 @@ public class BytesReadTrackerTest
             out.close();
         }
 
-        DataInputStreamPlus in = new DataInputBuffer(testData);
-        BytesReadTracker tracker = inputStream ? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
-        DataInputPlus reader = inputStream ? Util.DataInputStreamPlusImpl.wrap((TrackedInputStream) tracker) : (DataInputPlus) tracker;
+        DataInputPlus.DataInputStreamPlus in = new DataInputPlus.DataInputStreamPlus(new ByteArrayInputStream(testData));
+        BytesReadTracker tracker = inputStream? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
+        DataInputPlus reader = inputStream? new DataInputPlus.DataInputStreamPlus((TrackedInputStream)tracker) : (DataInputPlus) tracker;
 
         try
         {
@@ -203,9 +200,9 @@ public class BytesReadTrackerTest
         String testStr = "1234567890";
         byte[] testData = testStr.getBytes();
 
-        DataInputStreamPlus in = new DataInputBuffer(testData);
-        BytesReadTracker tracker = inputStream ? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
-        DataInputPlus reader = inputStream ? Util.DataInputStreamPlusImpl.wrap((TrackedInputStream) tracker) : (DataInputPlus) tracker;
+        DataInputPlus.DataInputStreamPlus in = new DataInputPlus.DataInputStreamPlus(new ByteArrayInputStream(testData));
+        BytesReadTracker tracker = inputStream? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
+        DataInputPlus reader = inputStream? new DataInputPlus.DataInputStreamPlus((TrackedInputStream)tracker) : (DataInputPlus) tracker;
 
         try
         {
@@ -236,8 +233,8 @@ public class BytesReadTrackerTest
     public void internalTestReadLine(boolean inputStream) throws Exception
     {
         DataInputStream in = new DataInputStream(new ByteArrayInputStream("1".getBytes()));
-        BytesReadTracker tracker = inputStream ? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
-        DataInputPlus reader = inputStream ? Util.DataInputStreamPlusImpl.wrap((TrackedInputStream) tracker) : (DataInputPlus) tracker;
+        BytesReadTracker tracker = inputStream? new TrackedInputStream(in) : new TrackedDataInputPlus(in);
+        DataInputPlus reader = inputStream? new DataInputPlus.DataInputStreamPlus((TrackedInputStream)tracker) : (DataInputPlus) tracker;
 
         try
         {

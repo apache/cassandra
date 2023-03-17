@@ -20,10 +20,9 @@ package org.apache.cassandra.concurrent;
 
 import java.util.concurrent.Callable;
 
-import javax.annotation.Nullable;
+import org.apache.cassandra.utils.concurrent.RunnableFuture;
 
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
-import org.apache.cassandra.utils.concurrent.RunnableFuture;
 
 /**
  * A FutureTask that utilises Cassandra's {@link AsyncFuture}, making it compatible with {@link ExecutorPlus}.
@@ -32,28 +31,15 @@ import org.apache.cassandra.utils.concurrent.RunnableFuture;
 public class FutureTask<V> extends AsyncFuture<V> implements RunnableFuture<V>
 {
     private Callable<? extends V> call;
-    private volatile DebuggableTask debuggable;
 
     public FutureTask(Callable<? extends V> call)
     {
-        this(call, call instanceof DebuggableTask ? (DebuggableTask) call : null);
+        this.call = call;
     }
 
     public FutureTask(Runnable run)
     {
-        this(callable(run), run instanceof DebuggableTask ? (DebuggableTask) run : null);
-    }
-
-    private FutureTask(Callable<? extends V> call, DebuggableTask debuggable)
-    {
-        this.call = call;
-        this.debuggable = debuggable;
-    }
-
-    @Nullable
-    DebuggableTask debuggableTask()
-    {
-        return debuggable;
+        this.call = callable(run);
     }
 
     V call() throws Exception
@@ -77,7 +63,6 @@ public class FutureTask<V> extends AsyncFuture<V> implements RunnableFuture<V>
         finally
         {
             call = null;
-            debuggable = null;
         }
     }
 

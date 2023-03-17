@@ -18,25 +18,21 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.ListSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 public class ListType<T> extends CollectionType<List<T>>
 {
@@ -160,14 +156,14 @@ public class ListType<T> extends CollectionType<List<T>>
     public boolean isCompatibleWithFrozen(CollectionType<?> previous)
     {
         assert !isMultiCell;
-        return this.elements.isCompatibleWith(((ListType<?>) previous).elements);
+        return this.elements.isCompatibleWith(((ListType) previous).elements);
     }
 
     @Override
     public boolean isValueCompatibleWithFrozen(CollectionType<?> previous)
     {
         assert !isMultiCell;
-        return this.elements.isValueCompatibleWithInternal(((ListType<?>) previous).elements);
+        return this.elements.isValueCompatibleWithInternal(((ListType) previous).elements);
     }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
@@ -175,16 +171,29 @@ public class ListType<T> extends CollectionType<List<T>>
         return compareListOrSet(elements, left, accessorL, right, accessorR);
     }
 
-    @Override
-    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, Version version)
+    static <VL, VR> int compareListOrSet(AbstractType<?> elementsComparator, VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
-        return asComparableBytesListOrSet(getElementsType(), accessor, data, version);
-    }
+        // Note that this is only used if the collection is frozen
+        if (accessorL.isEmpty(left) || accessorR.isEmpty(right))
+            return Boolean.compare(accessorR.isEmpty(right), accessorL.isEmpty(left));
 
-    @Override
-    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, Version version)
-    {
-        return fromComparableBytesListOrSet(accessor, comparableBytes, version, getElementsType());
+        int sizeL = CollectionSerializer.readCollectionSize(left, accessorL, ProtocolVersion.V3);
+        int offsetL = CollectionSerializer.sizeOfCollectionSize(sizeL, ProtocolVersion.V3);
+        int sizeR = CollectionSerializer.readCollectionSize(right, accessorR, ProtocolVersion.V3);
+        int offsetR = TypeSizes.INT_SIZE;
+
+        for (int i = 0; i < Math.min(sizeL, sizeR); i++)
+        {
+            VL v1 = CollectionSerializer.readValue(left, accessorL, offsetL, ProtocolVersion.V3);
+            offsetL += CollectionSerializer.sizeOfValue(v1, accessorL, ProtocolVersion.V3);
+            VR v2 = CollectionSerializer.readValue(right, accessorR, offsetR, ProtocolVersion.V3);
+            offsetR += CollectionSerializer.sizeOfValue(v2, accessorR, ProtocolVersion.V3);
+            int cmp = elementsComparator.compare(v1, accessorL, v2, accessorR);
+            if (cmp != 0)
+                return cmp;
+        }
+
+        return sizeL == sizeR ? 0 : (sizeL < sizeR ? -1 : 1);
     }
 
     @Override
@@ -221,7 +230,7 @@ public class ListType<T> extends CollectionType<List<T>>
             throw new MarshalException(String.format(
                     "Expected a list, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
 
-        List<?> list = (List<?>) parsed;
+        List list = (List) parsed;
         List<Term> terms = new ArrayList<>(list.size());
         for (Object element : list)
         {
@@ -231,6 +240,23 @@ public class ListType<T> extends CollectionType<List<T>>
         }
 
         return new Lists.DelayedValue(terms);
+    }
+
+    public static String setOrListToJsonString(ByteBuffer buffer, AbstractType elementsType, ProtocolVersion protocolVersion)
+    {
+        ByteBuffer value = buffer.duplicate();
+        StringBuilder sb = new StringBuilder("[");
+        int size = CollectionSerializer.readCollectionSize(value, protocolVersion);
+        int offset = CollectionSerializer.sizeOfCollectionSize(size, protocolVersion);
+        for (int i = 0; i < size; i++)
+        {
+            if (i > 0)
+                sb.append(", ");
+            ByteBuffer element = CollectionSerializer.readValue(value, ByteBufferAccessor.instance, offset, protocolVersion);
+            offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance, protocolVersion);
+            sb.append(elementsType.toJSONString(element, protocolVersion));
+        }
+        return sb.append("]").toString();
     }
 
     public ByteBuffer getSliceFromSerialized(ByteBuffer collection, ByteBuffer from, ByteBuffer to)
@@ -243,17 +269,5 @@ public class ListType<T> extends CollectionType<List<T>>
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
         return setOrListToJsonString(buffer, elements, protocolVersion);
-    }
-
-    @Override
-    public void forEach(ByteBuffer input, Consumer<ByteBuffer> action)
-    {
-        serializer.forEach(input, action);
-    }
-
-    @Override
-    public ByteBuffer getMaskedValue()
-    {
-        return decompose(Collections.emptyList());
     }
 }

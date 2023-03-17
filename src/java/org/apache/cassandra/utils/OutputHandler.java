@@ -26,36 +26,20 @@ import org.slf4j.LoggerFactory;
 public interface OutputHandler
 {
     // called when an important info need to be displayed
-    void output(String msg);
-    default void output(String msg, Object ... args)
-    {
-        output(String.format(msg, args));
-    }
+    public void output(String msg);
 
     // called when a less important info need to be displayed
-    void debug(String msg);
-    default void debug(String msg, Object ... args)
-    {
-        debug(String.format(msg, args));
-    }
+    public void debug(String msg);
 
     // called when the user needs to be warn
-    void warn(String msg);
-    void warn(Throwable th, String msg);
-    default void warn(Throwable th)
+    public void warn(String msg);
+    public void warn(String msg, Throwable th);
+    public default void warn(Throwable th)
     {
-        warn(th, th.getMessage());
-    }
-    default void warn(Throwable th, String msg, Object... args)
-    {
-        warn(th, String.format(msg, args));
-    }
-    default void warn(String msg, Object ... args)
-    {
-        warn(String.format(msg, args));
+        warn(th.getMessage(), th);
     }
 
-    class LogOutput implements OutputHandler
+    public static class LogOutput implements OutputHandler
     {
         private static Logger logger = LoggerFactory.getLogger(LogOutput.class);
 
@@ -74,13 +58,13 @@ public interface OutputHandler
             logger.warn(msg);
         }
 
-        public void warn(Throwable th, String msg)
+        public void warn(String msg, Throwable th)
         {
             logger.warn(msg, th);
         }
     }
 
-    class SystemOutput implements OutputHandler
+    public static class SystemOutput implements OutputHandler
     {
         public final boolean debug;
         public final boolean printStack;
@@ -111,10 +95,10 @@ public interface OutputHandler
 
         public void warn(String msg)
         {
-            warn((Throwable) null, msg);
+            warn(msg, null);
         }
 
-        public void warn(Throwable th, String msg)
+        public void warn(String msg, Throwable th)
         {
             warnOut.println("WARNING: " + msg);
             if (printStack && th != null)

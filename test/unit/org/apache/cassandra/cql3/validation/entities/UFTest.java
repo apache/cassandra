@@ -87,17 +87,17 @@ public class UFTest extends CQLTester
     }
 
     @Test
-    public void testSchemaChange()
+    public void testSchemaChange() throws Throwable
     {
         String f = createFunctionName(KEYSPACE);
         String functionName = shortFunctionName(f);
         registerFunction(f, "double, double");
 
-        assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state double, val double)" +
-                           "CALLED ON NULL INPUT " +
+        assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state double, val double) " +
+                           "RETURNS NULL ON NULL INPUT " +
                            "RETURNS double " +
-                           "LANGUAGE java " +
-                           "AS ' return Double.valueOf(Math.max(state.doubleValue(), val.doubleValue())); ';",
+                           "LANGUAGE javascript " +
+                           "AS '\"string\";';",
                            Change.CREATED,
                            Target.FUNCTION,
                            KEYSPACE, functionName,
@@ -108,22 +108,22 @@ public class UFTest extends CQLTester
         assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
                            "RETURNS NULL ON NULL INPUT " +
                            "RETURNS int " +
-                           "LANGUAGE java " +
-                           "AS ' return Integer.valueOf(Math.max(state, val));';",
+                           "LANGUAGE javascript " +
+                           "AS '\"string\";';",
                            Change.CREATED,
                            Target.FUNCTION,
                            KEYSPACE, functionName,
                            "int", "int");
 
-        /*assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
+        assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
                            "RETURNS NULL ON NULL INPUT " +
                            "RETURNS int " +
-                           "LANGUAGE java " +
-                           "AS ' return Integer.valueOf(Math.max(state, val));';",
+                           "LANGUAGE javascript " +
+                           "AS '\"string1\";';",
                            Change.UPDATED,
                            Target.FUNCTION,
                            KEYSPACE, functionName,
-                           "int", "int");*/
+                           "int", "int");
 
         assertSchemaChange("DROP FUNCTION " + f + "(double, double)",
                            Change.DROPPED, Target.FUNCTION,
@@ -137,8 +137,8 @@ public class UFTest extends CQLTester
         assertSchemaChange("CREATE OR REPLACE FUNCTION " + fl + "(state list<tuple<int, int>>, val double) " +
                            "RETURNS NULL ON NULL INPUT " +
                            "RETURNS double " +
-                           "LANGUAGE java " +
-                           "AS ' return val;';",
+                           "LANGUAGE javascript " +
+                           "AS '\"string\";';",
                            Change.CREATED, Target.FUNCTION,
                            KEYSPACE, shortFunctionName(fl),
                            "list<tuple<int, int>>", "double");
@@ -156,7 +156,7 @@ public class UFTest extends CQLTester
 
         FunctionName fSinName = parseFunctionName(fSin);
 
-        Assert.assertEquals(1, Schema.instance.getUserFunctions(parseFunctionName(fSin)).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(fSin)).size());
 
         assertRows(execute("SELECT function_name, language FROM system_schema.functions WHERE keyspace_name=?", KEYSPACE_PER_TEST),
                    row(fSinName.name, "java"));
@@ -165,7 +165,7 @@ public class UFTest extends CQLTester
 
         assertRows(execute("SELECT function_name, language FROM system_schema.functions WHERE keyspace_name=?", KEYSPACE_PER_TEST));
 
-        Assert.assertEquals(0, Schema.instance.getUserFunctions(fSinName).size());
+        Assert.assertEquals(0, Schema.instance.getFunctions(fSinName).size());
     }
 
     @Test
@@ -182,7 +182,7 @@ public class UFTest extends CQLTester
 
         FunctionName fSinName = parseFunctionName(fSin);
 
-        Assert.assertEquals(1, Schema.instance.getUserFunctions(parseFunctionName(fSin)).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(fSin)).size());
 
         // create a pairs of Select and Inserts. One statement in each pair uses the function so when we
         // drop it those statements should be removed from the cache in QueryProcessor. The other statements
@@ -220,7 +220,7 @@ public class UFTest extends CQLTester
                 "LANGUAGE java " +
                 "AS 'return Double.valueOf(Math.sin(input));'");
 
-        Assert.assertEquals(1, Schema.instance.getUserFunctions(fSinName).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(fSinName).size());
 
         preparedSelect1= QueryProcessor.instance.prepare(
                                          String.format("SELECT key, %s(d) FROM %s.%s", fSin, KEYSPACE, currentTable()),
@@ -333,9 +333,9 @@ public class UFTest extends CQLTester
                                         "CREATE FUNCTION %s ( input double ) " +
                                         "CALLED ON NULL INPUT " +
                                         "RETURNS double " +
-                                        "LANGUAGE java " +
-                                        "AS 'return Double.valueOf(Math.log(input.doubleValue()));'");
-        Assert.assertEquals(1, Schema.instance.getUserFunctions(parseFunctionName(function)).size());
+                                        "LANGUAGE javascript " +
+                                        "AS 'input'");
+        Assert.assertEquals(1, Schema.instance.getFunctions(parseFunctionName(function)).size());
 
         List<ResultMessage.Prepared> prepared = new ArrayList<>();
         // prepare statements which use the function to provide a DelayedValue
@@ -769,7 +769,7 @@ public class UFTest extends CQLTester
 
         FunctionName fNameName = parseFunctionName(fName);
 
-        Assert.assertEquals(1, Schema.instance.getUserFunctions(fNameName).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(fNameName).size());
 
         ResultMessage.Prepared prepared = QueryProcessor.instance.prepare(String.format("SELECT key, %s(udt) FROM %s.%s", fName, KEYSPACE, currentTable()),
                                                                  ClientState.forInternalCalls());
@@ -786,17 +786,18 @@ public class UFTest extends CQLTester
         Assert.assertNull(QueryProcessor.instance.getPrepared(prepared.statementId));
 
         // function stays
-        Assert.assertEquals(1, Schema.instance.getUserFunctions(fNameName).size());
+        Assert.assertEquals(1, Schema.instance.getFunctions(fNameName).size());
     }
 
     @Test
     public void testDuplicateArgNames() throws Throwable
     {
         assertInvalidMessage("Duplicate argument names for given function",
-                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".scrinv(input double, input int) " +
-                             "CALLED ON NULL INPUT " +
-                             "RETURNS double " +
-                             "LANGUAGE java AS 'return Math.max(input, input)';");
+                             "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".scrinv(val double, val text) " +
+                             "RETURNS NULL ON NULL INPUT " +
+                             "RETURNS text " +
+                             "LANGUAGE javascript\n" +
+                             "AS '\"foo bar\";';");
     }
 
     @Test
@@ -854,7 +855,7 @@ public class UFTest extends CQLTester
                                       "AS 'throw new RuntimeException();';");
 
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(KEYSPACE_PER_TEST);
-        UDFunction f = (UDFunction) ksm.userFunctions.get(parseFunctionName(fName)).iterator().next();
+        UDFunction f = (UDFunction) ksm.functions.get(parseFunctionName(fName)).iterator().next();
 
         UDFunction broken = UDFunction.createBrokenFunction(f.name(),
                                                             f.argNames(),
@@ -864,7 +865,7 @@ public class UFTest extends CQLTester
                                                             "java",
                                                             f.body(),
                                                             new InvalidRequestException("foo bar is broken"));
-        SchemaTestUtil.addOrUpdateKeyspace(ksm.withSwapped(ksm.userFunctions.without(f.name(), f.argTypes()).with(broken)), false);
+        SchemaTestUtil.addOrUpdateKeyspace(ksm.withSwapped(ksm.functions.without(f.name(), f.argTypes()).with(broken)), false);
 
         assertInvalidThrowMessage("foo bar is broken", InvalidRequestException.class,
                                   "SELECT key, " + fName + "(dval) FROM %s");

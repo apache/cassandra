@@ -42,19 +42,10 @@ public abstract class AbstractBufferClusteringPrefix extends AbstractOnHeapClust
         return getRawValues();
     }
 
-    @Override
-    public ClusteringPrefix<ByteBuffer> retainable()
+    public ClusteringPrefix<ByteBuffer> minimize()
     {
         if (!ByteBufferUtil.canMinimize(values))
             return this;
-
-        ByteBuffer[] minimizedValues = ByteBufferUtil.minimizeBuffers(this.values);
-        if (kind.isBoundary())
-            return accessor().factory().boundary(kind, minimizedValues);
-        if (kind.isBound())
-            return accessor().factory().bound(kind, minimizedValues);
-
-        assert kind() != Kind.STATIC_CLUSTERING;    // not minimizable
-        return accessor().factory().clustering(minimizedValues);
+        return new BufferClustering(ByteBufferUtil.minimizeBuffers(values));
     }
 }

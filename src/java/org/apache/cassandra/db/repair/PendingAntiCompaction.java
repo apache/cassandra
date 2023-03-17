@@ -214,11 +214,6 @@ public class PendingAntiCompaction
             return null;
         }
 
-        protected AcquireResult acquireSSTables()
-        {
-            return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, OperationType.ANTICOMPACTION, false, false, false);
-        }
-
         public AcquireResult call()
         {
             logger.debug("acquiring sstables for pending anti compaction on session {}", sessionID);
@@ -236,7 +231,7 @@ public class PendingAntiCompaction
                 {
                     // Note that anticompactions are not disabled when running this. This is safe since runWithCompactionsDisabled
                     // is synchronized - acquireTuple and predicate can only be run by a single thread (for the given cfs).
-                    return acquireSSTables();
+                    return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, false, false, false);
                 }
                 catch (SSTableAcquisitionException e)
                 {

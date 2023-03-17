@@ -37,7 +37,6 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 {
     // absolute path to the given file
     private final String filePath;
-    private final File file;
 
     // Offset for start of buffer relative to underlying file
     protected long bufferOffset;
@@ -163,7 +162,6 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         this.strictFlushing = strictFlushing;
         this.fchannel = (FileChannel)channel;
 
-        this.file = file;
         this.filePath = file.absolutePath();
 
         this.option = option;
@@ -296,11 +294,6 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     public String getPath()
     {
         return filePath;
-    }
-
-    public File getFile()
-    {
-        return file;
     }
 
     protected void resetBuffer()

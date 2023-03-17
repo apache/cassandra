@@ -364,14 +364,14 @@ dependencies into the constructor is not practical, wrapping accesses to global 
 
 
 **Example, alternative**
-```java
+```javayy
 class SomeVerbHandler implements IVerbHandler<SomeMessage>
 { 
 	@VisibleForTesting
 	protected boolean isAlive(InetAddress addr) { return FailureDetector.instance.isAlive(msg.payload.otherNode); }
 
 	@VisibleForTesting
-	protected void streamSomething(InetAddress to) { new StreamPlan(to).requestRanges(someRanges).execute(); }
+	protected void streamSomethind(InetAddress to) { new StreamPlan(to).requestRanges(someRanges).execute(); }
 
 	@VisibleForTesting
 	protected void compactSomething(ColumnFamilyStore cfs ) { CompactionManager.instance.submitBackground(); }
@@ -404,7 +404,7 @@ class SomeVerbTest
 		protected boolean isAlive(InetAddress addr) { return alive; }
 		
 		@Override
-		protected void streamSomething(InetAddress to) { streamCalled = true; }
+		protected void streamSomethind(InetAddress to) { streamCalled = true; }
 
 		@Override
 		protected void compactSomething(ColumnFamilyStore cfs ) { compactCalled = true; }

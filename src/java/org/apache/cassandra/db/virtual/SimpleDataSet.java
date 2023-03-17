@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.virtual;
 
 import java.nio.ByteBuffer;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -55,15 +54,10 @@ public class SimpleDataSet extends AbstractVirtualTable.AbstractDataSet
 
     private Row currentRow;
 
-    public SimpleDataSet(TableMetadata metadata, Comparator<DecoratedKey> comparator)
-    {
-        super(new TreeMap<>(comparator));
-        this.metadata = metadata;
-    }
-
     public SimpleDataSet(TableMetadata metadata)
     {
-        this(metadata, DecoratedKey.comparator);
+        super(new TreeMap<>(DecoratedKey.comparator));
+        this.metadata = metadata;
     }
 
     public SimpleDataSet row(Object... primaryKeyValues)

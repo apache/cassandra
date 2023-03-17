@@ -21,12 +21,7 @@ package org.apache.cassandra.stress;
 import java.io.File;
 import java.io.IOError;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,11 +31,7 @@ import javax.inject.Inject;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Help;
-import io.airlift.airline.HelpOption;
-import io.airlift.airline.Option;
+import io.airlift.airline.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -50,10 +41,9 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.StressCQLSSTableWriter;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.StressCQLSSTableWriter;
-import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -141,7 +131,7 @@ public abstract class CompactionStress implements Runnable
             for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
             {
                 Set<Component> components = entry.getValue();
-                if (!components.contains(Components.DATA))
+                if (!components.contains(Component.DATA))
                     continue;
 
                 try

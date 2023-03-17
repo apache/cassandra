@@ -28,15 +28,10 @@ import org.apache.cassandra.serializers.ShortSerializer;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 public class ShortType extends NumberType<Short>
 {
     public static final ShortType instance = new ShortType();
-
-    private static final ByteBuffer MASKED_VALUE = instance.decompose((short) 0);
 
     ShortType()
     {
@@ -49,19 +44,6 @@ public class ShortType extends NumberType<Short>
         if (diff != 0)
             return diff;
         return ValueAccessor.compare(left, accessorL, right, accessorR);
-    }
-
-    @Override
-    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
-    {
-        // This type does not allow non-present values, but we do just to avoid future complexity.
-        return ByteSource.optionalSignedFixedLengthNumber(accessor, data);
-    }
-
-    @Override
-    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
-    {
-        return ByteSourceInverse.getOptionalSignedFixedLength(accessor, comparableBytes, 2);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -151,41 +133,5 @@ public class ShortType extends NumberType<Short>
     public ByteBuffer negate(ByteBuffer input)
     {
         return ByteBufferUtil.bytes((short) -toShort(input));
-    }
-
-    @Override
-    public ByteBuffer abs(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes((short) Math.abs(toShort(input)));
-    }
-
-    @Override
-    public ByteBuffer exp(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes((short) Math.exp(toShort(input)));
-    }
-
-    @Override
-    public ByteBuffer log(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes((short) Math.log(toShort(input)));
-    }
-
-    @Override
-    public ByteBuffer log10(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes((short) Math.log10(toShort(input)));
-    }
-
-    @Override
-    public ByteBuffer round(ByteBuffer input)
-    {
-        return ByteBufferUtil.clone(input);
-    }
-
-    @Override
-    public ByteBuffer getMaskedValue()
-    {
-        return MASKED_VALUE;
     }
 }

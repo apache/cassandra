@@ -3191,40 +3191,4 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (k1, k2) VALUES (uuid(), 'k2')");
         assertRowCount(execute("SELECT system.token(k1, k2) FROM %s"), 1);
     }
-
-    @Test
-    public void testQuotedMapTextData() throws Throwable
-    {
-        createTable("CREATE TABLE " + KEYSPACE + ".t1 (id int, data text, PRIMARY KEY (id))");
-        createTable("CREATE TABLE " + KEYSPACE + ".t2 (id int, data map<int, text>, PRIMARY KEY (id))");
-
-        execute("INSERT INTO " + KEYSPACE + ".t1 (id, data) VALUES (1, 'I''m newb')");
-        execute("INSERT INTO " + KEYSPACE + ".t2 (id, data) VALUES (1, {1:'I''m newb'})");
-
-        assertRows(execute("SELECT data FROM " + KEYSPACE + ".t1"), row("I'm newb"));
-        assertRows(execute("SELECT data FROM " + KEYSPACE + ".t2"), row( map(1, "I'm newb")));
-    }
-
-    @Test
-    public void testQuotedSimpleCollectionsData() throws Throwable
-    {
-        createTable("CREATE TABLE " + KEYSPACE + ".t3 (id int, set_data set<text>, list_data list<text>, tuple_data tuple<int, text>, PRIMARY KEY (id))");
-
-        execute("INSERT INTO " + KEYSPACE + ".t3 (id, set_data, list_data, tuple_data) values(1, {'I''m newb'}, ['I''m newb'], (1, 'I''m newb'))");
-
-        assertRows(execute("SELECT set_data FROM " + KEYSPACE + ".t3"), row(set("I'm newb")));
-        assertRows(execute("SELECT list_data FROM " + KEYSPACE + ".t3"), row(list("I'm newb")));
-        assertRows(execute("SELECT tuple_data FROM " + KEYSPACE + ".t3"), row(tuple(1, "I'm newb")));
-    }
-
-    @Test
-    public void testQuotedUDTData() throws Throwable
-    {
-        createType("CREATE TYPE " + KEYSPACE + ".random (data text)");
-        createTable("CREATE TABLE " + KEYSPACE + ".t4 (id int, udt_data frozen<random>, PRIMARY KEY (id))");
-
-        execute("INSERT INTO " + KEYSPACE + ".t4 (id, udt_data) values(1, {data: 'I''m newb'})");
-
-        assertRows(execute("SELECT udt_data FROM " + KEYSPACE + ".t4"), row(userType("random", "I'm newb")));
-    }
 }

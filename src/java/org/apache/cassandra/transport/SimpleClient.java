@@ -52,7 +52,6 @@ import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static org.apache.cassandra.net.SocketFactory.newSslHandler;
 import static org.apache.cassandra.transport.CQLMessageHandler.envelopeSize;
 import static org.apache.cassandra.transport.Flusher.MAX_FRAMED_PAYLOAD_SIZE;
 import static org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter.NO_OP_LIMITER;
@@ -625,8 +624,7 @@ public class SimpleClient implements Closeable
             super.initChannel(channel);
             SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, encryptionOptions.require_client_auth,
                                                                      ISslContextFactory.SocketType.CLIENT);
-            InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? new InetSocketAddress(host, port) : null;
-            channel.pipeline().addFirst("ssl", newSslHandler(channel, sslContext, peer));
+            channel.pipeline().addFirst("ssl", sslContext.newHandler(channel.alloc()));
         }
     }
 

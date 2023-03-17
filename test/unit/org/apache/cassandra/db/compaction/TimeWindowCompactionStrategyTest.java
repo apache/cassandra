@@ -28,12 +28,18 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -48,12 +54,6 @@ import static org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy.ge
 import static org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy.newestBucket;
 import static org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy.validateOptions;
 import static org.apache.cassandra.utils.FBUtilities.nowInSeconds;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 public class TimeWindowCompactionStrategyTest extends SchemaLoader
 {
@@ -65,7 +65,7 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
     public static void defineSchema() throws ConfigurationException
     {
         // Disable tombstone histogram rounding for tests
-        CassandraRelevantProperties.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS.setInt(1);
+        System.setProperty("cassandra.streaminghistogram.roundseconds", "1");
         System.setProperty(TimeWindowCompactionStrategyOptions.UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_PROPERTY, "true");
 
         SchemaLoader.prepareServer();

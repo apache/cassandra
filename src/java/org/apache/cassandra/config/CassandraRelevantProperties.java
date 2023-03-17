@@ -20,7 +20,6 @@ package org.apache.cassandra.config;
 
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.FileSystemOwnershipCheck;
 
@@ -155,11 +154,6 @@ public enum CassandraRelevantProperties
     BOOTSTRAP_SCHEMA_DELAY_MS("cassandra.schema_delay_ms"),
 
     /**
-     * Whether we reset any found data from previously run bootstraps.
-     */
-    RESET_BOOTSTRAP_PROGRESS("cassandra.reset_bootstrap_progress"),
-
-    /**
      * When draining, how long to wait for mutating executors to shutdown.
      */
     DRAIN_EXECUTOR_TIMEOUT_MS("cassandra.drain_executor_timeout_ms", String.valueOf(TimeUnit.MINUTES.toMillis(5))),
@@ -238,12 +232,8 @@ public enum CassandraRelevantProperties
     SYSTEM_TRACES_DEFAULT_RF("cassandra.system_traces.default_rf", "2"),
     SYSTEM_DISTRIBUTED_DEFAULT_RF("cassandra.system_distributed.default_rf", "3"),
 
-    /** Represents the maximum size (in bytes) of a serialized mutation that can be cached **/
-    CACHEABLE_MUTATION_SIZE_LIMIT("cassandra.cacheable_mutation_size_limit_bytes", Long.toString(1_000_000)),
-
     MEMTABLE_OVERHEAD_SIZE("cassandra.memtable.row_overhead_size", "-1"),
     MEMTABLE_OVERHEAD_COMPUTE_STEPS("cassandra.memtable_row_overhead_computation_step", "100000"),
-    MEMTABLE_TRIE_SIZE_LIMIT("cassandra.trie_size_limit_mb"),
     MIGRATION_DELAY("cassandra.migration_delay_ms", "60000"),
     /** Defines how often schema definitions are pulled from the other nodes */
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
@@ -301,48 +291,12 @@ public enum CassandraRelevantProperties
     /** property for the interval on which the repeated client warnings and diagnostic events about disk usage are ignored */
     DISK_USAGE_NOTIFY_INTERVAL_MS("cassandra.disk_usage.notify_interval_ms", Long.toString(TimeUnit.MINUTES.toMillis(30))),
 
-    /** Controls the type of bufffer (heap/direct) used for shared scratch buffers */
-    DATA_OUTPUT_BUFFER_ALLOCATE_TYPE("cassandra.dob.allocate_type"),
-
     // for specific tests
     ORG_APACHE_CASSANDRA_CONF_CASSANDRA_RELEVANT_PROPERTIES_TEST("org.apache.cassandra.conf.CassandraRelevantPropertiesTest"),
     ORG_APACHE_CASSANDRA_DB_VIRTUAL_SYSTEM_PROPERTIES_TABLE_TEST("org.apache.cassandra.db.virtual.SystemPropertiesTableTest"),
 
-    // Loosen the definition of "empty" for gossip state, for use during host replacements if things go awry
-    LOOSE_DEF_OF_EMPTY_ENABLED(Config.PROPERTY_PREFIX + "gossiper.loose_empty_enabled"),
-
-    // Maximum number of rows in system_views.logs table
-    LOGS_VIRTUAL_TABLE_MAX_ROWS("cassandra.virtual.logs.max.rows", Integer.toString(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS)),
-
     /** Used when running in Client mode and the system and schema keyspaces need to be initialized outside of their normal initialization path **/
     FORCE_LOAD_LOCAL_KEYSPACES("cassandra.schema.force_load_local_keyspaces"),
-
-    // commit log relevant properties
-    /**
-     * Entities to replay mutations for upon commit log replay, property is meant to contain
-     * comma-separated entities which are either names of keyspaces or keyspaces and tables or their mix.
-     * Examples:
-     * just keyspaces
-     * -Dcassandra.replayList=ks1,ks2,ks3
-     * specific tables
-     * -Dcassandra.replayList=ks1.tb1,ks2.tb2
-     * mix of tables and keyspaces
-     * -Dcassandra.replayList=ks1.tb1,ks2
-     *
-     * If only keyspaces are specified, mutations for all tables in such keyspace will be replayed
-     * */
-    COMMIT_LOG_REPLAY_LIST("cassandra.replayList", null),
-
-    /**
-     * The maximum number of seeds returned by a seed provider before emmitting a warning.
-     * A large seed list may impact effectiveness of the third gossip round.
-     * The default used in SimpleSeedProvider is 20.
-     */
-    SEED_COUNT_WARN_THRESHOLD("cassandra.seed_count_warn_threshold"),
-
-
-    SSTABLE_FORMAT_DEFAULT("cassandra.sstable.format.default"),
-
 
     /** When enabled, recursive directory deletion will be executed using a unix command `rm -rf` instead of traversing
      * and removing individual files. This is now used only tests, but eventually we will make it true by default.*/
@@ -359,7 +313,6 @@ public enum CassandraRelevantProperties
      * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
     FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
 
-    TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS("cassandra.streaminghistogram.roundseconds", "60"),
     ;
 
     CassandraRelevantProperties(String key, String defaultVal)
@@ -479,14 +432,6 @@ public enum CassandraRelevantProperties
     }
 
     /**
-     * Clears the value set in the system property.
-     */
-    public void clearValue()
-    {
-        System.clearProperty(key);
-    }
-
-    /**
      * Gets the value of a system property as a int.
      * @return system property int value if it exists, defaultValue otherwise.
      */
@@ -537,55 +482,6 @@ public enum CassandraRelevantProperties
     public void setLong(long value)
     {
         System.setProperty(key, Long.toString(value));
-    }
-
-    /**
-     * Gets the value of a system property as a enum, calling {@link String#toUpperCase()} first.
-     *
-     * @param defaultValue to return when not defined
-     * @param <T> type
-     * @return enum value
-     */
-    public <T extends Enum<T>> T getEnum(T defaultValue) {
-        return getEnum(true, defaultValue);
-    }
-
-    /**
-     * Gets the value of a system property as a enum, optionally calling {@link String#toUpperCase()} first.
-     *
-     * @param toUppercase before converting to enum
-     * @param defaultValue to return when not defined
-     * @param <T> type
-     * @return enum value
-     */
-    public <T extends Enum<T>> T getEnum(boolean toUppercase, T defaultValue) {
-        String value = System.getProperty(key);
-        if (value == null)
-            return defaultValue;
-        return Enum.valueOf(defaultValue.getDeclaringClass(), toUppercase ? value.toUpperCase() : value);
-    }
-
-    /**
-     * Gets the value of a system property as an enum, optionally calling {@link String#toUpperCase()} first.
-     * If the value is missing, the default value for this property is used
-     *
-     * @param toUppercase before converting to enum
-     * @param enumClass enumeration class
-     * @param <T> type
-     * @return enum value
-     */
-    public <T extends Enum<T>> T getEnum(boolean toUppercase, Class<T> enumClass)
-    {
-        String value = System.getProperty(key, defaultVal);
-        return Enum.valueOf(enumClass, toUppercase ? value.toUpperCase() : value);
-    }
-
-    /**
-     * Sets the value into system properties.
-     * @param value to set
-     */
-    public void setEnum(Enum<?> value) {
-        System.setProperty(key, value.name());
     }
 
     public interface PropertyConverter<T>

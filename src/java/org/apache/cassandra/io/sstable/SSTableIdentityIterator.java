@@ -17,25 +17,15 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.IOError;
-import java.io.IOException;
+import java.io.*;
 
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.RegularAndStaticColumns;
-import org.apache.cassandra.db.UnfilteredValidation;
-import org.apache.cassandra.db.rows.DeserializationHelper;
-import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import static org.apache.cassandra.utils.vint.VIntCoding.VIntOutOfRangeException;
 
 public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterator>, UnfilteredRowIterator
 {
@@ -79,16 +69,13 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     }
 
     @SuppressWarnings("resource")
-    public static SSTableIdentityIterator create(SSTableReader sstable, FileDataInput dfile, long dataPosition, DecoratedKey key, boolean tombstoneOnly)
+    public static SSTableIdentityIterator create(SSTableReader sstable, FileDataInput dfile, RowIndexEntry<?> indexEntry, DecoratedKey key, boolean tombstoneOnly)
     {
         try
         {
-            dfile.seek(dataPosition);
+            dfile.seek(indexEntry.position);
             ByteBufferUtil.skipShortLength(dfile); // Skip partition key
             DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(dfile);
-            if (!partitionLevelDeletion.validate())
-                UnfilteredValidation.handleInvalid(sstable.metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
-
             DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
             SSTableSimpleIterator iterator = tombstoneOnly
                     ? SSTableSimpleIterator.createTombstoneOnly(sstable.metadata(), dfile, sstable.header, helper, partitionLevelDeletion)
@@ -138,7 +125,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             return iterator.hasNext();
         }
-        catch (IndexOutOfBoundsException | VIntOutOfRangeException e)
+        catch (IndexOutOfBoundsException e)
         {
             sstable.markSuspect();
             throw new CorruptSSTableException(e, filename);

@@ -92,7 +92,7 @@ if [ "x$CASSANDRA_LOG_DIR" = "x" ] ; then
 fi
 
 #GC log path has to be defined here because it needs to access CASSANDRA_HOME
-if [ $JAVA_VERSION -ge 11 ] || [ $JAVA_VERSION -ge 17 ] ; then
+if [ $JAVA_VERSION -ge 11 ] ; then
     # See description of https://bugs.openjdk.java.net/browse/JDK-8046148 for details about the syntax
     # The following is the equivalent to -XX:+PrintGCDetails -XX:+UseGCLogFileRotation -XX:NumberOfGCLogFiles=10 -XX:GCLogFileSize=10M
     echo "$JVM_OPTS" | grep -qe "-[X]log:gc"

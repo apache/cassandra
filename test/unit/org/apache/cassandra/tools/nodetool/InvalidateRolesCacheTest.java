@@ -47,7 +47,6 @@ public class InvalidateRolesCacheTest extends CQLTester
         roleManager.createRole(AuthenticatedUser.SYSTEM_USER, ROLE_B, AuthTestUtils.getLoginRoleOptions());
         AuthCacheService.initializeAndRegisterCaches();
 
-        requireNetwork();
         startJMXServer();
     }
 

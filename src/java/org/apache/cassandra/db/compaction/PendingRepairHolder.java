@@ -281,13 +281,4 @@ public class PendingRepairHolder extends AbstractStrategyHolder
     {
         return Iterables.any(managers, prm -> prm.containsSSTable(sstable));
     }
-
-    @Override
-    public int getEstimatedRemainingTasks()
-    {
-        int tasks = 0;
-        for (PendingRepairManager manager : managers)
-            tasks += manager.getEstimatedRemainingTasks();
-        return tasks;
-    }
 }

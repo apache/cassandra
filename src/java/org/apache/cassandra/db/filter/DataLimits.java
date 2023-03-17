@@ -1144,22 +1144,22 @@ public abstract class DataLimits
                 case CQL_LIMIT:
                 case CQL_PAGING_LIMIT:
                     CQLLimits cqlLimits = (CQLLimits)limits;
-                    out.writeUnsignedVInt32(cqlLimits.rowLimit);
-                    out.writeUnsignedVInt32(cqlLimits.perPartitionLimit);
+                    out.writeUnsignedVInt(cqlLimits.rowLimit);
+                    out.writeUnsignedVInt(cqlLimits.perPartitionLimit);
                     out.writeBoolean(cqlLimits.isDistinct);
                     if (limits.kind() == Kind.CQL_PAGING_LIMIT)
                     {
                         CQLPagingLimits pagingLimits = (CQLPagingLimits)cqlLimits;
                         ByteBufferUtil.writeWithVIntLength(pagingLimits.lastReturnedKey, out);
-                        out.writeUnsignedVInt32(pagingLimits.lastReturnedKeyRemaining);
+                        out.writeUnsignedVInt(pagingLimits.lastReturnedKeyRemaining);
                     }
                     break;
                 case CQL_GROUP_BY_LIMIT:
                 case CQL_GROUP_BY_PAGING_LIMIT:
                     CQLGroupByLimits groupByLimits = (CQLGroupByLimits) limits;
-                    out.writeUnsignedVInt32(groupByLimits.groupLimit);
-                    out.writeUnsignedVInt32(groupByLimits.groupPerPartitionLimit);
-                    out.writeUnsignedVInt32(groupByLimits.rowLimit);
+                    out.writeUnsignedVInt(groupByLimits.groupLimit);
+                    out.writeUnsignedVInt(groupByLimits.groupPerPartitionLimit);
+                    out.writeUnsignedVInt(groupByLimits.rowLimit);
 
                     AggregationSpecification groupBySpec = groupByLimits.groupBySpec;
                     AggregationSpecification.serializer.serialize(groupBySpec, out, version);
@@ -1170,7 +1170,7 @@ public abstract class DataLimits
                     {
                         CQLGroupByPagingLimits pagingLimits = (CQLGroupByPagingLimits) groupByLimits;
                         ByteBufferUtil.writeWithVIntLength(pagingLimits.lastReturnedKey, out);
-                        out.writeUnsignedVInt32(pagingLimits.lastReturnedKeyRemaining);
+                        out.writeUnsignedVInt(pagingLimits.lastReturnedKeyRemaining);
                      }
                      break;
             }
@@ -1184,21 +1184,21 @@ public abstract class DataLimits
                 case CQL_LIMIT:
                 case CQL_PAGING_LIMIT:
                 {
-                    int rowLimit = in.readUnsignedVInt32();
-                    int perPartitionLimit = in.readUnsignedVInt32();
+                    int rowLimit = (int) in.readUnsignedVInt();
+                    int perPartitionLimit = (int) in.readUnsignedVInt();
                     boolean isDistinct = in.readBoolean();
                     if (kind == Kind.CQL_LIMIT)
                         return cqlLimits(rowLimit, perPartitionLimit, isDistinct);
                     ByteBuffer lastKey = ByteBufferUtil.readWithVIntLength(in);
-                    int lastRemaining = in.readUnsignedVInt32();
+                    int lastRemaining = (int) in.readUnsignedVInt();
                     return new CQLPagingLimits(rowLimit, perPartitionLimit, isDistinct, lastKey, lastRemaining);
                 }
                 case CQL_GROUP_BY_LIMIT:
                 case CQL_GROUP_BY_PAGING_LIMIT:
                 {
-                    int groupLimit = in.readUnsignedVInt32();
-                    int groupPerPartitionLimit = in.readUnsignedVInt32();
-                    int rowLimit = in.readUnsignedVInt32();
+                    int groupLimit = (int) in.readUnsignedVInt();
+                    int groupPerPartitionLimit = (int) in.readUnsignedVInt();
+                    int rowLimit = (int) in.readUnsignedVInt();
 
                     AggregationSpecification groupBySpec = AggregationSpecification.serializer.deserialize(in, version, metadata);
 
@@ -1212,7 +1212,7 @@ public abstract class DataLimits
                                                     state);
 
                     ByteBuffer lastKey = ByteBufferUtil.readWithVIntLength(in);
-                    int lastRemaining = in.readUnsignedVInt32();
+                    int lastRemaining = (int) in.readUnsignedVInt();
                     return new CQLGroupByPagingLimits(groupLimit,
                                                       groupPerPartitionLimit,
                                                       rowLimit,

@@ -402,7 +402,7 @@ public class ToolRunner
         {
             String raw = getStderr();
             String cleaned = getCleanedStderr();
-            assertTrue("Failed to clean stderr completely.\nRaw (length=" + raw.length() + "):\n" + raw +
+            assertTrue("Failed to clean stderr completely.\nRaw (length=" + raw.length() + "):\n" + raw + 
                        "\nCleaned (length=" + cleaned.length() + "):\n" + cleaned,
                        cleaned.trim().isEmpty());
         }

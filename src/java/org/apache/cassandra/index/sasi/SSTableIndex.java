@@ -22,9 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.base.Function;
-import org.apache.commons.lang3.builder.HashCodeBuilder;
-
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
@@ -38,6 +35,10 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.concurrent.Ref;
+
+import org.apache.commons.lang3.builder.HashCodeBuilder;
+
+import com.google.common.base.Function;
 
 public class SSTableIndex
 {
@@ -175,7 +176,7 @@ public class SSTableIndex
         {
             try
             {
-                return sstable.keyAtPositionFromSecondaryIndex(offset);
+                return sstable.keyAt(offset);
             }
             catch (IOException e)
             {

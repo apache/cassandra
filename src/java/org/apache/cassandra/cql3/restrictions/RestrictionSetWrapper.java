@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -56,17 +55,6 @@ class RestrictionSetWrapper implements Restrictions
     public List<ColumnMetadata> getColumnDefs()
     {
         return restrictions.getColumnDefs();
-    }
-
-    @Override
-    public Collection<ColumnMetadata> getColumnDefinitions()
-    {
-        return restrictions.getColumnDefinitions();
-    }
-
-    public RestrictionSet getRestrictionSet()
-    {
-        return restrictions;
     }
 
     public void addFunctionsTo(List<Function> functions)

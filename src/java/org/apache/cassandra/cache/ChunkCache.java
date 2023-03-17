@@ -23,22 +23,15 @@ package org.apache.cassandra.cache;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 
-import com.github.benmanes.caffeine.cache.CacheLoader;
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
-import com.github.benmanes.caffeine.cache.RemovalCause;
-import com.github.benmanes.caffeine.cache.RemovalListener;
+import com.github.benmanes.caffeine.cache.*;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.util.ChannelProxy;
-import org.apache.cassandra.io.util.ChunkReader;
-import org.apache.cassandra.io.util.FileHandle;
-import org.apache.cassandra.io.util.Rebufferer;
-import org.apache.cassandra.io.util.RebuffererFactory;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.ChunkCacheMetrics;
 import org.apache.cassandra.utils.memory.BufferPool;
 import org.apache.cassandra.utils.memory.BufferPools;
@@ -177,7 +170,7 @@ public class ChunkCache
         cache.invalidateAll();
     }
 
-    public RebuffererFactory wrap(ChunkReader file)
+    private RebuffererFactory wrap(ChunkReader file)
     {
         return new CachingRebufferer(file);
     }
@@ -201,6 +194,14 @@ public class ChunkCache
     public void invalidateFile(String fileName)
     {
         cache.invalidateAll(Iterables.filter(cache.asMap().keySet(), x -> x.path.equals(fileName)));
+    }
+
+    @VisibleForTesting
+    public void enable(boolean enabled)
+    {
+        ChunkCache.enabled = enabled;
+        cache.invalidateAll();
+        metrics.reset();
     }
 
     // TODO: Invalidate caches for obsoleted/MOVED_START tables?
@@ -237,10 +238,8 @@ public class ChunkCache
             }
             catch (Throwable t)
             {
-                if (t.getCause() instanceof CorruptSSTableException)
-                    throw (CorruptSSTableException)t.getCause();
-                Throwables.throwIfUnchecked(t);
-                throw new RuntimeException(t);
+                Throwables.propagateIfInstanceOf(t.getCause(), CorruptSSTableException.class);
+                throw Throwables.propagate(t);
             }
         }
 

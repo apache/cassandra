@@ -35,7 +35,6 @@ public class CompactTest extends CQLTester
     @BeforeClass
     public static void setup() throws Throwable
     {
-        requireNetwork();
         startJMXServer();
     }
 

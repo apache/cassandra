@@ -78,22 +78,12 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 {
     protected final String tableName;
     private final boolean ifExists;
-    protected ClientState state;
 
     public AlterTableStatement(String keyspaceName, String tableName, boolean ifExists)
     {
         super(keyspaceName);
         this.tableName = tableName;
         this.ifExists = ifExists;
-    }
-
-    @Override
-    public void validate(ClientState state)
-    {
-        super.validate(state);
-
-        // save the query state to use it for guardrails validation in #apply
-        this.state = state;
     }
 
     public Keyspaces apply(Keyspaces schema)
@@ -196,7 +186,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
-            Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
             TableMetadata.Builder tableBuilder = table.unbuild();
             Views.Builder viewsBuilder = keyspace.views.unbuild();
             newColumns.forEach(c -> addColumn(keyspace, table, c, ifColumnNotExists, tableBuilder, viewsBuilder));
@@ -299,7 +288,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
-            Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
             TableMetadata.Builder builder = table.unbuild();
             removedColumns.forEach(c -> dropColumn(keyspace, table, c, ifColumnExists, builder));
             return keyspace.withSwapped(keyspace.tables.withSwapped(builder.build()));
@@ -367,7 +355,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
-            Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
             TableMetadata.Builder tableBuilder = table.unbuild();
             Views.Builder viewsBuilder = keyspace.views.unbuild();
             renamedColumns.forEach((o, n) -> renameColumn(keyspace, table, o, n, ifColumnsExists, tableBuilder, viewsBuilder));
@@ -443,8 +430,6 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super.validate(state);
 
             Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
-
-            validateDefaultTimeToLive(attrs.asNewTableParams());
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)

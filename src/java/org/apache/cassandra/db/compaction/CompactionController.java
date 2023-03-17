@@ -17,14 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.LongPredicate;
 
 import com.google.common.base.Predicates;
@@ -34,10 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.db.AbstractCompactionController;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -115,8 +105,14 @@ public class CompactionController extends AbstractCompactionController
             return;
         }
 
-        if (overlappingSSTables == null || overlappingSSTables.stream().anyMatch(SSTableReader::isMarkedCompacted))
-            refreshOverlaps();
+        for (SSTableReader reader : overlappingSSTables)
+        {
+            if (reader.isMarkedCompacted())
+            {
+                refreshOverlaps();
+                return;
+            }
+        }
     }
 
     private void refreshOverlaps()
@@ -164,8 +160,8 @@ public class CompactionController extends AbstractCompactionController
     {
         logger.trace("Checking droppable sstables in {}", cfStore);
 
-        if (NEVER_PURGE_TOMBSTONES || compacting == null || cfStore.getNeverPurgeTombstones() || overlapping == null)
-            return Collections.emptySet();
+        if (NEVER_PURGE_TOMBSTONES || compacting == null || cfStore.getNeverPurgeTombstones())
+            return Collections.<SSTableReader>emptySet();
 
         if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones() && !Iterables.all(compacting, SSTableReader::isRepaired))
             return Collections.emptySet();
@@ -250,7 +246,7 @@ public class CompactionController extends AbstractCompactionController
     @Override
     public LongPredicate getPurgeEvaluator(DecoratedKey key)
     {
-        if (NEVER_PURGE_TOMBSTONES || !compactingRepaired() || cfs.getNeverPurgeTombstones() || overlapIterator == null)
+        if (NEVER_PURGE_TOMBSTONES || !compactingRepaired() || cfs.getNeverPurgeTombstones())
             return time -> false;
 
         overlapIterator.update(key);
@@ -261,7 +257,7 @@ public class CompactionController extends AbstractCompactionController
 
         for (SSTableReader sstable: filteredSSTables)
         {
-            if (sstable.mayContainAssumingKeyIsInRange(key))
+            if (sstable.maybePresent(key))
             {
                 minTimestampSeen = Math.min(minTimestampSeen, sstable.getMinTimestamp());
                 hasTimestamp = true;
@@ -326,8 +322,8 @@ public class CompactionController extends AbstractCompactionController
             reader.getMaxTimestamp() <= minTimestamp ||
             tombstoneOnly && !reader.mayHaveTombstones())
             return null;
-        long position = reader.getPosition(key, SSTableReader.Operator.EQ);
-        if (position < 0)
+        RowIndexEntry<?> position = reader.getPosition(key, SSTableReader.Operator.EQ);
+        if (position == null)
             return null;
         FileDataInput dfile = openDataFiles.computeIfAbsent(reader, this::openDataFile);
         return reader.simpleIterator(dfile, key, position, tombstoneOnly);

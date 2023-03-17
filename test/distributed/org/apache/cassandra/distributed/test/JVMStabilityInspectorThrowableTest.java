@@ -34,6 +34,7 @@ import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -47,9 +48,10 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.ForwardingSSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Throwables;
@@ -229,14 +231,22 @@ public class JVMStabilityInspectorThrowableTest extends TestBaseImpl
             throw throwFSError();
         }
 
+        @Override
+        public UnfilteredRowIterator rowIterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed)
+        {
+            if (shouldThrowCorrupted)
+                throw throwCorrupted();
+            throw throwFSError();
+        }
+
         private CorruptSSTableException throwCorrupted()
         {
-            throw new CorruptSSTableException(new IOException("failed to get position"), descriptor.baseFile());
+            throw new CorruptSSTableException(new IOException("failed to get position"), descriptor.baseFilename());
         }
 
         private FSError throwFSError()
         {
-            throw new FSReadError(new IOException("failed to get position"), descriptor.baseFile());
+            throw new FSReadError(new IOException("failed to get position"), descriptor.baseFilename());
         }
     }
 }

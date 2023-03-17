@@ -47,7 +47,6 @@ import org.apache.cassandra.transport.messages.PrepareMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.MD5Digest;
-import org.apache.cassandra.utils.ReflectionUtils;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -67,7 +66,7 @@ public class MessagePayloadTest extends CQLTester
             cqlQueryHandlerField = ClientState.class.getDeclaredField("cqlQueryHandler");
             cqlQueryHandlerField.setAccessible(true);
 
-            Field modifiersField = ReflectionUtils.getModifiersField();
+            Field modifiersField = Field.class.getDeclaredField("modifiers");
             modifiersAccessible = modifiersField.isAccessible();
             modifiersField.setAccessible(true);
             modifiersField.setInt(cqlQueryHandlerField, cqlQueryHandlerField.getModifiers() & ~Modifier.FINAL);

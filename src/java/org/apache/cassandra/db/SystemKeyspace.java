@@ -57,10 +57,15 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.functions.AggregateFcts;
+import org.apache.cassandra.cql3.functions.BytesConversionFcts;
+import org.apache.cassandra.cql3.functions.CastFcts;
+import org.apache.cassandra.cql3.functions.OperationFcts;
+import org.apache.cassandra.cql3.functions.TimeFcts;
+import org.apache.cassandra.cql3.functions.UuidFcts;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -87,7 +92,7 @@ import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.schema.UserFunctions;
+import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -145,7 +150,6 @@ public final class SystemKeyspace
     public static final String BATCHES = "batches";
     public static final String PAXOS = "paxos";
     public static final String PAXOS_REPAIR_HISTORY = "paxos_repair_history";
-    public static final String PAXOS_REPAIR_STATE = "_paxos_repair_state";
     public static final String BUILT_INDEXES = "IndexInfo";
     public static final String LOCAL = "local";
     public static final String PEERS_V2 = "peers_v2";
@@ -181,14 +185,6 @@ public final class SystemKeyspace
     @Deprecated public static final String LEGACY_SIZE_ESTIMATES = "size_estimates";
     @Deprecated public static final String LEGACY_SSTABLE_ACTIVITY = "sstable_activity";
 
-    // Names of all tables that could have been a part of a system keyspace. Useful for pre-flight checks.
-    // For details, see CASSANDRA-17777
-    public static final Set<String> ALL_TABLE_NAMES = ImmutableSet.of(
-        BATCHES, PAXOS, PAXOS_REPAIR_HISTORY, PAXOS_REPAIR_STATE, BUILT_INDEXES, LOCAL, PEERS_V2, PEER_EVENTS_V2,
-        COMPACTION_HISTORY, SSTABLE_ACTIVITY_V2, TABLE_ESTIMATES, TABLE_ESTIMATES_TYPE_PRIMARY,
-        TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY, AVAILABLE_RANGES_V2, TRANSFERRED_RANGES_V2, VIEW_BUILDS_IN_PROGRESS,
-        BUILT_VIEWS, PREPARED_STATEMENTS, REPAIRS, TOP_PARTITIONS, LEGACY_PEERS, LEGACY_PEER_EVENTS,
-        LEGACY_TRANSFERRED_RANGES, LEGACY_AVAILABLE_RANGES, LEGACY_SIZE_ESTIMATES, LEGACY_SSTABLE_ACTIVITY);
 
     public static final TableMetadata Batches =
         parse(BATCHES,
@@ -310,7 +306,6 @@ public final class SystemKeyspace
                 + "compacted_at timestamp,"
                 + "keyspace_name text,"
                 + "rows_merged map<int, bigint>,"
-                + "compaction_properties frozen<map<text, text>>,"
                 + "PRIMARY KEY ((id)))")
                 .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(7))
                 .build();
@@ -512,7 +507,7 @@ public final class SystemKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(SchemaConstants.SYSTEM_KEYSPACE_NAME, KeyspaceParams.local(), tables(), Views.none(), Types.none(), UserFunctions.none());
+        return KeyspaceMetadata.create(SchemaConstants.SYSTEM_KEYSPACE_NAME, KeyspaceParams.local(), tables(), Views.none(), Types.none(), functions());
     }
 
     private static Tables tables()
@@ -540,6 +535,18 @@ public final class SystemKeyspace
                          PreparedStatements,
                          Repairs,
                          TopPartitions);
+    }
+
+    private static Functions functions()
+    {
+        return Functions.builder()
+                        .add(UuidFcts.all())
+                        .add(TimeFcts.all())
+                        .add(BytesConversionFcts.all())
+                        .add(AggregateFcts.all())
+                        .add(CastFcts.all())
+                        .add(OperationFcts.all())
+                        .build();
     }
 
     private static volatile Map<TableId, Pair<CommitLogPosition, Long>> truncationRecords;
@@ -593,13 +600,12 @@ public final class SystemKeyspace
                                                long compactedAt,
                                                long bytesIn,
                                                long bytesOut,
-                                               Map<Integer, Long> rowsMerged,
-                                               Map<String, String> compactionProperties)
+                                               Map<Integer, Long> rowsMerged)
     {
         // don't write anything when the history table itself is compacted, since that would in turn cause new compactions
         if (ksname.equals("system") && cfname.equals(COMPACTION_HISTORY))
             return;
-        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged, compaction_properties) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged) VALUES (?, ?, ?, ?, ?, ?, ?)";
         executeInternal(format(req, COMPACTION_HISTORY),
                         nextTimeUUID(),
                         ksname,
@@ -607,8 +613,7 @@ public final class SystemKeyspace
                         ByteBufferUtil.bytes(compactedAt),
                         bytesIn,
                         bytesOut,
-                        rowsMerged,
-                        compactionProperties);
+                        rowsMerged);
     }
 
     public static TabularData getCompactionHistory() throws OpenDataException
@@ -1461,7 +1466,8 @@ public final class SystemKeyspace
      */
     public static RestorableMeter getSSTableReadMeter(String keyspace, String table, SSTableId id)
     {
-        UntypedResultSet results = readSSTableActivity(keyspace, table, id);
+        String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and table_name=? and id=?";
+        UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.toString());
 
         if (results.isEmpty())
             return new RestorableMeter();
@@ -1470,13 +1476,6 @@ public final class SystemKeyspace
         double m15rate = row.getDouble("rate_15m");
         double m120rate = row.getDouble("rate_120m");
         return new RestorableMeter(m15rate, m120rate);
-    }
-
-    @VisibleForTesting
-    public static UntypedResultSet readSSTableActivity(String keyspace, String table, SSTableId id)
-    {
-        String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and table_name=? and id=?";
-        return executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.toString());
     }
 
     /**
@@ -1645,16 +1644,10 @@ public final class SystemKeyspace
         }
     }
 
-    public static void resetAvailableStreamedRanges()
+    public static void resetAvailableRanges()
     {
         ColumnFamilyStore availableRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(AVAILABLE_RANGES_V2);
         availableRanges.truncateBlockingWithoutSnapshot();
-    }
-
-    public static void resetAvailableStreamedRangesForKeyspace(String keyspace)
-    {
-        String cql = "DELETE FROM %s.%s WHERE keyspace_name = ?";
-        executeInternal(format(cql, SchemaConstants.SYSTEM_KEYSPACE_NAME, AVAILABLE_RANGES_V2), keyspace);
     }
 
     public static synchronized void updateTransferredRanges(StreamOperation streamOperation,
@@ -1766,8 +1759,7 @@ public final class SystemKeyspace
         return rawRanges.stream().map(buf -> byteBufferToRange(buf, partitioner)).collect(Collectors.toSet());
     }
 
-    @VisibleForTesting
-    public static ByteBuffer rangeToBytes(Range<Token> range)
+    static ByteBuffer rangeToBytes(Range<Token> range)
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
@@ -1886,7 +1878,7 @@ public final class SystemKeyspace
             TupleType tupleType = new TupleType(Lists.newArrayList(UTF8Type.instance, LongType.instance));
             for (ByteBuffer bb : top)
             {
-                ByteBuffer[] components = tupleType.split(ByteBufferAccessor.instance, bb);
+                ByteBuffer[] components = tupleType.split(bb);
                 String keyStr = UTF8Type.instance.compose(components[0]);
                 long value = LongType.instance.compose(components[1]);
                 topPartitions.add(new TopPartitionTracker.TopPartition(metadata.partitioner.decorateKey(metadata.partitionKeyType.fromString(keyStr)), value));

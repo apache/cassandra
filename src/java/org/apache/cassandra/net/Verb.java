@@ -96,7 +96,6 @@ import org.apache.cassandra.service.paxos.PrepareResponse;
 import org.apache.cassandra.service.paxos.v1.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.v1.ProposeVerbHandler;
 import org.apache.cassandra.streaming.ReplicationDoneVerbHandler;
-import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -352,7 +351,7 @@ public enum Verb
         Supplier<? extends IVerbHandler<?>> original = this.handler;
         Field field = Verb.class.getDeclaredField("handler");
         field.setAccessible(true);
-        Field modifiers = ReflectionUtils.getModifiersField();
+        Field modifiers = Field.class.getDeclaredField("modifiers");
         modifiers.setAccessible(true);
         modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
         field.set(this, handler);
@@ -365,7 +364,7 @@ public enum Verb
         Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> original = this.serializer;
         Field field = Verb.class.getDeclaredField("serializer");
         field.setAccessible(true);
-        Field modifiers = ReflectionUtils.getModifiersField();
+        Field modifiers = Field.class.getDeclaredField("modifiers");
         modifiers.setAccessible(true);
         modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
         field.set(this, serializer);
@@ -378,7 +377,7 @@ public enum Verb
         ToLongFunction<TimeUnit> original = this.expiration;
         Field field = Verb.class.getDeclaredField("expiration");
         field.setAccessible(true);
-        Field modifiers = ReflectionUtils.getModifiersField();
+        Field modifiers = Field.class.getDeclaredField("modifiers");
         modifiers.setAccessible(true);
         modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
         field.set(this, expiration);

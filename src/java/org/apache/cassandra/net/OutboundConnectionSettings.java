@@ -25,6 +25,7 @@ import io.netty.channel.WriteBufferWaterMark;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -81,7 +82,7 @@ public class OutboundConnectionSettings
     public final IInternodeAuthenticator authenticator;
     public final InetAddressAndPort to;
     public final InetAddressAndPort connectTo; // may be represented by a different IP address on this node's local network
-    public final ServerEncryptionOptions encryption;
+    public final EncryptionOptions encryption;
     public final Framing framing;
     public final Integer socketSendBufferSizeInBytes;
     public final Integer applicationSendQueueCapacityInBytes;
@@ -111,7 +112,7 @@ public class OutboundConnectionSettings
     private OutboundConnectionSettings(IInternodeAuthenticator authenticator,
                                        InetAddressAndPort to,
                                        InetAddressAndPort connectTo,
-                                       ServerEncryptionOptions encryption,
+                                       EncryptionOptions encryption,
                                        Framing framing,
                                        Integer socketSendBufferSizeInBytes,
                                        Integer applicationSendQueueCapacityInBytes,
@@ -154,6 +155,11 @@ public class OutboundConnectionSettings
         this.callbacks = callbacks;
         this.debug = debug;
         this.endpointToVersion = endpointToVersion;
+    }
+
+    public boolean authenticate()
+    {
+        return authenticator.authenticate(to.getAddress(), to.getPort());
     }
 
     public boolean withEncryption()
@@ -359,7 +365,7 @@ public class OutboundConnectionSettings
         return debug != null ? debug : OutboundDebugCallbacks.NONE;
     }
 
-    public ServerEncryptionOptions encryption()
+    public EncryptionOptions encryption()
     {
         return encryption != null ? encryption : defaultEncryptionOptions(to);
     }
@@ -495,7 +501,7 @@ public class OutboundConnectionSettings
     }
 
     @VisibleForTesting
-    static ServerEncryptionOptions defaultEncryptionOptions(InetAddressAndPort endpoint)
+    static EncryptionOptions defaultEncryptionOptions(InetAddressAndPort endpoint)
     {
         ServerEncryptionOptions options = DatabaseDescriptor.getInternodeMessagingEncyptionOptions();
         return options.shouldEncrypt(endpoint) ? options : null;

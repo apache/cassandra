@@ -22,28 +22,22 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.cassandra.schema.CQLTypeParser;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.selection.ColumnTimestamps.TimestampsType;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CollectionType;
-import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.ColumnData;
-import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.schema.CQLTypeParser;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -77,7 +71,7 @@ public abstract class Selector
     /**
      * The <code>Selector</code> kinds.
      */
-    public enum Kind
+    public static enum Kind
     {
         SIMPLE_SELECTOR(SimpleSelector.deserializer),
         TERM_SELECTOR(TermSelector.deserializer),
@@ -158,17 +152,6 @@ public abstract class Selector
         }
 
         /**
-         * Checks if this factory creates <code>maxwritetime</code> selector instances.
-         *
-         * @return <code>true</code> if this factory creates <code>maxwritetime</code> selectors instances,
-         * <code>false</code> otherwise
-         */
-        public boolean isMaxWritetimeSelectorFactory()
-        {
-            return false;
-        }
-
-        /**
          * Checks if this factory creates <code>TTL</code> selectors instances.
          *
          * @return <code>true</code> if this factory creates <code>TTL</code> selectors instances,
@@ -182,6 +165,7 @@ public abstract class Selector
         /**
          * Checks if this factory creates <code>Selector</code>s that simply return a column value.
          *
+         * @param index the column index
          * @return <code>true</code> if this factory creates <code>Selector</code>s that simply return a column value,
          * <code>false</code> otherwise.
          */
@@ -304,135 +288,77 @@ public abstract class Selector
      */
     public static final class InputRow
     {
-        private final ProtocolVersion protocolVersion;
-        private final List<ColumnMetadata> columns;
-        private final boolean collectWritetimes;
-        private final boolean collectTTLs;
-
         private ByteBuffer[] values;
-        private RowTimestamps writetimes;
-        private RowTimestamps ttls;
+        private final long[] timestamps;
+        private final int[] ttls;
         private int index;
 
-        public InputRow(ProtocolVersion protocolVersion, List<ColumnMetadata> columns)
+        public InputRow(int size, boolean collectTimestamps, boolean collectTTLs)
         {
-            this(protocolVersion, columns, false, false);
-        }
+            this.values = new ByteBuffer[size];
 
-        public InputRow(ProtocolVersion protocolVersion,
-                        List<ColumnMetadata> columns,
-                        boolean collectWritetimes,
-                        boolean collectTTLs)
-        {
-            this.protocolVersion = protocolVersion;
-            this.columns = columns;
-            this.collectWritetimes = collectWritetimes;
-            this.collectTTLs = collectTTLs;
+            if (collectTimestamps)
+            {
+                this.timestamps = new long[size];
+                // We use MIN_VALUE to indicate no timestamp
+                Arrays.fill(timestamps, Long.MIN_VALUE);
+            }
+            else
+            {
+                timestamps = null;
+            }
 
-            values = new ByteBuffer[columns.size()];
-            writetimes = initTimestamps(TimestampsType.WRITETIMES, collectWritetimes, columns);
-            ttls = initTimestamps(TimestampsType.TTLS, collectTTLs, columns);
-        }
-
-        private RowTimestamps initTimestamps(TimestampsType type,
-                                             boolean collectWritetimes,
-                                             List<ColumnMetadata> columns)
-        {
-            return collectWritetimes ? RowTimestamps.newInstance(type, columns)
-                                     : RowTimestamps.NOOP_ROW_TIMESTAMPS;
-        }
-
-        public ProtocolVersion getProtocolVersion()
-        {
-            return protocolVersion;
+            if (collectTTLs)
+            {
+                this.ttls = new int[size];
+                // We use -1 to indicate no ttl
+                Arrays.fill(ttls, -1);
+            }
+            else
+            {
+                ttls = null;
+            }
         }
 
         public void add(ByteBuffer v)
         {
             values[index] = v;
 
-            if (v != null)
-            {
-                writetimes.addNoTimestamp(index);
-                ttls.addNoTimestamp(index);
-            }
+            if (timestamps != null)
+                timestamps[index] = Long.MIN_VALUE;
+
+            if (ttls != null)
+                ttls[index] = -1;
+
             index++;
         }
 
-        public void add(ColumnData columnData, int nowInSec)
+        public void add(Cell<?> c, int nowInSec)
         {
-            ColumnMetadata column = columns.get(index);
-            if (columnData == null)
+            if (c == null)
             {
                 add(null);
+                return;
             }
-            else
-            {
-                if (column.isComplex())
-                {
-                    add((ComplexColumnData) columnData, nowInSec);
-                }
-                else
-                {
-                    add((Cell<?>) columnData, nowInSec);
-                }
-            }
-        }
 
-        private void add(Cell<?> c, int nowInSec)
-        {
             values[index] = value(c);
-            writetimes.addTimestamp(index, c, nowInSec);
-            ttls.addTimestamp(index, c, nowInSec);
+
+            if (timestamps != null)
+                timestamps[index] = c.timestamp();
+
+            if (ttls != null)
+                ttls[index] = remainingTTL(c, nowInSec);
+
             index++;
         }
 
-        private void add(ComplexColumnData ccd, int nowInSec)
+        private int remainingTTL(Cell<?> c, int nowInSec)
         {
-            AbstractType<?> type = columns.get(index).type;
-            if (type.isCollection())
-            {
-                values[index] = ((CollectionType<?>) type).serializeForNativeProtocol(ccd.iterator());
+            if (!c.isExpiring())
+                return -1;
 
-                for (Cell<?> cell : ccd)
-                {
-                    writetimes.addTimestamp(index, cell, nowInSec);
-                    ttls.addTimestamp(index, cell, nowInSec);
-                }
-            }
-            else
-            {
-                UserType udt = (UserType) type;
-                int size = udt.size();
-
-                values[index] = udt.serializeForNativeProtocol(ccd.iterator(), protocolVersion);
-
-                short fieldPosition = 0;
-                for (Cell<?> cell : ccd)
-                {
-                    // handle null fields that aren't at the end
-                    short fieldPositionOfCell = ByteBufferUtil.toShort(cell.path().get(0));
-                    while (fieldPosition < fieldPositionOfCell)
-                    {
-                        fieldPosition++;
-                        writetimes.addNoTimestamp(index);
-                        ttls.addNoTimestamp(index);
-                    }
-
-                    fieldPosition++;
-                    writetimes.addTimestamp(index, cell, nowInSec);
-                    ttls.addTimestamp(index, cell, nowInSec);
-                }
-
-                // append nulls for missing cells
-                while (fieldPosition < size)
-                {
-                    fieldPosition++;
-                    writetimes.addNoTimestamp(index);
-                    ttls.addNoTimestamp(index);
-                }
-            }
-            index++;
+            int remaining = c.localDeletionTime() - nowInSec;
+            return remaining >= 0 ? remaining : -1;
         }
 
         private <V> ByteBuffer value(Cell<V> c)
@@ -464,38 +390,35 @@ public abstract class Selector
         public void reset(boolean deep)
         {
             index = 0;
-            this.writetimes = initTimestamps(TimestampsType.WRITETIMES, collectWritetimes, columns);
-            this.ttls = initTimestamps(TimestampsType.TTLS, collectTTLs, columns);
-
             if (deep)
                 values = new ByteBuffer[values.length];
         }
 
         /**
-         * Return the timestamp of the column component with the specified indexes.
+         * Return the timestamp of the column with the specified index.
          *
-         * @return the timestamp of the cell with the specified indexes
+         * @param index the column index
+         * @return the timestamp of the column with the specified index
          */
-        ColumnTimestamps getWritetimes(int columnIndex)
+        public long getTimestamp(int index)
         {
-            return writetimes.get(columnIndex);
+            return timestamps[index];
         }
 
         /**
-         * Return the ttl of the column component with the specified column and cell indexes.
+         * Return the ttl of the column with the specified index.
          *
-         * @param columnIndex the column index
-         * @return the ttl of the column with the specified indexes
+         * @param index the column index
+         * @return the ttl of the column with the specified index
          */
-        ColumnTimestamps getTtls(int columnIndex)
+        public int getTtl(int index)
         {
-            return ttls.get(columnIndex);
+            return ttls[index];
         }
 
         /**
          * Returns the column values as list.
          * <p>This content of the list will be shared with the {@code InputRow} unless a deep reset has been done.</p>
-         *
          * @return the column values as list.
          */
         public List<ByteBuffer> getValues()
@@ -507,10 +430,11 @@ public abstract class Selector
     /**
      * Add the current value from the specified <code>ResultSetBuilder</code>.
      *
+     * @param protocolVersion protocol version used for serialization
      * @param input the input row
      * @throws InvalidRequestException if a problem occurs while adding the input row
      */
-    public abstract void addInput(InputRow input);
+    public abstract void addInput(ProtocolVersion protocolVersion, InputRow input);
 
     /**
      * Returns the selector output.
@@ -520,16 +444,6 @@ public abstract class Selector
      * @throws InvalidRequestException if a problem occurs while computing the output value
      */
     public abstract ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException;
-
-    protected ColumnTimestamps getWritetimes(ProtocolVersion protocolVersion)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    protected ColumnTimestamps getTTLs(ProtocolVersion protocolVersion)
-    {
-        throw new UnsupportedOperationException();
-    }
 
     /**
      * Returns the <code>Selector</code> output type.

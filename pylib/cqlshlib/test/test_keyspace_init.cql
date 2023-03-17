@@ -280,26 +280,26 @@ values (
 
 CREATE FUNCTION fBestband ( input double )
     RETURNS NULL ON NULL INPUT
-    RETURNS text
+    RETURNS text 
     LANGUAGE java
     AS 'return "Iron Maiden";';
 
 CREATE FUNCTION fBestsong ( input double )
     RETURNS NULL ON NULL INPUT
-    RETURNS text
+    RETURNS text 
     LANGUAGE java
     AS 'return "Revelations";';
 
 CREATE FUNCTION fMax(current int, candidate int)
     CALLED ON NULL INPUT
-    RETURNS int
-    LANGUAGE java
+    RETURNS int 
+    LANGUAGE java 
     AS 'if (current == null) return candidate; else return Math.max(current, candidate);' ;
 
 CREATE FUNCTION fMin(current int, candidate int)
     CALLED ON NULL INPUT
     RETURNS int
-    LANGUAGE java
+    LANGUAGE java 
     AS 'if (current == null) return candidate; else return Math.min(current, candidate);' ;
 
 CREATE AGGREGATE aggMax(int)
@@ -312,18 +312,3 @@ CREATE AGGREGATE aggMin(int)
     STYPE int
     INITCOND null;
 
-CREATE TYPE quote_udt (
-    data text
-);
-
-CREATE TABLE escape_quotes (
-    id int PRIMARY KEY,
-    text_data text,
-    map_data map<int, text>,
-    set_data set<text>,
-    list_data list<text>,
-    tuple_data tuple<int, text>,
-    udt_data frozen<quote_udt>
-);
-
-INSERT INTO escape_quotes (id, text_data, map_data, set_data, list_data, tuple_data, udt_data) values(1, 'I''m newb', {1:'I''m newb'}, {'I''m newb'}, ['I''m newb'], (1, 'I''m newb'), {data: 'I''m newb'});

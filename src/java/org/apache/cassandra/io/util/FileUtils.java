@@ -51,8 +51,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.RateLimiter;
+import com.google.common.base.Preconditions;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,6 +64,7 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.SyncUtil;
 
+import static com.google.common.base.Throwables.propagate;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 
@@ -208,14 +210,9 @@ public final class FileUtils
 
     public static void createHardLinkWithoutConfirm(String from, String to)
     {
-        createHardLinkWithoutConfirm(new File(from), new File(to));
-    }
-
-    public static void createHardLinkWithoutConfirm(File from, File to)
-    {
         try
         {
-            createHardLink(from, to);
+            createHardLink(new File(from), new File(to));
         }
         catch (FSWriteError fse)
         {
@@ -226,14 +223,9 @@ public final class FileUtils
 
     public static void copyWithOutConfirm(String from, String to)
     {
-        copyWithOutConfirm(new File(from), new File(to));
-    }
-
-    public static void copyWithOutConfirm(File from, File to)
-    {
         try
         {
-            Files.copy(from.toPath(), to.toPath());
+            Files.copy(File.getPath(from), File.getPath(to));
         }
         catch (IOException e)
         {
@@ -486,7 +478,7 @@ public final class FileUtils
     public static void handleFSErrorAndPropagate(FSError e)
     {
         JVMStabilityInspector.inspectThrowable(e);
-        throw e;
+        throw propagate(e);
     }
 
     /**

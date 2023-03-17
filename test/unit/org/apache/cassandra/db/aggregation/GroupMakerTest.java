@@ -20,7 +20,6 @@ package org.apache.cassandra.db.aggregation;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -328,6 +327,6 @@ public class GroupMakerTest
         Selector.Factory factory = selectable.newSelectorFactory(table, null, new ArrayList<>(), VariableSpecifications.empty());
         Selector selector = factory.newInstance(QueryOptions.DEFAULT);
 
-        return GroupMaker.newSelectorGroupMaker(table.comparator, reversed.length, selector, Collections.singletonList(column));
+        return GroupMaker.newSelectorGroupMaker(table.comparator, reversed.length, selector);
     }
 }

@@ -18,33 +18,18 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.io.FileInputStream;
-import java.io.InputStream;
 import java.net.InetAddress;
-import java.security.KeyStore;
 import java.util.Collections;
-
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
 
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
-import com.datastax.driver.core.SSLOptions;
-import com.datastax.driver.core.exceptions.NoHostAvailableException;
-import com.datastax.shaded.netty.handler.ssl.SslContext;
-import com.datastax.shaded.netty.handler.ssl.SslContextBuilder;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 
 public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOptionsImpl
 {
-    @Rule
-    public ExpectedException expectedException = ExpectedException.none();
-
     @Test
     public void nodeWillNotStartWithBadKeystore() throws Throwable
     {
@@ -234,90 +219,4 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
             assertCannotStartDueToConfigurationException(cluster);
         }
     }
-
-    @Test
-    public void testEndpointVerificationDisabledIpNotInSAN() throws Throwable
-    {
-        // When required_endpoint_verification is set to false, client certificate Ip/hostname should be validated
-        // The certificate in cassandra_ssl_test_outbound.keystore does not have IP/hostname embeded, so when
-        // require_endpoint_verification is false, the connection should be established
-       testEndpointVerification(false, true);
-    }
-
-    @Test
-    public void testEndpointVerificationEnabledIpNotInSAN() throws Throwable
-    {
-        // When required_endpoint_verification is set to true, client certificate Ip/hostname should be validated
-        // The certificate in cassandra_ssl_test_outbound.keystore does not have IP/hostname emebeded, so when
-        // require_endpoint_verification is true, the connection should not be established
-        testEndpointVerification(true, false);
-    }
-
-    @Test
-    public void testEndpointVerificationEnabledWithIPInSan() throws Throwable
-    {
-        // When required_endpoint_verification is set to true, client certificate Ip/hostname should be validated
-        // The certificate in cassandra_ssl_test_outbound.keystore have IP/hostname emebeded, so when
-        // require_endpoint_verification is true, the connection should be established
-        testEndpointVerification(true, true);
-    }
-
-    private void testEndpointVerification(boolean requireEndpointVerification, boolean ipInSAN) throws Throwable
-    {
-        try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
-            c.with(Feature.NATIVE_PROTOCOL);
-            c.set("client_encryption_options",
-                  ImmutableMap.builder().putAll(validKeystore)
-                              .put("enabled", true)
-                              .put("require_client_auth", true)
-                              .put("require_endpoint_verification", requireEndpointVerification)
-                              .build());
-        }).start())
-        {
-            InetAddress address = cluster.get(1).config().broadcastAddress().getAddress();
-            SslContextBuilder sslContextBuilder = SslContextBuilder.forClient();
-            if (ipInSAN)
-                sslContextBuilder.keyManager(createKeyManagerFactory("test/conf/cassandra_ssl_test_endpoint_verify.keystore", "cassandra"));
-            else
-                sslContextBuilder.keyManager(createKeyManagerFactory("test/conf/cassandra_ssl_test_outbound.keystore", "cassandra"));
-
-            SslContext sslContext = sslContextBuilder.trustManager(createTrustManagerFactory("test/conf/cassandra_ssl_test.truststore", "cassandra"))
-                                                     .build();
-            final SSLOptions sslOptions = socketChannel -> sslContext.newHandler(socketChannel.alloc());
-            com.datastax.driver.core.Cluster driverCluster = com.datastax.driver.core.Cluster.builder()
-                                                                                             .addContactPoint(address.getHostAddress())
-                                                                                             .withSSL(sslOptions)
-                                                                                             .build();
-
-            if (!ipInSAN)
-            {
-                expectedException.expect(NoHostAvailableException.class);
-            }
-
-            driverCluster.connect();
-        }
-    }
-
-    private KeyManagerFactory createKeyManagerFactory(final String keyStorePath,
-                                                     final String keyStorePassword) throws Exception
-    {
-        final InputStream stream = new FileInputStream(keyStorePath);
-        final KeyStore ks = KeyStore.getInstance("JKS");
-        ks.load(stream, keyStorePassword.toCharArray());
-        final KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-        kmf.init(ks, keyStorePassword.toCharArray());
-        return kmf;
-    }
-
-    private TrustManagerFactory createTrustManagerFactory(final String trustStorePath,
-                                                          final String trustStorePassword) throws Exception
-    {
-        final InputStream stream = new FileInputStream(trustStorePath);
-        final KeyStore ts = KeyStore.getInstance("JKS");
-        ts.load(stream, trustStorePassword.toCharArray());
-        final TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-        tmf.init(ts);
-        return tmf;
-    }
-
 }

@@ -18,11 +18,12 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -35,17 +36,14 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.BaseRowIterator;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.db.transform.Transformation;
-import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
-import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
@@ -64,7 +62,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     protected static final SelectionDeserializer selectionDeserializer = new Deserializer();
 
     protected final DataRange dataRange;
-    protected final Slices requestedSlices;
 
     private PartitionRangeReadCommand(boolean isDigest,
                                       int digestVersion,
@@ -80,8 +77,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     {
         super(Kind.PARTITION_RANGE, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index, trackWarnings);
         this.dataRange = dataRange;
-        this.requestedSlices = dataRange.clusteringIndexFilter.getSlices(metadata());
-
     }
 
     private static PartitionRangeReadCommand create(boolean isDigest,
@@ -316,7 +311,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     }
 
     @VisibleForTesting
-    @SuppressWarnings("resource")
     public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController controller)
     {
         ColumnFamilyStore.ViewFragment view = cfs.select(View.selectLive(dataRange().keyRange()));
@@ -335,43 +329,20 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 inputCollector.addMemtableIterator(RTBoundValidator.validate(iter, RTBoundValidator.Stage.MEMTABLE, false));
             }
 
-            int selectedSSTablesCnt = 0;
             for (SSTableReader sstable : view.sstables)
             {
-                boolean intersects = intersects(sstable);
-                boolean hasPartitionLevelDeletions = hasPartitionLevelDeletions(sstable);
-                boolean hasRequiredStatics = hasRequiredStatics(sstable);
-
-                if (!intersects && !hasPartitionLevelDeletions && !hasRequiredStatics)
-                    continue;
-
                 @SuppressWarnings("resource") // We close on exception and on closing the result returned by this method
                 UnfilteredPartitionIterator iter = sstable.partitionIterator(columnFilter(), dataRange(), readCountUpdater);
                 inputCollector.addSSTableIterator(sstable, RTBoundValidator.validate(iter, RTBoundValidator.Stage.SSTABLE, false));
 
                 if (!sstable.isRepaired())
                     controller.updateMinOldestUnrepairedTombstone(sstable.getMinLocalDeletionTime());
-
-                selectedSSTablesCnt++;
             }
-
-            final int finalSelectedSSTables = selectedSSTablesCnt;
-
             // iterators can be empty for offline tools
             if (inputCollector.isEmpty())
                 return EmptyIterators.unfilteredPartition(metadata());
 
-            List<UnfilteredPartitionIterator> finalizedIterators = inputCollector.finalizeIterators(cfs, nowInSec(), controller.oldestUnrepairedTombstone());
-            UnfilteredPartitionIterator merged = UnfilteredPartitionIterators.mergeLazily(finalizedIterators);
-            return checkCacheFilter(Transformation.apply(merged, new Transformation<UnfilteredRowIterator>()
-            {
-                @Override
-                protected void onClose()
-                {
-                    super.onClose();
-                    cfs.metric.updateSSTableIteratedInRangeRead(finalSelectedSSTables);
-                }
-            }), cfs);
+            return checkCacheFilter(UnfilteredPartitionIterators.mergeLazily(inputCollector.finalizeIterators(cfs, nowInSec(), controller.oldestUnrepairedTombstone())), cfs);
         }
         catch (RuntimeException | Error e)
         {
@@ -385,12 +356,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
             }
             throw e;
         }
-    }
-
-    @Override
-    protected boolean intersects(SSTableReader sstable)
-    {
-        return requestedSlices.intersects(sstable.getSSTableMetadata().coveredClustering);
     }
 
     /**

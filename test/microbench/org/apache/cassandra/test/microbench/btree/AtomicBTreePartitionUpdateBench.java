@@ -50,8 +50,8 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.partitions.AtomicBTreePartition;
-import org.apache.cassandra.db.partitions.BTreePartitionData;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
@@ -240,7 +240,7 @@ public class AtomicBTreePartitionUpdateBench
             try (BulkIterator<Row> iter = BulkIterator.of(insertBuffer))
             {
                 Object[] tree = BTree.build(iter, rowCount, UpdateFunction.noOp());
-                return PartitionUpdate.unsafeConstruct(metadata, decoratedKey, BTreePartitionData.unsafeConstruct(partitionColumns, tree, DeletionInfo.LIVE, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS), NO_DELETION_INFO, false);
+                return PartitionUpdate.unsafeConstruct(metadata, decoratedKey, AbstractBTreePartition.unsafeConstructHolder(partitionColumns, tree, DeletionInfo.LIVE, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS), NO_DELETION_INFO, false);
             }
         }
 
@@ -342,7 +342,12 @@ public class AtomicBTreePartitionUpdateBench
                         public ByteBuffer allocate(int size)
                         {
                             if (invalidateOn > 0 && --invalidateOn == 0)
-                                BTreePartitionData.unsafeInvalidate(update);
+                            {
+                                AbstractBTreePartition.Holder holder = update.unsafeGetHolder();
+                                if (!BTree.isEmpty(holder.tree))
+                                    update.unsafeSetHolder(AbstractBTreePartition.unsafeConstructHolder(
+                                        holder.columns, Arrays.copyOf(holder.tree, holder.tree.length), holder.deletionInfo, holder.staticRow, holder.stats));
+                            }
                             return ByteBuffer.allocate(size);
                         }
                     };
@@ -392,7 +397,7 @@ public class AtomicBTreePartitionUpdateBench
                         ThreadLocalRandom.current().nextLong();
                 }
                 invokeBefore.accept(this);
-                update.addAll(insert[index], cloner, NO_ORDER.getCurrent(), UpdateTransaction.NO_OP);
+                update.addAllWithSizeDelta(insert[index], cloner, NO_ORDER.getCurrent(), UpdateTransaction.NO_OP);
                 return true;
             }
             finally
@@ -400,7 +405,7 @@ public class AtomicBTreePartitionUpdateBench
                 if (state.addAndGet(0x100000L) == ((((long)ifGeneration) << 40) | (((long)insert.length) << 20) | insert.length))
                 {
                     activeThreads.set(0);
-                    update.unsafeSetHolder(BTreePartitionData.unsafeGetEmpty());
+                    update.unsafeSetHolder(AbstractBTreePartition.unsafeGetEmptyHolder());
                     // reset the state and rollover the generation
                     state.set((ifGeneration + 1L) << 40);
                 }

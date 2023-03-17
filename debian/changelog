@@ -1,8 +1,32 @@
-cassandra (5.0) UNRELEASED; urgency=medium
+cassandra (4.1.1) unstable; urgency=medium
 
   * New release
 
- -- Mick Semb Wever <mck@apache.org>  Wed, 21 Apr 2021 19:24:28 +0200
+ -- Stefan Miklosovic <smiklosovic@apache.org>  Wed, 15 Mar 2023 09:08:40 +0100
+
+cassandra (4.1.0) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Wed, 07 Dec 2022 21:53:33 +0100
+
+cassandra (4.1~rc1) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Thu, 17 Nov 2022 11:33:25 +0100
+
+cassandra (4.1~beta1) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Tue, 27 Sep 2022 00:08:07 +0200
+
+cassandra (4.1~alpha1) unstable; urgency=medium
+
+  * New release
+
+ -- Mick Semb Wever <mck@apache.org>  Fri, 20 May 2022 22:02:50 +0200
 
 cassandra (4.0~rc1) unstable; urgency=medium
 

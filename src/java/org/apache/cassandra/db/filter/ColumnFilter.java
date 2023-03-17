@@ -988,7 +988,7 @@ public abstract class ColumnFilter
         {
             if (subSelections != null)
             {
-                out.writeUnsignedVInt32(subSelections.size());
+                out.writeUnsignedVInt(subSelections.size());
                 for (ColumnSubselection subSel : subSelections.values())
                     ColumnSubselection.serializer.serialize(subSel, out, version);
             }
@@ -1078,7 +1078,7 @@ public abstract class ColumnFilter
                                                                                                 TableMetadata metadata) throws IOException
         {
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections = TreeMultimap.create(Comparator.naturalOrder(), Comparator.naturalOrder());
-            int size = in.readUnsignedVInt32();
+            int size = (int) in.readUnsignedVInt();
             for (int i = 0; i < size; i++)
             {
                 ColumnSubselection subSel = ColumnSubselection.serializer.deserialize(in, version, metadata);

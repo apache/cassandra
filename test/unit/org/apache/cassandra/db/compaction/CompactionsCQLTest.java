@@ -19,7 +19,6 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.FileStore;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -56,12 +55,9 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.schema.CompactionParams;
 
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -773,69 +769,5 @@ public class CompactionsCQLTest extends CQLTester
         }
         if (shouldFind)
             fail("No minor compaction triggered in "+maxWaitTime+"ms");
-    }
-
-    @Test
-    public void testNoDiskspace() throws Throwable
-    {
-        createTable("create table %s (id int primary key, i int) with compaction={'class':'SizeTieredCompactionStrategy'}");
-        getCurrentColumnFamilyStore().disableAutoCompaction();
-        for (int i = 0; i < 10; i++)
-        {
-            execute("insert into %s (id, i) values (?,?)", i, i);
-            getCurrentColumnFamilyStore().forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
-        }
-        CompactionInfo.Holder holder = holder(OperationType.COMPACTION);
-        CompactionManager.instance.active.beginCompaction(holder);
-        try
-        {
-            getCurrentColumnFamilyStore().forceMajorCompaction();
-            fail("Exception expected");
-        }
-        catch (Exception ignored)
-        {
-            // expected
-        }
-        finally
-        {
-            CompactionManager.instance.active.finishCompaction(holder);
-        }
-        // don't block compactions if there is a huge validation
-        holder = holder(OperationType.VALIDATION);
-        CompactionManager.instance.active.beginCompaction(holder);
-        try
-        {
-            getCurrentColumnFamilyStore().forceMajorCompaction();
-        }
-        finally
-        {
-            CompactionManager.instance.active.finishCompaction(holder);
-        }
-    }
-
-    private CompactionInfo.Holder holder(OperationType opType)
-    {
-        CompactionInfo.Holder holder = new CompactionInfo.Holder()
-        {
-            public CompactionInfo getCompactionInfo()
-            {
-                long availableSpace = 0;
-                for (File f : getCurrentColumnFamilyStore().getDirectories().getCFDirectories())
-                    availableSpace += PathUtils.tryGetSpace(f.toPath(), FileStore::getUsableSpace);
-
-                return new CompactionInfo(getCurrentColumnFamilyStore().metadata(),
-                                          opType,
-                                          +0,
-                                          +availableSpace * 2,
-                                          nextTimeUUID(),
-                                          getCurrentColumnFamilyStore().getLiveSSTables());
-            }
-
-            public boolean isGlobal()
-            {
-                return false;
-            }
-        };
-        return holder;
     }
 }

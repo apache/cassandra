@@ -20,6 +20,8 @@
  */
 package org.apache.cassandra.db.transform;
 
+import java.util.Collections;
+
 import org.apache.cassandra.db.partitions.BasePartitionIterator;
 import org.apache.cassandra.db.rows.BaseRowIterator;
 import org.apache.cassandra.utils.Throwables;
@@ -110,7 +112,7 @@ implements BasePartitionIterator<R>
         catch (Throwable t)
         {
             if (next != null)
-                Throwables.close(t, next);
+                Throwables.close(t, Collections.singleton(next));
             throw t;
         }
     }

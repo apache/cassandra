@@ -17,17 +17,10 @@
  */
 package org.apache.cassandra.tools;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.GnuParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -37,8 +30,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.Upgrader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.Schema;
@@ -84,11 +76,11 @@ public class StandaloneUpgrader
 
             Collection<SSTableReader> readers = new ArrayList<>();
 
-            // Upgrade sstables
-            for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
+            // Upgrade sstables in id order
+            for (Map.Entry<Descriptor, Set<Component>> entry : lister.sortedList())
             {
                 Set<Component> components = entry.getValue();
-                if (!components.containsAll(entry.getKey().getFormat().primaryComponents()))
+                if (!components.contains(Component.DATA) || !components.contains(Component.PRIMARY_INDEX))
                     continue;
 
                 try

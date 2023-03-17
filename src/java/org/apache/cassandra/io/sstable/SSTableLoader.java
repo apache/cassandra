@@ -17,43 +17,25 @@
  */
 package org.apache.cassandra.io.sstable;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.streaming.OutgoingStream;
-import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.streaming.StreamEvent;
-import org.apache.cassandra.streaming.StreamEventHandler;
-import org.apache.cassandra.streaming.StreamOperation;
-import org.apache.cassandra.streaming.StreamPlan;
-import org.apache.cassandra.streaming.StreamResultFuture;
-import org.apache.cassandra.streaming.StreamState;
-import org.apache.cassandra.streaming.StreamingChannel;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
+
 import org.apache.cassandra.utils.concurrent.Ref;
 
 import static org.apache.cassandra.streaming.StreamingChannel.Factory.Global.streamingFactory;
@@ -66,13 +48,13 @@ public class SSTableLoader implements StreamEventHandler
 {
     private final File directory;
     private final String keyspace;
-    private final String table;
     private final Client client;
     private final int connectionsPerHost;
     private final OutputHandler outputHandler;
     private final Set<InetAddressAndPort> failedHosts = new HashSet<>();
 
     private final List<SSTableReader> sstables = new ArrayList<>();
+    private final Multimap<InetAddressAndPort, OutgoingStream> streamingDetails = HashMultimap.create();
 
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler)
     {
@@ -81,25 +63,18 @@ public class SSTableLoader implements StreamEventHandler
 
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler, int connectionsPerHost, String targetKeyspace)
     {
-        this(directory, client, outputHandler, connectionsPerHost, targetKeyspace, null);
-    }
-
-    public SSTableLoader(File directory, Client client, OutputHandler outputHandler, int connectionsPerHost, String targetKeyspace, String targetTable)
-    {
         this.directory = directory;
         this.keyspace = targetKeyspace != null ? targetKeyspace : directory.parent().name();
-        this.table = targetTable;
         this.client = client;
         this.outputHandler = outputHandler;
         this.connectionsPerHost = connectionsPerHost;
     }
 
     @SuppressWarnings("resource")
-    private Multimap<InetAddressAndPort, CassandraOutgoingFile> openSSTables(final Map<InetAddressAndPort, Collection<Range<Token>>> ranges)
+    protected Collection<SSTableReader> openSSTables(final Map<InetAddressAndPort, Collection<Range<Token>>> ranges)
     {
         outputHandler.output("Opening sstables and calculating sections to stream");
 
-        Multimap<InetAddressAndPort, CassandraOutgoingFile> streamingDetails = HashMultimap.create();
         LifecycleTransaction.getFiles(directory.toPath(),
                                       (file, type) ->
                                       {
@@ -112,27 +87,15 @@ public class SSTableLoader implements StreamEventHandler
                                               return false;
                                           }
 
-                                          Pair<Descriptor, Component> p;
-                                          if (null != keyspace && null != table)
-                                          {
-                                              p = SSTable.tryComponentFromFilename(file, keyspace, table);
-                                          }
-                                          else
-                                          {
-                                              p = SSTable.tryComponentFromFilename(file);
-                                          }
-
+                                          Pair<Descriptor, Component> p = SSTable.tryComponentFromFilename(file);
                                           Descriptor desc = p == null ? null : p.left;
-                                          if (p == null || !p.right.equals(Components.DATA))
+                                          if (p == null || !p.right.equals(Component.DATA))
                                               return false;
 
-                                          for (Component c : desc.getFormat().primaryComponents())
+                                          if (!new File(desc.filenameFor(Component.PRIMARY_INDEX)).exists())
                                           {
-                                              if (!desc.fileFor(c).exists())
-                                              {
-                                                  outputHandler.output(String.format("Skipping file %s because %s is missing", name, c.name));
-                                                  return false;
-                                              }
+                                              outputHandler.output(String.format("Skipping file %s because index is missing", name));
+                                              return false;
                                           }
 
                                           TableMetadataRef metadata = client.getTableMetadata(desc.cfname);
@@ -142,14 +105,22 @@ public class SSTableLoader implements StreamEventHandler
                                               return false;
                                           }
 
-                                          Set<Component> components = desc.getComponents(desc.getFormat().primaryComponents(), desc.getFormat().uploadComponents());
+                                          Set<Component> components = new HashSet<>();
+                                          components.add(Component.DATA);
+                                          components.add(Component.PRIMARY_INDEX);
+                                          if (new File(desc.filenameFor(Component.SUMMARY)).exists())
+                                              components.add(Component.SUMMARY);
+                                          if (new File(desc.filenameFor(Component.COMPRESSION_INFO)).exists())
+                                              components.add(Component.COMPRESSION_INFO);
+                                          if (new File(desc.filenameFor(Component.STATS)).exists())
+                                              components.add(Component.STATS);
 
                                           try
                                           {
                                               // To conserve memory, open SSTableReaders without bloom filters and discard
                                               // the index summary after calculating the file sections to stream and the estimated
                                               // number of keys for each endpoint. See CASSANDRA-5555 for details.
-                                              SSTableReader sstable = SSTableReader.openForBatch(null, desc, components, metadata);
+                                              SSTableReader sstable = SSTableReader.openForBatch(desc, components, metadata);
                                               sstables.add(sstable);
 
                                               // calculate the sstable sections to stream as well as the estimated number of
@@ -167,12 +138,12 @@ public class SSTableLoader implements StreamEventHandler
 
                                                   long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
                                                   Ref<SSTableReader> ref = sstable.ref();
-                                                  CassandraOutgoingFile stream = new CassandraOutgoingFile(StreamOperation.BULK_LOAD, ref, sstableSections, tokenRanges, estimatedKeys);
+                                                  OutgoingStream stream = new CassandraOutgoingFile(StreamOperation.BULK_LOAD, ref, sstableSections, tokenRanges, estimatedKeys);
                                                   streamingDetails.put(endpoint, stream);
                                               }
 
                                               // to conserve heap space when bulk loading
-                                              sstable.releaseInMemoryComponents();
+                                              sstable.releaseSummary();
                                           }
                                           catch (FSError e)
                                           {
@@ -183,7 +154,7 @@ public class SSTableLoader implements StreamEventHandler
                                       },
                                       Directories.OnTxnErr.IGNORE);
 
-        return streamingDetails;
+        return sstables;
     }
 
     public StreamResultFuture stream()
@@ -199,14 +170,14 @@ public class SSTableLoader implements StreamEventHandler
         StreamPlan plan = new StreamPlan(StreamOperation.BULK_LOAD, connectionsPerHost, false, null, PreviewKind.NONE).connectionFactory(client.getConnectionFactory());
 
         Map<InetAddressAndPort, Collection<Range<Token>>> endpointToRanges = client.getEndpointToRangesMap();
-        Multimap<InetAddressAndPort, CassandraOutgoingFile> streamingDetails = openSSTables(endpointToRanges);
-        if (streamingDetails.isEmpty())
+        openSSTables(endpointToRanges);
+        if (sstables.isEmpty())
         {
             // return empty result
             return plan.execute();
         }
 
-        outputHandler.output(String.format("Streaming relevant part of %s to %s", names(streamingDetails.values()), endpointToRanges.keySet()));
+        outputHandler.output(String.format("Streaming relevant part of %s to %s", names(sstables), endpointToRanges.keySet()));
 
         for (Map.Entry<InetAddressAndPort, Collection<Range<Token>>> entry : endpointToRanges.entrySet())
         {
@@ -214,8 +185,13 @@ public class SSTableLoader implements StreamEventHandler
             if (toIgnore.contains(remote))
                 continue;
 
+            List<OutgoingStream> streams = new LinkedList<>();
+
             // references are acquired when constructing the SSTableStreamingSections above
-            List<OutgoingStream> streams = new LinkedList<>(streamingDetails.get(remote));
+            for (OutgoingStream stream : streamingDetails.get(remote))
+            {
+                streams.add(stream);
+            }
 
             plan.transferStreams(remote, streams);
         }
@@ -237,13 +213,10 @@ public class SSTableLoader implements StreamEventHandler
      */
     private void releaseReferences()
     {
-        Iterator<SSTableReader> it = sstables.iterator();
-        while (it.hasNext())
+        for (SSTableReader sstable : sstables)
         {
-            SSTableReader sstable = it.next();
             sstable.selfRef().release();
             assert sstable.selfRef().globalCount() == 0 : String.format("for sstable = %s, ref count = %d", sstable, sstable.selfRef().globalCount());
-            it.remove();
         }
     }
 
@@ -257,9 +230,12 @@ public class SSTableLoader implements StreamEventHandler
         }
     }
 
-    private String names(Collection<CassandraOutgoingFile> sstables)
+    private String names(Collection<SSTableReader> sstables)
     {
-        return sstables.stream().map(CassandraOutgoingFile::getName).distinct().collect(Collectors.joining(" "));
+        StringBuilder builder = new StringBuilder();
+        for (SSTableReader sstable : sstables)
+            builder.append(sstable.descriptor.filenameFor(Component.DATA)).append(" ");
+        return builder.toString();
     }
 
     public Set<InetAddressAndPort> getFailedHosts()

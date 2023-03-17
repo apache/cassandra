@@ -34,9 +34,9 @@ import java.util.regex.Pattern;
 import com.google.common.io.ByteStreams;
 import com.google.common.reflect.TypeToken;
 
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.cql3.functions.types.exceptions.InvalidTypeException;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static com.google.common.base.Preconditions.checkArgument;
@@ -3043,9 +3043,17 @@ public abstract class TypeCodec<T>
             + VIntCoding.computeVIntSize(days)
             + VIntCoding.computeVIntSize(nanoseconds);
             ByteBuffer bb = ByteBuffer.allocate(size);
-            VIntCoding.writeVInt(months, bb);
-            VIntCoding.writeVInt(days, bb);
-            VIntCoding.writeVInt(nanoseconds, bb);
+            try
+            {
+                VIntCoding.writeVInt(months, bb);
+                VIntCoding.writeVInt(days, bb);
+                VIntCoding.writeVInt(nanoseconds, bb);
+            }
+            catch (IOException e)
+            {
+                // cannot happen
+                throw new AssertionError();
+            }
             bb.flip();
             return bb;
         }
@@ -3063,8 +3071,8 @@ public abstract class TypeCodec<T>
                 DataInput in = ByteStreams.newDataInput(Bytes.getArray(bytes));
                 try
                 {
-                    int months = VIntCoding.readVInt32(in);
-                    int days = VIntCoding.readVInt32(in);
+                    int months = (int) VIntCoding.readVInt(in);
+                    int days = (int) VIntCoding.readVInt(in);
                     long nanoseconds = VIntCoding.readVInt(in);
                     return Duration.newInstance(months, days, nanoseconds);
                 }

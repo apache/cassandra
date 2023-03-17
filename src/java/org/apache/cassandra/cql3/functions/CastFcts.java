@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.functions;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CQL3Type;
@@ -56,8 +58,10 @@ public final class CastFcts
 {
     private static final String FUNCTION_NAME_PREFIX = "castAs";
 
-    public static void addFunctionsTo(NativeFunctions functions)
+    public static Collection<Function> all()
     {
+        List<Function> functions = new ArrayList<>();
+
         @SuppressWarnings("unchecked")
         final AbstractType<? extends Number>[] numericTypes = new AbstractType[] {ByteType.instance,
                                                                                   ShortType.instance,
@@ -106,6 +110,8 @@ public final class CastFcts
 
         functions.add(CastAsTextFunction.create(UUIDType.instance, AsciiType.instance));
         functions.add(CastAsTextFunction.create(UUIDType.instance, UTF8Type.instance));
+
+        return functions;
     }
 
     /**
@@ -155,7 +161,7 @@ public final class CastFcts
      * @param outputType the output type
      * @param converter the function use to convert the input type into the output type
      */
-    private static <I, O> void addFunctionIfNeeded(NativeFunctions functions,
+    private static <I, O> void addFunctionIfNeeded(List<Function> functions,
                                                    AbstractType<I> inputType,
                                                    AbstractType<O> outputType,
                                                    java.util.function.Function<I, O> converter)
@@ -165,9 +171,9 @@ public final class CastFcts
     }
 
     @SuppressWarnings("unchecked")
-    private static <O, I> NativeFunction wrapJavaFunction(AbstractType<I> inputType,
-                                                          AbstractType<O> outputType,
-                                                          java.util.function.Function<I, O> converter)
+    private static <O, I> Function wrapJavaFunction(AbstractType<I> inputType,
+                                                    AbstractType<O> outputType,
+                                                    java.util.function.Function<I, O> converter)
     {
         return inputType.equals(CounterColumnType.instance)
                 ? JavaCounterFunctionWrapper.create(outputType, (java.util.function.Function<Long, O>) converter)

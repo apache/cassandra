@@ -135,13 +135,4 @@ public interface StorageProxyMBean
 
     void setPaxosCoordinatorLockingDisabled(boolean disabled);
     boolean getPaxosCoordinatorLockingDisabled();
-
-    public boolean getDumpHeapOnUncaughtException();
-    public void setDumpHeapOnUncaughtException(boolean enabled);
-
-    boolean getSStableReadRatePersistenceEnabled();
-    void setSStableReadRatePersistenceEnabled(boolean enabled);
-
-    boolean getClientRequestSizeMetricsEnabled();
-    void setClientRequestSizeMetricsEnabled(boolean enabled);
 }

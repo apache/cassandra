@@ -178,16 +178,15 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
             key file in PEM format (see {@link SslContextBuilder#forServer(File, File, String)}). However, we are
             not supporting that now to keep the config/yaml API simple.
          */
+        KeyManagerFactory kmf = buildKeyManagerFactory();
         SslContextBuilder builder;
         if (socketType == SocketType.SERVER)
         {
-            KeyManagerFactory kmf = buildKeyManagerFactory();
             builder = SslContextBuilder.forServer(kmf).clientAuth(this.require_client_auth ? ClientAuth.REQUIRE :
                                                                   ClientAuth.NONE);
         }
         else
         {
-            KeyManagerFactory kmf = buildOutboundKeyManagerFactory();
             builder = SslContextBuilder.forClient().keyManager(kmf);
         }
 
@@ -264,12 +263,4 @@ abstract public class AbstractSslContextFactory implements ISslContextFactory
     abstract protected KeyManagerFactory buildKeyManagerFactory() throws SSLException;
 
     abstract protected TrustManagerFactory buildTrustManagerFactory() throws SSLException;
-
-    /**
-     * Create a {@code KeyManagerFactory} for outbound connections.
-     * It provides a seperate keystore for internode mTLS outbound connections.
-     * @return {@code KeyManagerFactory}
-     * @throws SSLException
-     */
-    abstract protected KeyManagerFactory buildOutboundKeyManagerFactory() throws SSLException;
 }

@@ -63,7 +63,7 @@ import static org.apache.cassandra.utils.Simulate.With.GLOBAL_CLOCK;
 
 /**
  * system_schema.* tables and methods for manipulating them.
- *
+ * 
  * Please notice this class is _not_ thread safe and all methods which reads or updates the data in schema keyspace
  * should be accessed only from the implementation of {@link SchemaUpdateHandler} in synchronized blocks.
  */
@@ -100,7 +100,6 @@ public final class SchemaKeyspace
               "CREATE TABLE %s ("
               + "keyspace_name text,"
               + "table_name text,"
-              + "allow_auto_snapshot boolean,"
               + "bloom_filter_fp_chance double,"
               + "caching frozen<map<text, text>>,"
               + "comment text,"
@@ -113,7 +112,6 @@ public final class SchemaKeyspace
               + "extensions frozen<map<text, blob>>,"
               + "flags frozen<set<text>>," // SUPER, COUNTER, DENSE, COMPOUND
               + "gc_grace_seconds int,"
-              + "incremental_backups boolean,"        
               + "id uuid,"
               + "max_index_interval int,"
               + "memtable_flush_period_in_ms int,"
@@ -170,7 +168,6 @@ public final class SchemaKeyspace
               + "base_table_id uuid,"
               + "base_table_name text,"
               + "where_clause text,"
-              + "allow_auto_snapshot boolean,"
               + "bloom_filter_fp_chance double,"
               + "caching frozen<map<text, text>>,"
               + "comment text,"
@@ -182,7 +179,6 @@ public final class SchemaKeyspace
               + "default_time_to_live int,"
               + "extensions frozen<map<text, blob>>,"
               + "gc_grace_seconds int,"
-              + "incremental_backups boolean,"        
               + "id uuid,"
               + "include_all_columns boolean,"
               + "max_index_interval int,"
@@ -473,8 +469,8 @@ public final class SchemaKeyspace
         keyspace.tables.forEach(table -> addTableToSchemaMutation(table, true, builder));
         keyspace.views.forEach(view -> addViewToSchemaMutation(view, true, builder));
         keyspace.types.forEach(type -> addTypeToSchemaMutation(type, builder));
-        keyspace.userFunctions.udfs().forEach(udf -> addFunctionToSchemaMutation(udf, builder));
-        keyspace.userFunctions.udas().forEach(uda -> addAggregateToSchemaMutation(uda, builder));
+        keyspace.functions.udfs().forEach(udf -> addFunctionToSchemaMutation(udf, builder));
+        keyspace.functions.udas().forEach(uda -> addAggregateToSchemaMutation(uda, builder));
 
         return builder;
     }
@@ -567,16 +563,6 @@ public final class SchemaKeyspace
         // in mixed operation with pre-4.1 versioned node during upgrades.
         if (params.memtable != MemtableParams.DEFAULT)
             builder.add("memtable", params.memtable.configurationKey());
-
-        // As above, only add the allow_auto_snapshot column if the value is not default (true) and
-        // auto-snapshotting is enabled, to avoid RTE in pre-4.2 versioned node during upgrades
-        if (!params.allowAutoSnapshot)
-            builder.add("allow_auto_snapshot", false);
-
-        // As above, only add the incremental_backups column if the value is not default (true) and
-        // incremental_backups is enabled, to avoid RTE in pre-4.2 versioned node during upgrades
-        if (!params.incrementalBackups)
-            builder.add("incremental_backups", false);
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -878,7 +864,7 @@ public final class SchemaKeyspace
         Types types = fetchTypes(keyspaceName);
         Tables tables = fetchTables(keyspaceName, types);
         Views views = fetchViews(keyspaceName, types);
-        UserFunctions functions = fetchFunctions(keyspaceName, types);
+        Functions functions = fetchFunctions(keyspaceName, types);
         return KeyspaceMetadata.create(keyspaceName, params, tables, views, types, functions);
     }
 
@@ -968,38 +954,29 @@ public final class SchemaKeyspace
     @VisibleForTesting
     static TableParams createTableParamsFromRow(UntypedResultSet.Row row)
     {
-        TableParams.Builder builder = TableParams.builder()
-                                                 .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
-                                                 .caching(CachingParams.fromMap(row.getFrozenTextMap("caching")))
-                                                 .comment(row.getString("comment"))
-                                                 .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
-                                                 .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
-                                                 .memtable(MemtableParams.getWithFallback(row.has("memtable")
-                                                                                          ? row.getString("memtable")
-                                                                                          : null)) // memtable column was introduced in 4.1
-                                                 .defaultTimeToLive(row.getInt("default_time_to_live"))
-                                                 .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
-                                                 .gcGraceSeconds(row.getInt("gc_grace_seconds"))
-                                                 .maxIndexInterval(row.getInt("max_index_interval"))
-                                                 .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
-                                                 .minIndexInterval(row.getInt("min_index_interval"))
-                                                 .crcCheckChance(row.getDouble("crc_check_chance"))
-                                                 .speculativeRetry(SpeculativeRetryPolicy.fromString(row.getString("speculative_retry")))
-                                                 .additionalWritePolicy(row.has("additional_write_policy") ?
-                                                                        SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
-                                                                        SpeculativeRetryPolicy.fromString("99PERCENTILE"))
-                                                 .cdc(row.has("cdc") && row.getBoolean("cdc"))
-                                                 .readRepair(getReadRepairStrategy(row));
-
-        // allow_auto_snapshot column was introduced in 4.2
-        if (row.has("allow_auto_snapshot"))
-            builder.allowAutoSnapshot(row.getBoolean("allow_auto_snapshot"));
-
-        // incremental_backups column was introduced in 4.2
-        if (row.has("incremental_backups"))
-            builder.incrementalBackups(row.getBoolean("incremental_backups"));
-
-        return builder.build();
+        return TableParams.builder()
+                          .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
+                          .caching(CachingParams.fromMap(row.getFrozenTextMap("caching")))
+                          .comment(row.getString("comment"))
+                          .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
+                          .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
+                          .memtable(MemtableParams.getWithFallback(row.has("memtable")
+                                                                   ? row.getString("memtable")
+                                                                   : null)) // memtable column was introduced in 4.1
+                          .defaultTimeToLive(row.getInt("default_time_to_live"))
+                          .extensions(row.getFrozenMap("extensions", UTF8Type.instance, BytesType.instance))
+                          .gcGraceSeconds(row.getInt("gc_grace_seconds"))
+                          .maxIndexInterval(row.getInt("max_index_interval"))
+                          .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
+                          .minIndexInterval(row.getInt("min_index_interval"))
+                          .crcCheckChance(row.getDouble("crc_check_chance"))
+                          .speculativeRetry(SpeculativeRetryPolicy.fromString(row.getString("speculative_retry")))
+                          .additionalWritePolicy(row.has("additional_write_policy") ?
+                                                     SpeculativeRetryPolicy.fromString(row.getString("additional_write_policy")) :
+                                                     SpeculativeRetryPolicy.fromString("99PERCENTILE"))
+                          .cdc(row.has("cdc") && row.getBoolean("cdc"))
+                          .readRepair(getReadRepairStrategy(row))
+                          .build();
     }
 
     private static List<ColumnMetadata> fetchColumns(String keyspace, String table, Types types)
@@ -1150,12 +1127,12 @@ public final class SchemaKeyspace
         return new ViewMetadata(baseTableId, baseTableName, includeAll, whereClause, metadata);
     }
 
-    private static UserFunctions fetchFunctions(String keyspaceName, Types types)
+    private static Functions fetchFunctions(String keyspaceName, Types types)
     {
         Collection<UDFunction> udfs = fetchUDFs(keyspaceName, types);
         Collection<UDAggregate> udas = fetchUDAs(keyspaceName, udfs, types);
 
-        return UserFunctions.builder().add(udfs).add(udas).build();
+        return org.apache.cassandra.schema.Functions.builder().add(udfs).add(udas).build();
     }
 
     private static Collection<UDFunction> fetchUDFs(String keyspaceName, Types types)
@@ -1192,7 +1169,7 @@ public final class SchemaKeyspace
          * TODO: find a way to get rid of Schema.instance dependency; evaluate if the opimisation below makes a difference
          * in the first place. Remove if it isn't.
          */
-        UserFunction existing = Schema.instance.findUserFunction(name, argTypes).orElse(null);
+        org.apache.cassandra.cql3.functions.Function existing = Schema.instance.findFunction(name, argTypes).orElse(null);
         if (existing instanceof UDFunction)
         {
             // This check prevents duplicate compilation of effectively the same UDF.

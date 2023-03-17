@@ -27,7 +27,6 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -42,7 +41,7 @@ final class FieldSelector extends Selector
         protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             UserType type = (UserType) readType(metadata, in);
-            int field = in.readUnsignedVInt32();
+            int field = (int) in.readUnsignedVInt();
             Selector selected = Selector.serializer.deserialize(in, version, metadata);
 
             return new FieldSelector(type, field, selected);
@@ -99,9 +98,9 @@ final class FieldSelector extends Selector
         selected.addFetchedColumns(builder);
     }
 
-    public void addInput(InputRow input)
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
-        selected.addInput(input);
+        selected.addInput(protocolVersion, input);
     }
 
     public ByteBuffer getOutput(ProtocolVersion protocolVersion)
@@ -109,24 +108,8 @@ final class FieldSelector extends Selector
         ByteBuffer value = selected.getOutput(protocolVersion);
         if (value == null)
             return null;
-        ByteBuffer[] buffers = type.split(ByteBufferAccessor.instance, value);
+        ByteBuffer[] buffers = type.split(value);
         return field < buffers.length ? buffers[field] : null;
-    }
-
-    @Override
-    protected ColumnTimestamps getWritetimes(ProtocolVersion protocolVersion)
-    {
-        return getOutput(protocolVersion) == null
-               ? ColumnTimestamps.NO_TIMESTAMP
-               : selected.getWritetimes(protocolVersion).get(field);
-    }
-
-    @Override
-    protected ColumnTimestamps getTTLs(ProtocolVersion protocolVersion)
-    {
-        return getOutput(protocolVersion) == null
-               ? ColumnTimestamps.NO_TIMESTAMP
-               : selected.getTTLs(protocolVersion).get(field);
     }
 
     public AbstractType<?> getType()
@@ -191,7 +174,7 @@ final class FieldSelector extends Selector
     protected void serialize(DataOutputPlus out, int version) throws IOException
     {
         writeType(out, type);
-        out.writeUnsignedVInt32(field);
+        out.writeUnsignedVInt(field);
         serializer.serialize(selected, out, version);
     }
 }

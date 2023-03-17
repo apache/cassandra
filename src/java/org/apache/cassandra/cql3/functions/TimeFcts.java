@@ -18,8 +18,10 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.List;
 
+import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,34 +40,34 @@ public abstract class TimeFcts
 {
     public static Logger logger = LoggerFactory.getLogger(TimeFcts.class);
 
-    public static void addFunctionsTo(NativeFunctions functions)
+    public static Collection<Function> all()
     {
-        functions.addAll(now("now", TimeUUIDType.instance),
-                         now("currenttimeuuid", TimeUUIDType.instance),
-                         now("currenttimestamp", TimestampType.instance),
-                         now("currentdate", SimpleDateType.instance),
-                         now("currenttime", TimeType.instance),
-                         minTimeuuidFct,
-                         maxTimeuuidFct,
-                         dateOfFct,
-                         unixTimestampOfFct,
-                         toDate(TimeUUIDType.instance),
-                         toTimestamp(TimeUUIDType.instance),
-                         toUnixTimestamp(TimeUUIDType.instance),
-                         toUnixTimestamp(TimestampType.instance),
-                         toDate(TimestampType.instance),
-                         toUnixTimestamp(SimpleDateType.instance),
-                         toTimestamp(SimpleDateType.instance),
-                         FloorTimestampFunction.newInstance(),
-                         FloorTimestampFunction.newInstanceWithStartTimeArgument(),
-                         FloorTimeUuidFunction.newInstance(),
-                         FloorTimeUuidFunction.newInstanceWithStartTimeArgument(),
-                         FloorDateFunction.newInstance(),
-                         FloorDateFunction.newInstanceWithStartTimeArgument(),
-                         floorTime);
+        return ImmutableList.of(now("now", TimeUUIDType.instance),
+                                now("currenttimeuuid", TimeUUIDType.instance),
+                                now("currenttimestamp", TimestampType.instance),
+                                now("currentdate", SimpleDateType.instance),
+                                now("currenttime", TimeType.instance),
+                                minTimeuuidFct,
+                                maxTimeuuidFct,
+                                dateOfFct,
+                                unixTimestampOfFct,
+                                toDate(TimeUUIDType.instance),
+                                toTimestamp(TimeUUIDType.instance),
+                                toUnixTimestamp(TimeUUIDType.instance),
+                                toUnixTimestamp(TimestampType.instance),
+                                toDate(TimestampType.instance),
+                                toUnixTimestamp(SimpleDateType.instance),
+                                toTimestamp(SimpleDateType.instance),
+                                FloorTimestampFunction.newInstance(),
+                                FloorTimestampFunction.newInstanceWithStartTimeArgument(),
+                                FloorTimeUuidFunction.newInstance(),
+                                FloorTimeUuidFunction.newInstanceWithStartTimeArgument(),
+                                FloorDateFunction.newInstance(),
+                                FloorDateFunction.newInstanceWithStartTimeArgument(),
+                                floorTime);
     }
 
-    public static final NativeFunction now(final String name, final TemporalType<?> type)
+    public static final Function now(final String name, final TemporalType<?> type)
     {
         return new NativeScalarFunction(name, type)
         {
@@ -83,7 +85,7 @@ public abstract class TimeFcts
         };
     };
 
-    public static final NativeFunction minTimeuuidFct = new NativeScalarFunction("mintimeuuid", TimeUUIDType.instance, TimestampType.instance)
+    public static final Function minTimeuuidFct = new NativeScalarFunction("mintimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
@@ -95,7 +97,7 @@ public abstract class TimeFcts
         }
     };
 
-    public static final NativeFunction maxTimeuuidFct = new NativeScalarFunction("maxtimeuuid", TimeUUIDType.instance, TimestampType.instance)
+    public static final Function maxTimeuuidFct = new NativeScalarFunction("maxtimeuuid", TimeUUIDType.instance, TimestampType.instance)
     {
         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {
@@ -250,7 +252,7 @@ public abstract class TimeFcts
          {
              super("floor", returnType, argsType);
              // The function can accept either 2 parameters (time and duration) or 3 parameters (time, duration and startTime)r
-             assert argsType.length == 2 || argsType.length == 3;
+             assert argsType.length == 2 || argsType.length == 3; 
          }
 
          @Override
@@ -507,3 +509,4 @@ public abstract class TimeFcts
          }
      };
  }
+

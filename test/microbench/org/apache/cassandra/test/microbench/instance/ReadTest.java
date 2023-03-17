@@ -80,21 +80,11 @@ public abstract class ReadTest extends SimpleTableWriter
             // don't flush
         }
 
-        System.err.format("%s sstables, total %s, %,d partitions. Mean write latency %.2f ms\n",
-                          cfs.getLiveSSTables().size(),
-                          FBUtilities.prettyPrintMemory(cfs.metric.liveDiskSpaceUsed.getCount()),
-                          cfs.metric.estimatedPartitionCount.getValue(),
-                          cfs.metric.writeLatency.latency.getSnapshot().getMean());
         // Needed to stabilize sstable count for off-cache sized tests (e.g. count = 100_000_000)
         while (cfs.getLiveSSTables().size() >= 15)
         {
             cfs.enableAutoCompaction(true);
             cfs.disableAutoCompaction();
-            System.err.format("%s sstables, total %s, %,d partitions. Mean write latency %.2f ms\n",
-                              cfs.getLiveSSTables().size(),
-                              FBUtilities.prettyPrintMemory(cfs.metric.liveDiskSpaceUsed.getCount()),
-                              cfs.metric.estimatedPartitionCount.getValue(),
-                              cfs.metric.writeLatency.latency.getSnapshot().getMean());
         }
     }
 
@@ -119,8 +109,7 @@ public abstract class ReadTest extends SimpleTableWriter
                                                    }
                                                    catch (Throwable throwable)
                                                    {
-                                                       Throwables.throwIfUnchecked(throwable);
-                                                       throw new RuntimeException(throwable);
+                                                       throw Throwables.propagate(throwable);
                                                    }
                                                }));
         }
@@ -153,8 +142,7 @@ public abstract class ReadTest extends SimpleTableWriter
                                                    }
                                                    catch (Throwable throwable)
                                                    {
-                                                       Throwables.throwIfUnchecked(throwable);
-                                                       throw new RuntimeException(throwable);
+                                                       throw Throwables.propagate(throwable);
                                                    }
                                                }));
         }

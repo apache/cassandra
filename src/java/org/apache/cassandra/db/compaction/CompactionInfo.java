@@ -18,9 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -29,9 +27,7 @@ import java.util.function.Predicate;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -46,7 +42,6 @@ public final class CompactionInfo
     public static final String UNIT = "unit";
     public static final String COMPACTION_ID = "compactionId";
     public static final String SSTABLES = "sstables";
-    public static final String TARGET_DIRECTORY = "targetDirectory";
 
     private final TableMetadata metadata;
     private final OperationType tasktype;
@@ -55,9 +50,13 @@ public final class CompactionInfo
     private final Unit unit;
     private final TimeUUID compactionId;
     private final ImmutableSet<SSTableReader> sstables;
-    private final String targetDirectory;
 
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId, Collection<? extends SSTableReader> sstables, String targetDirectory)
+    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long bytesComplete, long totalBytes, TimeUUID compactionId, Collection<SSTableReader> sstables)
+    {
+        this(metadata, tasktype, bytesComplete, totalBytes, Unit.BYTES, compactionId, sstables);
+    }
+
+    private CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId, Collection<SSTableReader> sstables)
     {
         this.tasktype = tasktype;
         this.completed = completed;
@@ -66,41 +65,21 @@ public final class CompactionInfo
         this.unit = unit;
         this.compactionId = compactionId;
         this.sstables = ImmutableSet.copyOf(sstables);
-        this.targetDirectory = targetDirectory;
-    }
-
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, TimeUUID compactionId, Collection<SSTableReader> sstables, String targetDirectory)
-    {
-        this(metadata, tasktype, completed, total, Unit.BYTES, compactionId, sstables, targetDirectory);
-    }
-
-    public CompactionInfo(TableMetadata metadata, OperationType tasktype, long completed, long total, TimeUUID compactionId, Collection<? extends SSTableReader> sstables)
-    {
-        this(metadata, tasktype, completed, total, Unit.BYTES, compactionId, sstables, null);
     }
 
     /**
-     * Special compaction info where we always need to cancel the compaction - for example ViewBuilderTask where we don't know
+     * Special compaction info where we always need to cancel the compaction - for example ViewBuilderTask and AutoSavingCache where we don't know
      * the sstables at construction
      */
     public static CompactionInfo withoutSSTables(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId)
     {
-        return withoutSSTables(metadata, tasktype, completed, total, unit, compactionId, null);
-    }
-
-    /**
-     * Special compaction info where we always need to cancel the compaction - for example AutoSavingCache where we don't know
-     * the sstables at construction
-     */
-    public static CompactionInfo withoutSSTables(TableMetadata metadata, OperationType tasktype, long completed, long total, Unit unit, TimeUUID compactionId, String targetDirectory)
-    {
-        return new CompactionInfo(metadata, tasktype, completed, total, unit, compactionId, ImmutableSet.of(), targetDirectory);
+        return new CompactionInfo(metadata, tasktype, completed, total, unit, compactionId, ImmutableSet.of());
     }
 
     /** @return A copy of this CompactionInfo with updated progress. */
     public CompactionInfo forProgress(long complete, long total)
     {
-        return new CompactionInfo(metadata, tasktype, complete, total, unit, compactionId, sstables, targetDirectory);
+        return new CompactionInfo(metadata, tasktype, complete, total, unit, compactionId, sstables);
     }
 
     public Optional<String> getKeyspace()
@@ -148,50 +127,6 @@ public final class CompactionInfo
         return sstables;
     }
 
-    /**
-     * Get the directories this compaction could possibly write to.
-     *
-     * @return the directories that we might write to, or empty list if we don't know the metadata
-     * (like for index summary redistribution), or null if we don't have any disk boundaries
-     */
-    public List<File> getTargetDirectories()
-    {
-        if (metadata != null && !metadata.isIndex())
-        {
-            ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(metadata.id);
-            if (cfs != null)
-                return cfs.getDirectoriesForFiles(sstables);
-        }
-        return Collections.emptyList();
-    }
-
-    public String targetDirectory()
-    {
-        if (targetDirectory == null)
-            return "";
-
-        try
-        {
-            return new File(targetDirectory).canonicalPath();
-        }
-        catch (Throwable t)
-        {
-            throw new RuntimeException("Unable to resolve canonical path for " + targetDirectory);
-        }
-    }
-
-    /**
-     * Note that this estimate is based on the amount of data we have left to read - it assumes input
-     * size == output size for a compaction, which is not really true, but should most often provide a worst case
-     * remaining write size.
-     */
-    public long estimatedRemainingWriteBytes()
-    {
-        if (unit == Unit.BYTES && tasktype.writesData)
-            return getTotal() - getCompleted();
-        return 0;
-    }
-
     @Override
     public String toString()
     {
@@ -220,7 +155,6 @@ public final class CompactionInfo
         ret.put(UNIT, unit.toString());
         ret.put(COMPACTION_ID, compactionId == null ? "" : compactionId.toString());
         ret.put(SSTABLES, Joiner.on(',').join(sstables));
-        ret.put(TARGET_DIRECTORY, targetDirectory());
         return ret;
     }
 

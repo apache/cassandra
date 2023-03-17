@@ -212,11 +212,6 @@ public class StatsTableComparatorTest extends TableStatsTestBase
                        "table1 > table3 > table5 > table2 > table4 > table6",
                        humanReadable,
                        ascending);
-        runCompareTest(testTables,
-                       "twcs_max_duration",
-                       "table2 > table4 > table1 > table3 > table6 > table5",
-                       humanReadable,
-                       ascending);
     }
 
     @Test

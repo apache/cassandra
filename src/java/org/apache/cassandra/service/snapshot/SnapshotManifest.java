@@ -46,25 +46,19 @@ public class SnapshotManifest
     @JsonProperty("expires_at")
     public final Instant expiresAt;
 
-    @JsonProperty("ephemeral")
-    public final boolean ephemeral;
-
     /** needed for jackson serialization */
     @SuppressWarnings("unused")
-    private SnapshotManifest()
-    {
+    private SnapshotManifest() {
         this.files = null;
         this.createdAt = null;
         this.expiresAt = null;
-        this.ephemeral = false;
     }
 
-    public SnapshotManifest(List<String> files, DurationSpec.IntSecondsBound ttl, Instant creationTime, boolean ephemeral)
+    public SnapshotManifest(List<String> files, DurationSpec.IntSecondsBound ttl, Instant creationTime)
     {
         this.files = files;
         this.createdAt = creationTime;
         this.expiresAt = ttl == null ? null : createdAt.plusSeconds(ttl.toSeconds());
-        this.ephemeral = ephemeral;
     }
 
     public List<String> getFiles()
@@ -80,11 +74,6 @@ public class SnapshotManifest
     public Instant getExpiresAt()
     {
         return expiresAt;
-    }
-
-    public boolean isEphemeral()
-    {
-        return ephemeral;
     }
 
     public void serializeToJsonFile(File outputFile) throws IOException
@@ -103,15 +92,12 @@ public class SnapshotManifest
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotManifest manifest = (SnapshotManifest) o;
-        return Objects.equals(files, manifest.files)
-               && Objects.equals(createdAt, manifest.createdAt)
-               && Objects.equals(expiresAt, manifest.expiresAt)
-               && Objects.equals(ephemeral, manifest.ephemeral);
+        return Objects.equals(files, manifest.files) && Objects.equals(createdAt, manifest.createdAt) && Objects.equals(expiresAt, manifest.expiresAt);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(files, createdAt, expiresAt, ephemeral);
+        return Objects.hash(files, createdAt, expiresAt);
     }
 }

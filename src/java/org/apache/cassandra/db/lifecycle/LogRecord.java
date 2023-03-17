@@ -22,16 +22,7 @@ package org.apache.cassandra.db.lifecycle;
 
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -161,7 +152,7 @@ final class LogRecord
 
     public static LogRecord make(Type type, SSTable table)
     {
-        String absoluteTablePath = absolutePath(table.descriptor.baseFile());
+        String absoluteTablePath = absolutePath(table.descriptor.baseFilename());
         return make(type, getExistingFiles(absoluteTablePath), table.getAllFilePaths().size(), absoluteTablePath);
     }
 
@@ -170,7 +161,7 @@ final class LogRecord
         // contains a mapping from sstable absolute path (everything up until the 'Data'/'Index'/etc part of the filename) to the sstable
         Map<String, SSTable> absolutePaths = new HashMap<>();
         for (SSTableReader table : tables)
-            absolutePaths.put(absolutePath(table.descriptor.baseFile()), table);
+            absolutePaths.put(absolutePath(table.descriptor.baseFilename()), table);
 
         // maps sstable base file name to the actual files on disk
         Map<String, List<File>> existingFiles = getExistingFiles(absolutePaths.keySet());
@@ -185,9 +176,9 @@ final class LogRecord
         return records;
     }
 
-    private static String absolutePath(File baseFile)
+    private static String absolutePath(String baseFilename)
     {
-        return baseFile.withSuffix(String.valueOf(Component.separator)).canonicalPath();
+        return FileUtils.getCanonicalPath(baseFilename + Component.separator);
     }
 
     public LogRecord withExistingFiles(List<File> existingFiles)

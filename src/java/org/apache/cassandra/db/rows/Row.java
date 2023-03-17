@@ -150,10 +150,10 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public ComplexColumnData getComplexColumnData(ColumnMetadata c);
 
     /**
-     * Returns the {@link ColumnData} for the specified column.
+     * The data for a regular or complex column.
      *
-     * @param c the column for which to fetch the data.
-     * @return the data for the column or {@code null} if the row has no data for this column.
+     * @param c the column for which to return the complex data.
+     * @return the data for {@code c} or {@code null} if the row has no data for this column.
      */
     public ColumnData getColumnData(ColumnMetadata c);
 

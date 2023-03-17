@@ -85,7 +85,6 @@ import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_SYN;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.gms.VersionedValue.BOOTSTRAPPING_STATUS;
 
 /**
  * This module is responsible for Gossiping information for the local endpoint. This abstraction
@@ -205,13 +204,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return epStates.isEmpty() || epStates.keySet().equals(Collections.singleton(FBUtilities.getBroadcastAddressAndPort()));
     }
 
-    private static final ExpiringMemoizingSupplier.Memoized<CassandraVersion> NO_UPGRADE_IN_PROGRESS = new ExpiringMemoizingSupplier.Memoized<>(null);
-    private static final ExpiringMemoizingSupplier.NotMemoized<CassandraVersion> CURRENT_NODE_VERSION = new ExpiringMemoizingSupplier.NotMemoized<>(SystemKeyspace.CURRENT_VERSION);
     final Supplier<ExpiringMemoizingSupplier.ReturnValue<CassandraVersion>> upgradeFromVersionSupplier = () ->
     {
         // Once there are no prior version nodes we don't need to keep rechecking
         if (!upgradeInProgressPossible)
-            return NO_UPGRADE_IN_PROGRESS;
+            return new ExpiringMemoizingSupplier.Memoized<>(null);
 
         CassandraVersion minVersion = SystemKeyspace.CURRENT_VERSION;
 
@@ -220,15 +217,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         // If we don't know any epstate we don't know anything about the cluster.
         // If we only know about ourselves, we can assume that version is CURRENT_VERSION
         if (!isEnabled() || isLoneNode(endpointStateMap))
-            return CURRENT_NODE_VERSION;
+        {
+            return new ExpiringMemoizingSupplier.NotMemoized<>(minVersion);
+        }
 
         // Check the release version of all the peers it heard of. Not necessary the peer that it has/had contacted with.
         boolean allHostsHaveKnownVersion = true;
         for (InetAddressAndPort host : endpointStateMap.keySet())
         {
-            if (justRemovedEndpoints.containsKey(host))
-                continue;
-
             CassandraVersion version = getReleaseVersion(host);
 
             //Raced with changes to gossip state, wait until next iteration
@@ -245,7 +241,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return new ExpiringMemoizingSupplier.NotMemoized<>(minVersion);
 
         upgradeInProgressPossible = false;
-        return NO_UPGRADE_IN_PROGRESS;
+        return new ExpiringMemoizingSupplier.Memoized<>(null);
     };
 
     private final Supplier<CassandraVersion> upgradeFromVersionMemoized = ExpiringMemoizingSupplier.memoizeWithExpiration(upgradeFromVersionSupplier, 1, TimeUnit.MINUTES);
@@ -1489,7 +1485,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return isAdministrativelyInactiveState(epState);
     }
 
-    public static String getGossipStatus(EndpointState epState)
+    private static String getGossipStatus(EndpointState epState)
     {
         if (epState == null)
         {
@@ -1512,78 +1508,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return pieces[0];
     }
 
-    /**
-     * Gossip offers no happens-before relationship, but downstream subscribers assume a happens-before relationship
-     * before being notified!  To attempt to be nicer to subscribers, this {@link Comparator} attempts to order EndpointState
-     * within a map based off a few heuristics:
-     * <ol>
-     *     <li>STATUS - some STATUS depends on other instance STATUS, so make sure they are last; eg. BOOT, and BOOT_REPLACE</li>
-     *     <li>generation - normally defined as system clock millis, this can be skewed and is a best effort</li>
-     *     <li>address - tie breaker to make sure order is consistent</li>
-     * </ol>
-     * <p>
-     * Problems:
-     * Generation is normally defined as system clock millis, which can be skewed and in-consistent cross nodes
-     * (generations do not have a happens-before relationship, so ordering is sketchy at best).
-     * <p>
-     * Motivations:
-     * {@link Map#entrySet()} returns data in effectivlly random order, so can get into a situation such as the following example.
-     * {@code
-     * 3 node cluster: n1, n2, and n3
-     * n2 goes down and n4 does host replacement and fails before completion
-     * h5 tries to do a host replacement against n4 (ignore the fact this doesn't make sense)
-     * }
-     * In that case above, the {@link Map#entrySet()} ordering can be random, causing h4 to apply before h2, which will
-     * be rejected by subscripers (only after updating gossip causing zero retries).
-     */
-    @VisibleForTesting
-    static Comparator<Entry<InetAddressAndPort, EndpointState>> stateOrderMap()
-    {
-        // There apears to be some edge cases where the state we are ordering get added to the global state causing
-        // ordering to change... to avoid that rely on a cache
-        // see CASSANDRA-17908
-        class Cache extends HashMap<InetAddressAndPort, EndpointState>
-        {
-            EndpointState get(Entry<InetAddressAndPort, EndpointState> e)
-            {
-                if (containsKey(e.getKey()))
-                    return get(e.getKey());
-                put(e.getKey(), new EndpointState(e.getValue()));
-                return get(e.getKey());
-            }
-        }
-        Cache cache = new Cache();
-        return ((Comparator<Entry<InetAddressAndPort, EndpointState>>) (e1, e2) -> {
-            String e1status = getGossipStatus(cache.get(e1));
-            String e2status = getGossipStatus(cache.get(e2));
-
-            if (Objects.equals(e1status, e2status) || (BOOTSTRAPPING_STATUS.contains(e1status) && BOOTSTRAPPING_STATUS.contains(e2status)))
-                return 0;
-
-            // check status first, make sure bootstrap status happens-after all others
-            if (BOOTSTRAPPING_STATUS.contains(e1status))
-                return 1;
-            if (BOOTSTRAPPING_STATUS.contains(e2status))
-                return -1;
-            return 0;
-        })
-        .thenComparingInt((Entry<InetAddressAndPort, EndpointState> e) -> cache.get(e).getHeartBeatState().getGeneration())
-        .thenComparing(Entry::getKey);
-    }
-
-    private static Iterable<Entry<InetAddressAndPort, EndpointState>> order(Map<InetAddressAndPort, EndpointState> epStateMap)
-    {
-        List<Entry<InetAddressAndPort, EndpointState>> list = new ArrayList<>(epStateMap.entrySet());
-        Collections.sort(list, stateOrderMap());
-        return list;
-    }
-
     @VisibleForTesting
     public void applyStateLocally(Map<InetAddressAndPort, EndpointState> epStateMap)
     {
         checkProperThreadForStateMutation();
-        boolean hasMajorVersion3Nodes = hasMajorVersion3Nodes();
-        for (Entry<InetAddressAndPort, EndpointState> entry : order(epStateMap))
+        for (Entry<InetAddressAndPort, EndpointState> entry : epStateMap.entrySet())
         {
             InetAddressAndPort ep = entry.getKey();
             if (ep.equals(getBroadcastAddressAndPort()) && !isInShadowRound())
@@ -1597,7 +1526,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
             EndpointState localEpStatePtr = endpointStateMap.get(ep);
             EndpointState remoteState = entry.getValue();
-            if (!hasMajorVersion3Nodes)
+            if (!hasMajorVersion3Nodes())
                 remoteState.removeMajorVersion3LegacyApplicationStates();
 
             /*
@@ -1633,7 +1562,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     if (remoteMaxVersion > localMaxVersion)
                     {
                         // apply states, but do not notify since there is no major change
-                        applyNewStates(ep, localEpStatePtr, remoteState, hasMajorVersion3Nodes);
+                        applyNewStates(ep, localEpStatePtr, remoteState);
                     }
                     else if (logger.isTraceEnabled())
                             logger.trace("Ignoring remote version {} <= {} for {}", remoteMaxVersion, localMaxVersion, ep);
@@ -1656,7 +1585,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
     }
 
-    private void applyNewStates(InetAddressAndPort addr, EndpointState localState, EndpointState remoteState, boolean hasMajorVersion3Nodes)
+    private void applyNewStates(InetAddressAndPort addr, EndpointState localState, EndpointState remoteState)
     {
         // don't assert here, since if the node restarts the version will go back to zero
         int oldVersion = localState.getHeartBeatState().getHeartBeatVersion();
@@ -1685,7 +1614,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         localState.addApplicationStates(updatedStates);
 
         // get rid of legacy fields once the cluster is not in mixed mode
-        if (!hasMajorVersion3Nodes)
+        if (!hasMajorVersion3Nodes())
             localState.removeMajorVersion3LegacyApplicationStates();
 
         // need to run STATUS or STATUS_WITH_PORT first to handle BOOT_REPLACE correctly (else won't be a member, so TOKENS won't be processed)
@@ -2542,19 +2471,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         return minVersion;
-    }
-
-    @Override
-    public boolean getLooseEmptyEnabled()
-    {
-        return EndpointState.LOOSE_DEF_OF_EMPTY_ENABLED;
-    }
-
-    @Override
-    public void setLooseEmptyEnabled(boolean enabled)
-    {
-        logger.info("Setting loose definition of empty to {}", enabled);
-        EndpointState.LOOSE_DEF_OF_EMPTY_ENABLED = enabled;
     }
 
     public void unsafeSetEnabled()

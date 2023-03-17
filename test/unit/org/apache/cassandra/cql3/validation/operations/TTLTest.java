@@ -21,11 +21,12 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.io.IOException;
 
+import org.apache.cassandra.Util;
+import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Attributes;
@@ -36,8 +37,6 @@ import org.apache.cassandra.db.ExpirationDateOverflowHandling;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.rows.AbstractCell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.io.sstable.IScrubber;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.tools.StandaloneScrubber;
@@ -380,7 +379,7 @@ public class TTLTest extends CQLTester
 
         if (runScrub)
         {
-            cfs.scrub(true, IScrubber.options().checkData().reinsertOverflowedTTLRows(reinsertOverflowedTTL).build(), 1);
+            cfs.scrub(true, false, true, reinsertOverflowedTTL, 1);
 
             if (reinsertOverflowedTTL)
             {

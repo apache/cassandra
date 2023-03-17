@@ -39,11 +39,11 @@ public final class TimeWindowCompactionStrategyOptions
     protected static final int DEFAULT_EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS = 60 * 10;
     protected static final Boolean DEFAULT_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION = false;
 
-    public static final String TIMESTAMP_RESOLUTION_KEY = "timestamp_resolution";
-    public static final String COMPACTION_WINDOW_UNIT_KEY = "compaction_window_unit";
-    public static final String COMPACTION_WINDOW_SIZE_KEY = "compaction_window_size";
-    public static final String EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_KEY = "expired_sstable_check_frequency_seconds";
-    public static final String UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_KEY = "unsafe_aggressive_sstable_expiration";
+    protected static final String TIMESTAMP_RESOLUTION_KEY = "timestamp_resolution";
+    protected static final String COMPACTION_WINDOW_UNIT_KEY = "compaction_window_unit";
+    protected static final String COMPACTION_WINDOW_SIZE_KEY = "compaction_window_size";
+    protected static final String EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_KEY = "expired_sstable_check_frequency_seconds";
+    protected static final String UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_KEY = "unsafe_aggressive_sstable_expiration";
 
     static final String UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_PROPERTY = Config.PROPERTY_PREFIX + "allow_unsafe_aggressive_sstable_expiration";
 

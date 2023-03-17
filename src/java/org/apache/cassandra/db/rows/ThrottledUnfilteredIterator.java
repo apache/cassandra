@@ -21,12 +21,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
+
+import com.google.common.annotations.VisibleForTesting;
 
 /**
  * A utility class to split the given {@link#UnfilteredRowIterator} into smaller chunks each
@@ -83,7 +83,7 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
             return throttledItr = origin;
         }
 
-        throttledItr = new WrappingUnfilteredRowIterator()
+        throttledItr = new WrappingUnfilteredRowIterator(origin)
         {
             private int count = 0;
             private boolean isFirst = throttledItr == null;
@@ -97,15 +97,9 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
             private RangeTombstoneMarker closeMarker = null;
 
             @Override
-            public UnfilteredRowIterator wrapped()
-            {
-                return origin;
-            }
-
-            @Override
             public boolean hasNext()
             {
-                return (withinLimit() && origin.hasNext()) || closeMarker != null;
+                return (withinLimit() && wrapped.hasNext()) || closeMarker != null;
             }
 
             @Override
@@ -125,7 +119,7 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
                 if (overflowed.hasNext())
                     next = overflowed.next();
                 else
-                    next = origin.next();
+                    next = wrapped.next();
                 recordNext(next);
                 return next;
             }
@@ -138,8 +132,8 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
                 // when reach throttle with a remaining openMarker, we need to create corresponding closeMarker.
                 if (count == throttle && openMarker != null)
                 {
-                    assert origin.hasNext();
-                    closeOpenMarker(origin.next());
+                    assert wrapped.hasNext();
+                    closeOpenMarker(wrapped.next());
                 }
             }
 
@@ -197,13 +191,13 @@ public class ThrottledUnfilteredIterator extends AbstractIterator<UnfilteredRowI
             @Override
             public DeletionTime partitionLevelDeletion()
             {
-                return isFirst ? origin.partitionLevelDeletion() : DeletionTime.LIVE;
+                return isFirst ? wrapped.partitionLevelDeletion() : DeletionTime.LIVE;
             }
 
             @Override
             public Row staticRow()
             {
-                return isFirst ? origin.staticRow() : Rows.EMPTY_STATIC_ROW;
+                return isFirst ? wrapped.staticRow() : Rows.EMPTY_STATIC_ROW;
             }
 
             @Override

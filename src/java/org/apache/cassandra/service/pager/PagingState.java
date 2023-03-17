@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -129,8 +130,8 @@ public class PagingState
         DataOutputBuffer out = new DataOutputBufferFixed(modernSerializedSize());
         writeWithVIntLength(null == partitionKey ? EMPTY_BYTE_BUFFER : partitionKey, out);
         writeWithVIntLength(null == rowMark ? EMPTY_BYTE_BUFFER : rowMark.mark, out);
-        out.writeUnsignedVInt32(remaining);
-        out.writeUnsignedVInt32(remainingInPartition);
+        out.writeUnsignedVInt(remaining);
+        out.writeUnsignedVInt(remainingInPartition);
         return out.buffer(false);
     }
 
@@ -206,8 +207,8 @@ public class PagingState
 
         ByteBuffer partitionKey = readWithVIntLength(in);
         ByteBuffer rawMark = readWithVIntLength(in);
-        int remaining = in.readUnsignedVInt32();
-        int remainingInPartition = in.readUnsignedVInt32();
+        int remaining = Ints.checkedCast(in.readUnsignedVInt());
+        int remainingInPartition = Ints.checkedCast(in.readUnsignedVInt());
 
         return new PagingState(partitionKey.hasRemaining() ? partitionKey : null,
                                rawMark.hasRemaining() ? new RowMark(rawMark, protocolVersion) : null,

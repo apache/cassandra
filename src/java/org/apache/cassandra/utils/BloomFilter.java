@@ -17,13 +17,10 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.IOException;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
 import org.apache.cassandra.utils.obs.IBitSet;
@@ -32,7 +29,6 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
 {
     private final static FastThreadLocal<long[]> reusableIndexes = new FastThreadLocal<long[]>()
     {
-        @Override
         protected long[] initialValue()
         {
             return new long[21];
@@ -56,15 +52,9 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
         this.bitset = copy.bitset;
     }
 
-    public long serializedSize(boolean old)
+    public long serializedSize()
     {
-        return BloomFilterSerializer.forVersion(old).serializedSize(this);
-    }
-
-    @Override
-    public void serialize(DataOutputStreamPlus out, boolean old) throws IOException
-    {
-        BloomFilterSerializer.forVersion(old).serialize(this, out);
+        return BloomFilterSerializer.serializedSize(this);
     }
 
     // Murmur is faster than an SHA-based approach and provides as-good collision
@@ -111,7 +101,6 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
         }
     }
 
-    @Override
     public void add(FilterKey key)
     {
         long[] indexes = indexes(key);
@@ -121,7 +110,6 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
         }
     }
 
-    @Override
     public final boolean isPresent(FilterKey key)
     {
         long[] indexes = indexes(key);
@@ -135,14 +123,12 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
         return true;
     }
 
-    @Override
     public void clear()
     {
         bitset.clear();
     }
 
-    @Override
-    public BloomFilter sharedCopy()
+    public IFilter sharedCopy()
     {
         return new BloomFilter(this);
     }
@@ -153,19 +139,11 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
         return bitset.offHeapSize();
     }
 
-    @Override
-    public boolean isInformative()
-    {
-        return bitset.offHeapSize() > 0;
-    }
-
-    @Override
     public String toString()
     {
         return "BloomFilter[hashCount=" + hashCount + ";capacity=" + bitset.capacity() + ']';
     }
 
-    @Override
     public void addTo(Ref.IdentityCollection identities)
     {
         super.addTo(identities);

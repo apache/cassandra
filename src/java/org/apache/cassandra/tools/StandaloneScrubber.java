@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.io.util.File;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -41,15 +42,12 @@ import org.apache.cassandra.db.compaction.CompactionStrategyManager;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.LeveledManifest;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.SSTableHeaderFix;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -122,7 +120,7 @@ public class StandaloneScrubber
             {
                 Descriptor descriptor = entry.getKey();
                 Set<Component> components = entry.getValue();
-                if (!components.contains(Components.DATA))
+                if (!components.contains(Component.DATA))
                     continue;
 
                 listResult.add(Pair.create(descriptor, components));
@@ -145,7 +143,7 @@ public class StandaloneScrubber
                     headerFixBuilder = headerFixBuilder.dryRun();
 
                 for (Pair<Descriptor, Set<Component>> p : listResult)
-                    headerFixBuilder.withPath(p.left.fileFor(Components.DATA).toPath());
+                    headerFixBuilder.withPath(File.getPath(p.left.filenameFor(Component.DATA)));
 
                 SSTableHeaderFix headerFix = headerFixBuilder.build();
                 try
@@ -199,7 +197,7 @@ public class StandaloneScrubber
             {
                 Descriptor descriptor = pair.left;
                 Set<Component> components = pair.right;
-                if (!components.contains(Components.DATA))
+                if (!components.contains(Component.DATA))
                     continue;
 
                 try
@@ -223,9 +221,7 @@ public class StandaloneScrubber
                     try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, sstable))
                     {
                         txn.obsoleteOriginals(); // make sure originals are deleted and avoid NPE if index is missing, CASSANDRA-9591
-
-                        SSTableFormat format = sstable.descriptor.getFormat();
-                        try (IScrubber scrubber = format.getScrubber(cfs, txn, handler, options.build()))
+                        try (Scrubber scrubber = new Scrubber(cfs, txn, options.skipCorrupted, handler, !options.noValidate, options.reinserOverflowedTTL))
                         {
                             scrubber.scrub();
                         }
@@ -279,7 +275,7 @@ public class StandaloneScrubber
         }
     }
 
-    private static class Options extends IScrubber.Options.Builder
+    private static class Options
     {
         public final String keyspaceName;
         public final String cfName;
@@ -287,6 +283,9 @@ public class StandaloneScrubber
         public boolean debug;
         public boolean verbose;
         public boolean manifestCheckOnly;
+        public boolean skipCorrupted;
+        public boolean noValidate;
+        public boolean reinserOverflowedTTL;
         public HeaderFixMode headerFixMode = HeaderFixMode.VALIDATE;
 
         enum HeaderFixMode
@@ -345,9 +344,9 @@ public class StandaloneScrubber
                 opts.debug = cmd.hasOption(DEBUG_OPTION);
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.manifestCheckOnly = cmd.hasOption(MANIFEST_CHECK_OPTION);
-                opts.skipCorrupted(cmd.hasOption(SKIP_CORRUPTED_OPTION));
-                opts.checkData(!cmd.hasOption(NO_VALIDATE_OPTION));
-                opts.reinsertOverflowedTTLRows(cmd.hasOption(REINSERT_OVERFLOWED_TTL_OPTION));
+                opts.skipCorrupted = cmd.hasOption(SKIP_CORRUPTED_OPTION);
+                opts.noValidate = cmd.hasOption(NO_VALIDATE_OPTION);
+                opts.reinserOverflowedTTL = cmd.hasOption(REINSERT_OVERFLOWED_TTL_OPTION);
                 if (cmd.hasOption(HEADERFIX_OPTION))
                 {
                     try

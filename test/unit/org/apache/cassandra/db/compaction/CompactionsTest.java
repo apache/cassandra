@@ -31,7 +31,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -62,12 +61,13 @@ import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
-import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
@@ -95,7 +95,7 @@ public class CompactionsTest
         compactionOptions.put("tombstone_compaction_interval", "1");
 
         // Disable tombstone histogram rounding for tests
-        CassandraRelevantProperties.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS.setInt(1);
+        System.setProperty("cassandra.streaminghistogram.roundseconds", "1");
 
         SchemaLoader.prepareServer();
 
@@ -274,7 +274,7 @@ public class CompactionsTest
         SSTableReader sstable = sstables.iterator().next();
 
         SSTableId prevGeneration = sstable.descriptor.id;
-        String file = sstable.descriptor.fileFor(Components.DATA).absolutePath();
+        String file = new File(sstable.descriptor.filenameFor(Component.DATA)).absolutePath();
         // submit user defined compaction on flushed sstable
         CompactionManager.instance.forceUserDefinedCompaction(file);
         // wait until user defined compaction finishes
@@ -363,8 +363,8 @@ public class CompactionsTest
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             StatsMetadata stats = sstable.getSSTableMetadata();
-            assertEquals(ByteBufferUtil.bytes("0"), stats.coveredClustering.start().bufferAt(0));
-            assertEquals(ByteBufferUtil.bytes("b"), stats.coveredClustering.end().bufferAt(0));
+            assertEquals(ByteBufferUtil.bytes("0"), stats.minClusteringValues.get(0));
+            assertEquals(ByteBufferUtil.bytes("b"), stats.maxClusteringValues.get(0));
         }
 
         assertEquals(keys, k);

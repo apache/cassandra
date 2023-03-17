@@ -18,21 +18,21 @@
 
 package org.apache.cassandra.tools;
 
+import static java.lang.String.format;
+
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.TreeMap;
+import java.util.Map.Entry;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
-import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -41,14 +41,15 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.StatsComponent;
+import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 
-import static java.lang.String.format;
+import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 
 @SuppressWarnings("serial")
 public final class Util
@@ -309,11 +310,12 @@ public final class Util
      */
     public static TableMetadata metadataFromSSTable(Descriptor desc) throws IOException
     {
-        if (!desc.version.isCompatible())
-            throw new IOException("Unsupported SSTable version " + desc.getFormat().getType().name + "/" + desc.version);
+        if (desc.version.getVersion().compareTo("ma") < 0)
+            throw new IOException("pre-3.0 SSTable is not supported.");
 
-        StatsComponent statsComponent = StatsComponent.load(desc, MetadataType.STATS, MetadataType.HEADER);
-        SerializationHeader.Component header = statsComponent.serializationHeader();
+        EnumSet<MetadataType> types = EnumSet.of(MetadataType.STATS, MetadataType.HEADER);
+        Map<MetadataType, MetadataComponent> sstableMetadata = desc.getMetadataSerializer().deserialize(desc, types);
+        SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
 
         IPartitioner partitioner = FBUtilities.newPartitioner(desc);
 

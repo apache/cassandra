@@ -35,11 +35,10 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 60000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 9001\n" +
         "\tSpace used by snapshots (total): 1111\n" +
-        "\tSSTable Compression Ratio: 0.68000\n" +
+        "\tSSTable Compression Ratio: 0.68\n" +
         "\tNumber of partitions (estimate): 111111\n" +
         "\tMemtable cell count: 111\n" +
         "\tMemtable data size: 0\n" +
@@ -48,7 +47,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: 2.000 ms\n" +
         "\tLocal write count: 5\n" +
         "\tLocal write latency: 0.050 ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 11111\n" +
         "\tPercent repaired: 100.0\n" +
         "\tBytes repaired: 0.000KiB\n" +
@@ -72,12 +70,11 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 3000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
         "\tSpace used (live): 22\n" +
         "\tSpace used (total): 1024\n" +
         "\tSpace used by snapshots (total): 222\n" +
         "\tOff heap memory used (total): 314159367\n" +
-        "\tSSTable Compression Ratio: 0.68000\n" +
+        "\tSSTable Compression Ratio: 0.68\n" +
         "\tNumber of partitions (estimate): 22222\n" +
         "\tMemtable cell count: 22\n" +
         "\tMemtable data size: 900\n" +
@@ -87,7 +84,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: 3.000 ms\n" +
         "\tLocal write count: 4\n" +
         "\tLocal write latency: 0.000 ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 222222\n" +
         "\tPercent repaired: 99.9\n" +
         "\tBytes repaired: 0.000KiB\n" +
@@ -114,11 +110,10 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 50000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 512\n" +
         "\tSpace used by snapshots (total): 0\n" +
-        "\tSSTable Compression Ratio: 0.32000\n" +
+        "\tSSTable Compression Ratio: 0.32\n" +
         "\tNumber of partitions (estimate): 3333\n" +
         "\tMemtable cell count: 333333\n" +
         "\tMemtable data size: 1999\n" +
@@ -127,7 +122,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: 4.000 ms\n" +
         "\tLocal write count: 3\n" +
         "\tLocal write latency: NaN ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 333\n" +
         "\tPercent repaired: 99.8\n" +
         "\tBytes repaired: 0.000KiB\n" +
@@ -151,12 +145,11 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 2000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
         "\tSpace used (live): 4444\n" +
         "\tSpace used (total): 256\n" +
         "\tSpace used by snapshots (total): 44\n" +
         "\tOff heap memory used (total): 441213818\n" +
-        "\tSSTable Compression Ratio: 0.95000\n" +
+        "\tSSTable Compression Ratio: 0.95\n" +
         "\tNumber of partitions (estimate): 444\n" +
         "\tMemtable cell count: 4\n" +
         "\tMemtable data size: 3000\n" +
@@ -166,7 +159,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: NaN ms\n" +
         "\tLocal write count: 2\n" +
         "\tLocal write latency: 2.000 ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 4444\n" +
         "\tPercent repaired: 50.0\n" +
         "\tBytes repaired: 0.000KiB\n" +
@@ -193,11 +185,10 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 40000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
         "\tSpace used (live): 55555\n" +
         "\tSpace used (total): 64\n" +
         "\tSpace used by snapshots (total): 55555\n" +
-        "\tSSTable Compression Ratio: 0.99000\n" +
+        "\tSSTable Compression Ratio: 0.99\n" +
         "\tNumber of partitions (estimate): 55\n" +
         "\tMemtable cell count: 55555\n" +
         "\tMemtable data size: 20000\n" +
@@ -206,7 +197,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: 0.000 ms\n" +
         "\tLocal write count: 1\n" +
         "\tLocal write latency: 1.000 ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 5\n" +
         "\tPercent repaired: 93.0\n" +
         "\tBytes repaired: 0.000KiB\n" +
@@ -230,12 +220,11 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 1000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
         "\tSpace used (live): 666666\n" +
         "\tSpace used (total): 0\n" +
         "\tSpace used by snapshots (total): 0\n" +
         "\tOff heap memory used (total): 162470810\n" +
-        "\tSSTable Compression Ratio: 0.68000\n" +
+        "\tSSTable Compression Ratio: 0.68\n" +
         "\tNumber of partitions (estimate): 6\n" +
         "\tMemtable cell count: 6666\n" +
         "\tMemtable data size: 1000000\n" +
@@ -245,7 +234,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read latency: 1.000 ms\n" +
         "\tLocal write count: 0\n" +
         "\tLocal write latency: 0.500 ms\n" +
-        "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 66\n" +
         "\tPercent repaired: 0.0\n" +
         "\tBytes repaired: 0.000KiB\n" +
@@ -274,9 +262,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
      * without leaking test implementation into the TableStatsHolder implementation.
      */
     public static final String expectedDefaultPrinterOutput =
-        "Total number of tables: 6\n" +
+        "Total number of tables: 0\n" +
         "----------------\n" +
-        "Keyspace: keyspace1\n" +
+        "Keyspace : keyspace1\n" +
         "\tRead Count: 3\n" +
         "\tRead Latency: 0.0 ms\n" +
         "\tWrite Count: 12\n" +
@@ -286,7 +274,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         String.format(duplicateTabs(expectedDefaultTable2Output), "table2") +
         String.format(duplicateTabs(expectedDefaultTable3Output), "table3") +
         "----------------\n" +
-        "Keyspace: keyspace2\n" +
+        "Keyspace : keyspace2\n" +
         "\tRead Count: 7\n" +
         "\tRead Latency: 0.0 ms\n" +
         "\tWrite Count: 3\n" +
@@ -295,7 +283,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         String.format(duplicateTabs(expectedDefaultTable4Output), "table4") +
         String.format(duplicateTabs(expectedDefaultTable5Output), "table5") +
         "----------------\n" +
-        "Keyspace: keyspace3\n" +
+        "Keyspace : keyspace3\n" +
         "\tRead Count: 5\n" +
         "\tRead Latency: 0.0 ms\n" +
         "\tWrite Count: 0\n" +
@@ -352,8 +340,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
     @Test
     public void testDefaultPrinter() throws Exception
     {
-        TestTableStatsHolder holder = new TestTableStatsHolder(testKeyspaces, "", 0);
-        holder.numberOfTables = testKeyspaces.stream().map(ks -> ks.tables.size()).mapToInt(Integer::intValue).sum();
+        StatsHolder holder = new TestTableStatsHolder(testKeyspaces, "", 0);
         StatsPrinter<StatsHolder> printer = TableStatsPrinter.from("", false);
         try (ByteArrayOutputStream byteStream = new ByteArrayOutputStream())
         {

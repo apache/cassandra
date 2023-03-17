@@ -63,10 +63,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableReadsListener;
-import org.apache.cassandra.io.sstable.ScrubTest;
-import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.ClearableHistogram;
@@ -202,7 +200,7 @@ public class ColumnFamilyStoreTest
     }
 
     @Test
-    public void testDeleteStandardRowSticksAfterFlush()
+    public void testDeleteStandardRowSticksAfterFlush() throws Throwable
     {
         // test to make sure flushing after a delete doesn't resurrect delted cols.
         String keyspaceName = KEYSPACE1;
@@ -260,7 +258,7 @@ public class ColumnFamilyStoreTest
     }
 
     @Test
-    public void testClearEphemeralSnapshots()
+    public void testClearEphemeralSnapshots() throws Throwable
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_INDEX1);
 
@@ -351,7 +349,7 @@ public class ColumnFamilyStoreTest
                                              liveSSTable.descriptor.id,
                                              liveSSTable.descriptor.formatType);
             for (Component c : liveSSTable.getComponents())
-                assertTrue("Cannot find backed-up file:" + desc.fileFor(c), desc.fileFor(c).exists());
+                assertTrue("Cannot find backed-up file:" + desc.filenameFor(c), new File(desc.filenameFor(c)).exists());
         }
     }
 
@@ -580,8 +578,8 @@ public class ColumnFamilyStoreTest
 
         Set<String> originalFiles = new HashSet<>();
         Iterables.toList(cfs.concatWithIndexes()).stream()
-                 .flatMap(c -> c.getLiveSSTables().stream().map(t -> t.descriptor.fileFor(Components.DATA)))
-                 .forEach(e -> originalFiles.add(e.toString()));
+                 .flatMap(c -> c.getLiveSSTables().stream().map(t -> t.descriptor.filenameFor(Component.DATA)))
+                 .forEach(originalFiles::add);
         assertThat(originalFiles.stream().anyMatch(f -> f.endsWith(indexTableFile))).isTrue();
         assertThat(originalFiles.stream().anyMatch(f -> f.endsWith(baseTableFile))).isTrue();
     }
@@ -669,9 +667,9 @@ public class ColumnFamilyStoreTest
         assertEquals(1, ssTables.size());
         SSTableReader ssTable = ssTables.iterator().next();
 
-        File dataFile = ssTable.descriptor.fileFor(Components.DATA);
-        File tmpDataFile = ssTable.descriptor.tmpFileFor(Components.DATA);
-        dataFile.tryMove(tmpDataFile);
+        String dataFileName = ssTable.descriptor.filenameFor(Component.DATA);
+        String tmpDataFileName = ssTable.descriptor.tmpFilenameFor(Component.DATA);
+        new File(dataFileName).tryMove(new File(tmpDataFileName));
 
         ssTable.selfRef().release();
 
@@ -703,112 +701,6 @@ public class ColumnFamilyStoreTest
         {
 
             @Override
-            public long put(PartitionUpdate update, UpdateTransaction indexer, Group opGroup)
-            {
-                return 0;
-            }
-
-            @Override
-            public long partitionCount()
-            {
-                return 0;
-            }
-
-            @Override
-            public long getLiveDataSize()
-            {
-                return 0;
-            }
-
-            @Override
-            public void addMemoryUsageTo(MemoryUsage usage)
-            {
-            }
-
-            @Override
-            public void markExtraOnHeapUsed(long additionalSpace, Group opGroup)
-            {
-            }
-
-            @Override
-            public void markExtraOffHeapUsed(long additionalSpace, Group opGroup)
-            {
-            }
-
-            @Override
-            public FlushablePartitionSet<?> getFlushSet(PartitionPosition from, PartitionPosition to)
-            {
-                return null;
-            }
-
-            @Override
-            public void switchOut(Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound)
-            {
-            }
-
-            @Override
-            public void discard()
-            {
-            }
-
-            @Override
-            public boolean accepts(Group opGroup, CommitLogPosition commitLogPosition)
-            {
-                return false;
-            }
-
-            @Override
-            public CommitLogPosition getApproximateCommitLogLowerBound()
-            {
-                return null;
-            }
-
-            @Override
-            public CommitLogPosition getCommitLogLowerBound()
-            {
-                return null;
-            }
-
-            @Override
-            public LastCommitLogPosition getFinalCommitLogUpperBound()
-            {
-                return null;
-            }
-
-            @Override
-            public boolean mayContainDataBefore(CommitLogPosition position)
-            {
-                return false;
-            }
-
-            @Override
-            public boolean isClean()
-            {
-                return false;
-            }
-
-            @Override
-            public boolean shouldSwitch(FlushReason reason)
-            {
-                return false;
-            }
-
-            @Override
-            public void metadataUpdated()
-            {
-            }
-
-            @Override
-            public void localRangesUpdated()
-            {
-            }
-
-            @Override
-            public void performSnapshot(String snapshotName)
-            {
-            }
-
-            @Override
             public UnfilteredRowIterator rowIterator(DecoratedKey key,
                                                      Slices slices,
                                                      ColumnFilter columnFilter,
@@ -823,6 +715,113 @@ public class ColumnFamilyStoreTest
                    partitionIterator(ColumnFilter columnFilter, DataRange dataRange, SSTableReadsListener listener)
             {
                 return null;
+            }
+
+            @Override
+            public void switchOut(Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound)
+            {
+            }
+
+            @Override
+            public boolean shouldSwitch(FlushReason reason)
+            {
+                return false;
+            }
+
+            @Override
+            public long put(PartitionUpdate update, UpdateTransaction indexer, Group opGroup)
+            {
+                return 0;
+            }
+
+            @Override
+            public void performSnapshot(String snapshotName)
+            {
+            }
+
+            @Override
+            public long partitionCount()
+            {
+                return 0;
+            }
+
+            @Override
+            public void metadataUpdated()
+            {
+            }
+
+            @Override
+            public boolean mayContainDataBefore(CommitLogPosition position)
+            {
+                return false;
+            }
+
+            @Override
+            public void markExtraOnHeapUsed(long additionalSpace, Group opGroup)
+            {
+            }
+
+            @Override
+            public void markExtraOffHeapUsed(long additionalSpace, Group opGroup)
+            {
+            }
+
+            @Override
+            public void localRangesUpdated()
+            {
+            }
+
+            @Override
+            public boolean isClean()
+            {
+                return false;
+            }
+
+            @Override
+            public long getLiveDataSize()
+            {
+                return 0;
+            }
+
+            @Override
+            public FlushablePartitionSet<?> getFlushSet(PartitionPosition from, PartitionPosition to)
+            {
+                // TODO Auto-generated method stub
+                return null;
+            }
+
+            @Override
+            public LastCommitLogPosition getFinalCommitLogUpperBound()
+            {
+                return null;
+            }
+
+            @Override
+            public CommitLogPosition getCommitLogLowerBound()
+            {
+                return null;
+            }
+
+            @Override
+            public CommitLogPosition getApproximateCommitLogLowerBound()
+            {
+                return null;
+            }
+
+            @Override
+            public void discard()
+            {
+            }
+
+            @Override
+            public void addMemoryUsageTo(MemoryUsage usage)
+            {
+            }
+
+            @Override
+            public boolean accepts(Group opGroup, CommitLogPosition commitLogPosition)
+            {
+                return false;
             }
         };
     }

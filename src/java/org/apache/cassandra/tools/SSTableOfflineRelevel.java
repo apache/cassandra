@@ -33,17 +33,16 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.SetMultimap;
 
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.schema.Schema;
 
 /**
  * Create a decent leveling for the given keyspace/column family
@@ -117,14 +116,13 @@ public class SSTableOfflineRelevel
             {
                 try
                 {
-                    SSTableReader reader = SSTableReader.open(cfs, sstable.getKey());
+                    SSTableReader reader = SSTableReader.open(sstable.getKey());
                     sstableMultimap.put(reader.descriptor.directory, reader);
                 }
                 catch (Throwable t)
                 {
-                    out.println("Couldn't open sstable: "+sstable.getKey().fileFor(Components.DATA));
-                    Throwables.throwIfUnchecked(t);
-                    throw new RuntimeException(t);
+                    out.println("Couldn't open sstable: "+sstable.getKey().filenameFor(Component.DATA));
+                    Throwables.propagate(t);
                 }
             }
         }

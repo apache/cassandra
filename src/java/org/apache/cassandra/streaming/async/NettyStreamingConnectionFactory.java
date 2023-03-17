@@ -20,9 +20,6 @@ package org.apache.cassandra.streaming.async;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -38,10 +35,7 @@ import org.apache.cassandra.net.OutboundConnectionSettings;
 import org.apache.cassandra.streaming.StreamingChannel;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.getByAddress;
-import static org.apache.cassandra.net.InternodeConnectionUtils.isSSLError;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.initiateStreaming;
-import static org.apache.cassandra.net.OutboundConnectionInitiator.SslFallbackConnectionType;
-import static org.apache.cassandra.net.OutboundConnectionInitiator.SslFallbackConnectionType.SERVER_CONFIG;
 
 public class NettyStreamingConnectionFactory implements StreamingChannel.Factory
 {
@@ -51,38 +45,27 @@ public class NettyStreamingConnectionFactory implements StreamingChannel.Factory
     public static NettyStreamingChannel connect(OutboundConnectionSettings template, int messagingVersion, StreamingChannel.Kind kind) throws IOException
     {
         EventLoop eventLoop = MessagingService.instance().socketFactory.outboundStreamingGroup().next();
-        OutboundConnectionSettings settings = template.withDefaults(ConnectionCategory.STREAMING);
-        List<SslFallbackConnectionType> sslFallbacks = settings.withEncryption() && settings.encryption.getOptional()
-                                                       ? Arrays.asList(SslFallbackConnectionType.values())
-                                                       : Collections.singletonList(SERVER_CONFIG);
 
-        Throwable cause = null;
-        for (final SslFallbackConnectionType sslFallbackConnectionType : sslFallbacks)
+        int attempts = 0;
+        while (true)
         {
-            for (int i = 0; i < MAX_CONNECT_ATTEMPTS; i++)
+            Future<Result<StreamingSuccess>> result = initiateStreaming(eventLoop, template.withDefaults(ConnectionCategory.STREAMING), messagingVersion);
+            result.awaitUninterruptibly(); // initiate has its own timeout, so this is "guaranteed" to return relatively promptly
+            if (result.isSuccess())
             {
-                Future<Result<StreamingSuccess>> result = initiateStreaming(eventLoop, settings, sslFallbackConnectionType, messagingVersion);
-                result.awaitUninterruptibly(); // initiate has its own timeout, so this is "guaranteed" to return relatively promptly
-                if (result.isSuccess())
+                Channel channel = result.getNow().success().channel;
+                NettyStreamingChannel streamingChannel = new NettyStreamingChannel(messagingVersion, channel, kind);
+                if (kind == StreamingChannel.Kind.CONTROL)
                 {
-                    Channel channel = result.getNow().success().channel;
-                    NettyStreamingChannel streamingChannel = new NettyStreamingChannel(messagingVersion, channel, kind);
-                    if (kind == StreamingChannel.Kind.CONTROL)
-                    {
-                        ChannelPipeline pipeline = channel.pipeline();
-                        pipeline.addLast("stream", streamingChannel);
-                    }
-                    return streamingChannel;
+                    ChannelPipeline pipeline = channel.pipeline();
+                    pipeline.addLast("stream", streamingChannel);
                 }
-                cause = result.cause();
+                return streamingChannel;
             }
-            if (!isSSLError(cause))
-            {
-                // Fallback only when the error is SSL related, otherwise retries are exhausted, so fail
-                break;
-            }
+
+            if (++attempts == MAX_CONNECT_ATTEMPTS)
+                throw new IOException("failed to connect to " + template.to + " for streaming data", result.cause());
         }
-        throw new IOException("failed to connect to " + template.to + " for streaming data", cause);
     }
 
     @Override

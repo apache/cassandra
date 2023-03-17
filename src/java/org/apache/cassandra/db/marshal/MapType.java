@@ -18,15 +18,8 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Maps;
@@ -35,13 +28,9 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.CollectionSerializer;
-import org.apache.cassandra.serializers.MapSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.MapSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.cassandra.utils.Pair;
 
 public class MapType<K, V> extends CollectionType<Map<K, V>>
@@ -177,7 +166,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public boolean isCompatibleWithFrozen(CollectionType<?> previous)
     {
         assert !isMultiCell;
-        MapType<?, ?> tprev = (MapType<?, ?>) previous;
+        MapType tprev = (MapType) previous;
         return keys.isCompatibleWith(tprev.keys) && values.isCompatibleWith(tprev.values);
     }
 
@@ -185,7 +174,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public boolean isValueCompatibleWithFrozen(CollectionType<?> previous)
     {
         assert !isMultiCell;
-        MapType<?, ?> tprev = (MapType<?, ?>) previous;
+        MapType tprev = (MapType) previous;
         return keys.isCompatibleWith(tprev.keys) && values.isValueCompatibleWith(tprev.values);
     }
 
@@ -200,95 +189,33 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             return Boolean.compare(accessorR.isEmpty(right), accessorL.isEmpty(left));
 
 
-        int sizeL = CollectionSerializer.readCollectionSize(left, accessorL);
-        int sizeR = CollectionSerializer.readCollectionSize(right, accessorR);
+        ProtocolVersion protocolVersion = ProtocolVersion.V3;
+        int sizeL = CollectionSerializer.readCollectionSize(left, accessorL, protocolVersion);
+        int sizeR = CollectionSerializer.readCollectionSize(right, accessorR, protocolVersion);
 
-        int offsetL = CollectionSerializer.sizeOfCollectionSize();
-        int offsetR = CollectionSerializer.sizeOfCollectionSize();
+        int offsetL = CollectionSerializer.sizeOfCollectionSize(sizeL, protocolVersion);
+        int offsetR = CollectionSerializer.sizeOfCollectionSize(sizeR, protocolVersion);
 
         for (int i = 0; i < Math.min(sizeL, sizeR); i++)
         {
-            TL k1 = CollectionSerializer.readValue(left, accessorL, offsetL);
-            offsetL += CollectionSerializer.sizeOfValue(k1, accessorL);
-            TR k2 = CollectionSerializer.readValue(right, accessorR, offsetR);
-            offsetR += CollectionSerializer.sizeOfValue(k2, accessorR);
+            TL k1 = CollectionSerializer.readValue(left, accessorL, offsetL, protocolVersion);
+            offsetL += CollectionSerializer.sizeOfValue(k1, accessorL, protocolVersion);
+            TR k2 = CollectionSerializer.readValue(right, accessorR, offsetR, protocolVersion);
+            offsetR += CollectionSerializer.sizeOfValue(k2, accessorR, protocolVersion);
             int cmp = keysComparator.compare(k1, accessorL, k2, accessorR);
             if (cmp != 0)
                 return cmp;
 
-            TL v1 = CollectionSerializer.readValue(left, accessorL, offsetL);
-            offsetL += CollectionSerializer.sizeOfValue(v1, accessorL);
-            TR v2 = CollectionSerializer.readValue(right, accessorR, offsetR);
-            offsetR += CollectionSerializer.sizeOfValue(v2, accessorR);
+            TL v1 = CollectionSerializer.readValue(left, accessorL, offsetL, protocolVersion);
+            offsetL += CollectionSerializer.sizeOfValue(v1, accessorL, protocolVersion);
+            TR v2 = CollectionSerializer.readValue(right, accessorR, offsetR, protocolVersion);
+            offsetR += CollectionSerializer.sizeOfValue(v2, accessorR, protocolVersion);
             cmp = valuesComparator.compare(v1, accessorL, v2, accessorR);
             if (cmp != 0)
                 return cmp;
         }
 
-        return Integer.compare(sizeL, sizeR);
-    }
-
-    @Override
-    public <T> ByteSource asComparableBytes(ValueAccessor<T> accessor, T data, Version version)
-    {
-        return asComparableBytesMap(getKeysType(), getValuesType(), accessor, data, version);
-    }
-
-    @Override
-    public <T> T fromComparableBytes(ValueAccessor<T> accessor, ByteSource.Peekable comparableBytes, Version version)
-    {
-        return fromComparableBytesMap(accessor, comparableBytes, version, getKeysType(), getValuesType());
-    }
-
-    static <V> ByteSource asComparableBytesMap(AbstractType<?> keysComparator,
-                                               AbstractType<?> valuesComparator,
-                                               ValueAccessor<V> accessor,
-                                               V data,
-                                               Version version)
-    {
-        if (accessor.isEmpty(data))
-            return null;
-
-        int offset = 0;
-        int size = CollectionSerializer.readCollectionSize(data, accessor);
-        offset += CollectionSerializer.sizeOfCollectionSize();
-        ByteSource[] srcs = new ByteSource[size * 2];
-        for (int i = 0; i < size; ++i)
-        {
-            V k = CollectionSerializer.readValue(data, accessor, offset);
-            offset += CollectionSerializer.sizeOfValue(k, accessor);
-            srcs[i * 2 + 0] = keysComparator.asComparableBytes(accessor, k, version);
-            V v = CollectionSerializer.readValue(data, accessor, offset);
-            offset += CollectionSerializer.sizeOfValue(v, accessor);
-            srcs[i * 2 + 1] = valuesComparator.asComparableBytes(accessor, v, version);
-        }
-        return ByteSource.withTerminatorMaybeLegacy(version, 0x00, srcs);
-    }
-
-    static <V> V fromComparableBytesMap(ValueAccessor<V> accessor,
-                                        ByteSource.Peekable comparableBytes,
-                                        Version version,
-                                        AbstractType<?> keysComparator,
-                                        AbstractType<?> valuesComparator)
-    {
-        if (comparableBytes == null)
-            return accessor.empty();
-        assert version != ByteComparable.Version.LEGACY; // legacy translation is not reversible
-
-        List<V> buffers = new ArrayList<>();
-        int separator = comparableBytes.next();
-        while (separator != ByteSource.TERMINATOR)
-        {
-            buffers.add(ByteSourceInverse.nextComponentNull(separator)
-                        ? null
-                        : keysComparator.fromComparableBytes(accessor, comparableBytes, version));
-            separator = comparableBytes.next();
-            buffers.add(ByteSourceInverse.nextComponentNull(separator)
-                        ? null
-                        : valuesComparator.fromComparableBytes(accessor, comparableBytes, version));
-            separator = comparableBytes.next();
-        }
-        return CollectionSerializer.pack(buffers, accessor,buffers.size() / 2);
+        return sizeL == sizeR ? 0 : (sizeL < sizeR ? -1 : 1);
     }
 
     @Override
@@ -339,9 +266,9 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             throw new MarshalException(String.format(
                     "Expected a map, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
 
-        Map<?, ?> map = (Map<?, ?>) parsed;
+        Map<Object, Object> map = (Map<Object, Object>) parsed;
         Map<Term, Term> terms = new HashMap<>(map.size());
-        for (Map.Entry<?, ?> entry : map.entrySet())
+        for (Map.Entry<Object, Object> entry : map.entrySet())
         {
             if (entry.getKey() == null)
                 throw new MarshalException("Invalid null key in map");
@@ -359,16 +286,16 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     {
         ByteBuffer value = buffer.duplicate();
         StringBuilder sb = new StringBuilder("{");
-        int size = CollectionSerializer.readCollectionSize(value, ByteBufferAccessor.instance);
-        int offset = CollectionSerializer.sizeOfCollectionSize();
+        int size = CollectionSerializer.readCollectionSize(value, protocolVersion);
+        int offset = CollectionSerializer.sizeOfCollectionSize(size, protocolVersion);
         for (int i = 0; i < size; i++)
         {
             if (i > 0)
                 sb.append(", ");
 
             // map keys must be JSON strings, so convert non-string keys to strings
-            ByteBuffer kv = CollectionSerializer.readValue(value, ByteBufferAccessor.instance, offset);
-            offset += CollectionSerializer.sizeOfValue(kv, ByteBufferAccessor.instance);
+            ByteBuffer kv = CollectionSerializer.readValue(value, ByteBufferAccessor.instance, offset, protocolVersion);
+            offset += CollectionSerializer.sizeOfValue(kv, ByteBufferAccessor.instance, protocolVersion);
             String key = keys.toJSONString(kv, protocolVersion);
             if (key.startsWith("\""))
                 sb.append(key);
@@ -376,22 +303,10 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
                 sb.append('"').append(Json.quoteAsJsonString(key)).append('"');
 
             sb.append(": ");
-            ByteBuffer vv = CollectionSerializer.readValue(value, ByteBufferAccessor.instance, offset);
-            offset += CollectionSerializer.sizeOfValue(vv, ByteBufferAccessor.instance);
+            ByteBuffer vv = CollectionSerializer.readValue(value, ByteBufferAccessor.instance, offset, protocolVersion);
+            offset += CollectionSerializer.sizeOfValue(vv, ByteBufferAccessor.instance, protocolVersion);
             sb.append(values.toJSONString(vv, protocolVersion));
         }
         return sb.append("}").toString();
-    }
-
-    @Override
-    public void forEach(ByteBuffer input, Consumer<ByteBuffer> action)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ByteBuffer getMaskedValue()
-    {
-        return decompose(Collections.emptyMap());
     }
 }

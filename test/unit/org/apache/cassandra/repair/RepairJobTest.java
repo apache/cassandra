@@ -305,8 +305,8 @@ public class RepairJobTest
 
         assertThat(results)
             .hasSize(2)
-            .extracting(s -> s.differences.size())
-            .containsOnly(1);
+            .extracting(s -> s.numberOfDifferences)
+            .containsOnly(1L);
 
         assertThat(messages)
             .hasSize(2)

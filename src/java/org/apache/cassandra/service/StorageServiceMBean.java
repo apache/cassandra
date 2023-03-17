@@ -103,12 +103,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getReleaseVersion();
 
     /**
-     * Fetch a string representation of the Cassandra git SHA.
-     * @return A string representation of the Cassandra git SHA.
-     */
-    public String getGitSHA();
-
-    /**
      * Fetch a string representation of the current Schema version.
      * @return A string representation of the Schema version.
      */
@@ -215,9 +209,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Human-readable load value */
     public String getLoadString();
 
-    /** Human-readable uncompressed load value */
-    public String getUncompressedLoadString();
-
     /** Human-readable load value.  Keys are IP addresses. */
     @Deprecated public Map<String, String> getLoadMap();
     public Map<String, String> getLoadMapWithPort();
@@ -276,22 +267,8 @@ public interface StorageServiceMBean extends NotificationEmitter
     /**
      * Remove the snapshot with the given name from the given keyspaces.
      * If no tag is specified we will remove all snapshots.
-     *
-     * @param tag name of snapshot to clear, if null or empty string, all snapshots of given keyspace will be cleared
-     * @param keyspaceNames name of keyspaces to clear snapshots for
      */
-    @Deprecated
     public void clearSnapshot(String tag, String... keyspaceNames) throws IOException;
-
-    /**
-     * Remove the snapshot with the given name from the given keyspaces.
-     * If no tag is specified we will remove all snapshots.
-     *
-     * @param options map of options for cleanup operation, consult nodetool's ClearSnapshot
-     * @param tag name of snapshot to clear, if null or empty string, all snapshots of given keyspace will be cleared
-     * @param keyspaceNames name of keyspaces to clear snapshots for
-     */
-    public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaceNames) throws IOException;
 
     /**
      * Get the details of all the snapshot
@@ -365,13 +342,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void forceKeyspaceCompactionForPartitionKey(String keyspaceName, String partitionKey, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
     /**
-     * Forces compaction for a list of partition keys on a table.
-     * The method will ignore the gc_grace_seconds for the partitionKeysIgnoreGcGrace during the comapction,
-     * in order to purge the tombstones and free up space quicker.
-     */
-    public void forceCompactionKeysIgnoringGcGrace(String keyspaceName, String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException;
-
-    /**
      * Trigger a cleanup of keys on a single keyspace
      */
     @Deprecated
@@ -385,22 +355,11 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Scrubbed CFs will be snapshotted first, if disableSnapshot is false
      */
     @Deprecated
-    default int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
-    {
-        return scrub(disableSnapshot, skipCorrupted, true, keyspaceName, tableNames);
-    }
-
+    public int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
     @Deprecated
-    default int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
-    {
-        return scrub(disableSnapshot, skipCorrupted, checkData, 0, keyspaceName, tableNames);
-    }
-
+    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
     @Deprecated
-    default int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
-    {
-        return scrub(disableSnapshot, skipCorrupted, checkData, false, jobs, keyspaceName, columnFamilies);
-    }
+    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
     public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
@@ -458,21 +417,9 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void forceTerminateAllRepairSessions();
 
-    /**
-     * @deprecated use setRepairSessionMaximumTreeDepth instead as it will not throw non-standard exceptions
-     */
-    @Deprecated
     public void setRepairSessionMaxTreeDepth(int depth);
 
-    /**
-     * @deprecated use getRepairSessionMaximumTreeDepth instead
-     */
-    @Deprecated
     public int getRepairSessionMaxTreeDepth();
-
-    public void setRepairSessionMaximumTreeDepth(int depth);
-
-    public int getRepairSessionMaximumTreeDepth();
 
     /**
      * Get the status of a given parent repair session.
@@ -793,22 +740,8 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param keyspace Name of the keyspace which to rebuild or null to rebuild all keyspaces.
      * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
      *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
-     * @param specificSources list of sources that can be used for rebuilding. Must be other nodes in the cluster.
-     *                        The format of the string is comma separated values.
      */
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources);
-
-    /**
-    * Same as {@link #rebuild(String)}, but only for specified keyspace and ranges. It excludes local data center nodes
-    *
-    * @param sourceDc Name of DC from which to select sources for streaming or null to pick any node
-    * @param keyspace Name of the keyspace which to rebuild or null to rebuild all keyspaces.
-    * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
-    *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
-    * @param specificSources list of sources that can be used for rebuilding. Mostly other nodes in the cluster.
-    * @param excludeLocalDatacenterNodes Flag to indicate whether local data center nodes should be excluded as sources for streaming.
-    */
-    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes);
 
     /** Starts a bulk load and blocks until it completes. */
     public void bulkLoad(String directory);
@@ -862,36 +795,6 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public Map<String, List<CompositeData>> samplePartitions(int duration, int capacity, int count, List<String> samplers) throws OpenDataException;
 
-    public Map<String, List<CompositeData>> samplePartitions(String keyspace, int duration, int capacity, int count, List<String> samplers) throws OpenDataException;
-
-    /**
-     * Start a scheduled sampling
-     * @param ks Keyspace. Nullable. If null, the scheduled sampling is on all keyspaces and tables
-     * @param table Nullable. If null, the scheduled sampling is on all tables of the specified keyspace
-     * @param duration Duration of each scheduled sampling job in milliseconds
-     * @param interval Interval of each scheduled sampling job in milliseconds
-     * @param capacity Capacity of the sampler, higher for more accuracy
-     * @param count Number of the top samples to list
-     * @param samplers a list of samplers to enable
-     * @return true if the scheduled sampling is started successfully. Otherwise return false
-     */
-    public boolean startSamplingPartitions(String ks, String table, int duration, int interval, int capacity, int count, List<String> samplers) throws OpenDataException;
-
-    /**
-     * Stop a scheduled sampling
-     * @param ks Keyspace. Nullable. If null, the scheduled sampling is on all keysapces and tables
-     * @param table Nullable. If null, the scheduled sampling is on all tables of the specified keyspace
-     * @return true if the scheduled sampling is stopped. False is returned if the sampling task is not found
-     */
-    public boolean stopSamplingPartitions(String ks, String table) throws OpenDataException;
-
-    /**
-     * @return a list of qualified table names that have active scheduled sampling tasks. The format of the name is `KEYSPACE.TABLE`
-     * The wild card symbol (*) indicates all keyspace/table. For example, "*.*" indicates all tables in all keyspaces. "foo.*" indicates
-     * all tables under keyspace 'foo'. "foo.bar" indicates the scheduled sampling is enabled for the table 'bar'
-     */
-    public List<String> getSampleTasks();
-
     /**
      * Returns the configured tracing probability.
      */
@@ -932,65 +835,26 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     /** Returns the granularity of the collation index of rows within a partition **/
     public int getColumnIndexSizeInKiB();
-
     /** Sets the granularity of the collation index of rows within a partition **/
-    public void setColumnIndexSizeInKiB(int columnIndexSizeInKiB);
-
-    /**
-     * Sets the granularity of the collation index of rows within a partition
-     * @deprecated use setColumnIndexSizeInKiB instead as it will not throw non-standard exceptions
-     */
-    @Deprecated
     public void setColumnIndexSize(int columnIndexSizeInKB);
 
-    /**
-     * Returns the threshold for skipping the column index when caching partition info
-     * @deprecated use getColumnIndexCacheSizeInKiB
-     */
-    @Deprecated
-    public int getColumnIndexCacheSize();
-
-    /**
-     * Sets the threshold for skipping the column index when caching partition info
-     * @deprecated use setColumnIndexCacheSizeInKiB instead as it will not throw non-standard exceptions
-     */
-    @Deprecated
-    public void setColumnIndexCacheSize(int cacheSizeInKB);
-
     /** Returns the threshold for skipping the column index when caching partition info **/
-    public int getColumnIndexCacheSizeInKiB();
-
+    public int getColumnIndexCacheSize();
     /** Sets the threshold for skipping the column index when caching partition info **/
-    public void setColumnIndexCacheSizeInKiB(int cacheSizeInKiB);
+    public void setColumnIndexCacheSize(int cacheSizeInKB);
 
     /** Returns the threshold for rejecting queries due to a large batch size */
     public int getBatchSizeFailureThreshold();
     /** Sets the threshold for rejecting queries due to a large batch size */
     public void setBatchSizeFailureThreshold(int batchSizeDebugThreshold);
 
-    /**
-     * Returns the threshold for warning queries due to a large batch size
-     * @deprecated use getBatchSizeWarnThresholdInKiB instead
-     */
-    @Deprecated
-    public int getBatchSizeWarnThreshold();
-    /**
-     * Sets the threshold for warning queries due to a large batch size
-     * @deprecated use setBatchSizeWarnThresholdInKiB instead as it will not throw non-standard exceptions
-     */
-    @Deprecated
-    public void setBatchSizeWarnThreshold(int batchSizeDebugThreshold);
-
     /** Returns the threshold for warning queries due to a large batch size */
-    public int getBatchSizeWarnThresholdInKiB();
-    /** Sets the threshold for warning queries due to a large batch size **/
-    public void setBatchSizeWarnThresholdInKiB(int batchSizeDebugThreshold);
+    public int getBatchSizeWarnThreshold();
+    /** Sets the threshold for warning queries due to a large batch size */
+    public void setBatchSizeWarnThreshold(int batchSizeDebugThreshold);
 
     /** Sets the hinted handoff throttle in KiB per second, per delivery thread. */
     public void setHintedHandoffThrottleInKB(int throttleInKB);
-
-    public boolean getTransferHintsOnDecommission();
-    public void setTransferHintsOnDecommission(boolean enabled);
 
     /**
      * Resume bootstrap streaming when there is failed data streaming.
@@ -1182,7 +1046,4 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setMinTrackedPartitionSize(String value);
     public long getMinTrackedPartitionTombstoneCount();
     public void setMinTrackedPartitionTombstoneCount(long value);
-
-    public void setSkipStreamDiskSpaceCheck(boolean value);
-    public boolean getSkipStreamDiskSpaceCheck();
 }

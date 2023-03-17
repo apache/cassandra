@@ -29,14 +29,13 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 
-import org.apache.cassandra.cql3.functions.UserFunction;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.schema.SchemaConstants;
 
 /**
  * IResource implementation representing functions.
@@ -136,7 +135,7 @@ public class FunctionResource implements IResource
         return new FunctionResource(keyspace, name, argTypes);
     }
 
-    public static FunctionResource function(UserFunction function)
+    public static FunctionResource function(Function function)
     {
         return new FunctionResource(function.name().keyspace, function.name().name, function.argTypes());
     }
@@ -272,7 +271,6 @@ public class FunctionResource implements IResource
 
     public boolean exists()
     {
-        validate();
         switch (level)
         {
             case ROOT:
@@ -280,14 +278,13 @@ public class FunctionResource implements IResource
             case KEYSPACE:
                 return Schema.instance.getKeyspaces().contains(keyspace);
             case FUNCTION:
-                return Schema.instance.findUserFunction(getFunctionName(), argTypes).isPresent();
+                return Schema.instance.findFunction(getFunctionName(), argTypes).isPresent();
         }
         throw new AssertionError();
     }
 
     public Set<Permission> applicablePermissions()
     {
-        validate();
         switch (level)
         {
             case ROOT:
@@ -295,18 +292,12 @@ public class FunctionResource implements IResource
                 return COLLECTION_LEVEL_PERMISSIONS;
             case FUNCTION:
             {
-                Optional<UserFunction> function = Schema.instance.findUserFunction(getFunctionName(), argTypes);
+                Optional<Function> function = Schema.instance.findFunction(getFunctionName(), argTypes);
                 assert function.isPresent() : "Unable to find function object for resource " + toString();
                 return function.get().isAggregate() ? AGGREGATE_FUNCTION_PERMISSIONS : SCALAR_FUNCTION_PERMISSIONS;
             }
         }
         throw new AssertionError();
-    }
-
-    private void validate()
-    {
-        if (SchemaConstants.SYSTEM_KEYSPACE_NAME.equals(keyspace))
-            throw new InvalidRequestException("Altering permissions on builtin functions is not supported");
     }
 
     public int compareTo(FunctionResource o)

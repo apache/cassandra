@@ -49,7 +49,7 @@ final class SetSelector extends Selector
         protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             SetType<?> type = (SetType<?>) readType(metadata, in);
-            int size = in.readUnsignedVInt32();
+            int size = (int) in.readUnsignedVInt();
             List<Selector> elements = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
                 elements.add(serializer.deserialize(in, version, metadata));
@@ -91,10 +91,10 @@ final class SetSelector extends Selector
             elements.get(i).addFetchedColumns(builder);
     }
 
-    public void addInput(InputRow input)
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
         for (int i = 0, m = elements.size(); i < m; i++)
-            elements.get(i).addInput(input);
+            elements.get(i).addInput(protocolVersion, input);
     }
 
     public ByteBuffer getOutput(ProtocolVersion protocolVersion)
@@ -104,7 +104,7 @@ final class SetSelector extends Selector
         {
             buffers.add(elements.get(i).getOutput(protocolVersion));
         }
-        return CollectionSerializer.pack(buffers, buffers.size());
+        return CollectionSerializer.pack(buffers, buffers.size(), protocolVersion);
     }
 
     public void reset()
@@ -178,7 +178,7 @@ final class SetSelector extends Selector
     protected void serialize(DataOutputPlus out, int version) throws IOException
     {
         writeType(out, type);
-        out.writeUnsignedVInt32(elements.size());
+        out.writeUnsignedVInt(elements.size());
         for (int i = 0, m = elements.size(); i < m; i++)
             serializer.serialize(elements.get(i), out, version);
     }

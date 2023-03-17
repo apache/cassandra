@@ -25,11 +25,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.googlecode.concurrenttrees.common.Iterables;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -49,12 +46,6 @@ public class SSTablesGlobalTrackerTest
 {
     private static final int MAX_VERSION_LIST_SIZE = 10;
     private static final int MAX_UPDATES_PER_GEN = 100;
-
-    @BeforeClass
-    public static void beforeClass()
-    {
-        DatabaseDescriptor.clientInitialization();
-    }
 
     /**
      * Ensures that the tracker properly maintains the set of versions in use.
@@ -120,7 +111,7 @@ public class SSTablesGlobalTrackerTest
 
     private Gen<SSTableFormat.Type> sstableFormatTypes()
     {
-        return Generate.pick(Iterables.toList(SSTableFormat.Type.values()));
+        return Generate.enumValues(SSTableFormat.Type.class);
     }
 
     private Gen<String> sstableVersionString()

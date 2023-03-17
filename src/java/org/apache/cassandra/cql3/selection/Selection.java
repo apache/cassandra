@@ -371,10 +371,10 @@ public abstract class Selection
         public boolean collectTTLs();
 
         /**
-         * Checks if one of the selectors collects write timestamps.
-         * @return {@code true} if one of the selectors collects write timestamps, {@code false} otherwise.
+         * Checks if one of the selectors collect timestamps.
+         * @return {@code true} if one of the selectors collect timestamps, {@code false} otherwise.
          */
-        public boolean collectWritetimes();
+        public boolean collectTimestamps();
 
         /**
          * Adds the current row of the specified <code>ResultSetBuilder</code>.
@@ -501,7 +501,7 @@ public abstract class Selection
                 }
 
                 @Override
-                public boolean collectWritetimes()
+                public boolean collectTimestamps()
                 {
                     return false;
                 }
@@ -520,8 +520,7 @@ public abstract class Selection
     private static class SelectionWithProcessing extends Selection
     {
         private final SelectorFactories factories;
-        private final boolean collectWritetimes;
-        private final boolean collectMaxWritetimes;
+        private final boolean collectTimestamps;
         private final boolean collectTTLs;
 
         public SelectionWithProcessing(TableMetadata table,
@@ -541,9 +540,8 @@ public abstract class Selection
                   isJson);
 
             this.factories = factories;
-            this.collectWritetimes = factories.containsWritetimeSelectorFactory();
-            this.collectMaxWritetimes = factories.containsMaxWritetimeSelectorFactory();
-            this.collectTTLs = factories.containsTTLSelectorFactory();
+            this.collectTimestamps = factories.containsWritetimeSelectorFactory();
+            this.collectTTLs = factories.containsTTLSelectorFactory();;
 
             for (ColumnMetadata orderingColumn : orderingColumns)
             {
@@ -603,7 +601,7 @@ public abstract class Selection
                 public void addInputRow(InputRow input)
                 {
                     for (Selector selector : selectors)
-                        selector.addInput(input);
+                        selector.addInput(options.getProtocolVersion(), input);
                 }
 
                 @Override
@@ -619,9 +617,9 @@ public abstract class Selection
                 }
 
                 @Override
-                public boolean collectWritetimes()
+                public boolean collectTimestamps()
                 {
-                    return collectWritetimes || collectMaxWritetimes;
+                    return collectTimestamps;
                 }
 
                 @Override

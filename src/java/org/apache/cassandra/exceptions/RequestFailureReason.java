@@ -19,6 +19,8 @@ package org.apache.cassandra.exceptions;
 
 import java.io.IOException;
 
+import com.google.common.primitives.Ints;
+
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -99,12 +101,12 @@ public enum RequestFailureReason
             if (version < VERSION_40)
                 out.writeShort(reason.code);
             else
-                out.writeUnsignedVInt32(reason.code);
+                out.writeUnsignedVInt(reason.code);
         }
 
         public RequestFailureReason deserialize(DataInputPlus in, int version) throws IOException
         {
-            return fromCode(version < VERSION_40 ? in.readUnsignedShort() : in.readUnsignedVInt32());
+            return fromCode(version < VERSION_40 ? in.readUnsignedShort() : Ints.checkedCast(in.readUnsignedVInt()));
         }
 
         public long serializedSize(RequestFailureReason reason, int version)

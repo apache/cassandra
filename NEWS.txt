@@ -52,113 +52,28 @@ restore snapshots created with the previous major version using the
 using the provided 'sstableupgrade' tool.
 
 
-5.0
-===
+4.1.1
+=====
 
-New features
-------------
-    - Added new Mathematical CQL functions: abs, exp, log, log10 and round.
-    - Adds a trie-based memtable implementation, which improves memory use, garbage collection efficiency and lookup
-      performance. The new memtable is implemented by the TrieMemtable class and can be selected using the memtable
-      API, see src/java/org/apache/cassandra/db/memtable/Memtable_API.md.
-    - Added a new configuration cdc_on_repair_enabled to toggle whether CDC mutations are replayed through the
-      write path on streaming, e.g. repair. When enabled, CDC data streamed to the destination node will be written into
-      commit log first. When disabled, the streamed CDC data is written into SSTables just the same as normal streaming.
-      If this is set to false, streaming will be considerably faster however it's possible that, in extreme situations
-      (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the CDC log.
-      The default is true/enabled. The configuration can be altered via JMX.
-    - Added support for reading the write times and TTLs of the elements of collections and UDTs, regardless of being
-      frozen or not. The CQL functions writetime, maxwritetime and ttl can now be applied to entire collections/UDTs,
-      single collection/UDT elements and slices of collection/UDT elements.
-    - Added a new CQL function, maxwritetime. It shows the largest unix timestamp that the data was written, similar to
-      its sibling CQL function, writetime.
-    - New Guardrails added:
-      - Whether ALTER TABLE commands are allowed to mutate columns
-      - Whether SimpleStrategy is allowed on keyspace creation or alteration
-      - Maximum replication factor
-      - Whether DROP KEYSPACE commands are allowed.
-      - Column value size
-    - It is possible to list ephemeral snapshots by nodetool listsnaphots command when flag "-e" is specified.
-    - Added a new flag to `nodetool profileload` and JMX endpoint to set up recurring profile load generation on specified
-      intervals (see CASSANDRA-17821)
-    - Added a new property, gossiper.loose_empty_enabled, to allow for a looser definition of "empty" when
-      considering the heartbeat state of another node in Gossip. This should only be used by knowledgeable
-      operators in the following scenarios:
-
-      Currently "empty" w/regards to heartbeat state in Gossip is very specific to a single edge case (i.e. in
-      isEmptyWithoutStatus() our usage of hbState() + applicationState), however there are other failure cases which
-      block host replacements and require intrusive workarounds and human intervention to recover from when you
-      have something in hbState() you don't expect. See CASSANDRA-17842 for further details.
-    - Added new CQL table property 'allow_auto_snapshot' which is by default true. When set to false and 'auto_snapshot: true'
-      in cassandra.yaml, there will be no snapshot taken when a table is truncated or dropped. When auto_snapshot in
-      casandra.yaml is set to false, the newly added table property does not have any effect.
-    - Changed default on resumable bootstrap to be disabled. Resumable bootstrap has edge cases with potential correctness
-      violations or data loss scenarios if nodes go down during bootstrap, tombstones are written, and operations race with
-      repair. As streaming is considerably faster in the 4.0+ era (as well as with zero copy streaming), the risks of
-      having these edge cases during a failed and resumed bootstrap are no longer deemed acceptable.
-      To re-enable this feature, use the -Dcassandra.reset_bootstrap_progress=false environment flag.
-    - Added --older-than and --older-than-timestamp options to nodetool clearsnapshot command. It is possible to
-      clear snapshots which are older than some period for example, "--older-than 5h" to remove
-      snapshots older than 5 hours and it is possible to clear all snapshots older than some timestamp, for example
-      --older-than-timestamp 2022-12-03T10:15:30Z.
-    - Cassandra logs can be viewed in the virtual table system_views.system_logs.
-      Please uncomment the respective appender in logback.xml file to make logs flow into this table. This feature is turned off by default.
-    - Added new CQL table property 'incremental_backups' which is by default true. When 'incremental_backups' property in cassandra.yaml
-      is set to true and table property is set to false, incremental backups for that specific table will not be done.
-      When 'incremental_backups' in casandra.yaml is set to false, the newly added table property does not have any effect.
-      Both properties have to be set to true (cassandra.yaml and table property) in order to make incremental backups.
-    - Added new CQL native scalar functions for collections. The new functions are mostly analogous to the existing
-      aggregation functions, but they operate on the elements of collection columns. The new functions are `map_keys`,
-      `map_values`, `collection_count`, `collection_min`, `collection_max`, `collection_sum` and `collection_avg`.
-    - Added compaction_properties column to system.compaction_history table and nodetool compactionhistory command
-    - SimpleSeedProvider can resolve multiple IP addresses per DNS record. SimpleSeedProvider reacts on
-      the paramater called `resolve_multiple_ip_addresses_per_dns_record` which value is meant to be boolean and by
-      default it is set to false. When set to true, SimpleSeedProvider will resolve all IP addresses per DNS record,
-      based on the configured name service on the system.
-    - Added new native CQL functions for data masking, allowing to replace or obscure sensitive data. The functions are:
-      - `mask_null` replaces the column value by null.
-      - `mask_default` replaces the data by a fixed default value of the same type.
-      - `mask_replace` replaces the data by a custom value.
-      - `mask_inner` replaces every character but the first and last ones by a fixed character.
-      - `mask_outer` replaces the first and last characters by a fixed character.
-      - `mask_hash` replaces the data by its hash, according to the specified algorithm.
-    - On virtual tables, it is not strictly necessary to specify `ALLOW FILTERING` for select statements which would
-      normally require it, except `system_views.system_logs`.
-    - More accurate skipping of sstables in read path due to better handling of min/max clustering and lower bound;
-      SSTable format has been bumped to 'nc' because there are new fields in stats metadata\
-    - Added MaxSSTableSize and MaxSSTableDuration metrics to TableMetrics. The former returns the size of the biggest 
-      SSTable of a table or 0 when there is not any SSTable. The latter returns the maximum duration, computed as 
-      `maxTimestamp - minTimestamp`, effectively non-zero for SSTables produced by TimeWindowCompactionStrategy.
-    - Added local read/write ratio to tablestats.
+G1GC Recommended
+----------------
+    - The G1 settings in jvm8-server.options and jvm11-server.options are updated according to broad feedback
+      and testing. The G1 settings remain commented out by default in 4.1.x. It is recommended to switch
+      to G1 for performance and for simpler GC tuning. CMS is already deprecated in JDK9, and the next major
+      release of Cassandra makes G1 the default configuration.
 
 Upgrading
 ---------
-    - Ephemeral marker files for snapshots done by repairs are not created anymore,
-      there is a dedicated flag in snapshot manifest instead. On upgrade of a node to version 4.2, on node's start, in case there
-      are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots
-      will stop to create ephemeral marker files as flag in a snapshot manifest was introduced instead.
-    - There were new table properties introduced called 'allow_auto_snapshot' and 'incremental_backups' (see section 'New features'). Hence, upgraded
-      node will be on a new schema version. Please do a rolling upgrade of nodes of a cluster to converge to one schema version.
     - All previous versions of 4.x contained a mistake on the implementation of the old CQL native protocol v3. That
      mistake produced issues when paging over tables with compact storage and a single clustering column during rolling
      upgrades involving 3.x and 4.x nodes. The fix for that issue makes it can now appear during rolling upgrades from
      4.1.0 or 4.0.0-4.0.7. If that is your case, please use protocol v4 or higher in your driver. See CASSANDRA-17507
      for further details.
-   - Added API for alternative sstable implementations. For details, see src/java/org/apache/cassandra/io/sstable/SSTable_API.md
 
 Deprecation
 -----------
-    - In the JMX MBean `org.apache.cassandra.db:type=RepairService` (CASSANDRA-17668):
-        - deprecate the getter/setter methods `getRepairSessionSpaceInMebibytes` and `setRepairSessionSpaceInMebibytes`
-          in favor of `getRepairSessionSpaceInMiB` and `setRepairSessionSpaceInMiB` respectively
-    - In the JMX MBean `org.apache.cassandra.db:type=StorageService` (CASSANDRA-17668):
-        - deprecate the getter/setter methods `getRepairSessionMaxTreeDepth` and `setRepairSessionMaxTreeDepth`
-          in favor of `getRepairSessionMaximumTreeDepth` and `setRepairSessionMaximumTreeDepth`
-        - deprecate the setter method `setColumnIndexSize` in favor of `setColumnIndexSizeInKiB`
-        - deprecate the getter/setter methods `getColumnIndexCacheSize` and `setColumnIndexCacheSize` in favor of
-          `getColumnIndexCacheSizeInKiB` and `setColumnIndexCacheSizeInKiB` respectively
-        - deprecate the getter/setter methods `getBatchSizeWarnThreshold` and `setBatchSizeWarnThreshold` in favor of
-          `getBatchSizeWarnThresholdInKiB` and `setBatchSizeWarnThresholdInKiB` respectively
+    - Hadoop integration in package org.apache.cassandra.hadoop is deprecated and no longer actively maintained.
+      This code is scheduled to be removed in the next major version of Cassandra.
 
 4.1
 ===
@@ -501,7 +416,7 @@ Upgrading
     - Native protocol v5 is promoted from beta in this release. The wire format has changed
       significantly and users should take care to ensure client drivers are upgraded to a version
       with support for the final v5 format, if currently connecting over v5-beta. (CASSANDRA-15299, CASSANDRA-14973)
-    - Cassandra removed support for the OldNetworkTopologyStrategy. Before upgrading you will need to change the
+    - Cassandra removed support for the OldNetworkTopologyStrategy. Before upgrading you will need to change the 
       replication strategy for the keyspaces using this strategy to the NetworkTopologyStrategy. (CASSANDRA-13990)
     - Sstables for tables using with a frozen UDT written by C* 3.0 appear as corrupted.
 
@@ -699,7 +614,7 @@ Upgrading
       reason, a opt-in system property has been added to disable the fix:
         -Dcassandra.unsafe.disable-serial-reads-linearizability=true
       Use this flag at your own risk as it revert SERIAL reads to the incorrect behavior of
-      previous versions. See CASSANDRA-12126 for details.
+      previous versions. See CASSANDRA-12126 for details. 
     - SASI's `max_compaction_flush_memory_in_mb` setting was previously getting interpreted in bytes. From 3.11.8
       it is correctly interpreted in megabytes, but prior to 3.11.10 previous configurations of this setting will
       lead to nodes OOM during compaction. From 3.11.10 previous configurations will be detected as incorrect,
@@ -796,7 +711,7 @@ Compact Storage (only when upgrading from 3.X or any version lower than 3.0.15)
       Starting version 5.0, COMPACT STORAGE will no longer be supported.
       'ALTER ... DROP COMPACT STORAGE' statement makes Compact Tables CQL-compatible,
       exposing internal structure of Thrift/Compact Tables. You can find more details
-      on exposed internal structure under:
+      on exposed internal structure under: 
       http://cassandra.apache.org/doc/latest/cql/appendices.html#appendix-c-dropping-compact-storage
 
       For uninterrupted cluster upgrades, drivers now support 'NO_COMPACT' startup option.

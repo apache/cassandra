@@ -18,17 +18,14 @@
 
 package org.apache.cassandra.serializers;
 
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Consumer;
-
-import com.google.common.collect.Range;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -37,49 +34,79 @@ public abstract class CollectionSerializer<T> extends TypeSerializer<T>
     protected abstract List<ByteBuffer> serializeValues(T value);
     protected abstract int getElementCount(T value);
 
-    @Override
+    public abstract <V> T deserializeForNativeProtocol(V value, ValueAccessor<V> accessor, ProtocolVersion version);
+
+    public T deserializeForNativeProtocol(ByteBuffer value, ProtocolVersion version)
+    {
+        return deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
+    }
+
+    public abstract <V> void validateForNativeProtocol(V value, ValueAccessor<V> accessor, ProtocolVersion version);
+
     public ByteBuffer serialize(T input)
     {
         List<ByteBuffer> values = serializeValues(input);
-        return pack(values, ByteBufferAccessor.instance, getElementCount(input));
+        // See deserialize() for why using the protocol v3 variant is the right thing to do.
+        return pack(values, ByteBufferAccessor.instance, getElementCount(input), ProtocolVersion.V3);
     }
 
-    public static ByteBuffer pack(Collection<ByteBuffer> values, int elements)
+    public <V> T deserialize(V value, ValueAccessor<V> accessor)
     {
-        return pack(values, ByteBufferAccessor.instance, elements);
+        // The only cases we serialize/deserialize collections internally (i.e. not for the protocol sake),
+        // is:
+        //  1) when collections are frozen
+        //  2) for internal calls.
+        // In both case, using the protocol 3 version variant is the right thing to do.
+        return deserializeForNativeProtocol(value, accessor, ProtocolVersion.V3);
     }
 
-    public static <V> V pack(Collection<V> values, ValueAccessor<V> accessor, int elements)
+    public <T1> void validate(T1 value, ValueAccessor<T1> accessor) throws MarshalException
+    {
+        // Same thing as above
+        validateForNativeProtocol(value, accessor, ProtocolVersion.V3);
+    }
+
+    public static ByteBuffer pack(Collection<ByteBuffer> values, int elements, ProtocolVersion version)
+    {
+        return pack(values, ByteBufferAccessor.instance, elements, version);
+    }
+
+    public static <V> V pack(Collection<V> values, ValueAccessor<V> accessor, int elements, ProtocolVersion version)
     {
         int size = 0;
         for (V value : values)
-            size += sizeOfValue(value, accessor);
+            size += sizeOfValue(value, accessor, version);
 
-        ByteBuffer result = ByteBuffer.allocate(sizeOfCollectionSize() + size);
-        writeCollectionSize(result, elements);
+        ByteBuffer result = ByteBuffer.allocate(sizeOfCollectionSize(elements, version) + size);
+        writeCollectionSize(result, elements, version);
         for (V value : values)
         {
-            writeValue(result, value, accessor);
+            writeValue(result, value, accessor, version);
         }
         return accessor.valueOf((ByteBuffer) result.flip());
     }
 
-    protected static void writeCollectionSize(ByteBuffer output, int elements)
+    protected static void writeCollectionSize(ByteBuffer output, int elements, ProtocolVersion version)
     {
         output.putInt(elements);
     }
 
-    public static <V> int readCollectionSize(V value, ValueAccessor<V> accessor)
+    public static int readCollectionSize(ByteBuffer input, ProtocolVersion version)
+    {
+        return readCollectionSize(input, ByteBufferAccessor.instance, version);
+    }
+
+    public static <V> int readCollectionSize(V value, ValueAccessor<V> accessor, ProtocolVersion version)
     {
         return accessor.toInt(value);
     }
 
-    public static int sizeOfCollectionSize()
+    public static int sizeOfCollectionSize(int elements, ProtocolVersion version)
     {
         return TypeSizes.INT_SIZE;
     }
 
-    public static <V> void writeValue(ByteBuffer output, V value, ValueAccessor<V> accessor)
+    public static <V> void writeValue(ByteBuffer output, V value, ValueAccessor<V> accessor, ProtocolVersion version)
     {
         if (value == null)
         {
@@ -91,7 +118,7 @@ public abstract class CollectionSerializer<T> extends TypeSerializer<T>
         accessor.write(value, output);
     }
 
-    public static <V> V readValue(V input, ValueAccessor<V> accessor, int offset)
+    public static <V> V readValue(V input, ValueAccessor<V> accessor, int offset, ProtocolVersion version)
     {
         int size = accessor.getInt(input, offset);
         if (size < 0)
@@ -100,19 +127,19 @@ public abstract class CollectionSerializer<T> extends TypeSerializer<T>
         return accessor.slice(input, offset + TypeSizes.INT_SIZE, size);
     }
 
-    protected static void skipValue(ByteBuffer input)
+    protected static void skipValue(ByteBuffer input, ProtocolVersion version)
     {
         int size = input.getInt();
         input.position(input.position() + size);
     }
 
-    public static <V> int skipValue(V input, ValueAccessor<V> accessor, int offset)
+    public static <V> int skipValue(V input, ValueAccessor<V> accessor, int offset, ProtocolVersion version)
     {
         int size = accessor.getInt(input, offset);
         return TypeSizes.sizeof(size) + size;
     }
 
-    public static <V> int sizeOfValue(V value, ValueAccessor<V> accessor)
+    public static <V> int sizeOfValue(V value, ValueAccessor<V> accessor, ProtocolVersion version)
     {
         return value == null ? 4 : 4 + accessor.size(value);
     }
@@ -153,72 +180,20 @@ public abstract class CollectionSerializer<T> extends TypeSerializer<T>
                                                       boolean frozen);
 
     /**
-     * Returns the index of an element in a serialized collection.
-     * <p>
-     * Note that this is only supported by sets and maps, but not by lists.
-     *
-     * @param collection The serialized collection. This cannot be {@code null}.
-     * @param key The key for which the index must be found. This cannot be {@code null} nor
-     * {@link ByteBufferUtil#UNSET_BYTE_BUFFER}).
-     * @param comparator The type to use to compare the {@code key} value to those in the collection.
-     * @return The index of the element associated with {@code key} if one exists, {@code -1} otherwise.
-     */
-    public abstract int getIndexFromSerialized(ByteBuffer collection, ByteBuffer key, AbstractType<?> comparator);
-
-    /**
-     * Returns the range of indexes corresponding to the specified range of elements in the serialized collection.
-     * <p>
-     * Note that this is only supported by sets and maps, but not by lists.
-     *
-     * @param collection The serialized collection. This cannot be {@code null}.
-     * @param from  The left bound of the slice to extract. This cannot be {@code null} but if this is
-     * {@link ByteBufferUtil#UNSET_BYTE_BUFFER}, then the returned slice starts at the beginning of the collection.
-     * @param to The left bound of the slice to extract. This cannot be {@code null} but if this is
-     * {@link ByteBufferUtil#UNSET_BYTE_BUFFER}, then the returned slice ends at the end of the collection.
-     * @param comparator The type to use to compare the {@code from} and {@code to} values to those in the collection.
-     * @return The range of indexes corresponding to specified range of elements.
-     */
-    public abstract Range<Integer> getIndexesRangeFromSerialized(ByteBuffer collection,
-                                                                 ByteBuffer from,
-                                                                 ByteBuffer to,
-                                                                 AbstractType<?> comparator);
-
-    /**
      * Creates a new serialized map composed from the data from {@code input} between {@code startPos}
      * (inclusive) and {@code endPos} (exclusive), assuming that data holds {@code count} elements.
      */
-    protected ByteBuffer copyAsNewCollection(ByteBuffer input, int count, int startPos, int endPos)
+    protected ByteBuffer copyAsNewCollection(ByteBuffer input, int count, int startPos, int endPos, ProtocolVersion version)
     {
-        int sizeLen = sizeOfCollectionSize();
+        int sizeLen = sizeOfCollectionSize(count, version);
         if (count == 0)
             return ByteBuffer.allocate(sizeLen);
 
         int bodyLen = endPos - startPos;
         ByteBuffer output = ByteBuffer.allocate(sizeLen + bodyLen);
-        writeCollectionSize(output, count);
+        writeCollectionSize(output, count, version);
         output.position(0);
         ByteBufferUtil.copyBytes(input, startPos, output, sizeLen, bodyLen);
         return output;
-    }
-
-    public void forEach(ByteBuffer input, Consumer<ByteBuffer> action)
-    {
-        try
-        {
-            int collectionSize = readCollectionSize(input, ByteBufferAccessor.instance);
-            int offset = sizeOfCollectionSize();
-
-            for (int i = 0; i < collectionSize; i++)
-            {
-                ByteBuffer value = readValue(input, ByteBufferAccessor.instance, offset);
-                offset += sizeOfValue(value, ByteBufferAccessor.instance);
-
-                action.accept(value);
-            }
-        }
-        catch (BufferUnderflowException | IndexOutOfBoundsException e)
-        {
-            throw new MarshalException("Not enough bytes to read a set");
-        }
     }
 }

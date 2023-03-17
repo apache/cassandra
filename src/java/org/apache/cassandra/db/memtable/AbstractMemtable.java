@@ -35,7 +35,6 @@ import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.github.jamm.Unmetered;
 
 public abstract class AbstractMemtable implements Memtable
 {
@@ -49,7 +48,6 @@ public abstract class AbstractMemtable implements Memtable
     // Note: statsCollector has corresponding statistics to the two above, but starts with an epoch value which is not
     // correct for their usage.
 
-    @Unmetered
     protected TableMetadataRef metadata;
 
     public AbstractMemtable(TableMetadataRef metadataRef)
@@ -76,6 +74,13 @@ public abstract class AbstractMemtable implements Memtable
         return currentOperations.get();
     }
 
+    /**
+     * Returns the minTS if one available, otherwise NO_MIN_TIMESTAMP.
+     *
+     * EncodingStats uses a synthetic epoch TS at 2015. We don't want to leak that (CASSANDRA-18118) so we return NO_MIN_TIMESTAMP instead.
+     *
+     * @return The minTS or NO_MIN_TIMESTAMP if none available
+     */
     public long getMinTimestamp()
     {
         return minTimestamp.get() != EncodingStats.NO_STATS.minTimestamp ? minTimestamp.get() : NO_MIN_TIMESTAMP;

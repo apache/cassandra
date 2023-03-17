@@ -38,7 +38,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class AsciiType extends StringType
 {
     public static final AsciiType instance = new AsciiType();
-    private static final ByteBuffer MASKED_VALUE = instance.decompose("****");
 
     AsciiType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
@@ -102,11 +101,5 @@ public class AsciiType extends StringType
     public TypeSerializer<String> getSerializer()
     {
         return AsciiSerializer.instance;
-    }
-
-    @Override
-    public ByteBuffer getMaskedValue()
-    {
-        return MASKED_VALUE;
     }
 }

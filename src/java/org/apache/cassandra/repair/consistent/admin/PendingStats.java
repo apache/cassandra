@@ -28,6 +28,7 @@ import javax.management.openmbean.OpenType;
 import javax.management.openmbean.SimpleType;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
 
 public class PendingStats
 {
@@ -50,7 +51,7 @@ public class PendingStats
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);
+            throw Throwables.propagate(e);
         }
     }
 
@@ -86,7 +87,7 @@ public class PendingStats
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);
+            throw Throwables.propagate(e);
         }
     }
 

@@ -195,7 +195,7 @@ public abstract class AbstractCommitLogSegmentManager
                     interrupted = true;
                 }
             }
-
+            
             if (interrupted)
             {
                 discardAvailableSegment();

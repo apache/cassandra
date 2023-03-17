@@ -182,7 +182,7 @@ public class CassandraStreamHeader
 
             if (header.isEntireSSTable)
             {
-                ComponentManifest.serializers.get(header.format).serialize(header.componentManifest, out, version);
+                ComponentManifest.serializer.serialize(header.componentManifest, out, version);
                 ByteBufferUtil.writeWithVIntLength(header.firstKey.getKey(), out);
             }
         }
@@ -201,9 +201,8 @@ public class CassandraStreamHeader
         @VisibleForTesting
         public CassandraStreamHeader deserialize(DataInputPlus in, int version, Function<TableId, IPartitioner> partitionerMapper) throws IOException
         {
-            String sstableVersionString = in.readUTF();
-            SSTableFormat.Type format = SSTableFormat.Type.getByName(in.readUTF());
-            Version sstableVersion = format.info.getVersion(sstableVersionString);
+            Version sstableVersion = SSTableFormat.Type.current().info.getVersion(in.readUTF());
+            SSTableFormat.Type format = SSTableFormat.Type.validate(in.readUTF());
 
             long estimatedKeys = in.readLong();
             int count = in.readInt();
@@ -222,7 +221,7 @@ public class CassandraStreamHeader
 
             if (isEntireSSTable)
             {
-                manifest = ComponentManifest.serializers.get(format).deserialize(in, version);
+                manifest = ComponentManifest.serializer.deserialize(in, version);
                 ByteBuffer keyBuf = ByteBufferUtil.readWithVIntLength(in);
                 IPartitioner partitioner = partitionerMapper.apply(tableId);
                 if (partitioner == null)
@@ -268,7 +267,7 @@ public class CassandraStreamHeader
 
             if (header.isEntireSSTable)
             {
-                size += ComponentManifest.serializers.get(header.format).serializedSize(header.componentManifest, version);
+                size += ComponentManifest.serializer.serializedSize(header.componentManifest, version);
                 size += ByteBufferUtil.serializedSizeWithVIntLength(header.firstKey.getKey());
             }
             return size;

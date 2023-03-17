@@ -30,11 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
-import com.google.common.collect.Iterables;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.commons.io.FileUtils;
 import org.junit.BeforeClass;
@@ -76,15 +72,9 @@ public abstract class OfflineToolUtils
     "process reaper",  // spawned by the jvm when executing external processes
                        // and may still be active when we check
     "Attach Listener", // spawned in intellij IDEA
-    "JNA Cleaner",     // spawned by JNA
     };
 
-    static final String[] NON_DEFAULT_MEMTABLE_THREADS =
-    {
-    "((Native|Slab|Heap)Pool|Logged)Cleaner"
-    };
-
-    public void assertNoUnexpectedThreadsStarted(String[] optionalThreadNames, boolean allowNonDefaultMemtableThreads)
+    public void assertNoUnexpectedThreadsStarted(String[] optionalThreadNames)
     {
         ThreadMXBean threads = ManagementFactory.getThreadMXBean();
 
@@ -97,15 +87,10 @@ public abstract class OfflineToolUtils
                                     .filter(Objects::nonNull)
                                     .map(ThreadInfo::getThreadName)
                                     .collect(Collectors.toSet());
-        Iterable<String> optionalNames = optionalThreadNames != null
-                                         ? Arrays.asList(optionalThreadNames)
-                                         : Collections.emptyList();
-        if (allowNonDefaultMemtableThreads && DatabaseDescriptor.getMemtableConfigurations().containsKey("default"))
-            optionalNames = Iterables.concat(optionalNames, Arrays.asList(NON_DEFAULT_MEMTABLE_THREADS));
 
-        List<Pattern> optional = StreamSupport.stream(optionalNames.spliterator(), false)
-                                              .map(Pattern::compile)
-                                              .collect(Collectors.toList());
+        List<Pattern> optional = optionalThreadNames != null
+                                 ? Arrays.stream(optionalThreadNames).map(Pattern::compile).collect(Collectors.toList())
+                                 : Collections.emptyList();
 
         current.removeAll(initial);
 
@@ -234,7 +219,7 @@ public abstract class OfflineToolUtils
     
     protected void assertCorrectEnvPostTest()
     {
-        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA, true);
+        assertNoUnexpectedThreadsStarted(OPTIONAL_THREADS_WITH_SCHEMA);
         assertSchemaLoaded();
         assertServerNotLoaded();
     }

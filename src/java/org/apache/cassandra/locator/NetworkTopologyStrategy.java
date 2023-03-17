@@ -350,7 +350,6 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                 String dc = e.getKey();
                 ReplicationFactor rf = getReplicationFactor(dc);
                 Guardrails.minimumReplicationFactor.guard(rf.fullReplicas, keyspaceName, false, state);
-                Guardrails.maximumReplicationFactor.guard(rf.fullReplicas, keyspaceName, false, state);
                 int nodeCount = dcsNodes.get(dc).size();
                 // nodeCount==0 on many tests
                 if (rf.fullReplicas > nodeCount && nodeCount != 0)

@@ -18,14 +18,7 @@
 package org.apache.cassandra.schema;
 
 import java.time.Duration;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -35,17 +28,10 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.MapDifference;
 import org.apache.commons.lang3.ObjectUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.cql3.functions.UserFunction;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.KeyspaceNotDefinedException;
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -62,6 +48,9 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Awaitable;
 import org.apache.cassandra.utils.concurrent.LoadingMap;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static com.google.common.collect.Iterables.size;
 import static java.lang.String.format;
@@ -224,12 +213,6 @@ public class Schema implements SchemaProvider
         return keyspaceInstances.getIfReady(keyspaceName);
     }
 
-    /**
-     * Returns {@link ColumnFamilyStore} by the table identifier. Note that though, if called for {@link TableMetadata#id},
-     * when metadata points to a secondary index table, the {@link TableMetadata#id} denotes the identifier of the main
-     * table, not the index table. Thus, this method will return CFS of the main table rather than, probably expected,
-     * CFS for the index backing table.
-     */
     public ColumnFamilyStore getColumnFamilyStoreInstance(TableId id)
     {
         TableMetadata metadata = getTableMetadata(id);
@@ -474,13 +457,13 @@ public class Schema implements SchemaProvider
     /* Function helpers */
 
     /**
-     * Get all user-defined function overloads with the specified name.
+     * Get all function overloads with the specified name
      *
      * @param name fully qualified function name
      * @return an empty list if the keyspace or the function name are not found;
-     *         a non-empty collection of {@link UserFunction} otherwise
+     *         a non-empty collection of {@link Function} otherwise
      */
-    public Collection<UserFunction> getUserFunctions(FunctionName name)
+    public Collection<Function> getFunctions(FunctionName name)
     {
         if (!name.hasKeyspace())
             throw new IllegalArgumentException(String.format("Function name must be fully qualified: got %s", name));
@@ -488,24 +471,26 @@ public class Schema implements SchemaProvider
         KeyspaceMetadata ksm = getKeyspaceMetadata(name.keyspace);
         return ksm == null
                ? Collections.emptyList()
-               : ksm.userFunctions.get(name);
+               : ksm.functions.get(name);
     }
 
     /**
-     * Find the function with the specified name and arguments.
+     * Find the function with the specified name
      *
      * @param name     fully qualified function name
      * @param argTypes function argument types
      * @return an empty {@link Optional} if the keyspace or the function name are not found;
      *         a non-empty optional of {@link Function} otherwise
      */
-    public Optional<UserFunction> findUserFunction(FunctionName name, List<AbstractType<?>> argTypes)
+    public Optional<Function> findFunction(FunctionName name, List<AbstractType<?>> argTypes)
     {
         if (!name.hasKeyspace())
             throw new IllegalArgumentException(String.format("Function name must be fully quallified: got %s", name));
 
-        return Optional.ofNullable(getKeyspaceMetadata(name.keyspace))
-                       .flatMap(ksm -> ksm.userFunctions.find(name, argTypes));
+        KeyspaceMetadata ksm = getKeyspaceMetadata(name.keyspace);
+        return ksm == null
+               ? Optional.empty()
+               : ksm.functions.find(name, argTypes);
     }
 
     /* Version control */

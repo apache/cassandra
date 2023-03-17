@@ -36,7 +36,6 @@ import org.slf4j.LoggerFactory;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.Verb;
@@ -423,8 +422,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             try
             {
                 iterator = withQuerySizeTracking(iterator);
-                iterator = maybeSlowDownForTesting(iterator);
-                iterator = withQueryCancellation(iterator);
+                iterator = withStateTracking(iterator);
                 iterator = RTBoundValidator.validate(withoutPurgeableTombstones(iterator, cfs, executionController), Stage.PURGED, false);
                 iterator = withMetricsRecording(iterator, cfs.metric, startTimeNanos);
 
@@ -501,9 +499,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             private final boolean enforceStrictLiveness = metadata().enforceStrictLiveness();
 
             private int liveRows = 0;
-            private int lastReportedLiveRows = 0;
             private int tombstones = 0;
-            private int lastReportedTombstones = 0;
 
             private DecoratedKey currentKey;
 
@@ -571,22 +567,6 @@ public abstract class ReadCommand extends AbstractReadQuery
             }
 
             @Override
-            protected void onPartitionClose()
-            {
-                int lr = liveRows - lastReportedLiveRows;
-                int ts = tombstones - lastReportedTombstones;
-
-                if (lr > 0)
-                    metric.topReadPartitionRowCount.addSample(currentKey.getKey(), lr);
-
-                if (ts > 0)
-                    metric.topReadPartitionTombstoneCount.addSample(currentKey.getKey(), ts);
-
-                lastReportedLiveRows = liveRows;
-                lastReportedTombstones = tombstones;
-            }
-
-            @Override
             public void onClose()
             {
                 recordLatency(metric, nanoTime() - startTimeNanos);
@@ -619,6 +599,58 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
 
         return Transformation.apply(iter, new MetricRecording());
+    }
+
+    protected class CheckForAbort extends StoppingTransformation<UnfilteredRowIterator>
+    {
+        long lastChecked = 0;
+
+        protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+        {
+            if (maybeAbort())
+            {
+                partition.close();
+                return null;
+            }
+
+            return Transformation.apply(partition, this);
+        }
+
+        protected Row applyToRow(Row row)
+        {
+            if (TEST_ITERATION_DELAY_MILLIS > 0)
+                maybeDelayForTesting();
+
+            return maybeAbort() ? null : row;
+        }
+
+        private boolean maybeAbort()
+        {
+            /**
+             * TODO: this is not a great way to abort early; why not expressly limit checks to 10ms intervals?
+             * The value returned by approxTime.now() is updated only every
+             * {@link org.apache.cassandra.utils.MonotonicClock.SampledClock.CHECK_INTERVAL_MS}, by default 2 millis. Since MonitorableImpl
+             * relies on approxTime, we don't need to check unless the approximate time has elapsed.
+             */
+            if (lastChecked == approxTime.now())
+                return false;
+
+            lastChecked = approxTime.now();
+
+            if (isAborted())
+            {
+                stop();
+                return true;
+            }
+
+            return false;
+        }
+
+        private void maybeDelayForTesting()
+        {
+            if (!metadata().keyspace.startsWith("system"))
+                FBUtilities.sleepQuietly(TEST_ITERATION_DELAY_MILLIS);
+        }
     }
 
     private boolean shouldTrackSize(DataStorageSpec.LongBytesBound warnThresholdBytes, DataStorageSpec.LongBytesBound abortThresholdBytes)
@@ -705,74 +737,9 @@ public abstract class ReadCommand extends AbstractReadQuery
         return iterator;
     }
 
-    private class QueryCancellationChecker extends StoppingTransformation<UnfilteredRowIterator>
+    protected UnfilteredPartitionIterator withStateTracking(UnfilteredPartitionIterator iter)
     {
-        long lastCheckedAt = 0;
-
-        @Override
-        protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
-        {
-            maybeCancel();
-            return Transformation.apply(partition, this);
-        }
-
-        @Override
-        protected Row applyToRow(Row row)
-        {
-            maybeCancel();
-            return row;
-        }
-
-        private void maybeCancel()
-        {
-            /*
-             * The value returned by approxTime.now() is updated only every
-             * {@link org.apache.cassandra.utils.MonotonicClock.SampledClock.CHECK_INTERVAL_MS}, by default 2 millis.
-             * Since MonitorableImpl relies on approxTime, we don't need to check unless the approximate time has elapsed.
-             */
-            if (lastCheckedAt == approxTime.now())
-                return;
-            lastCheckedAt = approxTime.now();
-
-            if (isAborted())
-            {
-                stop();
-                throw new QueryCancelledException(ReadCommand.this);
-            }
-        }
-    }
-
-    private UnfilteredPartitionIterator withQueryCancellation(UnfilteredPartitionIterator iter)
-    {
-        return Transformation.apply(iter, new QueryCancellationChecker());
-    }
-
-    /**
-     *  A transformation used for simulating slow queries by tests.
-     */
-    private static class DelayInjector extends Transformation<UnfilteredRowIterator>
-    {
-        @Override
-        protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
-        {
-            FBUtilities.sleepQuietly(TEST_ITERATION_DELAY_MILLIS);
-            return Transformation.apply(partition, this);
-        }
-
-        @Override
-        protected Row applyToRow(Row row)
-        {
-            FBUtilities.sleepQuietly(TEST_ITERATION_DELAY_MILLIS);
-            return row;
-        }
-    }
-
-    private UnfilteredPartitionIterator maybeSlowDownForTesting(UnfilteredPartitionIterator iter)
-    {
-        if (TEST_ITERATION_DELAY_MILLIS > 0 && !SchemaConstants.isSystemKeyspace(metadata().keyspace))
-            return Transformation.apply(iter, new DelayInjector());
-        else
-            return iter;
+        return Transformation.apply(iter, new CheckForAbort());
     }
 
     /**
@@ -786,19 +753,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         if (trackWarnings)
             msg = msg.withFlag(MessageFlag.TRACK_WARNINGS);
         return msg;
-    }
-
-    protected abstract boolean intersects(SSTableReader sstable);
-
-    protected boolean hasRequiredStatics(SSTableReader sstable) {
-        // If some static columns are queried, we should always include the sstable: the clustering values stats of the sstable
-        // don't tell us if the sstable contains static values in particular.
-        return !columnFilter().fetchedColumns().statics.isEmpty() && sstable.header.hasStatic();
-    }
-
-    protected boolean hasPartitionLevelDeletions(SSTableReader sstable)
-    {
-        return sstable.getSSTableMetadata().hasPartitionLevelDeletions;
     }
 
     public abstract Verb verb();
@@ -1068,7 +1022,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                     | acceptsTransientFlag(command.acceptsTransient())
             );
             if (command.isDigestQuery())
-                out.writeUnsignedVInt32(command.digestVersion());
+                out.writeUnsignedVInt(command.digestVersion());
             command.metadata().id.serialize(out);
             out.writeInt(command.nowInSec());
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
@@ -1095,7 +1049,7 @@ public abstract class ReadCommand extends AbstractReadQuery
                                               + "upgrading to 4.0");
 
             boolean hasIndex = hasIndex(flags);
-            int digestVersion = isDigest ? in.readUnsignedVInt32() : 0;
+            int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
             TableMetadata metadata = schema.getExistingTableMetadata(TableId.deserialize(in));
             int nowInSec = in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);

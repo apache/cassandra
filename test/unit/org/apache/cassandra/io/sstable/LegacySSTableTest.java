@@ -19,19 +19,24 @@ package org.apache.cassandra.io.sstable;
 
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Iterables;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,31 +46,28 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.SinglePartitionSliceCommandTest;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.repair.PendingAntiCompaction;
+import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
+import org.apache.cassandra.db.SinglePartitionSliceCommandTest;
+import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.OutgoingStream;
-import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.Collections.singleton;
@@ -92,7 +94,7 @@ public class LegacySSTableTest
      * See {@link #testGenerateSstables()} to generate sstables.
      * Take care on commit as you need to add the sstable files using {@code git add -f}
      */
-    public static final String[] legacyVersions = {"nc", "nb", "na", "me", "md", "mc", "mb", "ma"};
+    public static final String[] legacyVersions = {"nb", "na", "me", "md", "mc", "mb", "ma"};
 
     // 1200 chars
     static final String longString = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
@@ -142,9 +144,8 @@ public class LegacySSTableTest
      */
     protected Descriptor getDescriptor(String legacyVersion, String table) throws IOException
     {
-        File[] files = getTableDir(legacyVersion, table).list();
-        Preconditions.checkArgument(files.length > 0, "No files for version=%s and table=%s", legacyVersion, table);
-        return Descriptor.fromFileWithComponent(files[0]).left;
+        Path file = Files.list(getTableDir(legacyVersion, table).toPath()).findFirst().orElseThrow(() -> new RuntimeException(String.format("No files for version=%s and table=%s", legacyVersion, table)));
+        return Descriptor.fromFilename(new File(file));
     }
 
     @Test
@@ -331,7 +332,7 @@ public class LegacySSTableTest
 
             for (SSTableReader sstable : cfs.getLiveSSTables())
             {
-                try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().checkVersion(true).build()))
+                try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().checkVersion(true).build()))
                 {
                     verifier.verify();
                     if (!sstable.descriptor.version.isLatestVersion())
@@ -343,7 +344,7 @@ public class LegacySSTableTest
             // make sure we don't throw any exception if not checking version:
             for (SSTableReader sstable : cfs.getLiveSSTables())
             {
-                try (IVerifier verifier = sstable.getVerifier(cfs, new OutputHandler.LogOutput(), false, IVerifier.options().checkVersion(false).build()))
+                try (Verifier verifier = new Verifier(cfs, sstable, false, Verifier.options().checkVersion(false).build()))
                 {
                     verifier.verify();
                 }
@@ -419,7 +420,7 @@ public class LegacySSTableTest
     private void streamLegacyTable(String tablePattern, String legacyVersion) throws Exception
     {
         String table = String.format(tablePattern, legacyVersion);
-        SSTableReader sstable = SSTableReader.open(null, getDescriptor(legacyVersion, table));
+        SSTableReader sstable = SSTableReader.open(getDescriptor(legacyVersion, table));
         IPartitioner p = sstable.getPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("100"))));
@@ -603,7 +604,6 @@ public class LegacySSTableTest
     @Test
     public void testGenerateSstables() throws Throwable
     {
-        SSTableFormat<?, ?> format = SSTableFormat.Type.current().info;
         Random rand = new Random();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 128; i++)
@@ -616,31 +616,31 @@ public class LegacySSTableTest
         {
             String valPk = Integer.toString(pk);
             QueryProcessor.executeInternal(String.format("INSERT INTO legacy_tables.legacy_%s_simple (pk, val) VALUES ('%s', '%s')",
-                                                         format.getLatestVersion(), valPk, "foo bar baz"));
+                                                         BigFormat.latestVersion, valPk, "foo bar baz"));
 
             QueryProcessor.executeInternal(String.format("UPDATE legacy_tables.legacy_%s_simple_counter SET val = val + 1 WHERE pk = '%s'",
-                                                         format.getLatestVersion(), valPk));
+                                                         BigFormat.latestVersion, valPk));
 
             for (int ck = 0; ck < 50; ck++)
             {
                 String valCk = Integer.toString(ck);
 
                 QueryProcessor.executeInternal(String.format("INSERT INTO legacy_tables.legacy_%s_clust (pk, ck, val) VALUES ('%s', '%s', '%s')",
-                                                             format.getLatestVersion(), valPk, valCk + longString, randomString));
+                                                             BigFormat.latestVersion, valPk, valCk + longString, randomString));
 
                 QueryProcessor.executeInternal(String.format("UPDATE legacy_tables.legacy_%s_clust_counter SET val = val + 1 WHERE pk = '%s' AND ck='%s'",
-                                                             format.getLatestVersion(), valPk, valCk + longString));
+                                                             BigFormat.latestVersion, valPk, valCk + longString));
             }
         }
 
         StorageService.instance.forceKeyspaceFlush("legacy_tables", ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
-        File ksDir = new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables", format.getLatestVersion()));
+        File ksDir = new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables", BigFormat.latestVersion));
         ksDir.tryCreateDirectories();
-        copySstablesFromTestData(String.format("legacy_%s_simple", format.getLatestVersion()), ksDir);
-        copySstablesFromTestData(String.format("legacy_%s_simple_counter", format.getLatestVersion()), ksDir);
-        copySstablesFromTestData(String.format("legacy_%s_clust", format.getLatestVersion()), ksDir);
-        copySstablesFromTestData(String.format("legacy_%s_clust_counter", format.getLatestVersion()), ksDir);
+        copySstablesFromTestData(String.format("legacy_%s_simple", BigFormat.latestVersion), ksDir);
+        copySstablesFromTestData(String.format("legacy_%s_simple_counter", BigFormat.latestVersion), ksDir);
+        copySstablesFromTestData(String.format("legacy_%s_clust", BigFormat.latestVersion), ksDir);
+        copySstablesFromTestData(String.format("legacy_%s_clust_counter", BigFormat.latestVersion), ksDir);
     }
 
     public static void copySstablesFromTestData(String table, File ksDir) throws IOException

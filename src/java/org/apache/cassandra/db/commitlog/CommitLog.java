@@ -291,7 +291,7 @@ public class CommitLog implements CommitLogMBean
                 buffer.putInt((int) checksum.getValue());
 
                 // checksummed mutation
-                dos.write(dob.unsafeGetBufferAndFlip());
+                dos.write(dob.getData(), 0, size);
                 updateChecksum(checksum, buffer, buffer.position() - size, size);
                 buffer.putInt((int) checksum.getValue());
             }
@@ -430,7 +430,11 @@ public class CommitLog implements CommitLogMBean
     @Override
     public void setCDCBlockWrites(boolean val)
     {
-        ensureCDCEnabled("Unable to set block_writes.");
+        Preconditions.checkState(DatabaseDescriptor.isCDCEnabled(),
+                                 "Unable to set block_writes (%s): CDC is not enabled.", val);
+        Preconditions.checkState(segmentManager instanceof CommitLogSegmentManagerCDC,
+                                 "CDC is enabled but we have the wrong CommitLogSegmentManager type: %s. " +
+                                 "Please report this as bug.", segmentManager.getClass().getName());
         boolean oldVal = DatabaseDescriptor.getCDCBlockWrites();
         CommitLogSegment currentSegment = segmentManager.allocatingFrom();
         // Update the current segment CDC state to PERMITTED if block_writes is disabled now, and it was in FORBIDDEN state
@@ -438,29 +442,6 @@ public class CommitLog implements CommitLogMBean
             currentSegment.setCDCState(CommitLogSegment.CDCState.PERMITTED);
         DatabaseDescriptor.setCDCBlockWrites(val);
         logger.info("Updated CDC block_writes from {} to {}", oldVal, val);
-    }
-
-
-    @Override
-    public boolean isCDCOnRepairEnabled()
-    {
-        return DatabaseDescriptor.isCDCOnRepairEnabled();
-    }
-
-    @Override
-    public void setCDCOnRepairEnabled(boolean value)
-    {
-        ensureCDCEnabled("Unable to set cdc_on_repair_enabled.");
-        DatabaseDescriptor.setCDCOnRepairEnabled(value);
-        logger.info("Set cdc_on_repair_enabled to {}", value);
-    }
-
-    private void ensureCDCEnabled(String hint)
-    {
-        Preconditions.checkState(DatabaseDescriptor.isCDCEnabled(), "CDC is not enabled. %s", hint);
-        Preconditions.checkState(segmentManager instanceof CommitLogSegmentManagerCDC,
-                                 "CDC is enabled but we have the wrong CommitLogSegmentManager type: %s. " +
-                                 "Please report this as bug.", segmentManager.getClass().getName());
     }
 
     /**

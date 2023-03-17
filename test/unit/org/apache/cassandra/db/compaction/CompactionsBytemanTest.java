@@ -55,7 +55,7 @@ public class CompactionsBytemanTest extends CQLTester
     @Test
     @BMRules(rules = { @BMRule(name = "One SSTable too big for remaining disk space test",
     targetClass = "Directories",
-    targetMethod = "hasDiskSpaceForCompactionsAndStreams",
+    targetMethod = "hasAvailableDiskSpace",
     condition = "not flagged(\"done\")",
     action = "flag(\"done\"); return false;") } )
     public void testSSTableNotEnoughDiskSpaceForCompactionGetsDropped() throws Throwable
@@ -80,7 +80,7 @@ public class CompactionsBytemanTest extends CQLTester
     @Test
     @BMRules(rules = { @BMRule(name = "No disk space with expired SSTables test",
     targetClass = "Directories",
-    targetMethod = "hasDiskSpaceForCompactionsAndStreams",
+    targetMethod = "hasAvailableDiskSpace",
     action = "return false;") } )
     public void testExpiredSSTablesStillGetDroppedWithNoDiskSpace() throws Throwable
     {
@@ -103,7 +103,7 @@ public class CompactionsBytemanTest extends CQLTester
     @Test(expected = RuntimeException.class)
     @BMRules(rules = { @BMRule(name = "No disk space with expired SSTables test",
     targetClass = "Directories",
-    targetMethod = "hasDiskSpaceForCompactionsAndStreams",
+    targetMethod = "hasAvailableDiskSpace",
     action = "return false;") } )
     public void testRuntimeExceptionWhenNoDiskSpaceForCompaction() throws Throwable
     {

@@ -228,25 +228,22 @@ class PendingRepairManager
 
     private int getEstimatedRemainingTasks(TimeUUID sessionID, AbstractCompactionStrategy strategy)
     {
-        return getEstimatedRemainingTasks(sessionID, strategy, 0, 0);
-    }
-
-    private int getEstimatedRemainingTasks(TimeUUID sessionID, AbstractCompactionStrategy strategy, int additionalSSTables, long additionalBytes)
-    {
-        return canCleanup(sessionID) ? 0 : strategy.getEstimatedRemainingTasks();
+        if (canCleanup(sessionID))
+        {
+            return 0;
+        }
+        else
+        {
+            return strategy.getEstimatedRemainingTasks();
+        }
     }
 
     int getEstimatedRemainingTasks()
     {
-        return getEstimatedRemainingTasks(0, 0);
-    }
-
-    int getEstimatedRemainingTasks(int additionalSSTables, long additionalBytes)
-    {
         int tasks = 0;
         for (Map.Entry<TimeUUID, AbstractCompactionStrategy> entry : strategies.entrySet())
         {
-            tasks += getEstimatedRemainingTasks(entry.getKey(), entry.getValue(), additionalSSTables, additionalBytes);
+            tasks += getEstimatedRemainingTasks(entry.getKey(), entry.getValue());
         }
         return tasks;
     }

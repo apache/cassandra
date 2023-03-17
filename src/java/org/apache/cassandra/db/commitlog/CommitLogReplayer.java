@@ -55,9 +55,6 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-import static java.lang.String.format;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COMMIT_LOG_REPLAY_LIST;
-
 public class CommitLogReplayer implements CommitLogReadHandler
 {
     @VisibleForTesting
@@ -376,60 +373,28 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
         public abstract boolean includes(TableMetadataRef metadata);
 
-        /**
-         * Creates filter for entities to replay mutations for upon commit log replay.
-         *
-         * @see org.apache.cassandra.config.CassandraRelevantProperties#COMMIT_LOG_REPLAY_LIST
-         * */
         public static ReplayFilter create()
         {
-            String replayList = COMMIT_LOG_REPLAY_LIST.getString();
-
-            if (replayList == null)
+            // If no replaylist is supplied an empty array of strings is used to replay everything.
+            if (System.getProperty("cassandra.replayList") == null)
                 return new AlwaysReplayFilter();
 
             Multimap<String, String> toReplay = HashMultimap.create();
-            for (String rawPair : replayList.split(","))
+            for (String rawPair : System.getProperty("cassandra.replayList").split(","))
             {
-                String trimmedRawPair = rawPair.trim();
-                if (trimmedRawPair.isEmpty() || trimmedRawPair.endsWith("."))
-                    throw new IllegalArgumentException(format("Invalid pair: '%s'", trimmedRawPair));
+                String[] pair = StringUtils.split(rawPair.trim(), '.');
+                if (pair.length != 2)
+                    throw new IllegalArgumentException("Each table to be replayed must be fully qualified with keyspace name, e.g., 'system.peers'");
 
-                String[] pair = StringUtils.split(trimmedRawPair, '.');
-
-                if (pair.length > 2)
-                    throw new IllegalArgumentException(format("%s property contains an item which " +
-                                                              "is not in format 'keyspace' or 'keyspace.table' " +
-                                                              "but it is '%s'",
-                                                              COMMIT_LOG_REPLAY_LIST.getKey(),
-                                                              String.join(".", pair)));
-
-                String keyspaceName = pair[0];
-
-                Keyspace ks = Schema.instance.getKeyspaceInstance(keyspaceName);
+                Keyspace ks = Schema.instance.getKeyspaceInstance(pair[0]);
                 if (ks == null)
-                    throw new IllegalArgumentException("Unknown keyspace " + keyspaceName);
+                    throw new IllegalArgumentException("Unknown keyspace " + pair[0]);
+                ColumnFamilyStore cfs = ks.getColumnFamilyStore(pair[1]);
+                if (cfs == null)
+                    throw new IllegalArgumentException(String.format("Unknown table %s.%s", pair[0], pair[1]));
 
-                if (pair.length == 1)
-                {
-                    for (ColumnFamilyStore cfs : ks.getColumnFamilyStores())
-                        toReplay.put(keyspaceName, cfs.name);
-                }
-                else
-                {
-                    ColumnFamilyStore cfs = ks.getColumnFamilyStore(pair[1]);
-                    if (cfs == null)
-                        throw new IllegalArgumentException(format("Unknown table %s.%s", keyspaceName, pair[1]));
-
-                    toReplay.put(keyspaceName, pair[1]);
-                }
+                toReplay.put(pair[0], pair[1]);
             }
-
-            if (toReplay.isEmpty())
-                logger.info("All tables will be included in commit log replay.");
-            else
-                logger.info("Tables to be replayed: {}", toReplay.asMap().toString());
-
             return new CustomReplayFilter(toReplay);
         }
     }

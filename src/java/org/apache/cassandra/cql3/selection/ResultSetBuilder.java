@@ -28,9 +28,6 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.aggregation.GroupMaker;
 import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.ColumnData;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 public final class ResultSetBuilder
 {
@@ -106,18 +103,13 @@ public final class ResultSetBuilder
         inputRow.add(c, nowInSec);
     }
 
-    public void add(ColumnData columnData, int nowInSec)
-    {
-        inputRow.add(columnData, nowInSec);
-    }
-
     /**
      * Notifies this <code>Builder</code> that a new row is being processed.
      *
      * @param partitionKey the partition key of the new row
      * @param clustering the clustering of the new row
      */
-    public void newRow(ProtocolVersion protocolVersion, DecoratedKey partitionKey, Clustering<?> clustering, List<ColumnMetadata> columns)
+    public void newRow(DecoratedKey partitionKey, Clustering<?> clustering)
     {
         // The groupMaker needs to be called for each row
         boolean isNewAggregate = groupMaker == null || groupMaker.isNewGroup(partitionKey, clustering);
@@ -137,10 +129,7 @@ public final class ResultSetBuilder
         }
         else
         {
-            inputRow = new Selector.InputRow(protocolVersion,
-                                             columns,
-                                             selectors.collectWritetimes(),
-                                             selectors.collectTTLs());
+            inputRow = new Selector.InputRow(selectors.numberOfFetchedColumns(), selectors.collectTimestamps(), selectors.collectTTLs());
         }
     }
 

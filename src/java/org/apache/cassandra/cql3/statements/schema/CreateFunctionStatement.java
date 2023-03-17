@@ -30,11 +30,11 @@ import org.apache.cassandra.auth.*;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDFunction;
-import org.apache.cassandra.cql3.functions.UserFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.schema.UserFunctions.FunctionsDiff;
+import org.apache.cassandra.schema.Functions.FunctionsDiff;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -122,7 +122,7 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
                               language,
                               body);
 
-        UserFunction existingFunction = keyspace.userFunctions.find(function.name(), argumentTypes).orElse(null);
+        Function existingFunction = keyspace.functions.find(function.name(), argumentTypes).orElse(null);
         if (null != existingFunction)
         {
             if (existingFunction.isAggregate())
@@ -152,7 +152,7 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
             // TODO: update dependent aggregates
         }
 
-        return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.userFunctions.withAddedOrUpdated(function)));
+        return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.functions.withAddedOrUpdated(function)));
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -174,7 +174,7 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
     {
         FunctionName name = new FunctionName(keyspaceName, functionName);
 
-        if (Schema.instance.findUserFunction(name, Lists.transform(rawArgumentTypes, t -> t.prepare(keyspaceName).getType().udfType())).isPresent() && orReplace)
+        if (Schema.instance.findFunction(name, Lists.transform(rawArgumentTypes, t -> t.prepare(keyspaceName).getType().udfType())).isPresent() && orReplace)
             client.ensurePermission(Permission.ALTER, FunctionResource.functionFromCql(keyspaceName, functionName, rawArgumentTypes));
         else
             client.ensurePermission(Permission.CREATE, FunctionResource.keyspace(keyspaceName));

@@ -25,8 +25,9 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.UnknownColumnException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -37,7 +38,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.serializers.AbstractTypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class SerializationHeader
@@ -169,12 +169,12 @@ public class SerializationHeader
 
     public void writeLocalDeletionTime(int localDeletionTime, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt32(localDeletionTime - stats.minLocalDeletionTime);
+        out.writeUnsignedVInt(localDeletionTime - stats.minLocalDeletionTime);
     }
 
     public void writeTTL(int ttl, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt32(ttl - stats.minTTL);
+        out.writeUnsignedVInt(ttl - stats.minTTL);
     }
 
     public void writeDeletionTime(DeletionTime dt, DataOutputPlus out) throws IOException
@@ -190,12 +190,12 @@ public class SerializationHeader
 
     public int readLocalDeletionTime(DataInputPlus in) throws IOException
     {
-        return in.readUnsignedVInt32() + stats.minLocalDeletionTime;
+        return (int)in.readUnsignedVInt() + stats.minLocalDeletionTime;
     }
 
     public int readTTL(DataInputPlus in) throws IOException
     {
-        return in.readUnsignedVInt32() + stats.minTTL;
+        return (int)in.readUnsignedVInt() + stats.minTTL;
     }
 
     public DeletionTime readDeletionTime(DataInputPlus in) throws IOException
@@ -398,8 +398,6 @@ public class SerializationHeader
 
     public static class Serializer implements IMetadataComponentSerializer<Component>
     {
-        private final AbstractTypeSerializer typeSerializer = new AbstractTypeSerializer();
-
         public void serializeForMessaging(SerializationHeader header, ColumnFilter selection, DataOutputPlus out, boolean hasStatic) throws IOException
         {
             EncodingStats.serializer.serialize(header.stats, out);
@@ -464,8 +462,10 @@ public class SerializationHeader
         {
             EncodingStats.serializer.serialize(header.stats, out);
 
-            typeSerializer.serialize(header.keyType, out);
-            typeSerializer.serializeList(header.clusteringTypes, out);
+            writeType(header.keyType, out);
+            out.writeUnsignedVInt(header.clusteringTypes.size());
+            for (AbstractType<?> type : header.clusteringTypes)
+                writeType(type, out);
 
             writeColumnsWithTypes(header.staticColumns, out);
             writeColumnsWithTypes(header.regularColumns, out);
@@ -476,11 +476,17 @@ public class SerializationHeader
         {
             EncodingStats stats = EncodingStats.serializer.deserialize(in);
 
-            AbstractType<?> keyType = typeSerializer.deserialize(in);
-            List<AbstractType<?>> clusteringTypes = typeSerializer.deserializeList(in);
+            AbstractType<?> keyType = readType(in);
+            int size = (int)in.readUnsignedVInt();
+            List<AbstractType<?>> clusteringTypes = new ArrayList<>(size);
+            for (int i = 0; i < size; i++)
+                clusteringTypes.add(readType(in));
 
-            Map<ByteBuffer, AbstractType<?>> staticColumns = readColumnsWithType(in);
-            Map<ByteBuffer, AbstractType<?>> regularColumns = readColumnsWithType(in);
+            Map<ByteBuffer, AbstractType<?>> staticColumns = new LinkedHashMap<>();
+            Map<ByteBuffer, AbstractType<?>> regularColumns = new LinkedHashMap<>();
+
+            readColumnsWithType(in, staticColumns);
+            readColumnsWithType(in, regularColumns);
 
             return new Component(keyType, clusteringTypes, staticColumns, regularColumns, stats);
         }
@@ -490,8 +496,10 @@ public class SerializationHeader
         {
             int size = EncodingStats.serializer.serializedSize(header.stats);
 
-            size += typeSerializer.serializedSize(header.keyType);
-            size += typeSerializer.serializedListSize(header.clusteringTypes);
+            size += sizeofType(header.keyType);
+            size += TypeSizes.sizeofUnsignedVInt(header.clusteringTypes.size());
+            for (AbstractType<?> type : header.clusteringTypes)
+                size += sizeofType(type);
 
             size += sizeofColumnsWithTypes(header.staticColumns);
             size += sizeofColumnsWithTypes(header.regularColumns);
@@ -500,11 +508,11 @@ public class SerializationHeader
 
         private void writeColumnsWithTypes(Map<ByteBuffer, AbstractType<?>> columns, DataOutputPlus out) throws IOException
         {
-            out.writeUnsignedVInt32(columns.size());
+            out.writeUnsignedVInt(columns.size());
             for (Map.Entry<ByteBuffer, AbstractType<?>> entry : columns.entrySet())
             {
                 ByteBufferUtil.writeWithVIntLength(entry.getKey(), out);
-                typeSerializer.serialize(entry.getValue(), out);
+                writeType(entry.getValue(), out);
             }
         }
 
@@ -514,21 +522,36 @@ public class SerializationHeader
             for (Map.Entry<ByteBuffer, AbstractType<?>> entry : columns.entrySet())
             {
                 size += ByteBufferUtil.serializedSizeWithVIntLength(entry.getKey());
-                size += typeSerializer.serializedSize(entry.getValue());
+                size += sizeofType(entry.getValue());
             }
             return size;
         }
 
-        private Map<ByteBuffer, AbstractType<?>> readColumnsWithType(DataInputPlus in) throws IOException
+        private void readColumnsWithType(DataInputPlus in, Map<ByteBuffer, AbstractType<?>> typeMap) throws IOException
         {
-            int length =  in.readUnsignedVInt32();
-            Map<ByteBuffer, AbstractType<?>> typeMap = new LinkedHashMap<>(length);
+            int length = (int)in.readUnsignedVInt();
             for (int i = 0; i < length; i++)
             {
                 ByteBuffer name = ByteBufferUtil.readWithVIntLength(in);
-                typeMap.put(name, typeSerializer.deserialize(in));
+                typeMap.put(name, readType(in));
             }
-            return typeMap;
+        }
+
+        private void writeType(AbstractType<?> type, DataOutputPlus out) throws IOException
+        {
+            // TODO: we should have a terser serializaion format. Not a big deal though
+            ByteBufferUtil.writeWithVIntLength(UTF8Type.instance.decompose(type.toString()), out);
+        }
+
+        private AbstractType<?> readType(DataInputPlus in) throws IOException
+        {
+            ByteBuffer raw = ByteBufferUtil.readWithVIntLength(in);
+            return TypeParser.parse(UTF8Type.instance.compose(raw));
+        }
+
+        private int sizeofType(AbstractType<?> type)
+        {
+            return ByteBufferUtil.serializedSizeWithVIntLength(UTF8Type.instance.decompose(type.toString()));
         }
     }
 }

@@ -460,11 +460,6 @@ public class NodeProbe implements AutoCloseable
         ssProxy.forceKeyspaceCompactionForPartitionKey(keyspaceName, partitionKey, tableNames);
     }
 
-    public void forceCompactionKeysIgnoringGcGrace(String keyspaceName, String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException
-    {
-        ssProxy.forceCompactionKeysIgnoringGcGrace(keyspaceName, tableName, partitionKeysIgnoreGcGrace);
-    }
-
     public void forceKeyspaceFlush(String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         ssProxy.forceKeyspaceFlush(keyspaceName, tableNames);
@@ -503,29 +498,9 @@ public class NodeProbe implements AutoCloseable
             }
         }
     }
-
-    public boolean handleScheduledSampling(String ks,
-                                           String table,
-                                           int capacity,
-                                           int count,
-                                           int durationMillis,
-                                           int intervalMillis,
-                                           List<String> samplers,
-                                           boolean shouldStop) throws OpenDataException
+    public Map<String, List<CompositeData>> getPartitionSample(int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
     {
-        return shouldStop ?
-               ssProxy.stopSamplingPartitions(ks, table) :
-               ssProxy.startSamplingPartitions(ks, table, durationMillis, intervalMillis, capacity, count, samplers);
-    }
-
-    public List<String> getSampleTasks()
-    {
-        return ssProxy.getSampleTasks();
-    }
-
-    public Map<String, List<CompositeData>> getPartitionSample(String ks, int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
-    {
-        return ssProxy.samplePartitions(ks, durationMillis, capacity, count, samplers);
+        return ssProxy.samplePartitions(durationMillis, capacity, count, samplers);
     }
 
     public Map<String, List<CompositeData>> getPartitionSample(String ks, String cf, int capacity, int durationMillis, int count, List<String> samplers) throws OpenDataException
@@ -775,19 +750,9 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getLoadString();
     }
 
-    public String getUncompressedLoadString()
-    {
-        return ssProxy.getUncompressedLoadString();
-    }
-
     public String getReleaseVersion()
     {
         return ssProxy.getReleaseVersion();
-    }
-
-    public String getGitSHA()
-    {
-        return ssProxy.getGitSHA();
     }
 
     public int getCurrentGenerationNumber()
@@ -862,31 +827,11 @@ public class NodeProbe implements AutoCloseable
     }
 
     /**
-     * Remove all the existing snapshots of given tag for provided keyspaces.
-     * When no keyspaces are specified, take all keyspaces into account. When tag is not specified (null or empty string),
-     * take all tags into account.
-     *
-     * @param tag tag of snapshot to clear
-     * @param keyspaces keyspaces to clear snapshots for
+     * Remove all the existing snapshots.
      */
-    @Deprecated
     public void clearSnapshot(String tag, String... keyspaces) throws IOException
     {
-        clearSnapshot(Collections.emptyMap(), tag, keyspaces);
-    }
-
-    /**
-     * Remove all the existing snapshots of given tag for provided keyspaces.
-     * When no keyspaces are specified, take all keyspaces into account. When tag is not specified (null or empty string),
-     * take all tags into account.
-     *
-     * @param options options to supply for snapshot clearing
-     * @param tag tag of snapshot to clear
-     * @param keyspaces keyspaces to clear snapshots for
-     */
-    public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaces) throws IOException
-    {
-        ssProxy.clearSnapshot(options, tag, keyspaces);
+        ssProxy.clearSnapshot(tag, keyspaces);
     }
 
     public Map<String, TabularData> getSnapshotDetails(Map<String, String> options)
@@ -1042,18 +987,6 @@ public class NodeProbe implements AutoCloseable
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(keyspace, cf);
         return cfsProxy.getSSTablesForKey(key, hexFormat);
-    }
-
-    public Map<Integer, Set<String>> getSSTablesWithLevel(String keyspace, String cf, String key, boolean hexFormat)
-    {
-        ColumnFamilyStoreMBean cfsProxy = getCfsProxy(keyspace, cf);
-        return cfsProxy.getSSTablesForKeyWithLevel(key, hexFormat);
-    }
-
-    public boolean isLeveledCompaction(String keyspace, String cf)
-    {
-        ColumnFamilyStoreMBean cfsProxy = getCfsProxy(keyspace, cf);
-        return cfsProxy.isLeveledCompaction();
     }
 
     public Set<StreamState> getStreamStatus()
@@ -1601,9 +1534,9 @@ public class NodeProbe implements AutoCloseable
         return withPort ? ssProxy.describeRingWithPortJMX(keyspaceName) : ssProxy.describeRingJMX(keyspaceName);
     }
 
-    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes)
+    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources)
     {
-        ssProxy.rebuild(sourceDc, keyspace, tokens, specificSources, excludeLocalDatacenterNodes);
+        ssProxy.rebuild(sourceDc, keyspace, tokens, specificSources);
     }
 
     public List<String> sampleKeyRange()
@@ -1802,8 +1735,6 @@ public class NodeProbe implements AutoCloseable
                 case "EstimatedPartitionCount":
                 case "KeyCacheHitRate":
                 case "LiveSSTableCount":
-                case "MaxSSTableDuration":
-                case "MaxSSTableSize":
                 case "OldVersionSSTableCount":
                 case "MaxPartitionSize":
                 case "MeanPartitionSize":
@@ -2024,8 +1955,6 @@ public class NodeProbe implements AutoCloseable
             {
                 out.println("Resuming bootstrap");
                 monitor.awaitCompletion();
-                if (monitor.getError() != null)
-                    throw monitor.getError();
             }
             else
             {

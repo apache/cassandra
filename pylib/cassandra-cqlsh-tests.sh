@@ -41,9 +41,18 @@ export CCM_HEAP_NEWSIZE="200M"
 export CCM_CONFIG_DIR=${WORKSPACE}/.ccm
 export NUM_TOKENS="16"
 export CASSANDRA_DIR=${WORKSPACE}
+export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}"
 
-java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
-export TESTSUITE_NAME="cqlshlib.${PYTHON_VERSION}.jdk${java_version}"
+if [ -z "$CASSANDRA_USE_JDK11" ]; then
+    export CASSANDRA_USE_JDK11=false
+fi
+
+if [ "$CASSANDRA_USE_JDK11" = true ] ; then
+    TESTSUITE_NAME="${TESTSUITE_NAME}.jdk11"
+else
+    TESTSUITE_NAME="${TESTSUITE_NAME}.jdk8"
+    unset JAVA11_HOME
+fi
 
 ant -buildfile ${CASSANDRA_DIR}/build.xml realclean
 # Loop to prevent failure due to maven-ant-tasks not downloading a jar..
@@ -88,6 +97,7 @@ fi
 ccm remove test || true # in case an old ccm cluster is left behind
 ccm create test -n 1 --install-dir=${CASSANDRA_DIR}
 ccm updateconf "user_defined_functions_enabled: true"
+ccm updateconf "scripted_user_defined_functions_enabled: true"
 
 version_from_build=$(ccm node1 versionfrombuild)
 export pre_or_post_cdc=$(python -c """from distutils.version import LooseVersion

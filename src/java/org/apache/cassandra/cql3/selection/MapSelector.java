@@ -54,7 +54,7 @@ final class MapSelector extends Selector
         protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             MapType<?, ?> type = (MapType<?, ?>) readType(metadata, in);
-            int size = in.readUnsignedVInt32();
+            int size = (int) in.readUnsignedVInt();
             List<Pair<Selector, Selector>> entries = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
             {
@@ -193,13 +193,13 @@ final class MapSelector extends Selector
         }
     }
 
-    public void addInput(InputRow input)
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
         for (int i = 0, m = elements.size(); i < m; i++)
         {
             Pair<Selector, Selector> pair = elements.get(i);
-            pair.left.addInput(input);
-            pair.right.addInput(input);
+            pair.left.addInput(protocolVersion, input);
+            pair.right.addInput(protocolVersion, input);
         }
     }
 
@@ -218,7 +218,7 @@ final class MapSelector extends Selector
             buffers.add(entry.getKey());
             buffers.add(entry.getValue());
         }
-        return CollectionSerializer.pack(buffers, elements.size());
+        return CollectionSerializer.pack(buffers, elements.size(), protocolVersion);
     }
 
     public void reset()
@@ -301,7 +301,7 @@ final class MapSelector extends Selector
     protected void serialize(DataOutputPlus out, int version) throws IOException
     {
         writeType(out, type);
-        out.writeUnsignedVInt32(elements.size());
+        out.writeUnsignedVInt(elements.size());
 
         for (int i = 0, m = elements.size(); i < m; i++)
         {

@@ -38,7 +38,7 @@ class CustomParamsSerializer implements IVersionedSerializer<Map<String,byte[]>>
     @Override
     public void serialize(Map<String, byte[]> t, DataOutputPlus out, int version) throws IOException
     {
-        out.writeUnsignedVInt32(t.size());
+        out.writeUnsignedVInt(t.size());
         for (Map.Entry<String, byte[]> e : t.entrySet())
         {
             out.writeUTF(e.getKey());
@@ -61,7 +61,7 @@ class CustomParamsSerializer implements IVersionedSerializer<Map<String,byte[]>>
     @Override
     public Map<String, byte[]> deserialize(DataInputPlus in, int version) throws IOException
     {
-        int entries = in.readUnsignedVInt32();
+        int entries = (int) in.readUnsignedVInt();
         Map<String, byte[]> customParams = Maps.newHashMapWithExpectedSize(entries);
 
         for (int i = 0 ; i < entries ; ++i)

@@ -61,7 +61,7 @@ public abstract class CompactStoragePagingWithProtocolTester extends UpgradeTest
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(1)
-        .singleUpgradeToCurrentFrom(initialVersion())
+        .singleUpgrade(initialVersion())
         .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
         .setup(c -> {
             c.schemaChange(withKeyspace("CREATE TABLE %s.t (pk text, ck text, v text, " +
@@ -88,7 +88,7 @@ public abstract class CompactStoragePagingWithProtocolTester extends UpgradeTest
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(1)
-        .singleUpgradeToCurrentFrom(initialVersion())
+        .singleUpgrade(initialVersion())
         .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
         .setup(c -> {
             c.schemaChange(withKeyspace("CREATE TABLE %s.t (pk text, ck1 text, ck2 text, v text, " +
@@ -114,7 +114,7 @@ public abstract class CompactStoragePagingWithProtocolTester extends UpgradeTest
         new TestCase()
         .nodes(2)
         .nodesToUpgrade(1)
-        .singleUpgradeToCurrentFrom(initialVersion())
+        .singleUpgrade(initialVersion())
         .withConfig(config -> config.with(GOSSIP, NETWORK, NATIVE_PROTOCOL))
         .setup(c -> {
             c.schemaChange(withKeyspace("CREATE TABLE %s.t (pk text PRIMARY KEY, v1 text, v2 text) WITH COMPACT STORAGE"));

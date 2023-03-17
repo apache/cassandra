@@ -32,7 +32,7 @@ public abstract class NativeFunction extends AbstractFunction
     }
 
     @Override
-    public final boolean isNative()
+    public boolean isNative()
     {
         return true;
     }

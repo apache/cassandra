@@ -38,7 +38,6 @@ final class SSTableTasksTable extends AbstractVirtualTable
     private final static String SSTABLES = "sstables";
     private final static String TOTAL = "total";
     private final static String UNIT = "unit";
-    private final static String TARGET_DIRECTORY = "target_directory";
 
     SSTableTasksTable(String keyspace)
     {
@@ -55,7 +54,6 @@ final class SSTableTasksTable extends AbstractVirtualTable
                            .addRegularColumn(SSTABLES, Int32Type.instance)
                            .addRegularColumn(TOTAL, LongType.instance)
                            .addRegularColumn(UNIT, UTF8Type.instance)
-                           .addRegularColumn(TARGET_DIRECTORY, UTF8Type.instance)
                            .build());
     }
 
@@ -78,8 +76,7 @@ final class SSTableTasksTable extends AbstractVirtualTable
                   .column(PROGRESS, completed)
                   .column(SSTABLES, task.getSSTables().size())
                   .column(TOTAL, total)
-                  .column(UNIT, task.getUnit().toString().toLowerCase())
-                  .column(TARGET_DIRECTORY, task.targetDirectory());
+                  .column(UNIT, task.getUnit().toString().toLowerCase());
         }
 
         return result;

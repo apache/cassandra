@@ -151,7 +151,6 @@
                                           -Dcassandra.storagedir=$PROJECT_DIR$/data
                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml
-                                          -XX:HeapDumpPath=build/test
                                           -ea" />
       <option name="PROGRAM_PARAMETERS" value="" />
       <option name="WORKING_DIRECTORY" value="" />
@@ -199,8 +198,7 @@
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/test/conf/logback-test.xml
                                           -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables
                                           -XX:ActiveProcessorCount=2
-                                          -XX:HeapDumpPath=build/test
-                                          -XX:MaxMetaspaceSize=1G
+                                          -XX:MaxMetaspaceSize=384M
                                           -XX:SoftRefLRUPolicyMSPerMB=0
                                           -ea" />
       <option name="PARAMETERS" value="" />
@@ -232,7 +230,6 @@
                                           -Dcassandra.triggers_dir=$PROJECT_DIR$/conf/triggers
                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml
-                                          -XX:HeapDumpPath=build/test
                                           -Xmx1G
                                           -ea" />
       <option name="PROGRAM_PARAMETERS" value="" />

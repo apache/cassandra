@@ -131,7 +131,7 @@ cqlsh_serial_consistency_level_syntax_rules = r'''
 '''
 
 cqlsh_show_cmd_syntax_rules = r'''
-<showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "SESSION" sessionid=<uuid> | "REPLICAS" token=<integer> (keyspace=<keyspaceName>)? )
+<showCommand> ::= "SHOW" what=( "VERSION" | "HOST" | "SESSION" sessionid=<uuid> )
                 ;
 '''
 
@@ -141,7 +141,7 @@ cqlsh_source_cmd_syntax_rules = r'''
 '''
 
 cqlsh_capture_cmd_syntax_rules = r'''
-<captureCommand> ::= "CAPTURE" ( fname=( <stringLiteral>) | "OFF" )?
+<captureCommand> ::= "CAPTURE" ( fname=( <stringLiteral> | "OFF" ) )?
                    ;
 '''
 
@@ -188,7 +188,7 @@ cqlsh_expand_cmd_syntax_rules = r'''
 '''
 
 cqlsh_paging_cmd_syntax_rules = r'''
-<pagingCommand> ::= "PAGING" ( switch=( "ON" | "OFF" | <wholenumber>) )?
+<pagingCommand> ::= "PAGING" ( switch=( "ON" | "OFF" | /[0-9]+/) )?
                   ;
 '''
 

@@ -71,7 +71,6 @@ public class TableStatsTestBase
         template.oldSSTableCount = 0L;
         template.spaceUsedLive = "0";
         template.spaceUsedTotal = "0";
-        template.maxSSTableSize = 0L;
         template.spaceUsedBySnapshotsTotal = "0";
         template.percentRepaired = 1.0D;
         template.bytesRepaired = 0L;
@@ -100,8 +99,6 @@ public class TableStatsTestBase
         template.averageTombstonesPerSliceLastFiveMinutes = Double.NaN;
         template.maximumTombstonesPerSliceLastFiveMinutes = 0L;
         template.droppedMutations = "0";
-        template.twcs = null;
-        template.twcsDurationInMillis = 0L;
         return template;
     }
 
@@ -340,10 +337,6 @@ public class TableStatsTestBase
         table2.memtableOffHeapMemoryUsed = "314159265";
         table4.memtableOffHeapMemoryUsed = "141421356";
         table6.memtableOffHeapMemoryUsed = "161803398";
-        // twcs max duration: 2 > 4 > 1 = 3 = 6 = 5
-        table2.twcsDurationInMillis = 2000L;
-        table4.twcsDurationInMillis = 1000L;
-        table5.twcsDurationInMillis = null;
         // create test keyspaces from templates
         testKeyspaces = new ArrayList<>();
         StatsKeyspace keyspace1 = createStatsKeyspaceTemplate("keyspace1");

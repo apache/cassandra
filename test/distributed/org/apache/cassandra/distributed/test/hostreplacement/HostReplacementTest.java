@@ -35,7 +35,6 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.AssertUtils;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.assertj.core.api.Assertions;
 
@@ -210,8 +209,6 @@ public class HostReplacementTest extends TestBaseImpl
     {
         fixDistributedSchemas(cluster);
         init(cluster);
-
-        ClusterUtils.awaitGossipSchemaMatch(cluster);
 
         populate(cluster);
         cluster.forEach(i -> i.flush(KEYSPACE));

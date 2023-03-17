@@ -38,7 +38,6 @@ public class SetGetCompactionThroughputTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        requireNetwork();
         startJMXServer();
     }
 

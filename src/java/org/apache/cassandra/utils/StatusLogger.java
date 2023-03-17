@@ -19,19 +19,17 @@ package org.apache.cassandra.utils;
 
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.cassandra.cache.*;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.metrics.ThreadPoolMetrics;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.AutoSavingCache;
-import org.apache.cassandra.cache.IRowCacheEntry;
-import org.apache.cassandra.cache.KeyCacheKey;
-import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
-import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.CacheService;
 
@@ -94,7 +92,7 @@ public class StatusLogger
                                   "MessagingService", "n/a", pendingLargeMessages + "/" + pendingSmallMessages));
 
         // Global key/row cache information
-        AutoSavingCache<KeyCacheKey, AbstractRowIndexEntry> keyCache = CacheService.instance.keyCache;
+        AutoSavingCache<KeyCacheKey, RowIndexEntry> keyCache = CacheService.instance.keyCache;
         AutoSavingCache<RowCacheKey, IRowCacheEntry> rowCache = CacheService.instance.rowCache;
 
         int keyCacheKeysToSave = DatabaseDescriptor.getKeyCacheKeysToSave();

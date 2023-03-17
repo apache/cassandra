@@ -17,39 +17,34 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.SimpleSSTableMultiWriter;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.index.Index;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.SSTableMultiWriter;
-import org.apache.cassandra.io.sstable.SimpleSSTableMultiWriter;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.io.sstable.Component.DATA;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
@@ -210,14 +205,6 @@ public abstract class AbstractCompactionStrategy
      * @return the number of background tasks estimated to still be needed for this columnfamilystore
      */
     public abstract int getEstimatedRemainingTasks();
-
-    /**
-     * @return the estimated number of background tasks needed, assuming an additional number of SSTables
-     */
-    int getEstimatedRemainingTasks(int additionalSSTables, long additionalBytes)
-    {
-        return getEstimatedRemainingTasks() + (int)Math.ceil((double)additionalSSTables / cfs.getMaximumCompactionThreshold());
-    }
 
     /**
      * @return size in bytes of the largest sstables for this strategy
@@ -404,7 +391,7 @@ public abstract class AbstractCompactionStrategy
         // since we use estimations to calculate, there is a chance that compaction will not drop tombstones actually.
         // if that happens we will end up in infinite compaction loop, so first we check enough if enough time has
         // elapsed since SSTable created.
-        if (currentTimeMillis() < sstable.getDataCreationTime() + tombstoneCompactionInterval * 1000)
+        if (currentTimeMillis() < sstable.getCreationTimeFor(DATA) + tombstoneCompactionInterval * 1000)
            return false;
 
         double droppableRatio = sstable.getEstimatedDroppableTombstoneRatio(gcBefore);
@@ -428,16 +415,16 @@ public abstract class AbstractCompactionStrategy
         else
         {
             // what percentage of columns do we expect to compact outside of overlap?
-            if (!sstable.isEstimationInformative())
+            if (sstable.getIndexSummarySize() < 2)
             {
                 // we have too few samples to estimate correct percentage
                 return false;
             }
             // first, calculate estimated keys that do not overlap
             long keys = sstable.estimatedKeys();
-            Set<Range<Token>> ranges = new HashSet<>(overlaps.size());
+            Set<Range<Token>> ranges = new HashSet<Range<Token>>(overlaps.size());
             for (SSTableReader overlap : overlaps)
-                ranges.add(new Range<>(overlap.getFirst().getToken(), overlap.getLast().getToken()));
+                ranges.add(new Range<>(overlap.first.getToken(), overlap.last.getToken()));
             long remainingKeys = keys - sstable.estimatedKeysForRanges(ranges);
             // next, calculate what percentage of columns we have within those keys
             long columns = sstable.getEstimatedCellPerPartitionCount().mean() * remainingKeys;
@@ -565,7 +552,7 @@ public abstract class AbstractCompactionStrategy
                                                        Collection<Index> indexes,
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
-        return SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, cfs.metadata, meta, header, indexes, lifecycleNewTracker, cfs);
+        return SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, cfs.metadata, meta, header, indexes, lifecycleNewTracker);
     }
 
     public boolean supportsEarlyOpen()

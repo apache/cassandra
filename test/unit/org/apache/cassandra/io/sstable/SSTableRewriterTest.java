@@ -19,12 +19,7 @@
 package org.apache.cassandra.io.sstable;
 
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -32,8 +27,8 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.junit.Test;
 
-import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -41,24 +36,24 @@ import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CompactionIterator;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.SSTableSplitter;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
-import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -67,10 +62,7 @@ import static java.util.Collections.singletonList;
 import static org.apache.cassandra.db.compaction.OperationType.COMPACTION;
 import static org.apache.cassandra.utils.FBUtilities.nowInSeconds;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -213,9 +205,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
         long startStorageMetricsLoad = StorageMetrics.load.getCount();
-        long startUncompressedLoad = StorageMetrics.uncompressedLoad.getCount();
         long sBytesOnDisk = s.bytesOnDisk();
-        long sBytesOnDiskUncompressed = s.logicalBytesOnDisk();
         Set<SSTableReader> compacting = Sets.newHashSet(s);
 
         List<SSTableReader> sstables;
@@ -246,15 +236,11 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
         LifecycleTransaction.waitForDeletions();
 
-        long sum = cfs.getLiveSSTables().stream().mapToLong(SSTableReader::bytesOnDisk).sum();
+        long sum = 0;
+        for (SSTableReader x : cfs.getLiveSSTables())
+            sum += x.bytesOnDisk();
         assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
-        long endLoad = StorageMetrics.load.getCount();
-        assertEquals(startStorageMetricsLoad - sBytesOnDisk + sum, endLoad);
-
-        long uncompressedSum = cfs.getLiveSSTables().stream().mapToLong(t -> t.logicalBytesOnDisk()).sum();
-        long endUncompressedLoad = StorageMetrics.uncompressedLoad.getCount();
-        assertEquals(startUncompressedLoad - sBytesOnDiskUncompressed + uncompressedSum, endUncompressedLoad);
-
+        assertEquals(startStorageMetricsLoad - sBytesOnDisk + sum, StorageMetrics.load.getCount());
         assertEquals(files, sstables.size());
         assertEquals(files, cfs.getLiveSSTables().size());
         LifecycleTransaction.waitForDeletions();
@@ -892,17 +878,38 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             try
             {
                 UnfilteredRowIterator uri = mock(UnfilteredRowIterator.class);
-                when(uri.partitionLevelDeletion()).thenReturn(new DeletionTime(0, 0));
+                when(uri.partitionLevelDeletion()).thenReturn(new DeletionTime(0,0));
                 when(uri.partitionKey()).thenReturn(bopKeyFromInt(0));
                 // should not be able to append after buffer release on switch
                 firstWriter.append(uri);
                 fail("Expected AssertionError was not thrown.");
             }
-            catch (AssertionError ae)
-            {
-                if (!ae.getMessage().contains("update is being called after releaseBuffers") && !ae.getMessage().contains("Attempt to use a closed data output"))
+            catch(AssertionError ae) {
+                if (!ae.getMessage().contains("update is being called after releaseBuffers"))
                     throw ae;
             }
+        }
+
+        // Can update a writer that is not eagerly cleared on switch
+        eagerWriterMetaRelease = false;
+        try (LifecycleTransaction txn = cfs.getTracker().tryModify(new HashSet<>(), OperationType.UNKNOWN);
+             SSTableRewriter rewriter = new SSTableRewriter(txn, 1000, 1000000, false, eagerWriterMetaRelease)
+        )
+        {
+            SSTableWriter firstWriter = getWriter(cfs, dir, txn);
+            rewriter.switchWriter(firstWriter);
+
+            // At least one write so it's not aborted when switched out.
+            UnfilteredRowIterator uri = mock(UnfilteredRowIterator.class);
+            when(uri.partitionLevelDeletion()).thenReturn(new DeletionTime(0,0));
+            when(uri.partitionKey()).thenReturn(bopKeyFromInt(0));
+            rewriter.append(uri);
+
+            rewriter.switchWriter(getWriter(cfs, dir, txn));
+
+            // should be able to append after switch, and assert is not tripped
+            when(uri.partitionKey()).thenReturn(bopKeyFromInt(1));
+            firstWriter.append(uri);
         }
     }
 

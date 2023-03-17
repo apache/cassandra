@@ -21,6 +21,8 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.management.openmbean.*;
 
+import com.google.common.base.Throwables;
+
 import org.apache.cassandra.streaming.StreamEvent;
 
 public class SessionCompleteEventCompositeData
@@ -51,7 +53,7 @@ public class SessionCompleteEventCompositeData
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);
+            throw Throwables.propagate(e);
         }
     }
 
@@ -68,7 +70,7 @@ public class SessionCompleteEventCompositeData
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);
+            throw Throwables.propagate(e);
         }
     }
 }

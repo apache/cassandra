@@ -36,7 +36,6 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
@@ -61,10 +60,8 @@ public class SelectorSerializationTest extends CQLTester
         checkSerialization(table.getColumn(new ColumnIdentifier("c1", false)), table);
 
         // Test WritetimeOrTTLSelector serialization
-        ColumnMetadata column = table.getColumn(new ColumnIdentifier("v", false));
-        checkSerialization(new Selectable.WritetimeOrTTL(column, column, Selectable.WritetimeOrTTL.Kind.WRITE_TIME), table);
-        checkSerialization(new Selectable.WritetimeOrTTL(column, column, Selectable.WritetimeOrTTL.Kind.TTL), table);
-        checkSerialization(new Selectable.WritetimeOrTTL(column, column, Selectable.WritetimeOrTTL.Kind.MAX_WRITE_TIME), table);
+        checkSerialization(new Selectable.WritetimeOrTTL(table.getColumn(new ColumnIdentifier("v", false)), true), table);
+        checkSerialization(new Selectable.WritetimeOrTTL(table.getColumn(new ColumnIdentifier("v", false)), false), table);
 
         // Test ListSelector serialization
         checkSerialization(new Selectable.WithList(asList(table.getColumn(new ColumnIdentifier("v", false)),

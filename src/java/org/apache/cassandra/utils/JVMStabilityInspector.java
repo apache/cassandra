@@ -133,9 +133,6 @@ public final class JVMStabilityInspector
             isUnstable = true;
         }
 
-        // Anything other than an OOM, we should try and heap dump to capture what's going on if configured to do so
-        HeapUtils.maybeCreateHeapDump();
-
         if (t instanceof InterruptedException)
             throw new UncheckedInterruptedException((InterruptedException) t);
 

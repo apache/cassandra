@@ -25,11 +25,10 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
-import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -50,6 +49,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     private final Set<SSTableReader> allSSTables;
     private long currentBytesToWrite;
     private int currentRatioIndex = 0;
+    private Directories.DataDirectory location;
 
     public SplittingSizeTieredCompactionWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
     {
@@ -86,13 +86,12 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     @Override
     public boolean realAppend(UnfilteredRowIterator partition)
     {
-        AbstractRowIndexEntry rie = sstableWriter.append(partition);
+        RowIndexEntry rie = sstableWriter.append(partition);
         if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > currentBytesToWrite && currentRatioIndex < ratios.length - 1) // if we underestimate how many keys we have, the last sstable might get more than we expect
         {
             currentRatioIndex++;
-
             currentBytesToWrite = getExpectedWriteSize();
-            switchCompactionLocation(sstableDirectory);
+            switchCompactionLocation(location);
             logger.debug("Switching writer, currentBytesToWrite = {}", currentBytesToWrite);
         }
         return rie != null;
@@ -101,17 +100,19 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     @Override
     public void switchCompactionLocation(Directories.DataDirectory location)
     {
-        sstableDirectory = location;
+        this.location = location;
         long currentPartitionsToWrite = Math.round(ratios[currentRatioIndex] * estimatedTotalKeys);
-        Descriptor descriptor = cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(location));
-        MetadataCollector collector = new MetadataCollector(allSSTables, cfs.metadata().comparator, 0);
-        SerializationHeader header = SerializationHeader.make(cfs.metadata(), nonExpiredSSTables);
-
         @SuppressWarnings("resource")
-        SSTableWriter writer = newWriterBuilder(descriptor).setKeyCount(currentPartitionsToWrite)
-                                                              .setMetadataCollector(collector)
-                                                              .setSerializationHeader(header)
-                                                              .build(txn, cfs);
+        SSTableWriter writer = SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(location)),
+                                                    currentPartitionsToWrite,
+                                                    minRepairedAt,
+                                                    pendingRepair,
+                                                    isTransient,
+                                                    cfs.metadata,
+                                                    new MetadataCollector(allSSTables, cfs.metadata().comparator, 0),
+                                                    SerializationHeader.make(cfs.metadata(), nonExpiredSSTables),
+                                                    cfs.indexManager.listIndexes(),
+                                                    txn);
         logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
         sstableWriter.switchWriter(writer);
     }

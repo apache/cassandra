@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.Arrays;
+import java.util.*;
 import java.util.function.LongPredicate;
 
 import com.google.common.base.Throwables;
@@ -25,10 +25,9 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableRewriter;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
@@ -73,19 +72,16 @@ public class Upgrader
     {
         MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.getComparator());
         sstableMetadataCollector.sstableLevel(sstable.getSSTableLevel());
-
-        Descriptor descriptor = cfs.newSSTableDescriptor(directory);
-        return descriptor.getFormat().getWriterFactory().builder(descriptor)
-                         .setKeyCount(estimatedRows)
-                         .setRepairedAt(metadata.repairedAt)
-                         .setPendingRepair(metadata.pendingRepair)
-                         .setTransientSSTable(metadata.isTransient)
-                         .setTableMetadataRef(cfs.metadata)
-                         .setMetadataCollector(sstableMetadataCollector)
-                         .setSerializationHeader(SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)))
-                         .addDefaultComponents()
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), transaction.opType())
-                         .build(transaction, cfs);
+        return SSTableWriter.create(cfs.newSSTableDescriptor(directory),
+                                    estimatedRows,
+                                    metadata.repairedAt,
+                                    metadata.pendingRepair,
+                                    metadata.isTransient,
+                                    cfs.metadata,
+                                    sstableMetadataCollector,
+                                    SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)),
+                                    cfs.indexManager.listIndexes(),
+                                    transaction);
     }
 
     public void upgrade(boolean keepOriginals)
@@ -97,7 +93,6 @@ public class Upgrader
              CompactionIterator iter = new CompactionIterator(transaction.opType(), scanners.scanners, controller, nowInSec, nextTimeUUID()))
         {
             writer.switchWriter(createCompactionWriter(sstable.getSSTableMetadata()));
-            iter.setTargetDirectory(writer.currentWriter().getFilename());
             while (iter.hasNext())
                 writer.append(iter.next());
 
@@ -106,8 +101,7 @@ public class Upgrader
         }
         catch (Exception e)
         {
-            Throwables.throwIfUnchecked(e);
-            throw new RuntimeException(e);
+            Throwables.propagate(e);
         }
         finally
         {

@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.io.util;
 
-import org.apache.cassandra.utils.Shared;
-import org.apache.cassandra.utils.vint.VIntCoding;
-
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+
+import org.apache.cassandra.utils.Shared;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
@@ -47,17 +47,6 @@ public interface DataOutputPlus extends DataOutput
         VIntCoding.writeVInt(i, this);
     }
 
-    @Deprecated
-    default void writeVInt(int i)
-    {
-        throw new UnsupportedOperationException("Use writeVInt32/readVInt32");
-    }
-
-    default void writeVInt32(int i) throws IOException
-    {
-        VIntCoding.writeVInt32(i, this);
-    }
-
     /**
      * This is more efficient for storing unsigned values, both in storage and CPU burden.
      *
@@ -68,17 +57,6 @@ public interface DataOutputPlus extends DataOutput
     default void writeUnsignedVInt(long i) throws IOException
     {
         VIntCoding.writeUnsignedVInt(i, this);
-    }
-
-    @Deprecated
-    default void writeUnsignedVInt(int i)
-    {
-        throw new UnsupportedOperationException("Use writeUnsignedVInt32/readUnsignedVInt32");
-    }
-
-    default void writeUnsignedVInt32(int i) throws IOException
-    {
-        VIntCoding.writeUnsignedVInt32(i, this);
     }
 
     /**

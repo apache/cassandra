@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service.reads;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -121,12 +120,6 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
          */
         int received = resolver.responses.size();
         boolean failed = failures > 0 && (blockFor > received || !resolver.isDataPresent());
-        // If all messages came back as a TIMEOUT then signaled=true and failed=true.
-        // Need to distinguish between a timeout and a failure (network, bad data, etc.), so store an extra field.
-        // see CASSANDRA-17828
-        boolean timedout = !signaled;
-        if (failed)
-            timedout = RequestCallback.isTimeout(new HashMap<>(failureReasonByEndpoint));
         WarningContext warnings = warningContext;
         // save the snapshot so abort state is not changed between now and when mayAbort gets called
         WarningsSnapshot snapshot = null;
@@ -145,19 +138,19 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (isTracing())
         {
             String gotData = received > 0 ? (resolver.isDataPresent() ? " (including data)" : " (only digests)") : "";
-            Tracing.trace("{}; received {} of {} responses{}", !timedout ? "Failed" : "Timed out", received, blockFor, gotData);
+            Tracing.trace("{}; received {} of {} responses{}", failed ? "Failed" : "Timed out", received, blockFor, gotData);
         }
         else if (logger.isDebugEnabled())
         {
             String gotData = received > 0 ? (resolver.isDataPresent() ? " (including data)" : " (only digests)") : "";
-            logger.debug("{}; received {} of {} responses{}", !timedout ? "Failed" : "Timed out", received, blockFor, gotData);
+            logger.debug("{}; received {} of {} responses{}", failed ? "Failed" : "Timed out", received, blockFor, gotData);
         }
 
         if (snapshot != null)
             snapshot.maybeAbort(command, replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint);
 
         // Same as for writes, see AbstractWriteResponseHandler
-        throw !timedout
+        throw failed
             ? new ReadFailureException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint)
             : new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent());
     }

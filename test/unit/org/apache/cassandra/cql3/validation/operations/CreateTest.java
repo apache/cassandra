@@ -17,6 +17,16 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.UUID;
+
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
@@ -24,7 +34,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.memtable.TestMemtable;
-import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -34,23 +43,25 @@ import org.apache.cassandra.locator.AbstractEndpointSnitch;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.MemtableParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaKeyspaceTables;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.triggers.ITrigger;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
-import java.util.UUID;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.cql3.Duration.*;
-import static org.junit.Assert.*;
+import static org.apache.cassandra.cql3.Duration.NANOS_PER_HOUR;
+import static org.apache.cassandra.cql3.Duration.NANOS_PER_MICRO;
+import static org.apache.cassandra.cql3.Duration.NANOS_PER_MILLI;
+import static org.apache.cassandra.cql3.Duration.NANOS_PER_MINUTE;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CreateTest extends CQLTester
 {
@@ -585,16 +596,14 @@ public class CreateTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
         assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
-        Class<? extends Memtable> defaultClass = getCurrentColumnFamilyStore().getTracker().getView().getCurrentMemtable().getClass();
 
         assertSchemaOption("memtable", null);
 
         testMemtableConfig("skiplist", SkipListMemtable.FACTORY, SkipListMemtable.class);
-        testMemtableConfig("trie", MemtableParams.get("trie").factory(), TrieMemtable.class);
         testMemtableConfig("skiplist_remapped", SkipListMemtable.FACTORY, SkipListMemtable.class);
         testMemtableConfig("test_fullname", TestMemtable.FACTORY, SkipListMemtable.class);
         testMemtableConfig("test_shortname", SkipListMemtable.FACTORY, SkipListMemtable.class);
-        testMemtableConfig("default", MemtableParams.DEFAULT.factory(), defaultClass);
+        testMemtableConfig("default", MemtableParams.DEFAULT.factory(), SkipListMemtable.class);
 
         assertThrowsConfigurationException("The 'class_name' option must be specified.",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"

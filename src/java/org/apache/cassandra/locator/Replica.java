@@ -191,5 +191,6 @@ public final class Replica implements Comparable<Replica>
     {
         return transientReplica(endpoint, new Range<>(start, end));
     }
+
 }
 

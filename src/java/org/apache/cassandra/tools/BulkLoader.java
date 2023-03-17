@@ -72,8 +72,7 @@ public class BulkLoader
                         buildSSLOptions(options.clientEncOptions)),
                         handler,
                         options.connectionsPerHost,
-                        options.targetKeyspace,
-                        options.targetTable);
+                        options.targetKeyspace);
         DatabaseDescriptor.setStreamThroughputOutboundBytesPerSec(options.throttleBytes);
         DatabaseDescriptor.setInterDCStreamThroughputOutboundBytesPerSec(options.interDcThrottleBytes);
         DatabaseDescriptor.setEntireSSTableStreamThroughputOutboundMebibytesPerSec(options.entireSSTableThrottleMebibytes);
@@ -91,6 +90,7 @@ public class BulkLoader
             {
                 future = loader.stream(options.ignores, indicator);
             }
+
         }
         catch (Exception e)
         {

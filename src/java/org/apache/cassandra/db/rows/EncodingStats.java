@@ -67,7 +67,7 @@ public class EncodingStats implements IMeasurableMemory
 
     // We should use this sparingly obviously
     public static final EncodingStats NO_STATS = new EncodingStats(TIMESTAMP_EPOCH, DELETION_TIME_EPOCH, TTL_EPOCH);
-    public static final long HEAP_SIZE = ObjectSizes.measure(NO_STATS);
+    public static long HEAP_SIZE = ObjectSizes.measure(NO_STATS);
 
     public static final Serializer serializer = new Serializer();
 
@@ -215,12 +215,6 @@ public class EncodingStats implements IMeasurableMemory
             updateLocalDeletionTime(deletionTime.localDeletionTime());
         }
 
-        @Override
-        public void updatePartitionDeletion(DeletionTime dt)
-        {
-            update(dt);
-        }
-
         public void updateTimestamp(long timestamp)
         {
             isTimestampSet = true;
@@ -272,8 +266,8 @@ public class EncodingStats implements IMeasurableMemory
         public void serialize(EncodingStats stats, DataOutputPlus out) throws IOException
         {
             out.writeUnsignedVInt(stats.minTimestamp - TIMESTAMP_EPOCH);
-            out.writeUnsignedVInt32(stats.minLocalDeletionTime - DELETION_TIME_EPOCH);
-            out.writeUnsignedVInt32(stats.minTTL - TTL_EPOCH);
+            out.writeUnsignedVInt(stats.minLocalDeletionTime - DELETION_TIME_EPOCH);
+            out.writeUnsignedVInt(stats.minTTL - TTL_EPOCH);
         }
 
         public int serializedSize(EncodingStats stats)
@@ -286,8 +280,8 @@ public class EncodingStats implements IMeasurableMemory
         public EncodingStats deserialize(DataInputPlus in) throws IOException
         {
             long minTimestamp = in.readUnsignedVInt() + TIMESTAMP_EPOCH;
-            int minLocalDeletionTime = in.readUnsignedVInt32() + DELETION_TIME_EPOCH;
-            int minTTL = in.readUnsignedVInt32() + TTL_EPOCH;
+            int minLocalDeletionTime = (int)in.readUnsignedVInt() + DELETION_TIME_EPOCH;
+            int minTTL = (int)in.readUnsignedVInt() + TTL_EPOCH;
             return new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
         }
     }

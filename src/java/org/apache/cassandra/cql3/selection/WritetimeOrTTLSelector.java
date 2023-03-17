@@ -22,127 +22,107 @@ import java.nio.ByteBuffer;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 final class WritetimeOrTTLSelector extends Selector
 {
-    static final SelectorDeserializer deserializer = new SelectorDeserializer()
+    protected static final SelectorDeserializer deserializer = new SelectorDeserializer()
     {
-        @Override
         protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
-            Selector selected = serializer.deserialize(in, version, metadata);
+            ByteBuffer columnName = ByteBufferUtil.readWithVIntLength(in);
+            ColumnMetadata column = metadata.getColumn(columnName);
             int idx = in.readInt();
-            int ordinal = in.readByte();
-            Selectable.WritetimeOrTTL.Kind kind = Selectable.WritetimeOrTTL.Kind.fromOrdinal(ordinal);
-            boolean isMultiCell = in.readBoolean();
-            return new WritetimeOrTTLSelector(selected, idx, kind, isMultiCell);
+            boolean isWritetime = in.readBoolean();
+            return new WritetimeOrTTLSelector(column, idx, isWritetime);
         }
     };
 
-    private final Selector selected;
-    private final int columnIndex;
-    private final Selectable.WritetimeOrTTL.Kind kind;
+    private final ColumnMetadata column;
+    private final int idx;
+    private final boolean isWritetime;
     private ByteBuffer current;
-    private final boolean isMultiCell;
     private boolean isSet;
 
-    public static Factory newFactory(final Selector.Factory factory, final int columnIndex, final Selectable.WritetimeOrTTL.Kind kind, boolean isMultiCell)
+    public static Factory newFactory(final ColumnMetadata def, final int idx, final boolean isWritetime)
     {
         return new Factory()
         {
-            @Override
             protected String getColumnName()
             {
-                return String.format("%s(%s)", kind.name, factory.getColumnName());
+                return String.format("%s(%s)", isWritetime ? "writetime" : "ttl", def.name.toString());
             }
 
-            @Override
             protected AbstractType<?> getReturnType()
             {
-                AbstractType<?> type = kind.returnType;
-                return isMultiCell && !kind.aggregatesMultiCell() ? ListType.getInstance(type, false) : type;
+                return isWritetime ? LongType.instance : Int32Type.instance;
             }
 
-            @Override
             protected void addColumnMapping(SelectionColumnMapping mapping, ColumnSpecification resultsColumn)
             {
-                factory.addColumnMapping(mapping, resultsColumn);
+               mapping.addMapping(resultsColumn, def);
             }
 
-            @Override
             public Selector newInstance(QueryOptions options)
             {
-                return new WritetimeOrTTLSelector(factory.newInstance(options), columnIndex, kind, isMultiCell);
+                return new WritetimeOrTTLSelector(def, idx, isWritetime);
             }
 
-            @Override
             public boolean isWritetimeSelectorFactory()
             {
-                return kind != Selectable.WritetimeOrTTL.Kind.TTL;
+                return isWritetime;
             }
 
-            @Override
             public boolean isTTLSelectorFactory()
             {
-                return kind == Selectable.WritetimeOrTTL.Kind.TTL;
+                return !isWritetime;
             }
 
-            @Override
-            public boolean isMaxWritetimeSelectorFactory()
-            {
-                return kind == Selectable.WritetimeOrTTL.Kind.MAX_WRITE_TIME;
-            }
-
-            @Override
             public boolean areAllFetchedColumnsKnown()
             {
                 return true;
             }
 
-            @Override
             public void addFetchedColumns(ColumnFilter.Builder builder)
             {
-                factory.addFetchedColumns(builder);
+                builder.add(def);
             }
         };
     }
 
     public void addFetchedColumns(ColumnFilter.Builder builder)
     {
-        selected.addFetchedColumns(builder);
+        builder.add(column);
     }
 
-    public void addInput(InputRow input)
+    public void addInput(ProtocolVersion protocolVersion, InputRow input)
     {
         if (isSet)
             return;
 
         isSet = true;
 
-        selected.addInput(input);
-        ProtocolVersion protocolVersion = input.getProtocolVersion();
-
-        switch (kind)
+        if (isWritetime)
         {
-            case WRITE_TIME:
-                current = selected.getWritetimes(protocolVersion).toByteBuffer(protocolVersion);
-                break;
-            case MAX_WRITE_TIME:
-                current = selected.getWritetimes(protocolVersion).max().toByteBuffer(protocolVersion);
-                break;
-            case TTL:
-                current = selected.getTTLs(protocolVersion).toByteBuffer(protocolVersion);
-                break;
+            long ts = input.getTimestamp(idx);
+            current = ts != Long.MIN_VALUE ? ByteBufferUtil.bytes(ts) : null;
+        }
+        else
+        {
+            int ttl = input.getTtl(idx);
+            current = ttl > 0 ? ByteBufferUtil.bytes(ttl) : null;
         }
     }
 
@@ -153,30 +133,27 @@ final class WritetimeOrTTLSelector extends Selector
 
     public void reset()
     {
-        selected.reset();
         isSet = false;
         current = null;
     }
 
     public AbstractType<?> getType()
     {
-        AbstractType<?> type = kind.returnType;
-        return isMultiCell ? ListType.getInstance(type, false) : type;
+        return isWritetime ? LongType.instance : Int32Type.instance;
     }
 
     @Override
     public String toString()
     {
-        return selected.toString();
+        return column.name.toString();
     }
 
-    private WritetimeOrTTLSelector(Selector selected, int idx, Selectable.WritetimeOrTTL.Kind kind, boolean isMultiCell)
+    private WritetimeOrTTLSelector(ColumnMetadata column, int idx, boolean isWritetime)
     {
         super(Kind.WRITETIME_OR_TTL_SELECTOR);
-        this.selected = selected;
-        this.columnIndex = idx;
-        this.kind = kind;
-        this.isMultiCell = isMultiCell;
+        this.column = column;
+        this.idx = idx;
+        this.isWritetime = isWritetime;
     }
 
     @Override
@@ -190,30 +167,30 @@ final class WritetimeOrTTLSelector extends Selector
 
         WritetimeOrTTLSelector s = (WritetimeOrTTLSelector) o;
 
-        return Objects.equal(selected, s.selected) && kind == s.kind;
+        return Objects.equal(column, s.column)
+            && Objects.equal(idx, s.idx)
+            && Objects.equal(isWritetime, s.isWritetime);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(selected, kind);
+        return Objects.hashCode(column, idx, isWritetime);
     }
 
     @Override
     protected int serializedSize(int version)
     {
-        return serializer.serializedSize(selected, version)
-                + TypeSizes.sizeof(columnIndex)
-                + TypeSizes.sizeofUnsignedVInt(kind.ordinal())
-                + TypeSizes.sizeof(isMultiCell);
+        return ByteBufferUtil.serializedSizeWithVIntLength(column.name.bytes)
+                + TypeSizes.sizeof(idx)
+                + TypeSizes.sizeof(isWritetime);
     }
 
     @Override
     protected void serialize(DataOutputPlus out, int version) throws IOException
     {
-        serializer.serialize(selected, out, version);
-        out.writeInt(columnIndex);
-        out.writeByte(kind.ordinal());
-        out.writeBoolean(isMultiCell);
+        ByteBufferUtil.writeWithVIntLength(column.name.bytes, out);
+        out.writeInt(idx);
+        out.writeBoolean(isWritetime);
     }
 }

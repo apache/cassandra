@@ -47,7 +47,7 @@ public class DynamicCompositeTypeTest
 {
     private static final String KEYSPACE1 = "DynamicCompositeType";
     private static final String CF_STANDARDDYNCOMPOSITE = "StandardDynamicComposite";
-    public static Map<Byte, AbstractType<?>> aliases = new HashMap<>();
+    private static Map<Byte, AbstractType<?>> aliases = new HashMap<>();
 
     private static final DynamicCompositeType comparator;
     static
@@ -60,7 +60,7 @@ public class DynamicCompositeTypeTest
     }
 
     private static final int UUID_COUNT = 3;
-    public static final UUID[] uuids = new UUID[UUID_COUNT];
+    private static final UUID[] uuids = new UUID[UUID_COUNT];
     static
     {
         for (int i = 0; i < UUID_COUNT; ++i)
@@ -320,12 +320,13 @@ public class DynamicCompositeTypeTest
         assert !TypeParser.parse("DynamicCompositeType(a => BytesType)").isCompatibleWith(TypeParser.parse("DynamicCompositeType(a => BytesType, b => AsciiType)"));
     }
 
-    private static ByteBuffer createDynamicCompositeKey(String s, UUID uuid, int i, boolean lastIsOne)
+    private ByteBuffer createDynamicCompositeKey(String s, UUID uuid, int i, boolean lastIsOne)
     {
         return createDynamicCompositeKey(s, uuid, i, lastIsOne, false);
     }
 
-    public static ByteBuffer createDynamicCompositeKey(String s, UUID uuid, int i, boolean lastIsOne, boolean reversed)
+    private ByteBuffer createDynamicCompositeKey(String s, UUID uuid, int i, boolean lastIsOne,
+            final boolean reversed)
     {
         String intType = (reversed ? "ReversedType(IntegerType)" : "IntegerType");
         ByteBuffer bytes = ByteBufferUtil.bytes(s);

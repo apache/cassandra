@@ -1342,10 +1342,6 @@ public abstract class CQLTester
         return executeFormattedQuery(formatViewQuery(KEYSPACE, query), values);
     }
 
-    /**
-     * Executes the provided query using the {@link ClientState#forInternalCalls()} as the expected ClientState. Note:
-     * this means permissions checking will not apply and queries will proceed regardless of role or guardrails.
-     */
     protected UntypedResultSet executeFormattedQuery(String query, Object... values) throws Throwable
     {
         UntypedResultSet rs;
@@ -1762,15 +1758,8 @@ public abstract class CQLTester
         assertInvalidThrowMessage(Optional.empty(), errorMessage, exception, query, values);
     }
 
-    /**
-     * Asserts that the query provided throws the exceptions provided.
-     *
-     * NOTE: This method uses {@link ClientState#forInternalCalls()} which sets the {@link ClientState#isInternal} value
-     * to true, nullifying any system keyspace or other permissions checking for tables.
-     *
-     * If a protocol version > Integer.MIN_VALUE is supplied, executes
-     * the query via the java driver, mimicking a real client.
-     */
+    // if a protocol version > Integer.MIN_VALUE is supplied, executes
+    // the query via the java driver, mimicking a real client.
     protected void assertInvalidThrowMessage(Optional<ProtocolVersion> protocolVersion,
                                              String errorMessage,
                                              Class<? extends Throwable> exception,
@@ -2149,12 +2138,12 @@ public abstract class CQLTester
         return new UserTypeValue(fieldNames, fieldValues);
     }
 
-    protected List<Object> list(Object...values)
+    protected Object list(Object...values)
     {
         return Arrays.asList(values);
     }
 
-    protected Set<Object> set(Object...values)
+    protected Object set(Object...values)
     {
         return ImmutableSet.copyOf(values);
     }

@@ -18,8 +18,6 @@
 package org.apache.cassandra.config;
 
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -27,32 +25,24 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.file.FileStore;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
@@ -82,7 +72,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -190,8 +179,6 @@ public class DatabaseDescriptor
     private static GuardrailsOptions guardrails;
     private static StartupChecksOptions startupChecksOptions;
 
-    private static Map<String, Supplier<SSTableFormat<?, ?>>> sstableFormatFactories;
-
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                        ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                        : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
@@ -254,8 +241,6 @@ public class DatabaseDescriptor
 
         setConfig(loadConfig());
 
-        applySSTableFormats();
-
         applySimpleConfig();
 
         applyPartitioner();
@@ -274,14 +259,6 @@ public class DatabaseDescriptor
     }
 
     /**
-     * Equivalent to {@link #clientInitialization(boolean) clientInitialization(true, Config::new)}.
-     */
-    public static void clientInitialization(boolean failIfDaemonOrTool)
-    {
-        clientInitialization(failIfDaemonOrTool, Config::new);
-    }
-
-    /**
      * Initializes this class as a client, which means that just an empty configuration will
      * be used.
      *
@@ -289,7 +266,7 @@ public class DatabaseDescriptor
      *                           {@link #toolInitialization()} has been performed before, an
      *                           {@link AssertionError} will be thrown.
      */
-    public static void clientInitialization(boolean failIfDaemonOrTool, Supplier<Config> configSupplier)
+    public static void clientInitialization(boolean failIfDaemonOrTool)
     {
         if (!failIfDaemonOrTool && (daemonInitialized || toolInitialized))
         {
@@ -308,9 +285,8 @@ public class DatabaseDescriptor
         clientInitialized = true;
         setDefaultFailureDetector();
         Config.setClientMode(true);
-        conf = configSupplier.get();
+        conf = new Config();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
-        applySSTableFormats();
     }
 
     public static boolean isClientInitialized()
@@ -397,8 +373,6 @@ public class DatabaseDescriptor
     private static void applyAll() throws ConfigurationException
     {
         //InetAddressAndPort cares that applySimpleConfig runs first
-        applySSTableFormats();
-
         applySimpleConfig();
 
         applyPartitioner();
@@ -834,8 +808,7 @@ public class DatabaseDescriptor
             logger.warn("Allowing java.lang.System.* access in UDFs is dangerous and not recommended. Set allow_extra_insecure_udfs: false to disable.");
 
         if(conf.scripted_user_defined_functions_enabled)
-            throw new ConfigurationException("JavaScript user-defined functions were removed in CASSANDRA-18252. " +
-                                             "Hooks are planned to be introduced as part of CASSANDRA-17280");
+            logger.warn("JavaScript user-defined functions have been deprecated. You can still use them but the plan is to remove them in the next major version. For more information - CASSANDRA-17280");
 
         if (conf.commitlog_segment_size.toMebibytes() == 0)
             throw new ConfigurationException("commitlog_segment_size must be positive, but was "
@@ -933,12 +906,6 @@ public class DatabaseDescriptor
             conf.paxos_state_purging = PaxosStatePurging.legacy;
 
         logInitializationOutcome(logger);
-
-        if (conf.max_space_usable_for_compactions_in_percentage < 0 || conf.max_space_usable_for_compactions_in_percentage > 1)
-            throw new ConfigurationException("max_space_usable_for_compactions_in_percentage must be between 0 and 1", false);
-
-        if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
-            throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
     }
 
     @VisibleForTesting
@@ -1350,74 +1317,6 @@ public class DatabaseDescriptor
         paritionerName = partitioner.getClass().getCanonicalName();
     }
 
-    @VisibleForTesting
-    public static Map<String, Supplier<SSTableFormat<?, ?>>> loadSSTableFormatFactories(List<ParameterizedClass> configuredFormats)
-    {
-        ImmutableMap.Builder<String, Supplier<SSTableFormat<?, ?>>> sstableFormatFactories = ImmutableMap.builderWithExpectedSize(configuredFormats.size());
-        Set<String> names = new HashSet<>(configuredFormats.size());
-        Set<Integer> ids = new HashSet<>(configuredFormats.size());
-
-        for (ParameterizedClass formatConfig : configuredFormats)
-        {
-            assert formatConfig.parameters != null;
-            Map<String, String> params = new HashMap<>(formatConfig.parameters);
-
-            String name = params.get(Config.SSTABLE_FORMAT_NAME);
-            if (name == null)
-                throw new ConfigurationException("Missing 'name' parameter in sstable format configuration for " + formatConfig.class_name);
-            if (!name.matches("^[a-z]+$"))
-                throw new ConfigurationException("'name' parameter in sstable format configuration for " + formatConfig.class_name + " must be non-empty, lower-case letters only string");
-            if (names.contains(name))
-                throw new ConfigurationException("Name '" + name + "' of sstable format " + formatConfig.class_name + " is already defined for another sstable format");
-            params.remove(Config.SSTABLE_FORMAT_NAME);
-
-            String idString = params.get(Config.SSTABLE_FORMAT_ID);
-            if (idString == null)
-                throw new ConfigurationException("Missing 'id' parameter in sstable format configuration for " + formatConfig.class_name);
-            int id;
-            try
-            {
-                id = Integer.parseInt(idString);
-            }
-            catch (RuntimeException ex)
-            {
-                throw new ConfigurationException("'id' parameter in sstable format configuration for " + formatConfig.class_name + " must be an integer");
-            }
-            if (id < 0 || id > 127)
-                throw new ConfigurationException("'id' parameter in sstable format configuration for " + formatConfig.class_name + " must be within bounds [0..127] range");
-            if (ids.contains(id))
-                throw new ConfigurationException("ID '" + id + "' of sstable format " + formatConfig.class_name + " is already defined for another sstable format");
-            params.remove(Config.SSTABLE_FORMAT_ID);
-
-            Supplier<SSTableFormat<?, ?>> factory = () -> {
-                Class<SSTableFormat<?, ?>> cls = FBUtilities.classForName(formatConfig.class_name, "sstable format");
-                if (!SSTableFormat.class.isAssignableFrom(cls))
-                    throw new ConfigurationException(String.format("Class %s for sstable format %s does not implement %s", formatConfig.class_name, name, SSTableFormat.class.getName()));
-
-                SSTableFormat<?, ?> sstableFormat = FBUtilities.instanceOrConstruct(cls.getName(), "sstable format");
-                sstableFormat.setup(id, name, params);
-                return sstableFormat;
-            };
-            sstableFormatFactories.put(name, factory);
-            names.add(name);
-            ids.add(id);
-        }
-
-        return sstableFormatFactories.build();
-    }
-
-    private static void applySSTableFormats()
-    {
-        if (sstableFormatFactories != null)
-            logger.warn("Reinitializing SSTableFactories - this should happen only in tests");
-
-        sstableFormatFactories = loadSSTableFormatFactories(conf.sstable_formats);
-
-        Iterable<SSTableFormat.Type> types = SSTableFormat.Type.values(); // make sure we know where those types get initialized
-        types.forEach(t -> t.info.allComponents()); // make sure to reach all supported components for a type so that we know all of them are registered
-        logger.info("Supported sstable formats are: {}", Lists.newArrayList(types).stream().map(f -> f.name + " -> " + f.info.getClass().getName() + " with singleton components: " + f.info.allComponents()).collect(Collectors.joining(", ")));
-    }
-
     /**
      * Computes the sum of the 2 specified positive values returning {@code Long.MAX_VALUE} if the sum overflow.
      *
@@ -1682,13 +1581,6 @@ public class DatabaseDescriptor
                 if (conf.cdc_raw_directory == null)
                     throw new ConfigurationException("cdc_raw_directory must be specified", false);
                 FileUtils.createDirectory(conf.cdc_raw_directory);
-            }
-
-            boolean created = maybeCreateHeapDumpPath();
-            if (!created && conf.dump_heap_on_uncaught_exception)
-            {
-                logger.error(String.format("cassandra.yaml:dump_heap_on_uncaught_exception is enabled but unable to create heap dump path %s. Disabling.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
-                conf.dump_heap_on_uncaught_exception = false;
             }
         }
         catch (ConfigurationException e)
@@ -2141,11 +2033,6 @@ public class DatabaseDescriptor
         return conf.concurrent_validations;
     }
 
-    public static int getConcurrentIndexBuilders()
-    {
-        return conf.concurrent_index_builders;
-    }
-
     public static void setConcurrentValidations(int value)
     {
         value = value > 0 ? value : Integer.MAX_VALUE;
@@ -2162,31 +2049,9 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_builders = value;
     }
 
-    public static long getMinFreeSpacePerDriveInMebibytes()
-    {
-        return conf.min_free_space_per_drive.toMebibytes();
-    }
-
     public static long getMinFreeSpacePerDriveInBytes()
     {
         return conf.min_free_space_per_drive.toBytesInLong();
-    }
-
-    @VisibleForTesting
-    public static long setMinFreeSpacePerDriveInMebibytes(long mebiBytes)
-    {
-        conf.min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound(mebiBytes);
-        return getMinFreeSpacePerDriveInBytes();
-    }
-
-    public static double getMaxSpaceForCompactionsPerDrive()
-    {
-        return conf.max_space_usable_for_compactions_in_percentage;
-    }
-
-    public static void setMaxSpaceForCompactionsPerDrive(double percentage)
-    {
-        conf.max_space_usable_for_compactions_in_percentage = percentage;
     }
 
     public static boolean getDisableSTCSInL0()
@@ -2711,22 +2576,6 @@ public class DatabaseDescriptor
     public static void setNativeTransportMaxThreads(int max_threads)
     {
         conf.native_transport_max_threads = max_threads;
-    }
-
-    public static Integer getNativeTransportMaxAuthThreads()
-    {
-        return conf.native_transport_max_auth_threads;
-    }
-
-    /**
-     * If this value is set to <= 0 it will move auth requests to the standard request pool regardless of the current
-     * size of the {@link org.apache.cassandra.transport.Dispatcher#authExecutor}'s active size.
-     *
-     * see {@link org.apache.cassandra.transport.Dispatcher#dispatch} for executor selection
-     */
-    public static void setNativeTransportMaxAuthThreads(int threads)
-    {
-        conf.native_transport_max_auth_threads = threads;
     }
 
     public static int getNativeTransportMaxFrameSize()
@@ -3271,16 +3120,6 @@ public class DatabaseDescriptor
         conf.auto_hints_cleanup_enabled = value;
     }
 
-    public static boolean getTransferHintsOnDecommission()
-    {
-        return conf.transfer_hints_on_decommission;
-    }
-
-    public static void setTransferHintsOnDecommission(boolean enabled)
-    {
-        conf.transfer_hints_on_decommission = enabled;
-    }
-
     public static boolean isIncrementalBackupsEnabled()
     {
         return conf.incremental_backups;
@@ -3294,12 +3133,6 @@ public class DatabaseDescriptor
     public static boolean getFileCacheEnabled()
     {
         return conf.file_cache_enabled;
-    }
-
-    @VisibleForTesting
-    public static void setFileCacheEnabled(boolean enabled)
-    {
-        conf.file_cache_enabled = enabled;
     }
 
     public static int getFileCacheSizeInMiB()
@@ -3511,16 +3344,6 @@ public class DatabaseDescriptor
         return conf.stream_entire_sstables;
     }
 
-    public static boolean getSkipStreamDiskSpaceCheck()
-    {
-        return conf.skip_stream_disk_space_check;
-    }
-
-    public static void setSkipStreamDiskSpaceCheck(boolean value)
-    {
-        conf.skip_stream_disk_space_check = value;
-    }
-
     public static String getLocalDataCenter()
     {
         return localDC;
@@ -3674,6 +3497,11 @@ public class DatabaseDescriptor
         return conf.scripted_user_defined_functions_enabled;
     }
 
+    public static void enableScriptedUserDefinedFunctions(boolean enableScriptedUserDefinedFunctions)
+    {
+        conf.scripted_user_defined_functions_enabled = enableScriptedUserDefinedFunctions;
+    }
+
     public static boolean enableUserDefinedFunctionsThreads()
     {
         return conf.user_defined_functions_threads_enabled;
@@ -3804,16 +3632,6 @@ public class DatabaseDescriptor
     public static void setCDCBlockWrites(boolean val)
     {
         conf.cdc_block_writes = val;
-    }
-
-    public static boolean isCDCOnRepairEnabled()
-    {
-        return conf.cdc_on_repair_enabled;
-    }
-
-    public static void setCDCOnRepairEnabled(boolean val)
-    {
-        conf.cdc_on_repair_enabled = val;
     }
 
     public static String getCDCLogLocation()
@@ -4416,11 +4234,6 @@ public class DatabaseDescriptor
             throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_replication_factor_fail_threshold (%d)", value, guardrails.getMinimumReplicationFactorFailThreshold()));
         }
 
-        if (guardrails.getMaximumReplicationFactorFailThreshold() != -1 && value > guardrails.getMaximumReplicationFactorFailThreshold())
-        {
-            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be greater than maximum_replication_factor_fail_threshold (%d)", value, guardrails.getMaximumReplicationFactorFailThreshold()));
-        }
-
         conf.default_keyspace_rf = value;
     }
 
@@ -4584,97 +4397,5 @@ public class DatabaseDescriptor
     public static void setMinTrackedPartitionTombstoneCount(long value)
     {
         conf.min_tracked_partition_tombstone_count = value;
-    }
-
-    public static boolean getDumpHeapOnUncaughtException()
-    {
-        return conf.dump_heap_on_uncaught_exception;
-    }
-
-    /**
-     * @return Whether the path exists (be it created now or already prior)
-     */
-    private static boolean maybeCreateHeapDumpPath()
-    {
-        if (!conf.dump_heap_on_uncaught_exception)
-            return false;
-
-        Path heap_dump_path = getHeapDumpPath();
-        if (heap_dump_path == null)
-        {
-            logger.warn("Neither -XX:HeapDumpPath nor cassandra.yaml:heap_dump_path are set; unable to create a directory to hold the output.");
-            return false;
-        }
-        if (PathUtils.exists(Paths.get(conf.heap_dump_path)))
-            return true;
-        return PathUtils.createDirectoryIfNotExists(Paths.get(conf.heap_dump_path));
-    }
-
-    /**
-     * As this is at its heart a debug operation (getting a one-shot heapdump from an uncaught exception), we support
-     * both the more evolved cassandra.yaml approach but also the -XX param to override it on a one-off basis so you don't
-     * have to change the full config of a node or a cluster in order to get a heap dump from a single node that's
-     * misbehaving.
-     * @return the absolute path of the -XX param if provided, else the heap_dump_path in cassandra.yaml
-     */
-    public static Path getHeapDumpPath()
-    {
-        RuntimeMXBean runtimeMxBean = ManagementFactory.getRuntimeMXBean();
-        Optional<String> pathArg = runtimeMxBean.getInputArguments().stream().filter(s -> s.startsWith("-XX:HeapDumpPath=")).findFirst();
-
-        if (pathArg.isPresent())
-        {
-            Pattern HEAP_DUMP_PATH_SPLITTER = Pattern.compile("HeapDumpPath=");
-            String fullHeapPathString = HEAP_DUMP_PATH_SPLITTER.split(pathArg.get())[1];
-            Path absolutePath = Paths.get(fullHeapPathString).toAbsolutePath();
-            Path basePath = fullHeapPathString.endsWith(".hprof") ? absolutePath.subpath(0, absolutePath.getNameCount() - 1) : absolutePath;
-            return Paths.get("/").resolve(basePath);
-        }
-        if (conf.heap_dump_path == null)
-            throw new ConfigurationException("Attempted to get heap dump path without -XX:HeapDumpPath or cassandra.yaml:heap_dump_path set.");
-        return Paths.get(conf.heap_dump_path);
-    }
-
-    public static void setDumpHeapOnUncaughtException(boolean enabled)
-    {
-        conf.dump_heap_on_uncaught_exception = enabled;
-        boolean pathExists = maybeCreateHeapDumpPath();
-
-        if (enabled && !pathExists)
-        {
-            logger.error("Attempted to enable heap dump but cannot create the requested path. Disabling.");
-            conf.dump_heap_on_uncaught_exception = false;
-        }
-        else
-            logger.info("Setting dump_heap_on_uncaught_exception to {}", enabled);
-    }
-
-    public static boolean getSStableReadRatePersistenceEnabled()
-    {
-        return conf.sstable_read_rate_persistence_enabled;
-    }
-
-    public static void setSStableReadRatePersistenceEnabled(boolean enabled)
-    {
-        if (enabled != conf.sstable_read_rate_persistence_enabled)
-        {
-            logger.info("Setting sstable_read_rate_persistence_enabled to {}", enabled);
-            conf.sstable_read_rate_persistence_enabled = enabled;
-        }
-    }
-
-    public static boolean getClientRequestSizeMetricsEnabled()
-    {
-        return conf.client_request_size_metrics_enabled;
-    }
-
-    public static void setClientRequestSizeMetricsEnabled(boolean enabled)
-    {
-        conf.client_request_size_metrics_enabled = enabled;
-    }
-
-    public static Map<String, Supplier<SSTableFormat<?, ?>>> getSSTableFormatFactories()
-    {
-        return Objects.requireNonNull(sstableFormatFactories, "Forgot to initialize DatabaseDescriptor?");
     }
 }

@@ -29,14 +29,15 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
 import com.google.common.collect.Iterables;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.cache.ChunkCache;
+import org.junit.Assert;
+
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.DiskAccessMode;
+import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -200,7 +201,7 @@ public class CachingBenchTest extends CQLTester
     {
         id.set(0);
         compactionTimeNanos = 0;
-        DatabaseDescriptor.setFileCacheEnabled(cacheEnabled);
+        ChunkCache.instance.enable(cacheEnabled);
         DatabaseDescriptor.setDiskAccessMode(mode);
         alterTable("ALTER TABLE %s WITH compaction = { 'class' :  '" + compactionClass + "'  };");
         alterTable("ALTER TABLE %s WITH compression = { 'sstable_compression' : '" + compressorClass + "'  };");

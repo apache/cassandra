@@ -29,7 +29,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -56,7 +55,7 @@ public class SizeTieredCompactionStrategyTest
     public static void defineSchema() throws ConfigurationException
     {
         // Disable tombstone histogram rounding for tests
-        CassandraRelevantProperties.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS.setInt(1);
+        System.setProperty("cassandra.streaminghistogram.roundseconds", "1");
 
         SchemaLoader.prepareServer();
 

@@ -28,15 +28,10 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 public class Int32Type extends NumberType<Integer>
 {
     public static final Int32Type instance = new Int32Type();
-
-    private static final ByteBuffer MASKED_VALUE = instance.decompose(0);
 
     Int32Type()
     {
@@ -58,18 +53,6 @@ public class Int32Type extends NumberType<Integer>
             return diff;
 
         return ValueAccessor.compare(left, accessorL, right, accessorR);
-    }
-
-    @Override
-    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
-    {
-        return ByteSource.optionalSignedFixedLengthNumber(accessor, data);
-    }
-
-    @Override
-    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
-    {
-        return ByteSourceInverse.getOptionalSignedFixedLength(accessor, comparableBytes, 4);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -175,41 +158,5 @@ public class Int32Type extends NumberType<Integer>
     public ByteBuffer negate(ByteBuffer input)
     {
         return ByteBufferUtil.bytes(-toInt(input));
-    }
-
-    @Override
-    public ByteBuffer abs(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes(Math.abs(toInt(input)));
-    }
-
-    @Override
-    public ByteBuffer exp(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes((int) Math.exp(toInt(input)));
-    }
-
-    @Override
-    public ByteBuffer log(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes((int) Math.log(toInt(input)));
-    }
-
-    @Override
-    public ByteBuffer log10(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes((int) Math.log10(toInt(input)));
-    }
-
-    @Override
-    public ByteBuffer round(ByteBuffer input)
-    {
-        return ByteBufferUtil.clone(input);
-    }
-
-    @Override
-    public ByteBuffer getMaskedValue()
-    {
-        return MASKED_VALUE;
     }
 }

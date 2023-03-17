@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.net;
 
+import java.net.InetAddress;
 import java.util.function.Function;
 
 import com.google.common.base.Preconditions;
@@ -68,6 +69,16 @@ public class InboundConnectionSettings
     public InboundConnectionSettings()
     {
         this(null, null, null, null, null, null, null, null, null);
+    }
+
+    public boolean authenticate(InetAddressAndPort endpoint)
+    {
+        return authenticator.authenticate(endpoint.getAddress(), endpoint.getPort());
+    }
+
+    public boolean authenticate(InetAddress address, int port)
+    {
+        return authenticator.authenticate(address, port);
     }
 
     public String toString()

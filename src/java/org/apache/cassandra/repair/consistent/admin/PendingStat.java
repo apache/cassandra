@@ -32,6 +32,7 @@ import javax.management.openmbean.OpenType;
 import javax.management.openmbean.SimpleType;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -54,7 +55,7 @@ public class PendingStat
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);
+            throw Throwables.propagate(e);
         }
     }
 
@@ -93,7 +94,7 @@ public class PendingStat
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);
+            throw Throwables.propagate(e);
         }
     }
 

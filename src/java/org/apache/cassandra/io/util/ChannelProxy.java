@@ -40,7 +40,6 @@ import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
  */
 public final class ChannelProxy extends SharedCloseableImpl
 {
-    private final File file;
     private final String filePath;
     private final FileChannel channel;
 
@@ -63,15 +62,14 @@ public final class ChannelProxy extends SharedCloseableImpl
 
     public ChannelProxy(File file)
     {
-        this(file, openChannel(file));
+        this(file.path(), openChannel(file));
     }
 
-    public ChannelProxy(File file, FileChannel channel)
+    public ChannelProxy(String filePath, FileChannel channel)
     {
-        super(new Cleanup(file.path(), channel));
+        super(new Cleanup(filePath, channel));
 
-        this.file = file;
-        this.filePath = file.path();
+        this.filePath = filePath;
         this.channel = channel;
     }
 
@@ -79,7 +77,6 @@ public final class ChannelProxy extends SharedCloseableImpl
     {
         super(copy);
 
-        this.file = copy.file;
         this.filePath = copy.filePath;
         this.channel = copy.channel;
     }
@@ -131,11 +128,6 @@ public final class ChannelProxy extends SharedCloseableImpl
     public String filePath()
     {
         return filePath;
-    }
-
-    public File file()
-    {
-        return file;
     }
 
     public int read(ByteBuffer buffer, long position)

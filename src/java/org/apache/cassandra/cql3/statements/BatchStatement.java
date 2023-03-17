@@ -42,7 +42,6 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.metrics.BatchMetrics;
-import org.apache.cassandra.metrics.ClientRequestSizeMetrics;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -443,7 +442,6 @@ public class BatchStatement implements CQLStatement
 
         boolean mutateAtomic = (isLogged() && mutations.size() > 1);
         StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic, queryStartNanoTime);
-        ClientRequestSizeMetrics.recordRowAndColumnCountMetrics(mutations);
     }
 
     private void updatePartitionsPerBatchMetrics(int updatedPartitions)
@@ -649,7 +647,7 @@ public class BatchStatement implements CQLStatement
         public BatchStatement prepare(ClientState state)
         {
             List<ModificationStatement> statements = new ArrayList<>(parsedStatements.size());
-            parsedStatements.forEach(s -> statements.add(s.prepare(state, bindVariables)));
+            parsedStatements.forEach(s -> statements.add(s.prepare(bindVariables)));
 
             Attributes prepAttrs = attrs.prepare("[batch]", "[batch]");
             prepAttrs.collectMarkerSpecification(bindVariables);

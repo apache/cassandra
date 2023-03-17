@@ -55,12 +55,12 @@ Reported name format:
   `org.apache.cassandra.metrics:type=Table keyspace=<Keyspace> scope=<Table> name=<MetricName>`
 
 [NOTE]
+.Note
 ====
 There is a special table called '`all`' without a keyspace. This
 represents the aggregation of metrics across *all* tables and keyspaces
 on the node.
-====
-[cols=",,",options="header",]
+====[cols=",,",options="header",]
 |===
 |Name |Type |Description
 |MemtableOnHeapSize |Gauge<Long> |Total amount of data stored in the
@@ -143,13 +143,6 @@ this table (in bytes).
 
 |TotalDiskSpaceUsed |Counter |Total disk space used by SSTables
 belonging to this table, including obsolete ones waiting to be GC'd.
-
-|MaxSSTableSize |Gauge<Long> |Maximum size of SSTable of this table -
-the physical size on disk of all components for such SSTable in bytes. Equals to
-zero if there is not any SSTable on disk.
-
-|MaxSSTableDuration |Gauge<Long> |Maximum duration in milliseconds of an SSTable for this table,
-computed as `maxTimestamp - minTimestamp`. Equals to zero if min or max timestamp is `Long.MAX_VALUE`.
 
 |MinPartitionSize |Gauge<Long> |Size of the smallest compacted partition
 (in bytes).
@@ -416,124 +409,122 @@ RequestType::
 Description::
   Metrics related to transactional read requests.
 Metrics::
-[cols=",,",options="header",]
-|===
-|Name |Type |Description
-|Timeouts |Counter |Number of timeouts encountered.
+  [cols=",,",options="header",]
+  |===
+  |Name |Type |Description
+  |Timeouts |Counter |Number of timeouts encountered.
 
-|Failures |Counter |Number of transaction failures encountered.
+  |Failures |Counter |Number of transaction failures encountered.
 
-|  |Latency |Transaction read latency.
+  |  |Latency |Transaction read latency.
 
-|Unavailables |Counter |Number of unavailable exceptions encountered.
+  |Unavailables |Counter |Number of unavailable exceptions encountered.
 
-|UnfinishedCommit |Counter |Number of transactions that were committed
-on read.
+  |UnfinishedCommit |Counter |Number of transactions that were committed
+  on read.
 
-|ConditionNotMet |Counter |Number of transaction preconditions did not
-match current values.
+  |ConditionNotMet |Counter |Number of transaction preconditions did not
+  match current values.
 
-|ContentionHistogram |Histogram |How many contended reads were
-encountered
-|===
+  |ContentionHistogram |Histogram |How many contended reads were
+  encountered
+  |===
 RequestType::
   CASWrite
 Description::
   Metrics related to transactional write requests.
 Metrics::
-[cols=",,",options="header",]
-|===
-|Name |Type |Description
-|Timeouts |Counter |Number of timeouts encountered.
+  [cols=",,",options="header",]
+  |===
+  |Name |Type |Description
+  |Timeouts |Counter |Number of timeouts encountered.
 
-|Failures |Counter |Number of transaction failures encountered.
+  |Failures |Counter |Number of transaction failures encountered.
 
-|  |Latency |Transaction write latency.
+  |  |Latency |Transaction write latency.
 
-|Unavailables |Counter |Number of unavailable exceptions encountered.
+  |UnfinishedCommit |Counter |Number of transactions that were committed
+  on write.
 
-|UnfinishedCommit |Counter |Number of transactions that were committed
-on write.
+  |ConditionNotMet |Counter |Number of transaction preconditions did not
+  match current values.
 
-|ConditionNotMet |Counter |Number of transaction preconditions did not
-match current values.
+  |ContentionHistogram |Histogram |How many contended writes were
+  encountered
 
-|ContentionHistogram |Histogram |How many contended writes were
-encountered
-
-|MutationSizeHistogram |Histogram |Total size in bytes of the requests
-mutations.
-|===
+  |MutationSizeHistogram |Histogram |Total size in bytes of the requests
+  mutations.
+  |===
 RequestType::
   Read
 Description::
   Metrics related to standard read requests.
 Metrics::
-[cols=",,",options="header",]
-|===
-|Name |Type |Description
-|Timeouts |Counter |Number of timeouts encountered.
-|Failures |Counter |Number of read failures encountered.
-|  |Latency |Read latency.
-|Unavailables |Counter |Number of unavailable exceptions encountered.
-|===
+  [cols=",,",options="header",]
+  |===
+  |Name |Type |Description
+  |Timeouts |Counter |Number of timeouts encountered.
+  |Failures |Counter |Number of read failures encountered.
+  |  |Latency |Read latency.
+  |Unavailables |Counter |Number of unavailable exceptions encountered.
+  |===
 RequestType::
   RangeSlice
 Description::
   Metrics related to token range read requests.
 Metrics::
-[cols=",,",options="header",]
-|===
-|Name |Type |Description
-|Timeouts |Counter |Number of timeouts encountered.
-|Failures |Counter |Number of range query failures encountered.
-|  |Latency |Range query latency.
-|Unavailables |Counter |Number of unavailable exceptions encountered.
-|===
+  [cols=",,",options="header",]
+  |===
+  |Name |Type |Description
+  |Timeouts |Counter |Number of timeouts encountered.
+  |Failures |Counter |Number of range query failures encountered.
+  |  |Latency |Range query latency.
+  |Unavailables |Counter |Number of unavailable exceptions encountered.
+  |===
 RequestType::
   Write
 Description::
   Metrics related to regular write requests.
 Metrics::
-[cols=",,",options="header",]
-|===
-|Name |Type |Description
-|Timeouts |Counter |Number of timeouts encountered.
+  [cols=",,",options="header",]
+  |===
+  |Name |Type |Description
+  |Timeouts |Counter |Number of timeouts encountered.
 
-|Failures |Counter |Number of write failures encountered.
+  |Failures |Counter |Number of write failures encountered.
 
-|  |Latency |Write latency.
+  |  |Latency |Write latency.
 
-|Unavailables |Counter |Number of unavailable exceptions encountered.
+  |Unavailables |Counter |Number of unavailable exceptions encountered.
 
-|MutationSizeHistogram |Histogram |Total size in bytes of the requests
-mutations.
-|===
+  |MutationSizeHistogram |Histogram |Total size in bytes of the requests
+  mutations.
+  |===
 RequestType::
   ViewWrite
 Description::
   Metrics related to materialized view write wrtes.
 Metrics::
-[cols=",,",]
-|===
-|Timeouts |Counter |Number of timeouts encountered.
+  [cols=",,",]
+  |===
+  |Timeouts |Counter |Number of timeouts encountered.
 
-|Failures |Counter |Number of transaction failures encountered.
+  |Failures |Counter |Number of transaction failures encountered.
 
-|Unavailables |Counter |Number of unavailable exceptions encountered.
+  |Unavailables |Counter |Number of unavailable exceptions encountered.
 
-|ViewReplicasAttempted |Counter |Total number of attempted view
-replica writes.
+  |ViewReplicasAttempted |Counter |Total number of attempted view
+  replica writes.
 
-|ViewReplicasSuccess |Counter |Total number of succeded view replica
-writes.
+  |ViewReplicasSuccess |Counter |Total number of succeded view replica
+  writes.
 
-|ViewPendingMutations |Gauge<Long> |ViewReplicasAttempted -
-ViewReplicasSuccess.
+  |ViewPendingMutations |Gauge<Long> |ViewReplicasAttempted -
+  ViewReplicasSuccess.
 
-|ViewWriteLatency |Timer |Time between when mutation is applied to
-base table and when CL.ONE is achieved on view.
-|===
+  |ViewWriteLatency |Timer |Time between when mutation is applied to
+  base table and when CL.ONE is achieved on view.
+  |===
 
 == Cache Metrics
 
@@ -575,10 +566,10 @@ The following caches are covered:
 |===
 
 [NOTE]
+.Note
 ====
 Misses and MissLatency are only defined for the ChunkCache
-====
-== CQL Metrics
+====== CQL Metrics
 
 Metrics specific to CQL prepared statement caching.
 
@@ -958,7 +949,7 @@ partitions processed per unlogged batch
 
 JVM metrics such as memory and garbage collection statistics can either
 be accessed by connecting to the JVM using JMX or can be exported using
-<<metric_reporters>>.
+link:#metric-reporters[Metric Reporters].
 
 === BufferPool
 
@@ -1078,7 +1069,7 @@ uncomment:
 #MX4J_PORT="-Dmx4jport=8081"
 ----
 
-== Metric Reporters [[metric_reporters]]
+== Metric Reporters
 
 As mentioned at the top of this section on monitoring the Cassandra
 metrics can be exported to a number of monitoring system a number of

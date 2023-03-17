@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 import java.util.Collection;
 import java.util.Collections;
 
+import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -44,15 +45,13 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 
     public boolean append(UnfilteredRowIterator partition)
     {
-        AbstractRowIndexEntry indexEntry = writer.append(partition);
+        RowIndexEntry<?> indexEntry = writer.append(partition);
         return indexEntry != null;
     }
 
     public Collection<SSTableReader> finish(long repairedAt, long maxDataAge, boolean openResult)
     {
-        writer.setRepairedAt(repairedAt);
-        writer.setMaxDataAge(maxDataAge);
-        return Collections.singleton(writer.finish(openResult));
+        return Collections.singleton(writer.finish(repairedAt, maxDataAge, openResult));
     }
 
     public Collection<SSTableReader> finish(boolean openResult)
@@ -117,20 +116,9 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             MetadataCollector metadataCollector,
                                             SerializationHeader header,
                                             Collection<Index> indexes,
-                                            LifecycleNewTracker lifecycleNewTracker,
-                                            SSTable.Owner owner)
+                                            LifecycleNewTracker lifecycleNewTracker)
     {
-        SSTableWriter writer = descriptor.getFormat().getWriterFactory().builder(descriptor)
-                                            .setKeyCount(keyCount)
-                                            .setRepairedAt(repairedAt)
-                                            .setPendingRepair(pendingRepair)
-                                            .setTransientSSTable(isTransient)
-                                            .setTableMetadataRef(metadata)
-                                            .setMetadataCollector(metadataCollector)
-                                            .setSerializationHeader(header)
-                                            .addDefaultComponents()
-                                            .addFlushObserversForSecondaryIndexes(indexes, lifecycleNewTracker.opType())
-                                            .build(lifecycleNewTracker, owner);
+        SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, indexes, lifecycleNewTracker);
         return new SimpleSSTableMultiWriter(writer, lifecycleNewTracker);
     }
 }

@@ -82,9 +82,7 @@ public class Flushing
         }
         catch (Throwable e)
         {
-            Throwable t = abortRunnables(runnables, e);
-            Throwables.throwIfUnchecked(t);
-            throw new RuntimeException(t);
+            throw Throwables.propagate(abortRunnables(runnables, e));
         }
     }
 

@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.transport;
 
-import java.security.cert.Certificate;
 import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.security.cert.X509Certificate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -121,11 +121,11 @@ public class ServerConnection extends Connection
         return saslNegotiator;
     }
 
-    private Certificate[] certificates()
+    private X509Certificate[] certificates()
     {
         SslHandler sslHandler = (SslHandler) channel().pipeline()
                                                       .get("ssl");
-        Certificate[] certificates = null;
+        X509Certificate[] certificates = null;
 
         if (sslHandler != null)
         {
@@ -133,7 +133,7 @@ public class ServerConnection extends Connection
             {
                 certificates = sslHandler.engine()
                                          .getSession()
-                                         .getPeerCertificates();
+                                         .getPeerCertificateChain();
             }
             catch (SSLPeerUnverifiedException e)
             {

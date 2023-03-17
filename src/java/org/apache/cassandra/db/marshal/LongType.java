@@ -28,15 +28,10 @@ import org.apache.cassandra.serializers.LongSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 public class LongType extends NumberType<Long>
 {
     public static final LongType instance = new LongType();
-
-    private static final ByteBuffer MASKED_VALUE = instance.decompose(0L);
 
     LongType() {super(ComparisonType.CUSTOM);} // singleton
 
@@ -60,28 +55,6 @@ public class LongType extends NumberType<Long>
             return diff;
 
         return ValueAccessor.compare(left, accessorL, right, accessorR);
-    }
-
-    @Override
-    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
-    {
-        if (accessor.isEmpty(data))
-            return null;
-        if (version == ByteComparable.Version.LEGACY)
-            return ByteSource.signedFixedLengthNumber(accessor, data);
-        else
-            return ByteSource.variableLengthInteger(accessor.getLong(data, 0));
-    }
-
-    @Override
-    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
-    {
-        if (comparableBytes == null)
-            return accessor.empty();
-        if (version == ByteComparable.Version.LEGACY)
-            return ByteSourceInverse.getSignedFixedLength(accessor, comparableBytes, 8);
-        else
-            return accessor.valueOf(ByteSourceInverse.getVariableLengthInteger(comparableBytes));
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -199,41 +172,5 @@ public class LongType extends NumberType<Long>
     public ByteBuffer negate(ByteBuffer input)
     {
         return ByteBufferUtil.bytes(-toLong(input));
-    }
-
-    @Override
-    public ByteBuffer abs(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes(Math.abs(toLong(input)));
-    }
-
-    @Override
-    public ByteBuffer exp(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes((long) Math.exp(toLong(input)));
-    }
-
-    @Override
-    public ByteBuffer log(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes((long) Math.log(toLong(input)));
-    }
-
-    @Override
-    public ByteBuffer log10(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes((long) Math.log10(toLong(input)));
-    }
-
-    @Override
-    public ByteBuffer round(ByteBuffer input)
-    {
-        return ByteBufferUtil.clone(input);
-    }
-
-    @Override
-    public ByteBuffer getMaskedValue()
-    {
-        return MASKED_VALUE;
     }
 }

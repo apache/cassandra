@@ -22,7 +22,7 @@ import java.io.IOException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
-public interface ISerializer<T> extends IGenericSerializer<T, DataInputPlus, DataOutputPlus>
+public interface ISerializer<T>
 {
     /**
      * Serialize the specified type into the specified DataOutput instance.
@@ -32,8 +32,7 @@ public interface ISerializer<T> extends IGenericSerializer<T, DataInputPlus, Dat
      * @param out DataOutput into which serialization needs to happen.
      * @throws java.io.IOException
      */
-    @Override
-    void serialize(T t, DataOutputPlus out) throws IOException;
+    public void serialize(T t, DataOutputPlus out) throws IOException;
 
     /**
      * Deserialize from the specified DataInput instance.
@@ -41,13 +40,11 @@ public interface ISerializer<T> extends IGenericSerializer<T, DataInputPlus, Dat
      * @throws IOException
      * @return the type that was deserialized
      */
-    @Override
-    T deserialize(DataInputPlus in) throws IOException;
+    public T deserialize(DataInputPlus in) throws IOException;
 
-    @Override
-    long serializedSize(T t);
+    public long serializedSize(T t);
 
-    default void skip(DataInputPlus in) throws IOException
+    public default void skip(DataInputPlus in) throws IOException
     {
         deserialize(in);
     }

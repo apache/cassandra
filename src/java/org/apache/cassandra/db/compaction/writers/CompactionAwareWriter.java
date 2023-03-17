@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.db.compaction.writers;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -31,20 +30,15 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
-
 
 /**
  * Class that abstracts away the actual writing of files to make it possible to use CompactionTask for more
@@ -68,9 +62,6 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     private final List<Directories.DataDirectory> locations;
     private final List<PartitionPosition> diskBoundaries;
     private int locationIndex;
-
-    // Keep targetDirectory for compactions, needed for `nodetool compactionstats`
-    protected Directories.DataDirectory sstableDirectory;
 
     public CompactionAwareWriter(ColumnFamilyStore cfs,
                                  Directories directories,
@@ -141,11 +132,6 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     {
         maybeSwitchWriter(partition.partitionKey());
         return realAppend(partition);
-    }
-
-    public final File getSStableDirectory() throws IOException
-    {
-        return getDirectories().getLocationForDisk(sstableDirectory);
     }
 
     @Override
@@ -248,25 +234,5 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     protected long getExpectedWriteSize()
     {
         return cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType());
-    }
-
-    /**
-     * It is up to the caller to set the following fields:
-     * - {@link SSTableWriter.Builder#setKeyCount(long)},
-     * - {@link SSTableWriter.Builder#setSerializationHeader(SerializationHeader)} and,
-     * - {@link SSTableWriter.Builder#setMetadataCollector(MetadataCollector)}
-     *
-     * @param descriptor
-     * @return
-     */
-    protected SSTableWriter.Builder<?, ?> newWriterBuilder(Descriptor descriptor)
-    {
-        return descriptor.getFormat().getWriterFactory().builder(descriptor)
-                         .setTableMetadataRef(cfs.metadata)
-                         .setTransientSSTable(isTransient)
-                         .setRepairedAt(minRepairedAt)
-                         .setPendingRepair(pendingRepair)
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
-                         .addDefaultComponents();
     }
 }

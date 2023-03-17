@@ -22,9 +22,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -116,40 +114,32 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     {
         long timeoutNanos = currentTimeoutNanos();
 
-        boolean signaled;
+        boolean success;
         try
         {
-            signaled = condition.await(timeoutNanos, NANOSECONDS);
+            success = condition.await(timeoutNanos, NANOSECONDS);
         }
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
         }
 
-        if (!signaled)
-            throwTimeout();
+        if (!success)
+        {
+            int blockedFor = blockFor();
+            int acks = ackCount();
+            // It's pretty unlikely, but we can race between exiting await above and here, so
+            // that we could now have enough acks. In that case, we "lie" on the acks count to
+            // avoid sending confusing info to the user (see CASSANDRA-6491).
+            if (acks >= blockedFor)
+                acks = blockedFor - 1;
+            throw new WriteTimeoutException(writeType, replicaPlan.consistencyLevel(), acks, blockedFor);
+        }
 
         if (blockFor() + failures > candidateReplicaCount())
         {
-            if (RequestCallback.isTimeout(this.failureReasonByEndpoint.keySet().stream()
-                                                                      .filter(this::waitingFor) // DatacenterWriteResponseHandler filters errors from remote DCs
-                                                                      .collect(Collectors.toMap(Function.identity(), this.failureReasonByEndpoint::get))))
-                throwTimeout();
-
-            throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, this.failureReasonByEndpoint);
+            throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, failureReasonByEndpoint);
         }
-    }
-
-    private void throwTimeout()
-    {
-        int blockedFor = blockFor();
-        int acks = ackCount();
-        // It's pretty unlikely, but we can race between exiting await above and here, so
-        // that we could now have enough acks. In that case, we "lie" on the acks count to
-        // avoid sending confusing info to the user (see CASSANDRA-6491).
-        if (acks >= blockedFor)
-            acks = blockedFor - 1;
-        throw new WriteTimeoutException(writeType, replicaPlan.consistencyLevel(), acks, blockedFor);
     }
 
     public final long currentTimeoutNanos()

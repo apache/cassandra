@@ -21,36 +21,34 @@ import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Maps;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.utils.CombinedTermIterator;
 import org.apache.cassandra.index.sasi.utils.TypeUtil;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableFlushObserver;
-import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Maps;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -100,24 +98,15 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             indexes.put(entry.getKey(), newIndex(entry.getValue()));
     }
 
-    @Override
     public void begin()
     {}
 
-    @Override
-    public void startPartition(DecoratedKey key, long keyPosition, long KeyPositionForSASI)
+    public void startPartition(DecoratedKey key, long curPosition)
     {
         currentKey = key;
-        currentKeyPosition = KeyPositionForSASI;
+        currentKeyPosition = curPosition;
     }
 
-    @Override
-    public void staticRow(Row staticRow)
-    {
-        nextUnfilteredCluster(staticRow);
-    }
-
-    @Override
     public void nextUnfilteredCluster(Unfiltered unfiltered)
     {
         if (!unfiltered.isRow())
@@ -137,7 +126,6 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         });
     }
 
-    @Override
     public void complete()
     {
         if (isComplete)
@@ -180,7 +168,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
     protected class Index
     {
         @VisibleForTesting
-        protected final File outputFile;
+        protected final String outputFile;
 
         private final ColumnIndex columnIndex;
         private final AbstractAnalyzer analyzer;
@@ -195,7 +183,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
         public Index(ColumnIndex columnIndex)
         {
             this.columnIndex = columnIndex;
-            this.outputFile = descriptor.fileFor(columnIndex.getComponent());
+            this.outputFile = descriptor.filenameFor(columnIndex.getComponent());
             this.analyzer = columnIndex.getAnalyzer();
             this.segments = new HashSet<>();
             this.maxMemorySize = maxMemorySize(columnIndex);
@@ -256,14 +244,15 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             final OnDiskIndexBuilder builder = currentBuilder;
             currentBuilder = newIndexBuilder();
 
-            final File segmentFile = file(isFinal);
+            final String segmentFile = filename(isFinal);
 
             return () -> {
                 long start = nanoTime();
 
                 try
                 {
-                    return builder.finish(segmentFile) ? new OnDiskIndex(segmentFile, columnIndex.getValidator(), null) : null;
+                    File index = new File(segmentFile);
+                    return builder.finish(index) ? new OnDiskIndex(index, columnIndex.getValidator(), null) : null;
                 }
                 catch (Exception | FSError e)
                 {
@@ -321,13 +310,13 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
                     OnDiskIndexBuilder builder = newIndexBuilder();
                     builder.finish(Pair.create(combinedMin, combinedMax),
-                                   outputFile,
+                                   new File(outputFile),
                                    new CombinedTermIterator(parts));
                 }
                 catch (Exception | FSError e)
                 {
                     logger.error("Failed to flush index {}.", outputFile, e);
-                    outputFile.tryDelete();
+                    FileUtils.delete(outputFile);
                 }
                 finally
                 {
@@ -341,7 +330,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                         if (part != null)
                             FileUtils.closeQuietly(part);
 
-                        outputFile.withSuffix("_" + segment).tryDelete();
+                        FileUtils.delete(outputFile + "_" + segment);
                     }
 
                     latch.decrement();
@@ -359,9 +348,9 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             return new OnDiskIndexBuilder(keyValidator, columnIndex.getValidator(), columnIndex.getMode().mode);
         }
 
-        public File file(boolean isFinal)
+        public String filename(boolean isFinal)
         {
-            return isFinal ? outputFile : outputFile.withSuffix("_" + segmentNumber++);
+            return outputFile + (isFinal ? "" : "_" + segmentNumber++);
         }
     }
 

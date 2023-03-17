@@ -109,11 +109,6 @@ public class SnapshotManager {
         }
     }
 
-    public synchronized Set<TableSnapshot> loadSnapshots(String keyspace)
-    {
-        return snapshotLoader.loadSnapshots(keyspace);
-    }
-
     public synchronized Set<TableSnapshot> loadSnapshots()
     {
         return snapshotLoader.loadSnapshots();
@@ -153,9 +148,6 @@ public class SnapshotManager {
         }
     }
 
-    /**
-     * Deletes snapshot and remove it from manager
-     */
     public synchronized void clearSnapshot(TableSnapshot snapshot)
     {
         for (File snapshotDir : snapshot.getDirectories())

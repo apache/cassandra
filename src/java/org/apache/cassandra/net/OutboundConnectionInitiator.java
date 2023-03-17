@@ -21,16 +21,13 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
-import java.security.cert.Certificate;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import io.netty.util.concurrent.Promise; //checkstyle: permit this import
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
-
+import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,15 +56,9 @@ import org.apache.cassandra.net.OutboundConnectionInitiator.Result.StreamingSucc
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.util.concurrent.TimeUnit.*;
-import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND;
-import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.OUTBOUND_PRECONNECT;
-import static org.apache.cassandra.net.InternodeConnectionUtils.DISCARD_HANDLER_NAME;
-import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_HANDLER_NAME;
-import static org.apache.cassandra.net.InternodeConnectionUtils.certificates;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.HandshakeProtocol.*;
 import static org.apache.cassandra.net.ConnectionType.STREAMING;
@@ -94,17 +85,15 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
     private static final Logger logger = LoggerFactory.getLogger(OutboundConnectionInitiator.class);
 
     private final ConnectionType type;
-    private final SslFallbackConnectionType sslConnectionType;
     private final OutboundConnectionSettings settings;
     private final int requestMessagingVersion; // for pre40 nodes
     private final Promise<Result<SuccessType>> resultPromise;
     private boolean isClosed;
 
-    private OutboundConnectionInitiator(ConnectionType type, SslFallbackConnectionType sslConnectionType, OutboundConnectionSettings settings,
+    private OutboundConnectionInitiator(ConnectionType type, OutboundConnectionSettings settings,
                                         int requestMessagingVersion, Promise<Result<SuccessType>> resultPromise)
     {
         this.type = type;
-        this.sslConnectionType = sslConnectionType;
         this.requestMessagingVersion = requestMessagingVersion;
         this.settings = settings;
         this.resultPromise = resultPromise;
@@ -117,10 +106,9 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
      *
      * The returned {@code Future} is guaranteed to be completed on the supplied eventLoop.
      */
-    public static Future<Result<StreamingSuccess>> initiateStreaming(EventLoop eventLoop, OutboundConnectionSettings settings,
-                                                                     SslFallbackConnectionType sslConnectionType, int requestMessagingVersion)
+    public static Future<Result<StreamingSuccess>> initiateStreaming(EventLoop eventLoop, OutboundConnectionSettings settings, int requestMessagingVersion)
     {
-        return new OutboundConnectionInitiator<StreamingSuccess>(STREAMING, sslConnectionType, settings, requestMessagingVersion, AsyncPromise.withExecutor(eventLoop))
+        return new OutboundConnectionInitiator<StreamingSuccess>(STREAMING, settings, requestMessagingVersion, AsyncPromise.withExecutor(eventLoop))
                .initiate(eventLoop);
     }
 
@@ -131,10 +119,9 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
      *
      * The returned {@code Future} is guaranteed to be completed on the supplied eventLoop.
      */
-    static Future<Result<MessagingSuccess>> initiateMessaging(EventLoop eventLoop, ConnectionType type, SslFallbackConnectionType sslConnectionType,
-                                                              OutboundConnectionSettings settings, int requestMessagingVersion, Promise<Result<MessagingSuccess>> result)
+    static Future<Result<MessagingSuccess>> initiateMessaging(EventLoop eventLoop, ConnectionType type, OutboundConnectionSettings settings, int requestMessagingVersion, Promise<Result<MessagingSuccess>> result)
     {
-        return new OutboundConnectionInitiator<>(type, sslConnectionType, settings, requestMessagingVersion, result)
+        return new OutboundConnectionInitiator<>(type, settings, requestMessagingVersion, result)
                .initiate(eventLoop);
     }
 
@@ -143,14 +130,12 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         if (logger.isTraceEnabled())
             logger.trace("creating outbound bootstrap to {}, requestVersion: {}", settings, requestMessagingVersion);
 
-        if (!settings.authenticator.authenticate(settings.to.getAddress(), settings.to.getPort(), null, OUTBOUND_PRECONNECT))
+        if (!settings.authenticate())
         {
             // interrupt other connections, so they must attempt to re-authenticate
             MessagingService.instance().interruptOutbound(settings.to);
-            logger.error("Authentication failed to " + settings.connectToId());
-            return ImmediateFuture.failure(new IOException("Authentication failed to " + settings.connectToId()));
+            return ImmediateFuture.failure(new IOException("authentication failed to " + settings.connectToId()));
         }
-
 
         // this is a bit ugly, but is the easiest way to ensure that if we timeout we can propagate a suitable error message
         // and still guarantee that, if on timing out we raced with success, the successfully created channel is handled
@@ -207,33 +192,25 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
         return bootstrap;
     }
 
-    public enum SslFallbackConnectionType
-    {
-        SERVER_CONFIG, // Original configuration of the server
-        MTLS,
-        SSL,
-        NO_SSL
-    }
-
     private class Initializer extends ChannelInitializer<SocketChannel>
     {
         public void initChannel(SocketChannel channel) throws Exception
         {
             ChannelPipeline pipeline = channel.pipeline();
 
-            // order of handlers: ssl -> server-authentication -> logger -> handshakeHandler
-            if ((sslConnectionType == SslFallbackConnectionType.SERVER_CONFIG && settings.withEncryption())
-                || sslConnectionType == SslFallbackConnectionType.SSL || sslConnectionType == SslFallbackConnectionType.MTLS)
+            // order of handlers: ssl -> logger -> handshakeHandler
+            if (settings.withEncryption())
             {
-                SslContext sslContext = getSslContext(sslConnectionType);
+                // check if we should actually encrypt this connection
+                SslContext sslContext = SSLFactory.getOrCreateSslContext(settings.encryption, true,
+                                                                         ISslContextFactory.SocketType.CLIENT);
                 // for some reason channel.remoteAddress() will return null
                 InetAddressAndPort address = settings.to;
                 InetSocketAddress peer = settings.encryption.require_endpoint_verification ? new InetSocketAddress(address.getAddress(), address.getPort()) : null;
                 SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
                 logger.trace("creating outbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
-                pipeline.addFirst(SSL_HANDLER_NAME, sslHandler);
+                pipeline.addFirst("ssl", sslHandler);
             }
-            pipeline.addLast("server-authentication", new ServerAuthenticationHandler(settings));
 
             if (WIRETRACE)
                 pipeline.addLast("logger", new LoggingHandler(LogLevel.INFO));
@@ -241,59 +218,6 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
             pipeline.addLast("handshake", new Handler());
         }
 
-        private SslContext getSslContext(SslFallbackConnectionType connectionType) throws IOException
-        {
-            boolean requireClientAuth = false;
-            if (connectionType == SslFallbackConnectionType.MTLS || connectionType == SslFallbackConnectionType.SSL)
-            {
-                requireClientAuth = true;
-            }
-            else if (connectionType == SslFallbackConnectionType.SERVER_CONFIG)
-            {
-                requireClientAuth = settings.withEncryption();
-            }
-            return SSLFactory.getOrCreateSslContext(settings.encryption, requireClientAuth, ISslContextFactory.SocketType.CLIENT);
-        }
-
-    }
-
-    /**
-     * Authenticates the server before an outbound connection is established. If a connection is SSL based connection
-     * Server's identity is verified during ssl handshake using root certificate in truststore. One may choose to ignore
-     * outbound authentication or perform required authentication for outbound connections in the implementation
-     * of IInternodeAuthenticator interface.
-     */
-    @VisibleForTesting
-    static class ServerAuthenticationHandler extends ByteToMessageDecoder
-    {
-        final OutboundConnectionSettings settings;
-
-        ServerAuthenticationHandler(OutboundConnectionSettings settings)
-        {
-            this.settings = settings;
-        }
-
-        @Override
-        protected void decode(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf, List<Object> list) throws Exception
-        {
-            // Extract certificates from SSL handler(handler with name "ssl").
-            final Certificate[] certificates = certificates(channelHandlerContext.channel());
-            if (!settings.authenticator.authenticate(settings.to.getAddress(), settings.to.getPort(), certificates, OUTBOUND))
-            {
-                // interrupt other connections, so they must attempt to re-authenticate
-                MessagingService.instance().interruptOutbound(settings.to);
-                logger.error("Authentication failed to " + settings.connectToId());
-
-                // To release all the pending buffered data, replace authentication handler with discard handler.
-                // This avoids pending inbound data to be fired through the pipeline
-                channelHandlerContext.pipeline().replace(this, DISCARD_HANDLER_NAME, new InternodeConnectionUtils.ByteBufDiscardHandler());
-                channelHandlerContext.pipeline().close();
-            }
-            else
-            {
-                channelHandlerContext.pipeline().remove(this);
-            }
-        }
     }
 
     private class Handler extends ByteToMessageDecoder

@@ -26,12 +26,12 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 public abstract class UuidFcts
 {
-    public static void addFunctionsTo(NativeFunctions functions)
+    public static Collection<Function> all()
     {
-        functions.add(uuidFct);
+        return Collections.singleton(uuidFct);
     }
 
-    public static final NativeFunction uuidFct = new NativeScalarFunction("uuid", UUIDType.instance)
+    public static final Function uuidFct = new NativeScalarFunction("uuid", UUIDType.instance)
     {
         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
         {

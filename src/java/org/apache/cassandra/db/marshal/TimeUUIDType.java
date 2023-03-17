@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db.marshal;
 
-import java.nio.ByteBuffer;
-
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -26,8 +24,6 @@ import org.apache.cassandra.utils.TimeUUID;
 public class TimeUUIDType extends AbstractTimeUUIDType<TimeUUID>
 {
     public static final TimeUUIDType instance = new TimeUUIDType();
-
-    private static final ByteBuffer MASKED_VALUE = instance.decompose(TimeUUID.minAtUnixMillis(0));
 
     public TypeSerializer<TimeUUID> getSerializer()
     {
@@ -38,11 +34,5 @@ public class TimeUUIDType extends AbstractTimeUUIDType<TimeUUID>
     public AbstractType<?> udfType()
     {
         return LegacyTimeUUIDType.instance;
-    }
-
-    @Override
-    public ByteBuffer getMaskedValue()
-    {
-        return MASKED_VALUE;
     }
 }

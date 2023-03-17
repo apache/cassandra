@@ -48,8 +48,6 @@ import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.transport.messages.StartupMessage;
 
-import static org.apache.cassandra.net.SocketFactory.newSslHandler;
-
 /**
  * Takes care of intializing a Netty Channel and Pipeline for client protocol connections.
  * The pipeline is first set up with some common handlers for connection limiting, dropping
@@ -183,8 +181,7 @@ public class PipelineConfigurator
                             {
                                 // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use
                                 // encryption.
-                                InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
-                                SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
+                                SslHandler sslHandler = sslContext.newHandler(channel.alloc());
                                 channelHandlerContext.pipeline().replace(SSL_HANDLER, SSL_HANDLER, sslHandler);
                             }
                             else
@@ -202,8 +199,7 @@ public class PipelineConfigurator
                     SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
                                                                              encryptionOptions.require_client_auth,
                                                                              ISslContextFactory.SocketType.SERVER);
-                    InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
-                    channel.pipeline().addFirst(SSL_HANDLER, newSslHandler(channel, sslContext, peer));
+                    channel.pipeline().addFirst(SSL_HANDLER, sslContext.newHandler(channel.alloc()));
                 };
             default:
                 throw new IllegalStateException("Unrecognized TLS encryption policy: " + this.tlsEncryptionPolicy);

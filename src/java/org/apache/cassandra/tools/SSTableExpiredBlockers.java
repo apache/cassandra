@@ -26,15 +26,14 @@ import java.util.Set;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -75,12 +74,12 @@ public class SSTableExpiredBlockers
             {
                 try
                 {
-                    SSTableReader reader = SSTableReader.open(cfs, sstable.getKey());
+                    SSTableReader reader = SSTableReader.open(sstable.getKey());
                     sstables.add(reader);
                 }
                 catch (Throwable t)
                 {
-                    out.println("Couldn't open sstable: " + sstable.getKey().fileFor(Components.DATA) + " (" + t.getMessage() + ")");
+                    out.println("Couldn't open sstable: " + sstable.getKey().filenameFor(Component.DATA)+" ("+t.getMessage()+")");
                 }
             }
         }

@@ -149,8 +149,6 @@ public final class CreateTableStatement extends AlterSchemaStatement
         // Guardrail to check whether creation of new COMPACT STORAGE tables is allowed
         if (useCompactStorage)
             Guardrails.compactTablesEnabled.ensureEnabled(state);
-
-        validateDefaultTimeToLive(attrs.asNewTableParams());
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)

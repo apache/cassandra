@@ -27,46 +27,37 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.math.BigInteger;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.URL;
-import java.net.UnknownHostException;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableSet;
-import java.util.Optional;
-import java.util.Properties;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
+
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.utils.concurrent.*;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -75,6 +66,7 @@ import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -83,19 +75,15 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.StatsComponent;
+import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.ISslContextFactory;
-import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
-import org.objectweb.asm.Opcodes;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
@@ -117,7 +105,6 @@ public class FBUtilities
 
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
     public static final String UNKNOWN_RELEASE_VERSION = "Unknown";
-    public static final String UNKNOWN_GIT_SHA = "Unknown";
 
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
@@ -150,8 +137,6 @@ public class FBUtilities
     }
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
-
-    public static final int ASM_BYTECODE_VERSION = Opcodes.ASM9;
 
     public static MessageDigest newMessageDigest(String algorithm)
     {
@@ -434,40 +419,24 @@ public class FBUtilities
         return previousReleaseVersionString;
     }
 
-    private static Properties getVersionProperties()
+    public static String getReleaseVersionString()
     {
         try (InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties"))
         {
             if (in == null)
             {
-                return null;
+                return System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
             }
             Properties props = new Properties();
             props.load(in);
-            return props;
+            return props.getProperty("CassandraVersion");
         }
         catch (Exception e)
         {
             JVMStabilityInspector.inspectThrowable(e);
             logger.warn("Unable to load version.properties", e);
-            return null;
+            return "debug version";
         }
-    }
-
-    public static String getReleaseVersionString()
-    {
-        Properties props = getVersionProperties();
-        if (props == null)
-            return System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
-        return props.getProperty("CassandraVersion");
-    }
-
-    public static String getGitSHA()
-    {
-        Properties props = getVersionProperties();
-        if (props == null)
-            return System.getProperty("cassandra.gitSHA", UNKNOWN_GIT_SHA);
-        return props.getProperty("GitSHA", UNKNOWN_GIT_SHA);
     }
 
     public static String getReleaseVersionMajor()
@@ -619,8 +588,11 @@ public class FBUtilities
      */
     public static IPartitioner newPartitioner(Descriptor desc) throws IOException
     {
-        StatsComponent statsComponent = StatsComponent.load(desc, MetadataType.VALIDATION, MetadataType.HEADER);
-        return newPartitioner(statsComponent.validationMetadata().partitioner, Optional.of(statsComponent.serializationHeader().getKeyType()));
+        EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.HEADER);
+        Map<MetadataType, MetadataComponent> sstableMetadata = desc.getMetadataSerializer().deserialize(desc, types);
+        ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
+        SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
+        return newPartitioner(validationMetadata.partitioner, Optional.of(header.getKeyType()));
     }
 
     public static IPartitioner newPartitioner(String partitionerClassName) throws ConfigurationException
@@ -1168,17 +1140,5 @@ public class FBUtilities
             }
         }
         return sb.toString();
-    }
-
-    @SafeVarargs
-    public static <T> ImmutableList<T> immutableListWithFilteredNulls(T... values)
-    {
-        ImmutableList.Builder<T> builder = ImmutableList.builderWithExpectedSize(values.length);
-        for (int i = 0; i < values.length; i++)
-        {
-            if (values[i] != null)
-                builder.add(values[i]);
-        }
-        return builder.build();
     }
 }

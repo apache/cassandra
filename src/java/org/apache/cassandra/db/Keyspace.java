@@ -303,6 +303,20 @@ public class Keyspace
     }
 
     /**
+     * Clear all the snapshots for a given keyspace.
+     *
+     * @param snapshotName the user supplied snapshot name. It empty or null,
+     *                     all the snapshots will be cleaned
+     */
+    public static void clearSnapshot(String snapshotName, String keyspace)
+    {
+        RateLimiter clearSnapshotRateLimiter = DatabaseDescriptor.getSnapshotRateLimiter();
+
+        List<File> tableDirectories = Directories.getKSChildDirectories(keyspace);
+        Directories.clearSnapshot(snapshotName, tableDirectories, clearSnapshotRateLimiter);
+    }
+
+    /**
      * @return A list of open SSTableReaders
      */
     public List<SSTableReader> getAllSSTables(SSTableSet sstableSet)

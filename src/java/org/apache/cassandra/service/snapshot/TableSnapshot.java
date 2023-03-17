@@ -20,7 +20,6 @@ package org.apache.cassandra.service.snapshot;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.HashSet;
@@ -28,7 +27,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +44,6 @@ public class TableSnapshot
     private final String tableName;
     private final UUID tableId;
     private final String tag;
-    private final boolean ephemeral;
 
     private final Instant createdAt;
     private final Instant expiresAt;
@@ -55,7 +52,7 @@ public class TableSnapshot
 
     public TableSnapshot(String keyspaceName, String tableName, UUID tableId,
                          String tag, Instant createdAt, Instant expiresAt,
-                         Set<File> snapshotDirs, boolean ephemeral)
+                         Set<File> snapshotDirs)
     {
         this.keyspaceName = keyspaceName;
         this.tableName = tableName;
@@ -64,7 +61,6 @@ public class TableSnapshot
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
         this.snapshotDirs = snapshotDirs;
-        this.ephemeral = ephemeral;
     }
 
     /**
@@ -125,11 +121,6 @@ public class TableSnapshot
     public boolean exists()
     {
         return snapshotDirs.stream().anyMatch(File::exists);
-    }
-
-    public boolean isEphemeral()
-    {
-        return ephemeral;
     }
 
     public boolean isExpiring()
@@ -201,13 +192,13 @@ public class TableSnapshot
         return Objects.equals(keyspaceName, snapshot.keyspaceName) && Objects.equals(tableName, snapshot.tableName) &&
                Objects.equals(tableId, snapshot.tableId) && Objects.equals(tag, snapshot.tag) &&
                Objects.equals(createdAt, snapshot.createdAt) && Objects.equals(expiresAt, snapshot.expiresAt) &&
-               Objects.equals(snapshotDirs, snapshot.snapshotDirs) && Objects.equals(ephemeral, snapshot.ephemeral);
+               Objects.equals(snapshotDirs, snapshot.snapshotDirs);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs, ephemeral);
+        return Objects.hash(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs);
     }
 
     @Override
@@ -221,7 +212,6 @@ public class TableSnapshot
                ", createdAt=" + createdAt +
                ", expiresAt=" + expiresAt +
                ", snapshotDirs=" + snapshotDirs +
-               ", ephemeral=" + ephemeral +
                '}';
     }
 
@@ -233,7 +223,6 @@ public class TableSnapshot
 
         private Instant createdAt = null;
         private Instant expiresAt = null;
-        private boolean ephemeral;
 
         private final Set<File> snapshotDirs = new HashSet<>();
 
@@ -249,17 +238,12 @@ public class TableSnapshot
         {
             snapshotDirs.add(snapshotDir);
             File manifestFile = new File(snapshotDir, "manifest.json");
-            if (manifestFile.exists() && createdAt == null && expiresAt == null)
-                loadMetadataFromManifest(manifestFile);
-
-            // check if an ephemeral marker file exists only in case it is not already ephemeral
-            // by reading it from manifest
-            // TODO remove this on Cassandra 4.3 release, see CASSANDRA-16911
-            if (!ephemeral && new File(snapshotDir, "ephemeral.snapshot").exists())
-                ephemeral = true;
+            if (manifestFile.exists() && createdAt == null && expiresAt == null) {
+                loadTimestampsFromManifest(manifestFile);
+            }
         }
 
-        private void loadMetadataFromManifest(File manifestFile)
+        private void loadTimestampsFromManifest(File manifestFile)
         {
             try
             {
@@ -267,9 +251,6 @@ public class TableSnapshot
                 SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
                 createdAt = manifest.createdAt;
                 expiresAt = manifest.expiresAt;
-                // a snapshot may be ephemeral when it has a marker file (old way) or flag in manifest (new way)
-                if (!ephemeral)
-                    ephemeral = manifest.ephemeral;
             }
             catch (IOException e)
             {
@@ -279,7 +260,7 @@ public class TableSnapshot
 
         TableSnapshot build()
         {
-            return new TableSnapshot(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs, ephemeral);
+            return new TableSnapshot(keyspaceName, tableName, tableId, tag, createdAt, expiresAt, snapshotDirs);
         }
     }
 
@@ -320,34 +301,8 @@ public class TableSnapshot
         if (Directories.isSecondaryIndexFolder(snapshotFilePath.getParent()))
         {
             // Snapshot file structure format is {data_dir}/snapshots/{snapshot_name}/.{index}/{sstable-component}.db
-            liveDir = Paths.get(liveDir.getParent().toString(), snapshotFilePath.getParent().getFileName().toString());
+            liveDir = File.getPath(liveDir.getParent().toString(), snapshotFilePath.getParent().getFileName().toString());
         }
         return new File(liveDir.toString(), snapshotFilePath.getFileName().toString());
     }
-
-    public static Predicate<TableSnapshot> shouldClearSnapshot(String tag, long olderThanTimestamp)
-    {
-        return ts ->
-        {
-            // When no tag is supplied, all snapshots must be cleared
-            boolean clearAll = tag == null || tag.isEmpty();
-            if (!clearAll && ts.isEphemeral())
-                logger.info("Skipping deletion of ephemeral snapshot '{}' in keyspace {}. " +
-                            "Ephemeral snapshots are not removable by a user.",
-                            tag, ts.keyspaceName);
-            boolean notEphemeral = !ts.isEphemeral();
-            boolean shouldClearTag = clearAll || ts.tag.equals(tag);
-            boolean byTimestamp = true;
-
-            if (olderThanTimestamp > 0L)
-            {
-                Instant createdAt = ts.getCreatedAt();
-                if (createdAt != null)
-                    byTimestamp = createdAt.isBefore(Instant.ofEpochMilli(olderThanTimestamp));
-            }
-
-            return notEphemeral && shouldClearTag && byTimestamp;
-        };
-    }
-
 }

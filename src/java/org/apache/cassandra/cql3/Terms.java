@@ -145,11 +145,11 @@ public interface Terms
                     switch (((CollectionType<?>) type).kind)
                     {
                         case LIST:
-                            return e -> Lists.Value.fromSerialized(e, (ListType<?>) type);
+                            return e -> Lists.Value.fromSerialized(e, (ListType<?>) type, version);
                         case SET:
-                            return e -> Sets.Value.fromSerialized(e, (SetType<?>) type);
+                            return e -> Sets.Value.fromSerialized(e, (SetType<?>) type, version);
                         case MAP:
-                            return e -> Maps.Value.fromSerialized(e, (MapType<?, ?>) type);
+                            return e -> Maps.Value.fromSerialized(e, (MapType<?, ?>) type, version);
                     }
                     throw new AssertionError();
                 }

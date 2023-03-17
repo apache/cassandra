@@ -23,7 +23,6 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
@@ -55,7 +54,7 @@ public class SnapshotLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(SnapshotLoader.class);
 
-    static final Pattern SNAPSHOT_DIR_PATTERN = Pattern.compile("(?<keyspace>\\w+)/(?<tableName>\\w+)-(?<tableId>[0-9a-f]{32})/snapshots/(?<tag>.+)$");
+    static final Pattern SNAPSHOT_DIR_PATTERN = Pattern.compile("(?<keyspace>\\w+)/(?<tableName>\\w+)-(?<tableId>[0-9a-f]{32})/snapshots/(?<tag>[\\w-]+)$");
 
     private final Collection<Path> dataDirectories;
 
@@ -66,17 +65,12 @@ public class SnapshotLoader
 
     public SnapshotLoader(String[] dataDirectories)
     {
-        this(Arrays.stream(dataDirectories).map(Paths::get).collect(Collectors.toList()));
+        this(Arrays.stream(dataDirectories).map(File::getPath).collect(Collectors.toList()));
     }
 
     public SnapshotLoader(Collection<Path> dataDirs)
     {
         this.dataDirectories = dataDirs;
-    }
-
-    public SnapshotLoader(Directories directories)
-    {
-        this(directories.getCFDirectories().stream().map(File::toPath).collect(Collectors.toList()));
     }
 
     @VisibleForTesting
@@ -154,24 +148,17 @@ public class SnapshotLoader
         }
     }
 
-    public Set<TableSnapshot> loadSnapshots(String keyspace)
+    public Set<TableSnapshot> loadSnapshots()
     {
-        // if we supply a keyspace, the walking max depth will be suddenly shorther
-        // because we are one level down in the directory structure
-        int maxDepth = keyspace == null ? 5 : 4;
-
         Map<String, TableSnapshot.Builder> snapshots = new HashMap<>();
         Visitor visitor = new Visitor(snapshots);
 
         for (Path dataDir : dataDirectories)
         {
-            if (keyspace != null)
-                dataDir = dataDir.resolve(keyspace);
-
             try
             {
                 if (new File(dataDir).exists())
-                    Files.walkFileTree(dataDir, Collections.emptySet(), maxDepth, visitor);
+                    Files.walkFileTree(dataDir, Collections.emptySet(), 5, visitor);
                 else
                     logger.debug("Skipping non-existing data directory {}", dataDir);
             }
@@ -182,10 +169,5 @@ public class SnapshotLoader
         }
 
         return snapshots.values().stream().map(TableSnapshot.Builder::build).collect(Collectors.toSet());
-    }
-
-    public Set<TableSnapshot> loadSnapshots()
-    {
-        return loadSnapshots(null);
     }
 }

@@ -23,7 +23,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.io.sstable.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 
 /**
  * Common data access interface for sstables and memtables.

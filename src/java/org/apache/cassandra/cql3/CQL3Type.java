@@ -24,13 +24,13 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.CollectionType.Kind;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -54,6 +54,7 @@ public interface CQL3Type
     }
 
     public AbstractType<?> getType();
+    default public AbstractType<?> getUDFType() { return getType(); }
 
     /**
      * Generates CQL literal from a binary value of this type.
@@ -98,6 +99,11 @@ public interface CQL3Type
         public AbstractType<?> getType()
         {
             return type;
+        }
+
+        public AbstractType<?> getUDFType()
+        {
+            return this == TIMEUUID ? UUID.type : type;
         }
 
         /**
@@ -170,14 +176,14 @@ public interface CQL3Type
 
     public static class Collection implements CQL3Type
     {
-        private final CollectionType<?> type;
+        private final CollectionType type;
 
-        public Collection(CollectionType<?> type)
+        public Collection(CollectionType type)
         {
             this.type = type;
         }
 
-        public CollectionType<?> getType()
+        public AbstractType<?> getType()
         {
             return type;
         }
@@ -195,19 +201,19 @@ public interface CQL3Type
 
             StringBuilder target = new StringBuilder();
             buffer = buffer.duplicate();
-            int size = CollectionSerializer.readCollectionSize(buffer, ByteBufferAccessor.instance);
-            buffer.position(buffer.position() + CollectionSerializer.sizeOfCollectionSize());
+            int size = CollectionSerializer.readCollectionSize(buffer, version);
+            buffer.position(buffer.position() + CollectionSerializer.sizeOfCollectionSize(size, version));
 
             switch (type.kind)
             {
                 case LIST:
-                    CQL3Type elements = ((ListType<?>) type).getElementsType().asCQL3Type();
+                    CQL3Type elements = ((ListType) type).getElementsType().asCQL3Type();
                     target.append('[');
                     generateSetOrListCQLLiteral(buffer, version, target, size, elements);
                     target.append(']');
                     break;
                 case SET:
-                    elements = ((SetType<?>) type).getElementsType().asCQL3Type();
+                    elements = ((SetType) type).getElementsType().asCQL3Type();
                     target.append('{');
                     generateSetOrListCQLLiteral(buffer, version, target, size, elements);
                     target.append('}');
@@ -223,19 +229,19 @@ public interface CQL3Type
 
         private void generateMapCQLLiteral(ByteBuffer buffer, ProtocolVersion version, StringBuilder target, int size)
         {
-            CQL3Type keys = ((MapType<?, ?>) type).getKeysType().asCQL3Type();
-            CQL3Type values = ((MapType<?, ?>) type).getValuesType().asCQL3Type();
+            CQL3Type keys = ((MapType) type).getKeysType().asCQL3Type();
+            CQL3Type values = ((MapType) type).getValuesType().asCQL3Type();
             int offset = 0;
             for (int i = 0; i < size; i++)
             {
                 if (i > 0)
                     target.append(", ");
-                ByteBuffer element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset);
-                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance);
+                ByteBuffer element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset, version);
+                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance, version);
                 target.append(keys.toCQLLiteral(element, version));
                 target.append(": ");
-                element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset);
-                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance);
+                element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset, version);
+                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance, version);
                 target.append(values.toCQLLiteral(element, version));
             }
         }
@@ -247,8 +253,8 @@ public interface CQL3Type
             {
                 if (i > 0)
                     target.append(", ");
-                ByteBuffer element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset);
-                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance);
+                ByteBuffer element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset, version);
+                offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance, version);
                 target.append(elements.toCQLLiteral(element, version));
             }
         }
@@ -277,16 +283,16 @@ public interface CQL3Type
             switch (type.kind)
             {
                 case LIST:
-                    AbstractType<?> listType = ((ListType<?>) type).getElementsType();
+                    AbstractType<?> listType = ((ListType)type).getElementsType();
                     sb.append("list<").append(listType.asCQL3Type());
                     break;
                 case SET:
-                    AbstractType<?> setType = ((SetType<?>) type).getElementsType();
+                    AbstractType<?> setType = ((SetType)type).getElementsType();
                     sb.append("set<").append(setType.asCQL3Type());
                     break;
                 case MAP:
-                    AbstractType<?> keysType = ((MapType<?, ?>) type).getKeysType();
-                    AbstractType<?> valuesType = ((MapType<?, ?>) type).getValuesType();
+                    AbstractType<?> keysType = ((MapType)type).getKeysType();
+                    AbstractType<?> valuesType = ((MapType)type).getValuesType();
                     sb.append("map<").append(keysType.asCQL3Type()).append(", ").append(valuesType.asCQL3Type());
                     break;
                 default:
@@ -410,7 +416,7 @@ public interface CQL3Type
             return new Tuple(type);
         }
 
-        public TupleType getType()
+        public AbstractType<?> getType()
         {
             return type;
         }

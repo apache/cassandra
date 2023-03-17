@@ -17,21 +17,15 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.io.IOError;
 import java.io.IOException;
+import java.io.IOError;
 import java.nio.BufferOverflowException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.EmptyIterators;
-import org.apache.cassandra.db.RegularAndStaticColumns;
-import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.io.sstable.format.big.BigFormatPartitionWriter;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
@@ -66,7 +60,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  *
  * Please note that the format described above is the on-wire format. On-disk, the format is basically the
  * same, but the header is written once per sstable, not once per-partition. Further, the actual row and
- * range tombstones are not written using this class, but rather by {@link BigFormatPartitionWriter}.
+ * range tombstones are not written using this class, but rather by {@link ColumnIndex}.
  */
 public class UnfilteredRowIteratorSerializer
 {
@@ -146,7 +140,7 @@ public class UnfilteredRowIteratorSerializer
             UnfilteredSerializer.serializer.serialize(staticRow, helper, out, version);
 
         if (rowEstimate >= 0)
-            out.writeUnsignedVInt32(rowEstimate);
+            out.writeUnsignedVInt(rowEstimate);
 
         while (iterator.hasNext())
             UnfilteredSerializer.serializer.serialize(iterator.next(), helper, out, version);
@@ -217,7 +211,7 @@ public class UnfilteredRowIteratorSerializer
         if (hasStatic)
             staticRow = UnfilteredSerializer.serializer.deserializeStaticRow(in, header, new DeserializationHelper(metadata, version, flag));
 
-        int rowEstimate = hasRowEstimate ? in.readUnsignedVInt32() : -1;
+        int rowEstimate = hasRowEstimate ? (int)in.readUnsignedVInt() : -1;
         return new Header(header, key, isReversed, false, partitionDeletion, staticRow, rowEstimate);
     }
 

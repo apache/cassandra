@@ -57,7 +57,7 @@ public class SnapshotManagerTest
     @ClassRule
     public static TemporaryFolder temporaryFolder = new TemporaryFolder();
 
-    private TableSnapshot generateSnapshotDetails(String tag, Instant expiration, boolean ephemeral)
+    private TableSnapshot generateSnapshotDetails(String tag, Instant expiration)
     {
         try
         {
@@ -67,8 +67,7 @@ public class SnapshotManagerTest
                                      tag,
                                      Instant.EPOCH,
                                      expiration,
-                                     createFolders(temporaryFolder),
-                                     ephemeral);
+                                     createFolders(temporaryFolder));
         }
         catch (Exception ex)
         {
@@ -76,11 +75,13 @@ public class SnapshotManagerTest
         }
     }
 
+
     @Test
-    public void testLoadSnapshots() throws Exception {
-        TableSnapshot expired = generateSnapshotDetails("expired", Instant.EPOCH, false);
-        TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusSeconds(ONE_DAY_SECS), false);
-        TableSnapshot nonExpiring = generateSnapshotDetails("non-expiring", null, false);
+    public void testLoadSnapshots() throws Exception
+    {
+        TableSnapshot expired = generateSnapshotDetails("expired", Instant.EPOCH);
+        TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusSeconds(ONE_DAY_SECS));
+        TableSnapshot nonExpiring = generateSnapshotDetails("non-expiring", null);
         List<TableSnapshot> snapshots = Arrays.asList(expired, nonExpired, nonExpiring);
 
         // Create SnapshotManager with 3 snapshots: expired, non-expired and non-expiring
@@ -94,13 +95,14 @@ public class SnapshotManagerTest
     }
 
     @Test
-    public void testClearExpiredSnapshots() throws Exception {
+    public void testClearExpiredSnapshots()
+    {
         SnapshotManager manager = new SnapshotManager(3, 3);
 
         // Add 3 snapshots: expired, non-expired and non-expiring
-        TableSnapshot expired = generateSnapshotDetails("expired", Instant.EPOCH, false);
-        TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusMillis(ONE_DAY_SECS), false);
-        TableSnapshot nonExpiring = generateSnapshotDetails("non-expiring", null, false);
+        TableSnapshot expired = generateSnapshotDetails("expired", Instant.EPOCH);
+        TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusMillis(ONE_DAY_SECS));
+        TableSnapshot nonExpiring = generateSnapshotDetails("non-expiring", null);
         manager.addSnapshot(expired);
         manager.addSnapshot(nonExpired);
         manager.addSnapshot(nonExpiring);
@@ -123,7 +125,8 @@ public class SnapshotManagerTest
     }
 
     @Test
-    public void testScheduledCleanup() throws Exception {
+    public void testScheduledCleanup() throws Exception
+    {
         SnapshotManager manager = new SnapshotManager(0, 1);
         try
         {
@@ -131,9 +134,8 @@ public class SnapshotManagerTest
             manager.start();
 
             // Add 2 expiring snapshots: one to expire in 2 seconds, another in 1 day
-            int TTL_SECS = 2;
-            TableSnapshot toExpire = generateSnapshotDetails("to-expire", now().plusSeconds(TTL_SECS), false);
-            TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusMillis(ONE_DAY_SECS), false);
+            TableSnapshot toExpire = generateSnapshotDetails("to-expire", now().plusSeconds(2));
+            TableSnapshot nonExpired = generateSnapshotDetails("non-expired", now().plusMillis(ONE_DAY_SECS));
             manager.addSnapshot(toExpire);
             manager.addSnapshot(nonExpired);
 
@@ -144,11 +146,10 @@ public class SnapshotManagerTest
             assertThat(manager.getExpiringSnapshots()).contains(toExpire);
             assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
 
-            // Sleep 4 seconds
-            Thread.sleep((TTL_SECS + 2) * 1000L);
+            await().pollInterval(2, SECONDS)
+                   .timeout(10, SECONDS)
+                   .until(() -> manager.getExpiringSnapshots().size() == 1);
 
-            // Snapshot with ttl=2s should be gone, while other should remain
-            assertThat(manager.getExpiringSnapshots()).hasSize(1);
             assertThat(manager.getExpiringSnapshots()).contains(nonExpired);
             assertThat(toExpire.exists()).isFalse();
             assertThat(nonExpired.exists()).isTrue();
@@ -157,24 +158,6 @@ public class SnapshotManagerTest
         {
             manager.stop();
         }
-    }
-
-    @Test
-    public void testClearSnapshot() throws Exception
-    {
-        // Given
-        SnapshotManager manager = new SnapshotManager(1, 3);
-        TableSnapshot expiringSnapshot = generateSnapshotDetails("snapshot", now().plusMillis(50000), false);
-        manager.addSnapshot(expiringSnapshot);
-        assertThat(manager.getExpiringSnapshots()).contains(expiringSnapshot);
-        assertThat(expiringSnapshot.exists()).isTrue();
-
-        // When
-        manager.clearSnapshot(expiringSnapshot);
-
-        // Then
-        assertThat(manager.getExpiringSnapshots()).doesNotContain(expiringSnapshot);
-        assertThat(expiringSnapshot.exists()).isFalse();
     }
 
     @Test // see CASSANDRA-18211
@@ -202,12 +185,12 @@ public class SnapshotManagerTest
             }
         };
 
-        TableSnapshot expiringSnapshot = generateSnapshotDetails("mysnapshot", Instant.now().plusSeconds(15), false);
+        TableSnapshot expiringSnapshot = generateSnapshotDetails("mysnapshot", Instant.now().plusSeconds(15));
         manager.addSnapshot(expiringSnapshot);
 
         manager.resumeSnapshotCleanup();
 
-        Thread nonExpiringSnapshotCleanupThred = new Thread(() -> manager.clearSnapshot(generateSnapshotDetails("mysnapshot2", null, false)));
+        Thread nonExpiringSnapshotCleanupThred = new Thread(() -> manager.clearSnapshot(generateSnapshotDetails("mysnapshot2", null)));
 
         // wait until the first snapshot expires
         await().pollInterval(1, SECONDS)

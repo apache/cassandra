@@ -22,6 +22,7 @@ import java.util.*;
 import javax.management.openmbean.*;
 
 import com.google.common.base.Function;
+import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
@@ -82,7 +83,7 @@ public class SessionInfoCompositeData
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);
+            throw Throwables.propagate(e);
         }
     }
 
@@ -120,7 +121,7 @@ public class SessionInfoCompositeData
         }
         catch (OpenDataException e)
         {
-            throw new RuntimeException(e);
+            throw Throwables.propagate(e);
         }
     }
 
@@ -137,7 +138,7 @@ public class SessionInfoCompositeData
         }
         catch (UnknownHostException e)
         {
-            throw new RuntimeException(e);
+            throw Throwables.propagate(e);
         }
         Function<CompositeData, StreamSummary> toStreamSummary = new Function<CompositeData, StreamSummary>()
         {

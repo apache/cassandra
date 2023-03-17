@@ -71,13 +71,13 @@ public class FramingTest
 
             public void serialize(byte[] t, DataOutputPlus out, int version) throws IOException
             {
-                out.writeUnsignedVInt32(t.length);
+                out.writeUnsignedVInt(t.length);
                 out.write(t);
             }
 
             public byte[] deserialize(DataInputPlus in, int version) throws IOException
             {
-                byte[] r = new byte[in.readUnsignedVInt32()];
+                byte[] r = new byte[(int) in.readUnsignedVInt()];
                 in.readFully(r);
                 return r;
             }

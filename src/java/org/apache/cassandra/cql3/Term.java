@@ -113,17 +113,11 @@ public interface Term
          *
          * @param keyspace the keyspace on which the statement containing this term is on.
          * @return the type of this {@code Term} if inferrable, or {@code null}
-         * otherwise (for instance, the type isn't inferrable for a bind marker. Even for
+         * otherwise (for instance, the type isn't inferable for a bind marker. Even for
          * literals, the exact type is not inferrable since they are valid for many
          * different types and so this will return {@code null} too).
          */
         public abstract AbstractType<?> getExactTypeIfKnown(String keyspace);
-
-        @Override
-        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
-        {
-            return getExactTypeIfKnown(keyspace);
-        }
 
         @Override
         public String toString()
@@ -187,8 +181,9 @@ public interface Term
 
         /**
          * @return the serialized value of this terminal.
+         * @param protocolVersion
          */
-        public abstract ByteBuffer get(ProtocolVersion version) throws InvalidRequestException;
+        public abstract ByteBuffer get(ProtocolVersion protocolVersion) throws InvalidRequestException;
 
         public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {

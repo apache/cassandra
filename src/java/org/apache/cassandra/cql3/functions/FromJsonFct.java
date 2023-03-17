@@ -22,13 +22,11 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Json;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -71,27 +69,11 @@ public class FromJsonFct extends NativeScalarFunction
         }
         catch (IOException exc)
         {
-            throw FunctionExecutionException.create(NAME, Collections.singletonList("text"),
-                                                    String.format("Could not decode JSON string '%s': %s", jsonArg, exc));
+            throw FunctionExecutionException.create(NAME, Collections.singletonList("text"), String.format("Could not decode JSON string '%s': %s", jsonArg, exc.toString()));
         }
         catch (MarshalException exc)
         {
             throw FunctionExecutionException.create(this, exc);
         }
-    }
-
-    public static void addFunctionsTo(NativeFunctions functions)
-    {
-        functions.add(new FunctionFactory(NAME.name, FunctionParameter.fixed(CQL3Type.Native.TEXT))
-        {
-            @Override
-            protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
-            {
-                if (receiverType == null)
-                    throw new InvalidRequestException("fromJson() cannot be used in the selection clause of a SELECT statement");
-
-                return FromJsonFct.getInstance(receiverType);
-            }
-        });
     }
 }

@@ -18,6 +18,24 @@
 
 package org.apache.cassandra.simulator.debug;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.channels.Channels;
+import java.util.Arrays;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Supplier;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import java.util.zip.GZIPOutputStream;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.File;
@@ -28,22 +46,11 @@ import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Threads;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.nio.channels.Channels;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
-import java.util.function.Supplier;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
-import java.util.zip.GZIPOutputStream;
 
 import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
-import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.*;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.NONE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.VALUE;
+import static org.apache.cassandra.simulator.SimulationRunner.RecordOption.WITH_CALLSITES;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 
 public class Record
@@ -275,7 +282,7 @@ public class Record
                 synchronized (this)
                 {
                     out.writeByte(7);
-                    out.writeVInt32(count++);
+                    out.writeVInt(count++);
                     out.writeLong(value);
                     threads.writeThread();
                 }
@@ -302,11 +309,11 @@ public class Record
                 synchronized (this)
                 {
                     out.writeByte(1);
-                    out.writeVInt32(count++);
+                    out.writeVInt(count++);
                     threads.writeThread();
-                    out.writeVInt32(min);
-                    out.writeVInt32(max - min);
-                    out.writeVInt32(v - min);
+                    out.writeVInt(min);
+                    out.writeVInt(max - min);
+                    out.writeVInt(v - min);
                 }
             }
             catch (IOException e)
@@ -332,7 +339,7 @@ public class Record
                 synchronized (this)
                 {
                     out.writeByte(2);
-                    out.writeVInt32(count++);
+                    out.writeVInt(count++);
                     threads.writeThread();
                     out.writeVInt(min);
                     out.writeVInt(max - min);
@@ -362,7 +369,7 @@ public class Record
                 synchronized (this)
                 {
                     out.writeByte(3);
-                    out.writeVInt32(count++);
+                    out.writeVInt(count++);
                     threads.writeThread();
                     out.writeFloat(v);
                 }
@@ -390,7 +397,7 @@ public class Record
                 synchronized (this)
                 {
                     out.writeByte(6);
-                    out.writeVInt32(count++);
+                    out.writeVInt(count++);
                     threads.writeThread();
                     out.writeDouble(v);
                 }
@@ -418,7 +425,7 @@ public class Record
                 synchronized (this)
                 {
                     out.writeByte(4);
-                    out.writeVInt32(count++);
+                    out.writeVInt(count++);
                     out.writeVInt(seed);
                 }
             }
@@ -444,7 +451,7 @@ public class Record
                 synchronized (this)
                 {
                     out.writeByte(5);
-                    out.writeVInt32(count++);
+                    out.writeVInt(count++);
                     out.writeFloat(v);
                 }
             }
@@ -507,11 +514,11 @@ public class Record
             Integer id = objects.get(o);
             if (id != null)
             {
-                out.writeVInt32(id);
+                out.writeVInt(id);
             }
             else
             {
-                out.writeVInt32(objects.size());
+                out.writeVInt(objects.size());
                 out.writeUTF(o.toString());
                 objects.put(o, objects.size());
             }

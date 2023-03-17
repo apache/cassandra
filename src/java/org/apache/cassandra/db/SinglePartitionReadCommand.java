@@ -19,12 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.NavigableSet;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -35,37 +30,18 @@ import org.apache.cassandra.cache.IRowCacheEntry;
 import org.apache.cassandra.cache.RowCacheKey;
 import org.apache.cassandra.cache.RowCacheSentinel;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.filter.ClusteringIndexFilter;
-import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
-import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.filter.DataLimits;
-import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.lifecycle.*;
 import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.partitions.CachedBTreePartition;
-import org.apache.cassandra.db.partitions.CachedPartition;
-import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
-import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.partitions.PartitionIterators;
-import org.apache.cassandra.db.partitions.SingletonUnfilteredPartitionIterator;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.Rows;
-import org.apache.cassandra.db.rows.Unfiltered;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.db.rows.UnfilteredRowIteratorWithLowerBound;
-import org.apache.cassandra.db.rows.UnfilteredRowIterators;
-import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.RTBoundValidator;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
@@ -73,9 +49,7 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.CacheService;
-import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTreeSet;
@@ -564,26 +538,20 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 try
                 {
                     // Use a custom iterator instead of DataLimits to avoid stopping the original iterator
-                    UnfilteredRowIterator toCacheIterator = new WrappingUnfilteredRowIterator()
+                    UnfilteredRowIterator toCacheIterator = new WrappingUnfilteredRowIterator(iter)
                     {
                         private int rowsCounted = 0;
 
                         @Override
-                        public UnfilteredRowIterator wrapped()
-                        {
-                            return iter;
-                        }
-
-                        @Override
                         public boolean hasNext()
                         {
-                            return rowsCounted < rowsToCache && iter.hasNext();
+                            return rowsCounted < rowsToCache && super.hasNext();
                         }
 
                         @Override
                         public Unfiltered next()
                         {
-                            Unfiltered unfiltered = iter.next();
+                            Unfiltered unfiltered = super.next();
                             if (unfiltered.isRow())
                             {
                                 Row row = (Row) unfiltered;
@@ -745,26 +713,14 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                     break;
                 }
 
-                boolean intersects = intersects(sstable);
-                boolean hasRequiredStatics = hasRequiredStatics(sstable);
-                boolean hasPartitionLevelDeletions = hasPartitionLevelDeletions(sstable);
-
-                if (!intersects && !hasRequiredStatics && !hasPartitionLevelDeletions)
-                {
-                    nonIntersectingSSTables++;
-                    continue;
-                }
-
-                if (intersects || hasRequiredStatics)
+                if (shouldInclude(sstable))
                 {
                     if (!sstable.isRepaired())
                         controller.updateMinOldestUnrepairedTombstone(sstable.getMinLocalDeletionTime());
 
                     // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
                     @SuppressWarnings("resource")
-                    UnfilteredRowIterator iter = intersects ? makeRowIteratorWithLowerBound(cfs, sstable, metricsCollector)
-                                                            : makeRowIteratorWithSkippedNonStaticContent(cfs, sstable, metricsCollector);
-
+                    UnfilteredRowIteratorWithLowerBound iter = makeIterator(cfs, sstable, metricsCollector);
                     inputCollector.addSSTableIterator(sstable, iter);
                     mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
                                                             iter.partitionLevelDeletion().markedForDeleteAt());
@@ -772,30 +728,27 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 else
                 {
                     nonIntersectingSSTables++;
-
-                    // if the sstable contained range or cell tombstones, it would intersect; since we are here, it means
-                    // that there are no cell or range tombstones we are interested in (due to the filter)
-                    // however, we know that there are partition level deletions in this sstable and we need to make
-                    // an iterator figure out that (see `StatsMetadata.hasPartitionLevelDeletions`)
-
-                    // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
-                    @SuppressWarnings("resource")
-                    UnfilteredRowIterator iter = makeRowIteratorWithSkippedNonStaticContent(cfs, sstable, metricsCollector);
-
-                    // if the sstable contains a partition delete, then we must include it regardless of whether it
-                    // shadows any other data seen locally as we can't guarantee that other replicas have seen it
-                    if (!iter.partitionLevelDeletion().isLive())
+                    // sstable contains no tombstone if maxLocalDeletionTime == Integer.MAX_VALUE, so we can safely skip those entirely
+                    if (sstable.mayHaveTombstones())
                     {
-                        if (!sstable.isRepaired())
-                            controller.updateMinOldestUnrepairedTombstone(sstable.getMinLocalDeletionTime());
-                        inputCollector.addSSTableIterator(sstable, iter);
-                        includedDueToTombstones++;
-                        mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
-                                                                iter.partitionLevelDeletion().markedForDeleteAt());
-                    }
-                    else
-                    {
-                        iter.close();
+                        // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
+                        @SuppressWarnings("resource")
+                        UnfilteredRowIteratorWithLowerBound iter = makeIterator(cfs, sstable, metricsCollector);
+                        // if the sstable contains a partition delete, then we must include it regardless of whether it
+                        // shadows any other data seen locally as we can't guarantee that other replicas have seen it
+                        if (!iter.partitionLevelDeletion().isLive())
+                        {
+                            if (!sstable.isRepaired())
+                                controller.updateMinOldestUnrepairedTombstone(sstable.getMinLocalDeletionTime());
+                            inputCollector.addSSTableIterator(sstable, iter);
+                            includedDueToTombstones++;
+                            mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone,
+                                                                    iter.partitionLevelDeletion().markedForDeleteAt());
+                        }
+                        else
+                        {
+                            iter.close();
+                        }
                     }
                 }
             }
@@ -826,50 +779,28 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         }
     }
 
-    @Override
-    protected boolean intersects(SSTableReader sstable)
+    private boolean shouldInclude(SSTableReader sstable)
     {
-        return clusteringIndexFilter().intersects(sstable.metadata().comparator, sstable.getSSTableMetadata().coveredClustering);
+        // If some static columns are queried, we should always include the sstable: the clustering values stats of the sstable
+        // don't tell us if the sstable contains static values in particular.
+        // TODO: we could record if a sstable contains any static value at all.
+        if (!columnFilter().fetchedColumns().statics.isEmpty())
+            return true;
+
+        return clusteringIndexFilter().shouldInclude(sstable);
     }
 
-    private UnfilteredRowIteratorWithLowerBound makeRowIteratorWithLowerBound(ColumnFamilyStore cfs,
-                                                                              SSTableReader sstable,
-                                                                              SSTableReadsListener listener)
+    private UnfilteredRowIteratorWithLowerBound makeIterator(ColumnFamilyStore cfs,
+                                                             SSTableReader sstable,
+                                                             SSTableReadsListener listener)
     {
         return StorageHook.instance.makeRowIteratorWithLowerBound(cfs,
-                                                                  sstable,
                                                                   partitionKey(),
+                                                                  sstable,
                                                                   clusteringIndexFilter(),
                                                                   columnFilter(),
                                                                   listener);
 
-    }
-
-    private UnfilteredRowIterator makeRowIterator(ColumnFamilyStore cfs,
-                                                  SSTableReader sstable,
-                                                  ClusteringIndexNamesFilter clusteringIndexFilter,
-                                                  SSTableReadsListener listener)
-    {
-        return StorageHook.instance.makeRowIterator(cfs,
-                                                    sstable,
-                                                    partitionKey(),
-                                                    clusteringIndexFilter.getSlices(cfs.metadata()),
-                                                    columnFilter(),
-                                                    clusteringIndexFilter.isReversed(),
-                                                    listener);
-    }
-
-    private UnfilteredRowIterator makeRowIteratorWithSkippedNonStaticContent(ColumnFamilyStore cfs,
-                                                                             SSTableReader sstable,
-                                                                             SSTableReadsListener listener)
-    {
-        return StorageHook.instance.makeRowIterator(cfs,
-                                                    sstable,
-                                                    partitionKey(),
-                                                    Slices.NONE,
-                                                    columnFilter(),
-                                                    clusteringIndexFilter().isReversed(),
-                                                    listener);
     }
 
     /**
@@ -889,7 +820,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         {
             DecoratedKey key = merged.partitionKey();
             metrics.topReadPartitionFrequency.addSample(key.getKey(), 1);
-            metrics.topReadPartitionSSTableCount.addSample(key.getKey(), metricsCollector.getMergedSSTables());
         }
 
         class UpdateSstablesIterated extends Transformation<UnfilteredRowIterator>
@@ -964,21 +894,23 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             if (filter == null)
                 break;
 
-            boolean intersects = intersects(sstable);
-            boolean hasRequiredStatics = hasRequiredStatics(sstable);
-            boolean hasPartitionLevelDeletions = hasPartitionLevelDeletions(sstable);
-
-            if (!intersects && !hasRequiredStatics)
+            if (!shouldInclude(sstable))
             {
                 // This mean that nothing queried by the filter can be in the sstable. One exception is the top-level partition deletion
                 // however: if it is set, it impacts everything and must be included. Getting that top-level partition deletion costs us
                 // some seek in general however (unless the partition is indexed and is in the key cache), so we first check if the sstable
                 // has any tombstone at all as a shortcut.
-                if (!hasPartitionLevelDeletions)
+                if (!sstable.mayHaveTombstones())
                     continue; // no tombstone at all, we can skip that sstable
 
                 // We need to get the partition deletion and include it if it's live. In any case though, we're done with that sstable.
-                try (UnfilteredRowIterator iter = makeRowIteratorWithSkippedNonStaticContent(cfs, sstable, metricsCollector))
+                try (UnfilteredRowIterator iter = StorageHook.instance.makeRowIterator(cfs,
+                                                                                       sstable,
+                                                                                       partitionKey(),
+                                                                                       filter.getSlices(metadata()),
+                                                                                       columnFilter(),
+                                                                                       filter.isReversed(),
+                                                                                       metricsCollector))
                 {
                     if (!iter.partitionLevelDeletion().isLive())
                     {
@@ -1005,7 +937,13 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 continue;
             }
 
-            try (UnfilteredRowIterator iter = makeRowIterator(cfs, sstable, filter, metricsCollector))
+            try (UnfilteredRowIterator iter = StorageHook.instance.makeRowIterator(cfs,
+                                                                                   sstable,
+                                                                                   partitionKey(),
+                                                                                   filter.getSlices(metadata()),
+                                                                                   columnFilter(),
+                                                                                   filter.isReversed(),
+                                                                                   metricsCollector))
             {
                 if (iter.isEmpty())
                     continue;
@@ -1025,7 +963,6 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
 
         DecoratedKey key = result.partitionKey();
         cfs.metric.topReadPartitionFrequency.addSample(key.getKey(), 1);
-        cfs.metric.topReadPartitionSSTableCount.addSample(key.getKey(), metricsCollector.getMergedSSTables());
         StorageHook.instance.reportRead(cfs.metadata.id, partitionKey());
 
         return result.unfilteredIterator(columnFilter(), Slices.ALL, clusteringIndexFilter().isReversed());
@@ -1086,7 +1023,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                         toRemove = new TreeSet<>(result.metadata().comparator);
                     toRemove.add(clustering);
                 }
-            }
+            } 
         }
 
         try (UnfilteredRowIterator iterator = result.unfilteredIterator(columnFilter(), clusterings, false))
@@ -1339,7 +1276,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         private int mergedSSTables;
 
         @Override
-        public void onSSTableSelected(SSTableReader sstable, SelectionReason reason)
+        public void onSSTableSelected(SSTableReader sstable, RowIndexEntry<?> indexEntry, SelectionReason reason)
         {
             sstable.incrementReadCount();
             mergedSSTables++;

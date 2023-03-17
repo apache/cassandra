@@ -17,11 +17,7 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -29,34 +25,23 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
+
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.notifications.INotification;
-import org.apache.cassandra.notifications.INotificationConsumer;
-import org.apache.cassandra.notifications.InitialSSTableAddedNotification;
-import org.apache.cassandra.notifications.MemtableDiscardedNotification;
-import org.apache.cassandra.notifications.MemtableRenewedNotification;
-import org.apache.cassandra.notifications.MemtableSwitchedNotification;
-import org.apache.cassandra.notifications.SSTableAddedNotification;
-import org.apache.cassandra.notifications.SSTableDeletingNotification;
-import org.apache.cassandra.notifications.SSTableListChangedNotification;
-import org.apache.cassandra.notifications.SSTableMetadataChanged;
-import org.apache.cassandra.notifications.SSTableRepairStatusChanged;
-import org.apache.cassandra.notifications.TruncationNotification;
+import org.apache.cassandra.notifications.*;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -66,11 +51,7 @@ import static com.google.common.collect.ImmutableSet.copyOf;
 import static com.google.common.collect.Iterables.filter;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
-import static org.apache.cassandra.db.lifecycle.Helpers.abortObsoletion;
-import static org.apache.cassandra.db.lifecycle.Helpers.markObsolete;
-import static org.apache.cassandra.db.lifecycle.Helpers.notIn;
-import static org.apache.cassandra.db.lifecycle.Helpers.prepareForObsoletion;
-import static org.apache.cassandra.db.lifecycle.Helpers.setupOnline;
+import static org.apache.cassandra.db.lifecycle.Helpers.*;
 import static org.apache.cassandra.db.lifecycle.View.permitCompacting;
 import static org.apache.cassandra.db.lifecycle.View.updateCompacting;
 import static org.apache.cassandra.db.lifecycle.View.updateLiveSet;
@@ -118,7 +99,7 @@ public class Tracker
     /**
      * @return a Transaction over the provided sstables if we are able to mark the given @param sstables as compacted, before anyone else
      */
-    public LifecycleTransaction tryModify(Iterable<? extends SSTableReader> sstables, OperationType operationType)
+    public LifecycleTransaction tryModify(Iterable<SSTableReader> sstables, OperationType operationType)
     {
         if (Iterables.isEmpty(sstables))
             return new LifecycleTransaction(this, operationType, sstables);
@@ -171,8 +152,6 @@ public class Tracker
             return accumulate;
 
         long add = 0;
-        long addUncompressed = 0;
-
         for (SSTableReader sstable : newSSTables)
         {
             if (logger.isTraceEnabled())
@@ -180,17 +159,13 @@ public class Tracker
             try
             {
                 add += sstable.bytesOnDisk();
-                addUncompressed += sstable.logicalBytesOnDisk();
             }
             catch (Throwable t)
             {
                 accumulate = merge(accumulate, t);
             }
         }
-
         long subtract = 0;
-        long subtractUncompressed = 0;
-
         for (SSTableReader sstable : oldSSTables)
         {
             if (logger.isTraceEnabled())
@@ -198,7 +173,6 @@ public class Tracker
             try
             {
                 subtract += sstable.bytesOnDisk();
-                subtractUncompressed += sstable.logicalBytesOnDisk();
             }
             catch (Throwable t)
             {
@@ -207,10 +181,7 @@ public class Tracker
         }
 
         StorageMetrics.load.inc(add - subtract);
-        StorageMetrics.uncompressedLoad.inc(addUncompressed - subtractUncompressed);
-
         cfstore.metric.liveDiskSpaceUsed.inc(add - subtract);
-        cfstore.metric.uncompressedLiveDiskSpaceUsed.inc(addUncompressed - subtractUncompressed);
 
         // we don't subtract from total until the sstable is deleted, see TransactionLogs.SSTableTidier
         cfstore.metric.totalDiskSpaceUsed.inc(add);
@@ -437,7 +408,7 @@ public class Tracker
 
     public void maybeIncrementallyBackup(final Iterable<SSTableReader> sstables)
     {
-        if (!cfstore.isTableIncrementalBackupsEnabled())
+        if (!DatabaseDescriptor.isIncrementalBackupsEnabled())
             return;
 
         for (SSTableReader sstable : sstables)

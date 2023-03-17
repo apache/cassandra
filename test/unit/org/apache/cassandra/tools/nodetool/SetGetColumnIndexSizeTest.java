@@ -36,7 +36,6 @@ public class SetGetColumnIndexSizeTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        requireNetwork();
         startJMXServer();
     }
 

@@ -182,10 +182,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
             if (diskWriter.exception instanceof IOException)
                 throw (IOException) diskWriter.exception;
             else
-            {
-                Throwables.throwIfUnchecked(diskWriter.exception);
-                throw new RuntimeException(diskWriter.exception);
-            }
+                throw Throwables.propagate(diskWriter.exception);
         }
     }
 
@@ -214,7 +211,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                     if (b == SENTINEL)
                         return;
 
-                    try (SSTableTxnWriter writer = createWriter(null))
+                        try (SSTableTxnWriter writer = createWriter())
                     {
                         for (Map.Entry<DecoratedKey, PartitionUpdate.Builder> entry : b.entrySet())
                             writer.append(entry.getValue().build().unfilteredIterator());

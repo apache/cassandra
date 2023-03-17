@@ -38,7 +38,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -57,9 +56,7 @@ import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.triggers.ITrigger;
 
 
-import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class VirtualTableTest extends CQLTester
@@ -69,7 +66,6 @@ public class VirtualTableTest extends CQLTester
     private static final String VT2_NAME = "vt2";
     private static final String VT3_NAME = "vt3";
     private static final String VT4_NAME = "vt4";
-    private static final String VT5_NAME = "vt5";
 
     // As long as we execute test queries using execute (and not executeNet) the virtual tables implementation
     // do not need to be thread-safe. We choose to do it to avoid issues if the test framework was changed or somebody
@@ -347,27 +343,7 @@ public class VirtualTableTest extends CQLTester
 
         };
 
-        VirtualTable vt5 = new AbstractVirtualTable(TableMetadata.builder(KS_NAME, VT5_NAME)
-                                                                 .kind(TableMetadata.Kind.VIRTUAL)
-                                                                 .addPartitionKeyColumn("pk", UTF8Type.instance)
-                                                                 .addClusteringColumn("c", UTF8Type.instance)
-                                                                 .addRegularColumn("v1", Int32Type.instance)
-                                                                 .addRegularColumn("v2", LongType.instance)
-                                                                 .build())
-        {
-            public DataSet data()
-            {
-                return new SimpleDataSet(metadata());
-            }
-
-            @Override
-            public boolean allowFilteringImplicitly()
-            {
-                return false;
-            }
-        };
-
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3, vt4, vt5)));
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(vt1, vt2, vt3, vt4)));
 
         CQLTester.setUpClass();
     }
@@ -1047,26 +1023,6 @@ public class VirtualTableTest extends CQLTester
 
         assertJMXFails(() -> mbean.getAutoCompactionStatus(KS_NAME));
         assertJMXFails(() -> mbean.getAutoCompactionStatus(KS_NAME, VT1_NAME));
-    }
-
-    @Test
-    public void testDisallowedFilteringOnTable() throws Throwable
-    {
-        try
-        {
-            executeNet(format("SELECT * FROM %s.%s WHERE v2 = 5", KS_NAME, VT5_NAME));
-            fail(format("should fail as %s.%s is not allowed to be filtered on implicitly.", KS_NAME, VT5_NAME));
-        }
-        catch (InvalidQueryException ex)
-        {
-            assertTrue(ex.getMessage().contains("Cannot execute this query as it might involve data filtering and thus may have unpredictable performance"));
-        }
-    }
-
-    @Test
-    public void testAllowedFilteringOnTable() throws Throwable
-    {
-        executeNet(format("SELECT * FROM %s.%s WHERE v2 = 5", KS_NAME, VT1_NAME));
     }
 
     @FunctionalInterface

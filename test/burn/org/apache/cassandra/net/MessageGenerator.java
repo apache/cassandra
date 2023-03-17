@@ -149,7 +149,7 @@ abstract class MessageGenerator
     {
         int length = messagingVersion < VERSION_40
                      ? in.readInt()
-                     : in.readUnsignedVInt32();
+                     : (int) in.readUnsignedVInt();
         long id = in.readLong();
         if (ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN)
             id = Long.reverseBytes(id);
@@ -162,7 +162,7 @@ abstract class MessageGenerator
         if (messagingVersion < VERSION_40)
             out.writeInt(payload.length);
         else
-            out.writeUnsignedVInt32(payload.length);
+            out.writeUnsignedVInt(payload.length);
     }
 
     static long serializedSize(byte[] payload, int messagingVersion)

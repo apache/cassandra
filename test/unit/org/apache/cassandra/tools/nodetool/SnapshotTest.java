@@ -36,7 +36,6 @@ public class SnapshotTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
-        requireNetwork();
         startJMXServer();
     }
 

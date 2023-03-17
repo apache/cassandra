@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.cache;
 
+import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.NoSuchFileException;
-import java.util.ArrayDeque;
-import java.util.Iterator;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -33,28 +33,19 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.compaction.CompactionInfo;
-import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
-import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.util.ChecksummedRandomAccessReader;
-import org.apache.cassandra.io.util.ChecksummedSequentialWriter;
-import org.apache.cassandra.io.util.CorruptFileException;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.SequentialWriterOption;
-import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.compaction.CompactionInfo;
+import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
+import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Pair;
@@ -68,9 +59,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 {
     public interface IStreamFactory
     {
-        DataInputStreamPlus getInputStream(File dataPath, File crcPath) throws IOException;
-
-        DataOutputStreamPlus getOutputStream(File dataPath, File crcPath);
+        InputStream getInputStream(File dataPath, File crcPath) throws IOException;
+        OutputStream getOutputStream(File dataPath, File crcPath);
     }
 
     private static final Logger logger = LoggerFactory.getLogger(AutoSavingCache.class);
@@ -95,10 +85,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
      * "e" introduced with CASSANDRA-11206, omits IndexInfo from key-cache, stores offset into index-file
      *
      * "f" introduced with CASSANDRA-9425, changes "keyspace.table.index" in cache keys to TableMetadata.id+TableMetadata.indexName
-     *
-     * "g" introduced an explicit sstable format type ordinal number so that the entry can be skipped regardless of the actual implementation and used serializer
      */
-    private static final String CURRENT_VERSION = "g";
+    private static final String CURRENT_VERSION = "f";
 
     private static volatile IStreamFactory streamFactory = new IStreamFactory()
     {
@@ -107,12 +95,12 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                                                                     .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024)
                                                                     .finishOnClose(true).build();
 
-        public DataInputStreamPlus getInputStream(File dataPath, File crcPath) throws IOException
+        public InputStream getInputStream(File dataPath, File crcPath) throws IOException
         {
             return ChecksummedRandomAccessReader.open(dataPath, crcPath);
         }
 
-        public DataOutputStreamPlus getOutputStream(File dataPath, File crcPath)
+        public OutputStream getOutputStream(File dataPath, File crcPath)
         {
             return new ChecksummedSequentialWriter(dataPath, crcPath, null, writerOption);
         }
@@ -187,7 +175,6 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         return cacheLoad;
     }
 
-    @SuppressWarnings("resource")
     public int loadSaved()
     {
         int count = 0;
@@ -202,15 +189,15 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             try
             {
                 logger.info("reading saved cache {}", dataPath);
-                in = streamFactory.getInputStream(dataPath, crcPath);
+                in = new DataInputStreamPlus(new LengthAvailableInputStream(new BufferedInputStream(streamFactory.getInputStream(dataPath, crcPath)), dataPath.length()));
 
                 //Check the schema has not changed since CFs are looked up by name which is ambiguous
                 UUID schemaVersion = new UUID(in.readLong(), in.readLong());
                 if (!schemaVersion.equals(Schema.instance.getVersion()))
                     throw new RuntimeException("Cache schema version "
-                                               + schemaVersion
-                                               + " does not match current schema version "
-                                               + Schema.instance.getVersion());
+                                              + schemaVersion
+                                              + " does not match current schema version "
+                                              + Schema.instance.getVersion());
 
                 ArrayDeque<Future<Pair<K, V>>> futures = new ArrayDeque<>();
                 long loadByNanos = start + TimeUnit.SECONDS.toNanos(DatabaseDescriptor.getCacheLoadTimeout());
@@ -281,7 +268,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
         if (logger.isTraceEnabled())
             logger.trace("completed reading ({} ms; {} keys) saved cache {}",
-                         TimeUnit.NANOSECONDS.toMillis(nanoTime() - start), count, dataPath);
+                    TimeUnit.NANOSECONDS.toMillis(nanoTime() - start), count, dataPath);
         return count;
     }
 
@@ -326,8 +313,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                                                   0,
                                                   keysEstimate,
                                                   Unit.KEYS,
-                                                  nextTimeUUID(),
-                                                  getCacheDataPath(CURRENT_VERSION).toPath().toString());
+                                                  nextTimeUUID());
         }
 
         public CacheService.CacheType cacheType()

@@ -17,17 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
+import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicates;
@@ -36,16 +26,18 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
+
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 
@@ -122,7 +114,7 @@ public class LeveledManifest
             long maxModificationTime = Long.MIN_VALUE;
             for (SSTableReader ssTableReader : level)
             {
-                long modificationTime = ssTableReader.getDataCreationTime();
+                long modificationTime = ssTableReader.getCreationTimeFor(Component.DATA);
                 if (modificationTime >= maxModificationTime)
                 {
                     sstableWithMaxModificationTime = ssTableReader;
@@ -630,25 +622,16 @@ public class LeveledManifest
         return 0;
     }
 
-    public int getEstimatedTasks()
-    {
-        return getEstimatedTasks(0);
-    }
-
-    int getEstimatedTasks(long additionalLevel0Bytes)
-    {
-        return getEstimatedTasks((level) -> SSTableReader.getTotalBytes(getLevel(level)) + (level == 0 ? additionalLevel0Bytes : 0));
-    }
-
-    private synchronized int getEstimatedTasks(Function<Integer,Long> fnTotalSizeBytesByLevel)
+    public synchronized int getEstimatedTasks()
     {
         long tasks = 0;
         long[] estimated = new long[generations.levelCount()];
 
         for (int i = generations.levelCount() - 1; i >= 0; i--)
         {
+            Set<SSTableReader> sstables = generations.get(i);
             // If there is 1 byte over TBL - (MBL * 1.001), there is still a task left, so we need to round up.
-            estimated[i] = (long)Math.ceil((double)Math.max(0L, fnTotalSizeBytesByLevel.apply(i) - (long)(maxBytesForLevel(i, maxSSTableSizeInBytes) * 1.001)) / (double)maxSSTableSizeInBytes);
+            estimated[i] = (long)Math.ceil((double)Math.max(0L, SSTableReader.getTotalBytes(sstables) - (long)(maxBytesForLevel(i, maxSSTableSizeInBytes) * 1.001)) / (double)maxSSTableSizeInBytes);
             tasks += estimated[i];
         }
 

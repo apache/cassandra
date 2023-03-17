@@ -31,7 +31,6 @@ import org.apache.cassandra.io.sstable.Descriptor;
  * <p>Note that both information are currently necessary to identify the exact "format" of an sstable (without having
  * its {@link Descriptor}). In particular, while {@link Version} contains its {{@link SSTableFormat}}, you cannot get
  * the {{@link SSTableFormat.Type}} from that.
- * @deprecated TODO remove this class - Version contains SSTableFormat and you _can_ get its type from it
  */
 public final class VersionAndType
 {
@@ -81,7 +80,7 @@ public final class VersionAndType
         if (components.size() != 2)
             throw new IllegalArgumentException("Invalid VersionAndType string: " + versionAndType + " (should be of the form 'big-bc')");
 
-        SSTableFormat.Type formatType = SSTableFormat.Type.getByName(components.get(0));
+        SSTableFormat.Type formatType = SSTableFormat.Type.validate(components.get(0));
         Version version = formatType.info.getVersion(components.get(1));
         return new VersionAndType(version, formatType);
     }

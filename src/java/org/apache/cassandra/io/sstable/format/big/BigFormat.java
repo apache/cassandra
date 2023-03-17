@@ -17,130 +17,33 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
-import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.Collection;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.cache.KeyCacheKey;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.GaugeProvider;
-import org.apache.cassandra.io.sstable.IScrubber;
-import org.apache.cassandra.io.sstable.MetricsProviders;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.filter.BloomFilterMetrics;
-import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableReaderLoadingBuilder;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.io.sstable.format.SortedTableScrubber;
-import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryMetrics;
-import org.apache.cassandra.io.sstable.keycache.KeyCacheMetrics;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.service.CacheService;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.OutputHandler;
-import org.apache.cassandra.utils.Pair;
-
-import static org.apache.cassandra.io.sstable.format.SSTableFormat.Components.DATA;
+import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.*;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.TimeUUID;
 
 /**
  * Legacy bigtable format
  */
-public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWriter>
+public class BigFormat implements SSTableFormat
 {
-    private final static Logger logger = LoggerFactory.getLogger(BigFormat.class);
-
     public static final BigFormat instance = new BigFormat();
-
-    private final Version latestVersion = new BigVersion(this, BigVersion.current_version);
-    private final BigTableReaderFactory readerFactory = new BigTableReaderFactory();
-    private final BigTableWriterFactory writerFactory = new BigTableWriterFactory();
-
-    public static class Components extends AbstractSSTableFormat.Components
-    {
-        public static class Types extends SSTableFormat.Components.Types
-        {
-            // index of the row keys with pointers to their positions in the data file
-            public static final Component.Type PRIMARY_INDEX = Component.Type.createSingleton("PRIMARY_INDEX", "Index.db", BigFormat.class);
-            // holds SSTable Index Summary (sampling of Index component)
-            public static final Component.Type SUMMARY = Component.Type.createSingleton("SUMMARY", "Summary.db", BigFormat.class);
-        }
-
-        public final static Component PRIMARY_INDEX = Types.PRIMARY_INDEX.getSingleton();
-        public final static Component SUMMARY = Types.SUMMARY.getSingleton();
-
-        private static final Set<Component> BATCH_COMPONENTS = ImmutableSet.of(DATA,
-                                                                               PRIMARY_INDEX,
-                                                                               COMPRESSION_INFO,
-                                                                               FILTER,
-                                                                               STATS);
-
-        private static final Set<Component> PRIMARY_COMPONENTS = ImmutableSet.of(DATA,
-                                                                                 PRIMARY_INDEX);
-
-        private static final Set<Component> GENERATED_ON_LOAD_COMPONENTS = ImmutableSet.of(FILTER, SUMMARY);
-
-        private static final Set<Component> MUTABLE_COMPONENTS = ImmutableSet.of(STATS,
-                                                                                 SUMMARY);
-
-        private static final Set<Component> UPLOAD_COMPONENTS = ImmutableSet.of(DATA,
-                                                                                PRIMARY_INDEX,
-                                                                                SUMMARY,
-                                                                                COMPRESSION_INFO,
-                                                                                STATS);
-
-        private static final Set<Component> STREAM_COMPONENTS = ImmutableSet.of(DATA,
-                                                                                PRIMARY_INDEX,
-                                                                                STATS,
-                                                                                COMPRESSION_INFO,
-                                                                                FILTER,
-                                                                                SUMMARY,
-                                                                                DIGEST,
-                                                                                CRC);
-
-        private static final Set<Component> ALL_COMPONENTS = ImmutableSet.of(DATA,
-                                                                             PRIMARY_INDEX,
-                                                                             STATS,
-                                                                             COMPRESSION_INFO,
-                                                                             FILTER,
-                                                                             SUMMARY,
-                                                                             DIGEST,
-                                                                             CRC,
-                                                                             TOC);
-    }
+    public static final Version latestVersion = new BigVersion(BigVersion.current_version);
+    private static final SSTableReader.Factory readerFactory = new ReaderFactory();
+    private static final SSTableWriter.Factory writerFactory = new WriterFactory();
 
     private BigFormat()
     {
 
-    }
-
-    public static BigFormat getInstance()
-    {
-        return instance;
-    }
-
-    public static boolean isDefault()
-    {
-        return getInstance().getType() == Type.current();
     }
 
     @Override
@@ -152,192 +55,28 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     @Override
     public Version getVersion(String version)
     {
-        return new BigVersion(this, version);
+        return new BigVersion(version);
     }
 
     @Override
-    public BigTableWriterFactory getWriterFactory()
+    public SSTableWriter.Factory getWriterFactory()
     {
         return writerFactory;
     }
 
     @Override
-    public BigTableReaderFactory getReaderFactory()
+    public SSTableReader.Factory getReaderFactory()
     {
         return readerFactory;
     }
 
     @Override
-    public Set<Component> allComponents()
+    public RowIndexEntry.IndexSerializer getIndexSerializer(TableMetadata metadata, Version version, SerializationHeader header)
     {
-        return Components.ALL_COMPONENTS;
+        return new RowIndexEntry.Serializer(version, header);
     }
 
-    @Override
-    public Set<Component> streamingComponents()
-    {
-        return Components.STREAM_COMPONENTS;
-    }
-
-    @Override
-    public Set<Component> primaryComponents()
-    {
-        return Components.PRIMARY_COMPONENTS;
-    }
-
-    @Override
-    public Set<Component> batchComponents()
-    {
-        return Components.BATCH_COMPONENTS;
-    }
-
-    @Override
-    public Set<Component> uploadComponents()
-    {
-        return Components.UPLOAD_COMPONENTS;
-    }
-
-    @Override
-    public Set<Component> mutableComponents()
-    {
-        return Components.MUTABLE_COMPONENTS;
-    }
-
-    @Override
-    public Set<Component> generatedOnLoadComponents()
-    {
-        return Components.GENERATED_ON_LOAD_COMPONENTS;
-    }
-
-    @Override
-    public SSTableFormat.KeyCacheValueSerializer<BigTableReader, RowIndexEntry> getKeyCacheValueSerializer()
-    {
-        return KeyCacheValueSerializer.instance;
-    }
-
-    @Override
-    public IScrubber getScrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, OutputHandler outputHandler, IScrubber.Options options)
-    {
-        Preconditions.checkArgument(cfs.metadata().equals(transaction.onlyOne().metadata()));
-        return new BigTableScrubber(cfs, transaction, outputHandler, options);
-    }
-
-    @Override
-    public BigTableReader cast(SSTableReader sstr)
-    {
-        return (BigTableReader) sstr;
-    }
-
-    @Override
-    public BigTableWriter cast(SSTableWriter sstw)
-    {
-        return (BigTableWriter) sstw;
-    }
-
-    @Override
-    public MetricsProviders getFormatSpecificMetricsProviders()
-    {
-        return BigTableSpecificMetricsProviders.instance;
-    }
-
-    @Override
-    public void deleteOrphanedComponents(Descriptor descriptor, Set<Component> components)
-    {
-        SortedTableScrubber.deleteOrphanedComponents(descriptor, components);
-    }
-
-    private void delete(Descriptor desc, List<Component> components)
-    {
-        logger.info("Deleting sstable: {}", desc);
-
-        if (components.remove(DATA))
-            components.add(0, DATA); // DATA component should be first
-        if (components.remove(Components.SUMMARY))
-            components.add(Components.SUMMARY); // SUMMARY component should be last (IDK why)
-
-        for (Component component : components)
-        {
-            logger.trace("Deleting component {} of {}", component, desc);
-            desc.fileFor(component).deleteIfExists();
-        }
-    }
-
-    @Override
-    public void delete(Descriptor desc)
-    {
-        try
-        {
-            // remove key cache entries for the sstable being deleted
-            Iterator<KeyCacheKey> it = CacheService.instance.keyCache.keyIterator();
-            while (it.hasNext())
-            {
-                KeyCacheKey key = it.next();
-                if (key.desc.equals(desc))
-                    it.remove();
-            }
-
-            delete(desc, Lists.newArrayList(Sets.intersection(allComponents(), desc.discoverComponents())));
-        }
-        catch (Throwable t)
-        {
-            JVMStabilityInspector.inspectThrowable(t);
-        }
-    }
-
-    static class KeyCacheValueSerializer implements SSTableFormat.KeyCacheValueSerializer<BigTableReader, RowIndexEntry>
-    {
-        private final static KeyCacheValueSerializer instance = new KeyCacheValueSerializer();
-
-        @Override
-        public void skip(DataInputPlus input) throws IOException
-        {
-            RowIndexEntry.Serializer.skipForCache(input);
-        }
-
-        @Override
-        public RowIndexEntry deserialize(BigTableReader reader, DataInputPlus input) throws IOException
-        {
-            return reader.deserializeKeyCacheValue(input);
-        }
-
-        @Override
-        public void serialize(RowIndexEntry entry, DataOutputPlus output) throws IOException
-        {
-            entry.serializeForCache(output);
-        }
-    }
-
-    static class BigTableReaderFactory implements SSTableReaderFactory<BigTableReader, BigTableReader.Builder>
-    {
-        @Override
-        public BigTableReader.Builder builder(Descriptor descriptor)
-        {
-            return new BigTableReader.Builder(descriptor);
-        }
-
-        @Override
-        public SSTableReaderLoadingBuilder<BigTableReader, BigTableReader.Builder> loadingBuilder(Descriptor descriptor,
-                                                                                                  TableMetadataRef tableMetadataRef,
-                                                                                                  Set<Component> components)
-        {
-            return new BigSSTableReaderLoadingBuilder(new SSTable.Builder<>(descriptor).setTableMetadataRef(tableMetadataRef)
-                                                                                       .setComponents(components));
-        }
-
-        @Override
-        public Pair<DecoratedKey, DecoratedKey> readKeyRange(Descriptor descriptor, IPartitioner partitioner) throws IOException
-        {
-            return IndexSummaryComponent.loadFirstAndLastKey(descriptor.fileFor(Components.SUMMARY), partitioner);
-        }
-
-        @Override
-        public Class<BigTableReader> getReaderClass()
-        {
-            return BigTableReader.class;
-        }
-    }
-
-    static class BigTableWriterFactory implements SSTableWriterFactory<BigTableWriter, BigTableWriter.Builder>
+    static class WriterFactory extends SSTableWriter.Factory
     {
         @Override
         public long estimateSize(SSTableWriter.SSTableSizeParameters parameters)
@@ -349,9 +88,28 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         }
 
         @Override
-        public BigTableWriter.Builder builder(Descriptor descriptor)
+        public SSTableWriter open(Descriptor descriptor,
+                                  long keyCount,
+                                  long repairedAt,
+                                  TimeUUID pendingRepair,
+                                  boolean isTransient,
+                                  TableMetadataRef metadata,
+                                  MetadataCollector metadataCollector,
+                                  SerializationHeader header,
+                                  Collection<SSTableFlushObserver> observers,
+                                  LifecycleNewTracker lifecycleNewTracker)
         {
-            return new BigTableWriter.Builder(descriptor);
+            SSTable.validateRepairedMetadata(repairedAt, pendingRepair, isTransient);
+            return new BigTableWriter(descriptor, keyCount, repairedAt, pendingRepair, isTransient, metadata, metadataCollector, header, observers, lifecycleNewTracker);
+        }
+    }
+
+    static class ReaderFactory extends SSTableReader.Factory
+    {
+        @Override
+        public SSTableReader open(SSTableReaderBuilder builder)
+        {
+            return new BigTableReader(builder);
         }
     }
 
@@ -363,7 +121,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     // we always incremented the major version.
     static class BigVersion extends Version
     {
-        public static final String current_version = "nc";
+        public static final String current_version = "nb";
         public static final String earliest_supported_version = "ma";
 
         // ma (3.0.0): swap bf hash order
@@ -375,24 +133,19 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 
         // na (4.0-rc1): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
         // nb (4.0.0): originating host id
-        // nc (4.1): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
         //
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
         private final boolean isLatestVersion;
-        private final int correspondingMessagingVersion;
+        public final int correspondingMessagingVersion;
         private final boolean hasCommitLogLowerBound;
         private final boolean hasCommitLogIntervals;
         private final boolean hasAccurateMinMax;
-        private final boolean hasLegacyMinMax;
         private final boolean hasOriginatingHostId;
-        private final boolean hasMaxCompressedLength;
+        public final boolean hasMaxCompressedLength;
         private final boolean hasPendingRepair;
         private final boolean hasMetadataChecksum;
         private final boolean hasIsTransient;
-        private final boolean hasImprovedMinMax;
-        private final boolean hasPartitionLevelDeletionPresenceMarker;
-        private final boolean hasKeyRange;
 
         /**
          * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
@@ -400,38 +153,28 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
          */
         private final boolean hasOldBfFormat;
 
-        BigVersion(BigFormat format, String version)
+        BigVersion(String version)
         {
-            super(format, version);
+            super(instance, version);
 
             isLatestVersion = version.compareTo(current_version) == 0;
             correspondingMessagingVersion = MessagingService.VERSION_30;
 
             hasCommitLogLowerBound = version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
-            hasAccurateMinMax = version.matches("(m[d-z])|(n[a-z])"); // deprecated in 'nc' and to be removed in 'oa'
-            hasLegacyMinMax = version.matches("(m[a-z])|(n[a-z])"); // deprecated in 'nc' and to be removed in 'oa'
-            hasOriginatingHostId = version.matches("(m[e-z])") || version.compareTo("nb") >= 0;
+            hasAccurateMinMax = version.compareTo("md") >= 0;
+            hasOriginatingHostId = version.matches("(m[e-z])|(n[b-z])");
             hasMaxCompressedLength = version.compareTo("na") >= 0;
             hasPendingRepair = version.compareTo("na") >= 0;
             hasIsTransient = version.compareTo("na") >= 0;
             hasMetadataChecksum = version.compareTo("na") >= 0;
             hasOldBfFormat = version.compareTo("na") < 0;
-            hasImprovedMinMax = version.compareTo("nc") >= 0;
-            hasPartitionLevelDeletionPresenceMarker = version.compareTo("nc") >= 0;
-            hasKeyRange = version.compareTo("nc") >= 0;
         }
 
         @Override
         public boolean isLatestVersion()
         {
             return isLatestVersion;
-        }
-
-        @Override
-        public int correspondingMessagingVersion()
-        {
-            return correspondingMessagingVersion;
         }
 
         @Override
@@ -446,13 +189,6 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             return hasCommitLogIntervals;
         }
 
-        @Override
-        public boolean hasMaxCompressedLength()
-        {
-            return hasMaxCompressedLength;
-        }
-
-        @Override
         public boolean hasPendingRepair()
         {
             return hasPendingRepair;
@@ -465,15 +201,15 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         }
 
         @Override
-        public boolean hasMetadataChecksum()
+        public int correspondingMessagingVersion()
         {
-            return hasMetadataChecksum;
+            return correspondingMessagingVersion;
         }
 
         @Override
-        public boolean hasOldBfFormat()
+        public boolean hasMetadataChecksum()
         {
-            return hasOldBfFormat;
+            return hasMetadataChecksum;
         }
 
         @Override
@@ -482,37 +218,6 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             return hasAccurateMinMax;
         }
 
-        @Override
-        public boolean hasLegacyMinMax()
-        {
-            return hasLegacyMinMax;
-        }
-
-        @Override
-        public boolean hasOriginatingHostId()
-        {
-            return hasOriginatingHostId;
-        }
-
-        @Override
-        public boolean hasImprovedMinMax()
-        {
-            return hasImprovedMinMax;
-        }
-
-        @Override
-        public boolean hasPartitionLevelDeletionsPresenceMarker()
-        {
-            return hasPartitionLevelDeletionPresenceMarker;
-        }
-
-        @Override
-        public boolean hasKeyRange()
-        {
-            return hasKeyRange;
-        }
-
-        @Override
         public boolean isCompatible()
         {
             return version.compareTo(earliest_supported_version) >= 0 && version.charAt(0) <= current_version.charAt(0);
@@ -523,20 +228,22 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         {
             return isCompatible() && version.charAt(0) == current_version.charAt(0);
         }
-    }
 
-    private static class BigTableSpecificMetricsProviders implements MetricsProviders
-    {
-        private final static BigTableSpecificMetricsProviders instance = new BigTableSpecificMetricsProviders();
-
-        private final Iterable<GaugeProvider<?>> gaugeProviders = Iterables.concat(BloomFilterMetrics.instance.getGaugeProviders(),
-                                                                                   IndexSummaryMetrics.instance.getGaugeProviders(),
-                                                                                   KeyCacheMetrics.instance.getGaugeProviders());
+        public boolean hasOriginatingHostId()
+        {
+            return hasOriginatingHostId;
+        }
 
         @Override
-        public Iterable<GaugeProvider<?>> getGaugeProviders()
+        public boolean hasMaxCompressedLength()
         {
-            return gaugeProviders;
+            return hasMaxCompressedLength;
+        }
+
+        @Override
+        public boolean hasOldBfFormat()
+        {
+            return hasOldBfFormat;
         }
     }
 }

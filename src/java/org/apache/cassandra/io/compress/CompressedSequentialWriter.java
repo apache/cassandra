@@ -29,12 +29,7 @@ import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.ChecksumWriter;
-import org.apache.cassandra.io.util.DataPosition;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.SequentialWriter;
-import org.apache.cassandra.io.util.SequentialWriterOption;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -71,14 +66,14 @@ public class CompressedSequentialWriter extends SequentialWriter
      * Create CompressedSequentialWriter without digest file.
      *
      * @param file File to write
-     * @param offsetsFile File to write compression metadata
+     * @param offsetsPath File name to write compression metadata
      * @param digestFile File to write digest
      * @param option Write option (buffer size and type will be set the same as compression params)
      * @param parameters Compression mparameters
      * @param sstableMetadataCollector Metadata collector
      */
     public CompressedSequentialWriter(File file,
-                                      File offsetsFile,
+                                      String offsetsPath,
                                       File digestFile,
                                       SequentialWriterOption option,
                                       CompressionParams parameters,
@@ -100,7 +95,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         maxCompressedLength = parameters.maxCompressedLength();
 
         /* Index File (-CompressionInfo.db component) and it's header */
-        metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsFile);
+        metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsPath);
 
         this.sstableMetadataCollector = sstableMetadataCollector;
         crcMetadata = new ChecksumWriter(new DataOutputStream(Channels.newOutputStream(channel)));

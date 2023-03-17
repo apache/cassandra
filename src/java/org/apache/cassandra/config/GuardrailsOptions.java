@@ -76,14 +76,12 @@ public class GuardrailsOptions implements GuardrailsConfig
         config.read_consistency_levels_disallowed = validateConsistencyLevels(config.read_consistency_levels_disallowed, "read_consistency_levels_disallowed");
         config.write_consistency_levels_warned = validateConsistencyLevels(config.write_consistency_levels_warned, "write_consistency_levels_warned");
         config.write_consistency_levels_disallowed = validateConsistencyLevels(config.write_consistency_levels_disallowed, "write_consistency_levels_disallowed");
-        validateSizeThreshold(config.column_value_size_warn_threshold, config.column_value_size_fail_threshold, false, "column_value_size");
         validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, false, "collection_size");
         validateMaxIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
         validateMaxIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
         validatePercentageThreshold(config.data_disk_usage_percentage_warn_threshold, config.data_disk_usage_percentage_fail_threshold, "data_disk_usage_percentage");
         validateDataDiskUsageMaxDiskSize(config.data_disk_usage_max_disk_size);
-        validateMinRFThreshold(config.minimum_replication_factor_warn_threshold, config.minimum_replication_factor_fail_threshold);
-        validateMaxRFThreshold(config.maximum_replication_factor_warn_threshold, config.maximum_replication_factor_fail_threshold);
+        validateMinRFThreshold(config.minimum_replication_factor_warn_threshold, config.minimum_replication_factor_fail_threshold, "minimum_replication_factor");
     }
 
     @Override
@@ -346,20 +344,6 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public boolean getDropKeyspaceEnabled()
-    {
-        return config.drop_keyspace_enabled;
-    }
-
-    public void setDropKeyspaceEnabled(boolean enabled)
-    {
-        updatePropertyWithLogging("drop_keyspace_enabled",
-                                  enabled,
-                                  () -> config.drop_keyspace_enabled,
-                                  x -> config.drop_keyspace_enabled = x);
-    }
-
-    @Override
     public boolean getSecondaryIndexesEnabled()
     {
         return config.secondary_indexes_enabled;
@@ -402,20 +386,6 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
-    public boolean getAlterTableEnabled()
-    {
-        return config.alter_table_enabled;
-    }
-
-    public void setAlterTableEnabled(boolean enabled)
-    {
-        updatePropertyWithLogging("alter_table_enabled",
-                                  enabled,
-                                  () -> config.alter_table_enabled,
-                                  x -> config.alter_table_enabled = x);
-    }
-
-    @Override
     public boolean getReadBeforeWriteListOperationsEnabled()
     {
         return config.read_before_write_list_operations_enabled;
@@ -441,20 +411,6 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   enabled,
                                   () -> config.allow_filtering_enabled,
                                   x -> config.allow_filtering_enabled = x);
-    }
-
-    @Override
-    public boolean getSimpleStrategyEnabled()
-    {
-        return config.simplestrategy_enabled;
-    }
-
-    public void setSimpleStrategyEnabled(boolean enabled)
-    {
-        updatePropertyWithLogging("simplestrategy_enabled",
-                                  enabled,
-                                  () -> config.simplestrategy_enabled,
-                                  x -> config.simplestrategy_enabled = x);
     }
 
     @Override
@@ -535,33 +491,6 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   validateConsistencyLevels(consistencyLevels, "write_consistency_levels_disallowed"),
                                   () -> config.write_consistency_levels_disallowed,
                                   x -> config.write_consistency_levels_disallowed = x);
-    }
-
-    @Override
-    @Nullable
-    public DataStorageSpec.LongBytesBound getColumnValueSizeWarnThreshold()
-    {
-        return config.column_value_size_warn_threshold;
-    }
-
-    @Override
-    @Nullable
-    public DataStorageSpec.LongBytesBound getColumnValueSizeFailThreshold()
-    {
-        return config.column_value_size_fail_threshold;
-    }
-
-    public void setColumnValueSizeThreshold(@Nullable DataStorageSpec.LongBytesBound warn, @Nullable DataStorageSpec.LongBytesBound fail)
-    {
-        validateSizeThreshold(warn, fail, false, "column_value_size");
-        updatePropertyWithLogging("column_value_size_warn_threshold",
-                                  warn,
-                                  () -> config.column_value_size_warn_threshold,
-                                  x -> config.column_value_size_warn_threshold = x);
-        updatePropertyWithLogging("column_value_size_fail_threshold",
-                                  fail,
-                                  () -> config.column_value_size_fail_threshold,
-                                  x -> config.column_value_size_fail_threshold = x);
     }
 
     @Override
@@ -694,7 +623,7 @@ public class GuardrailsOptions implements GuardrailsConfig
 
     public void setMinimumReplicationFactorThreshold(int warn, int fail)
     {
-        validateMinRFThreshold(warn, fail);
+        validateMinRFThreshold(warn, fail, "minimum_replication_factor");
         updatePropertyWithLogging("minimum_replication_factor_warn_threshold",
                                   warn,
                                   () -> config.minimum_replication_factor_warn_threshold,
@@ -703,61 +632,6 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.minimum_replication_factor_fail_threshold,
                                   x -> config.minimum_replication_factor_fail_threshold = x);
-    }
-
-    @Override
-    public int getMaximumReplicationFactorWarnThreshold()
-    {
-        return config.maximum_replication_factor_warn_threshold;
-    }
-
-    @Override
-    public int getMaximumReplicationFactorFailThreshold()
-    {
-        return config.maximum_replication_factor_fail_threshold;
-    }
-
-    public void setMaximumReplicationFactorThreshold(int warn, int fail)
-    {
-        validateMaxRFThreshold(warn, fail);
-        updatePropertyWithLogging("maximum_replication_factor_warn_threshold",
-                                  warn,
-                                  () -> config.maximum_replication_factor_warn_threshold,
-                                  x -> config.maximum_replication_factor_warn_threshold = x);
-        updatePropertyWithLogging("maximum_replication_factor_fail_threshold",
-                                  fail,
-                                  () -> config.maximum_replication_factor_fail_threshold,
-                                  x -> config.maximum_replication_factor_fail_threshold = x);
-    }
-
-    @Override
-    public boolean getZeroTTLOnTWCSWarned()
-    {
-        return config.zero_ttl_on_twcs_warned;
-    }
-
-    @Override
-    public void setZeroTTLOnTWCSWarned(boolean value)
-    {
-        updatePropertyWithLogging("zero_ttl_on_twcs_warned",
-                                  value,
-                                  () -> config.zero_ttl_on_twcs_warned,
-                                  x -> config.zero_ttl_on_twcs_warned = x);
-    }
-
-    @Override
-    public boolean getZeroTTLOnTWCSEnabled()
-    {
-        return config.zero_ttl_on_twcs_enabled;
-    }
-
-    @Override
-    public void setZeroTTLOnTWCSEnabled(boolean value)
-    {
-        updatePropertyWithLogging("zero_ttl_on_twcs_enabled",
-                                  value,
-                                  () -> config.zero_ttl_on_twcs_enabled,
-                                  x -> config.zero_ttl_on_twcs_enabled = x);
     }
 
     private static <T> void updatePropertyWithLogging(String propertyName, T newValue, Supplier<T> getter, Consumer<T> setter)
@@ -815,24 +689,10 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateWarnGreaterThanFail(warn, fail, name);
     }
 
-    private static void validateMinRFThreshold(int warn, int fail)
+    private static void validateMinRFThreshold(int warn, int fail, String name)
     {
-        validateMinIntThreshold(warn, fail, "minimum_replication_factor");
-
-        if (fail > DatabaseDescriptor.getDefaultKeyspaceRF())
-            throw new IllegalArgumentException(format("minimum_replication_factor_fail_threshold to be set (%d) " +
-                                                      "cannot be greater than default_keyspace_rf (%d)",
-                                                      fail, DatabaseDescriptor.getDefaultKeyspaceRF()));
-    }
-
-    private static void validateMaxRFThreshold(int warn, int fail)
-    {
-        validateMaxIntThreshold(warn, fail, "maximum_replication_factor");
-
-        if (fail != -1 && fail < DatabaseDescriptor.getDefaultKeyspaceRF())
-            throw new IllegalArgumentException(format("maximum_replication_factor_fail_threshold to be set (%d) " +
-                                                      "cannot be lesser than default_keyspace_rf (%d)",
-                                                      fail, DatabaseDescriptor.getDefaultKeyspaceRF()));
+        validateMinIntThreshold(warn, fail, name);
+        validateMinRFVersusDefaultRF(fail, name);
     }
 
     private static void validateWarnLowerThanFail(long warn, long fail, String name)
@@ -853,6 +713,15 @@ public class GuardrailsOptions implements GuardrailsConfig
         if (fail > warn)
             throw new IllegalArgumentException(format("The warn threshold %d for %s_warn_threshold should be greater " +
                                                       "than the fail threshold %d", warn, name, fail));
+    }
+
+    private static void validateMinRFVersusDefaultRF(int fail, String name) throws IllegalArgumentException
+    {
+        if (fail > DatabaseDescriptor.getDefaultKeyspaceRF())
+        {
+            throw new IllegalArgumentException(String.format("%s_fail_threshold to be set (%d) cannot be greater than default_keyspace_rf (%d)",
+                                                           name, fail, DatabaseDescriptor.getDefaultKeyspaceRF()));
+        }
     }
 
     private static void validateSize(DataStorageSpec.LongBytesBound size, boolean allowZero, String name)

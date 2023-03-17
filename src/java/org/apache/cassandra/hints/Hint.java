@@ -22,11 +22,12 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
-import com.google.common.primitives.Ints;
 
 import javax.annotation.Nullable;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.SystemKeyspace;
+
+import com.google.common.primitives.Ints;
+
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -119,8 +120,7 @@ public final class Hint
         }
         catch (Exception e)
         {
-            Throwables.throwIfUnchecked(e.getCause());
-            throw new RuntimeException(e.getCause());
+            throw Throwables.propagate(e.getCause());
         }
     }
 
@@ -170,14 +170,14 @@ public final class Hint
         public void serialize(Hint hint, DataOutputPlus out, int version) throws IOException
         {
             out.writeLong(hint.creationTime);
-            out.writeUnsignedVInt32(hint.gcgs);
+            out.writeUnsignedVInt(hint.gcgs);
             Mutation.serializer.serialize(hint.mutation, out, version);
         }
 
         public Hint deserialize(DataInputPlus in, int version) throws IOException
         {
             long creationTime = in.readLong();
-            int gcgs = in.readUnsignedVInt32();
+            int gcgs = (int) in.readUnsignedVInt();
             return new Hint(Mutation.serializer.deserialize(in, version), creationTime, gcgs);
         }
 
@@ -198,7 +198,7 @@ public final class Hint
         Hint deserializeIfLive(DataInputPlus in, long now, long size, int version) throws IOException
         {
             long creationTime = in.readLong();
-            int gcgs = in.readUnsignedVInt32();
+            int gcgs = (int) in.readUnsignedVInt();
             int bytesRead = sizeof(creationTime) + sizeofUnsignedVInt(gcgs);
 
             if (isLive(creationTime, now, gcgs))
@@ -226,7 +226,7 @@ public final class Hint
             try (DataInputBuffer input = new DataInputBuffer(header))
             {
                 long creationTime = input.readLong();
-                int gcgs = input.readUnsignedVInt32();
+                int gcgs = (int) input.readUnsignedVInt();
 
                 if (!isLive(creationTime, now, gcgs))
                 {

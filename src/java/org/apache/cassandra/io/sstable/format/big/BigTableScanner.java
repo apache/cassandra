@@ -18,39 +18,31 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.AbstractIterator;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 
-import org.apache.cassandra.db.DataRange;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.filter.ClusteringIndexFilter;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.rows.LazilyInitializedUnfilteredRowIterator;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.AbstractBounds.Boundary;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.sstable.EmptySSTableScanner;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
-import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.dht.AbstractBounds.isEmpty;
@@ -62,7 +54,7 @@ public class BigTableScanner implements ISSTableScanner
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     protected final RandomAccessReader dfile;
     protected final RandomAccessReader ifile;
-    public final BigTableReader sstable;
+    public final SSTableReader sstable;
 
     private final Iterator<AbstractBounds<PartitionPosition>> rangeIterator;
     private AbstractBounds<PartitionPosition> currentRange;
@@ -77,12 +69,12 @@ public class BigTableScanner implements ISSTableScanner
     protected Iterator<UnfilteredRowIterator> iterator;
 
     // Full scan of the sstables
-    public static ISSTableScanner getScanner(BigTableReader sstable)
+    public static ISSTableScanner getScanner(SSTableReader sstable)
     {
         return getScanner(sstable, Iterators.singletonIterator(fullRange(sstable)));
     }
 
-    public static ISSTableScanner getScanner(BigTableReader sstable,
+    public static ISSTableScanner getScanner(SSTableReader sstable,
                                              ColumnFilter columns,
                                              DataRange dataRange,
                                              SSTableReadsListener listener)
@@ -90,7 +82,7 @@ public class BigTableScanner implements ISSTableScanner
         return new BigTableScanner(sstable, columns, dataRange, makeBounds(sstable, dataRange).iterator(), listener);
     }
 
-    public static ISSTableScanner getScanner(BigTableReader sstable, Collection<Range<Token>> tokenRanges)
+    public static ISSTableScanner getScanner(SSTableReader sstable, Collection<Range<Token>> tokenRanges)
     {
         // We want to avoid allocating a SSTableScanner if the range don't overlap the sstable (#5249)
         List<SSTableReader.PartitionPositionBounds> positions = sstable.getPositionsForRanges(tokenRanges);
@@ -100,12 +92,12 @@ public class BigTableScanner implements ISSTableScanner
         return getScanner(sstable, makeBounds(sstable, tokenRanges).iterator());
     }
 
-    public static ISSTableScanner getScanner(BigTableReader sstable, Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
+    public static ISSTableScanner getScanner(SSTableReader sstable, Iterator<AbstractBounds<PartitionPosition>> rangeIterator)
     {
         return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata()), null, rangeIterator, SSTableReadsListener.NOOP_LISTENER);
     }
 
-    private BigTableScanner(BigTableReader sstable,
+    private BigTableScanner(SSTableReader sstable,
                             ColumnFilter columns,
                             DataRange dataRange,
                             Iterator<AbstractBounds<PartitionPosition>> rangeIterator,
@@ -118,7 +110,9 @@ public class BigTableScanner implements ISSTableScanner
         this.sstable = sstable;
         this.columns = columns;
         this.dataRange = dataRange;
-        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(sstable.descriptor.version, sstable.header, sstable.owner().map(SSTable.Owner::getMetrics).orElse(null));
+        this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata(),
+                                                                                                        sstable.descriptor.version,
+                                                                                                        sstable.header);
         this.rangeIterator = rangeIterator;
         this.listener = listener;
     }
@@ -145,7 +139,7 @@ public class BigTableScanner implements ISSTableScanner
 
     private static void addRange(SSTableReader sstable, AbstractBounds<PartitionPosition> requested, List<AbstractBounds<PartitionPosition>> boundsList)
     {
-        if (requested instanceof Range && ((Range) requested).isWrapAround())
+        if (requested instanceof Range && ((Range)requested).isWrapAround())
         {
             if (requested.right.compareTo(sstable.first) >= 0)
             {
@@ -177,7 +171,7 @@ public class BigTableScanner implements ISSTableScanner
             left = maxLeft(left, sstable.first, true);
             // apparently isWrapAround() doesn't count Bounds that extend to the limit (min) as wrapping
             right = requested.right.isMinimum() ? new Boundary<PartitionPosition>(sstable.last, true)
-                                                : minRight(right, sstable.last, true);
+                                                    : minRight(right, sstable.last, true);
             if (!isEmpty(left, right))
                 boundsList.add(AbstractBounds.bounds(left, right));
         }
@@ -397,5 +391,60 @@ public class BigTableScanner implements ISSTableScanner
                " ifile=" + ifile +
                " sstable=" + sstable +
                ")";
+    }
+
+    public static class EmptySSTableScanner extends AbstractUnfilteredPartitionIterator implements ISSTableScanner
+    {
+        private final SSTableReader sstable;
+
+        public EmptySSTableScanner(SSTableReader sstable)
+        {
+            this.sstable = sstable;
+        }
+
+        public long getLengthInBytes()
+        {
+            return 0;
+        }
+
+        public long getCurrentPosition()
+        {
+            return 0;
+        }
+
+        public long getBytesScanned()
+        {
+            return 0;
+        }
+
+        public long getCompressedLengthInBytes()
+        {
+            return 0;
+        }
+
+        public Set<SSTableReader> getBackingSSTables()
+        {
+            return ImmutableSet.of(sstable);
+        }
+
+        public TableMetadata metadata()
+        {
+            return sstable.metadata();
+        }
+
+        public boolean hasNext()
+        {
+            return false;
+        }
+
+        public UnfilteredRowIterator next()
+        {
+            return null;
+        }
+
+        public int getMinLocalDeletionTime()
+        {
+            return DeletionTime.LIVE.localDeletionTime();
+        }
     }
 }

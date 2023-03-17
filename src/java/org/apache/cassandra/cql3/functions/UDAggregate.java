@@ -26,13 +26,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.SchemaElement;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.Difference;
-import org.apache.cassandra.schema.UserFunctions;
+import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.ProtocolVersion;
 
@@ -43,7 +44,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 /**
  * Base class for user-defined-aggregates.
  */
-public class UDAggregate extends UserFunction implements AggregateFunction
+public class UDAggregate extends AbstractFunction implements AggregateFunction, SchemaElement
 {
     protected static final Logger logger = LoggerFactory.getLogger(UDAggregate.class);
 
@@ -94,7 +95,7 @@ public class UDAggregate extends UserFunction implements AggregateFunction
     private static UDFunction findFunction(FunctionName udaName, Collection<UDFunction> functions, FunctionName name, List<AbstractType<?>> arguments)
     {
         return functions.stream()
-                        .filter(f -> f.name().equals(name) && f.typesMatch(arguments))
+                        .filter(f -> f.name().equals(name) && Functions.typesMatch(f.argTypes(), arguments))
                         .findFirst()
                         .orElseThrow(() -> new ConfigurationException(String.format("Unable to find function %s referenced by UDA %s", name, udaName)));
     }
@@ -147,6 +148,11 @@ public class UDAggregate extends UserFunction implements AggregateFunction
     public boolean isAggregate()
     {
         return true;
+    }
+
+    public boolean isNative()
+    {
+        return false;
     }
 
     public ScalarFunction stateFunction()
@@ -323,7 +329,7 @@ public class UDAggregate extends UserFunction implements AggregateFunction
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, UserFunctions.typeHashCode(argTypes), UserFunctions.typeHashCode(returnType), stateFunction, finalFunction, stateType, initcond);
+        return Objects.hashCode(name, Functions.typeHashCode(argTypes), Functions.typeHashCode(returnType), stateFunction, finalFunction, stateType, initcond);
     }
 
     @Override
