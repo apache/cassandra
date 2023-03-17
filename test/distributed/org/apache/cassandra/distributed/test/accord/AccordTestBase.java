@@ -248,7 +248,6 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     private static boolean isIdempotent(ModificationStatement update)
     {
-        update.migrateReadRequiredOperations();
         // ReferenceValue.Constant is used during migration, which means a case like "a += 1"
         // ReferenceValue.Substitution uses a LET reference, so rerunning would always just see the new state
         long numConstants = update.getSubstitutions().stream()
