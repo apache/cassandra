@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.cql3.functions.Function;
@@ -38,6 +39,10 @@ public final class Operations implements Iterable<Operation>
      * The type of statement.
      */
     private final StatementType type;
+    /**
+     * If this operation is for a Transaction; this causes Operations to "migrate" when they require-read
+     */
+    private final boolean isForTxn;
 
     /**
      * The operations on regular columns.
@@ -52,29 +57,26 @@ public final class Operations implements Iterable<Operation>
     private final List<ReferenceOperation> regularSubstitutions = new ArrayList<>();
     private final List<ReferenceOperation> staticSubstitutions = new ArrayList<>();
 
-    public Operations(StatementType type)
+    public Operations(StatementType type, boolean isForTxn)
     {
         this.type = type;
+        this.isForTxn = isForTxn;
     }
 
-    public void migrateReadRequiredOperations()
+    private Operations(Operations other)
     {
-        migrateReadRequiredOperations(staticOperations, staticSubstitutions);
-        migrateReadRequiredOperations(regularOperations, regularSubstitutions);
+        Preconditions.checkState(!other.isForTxn, "Unable to migrate from txn to txn");
+        Preconditions.checkState(other.regularSubstitutions.isEmpty() && other.staticSubstitutions.isEmpty(), "Transaction substitutions are defined for a non-transaction operations! regular=%s, static=%s", other.regularSubstitutions, other.staticSubstitutions);
+
+        type = other.type;
+        isForTxn = true;
+        for (Operation opt : other)
+            add(opt);
     }
 
-    private static void migrateReadRequiredOperations(List<Operation> src, List<ReferenceOperation> dest)
+    public Operations forTxn()
     {
-        Iterator<Operation> it = src.iterator();
-        while (it.hasNext())
-        {
-            Operation next = it.next();
-            if (next.requiresRead())
-            {
-                it.remove();
-                dest.add(ReferenceOperation.create(next));
-            }
-        }
+        return new Operations(this);
     }
 
     /**
@@ -84,7 +86,7 @@ public final class Operations implements Iterable<Operation>
      */
     public boolean appliesToStaticColumns()
     {
-        return !staticOperations.isEmpty();
+        return !staticIsEmpty();
     }
 
     /**
@@ -94,10 +96,10 @@ public final class Operations implements Iterable<Operation>
      */
     public boolean appliesToRegularColumns()
     {
-     // If we have regular operations, this applies to regular columns.
+        // If we have regular operations, this applies to regular columns.
         // Otherwise, if the statement is a DELETE and staticOperations is also empty, this means we have no operations,
         // which for a DELETE means a full row deletion. Which means the operation applies to all columns and regular ones in particular.
-        return !regularOperations.isEmpty() || (type.isDelete() && staticOperations.isEmpty());
+        return !regularIsEmpty() || (type.isDelete() && staticIsEmpty());
     }
 
     /**
@@ -124,6 +126,11 @@ public final class Operations implements Iterable<Operation>
      */
     public void add(Operation operation)
     {
+        if (isForTxn && operation.requiresRead())
+        {
+            add(operation.column, ReferenceOperation.create(operation));
+            return;
+        }
         if (operation.column.isStatic())
             staticOperations.add(operation);
         else
@@ -132,6 +139,7 @@ public final class Operations implements Iterable<Operation>
 
     public void add(ColumnMetadata column, ReferenceOperation operation)
     {
+        Preconditions.checkState(isForTxn, "Unable to add a transaction reference to a non-transaction operation");
         if (column.isStatic())
             staticSubstitutions.add(operation);
         else
@@ -159,7 +167,7 @@ public final class Operations implements Iterable<Operation>
      */
     public boolean isEmpty()
     {
-        return staticOperations.isEmpty() && regularOperations.isEmpty();
+        return staticIsEmpty() && regularIsEmpty();
     }
 
     /**
@@ -175,6 +183,7 @@ public final class Operations implements Iterable<Operation>
     {
         regularOperations.forEach(p -> p.addFunctionsTo(functions));
         staticOperations.forEach(p -> p.addFunctionsTo(functions));
+        //TODO substitutions as well?
     }
 
     public List<ReferenceOperation> allSubstitutions()
@@ -200,5 +209,15 @@ public final class Operations implements Iterable<Operation>
     public List<ReferenceOperation> staticSubstitutions()
     {
         return staticSubstitutions;
+    }
+
+    private boolean regularIsEmpty()
+    {
+        return regularOperations.isEmpty() && regularSubstitutions.isEmpty();
+    }
+
+    private boolean staticIsEmpty()
+    {
+        return staticOperations.isEmpty() && staticSubstitutions.isEmpty();
     }
 }
