@@ -108,7 +108,6 @@ public class PrepareMove implements Transformation
 
         return success(prev.transformer()
                            .withNodeState(nodeId, NodeState.MOVING)
-                           .proposeToken(nodeId, tokens)
                            .with(prev.lockedRanges.lock(lockKey, rangesToLock))
                            .with(transitionPlan.toSplit.apply(prev.placements))
                            .with(prev.inProgressSequences.with(nodeId, sequence)),

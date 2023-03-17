@@ -125,13 +125,15 @@ public class InProgressSequenceCancellationTest
         // No need to create a deltas or placements for after FINISH_JOIN because it's too late to cancel by then
         PlacementDeltas finishDeltas = PlacementDeltas.empty();
 
+        Set<Token> tokens = Collections.singleton(token(random.nextLong()));
+
         BootstrapAndJoin plan = new BootstrapAndJoin(ProgressBarrier.NONE,
                                                      key,
                                                      Transformation.Kind.FINISH_JOIN,
                                                      prepareDeltas,
                                                      new PrepareJoin.StartJoin(nodeId, startDeltas, key),
                                                      new PrepareJoin.MidJoin(nodeId, midDeltas, key),
-                                                     new PrepareJoin.FinishJoin(nodeId, finishDeltas, key),
+                                                     new PrepareJoin.FinishJoin(nodeId, tokens, finishDeltas, key),
                                                      false,
                                                      false);
 
@@ -142,7 +144,6 @@ public class InProgressSequenceCancellationTest
                                        .with(afterMid)
                                        .with(locked)
                                        .withNodeState(nodeId, NodeState.BOOTSTRAPPING)
-                                       .proposeToken(nodeId, Collections.singleton(token(random.nextLong())))
                                        .with(before.inProgressSequences.with(nodeId, plan))
                                        .build().metadata;
 

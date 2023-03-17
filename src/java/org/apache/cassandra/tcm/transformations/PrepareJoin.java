@@ -127,7 +127,6 @@ public class PrepareJoin implements Transformation
     @Override
     public Result execute(ClusterMetadata prev)
     {
-        ClusterMetadata.Transformer proposed = prev.transformer().proposeToken(nodeId, tokens);
         PlacementTransitionPlan transitionPlan = placementProvider.planForJoin(prev, nodeId, tokens, prev.schema.getKeyspaces());
 
         LockedRanges.AffectedRanges rangesToLock = transitionPlan.affectedRanges();
@@ -141,7 +140,7 @@ public class PrepareJoin implements Transformation
         LockedRanges.Key lockKey = LockedRanges.keyFor(prev.nextEpoch());
         StartJoin startJoin = new StartJoin(nodeId, transitionPlan.addToWrites(), lockKey);
         MidJoin midJoin = new MidJoin(nodeId, transitionPlan.moveReads(), lockKey);
-        FinishJoin finishJoin = new FinishJoin(nodeId, transitionPlan.removeFromWrites(), lockKey);
+        FinishJoin finishJoin = new FinishJoin(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey);
 
         ProgressBarrier barrier = ProgressBarrier.immediate(rangesToLock.toPeers(prev.placements, prev.directory));
         BootstrapAndJoin plan = new BootstrapAndJoin(barrier,
@@ -154,9 +153,10 @@ public class PrepareJoin implements Transformation
 
         LockedRanges newLockedRanges = prev.lockedRanges.lock(lockKey, rangesToLock);
         DataPlacements startingPlacements = transitionPlan.toSplit.apply(prev.placements);
-        proposed = proposed.with(newLockedRanges)
-                           .with(startingPlacements)
-                           .with(prev.inProgressSequences.with(nodeId, plan));
+        ClusterMetadata.Transformer proposed = prev.transformer()
+                                                   .with(newLockedRanges)
+                                                   .with(startingPlacements)
+                                                   .with(prev.inProgressSequences.with(nodeId, plan));
 
         return success(proposed, rangesToLock);
     }
@@ -278,10 +278,12 @@ public class PrepareJoin implements Transformation
     public static class FinishJoin extends ApplyPlacementDeltas
     {
         public static final Serializer serializer = new Serializer();
+        public final Set<Token> tokens;
 
-        public FinishJoin(NodeId nodeId, PlacementDeltas delta, LockedRanges.Key unlockKey)
+        public FinishJoin(NodeId nodeId, Set<Token> tokens, PlacementDeltas delta, LockedRanges.Key unlockKey)
         {
             super(nodeId, delta, unlockKey, true);
+            this.tokens = tokens;
         }
 
         @Override
@@ -293,14 +295,50 @@ public class PrepareJoin implements Transformation
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
             return transformer.join(nodeId)
+                              .proposeToken(nodeId, tokens)
+                              .addToRackAndDC(nodeId)
                               .with(prev.inProgressSequences.without(nodeId));
         }
 
         public static final class Serializer extends SerializerBase<FinishJoin>
         {
+            @Override
+            public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
+            {
+                super.serialize(t, out, version);
+                Set<Token> tokens = ((FinishJoin)t).tokens;
+                out.writeUnsignedVInt32(tokens.size());
+                for (Token token : tokens)
+                    Token.metadataSerializer.serialize(token, out, version);
+            }
+
+            @Override
+            public FinishJoin deserialize(DataInputPlus in, Version version) throws IOException
+            {
+                NodeId nodeId = NodeId.serializer.deserialize(in, version);
+                PlacementDeltas delta = PlacementDeltas.serializer.deserialize(in, version);
+                LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
+                int numTokens = in.readUnsignedVInt32();
+                Set<Token> tokens = new HashSet<>();
+                for (int i = 0; i < numTokens; i++)
+                    tokens.add(Token.metadataSerializer.deserialize(in, version));
+                return new FinishJoin(nodeId, tokens, delta, lockKey);
+            }
+
+            @Override
+            public long serializedSize(Transformation t, Version version)
+            {
+                long size = super.serializedSize(t, version);
+                Set<Token> tokens = ((FinishJoin)t).tokens;
+                size += TypeSizes.sizeofUnsignedVInt(tokens.size());
+                for (Token token : tokens)
+                    size += Token.metadataSerializer.serializedSize(token, version);
+                return size;
+            }
+
             FinishJoin construct(NodeId nodeId, PlacementDeltas delta, LockedRanges.Key lockKey)
             {
-                return new FinishJoin(nodeId, delta, lockKey);
+                throw new IllegalStateException();
             }
         }
     }

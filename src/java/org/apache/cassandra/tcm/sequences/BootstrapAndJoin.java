@@ -42,7 +42,6 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
@@ -161,9 +160,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
             case START_JOIN:
                 try
                 {
-                    NodeId nodeId = ClusterMetadata.current().myNodeId();
-                    SystemKeyspace.updateTokens(ClusterMetadata.current().tokenMap.tokens(nodeId));
-
+                    SystemKeyspace.updateTokens(finishJoin.tokens);
                     ClusterMetadataService.instance().commit(startJoin);
                 }
                 catch (Throwable e)
@@ -246,7 +243,6 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
         }
         LockedRanges newLockedRanges = metadata.lockedRanges.unlock(lockKey);
         return metadata.transformer()
-                       .unproposeTokens(startJoin.nodeId())
                        .withNodeState(startJoin.nodeId(), NodeState.REGISTERED)
                        .with(placements)
                        .with(newLockedRanges);

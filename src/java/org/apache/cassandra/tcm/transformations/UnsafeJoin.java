@@ -55,6 +55,7 @@ public class UnsafeJoin extends PrepareJoin
     {
         return "UnsafeJoin{" +
                "id=" + nodeId +
+               ", tokens=" + tokens +
                '}';
     }
 

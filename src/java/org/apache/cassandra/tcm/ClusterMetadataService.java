@@ -415,7 +415,7 @@ public class ClusterMetadataService
      * Utility methods
      */
 
-    public void maybeCatchup(Epoch theirEpoch)
+    public boolean maybeCatchup(Epoch theirEpoch)
     {
         Epoch ourEpoch = ClusterMetadata.current().epoch;
         if (!theirEpoch.isBefore(Epoch.FIRST) && theirEpoch.isAfter(ourEpoch))
@@ -423,7 +423,7 @@ public class ClusterMetadataService
             if (state() == State.GOSSIP)
             {
                 logger.warn("TODO: can't catchup in gossip mode (their epoch = {})", theirEpoch); //todo: we have seen a message with epoch > EMPTY, we are probably racing with migration, or we missed the finish migration message, handle!
-                return;
+                return false;
             }
 
             replayAndWait();
@@ -433,7 +433,9 @@ public class ClusterMetadataService
                 throw new IllegalArgumentException(String.format("Could not catch up to epoch %s even after replay. Highest seen after replay is %s.",
                                                                  theirEpoch, ourEpoch));
             }
+            return true;
         }
+        return false;
     }
 
     public ClusterMetadata replayAndWait()

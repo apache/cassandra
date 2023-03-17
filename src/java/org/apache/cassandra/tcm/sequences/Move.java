@@ -268,7 +268,6 @@ public class Move implements InProgressSequence<Move>
 
         LockedRanges newLockedRanges = metadata.lockedRanges.unlock(lockKey);
         return metadata.transformer()
-                       .unproposeTokens(startMove.nodeId(), tokens)
                        .withNodeState(startMove.nodeId(), NodeState.JOINED)
                        .with(placements)
                        .with(newLockedRanges);

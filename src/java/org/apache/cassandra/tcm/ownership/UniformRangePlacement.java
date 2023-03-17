@@ -91,6 +91,7 @@ public class UniformRangePlacement implements PlacementProvider
         {
             DataPlacements placements = calculatePlacements(metadata.transformer()
                                                                     .proposeToken(joining, tokens)
+                                                                    .addToRackAndDC(joining)
                                                                     .build()
                                                             .metadata,
                                                             keyspaces);
@@ -109,6 +110,7 @@ public class UniformRangePlacement implements PlacementProvider
 
         DataPlacements finalPlacements = calculatePlacements(metadata.transformer()
                                                                      .proposeToken(joining, tokens)
+                                                                     .addToRackAndDC(joining)
                                                                      .build()
                                                              .metadata,
                                                              keyspaces);

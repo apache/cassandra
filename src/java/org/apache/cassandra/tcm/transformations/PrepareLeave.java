@@ -100,7 +100,6 @@ public class PrepareLeave implements Transformation
         PlacementDeltas finishDelta = transitionPlan.removeFromWrites();
 
         LockedRanges.Key unlockKey = LockedRanges.keyFor(proposed.epoch);
-        InetAddressAndPort leaving = prev.directory.endpoint(nodeId);
 
         StartLeave start = new StartLeave(nodeId, startDelta, unlockKey);
         MidLeave mid = new MidLeave(nodeId, midDelta, unlockKey);

@@ -344,6 +344,11 @@ public class ClusterMetadata
         public Transformer proposeToken(NodeId nodeId, Collection<Token> tokens)
         {
             tokenMap = tokenMap.assignTokens(nodeId, tokens);
+            return this;
+        }
+
+        public Transformer addToRackAndDC(NodeId nodeId)
+        {
             directory = directory.withRackAndDC(nodeId);
             return this;
         }
@@ -373,6 +378,7 @@ public class ClusterMetadata
             tokenMap = tokenMap.unassignTokens(replaced)
                                .assignTokens(replacement, transferringTokens);
             directory = directory.without(replaced)
+                                 .withRackAndDC(replacement)
                                  .withNodeState(replacement, NodeState.JOINED);
             return this;
         }

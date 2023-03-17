@@ -301,18 +301,13 @@ public class PlacementSimulator
                 // add the new node to the system and split ranges according to its token, while retaining current
                 // placement. This step will always be executed immediately, whereas subsequent steps may be deferred
                 debug.log("Splitting ranges to prepare for join of " + node + "\n");
-                return model.withNodes(move(splitNodes, token, node))
-                            .withReadPlacements(splitReplicated(baseState.readPlacements, token))
+                return model.withReadPlacements(splitReplicated(baseState.readPlacements, token))
                             .withWritePlacements(splitReplicated(baseState.writePlacements, token));
             },
             (model) -> { // revert
                 // final stage of reverting a join is to undo the range splits performed by preparing the operation
                 debug.log("Reverting range splits from prepare-join of " + node + "\n");
-                List<Node> newNodes = new ArrayList<>(model.nodes);
-                Node toRemove = new Node(token, node);
-                newNodes.remove(toRemove);
-                return model.withNodes(newNodes)
-                            .withWritePlacements(mergeReplicated(model.writePlacements, token))
+                return model.withWritePlacements(mergeReplicated(model.writePlacements, token))
                             .withReadPlacements(mergeReplicated(model.readPlacements, token));
             })
         );
@@ -364,7 +359,11 @@ public class PlacementSimulator
                                      "\twriteModifications=\n%s",
                                      node, token,
                                      diffsToString(step3WriteCommands)));
-                return model.withWritePlacements(PlacementSimulator.apply(model.writePlacements, step3WriteCommands));
+                List<Node> newNodes = new ArrayList<>(model.nodes);
+                newNodes.add(new Node(token, node));
+                Collections.sort(newNodes, Node::compareTo);
+                return model.withNodes(newNodes)
+                            .withWritePlacements(PlacementSimulator.apply(model.writePlacements, step3WriteCommands));
             },
             (model) -> { //revert
                 throw new IllegalStateException("Can't revert finish-join of " + node + ", operation is already complete\n");
@@ -383,7 +382,6 @@ public class PlacementSimulator
                            .get();
 
         List<Node> origNodes = new ArrayList<>(baseState.nodes);
-
         List<Node> finalNodes = new ArrayList<>();
         for (int i = 0; i < origNodes.size(); i++)
         {
@@ -405,26 +403,12 @@ public class PlacementSimulator
         steps.add(new Transformation(
         (model) -> { // apply
             debug.log(String.format("Splitting ranges to prepare for move of %s to %d\n", node, newToken));
-            List<Node> newNodes = new ArrayList<>(model.nodes);
-            newNodes.add(new Node(newToken, node));
-            Collections.sort(newNodes, Node::compareTo);
-
-            return model.withNodes(newNodes)
-                        .withReadPlacements(splitReplicated(model.readPlacements, newToken))
+            return model.withReadPlacements(splitReplicated(model.readPlacements, newToken))
                         .withWritePlacements(splitReplicated(model.writePlacements, newToken));
         },
         (model) -> { // revert
             debug.log(String.format("Reverting range splits from prepare move of %s to %d\n", node, newToken));
-            List<Node> revertedNodes = new ArrayList<>();
-            for (Node n : model.nodes)
-            {
-                if (n.token == newToken)
-                    continue;
-                revertedNodes.add(n);
-            }
-            Collections.sort(revertedNodes, Node::compareTo);
-            return model.withNodes(revertedNodes)
-                        .withWritePlacements(mergeReplicated(model.writePlacements, newToken))
+            return model.withWritePlacements(mergeReplicated(model.writePlacements, newToken))
                         .withReadPlacements(mergeReplicated(model.readPlacements, newToken));
         }));
 
@@ -479,21 +463,23 @@ public class PlacementSimulator
                                     "\twriteModifications=\n%s",
                                     node, newToken, diffsToString(diff)));
 
-            Map<Range, List<Node>> writePlacements = model.writePlacements;
+            List<Node> currentNodes = new ArrayList<>(model.nodes);
+            List<Node> newNodes = new ArrayList<>();
+            for (int i = 0; i < currentNodes.size(); i++)
+            {
+                if (currentNodes.get(i).id == oldLocation.id)
+                    continue;
+                newNodes.add(currentNodes.get(i));
+            }
+            newNodes.add(new Node(newToken, node));
+            Collections.sort(newNodes, Node::compareTo);
 
+            Map<Range, List<Node>> writePlacements = model.writePlacements;
             writePlacements = PlacementSimulator.apply(writePlacements, diff);
 
-            List<Node> nodes = new ArrayList<>();
-            for (Node n : model.nodes)
-            {
-                if (n.token == oldLocation.token)
-                    continue;
-                nodes.add(n);
-            }
-            Collections.sort(nodes, Node::compareTo);
             return model.withWritePlacements(mergeReplicated(writePlacements, oldLocation.token))
                         .withReadPlacements(mergeReplicated(model.readPlacements, oldLocation.token))
-                        .withNodes(nodes);
+                        .withNodes(newNodes);
         },
         (model) -> {
             throw new IllegalStateException(String.format("Can't revert finish-move of %d, operation is already complete", newToken));
@@ -583,6 +569,7 @@ public class PlacementSimulator
                                      diffsToString(step3WriteCommands)));
                 List<Node> newNodes = new ArrayList<>(model.nodes);
                 newNodes.remove(toRemove);
+                Collections.sort(newNodes, Node::compareTo);
                 Map<Range, List<Node>> writes = PlacementSimulator.apply(model.writePlacements, step3WriteCommands);
                 return model.withReadPlacements(mergeReplicated(model.readPlacements, toRemove.token))
                             .withWritePlacements(mergeReplicated(writes, toRemove.token))
