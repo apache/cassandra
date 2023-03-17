@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -1790,7 +1789,7 @@ public final class SystemKeyspace
     @SuppressWarnings("unchecked")
     private static Range<Token> byteBufferToRange(ByteBuffer rawRange, IPartitioner partitioner)
     {
-        try (DataInputPlus.DataInputStreamPlus in = new DataInputPlus.DataInputStreamPlus(new ByteArrayInputStream(ByteBufferUtil.getArray(rawRange))))
+        try (DataInputPlus.DataInputStreamPlus in = new DataInputBuffer(ByteBufferUtil.getArray(rawRange)))
         {
             // See rangeToBytes above for why version is 0.
             return (Range<Token>) Range.tokenSerializer.deserialize(in, partitioner, 0);
