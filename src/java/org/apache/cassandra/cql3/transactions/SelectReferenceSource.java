@@ -29,7 +29,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 public class SelectReferenceSource implements RowDataReference.ReferenceSource
 {
-    public static final String COLUMN_NOT_IN_SELECT_MESSAGE = "%s refererences a column not included in the select";
+    public static final String COLUMN_NOT_IN_SELECT_MESSAGE = "%s references a column not included in the select";
 
     private final SelectStatement statement;
 
