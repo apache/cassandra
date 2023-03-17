@@ -149,19 +149,23 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     protected final VariableSpecifications bindVariables;
 
     public final TableMetadata metadata;
-    private final Attributes attrs;
+    protected final Attributes attrs;
 
-    private final StatementRestrictions restrictions;
+    protected final StatementRestrictions restrictions;
 
     private final Operations operations;
 
     private final RegularAndStaticColumns updatedColumns;
 
-    private final Conditions conditions;
+    protected final Conditions conditions;
 
     private final RegularAndStaticColumns conditionColumns;
 
     private final RegularAndStaticColumns requiresRead;
+    /**
+     * Used by {@link #forTxn()} to only compute a migrated copy of this statement for transactions
+     */
+    private ModificationStatement txnStmt;
 
     public final StatementSource source;
 
@@ -856,11 +860,23 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return new TxnReferenceOperations(metadata, clustering, regularOps, staticOps);
     }
 
-    @VisibleForTesting
-    public void migrateReadRequiredOperations()
+    public ModificationStatement forTxn()
     {
-        operations.migrateReadRequiredOperations();
+        if (requiresRead.isEmpty()) return this;
+        ModificationStatement migrated = txnStmt;
+        if (migrated == null)
+        {
+            synchronized (requiresRead)
+            {
+                migrated = txnStmt;
+                if (migrated == null)
+                    txnStmt = migrated = withOperations(operations.forTxn());
+            }
+        }
+        return migrated;
     }
+
+    protected abstract ModificationStatement withOperations(Operations operations);
 
     @VisibleForTesting
     public List<ReferenceOperation> getSubstitutions()
@@ -870,9 +886,6 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
 
     public TxnWrite.Fragment getTxnWriteFragment(int index, ClientState state, QueryOptions options)
     {
-        // When an Operation requires a read, this cannot be done right away and must be done by the transaction itself,
-        // so migrate those Operations to a ReferenceOperation (which works properly in this case).
-        operations.migrateReadRequiredOperations();
         PartitionUpdate baseUpdate = getTxnUpdate(state, options);
         TxnReferenceOperations referenceOps = getTxnReferenceOps(options, state);
         return new TxnWrite.Fragment(index, baseUpdate, referenceOps);
