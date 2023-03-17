@@ -41,8 +41,8 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.LogResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.io.sstable.format.RangeAwareSSTableWriter;
-import org.apache.cassandra.io.sstable.format.big.BigTableZeroCopyWriter;
+import org.apache.cassandra.io.sstable.RangeAwareSSTableWriter;
+import org.apache.cassandra.io.sstable.SSTableZeroCopyWriter;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.Shared;
 import org.assertj.core.api.Assertions;
@@ -211,7 +211,7 @@ public class StreamFailureTest extends TestBaseImpl
         @SuppressWarnings("unused")
         public static int writeDirectlyToChannel(ByteBuffer buf, @SuperCall Callable<Integer> zuper) throws Exception
         {
-            if (isCaller(BigTableZeroCopyWriter.class.getName(), "write"))
+            if (isCaller(SSTableZeroCopyWriter.class.getName(), "write"))
             {
                 State.STREAM_IS_RUNNING.signal();
                 State.UNBLOCK_STREAM.await();
@@ -265,7 +265,7 @@ public class StreamFailureTest extends TestBaseImpl
         @SuppressWarnings("unused")
         public static int writeDirectlyToChannel(ByteBuffer buf, @SuperCall Callable<Integer> zuper) throws Exception
         {
-            if (isCaller(BigTableZeroCopyWriter.class.getName(), "write"))
+            if (isCaller(SSTableZeroCopyWriter.class.getName(), "write"))
                 throw new RuntimeException("TEST");
             // different context; pass through
             return zuper.call();
