@@ -178,7 +178,7 @@ public class NativeAllocator extends MemtableAllocator
         if (currentRegion.compareAndSet(current, next))
             regions.add(next);
         else if (!raceAllocated.stash(next))
-            MemoryUtil.free(next.peer);
+            MemoryUtil.free(next.peer, next.capacity);
     }
 
     private long allocateOversize(int size)
@@ -198,7 +198,7 @@ public class NativeAllocator extends MemtableAllocator
     public void setDiscarded()
     {
         for (Region region : regions)
-            MemoryUtil.free(region.peer);
+            MemoryUtil.free(region.peer, region.capacity);
 
         super.setDiscarded();
     }

@@ -21,9 +21,11 @@ import java.lang.reflect.Field;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.sun.jna.Native;
 
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Architecture;
 
 import sun.misc.Unsafe;
@@ -32,6 +34,7 @@ public abstract class MemoryUtil
 {
     private static final long UNSAFE_COPY_THRESHOLD = 1024 * 1024L; // copied from java.nio.Bits
 
+    private static final AtomicLong memoryAllocated = new AtomicLong(0);
     private static final Unsafe unsafe;
     private static final Class<?> DIRECT_BYTE_BUFFER_CLASS, RO_DIRECT_BYTE_BUFFER_CLASS;
     private static final long DIRECT_BYTE_BUFFER_ADDRESS_OFFSET;
@@ -55,14 +58,19 @@ public abstract class MemoryUtil
             Field field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
             field.setAccessible(true);
             unsafe = (sun.misc.Unsafe) field.get(null);
-            Class<?> clazz = ByteBuffer.allocateDirect(0).getClass();
+            // OpenJDK for some reason allocates bytes when capacity == 0. When -Dsun.nio.PageAlignDirectMemory is false
+            // DirectByteBuffer allocates 1 byte, when true a whole page is allocated.
+            // This breaks our native memory metrics tests that don't expect Bits.RESERVED_MEMORY > Bits.TOTAL_CAPACITY.
+            // The buffer will be manually cleaned to mitigate the problem.
+            ByteBuffer byteBuffer = ByteBuffer.allocateDirect(0);
+            Class<?> clazz = byteBuffer.getClass();
             DIRECT_BYTE_BUFFER_ADDRESS_OFFSET = unsafe.objectFieldOffset(Buffer.class.getDeclaredField("address"));
             DIRECT_BYTE_BUFFER_CAPACITY_OFFSET = unsafe.objectFieldOffset(Buffer.class.getDeclaredField("capacity"));
             DIRECT_BYTE_BUFFER_LIMIT_OFFSET = unsafe.objectFieldOffset(Buffer.class.getDeclaredField("limit"));
             DIRECT_BYTE_BUFFER_POSITION_OFFSET = unsafe.objectFieldOffset(Buffer.class.getDeclaredField("position"));
             DIRECT_BYTE_BUFFER_ATTACHMENT_OFFSET = unsafe.objectFieldOffset(clazz.getDeclaredField("att"));
             DIRECT_BYTE_BUFFER_CLASS = clazz;
-            RO_DIRECT_BYTE_BUFFER_CLASS = ByteBuffer.allocateDirect(0).asReadOnlyBuffer().getClass();
+            RO_DIRECT_BYTE_BUFFER_CLASS = byteBuffer.asReadOnlyBuffer().getClass();
 
             clazz = ByteBuffer.allocate(0).getClass();
             BYTE_BUFFER_OFFSET_OFFSET = unsafe.objectFieldOffset(ByteBuffer.class.getDeclaredField("offset"));
@@ -70,6 +78,7 @@ public abstract class MemoryUtil
             BYTE_BUFFER_CLASS = clazz;
 
             BYTE_ARRAY_BASE_OFFSET = unsafe.arrayBaseOffset(byte[].class);
+            FileUtils.clean(byteBuffer);
         }
         catch (Exception e)
         {
@@ -90,12 +99,19 @@ public abstract class MemoryUtil
 
     public static long allocate(long size)
     {
+        memoryAllocated.addAndGet(size);
         return Native.malloc(size);
     }
 
-    public static void free(long peer)
+    public static void free(long peer, long size)
     {
+        memoryAllocated.addAndGet(-size);
         Native.free(peer);
+    }
+
+    public static long allocated()
+    {
+        return memoryAllocated.get();
     }
 
     public static void setByte(long address, byte b)

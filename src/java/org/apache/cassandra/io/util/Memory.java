@@ -360,7 +360,7 @@ public class Memory implements AutoCloseable
 
     public void free()
     {
-        if (peer != 0) MemoryUtil.free(peer);
+        if (peer != 0) MemoryUtil.free(peer, size);
         else assert size == 0;
         peer = 0;
     }

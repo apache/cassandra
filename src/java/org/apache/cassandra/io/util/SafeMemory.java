@@ -88,7 +88,7 @@ public class SafeMemory extends Memory implements SharedCloseable
         {
             /** see {@link Memory#Memory(long)} re: null pointers*/
             if (peer != 0)
-                MemoryUtil.free(peer);
+                MemoryUtil.free(peer, size);
         }
 
         public String name()
