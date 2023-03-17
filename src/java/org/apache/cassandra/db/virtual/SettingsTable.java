@@ -71,7 +71,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     protected void applyColumnDeletion(ColumnValues partitionKey, ColumnValues clusteringColumns, String columnName)
     {
         String key = partitionKey.value(0);
-        runWithExceptionHandling(() -> registry.set(key, null), key);
+        runWithExceptionHandling(() -> registry.set(key, null));
     }
 
     @Override
@@ -81,7 +81,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         String key = partitionKey.value(0);
         String value = columnValue.map(v -> v.value().toString()).orElse(null);
-        runWithExceptionHandling(() -> registry.set(key, value), key);
+        runWithExceptionHandling(() -> registry.set(key, value));
     }
 
     @Override
@@ -92,7 +92,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
             ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
         if (registry.contains(name))
-            runWithExceptionHandling(() -> result.row(name).column(VALUE, registry.getString(name)), name);
+            runWithExceptionHandling(() -> result.row(name).column(VALUE, registry.getString(name)));
         return result;
     }
 
@@ -101,17 +101,17 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         for (String name : registry.keys())
-            runWithExceptionHandling(() -> result.row(name).column(VALUE, registry.getString(name)), name);
+            runWithExceptionHandling(() -> result.row(name).column(VALUE, registry.getString(name)));
         return result;
     }
 
     /**
      * Covers the case where nested value converters throw internal C* exceptions, but we want to throw an  input
      * request validation exception instead.
+     *
      * @param action Converter to use to convert the value.
-     * @param name Property name.
      */
-    private static void runWithExceptionHandling(Runnable action, String name)
+    private static void runWithExceptionHandling(Runnable action)
     {
         try
         {
@@ -119,8 +119,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         }
         catch (Exception e)
         {
-            e.printStackTrace(System.out);
-            throw invalidRequest("Invalid request for property '%s'; exception: '%s'", name, e.getMessage());
+            throw invalidRequest("Invalid configuration request, cause: '%s'", e.getMessage());
         }
     }
 
