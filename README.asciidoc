@@ -1,5 +1,4 @@
-Apache Cassandra
------------------
+== Apache Cassandra
 
 Apache Cassandra 是一个高度可伸缩的分区行存储。行用主键key组织成表.
 
@@ -9,31 +8,40 @@ https://cwiki.apache.org/confluence/display/CASSANDRA2/DataModel[Row store] 的�
 
 查看更多信息, 请查看 http://cassandra.apache.org/[the Apache Cassandra web site].
 
-安装要求
+== 这个项目要做什么？
+
+目前是个镜像项目，好多内容还在看，不知道会做些什么，以后做什么，文档里会说。
+
+== 安装要求
 ------------
 . Java >= 1.8 (OpenJDK and Oracle JVMS have been tested)
 . Python 3.6+ (for cqlsh)
+------------
 
-如何开始
----------------
+== 如何开始
+
 
 这个简短的指南将引导您完成一个基本的单节点集群
 和运行, 并演示一些简单的读写。 有关更完整的指南，请参阅 Apache Cassandra website's http://cassandra.apache.org/doc/latest/getting_started/[Getting Started Guide].
 
-首先，解压压缩文件:
+==== 首先，解压压缩文件:
 
+-----------
   $ tar -zxvf apache-cassandra-$VERSION.tar.gz
   $ cd apache-cassandra-$VERSION
+-----------
 
-之后可以直接运行服务， 使用 -f 参数运行启动脚本，Cassandra 将运行前台，控制台会输出标准日志; 如果想停止它可以使用 ctrl-C.
-
+===== 之后可以直接运行服务， 使用 -f 参数运行启动脚本，Cassandra 将运行前台，控制台会输出标准日志; 如果想停止它可以使用 ctrl-C.
+-----------
   $ bin/cassandra -f
+-----------
 
-现在让我们尝试使用Cassandra查询语言读取和写入一些数据:
-
+===== 现在让我们尝试使用Cassandra查询语言读取和写入一些数据:
+-----------
   $ bin/cqlsh
+-----------
 
-命令行客户端是交互式的，如果没有什么问题，大概是这个样子的:
+===== 命令行客户端是交互式的，如果没有什么问题，大概是这个样子的:
 
 ----
 Connected to Test Cluster at localhost:9160.
@@ -45,10 +53,16 @@ cqlsh>
 
 
 
-As the banner says, you can use 'help;' or '?' to see what CQL has to
-offer, and 'quit;' or 'exit;' when you've had enough fun. But lets try
-something slightly more interesting:
+可以使用"help;"或者"?"，看看CQL都能做什么。
+如果要退出，可以使用"quit;"或者"exit";
 
+下边就是个单节点启动的例子，左边是 -f 参数启动界面，右边是CQL的界面。
+
+image::doc/img/1.png[]
+
+
+
+==== 接下来尝试写入一些测试数据
 ----
 cqlsh> CREATE KEYSPACE schema1
        WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };
@@ -68,17 +82,20 @@ cqlsh:Schema1> SELECT * FROM users;
 cqlsh:Schema1>
 ----
 
-If your session looks similar to what's above, congrats, your single node
-cluster is operational!
+写入数据的操作界面大概就是下图这个样子的。
 
-For more on what commands are supported by CQL, see
-http://cassandra.apache.org/doc/latest/cql/[the CQL reference]. A
-reasonable way to think of it is as, "SQL minus joins and subqueries, plus collections."
+image::doc/img/2.png[]
 
-Wondering where to go from here?
 
-  * Join us in #cassandra on the https://s.apache.org/slack-invite[ASF Slack] and ask questions
-  * Subscribe to the Users mailing list by sending a mail to
-    user-subscribe@cassandra.apache.org
-  * Visit the http://cassandra.apache.org/community/[community section] of the Cassandra website for more information on getting involved.
-  * Visit the http://cassandra.apache.org/doc/latest/development/index.html[development section] of the Cassandra website for more information on how to contribute.
+如果没有出现其他问题，那么一个单节点的安装就完成了!
+
+有关CQL的更多的信息, 可以查看
+http://cassandra.apache.org/doc/latest/cql/[the CQL reference]。
+
+一种合理的理解方式是，"SQL减去连接和子查询，加上集合。"
+
+
+  * 加入 #cassandra 在 https://s.apache.org/slack-invite[ASF Slack] 并且提问
+  * 通过发送邮件到订阅用户邮件列表 user-subscribe@cassandra.apache.org
+  * 查看 http://cassandra.apache.org/community/[community section] 了解 Cassandra 更多信息.
+  * 查看 http://cassandra.apache.org/doc/latest/development/index.html[development section] 了解如何进行构建。
