@@ -25,7 +25,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Random;
 
 import org.junit.Assert;
@@ -34,7 +33,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.DseLegacy;
+import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.metrics.NativeMemoryMetrics;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.INativeLibrary;
 import org.apache.cassandra.utils.NativeLibrary;
@@ -132,6 +132,29 @@ public class FileUtilsTest
 
         long size = FileUtils.folderSize(folder);
         assertEquals(Arrays.stream(files).mapToLong(f -> f.length()).sum(), size);
+    }
+
+    @Test
+    public void testClean()
+    {
+        FileUtils.clean(null); // should not throw
+
+        FileUtils.clean(ByteBuffer.allocate(1)); // should not throw
+        FileUtils.clean(BufferType.ON_HEAP.allocate(1)); // should not throw
+
+        ByteBuffer buffer = ByteBuffer.allocateDirect(1);
+        long usedMemory = NativeMemoryMetrics.instance.usedNioDirectMemoryValue();
+
+        FileUtils.clean(buffer);
+        assertTrue("Used memory should have decreased by at least one byte",
+                   NativeMemoryMetrics.instance.usedNioDirectMemoryValue() <= usedMemory - 1);
+
+        buffer = BufferType.OFF_HEAP.allocate(1);
+        usedMemory = NativeMemoryMetrics.instance.usedNioDirectMemoryValue();
+
+        FileUtils.clean(buffer);
+        assertTrue("Used memory should have decreased by at least one byte",
+                   NativeMemoryMetrics.instance.usedNioDirectMemoryValue() <= usedMemory - 1);
     }
 
     @Test
