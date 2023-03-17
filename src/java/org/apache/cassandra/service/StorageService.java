@@ -252,6 +252,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE
 import static java.util.stream.Collectors.toSet;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
+import static org.apache.cassandra.schema.SchemaConstants.isLocalSystemKeyspace;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSIONED;
@@ -2523,7 +2524,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceKeyspaceCleanup(int jobs, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
-        if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
+        if (isLocalSystemKeyspace(keyspaceName))
             throw new RuntimeException("Cleanup of the system keyspace is neither necessary nor wise");
 
         if (ClusterMetadata.current().directory.peerState(getBroadcastAddressAndPort()) != JOINED)
@@ -3048,7 +3049,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         long total = 0;
         for (Keyspace keyspace : Keyspace.all())
         {
-            if (SchemaConstants.isLocalSystemKeyspace(keyspace.getName()))
+            if (isLocalSystemKeyspace(keyspace.getName()))
                 continue;
 
             for (ColumnFamilyStore cfStore : keyspace.getColumnFamilyStores())
@@ -4196,6 +4197,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         AbstractReplicationStrategy strategy;
         if (keyspace != null)
         {
+            if (isLocalSystemKeyspace(keyspace))
+                throw new IllegalArgumentException("Ownership values for keyspaces with LocalStrategy are meaningless");
+
             KeyspaceMetadata keyspaceInstance = metadata.schema.getKeyspaces().getNullable(keyspace);
             if (keyspaceInstance == null)
                 throw new IllegalArgumentException("The keyspace " + keyspace + ", does not exist");
@@ -4207,35 +4211,30 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else
         {
-            Keyspaces keyspaces = metadata.schema.getKeyspaces();
+            Set<String> userKeyspaces = metadata.schema.getKeyspaces()
+                                                       .without(SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES)
+                                                       .names();
 
-            if (keyspaces.size() > 0)
+            if (userKeyspaces.size() > 0)
             {
-                AbstractReplicationStrategy rs = null;
-                for (KeyspaceMetadata ks : keyspaces)
+                keyspace = userKeyspaces.iterator().next();
+                AbstractReplicationStrategy replicationStrategy = Schema.instance.getKeyspaceInstance(keyspace).getReplicationStrategy();
+                for (String keyspaceName : userKeyspaces)
                 {
-                    if (ks.params.replication.isMeta())
-                        continue;
-
-                    if (rs == null)
-                    {
-                        rs = ks.replicationStrategy;
-                        continue;
-                    }
-
-                    if (!ks.replicationStrategy.hasSameSettings(rs))
+                    if (!Schema.instance.getKeyspaceInstance(keyspaceName).getReplicationStrategy().hasSameSettings(replicationStrategy))
                         throw new IllegalStateException("Non-system keyspaces don't have the same replication settings, effective ownership information is meaningless");
                 }
             }
-            else
+
+            if (keyspace == null)
             {
                 keyspace = "system_traces";
             }
 
-            KeyspaceMetadata keyspaceInstance = keyspaces.getNullable(keyspace);
+            Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspace);
             if (keyspaceInstance == null)
                 throw new IllegalStateException("The node does not have " + keyspace + " yet, probably still bootstrapping. Effective ownership information is meaningless.");
-            strategy = keyspaceInstance.replicationStrategy;
+            strategy = keyspaceInstance.getReplicationStrategy();
         }
 
         if (strategy instanceof MetaStrategy)
