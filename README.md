@@ -39,11 +39,12 @@ $ bin/cqlsh
 
 ---
 
+```
 Connected to Test Cluster at localhost:9160.
 [cqlsh 6.0.0 | Cassandra 4.1 | CQL spec 3.4.6 | Native protocol v5]
 Use HELP for help.
 cqlsh>
-------
+```
 
 CQL 可以使用"help;" 或者 "?" , 将会提供CQL的帮助，可以看看能够做什么。
 
@@ -51,23 +52,25 @@ CQL 可以使用"help;" 或者 "?" , 将会提供CQL的帮助，可以看看能�
 
 ---
 
+```
 cqlsh> CREATE KEYSPACE schema1
-WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };
+       WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };
 cqlsh> USE schema1;
 cqlsh:Schema1> CREATE TABLE users (
-user_id varchar PRIMARY KEY,
-first varchar,
-last varchar,
-age int
-);
+                 user_id varchar PRIMARY KEY,
+                 first varchar,
+                 last varchar,
+                 age int
+               );
 cqlsh:Schema1> INSERT INTO users (user_id, first, last, age)
-VALUES ('jsmith', 'John', 'Smith', 42);
+               VALUES ('jsmith', 'John', 'Smith', 42);
 cqlsh:Schema1> SELECT * FROM users;
-user_id | age | first | last
+ user_id | age | first | last
 ---------+-----+-------+-------
-jsmith |  42 |  john | smith
+  jsmith |  42 |  john | smith
 cqlsh:Schema1>
---------------
+```
+
 
 达到这一步就，如果没有其他问题，就已经运行成功了。
 
