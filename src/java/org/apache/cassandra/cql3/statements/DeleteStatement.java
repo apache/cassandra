@@ -66,6 +66,12 @@ public class DeleteStatement extends ModificationStatement
     }
 
     @Override
+    protected ModificationStatement withOperations(Operations operations)
+    {
+        return new DeleteStatement(bindVariables, metadata, operations, restrictions, conditions, attrs, source);
+    }
+
+    @Override
     public void addUpdateForKey(PartitionUpdate.Builder updateBuilder, Clustering<?> clustering, UpdateParameters params)
     throws InvalidRequestException
     {
@@ -137,6 +143,7 @@ public class DeleteStatement extends ModificationStatement
     {
         private final List<Operation.RawDeletion> deletions;
         private final WhereClause whereClause;
+        private final boolean isForTxn;
 
         public Parsed(QualifiedName name,
                       Attributes.Raw attrs,
@@ -144,11 +151,13 @@ public class DeleteStatement extends ModificationStatement
                       WhereClause whereClause,
                       List<Pair<ColumnIdentifier, ColumnCondition.Raw>> conditions,
                       boolean ifExists,
-                      StatementSource source)
+                      StatementSource source,
+                      boolean isForTxn)
         {
             super(name, StatementType.DELETE, attrs, conditions, false, ifExists, source);
             this.deletions = deletions;
             this.whereClause = whereClause;
+            this.isForTxn = isForTxn;
         }
 
 
@@ -159,7 +168,7 @@ public class DeleteStatement extends ModificationStatement
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
-            Operations operations = new Operations(type);
+            Operations operations = new Operations(type, isForTxn);
 
             for (Operation.RawDeletion deletion : deletions)
             {
