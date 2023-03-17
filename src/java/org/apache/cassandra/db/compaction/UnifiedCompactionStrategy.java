@@ -30,6 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -428,7 +429,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     @Override
     protected synchronized Set<SSTableReader> getSSTables()
     {
-        return ImmutableSet.copyOf(sstables);
+        // Filter the set of sstables through the live set. This is to ensure no zombie sstables are picked for
+        // compaction (see CASSANDRA-18342).
+        return ImmutableSet.copyOf(Iterables.filter(cfs.getLiveSSTables(), sstables::contains));
     }
 
     /**
