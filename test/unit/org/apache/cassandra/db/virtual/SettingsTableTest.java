@@ -35,7 +35,6 @@ import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.Int
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.registry.ConfigurationRegistry;
 import org.apache.cassandra.config.registry.Registry;
-import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
 import org.assertj.core.util.Streams;
@@ -45,7 +44,7 @@ public class SettingsTableTest extends CQLTester
     public static final String KS_NAME = "vts";
     private Config config;
     private SettingsTable table;
-    private Registry registry;
+    private Registry tableRegistry;
 
     @BeforeClass
     public static void setUpClass()
@@ -65,7 +64,7 @@ public class SettingsTableTest extends CQLTester
         config.commitlog_sync_group_window = new DurationSpec.IntMillisecondsBound(0);
         config.credentials_update_interval = null;
         table = new SettingsTable(KS_NAME, new ConfigurationRegistry(() -> config));
-        registry = table.registry();
+        tableRegistry = table.registry();
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();
     }
@@ -81,7 +80,7 @@ public class SettingsTableTest extends CQLTester
             i++;
             String name = r.getString("name");
             String value = r.getString("value");
-            String expected = TypeConverter.DEFAULT.convert(registry.get(registry.type(name), name));
+            String expected = tableRegistry.getString(name);
             Assert.assertEquals("Unexpected result for key: " + name, expected, value);
         }
         Assert.assertEquals(table.registry().size(), i);
@@ -93,7 +92,7 @@ public class SettingsTableTest extends CQLTester
         for (String key : table.registry().keys())
         {
             String q = "SELECT * FROM vts.settings WHERE name = '" + key + '\'';
-            assertRowsNet(executeNet(q), new Object[] { key, TypeConverter.DEFAULT.convert(registry.get(registry.type(key), key)) });
+            assertRowsNet(executeNet(q), new Object[] { key, tableRegistry.getString(key) });
         }
     }
 
@@ -160,12 +159,6 @@ public class SettingsTableTest extends CQLTester
         }
     }
 
-    private static String convertPreserveNull(Object value)
-    {
-        String converted = TypeConverter.DEFAULT.convert(value);
-        return converted == null ? "null" : converted;
-    }
-
     @Test
     public void testEncryptionOverride() throws Throwable
     {
@@ -174,7 +167,7 @@ public class SettingsTableTest extends CQLTester
         String all = "SELECT * FROM vts.settings WHERE " +
                      "name > 'server_encryption' AND name < 'server_encryptionz' ALLOW FILTERING";
 
-        List<String> expectedNames = Streams.stream(registry.keys()).filter(n -> n.startsWith("server_encryption")).collect(Collectors.toList());
+        List<String> expectedNames = Streams.stream(tableRegistry.keys()).filter(n -> n.startsWith("server_encryption")).collect(Collectors.toList());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
 
         check(pre + "algorithm", null);
@@ -235,7 +228,7 @@ public class SettingsTableTest extends CQLTester
                      "name > 'audit_logging' AND name < 'audit_loggingz' ALLOW FILTERING";
 
         config.audit_logging_options.enabled = true;
-        List<String> expectedNames = Streams.stream(registry.keys()).filter(n -> n.startsWith("audit_logging")).collect(Collectors.toList());
+        List<String> expectedNames = Streams.stream(tableRegistry.keys()).filter(n -> n.startsWith("audit_logging")).collect(Collectors.toList());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
         check(pre + "enabled", "true");
 
@@ -282,7 +275,7 @@ public class SettingsTableTest extends CQLTester
                      "name < 'transparent_data_encryption_optionsz' ALLOW FILTERING";
 
         config.transparent_data_encryption_options.enabled = true;
-        List<String> expectedNames = Streams.stream(registry.keys()).filter(n -> n.startsWith("transparent_data_encryption_options")).collect(Collectors.toList());
+        List<String> expectedNames = Streams.stream(tableRegistry.keys()).filter(n -> n.startsWith("transparent_data_encryption_options")).collect(Collectors.toList());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
         check(pre + "enabled", "true");
 

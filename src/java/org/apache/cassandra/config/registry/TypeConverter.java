@@ -18,25 +18,31 @@
 
 package org.apache.cassandra.config.registry;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
- * Converts configuration value from one type to another, you can use {@link org.apache.cassandra.config.PropertyConverter}
+ * Converts configuration value from one type to another, you can use {@link org.apache.cassandra.config.StringConverters}
  * if your input type is String and you want to convert it to an appropriate configuration object type.
  *
  * @param <T> Type to convert to.
  *
  * @see Registry
- * @see org.apache.cassandra.config.PropertyConverter
+ * @see org.apache.cassandra.config.StringConverters
  */
 public interface TypeConverter<T>
 {
-    TypeConverter<String> DEFAULT = (value) -> value == null ? null : value.toString();
+    TypeConverter<String> DEFAULT = Object::toString;
 
     /**
      * Converts a value to the target type.
      * @param value Value to convert.
      * @return Converted value.
      */
-    @Nullable T convert(@Nullable Object value);
+    @Nullable T convert(@Nonnull Object value);
+
+    default @Nullable T convertNullable(@Nullable Object value)
+    {
+        return value == null ? null : convert(value);
+    }
 }

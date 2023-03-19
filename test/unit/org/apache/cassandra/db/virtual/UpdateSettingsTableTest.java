@@ -21,6 +21,7 @@ package org.apache.cassandra.db.virtual;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -39,7 +40,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.assertj.core.util.Streams;
 
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
-import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
@@ -106,11 +106,11 @@ public class UpdateSettingsTableTest extends CQLTester
         updateConfigurationProperty(statement, propertyName, oldValue);
     }
 
-    private void updateConfigurationProperty(String statement, String propertyName, Object value) throws Throwable
+    private void updateConfigurationProperty(String statement, String propertyName, @Nullable Object value) throws Throwable
     {
-        assertRowsNet(executeNet(statement, TypeConverter.DEFAULT.convert(value), propertyName));
+        assertRowsNet(executeNet(statement, TypeConverter.DEFAULT.convertNullable(value), propertyName));
         assertEquals(value, registry.get(registry.type(propertyName), propertyName));
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, TypeConverter.DEFAULT.convert((value)) });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, TypeConverter.DEFAULT.convertNullable((value)) });
     }
 
     private static Object getNextValue(Object[] values, Object currentValue)

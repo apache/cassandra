@@ -32,13 +32,13 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Mutable;
 import org.apache.cassandra.config.Properties;
+import org.apache.cassandra.config.StringConverters;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.introspector.Property;
 
@@ -54,7 +54,6 @@ public class ConfigurationRegistry implements Registry
     private static final Logger logger = LoggerFactory.getLogger(ConfigurationRegistry.class);
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
     private final Map<String, PropertyAdapter> properties;
-    private final TypeConverterRegistry typeConverterRegistry = new TypeConverterRegistry();
     private final Map<ConfigurationListener.ChangeType, ConfigurationListenerList> propertyChangeListeners = new EnumMap<>(ConfigurationListener.ChangeType.class);
     private final Map<String, List<TypedConstraintAdapter<?>>> constraints = new HashMap<>();
 
@@ -94,30 +93,33 @@ public class ConfigurationRegistry implements Registry
             // Do conversion if the value is not null and the type is not the same as the property type.
             if (sourceType != null && !primitiveToWrapperType(originalType).equals(sourceType))
             {
-                TypeConverter<?> converter = typeConverterRegistry.getConverter(sourceType, originalType);
-                if (converter == null)
-                    throw new IllegalArgumentException(String.format("No converter found for type '%s'", sourceType.getName()));
-
-                convertedValue = converter.convert(value);
+                StringConverters converter;
+                if (sourceType.equals(String.class) && (converter = StringConverters.fromType(originalType)) != null)
+                    convertedValue = converter.fromString((String) value, originalType);
+                else
+                    throw new IllegalArgumentException(String.format("No converter found for type '%s'", originalType.getName()));
             }
             // Do validation first for converted new value.
             List<TypedConstraintAdapter<?>> constraintsList = constraints.getOrDefault(property.getName(), Collections.emptyList());
             for (TypedConstraintAdapter<?> typed : constraintsList)
             {
-                assert typed.type.equals(sourceType);
+                assert sourceType == null || typed.type.equals(sourceType);
                 typed.validateTypeCast(convertedValue);
             }
             // Do set the value only if the validation passes.
             Object oldValue = property.getValue();
-            propertyChangeListeners.get(ConfigurationListener.ChangeType.BEFORE).fire(property.getName(), oldValue, convertedValue);
+            propertyChangeListeners.get(ConfigurationListener.ChangeType.BEFORE).fireTypeCast(property.getName(), oldValue, convertedValue);
             property.setValue(convertedValue);
-            propertyChangeListeners.get(ConfigurationListener.ChangeType.AFTER).fire(property.getName(), oldValue, convertedValue);
+            propertyChangeListeners.get(ConfigurationListener.ChangeType.AFTER).fireTypeCast(property.getName(), oldValue, convertedValue);
             // This potentially may expose the values that are not safe to see in logs on production.
             logger.info("Property '{}' updated from '{}' to '{}'.", property.getName(), oldValue, convertedValue);
         }
         catch (Exception e)
         {
-            throw new ConfigurationException(String.format("Error updating property '%s'; cause: %s", property, e.getMessage()), e);
+            if (e instanceof ConfigurationException)
+                throw (ConfigurationException) e;
+            else
+                throw new ConfigurationException(String.format("Error updating property '%s'; cause: %s", property.getName(), e.getMessage()), e);
         }
         finally
         {
@@ -137,10 +139,14 @@ public class ConfigurationRegistry implements Registry
         {
             validatePropertyExists(properties.get(name), name);
             Class<?> propertyType = type(name);
+            Object value = properties.get(name).getValue();
             if (cls.equals(propertyType))
-                return primitiveToWrapperType(cls).cast(properties.get(name).getValue());
+                return value == null ? null : primitiveToWrapperType(cls).cast(value);
             else if (cls.equals(String.class))
-                return cls.cast(typeConverterRegistry.getConverterOrDefault(propertyType, String.class, TypeConverter.DEFAULT).convert(properties.get(name).getValue()));
+            {
+                StringConverters converter = StringConverters.fromType(propertyType);
+                return cls.cast(converter == null ? TypeConverter.DEFAULT.convertNullable(value) : converter.toString(value));
+            }
             else
                 throw new ConfigurationException(String.format("Property '%s' is of type '%s' and cannot be cast to '%s'",
                                                                name, propertyType.getCanonicalName(), cls.getCanonicalName()));
@@ -288,7 +294,7 @@ public class ConfigurationRegistry implements Registry
             wrappers.computeIfAbsent(name, k -> new ArrayList<>()).add(listener);
         }
 
-        public void fire(String name, Object oldValue, Object newValue)
+        public void fireTypeCast(String name, Object oldValue, Object newValue)
         {
             if (!wrappers.containsKey(name)) return;
             for (TypedListenerAdapter<?> wrapper : wrappers.get(name))

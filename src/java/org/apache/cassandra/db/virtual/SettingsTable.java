@@ -235,7 +235,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         {
             Replacement replacement = replacements.get(name);
 
-            return replacement == null ? registry.getString(name) : TypeConverter.DEFAULT.convert(get(newReplacementType(replacement), name));
+            return replacement == null ? registry.getString(name) : TypeConverter.DEFAULT.convertNullable(get(newReplacementType(replacement), name));
         }
 
         @Override

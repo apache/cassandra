@@ -588,11 +588,16 @@ public enum CassandraRelevantProperties
         System.setProperty(key, value.name());
     }
 
-    public static final PropertyConverter<String> STRING_CONVERTER = value -> value;
+    public interface PropertyConverter<T>
+    {
+        T convert(String value);
+    }
 
-    public static final PropertyConverter<Boolean> BOOLEAN_CONVERTER = Boolean::parseBoolean;
+    private static final PropertyConverter<String> STRING_CONVERTER = value -> value;
 
-    public static final PropertyConverter<Integer> INTEGER_CONVERTER = value ->
+    private static final PropertyConverter<Boolean> BOOLEAN_CONVERTER = Boolean::parseBoolean;
+
+    private static final PropertyConverter<Integer> INTEGER_CONVERTER = value ->
     {
         try
         {
@@ -605,7 +610,7 @@ public enum CassandraRelevantProperties
         }
     };
 
-    public static final PropertyConverter<Long> LONG_CONVERTER = value ->
+    private static final PropertyConverter<Long> LONG_CONVERTER = value ->
     {
         try
         {
@@ -615,19 +620,6 @@ public enum CassandraRelevantProperties
         {
             throw new ConfigurationException(String.format("Invalid value for system property: " +
                                                            "expected integer value but got '%s'", value));
-        }
-    };
-
-    public static final PropertyConverter<Double> DOUBLE_CONVERTER = value ->
-    {
-        try
-        {
-            return Double.parseDouble(value);
-        }
-        catch (NumberFormatException e)
-        {
-            throw new ConfigurationException(String.format("Invalid value for system property: " +
-                                                           "expected double value but got '%s'", value));
         }
     };
 
