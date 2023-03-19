@@ -64,6 +64,7 @@ import org.apache.cassandra.cql3.functions.OperationFcts;
 import org.apache.cassandra.cql3.functions.TimeFcts;
 import org.apache.cassandra.cql3.functions.UuidFcts;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -593,6 +594,13 @@ public final class SystemKeyspace
                             DatabaseDescriptor.getStoragePort(),
                             FBUtilities.getJustLocalAddress(),
                             DatabaseDescriptor.getStoragePort());
+
+        // We should store host ID as soon as possible in the system.local table and flush that table to disk so that
+        // we can be sure that those changes are stored in sstable and not in the commit log (see CASSANDRA-18153).
+        // It is very unlikely that when upgrading the host id is not flushed to disk, but if that's the case, we limit
+        // this change only to the new installations or the user should just flush system.local table.
+        if (!CommitLog.instance.hasFilesToReplay())
+            SystemKeyspace.getOrInitializeLocalHostId();
     }
 
     public static void updateCompactionHistory(String ksname,
@@ -1236,6 +1244,7 @@ public final class SystemKeyspace
     {
         String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
         executeInternal(format(req, LOCAL, LOCAL), hostId);
+        forceBlockingFlush(LOCAL);
         return hostId;
     }
 
