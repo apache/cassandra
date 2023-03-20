@@ -133,9 +133,9 @@ public class StorageProxyTest
     }
 
     @Test
-    public void testIdealConsistencyLevel() throws Exception
+    public void testIdealConsistencyLevel()
     {
-        Assert.assertEquals(ConsistencyLevel.ONE.toString(), StorageProxy.instance.getIdealConsistencyLevel());
+        Assert.assertEquals("", StorageProxy.instance.getIdealConsistencyLevel());
         StorageProxy.instance.setIdealConsistencyLevel(ConsistencyLevel.TWO.toString());
         Assert.assertEquals(ConsistencyLevel.TWO.toString(), StorageProxy.instance.getIdealConsistencyLevel());
     }
