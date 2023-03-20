@@ -79,6 +79,7 @@ public class BinLog implements Runnable
 
     static
     {
+        // Avoid the chronicle announcement which is commercial advertisement, and debug info we already print at startup
         // https://github.com/OpenHFT/Chronicle-Core/blob/chronicle-core-2.23.36/src/main/java/net/openhft/chronicle/core/announcer/Announcer.java#L32-L33
         System.setProperty("chronicle.announcer.disable", "true");
     }
