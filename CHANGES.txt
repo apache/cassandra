@@ -177,6 +177,7 @@ Merged from 3.0:
 
 Uber specific changes:
 <begin>
+ * [SO-19594] Add Cassandra version validate before building
  * [SO-19475] Assign wrong-auth user as super user when auth_enforcement_flag = soft
  * [SO-19188] Create nodetool command for auth_enforcement_flag
  * [SO-19195] Fix default file system error handler for disk_failure_policy die

@@ -93,7 +93,18 @@
     <condition property="version" value="${base.version}">
       <isset property="release"/>
     </condition>
+
     <property name="version" value="${base.version}-SNAPSHOT"/>
+
+    <fail message="Cassandra version ${version} is not a valid version. Cassandra Java client cannot accept version which does not match this pattern: ^(\d+)\.(\d+)(\.\d+)?(\.\d+)?([~\-]\w[.\w]*(?:\-\w[.\w]*)*)?(\+[.\w]+)?$">
+        <condition>
+            <not>
+                <matches pattern="^(\d+)\.(\d+)(\.\d+)?(\.\d+)?([~\-]\w[.\w]*(?:\-\w[.\w]*)*)?(\+[.\w]+)?$" string="${version}">
+                </matches>
+            </not>
+        </condition>
+    </fail>
+
     <property name="version.properties.dir"
               value="${build.src.resources}/org/apache/cassandra/config/" />
     <property name="final.name" value="${ant.project.name}-${version}"/>
