@@ -83,7 +83,7 @@ public class MemtableQuickTest extends CQLTester
         String table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
                                              " with compression = {'enabled': false}" +
                                              " and memtable = '" + memtableClass + "'" +
-                                             " and compaction = { 'class': 'UnifiedCompactionStrategy', 'min_sstable_size_in_mb': '1' }"); // to trigger splitting of sstables, CASSANDRA-18123
+                                             " and compaction = { 'class': 'UnifiedCompactionStrategy', 'base_shard_count': '4' }"); // to trigger splitting of sstables, CASSANDRA-18123
         execute("use " + keyspace + ';');
 
         String writeStatement = "INSERT INTO "+table+"(userid,picid,commentid)VALUES(?,?,?)";

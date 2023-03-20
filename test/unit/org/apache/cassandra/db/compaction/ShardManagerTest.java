@@ -30,6 +30,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.agrona.collections.IntArrayList;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -60,6 +61,8 @@ public class ShardManagerTest
     @Before
     public void setUp()
     {
+        DatabaseDescriptor.daemonInitialization(); // because of all the static initialization in CFS
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         weightedRanges = new ColumnFamilyStore.VersionedLocalRanges(-1, 16);
     }
 
@@ -275,10 +278,11 @@ public class ShardManagerTest
         ColumnFamilyStore cfs = Mockito.mock(ColumnFamilyStore.class);
         when(cfs.getPartitioner()).thenReturn(partitioner);
 
-        List<Splitter.WeightedRange> ranges = new ArrayList<>();
+        List<Range<Token>> ranges = new ArrayList<>();
         for (int i = 0; i < rangeBounds.length; i += 2)
-            ranges.add(new Splitter.WeightedRange(1.0, new Range<>(getToken(rangeBounds[i + 0]), getToken(rangeBounds[i + 1]))));
-        ColumnFamilyStore.VersionedLocalRanges sortedRanges = localRanges(ranges);
+            ranges.add(new Range<>(getToken(rangeBounds[i + 0]), getToken(rangeBounds[i + 1])));
+        ranges = Range.sort(ranges);
+        ColumnFamilyStore.VersionedLocalRanges sortedRanges = localRanges(ranges.stream().map(x -> new Splitter.WeightedRange(1.0, x)).collect(Collectors.toList()));
 
         List<Token> diskBoundaries = splitRanges(sortedRanges, numDisks);
         int[] result = getShardBoundaries(cfs, numShards, diskBoundaries, sortedRanges);

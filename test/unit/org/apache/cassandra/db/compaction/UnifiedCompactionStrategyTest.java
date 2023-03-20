@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.Iterables;
 import org.apache.commons.math3.random.JDKRandomGenerator;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -275,6 +276,7 @@ public class UnifiedCompactionStrategyTest
             }
         }
         strategy.addSSTables(sstables);
+        dataTracker.addInitialSSTables(sstables);
 
         List<UnifiedCompactionStrategy.Level> levels = strategy.getLevels();
         assertEquals(expectedTs.length, levels.size());
@@ -390,6 +392,7 @@ public class UnifiedCompactionStrategyTest
                                                     0);
         allSstables.addAll(sstables);
         strategy.addSSTables(allSstables);
+        dataTracker.addInitialSSTables(allSstables);
 
         int num = numSSTables;
         UnifiedCompactionStrategy.CompactionPick task;
@@ -544,6 +547,7 @@ public class UnifiedCompactionStrategyTest
         List<SSTableReader> sstables = createSStables(cfs.getPartitioner());
         // Tracker#addSSTables also tries to backup SSTables, so we use addInitialSSTables and notify explicitly
         strategy.addSSTables(sstables);
+        dataTracker.addInitialSSTables(sstables);
 
         try
         {
@@ -588,6 +592,7 @@ public class UnifiedCompactionStrategyTest
         List<SSTableReader> nonExpiredSSTables = createSStables(cfs.getPartitioner(), 0);
         strategy.addSSTables(expiredSSTables);
         strategy.addSSTables(nonExpiredSSTables.subList(0, 3));
+        dataTracker.addInitialSSTables(Iterables.concat(expiredSSTables, nonExpiredSSTables));
 
         int timestamp = expiredSSTables.get(expiredSSTables.size() - 1).getMaxLocalDeletionTime();
         int expirationPoint = timestamp + 1;
@@ -599,7 +604,7 @@ public class UnifiedCompactionStrategyTest
             assertEquals(expiredSSTables.size(), pick.size());
             assertEquals(-1, pick.level);
 
-            strategy.addSSTables(nonExpiredSSTables);   // duplicates should be rejected
+            strategy.addSSTables(nonExpiredSSTables);   // duplicates should be skipped
             pick = strategy.getNextCompactionPick(expirationPoint);
 
             assertEquals(expiredSSTables.size() + nonExpiredSSTables.size(), pick.size());
@@ -637,6 +642,7 @@ public class UnifiedCompactionStrategyTest
         List<SSTableReader> sstables = createSStables(cfs.getPartitioner(),
                                                       mapFromPair(Pair.create(4 * ONE_MB, count)));
         strategy.addSSTables(sstables);
+        dataTracker.addInitialSSTables(sstables);
 
         UnifiedCompactionStrategy.CompactionPick pick = strategy.getNextCompactionPick(0);
         assertNotNull(pick);
@@ -770,6 +776,7 @@ public class UnifiedCompactionStrategyTest
         when(controller.random()).thenReturn(randomMock);
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(cfs, new HashMap<>(), controller);
         strategy.addSSTables(allSSTables);
+        dataTracker.addInitialSSTables(allSSTables);
 
         List<UnifiedCompactionStrategy.CompactionPick> picks = new ArrayList<>();
         while (true)
