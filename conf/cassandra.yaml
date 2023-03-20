@@ -1942,8 +1942,6 @@ drop_compact_storage_enabled: false
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
 
-
-
 # Supported sstable formats
 # This is a list of elements consisting of class_name and parameters, where class_name should point to the class
 # implementing org.apache.cassandra.io.sstable.format.SSTableFormat. Parameters must include unique 'id' integer
