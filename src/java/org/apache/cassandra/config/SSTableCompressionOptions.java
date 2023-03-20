@@ -18,19 +18,13 @@
 package org.apache.cassandra.config;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.schema.CompressionParams;
-import org.checkerframework.checker.units.qual.C;
 
 import static java.lang.String.format;
 
@@ -39,7 +33,7 @@ public class SSTableCompressionOptions
     public String chunk_length="";
     public Double min_compress_ratio;
     public boolean enabled = true;
-    public Config.CompressorType type;
+    public CompressorType type;
     public ParameterizedClass compressor;
 
     public SSTableCompressionOptions()
@@ -50,9 +44,9 @@ public class SSTableCompressionOptions
 
     public CompressionParams getCompressionParams()
     {
-        Config.CompressorType myType = type == null? Config.CompressorType.lz4 : type;
+        CompressorType myType = type == null ? CompressorType.lz4 : type;
         if (!enabled) {
-            myType = Config.CompressorType.none;
+            myType = CompressorType.none;
         }
 
         int chunk_length_in_kb = chunk_length.isBlank()
@@ -124,5 +118,16 @@ public class SSTableCompressionOptions
                .append(min_compress_ratio)
                .append(compressor)
                .toHashCode();
+    }
+
+    public enum CompressorType
+    {
+        lz4,
+        none,
+        noop,
+        snappy,
+        deflate,
+        zstd,
+        custom,
     }
 }
