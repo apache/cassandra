@@ -102,10 +102,7 @@ public class ConfigurationRegistry implements Registry
             // Do validation first for converted new value.
             List<TypedConstraintAdapter<?>> constraintsList = constraints.getOrDefault(property.getName(), Collections.emptyList());
             for (TypedConstraintAdapter<?> typed : constraintsList)
-            {
-                assert sourceType == null || typed.type.equals(sourceType);
                 typed.validateTypeCast(convertedValue);
-            }
             // Do set the value only if the validation passes.
             Object oldValue = property.getValue();
             propertyChangeListeners.get(ConfigurationListener.ChangeType.BEFORE).fireTypeCast(property.getName(), oldValue, convertedValue);
@@ -141,7 +138,7 @@ public class ConfigurationRegistry implements Registry
             Class<?> propertyType = type(name);
             Object value = properties.get(name).getValue();
             if (cls.equals(propertyType))
-                return primitiveToWrapperType(cls).cast(value);
+                return new PrimitiveTypeConverter<>(cls).convertNullable(value);
             else if (cls.equals(String.class))
             {
                 StringConverters converter = StringConverters.fromType(propertyType);
@@ -242,43 +239,38 @@ public class ConfigurationRegistry implements Registry
             throw new ConfigurationException(String.format("Property with name '%s' expects type '%s', but got '%s'.", name, property.getType(), targetType));
     }
 
-    private static <T> Class<T> primitiveToWrapperType(Class<T> type)
-    {
-        return type.isPrimitive() ? (Class<T>) primitiveToWrapper(type) : type;
-    }
-
     private static class TypedListenerAdapter<T>
     {
         private final ConfigurationListener<T> listener;
-        private final Class<T> type;
+        private final PrimitiveTypeConverter<T> primitiveConverter;
 
         public TypedListenerAdapter(ConfigurationListener<T> listener, Class<T> type)
         {
             this.listener = listener;
-            this.type = type;
+            this.primitiveConverter = new PrimitiveTypeConverter<>(type);
         }
 
         public void fireTypeCast(String name, Object oldValue, Object newValue)
         {
             // Casting to the type of the listener is safe because we validate the type of the property on listener's registration.
-            listener.onUpdate(name, primitiveToWrapperType(type).cast(oldValue), primitiveToWrapperType(type).cast(newValue));
+            listener.onUpdate(name, primitiveConverter.convertNullable(oldValue), primitiveConverter.convertNullable(newValue));
         }
     }
 
     private static class TypedConstraintAdapter<T>
     {
         private final ConfigurationConstraint<T> constraint;
-        private final Class<T> type;
+        private final PrimitiveTypeConverter<T> primitiveConverter;
 
         public TypedConstraintAdapter(ConfigurationConstraint<T> constraint, Class<T> type)
         {
             this.constraint = constraint;
-            this.type = type;
+            this.primitiveConverter = new PrimitiveTypeConverter<>(type);
         }
 
         public void validateTypeCast(Object newValue)
         {
-            constraint.validate(primitiveToWrapperType(type).cast(newValue));
+            constraint.validate(primitiveConverter.convertNullable(newValue));
         }
     }
 

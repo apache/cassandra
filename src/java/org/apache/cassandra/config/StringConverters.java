@@ -18,10 +18,9 @@
 
 package org.apache.cassandra.config;
 
+import org.apache.cassandra.config.registry.PrimitiveTypeConverter;
 import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.db.ConsistencyLevel;
-
-import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 
 public enum StringConverters
 {
@@ -55,7 +54,7 @@ public enum StringConverters
     <T> StringConverters(Class<T> type, TypeConverter<T> forward, TypeConverter<String> reverse)
     {
         this.type = type;
-        this.forward = forward;
+        this.forward = forward.then(new PrimitiveTypeConverter<>(type));
         this.reverse = reverse;
     }
 
@@ -63,7 +62,7 @@ public enum StringConverters
     public <T> T fromString(String value, Class<T> target)
     {
         if (target.equals(type))
-            return (T) primitiveToWrapper(target).cast(forward.convertNullable(value));
+            return (T) forward.convertNullable(value);
         throw new IllegalArgumentException(String.format("Invalid target type '%s' for converter '%s'", target, this));
     }
 
