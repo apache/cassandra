@@ -143,7 +143,7 @@ public class BigTableWriter extends SSTableWriter
                     if (!compressor.recommendedUses().contains(ICompressor.Uses.FAST_COMPRESSION))
                     {
                         // The default compressor is generally fast (LZ4 with 16KiB block size)
-                        compressionParams =  CompressionParams.fromOptions(DatabaseDescriptor.getSSTableCompressionOptions());
+                        compressionParams = CompressionParams.fromOptions(DatabaseDescriptor.getSSTableCompressionOptions());
                         break;
                     }
                 case table:
