@@ -142,7 +142,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
                     if (!compressor.recommendedUses().contains(ICompressor.Uses.FAST_COMPRESSION))
                     {
                         // The default compressor is generally fast (LZ4 with 16KiB block size)
-                        compressionParams =  DatabaseDescriptor.getSSTableCompression();
+                        compressionParams =  CompressionParams.fromOptions(DatabaseDescriptor.getSSTableCompressionOptions());
                         break;
                     }
                 case table:

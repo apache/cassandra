@@ -1179,17 +1179,6 @@ public class Config
         exception
     }
 
-    public enum CompressorType
-    {
-        lz4,
-        none,
-        noop,
-        snappy,
-        deflate,
-        zstd,
-        custom,
-    }
-
     private static final Set<String> SENSITIVE_KEYS = new HashSet<String>() {{
         add("client_encryption_options");
         add("server_encryption_options");

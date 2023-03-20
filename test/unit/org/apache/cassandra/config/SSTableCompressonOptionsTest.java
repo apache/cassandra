@@ -66,7 +66,7 @@ public class SSTableCompressonOptionsTest
 
     @Test
     public void lz4Test() {
-        options.type = Config.CompressorType.lz4;
+        options.type = SSTableCompressionOptions.CompressorType.lz4;
         params = options.getCompressionParams();
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, LZ4Compressor.class);
 
@@ -81,7 +81,7 @@ public class SSTableCompressonOptionsTest
 
     @Test
     public void noneTest() {
-        options.type = Config.CompressorType.none;
+        options.type = SSTableCompressionOptions.CompressorType.none;
         params = options.getCompressionParams();
         // none is noever enabled.
         assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
@@ -99,7 +99,7 @@ public class SSTableCompressonOptionsTest
 
     @Test
     public void noopTest() {
-        options.type = Config.CompressorType.noop;
+        options.type = SSTableCompressionOptions.CompressorType.noop;
         params = options.getCompressionParams();
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, NoopCompressor.class);
 
@@ -115,7 +115,7 @@ public class SSTableCompressonOptionsTest
 
     @Test
     public void snappyTest() {
-        options.type = Config.CompressorType.snappy;
+        options.type = SSTableCompressionOptions.CompressorType.snappy;
         params = options.getCompressionParams();
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, SnappyCompressor.class);
 
@@ -133,7 +133,7 @@ public class SSTableCompressonOptionsTest
 
     @Test
     public void deflateTest() {
-        options.type = Config.CompressorType.deflate;
+        options.type = SSTableCompressionOptions.CompressorType.deflate;
         params = options.getCompressionParams();
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, DeflateCompressor.class);
 
@@ -148,7 +148,7 @@ public class SSTableCompressonOptionsTest
 
     @Test
     public void zstdTest() {
-        options.type = Config.CompressorType.zstd;
+        options.type = SSTableCompressionOptions.CompressorType.zstd;
         params = options.getCompressionParams();
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, ZstdCompressor.class);
 
@@ -163,7 +163,7 @@ public class SSTableCompressonOptionsTest
 
     @Test
     public void customTest() {
-        options.type = Config.CompressorType.custom;
+        options.type = SSTableCompressionOptions.CompressorType.custom;
         options.compressor = new ParameterizedClass(TestCompressor.class.getName(), Collections.emptyMap());
         params = options.getCompressionParams();
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, TestCompressor.class);
