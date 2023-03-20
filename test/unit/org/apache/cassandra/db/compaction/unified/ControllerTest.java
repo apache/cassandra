@@ -129,7 +129,7 @@ public class ControllerTest
         String wStr = Arrays.stream(Ws)
                             .mapToObj(useIntegers ? Integer::toString : UnifiedCompactionStrategy::printScalingParameter)
                             .collect(Collectors.joining(","));
-        options.putIfAbsent(Controller.STATIC_SCALING_PARAMETERS_OPTION, wStr);
+        options.putIfAbsent(Controller.SCALING_PARAMETERS_OPTION, wStr);
 
         options.putIfAbsent(Controller.ALLOW_UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_OPTION, Boolean.toString(allowOverlaps));
         options.putIfAbsent(Controller.EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_OPTION, Long.toString(checkFrequency));

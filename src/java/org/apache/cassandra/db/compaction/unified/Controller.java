@@ -49,8 +49,8 @@ public class Controller
      * The scaling parameters W, one per bucket index and separated by a comma.
      * Higher indexes will use the value of the last index with a W specified.
      */
-    final static String STATIC_SCALING_PARAMETERS_OPTION = "static_scaling_parameters";
-    private final static String DEFAULT_STATIC_SCALING_PARAMETERS = System.getProperty(PREFIX + STATIC_SCALING_PARAMETERS_OPTION, "T4");
+    final static String SCALING_PARAMETERS_OPTION = "scaling_parameters";
+    private final static String DEFAULT_SCALING_PARAMETERS = System.getProperty(PREFIX + SCALING_PARAMETERS_OPTION, "T4");
 
     /**
      * Override for the flush size in MB. The database should be able to calculate this from executing flushes, this
@@ -296,7 +296,7 @@ public class Controller
 
     public static Controller fromOptions(ColumnFamilyStore cfs, Map<String, String> options)
     {
-        int[] Ws = parseScalingParameters(options.getOrDefault(STATIC_SCALING_PARAMETERS_OPTION, DEFAULT_STATIC_SCALING_PARAMETERS));
+        int[] Ws = parseScalingParameters(options.getOrDefault(SCALING_PARAMETERS_OPTION, DEFAULT_SCALING_PARAMETERS));
 
         long flushSizeOverride = (long) FBUtilities.parseHumanReadable(options.getOrDefault(FLUSH_SIZE_OVERRIDE_OPTION, "0MiB"), null, "B");
         int maxSSTablesToCompact = Integer.parseInt(options.getOrDefault(MAX_SSTABLES_TO_COMPACT_OPTION, "0"));
@@ -358,7 +358,7 @@ public class Controller
         options = new HashMap<>(options);
         String s;
 
-        s = options.remove(STATIC_SCALING_PARAMETERS_OPTION);
+        s = options.remove(SCALING_PARAMETERS_OPTION);
         if (s != null)
             parseScalingParameters(s);
 
