@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.SSTableCompressionOptions;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -89,6 +90,17 @@ public final class CompressionParams
     // TODO: deprecated, should now be carefully removed. Doesn't affect schema code as it isn't included in equals() and hashCode()
     private volatile double crcCheckChance = 1.0;
 
+    public static CompressionParams fromOptions(SSTableCompressionOptions options) {
+        if  (options == null)
+        {
+            return !CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.getBoolean()
+                   ? noCompression()
+                   : lz4();
+        } else {
+            return options.getCompressionParams();
+        }
+    }
+
     public static CompressionParams fromMap(Map<String, String> opts)
     {
         Map<String, String> options = copyOptions(opts);
@@ -124,12 +136,6 @@ public final class CompressionParams
         return sstableCompressor.getClass();
     }
 
-    public static CompressionParams defaultCompression()
-    {
-        return !CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.getBoolean()
-               ? noCompression()
-               : lz4();
-    }
     public static CompressionParams noCompression()
     {
         return new CompressionParams((ICompressor) null, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, 0.0, Collections.emptyMap());
