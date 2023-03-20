@@ -119,6 +119,7 @@
  * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
 Merged from 4.1:
+ * Do not submit hints when hinted_handoff_enabled=false (CASSANDRA-18304)
  * Deprecate org.apache.cassandra.hadoop code (CASSANDRA-16984)
  * Fix too early schema version change in system local table (CASSANDRA-18291)
  * Fix copying of JAR of a trigger to temporary file (CASSANDRA-18264)
