@@ -131,13 +131,11 @@ public class DatabaseDescriptor
 
     private static Config conf;
     /**
-     * The registry of configuration properties. For some of the cases we need to access the configuration
-     * properties before the {@link #conf} is initialized. For example, we need to access the configuration
-     * {@link #useDeterministicTableID()} on the {@link org.apache.cassandra.db.virtual.VirtualSchemaKeyspace}
-     * initialization. In such cases we can use this registry to access the configuration properties from the
-     * default {@link Config}.
+     * The registry of configuration properties. It is used to access the configuration properties loaded from
+     * the {@link #conf} and must be initialized the same time the {@link #conf} is initialized, usually
+     * by calling {@link #toolInitialization()} or {@link #daemonInitialization()}.
      */
-    private static ConfigurationRegistry confRegistry = new ConfigurationRegistry(Config::new);
+    private static ConfigurationRegistry confRegistry;
 
     /**
      * Request timeouts can not be less than below defined value (see CASSANDRA-9375)
@@ -3195,6 +3193,8 @@ public class DatabaseDescriptor
 
     public static boolean useDeterministicTableID()
     {
+        if (confRegistry == null)
+            return false;
         return confRegistry.get(Boolean.TYPE, ConfigFields.USE_DETERMINISTIC_TABLE_ID);
     }
 
