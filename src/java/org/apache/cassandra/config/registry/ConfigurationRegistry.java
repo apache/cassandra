@@ -91,7 +91,7 @@ public class ConfigurationRegistry implements Registry
             Class<?> sourceType = value == null ? null : value.getClass();
             Object convertedValue = value;
             // Do conversion if the value is not null and the type is not the same as the property type.
-            if (sourceType != null && !primitiveToWrapperType(originalType).equals(sourceType))
+            if (sourceType != null && !primitiveToWrapper(originalType).equals(sourceType))
             {
                 StringConverters converter;
                 if (sourceType.equals(String.class) && (converter = StringConverters.fromType(originalType)) != null)
@@ -141,7 +141,7 @@ public class ConfigurationRegistry implements Registry
             Class<?> propertyType = type(name);
             Object value = properties.get(name).getValue();
             if (cls.equals(propertyType))
-                return value == null ? null : primitiveToWrapperType(cls).cast(value);
+                return primitiveToWrapperType(cls).cast(value);
             else if (cls.equals(String.class))
             {
                 StringConverters converter = StringConverters.fromType(propertyType);

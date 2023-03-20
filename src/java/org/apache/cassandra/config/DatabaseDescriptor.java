@@ -130,7 +130,14 @@ public class DatabaseDescriptor
     private static final int MAX_NUM_TOKENS = 1536;
 
     private static Config conf;
-    private static ConfigurationRegistry confRegistry;
+    /**
+     * The registry of configuration properties. For some of the cases we need to access the configuration
+     * properties before the {@link #conf} is initialized. For example, we need to access the configuration
+     * {@link #useDeterministicTableID()} on the {@link org.apache.cassandra.db.virtual.VirtualSchemaKeyspace}
+     * initialization. In such cases we can use this registry to access the configuration properties from the
+     * default {@link Config}.
+     */
+    private static ConfigurationRegistry confRegistry = new ConfigurationRegistry(Config::new);
 
     /**
      * Request timeouts can not be less than below defined value (see CASSANDRA-9375)
