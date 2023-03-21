@@ -14,18 +14,18 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<project basedir="." default="jar" name="apache-cassandra"
+<project basedir="." default="jar" name="xiaodizi-cassandra"
          xmlns:artifact="antlib:org.apache.maven.artifact.ant"
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">
 
-    <fail message="You need to use Ant of version at least 1.10 to continue.">
-      <condition>
-        <not>
-          <antversion atleast="1.10"/>
-        </not>
-      </condition>
-    </fail>
+<!--    <fail message="You need to use Ant of version at least 1.10 to continue.">-->
+<!--      <condition>-->
+<!--        <not>-->
+<!--          <antversion atleast="1.10"/>-->
+<!--        </not>-->
+<!--      </condition>-->
+<!--    </fail>-->
 
     <property environment="env"/>
     <property file="build.properties" />
@@ -34,9 +34,10 @@
 
     <!-- default version and SCM information -->
     <property name="base.version" value="4.1.1"/>
-    <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
-    <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
-    <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
+    <property name="scm.connection" value="scm:git:https://github.com/xiaodizi/cassandra.git"/>
+    <property name="scm.developerConnection" value="scm:git:git@github.com:xiaodizi/cassandra.git"/>
+    <property name="scm.url" value="https://github.com/xiaodizi/cassandra"/>
+
 
     <!-- directory details -->
     <property name="basedir" value="."/>
@@ -604,7 +605,7 @@
 
           <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.10.12" scope="test"/>
 
-          <dependency groupId="org.apache.cassandra" artifactId="cassandra-all" version="${version}" />
+          <dependency groupId="org.xiaodizi.cassandra" artifactId="cassandra-all" version="${version}" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.5" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-jvm" version="3.1.5" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-logback" version="3.1.5" />
@@ -750,7 +751,7 @@
       <!-- each dependency set then defines the subset of the dependencies for that dependency set -->
       <artifact:pom id="build-deps-pom"
                     artifactId="cassandra-build-deps">
-        <parent groupId="org.apache.cassandra"
+        <parent groupId="org.xiaodizi.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"
                 relativePath="${final.name}-parent.pom"/>
@@ -784,12 +785,12 @@
         <dependency groupId="com.fasterxml.jackson.dataformat" artifactId="jackson-dataformat-yaml"/>
       </artifact:pom>
 
-      <!-- now the pom's for artifacts being deployed to Maven Central -->
+      <!-- 现在，pom正在部署到Maven Central-->
       <artifact:pom id="all-pom"
                     artifactId="cassandra-all"
                     url="https://cassandra.apache.org"
-                    name="Apache Cassandra">
-        <parent groupId="org.apache.cassandra"
+                    name="xiaodizi Cassandra">
+        <parent groupId="org.xiaodizi.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"
                 relativePath="${final.name}-parent.pom"/>
