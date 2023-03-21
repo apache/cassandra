@@ -29,6 +29,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -65,6 +66,7 @@ public class UpdateSettingsTableTest extends CQLTester
     {
         // Creating a new instence will avoid calling listeners registered in the registry.
         registry = new ConfigurationRegistry(DatabaseDescriptor::getRawConfig);
+        DatabaseDescriptor.applyConfigurationRegistryConstraints(registry);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(new SettingsTable(KS_NAME, registry))));
         Streams.stream(registry.keys())
                .filter(k -> registry.isWritable(k))
@@ -86,6 +88,23 @@ public class UpdateSettingsTableTest extends CQLTester
         assertNotNull(registry.get(registry.type(ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD), ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD));
         updateConfigurationProperty(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
                                      ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD, null);
+    }
+
+    @Test
+    public void testUpdateConstraintViolation() throws Throwable
+    {
+        InvalidQueryException e = null;
+        try
+        {
+            updateConfigurationProperty(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
+                                        ConfigFields.PHI_CONVICT_THRESHOLD, 4.0);
+        }
+        catch (InvalidQueryException ex)
+        {
+            e = ex;
+        }
+        assertNotNull(e);
+        assertEquals("Invalid update request; cause: 'Error updating property 'phi_convict_threshold'; cause: phi_convict_threshold must be between 5 and 16, but was 4.0'", e.getMessage());
     }
 
     @Test
@@ -134,8 +153,8 @@ public class UpdateSettingsTableTest extends CQLTester
         return ImmutableMap.<Class<?>, Object[]>builder()
                            .put(Boolean.class, new Object[]{ true, false })
                            .put(boolean.class, new Object[]{ true, false })
-                           .put(Double.class, new Object[]{ 4.0, 5.0 })
-                           .put(double.class, new Object[]{ 4.0, 5.0 })
+                           .put(Double.class, new Object[]{ 8.0, 9.0 })
+                           .put(double.class, new Object[]{ 8.0, 9.0 })
                            .put(Integer.class, new Object[]{ 1, 2 })
                            .put(int.class, new Object[]{ 1, 2 })
                            .put(Long.class, new Object[]{ 1L, 2L })

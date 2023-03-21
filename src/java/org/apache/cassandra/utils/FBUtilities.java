@@ -49,6 +49,7 @@ import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -1183,6 +1184,23 @@ public class FBUtilities
                 builder.add(values[i]);
         }
         return builder.build();
+    }
+
+    /**
+     * Wraps the passed in {@link Runnable} that will throw the passed in {@code exceptionFactory}.
+     * @param callable Callable to wrap.
+     * @param exceptionFactory Factory to create the exception to throw.
+     */
+    public static <V> V callExceptionally(Callable<V> callable, Function<Exception, ? extends RuntimeException> exceptionFactory)
+    {
+        try
+        {
+            return callable.call();
+        }
+        catch (Exception e)
+        {
+            throw exceptionFactory.apply(e);
+        }
     }
 
     /**
