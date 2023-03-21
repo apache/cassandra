@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,7 +14,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
+# Redirect output to stderr.
+exec 1>&2
 
 #set -o xtrace
 set -o errexit
@@ -24,29 +25,17 @@ set -o nounset
 
 bin="$(cd "$(dirname "$0")" > /dev/null; pwd)"
 
-accord_repo='https://github.com/aweisberg/cassandra-accord.git'
-accord_sha='181a92a8725687ca826bd5ef7efcbc45edc502b3'
-accord_src="$bin/cassandra-accord"
-
 _main() {
-  # have we already cloned?
-  if [[ ! -e "$accord_src" ]] || [[ $(cat "$accord_src/.REPO" || true) != "$accord_repo" ]]; then
-    rm -rf "$accord_src" || true
-    git clone "$accord_repo" "$accord_src"
-    echo "$accord_repo" > "$accord_src/.REPO"
+  # In case the usage happens at a different layer, make sure to cd to the toplevel
+  local root_dir
+  root_dir="$(git rev-parse --show-toplevel)"
+  cd "$root_dir"
+
+  if [[ ! -e .gitmodules ]]; then
+    # nothing to see here, look away!
+    return 0
   fi
-  cd "$accord_src"
-  # switch to target SHA
-  git fetch origin # check for changes
-  local current_sha
-  current_sha="$(git rev-parse HEAD)"
-  if [[ "$current_sha" != "$accord_sha" ]]; then
-    git checkout "$accord_sha"
-  fi
-  if [[ "$accord_sha" != $(cat .SHA || true) ]]; then
-    ./gradlew clean install -x test -x rat
-    git rev-parse HEAD > .SHA
-  fi
+  git submodule update --init --recursive
 }
 
 _main "$@"
