@@ -42,6 +42,7 @@ import org.apache.cassandra.config.StringConverters;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.introspector.Property;
 
+import static org.apache.cassandra.config.registry.PrimitiveUnaryConverter.to;
 import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 
 
@@ -129,6 +130,7 @@ public class ConfigurationRegistry implements Registry
      * @param name the property name to get.
      * @return The value of the property with the given name.
      */
+    @SuppressWarnings("unchecked")
     public <T> T get(Class<T> cls, String name)
     {
         rwLock.readLock().lock();
@@ -138,7 +140,7 @@ public class ConfigurationRegistry implements Registry
             Class<?> propertyType = type(name);
             Object value = properties.get(name).getValue();
             if (cls.equals(propertyType))
-                return new PrimitiveUnaryConverter<>(cls).convertNullable(value);
+                return value == null ? null : (T) to(cls, value);
             else if (cls.equals(String.class))
             {
                 StringConverters converter = StringConverters.fromType(propertyType);

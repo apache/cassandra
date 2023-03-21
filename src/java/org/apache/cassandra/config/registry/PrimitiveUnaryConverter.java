@@ -41,7 +41,7 @@ public class PrimitiveUnaryConverter<T> implements TypeConverter<T>
         this.targetClass = targetClass;
     }
 
-    private static Object to(Class<?> cls, @Nonnull Object value)
+    public static Object to(Class<?> cls, @Nonnull Object value)
     {
         if (cls.isInstance(value))
             return value;
