@@ -20,11 +20,14 @@ package org.apache.cassandra.config.registry;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
@@ -37,11 +40,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Mutable;
-import org.apache.cassandra.config.Properties;
 import org.apache.cassandra.config.StringConverters;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.introspector.Property;
 
+import static org.apache.cassandra.config.Properties.defaultLoader;
 import static org.apache.cassandra.config.registry.PrimitiveUnaryConverter.convertSafe;
 import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 
@@ -54,25 +57,58 @@ public class ConfigurationRegistry implements Registry
 {
     private static final Logger logger = LoggerFactory.getLogger(ConfigurationRegistry.class);
     private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
-    private final Map<String, PropertyAdapter> properties;
+    private final Supplier<Config> configProvider;
     private final Map<ConfigurationListener.ChangeType, ConfigurationListenerList> propertyChangeListeners = new EnumMap<>(ConfigurationListener.ChangeType.class);
     private final Map<String, List<TypedConstraintAdapter<?>>> constraints = new HashMap<>();
+    private volatile boolean initialized;
+    private Map<String, PropertyAdapter> properties = Collections.emptyMap();
 
     public ConfigurationRegistry(Supplier<Config> configProvider)
     {
-        properties = ImmutableMap.copyOf(Properties.defaultLoader()
-                                                   .flatten(Config.class)
-                                                   .entrySet()
-                                                   .stream()
-                                                   .map(e -> new AbstractMap.SimpleEntry<>(e.getKey(), new PropertyAdapter(configProvider, e.getValue())))
-                                                   .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        this.configProvider = configProvider;
         // Initialize the property change listeners.
         for (ConfigurationListener.ChangeType type : ConfigurationListener.ChangeType.values())
             propertyChangeListeners.put(type, new ConfigurationListenerList());
     }
 
+    private void lazyInit()
+    {
+        if (initialized)
+            return;
+
+        rwLock.writeLock().lock();
+        try
+        {
+            if (initialized)
+                return;
+            properties = ImmutableMap.copyOf(defaultLoader()
+                                             .flatten(Config.class)
+                                             .entrySet()
+                                             .stream()
+                                             .map(e -> new AbstractMap.SimpleEntry<>(e.getKey(), new PropertyAdapter(configProvider, e.getValue())))
+                                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            Set<String> leftConstraints = new HashSet<>(constraints.keySet());
+            leftConstraints.removeAll(properties.keySet());
+            if (!leftConstraints.isEmpty())
+                throw new ConfigurationException("Constraints are defined for non-existing properties:" + leftConstraints);
+            Set<String> leftListeners = propertyChangeListeners.values().stream()
+                                                               .map(l -> l.wrappers.keySet())
+                                                               .flatMap(Collection::stream)
+                                                               .collect(Collectors.toSet());
+            leftListeners.removeAll(properties.keySet());
+            if (!leftListeners.isEmpty())
+                throw new ConfigurationException("Listeners are defined for non-existing properties:" + leftListeners);
+            initialized = true;
+        }
+        finally
+        {
+            rwLock.writeLock().unlock();
+        }
+    }
+
     @Override public void set(String name, @Nullable Object value)
     {
+        lazyInit();
         PropertyAdapter property = properties.get(name);
         validatePropertyExists(property, name);
         setInternal(property, value);
@@ -132,6 +168,7 @@ public class ConfigurationRegistry implements Registry
      */
     public <T> T get(Class<T> cls, String name)
     {
+        lazyInit();
         rwLock.readLock().lock();
         try
         {
@@ -166,6 +203,7 @@ public class ConfigurationRegistry implements Registry
      */
     @Override public boolean contains(String name)
     {
+        lazyInit();
         return properties.containsKey(name);
     }
 
@@ -175,6 +213,7 @@ public class ConfigurationRegistry implements Registry
      */
     @Override public Iterable<String> keys()
     {
+        lazyInit();
         return properties.keySet();
     }
 
@@ -184,6 +223,7 @@ public class ConfigurationRegistry implements Registry
      */
     @Override public Class<?> type(String name)
     {
+        lazyInit();
         validatePropertyExists(properties.get(name), name);
         return properties.get(name).getType();
     }
@@ -193,6 +233,7 @@ public class ConfigurationRegistry implements Registry
      */
     @Override public int size()
     {
+        lazyInit();
         return properties.size();
     }
 
@@ -214,29 +255,31 @@ public class ConfigurationRegistry implements Registry
      */
     public <T> void addPropertyChangeListener(String name, ConfigurationListener.ChangeType type, ConfigurationListener<T> listener, Class<T> listenerType)
     {
-        validatePropertyExists(properties.get(name), name);
-        validatePropertyType(properties.get(name), name, listenerType);
+        PropertyAdapter property = properties.get(name);
+        validatePropertyExists(property, name);
+        validatePropertyType(property, name, listenerType);
         propertyChangeListeners.get(type).add(name, new TypedListenerAdapter<>(listener, listenerType));
     }
 
     @SafeVarargs
     public final <T> void addPropertyConstraint(String name, Class<T> type, ConfigurationConstraint<T>... constraints)
     {
-        validatePropertyExists(properties.get(name), name);
-        validatePropertyType(properties.get(name), name, type);
+        PropertyAdapter property = properties.get(name);
+        validatePropertyExists(property, name);
+        validatePropertyType(property, name, type);
         for (ConfigurationConstraint<T> constraint : constraints)
             this.constraints.computeIfAbsent(name, k -> new ArrayList<>()).add(new TypedConstraintAdapter<>(constraint, type));
     }
 
-    private static void validatePropertyExists(PropertyAdapter property, String name)
+    private void validatePropertyExists(PropertyAdapter property, String name)
     {
-        if (property == null)
+        if (property == null && initialized)
             throw new ConfigurationException(String.format("Property with name '%s' is not availabe.", name));
     }
 
-    private static void validatePropertyType(PropertyAdapter property, String name, @Nullable Class<?> targetType)
+    private void validatePropertyType(PropertyAdapter property, String name, @Nullable Class<?> targetType)
     {
-        if (targetType != null && !property.getType().equals(targetType))
+        if (initialized && targetType != null && !property.getType().equals(targetType))
             throw new ConfigurationException(String.format("Property with name '%s' expects type '%s', but got '%s'.", name, property.getType(), targetType));
     }
 
