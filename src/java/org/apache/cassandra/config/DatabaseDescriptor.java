@@ -133,7 +133,7 @@ public class DatabaseDescriptor
     /**
      * The registry of configuration properties. It is used to access the configuration properties loaded from
      * the {@link #conf} and must be initialized the same time the {@link #conf} is initialized, usually
-     * by calling {@link #toolInitialization()} or {@link #daemonInitialization()}.
+     * by calling {@link #toolInitialization()}, {@link #daemonInitialization()} or {@link #clientInitialization()}.
      */
     private static ConfigurationRegistry confRegistry;
 
@@ -261,8 +261,6 @@ public class DatabaseDescriptor
 
         setConfig(loadConfig());
 
-        applyConfigurationConstraints();
-
         applySSTableFormats();
 
         applySimpleConfig();
@@ -317,7 +315,7 @@ public class DatabaseDescriptor
         clientInitialized = true;
         setDefaultFailureDetector();
         Config.setClientMode(true);
-        conf = configSupplier.get();
+        setConfig(configSupplier.get());
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
         applySSTableFormats();
     }
@@ -407,12 +405,11 @@ public class DatabaseDescriptor
     {
         conf = config;
         confRegistry = new ConfigurationRegistry(() -> config);
+        applyConfigurationRegistryConstraints();
     }
 
     private static void applyAll() throws ConfigurationException
     {
-        applyConfigurationConstraints();
-
         //InetAddressAndPort cares that applySimpleConfig runs first
         applySSTableFormats();
 
@@ -1429,7 +1426,7 @@ public class DatabaseDescriptor
         logger.info("Supported sstable formats are: {}", Lists.newArrayList(types).stream().map(f -> f.name + " -> " + f.info.getClass().getName() + " with singleton components: " + f.info.allComponents()).collect(Collectors.joining(", ")));
     }
 
-    private static void applyConfigurationConstraints()
+    private static void applyConfigurationRegistryConstraints()
     {
         confRegistry.addPropertyConstraint(ConfigFields.DEFAULT_KEYSPACE_RF, Integer.TYPE,
                                            DatabaseDescriptor::defaultKeyspaceRFConstraint);
