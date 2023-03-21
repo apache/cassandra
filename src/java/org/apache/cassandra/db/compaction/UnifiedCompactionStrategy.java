@@ -153,7 +153,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         // split across shards according to its density. Depending on the parallelism, the operation may require up to
         // 100% extra space to complete.
         List<AbstractCompactionTask> tasks = new ArrayList<>();
-        List<Set<SSTableReader>> nonOverlapping = splitInNonOverlappingSets(getSSTables());
+        List<Set<SSTableReader>> nonOverlapping = splitInNonOverlappingSets(filterSuspectSSTables(getSSTables()));
         for (Set<SSTableReader> set : nonOverlapping)
         {
             @SuppressWarnings("resource")   // closed by the returned task
@@ -170,6 +170,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                                              UnifiedCompactionStrategy::startsAfter,
                                                                              SSTableReader.firstKeyComparator,
                                                                              SSTableReader.lastKeyComparator);
+        if (overlapSets.isEmpty())
+            return overlapSets;
+
         Set<SSTableReader> group = overlapSets.get(0);
         List<Set<SSTableReader>> groups = new ArrayList<>();
         for (int i = 1; i < overlapSets.size(); ++i)
@@ -597,7 +600,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 // The estimated remaining tasks is a measure of the remaining amount of work, thus we prefer to
                 // calculate the number of tasks we would do in normal operation, even though we may compact in bigger
                 // chunks when we are late.
-                estimatedRemainingTasks += bucket.maxOverlap / fanout;
+                estimatedRemainingTasks += bucket.maxOverlap / threshold;
             }
             context.estimatedRemainingTasks += estimatedRemainingTasks;
 
