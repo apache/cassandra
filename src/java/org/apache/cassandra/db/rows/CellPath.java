@@ -57,7 +57,7 @@ public abstract class CellPath implements IMeasurableMemory
      */
     public static Function<Cell, CellPath> accordListPathSuppler(long timestampMicros)
     {
-        return new Function<>()
+        return new Function<Cell, CellPath>()
         {
             final long timeUuidMsb = TimeUUID.unixMicrosToMsb(timestampMicros);
             long cellIndex = 0;
