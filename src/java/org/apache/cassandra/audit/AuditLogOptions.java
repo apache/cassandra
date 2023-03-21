@@ -18,7 +18,6 @@
 package org.apache.cassandra.audit;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -32,6 +31,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.binlog.BinLogOptions;
 
 public class AuditLogOptions extends BinLogOptions
@@ -52,7 +52,7 @@ public class AuditLogOptions extends BinLogOptions
     {
         String auditLogDir = CassandraRelevantProperties.LOG_DIR_AUDIT.getString();
         String logDir = CassandraRelevantProperties.LOG_DIR.getString() + "/audit";
-        Path path = auditLogDir == null ? Paths.get(logDir) : Paths.get(auditLogDir);
+        Path path = auditLogDir == null ? File.getPath(logDir) : File.getPath(auditLogDir);
         audit_logs_dir = path.normalize().toString();
     }
 

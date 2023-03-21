@@ -605,8 +605,6 @@ The supported classes are:
 * `'LeveledCompactionStrategy'`, xref:operating/compaction/lcs.adoc#lcs[LCS]
 * `'TimeWindowCompactionStrategy'`, xref:operating/compaction/twcs.adoc#twcs[TWCS] 
 
-The `'DateTieredCompactionStrategy'` is also supported but deprecated;
-`'TimeWindowCompactionStrategy'` should be used. 
 If a custom strategies is required, specify the full class name as a xref:cql/definitions.adoc#constants[string constant].  
 
 All default strategies support a number of xref:operating/compaction/index.adoc#compaction-options[common options], as well as options specific to the strategy chosen. See the section corresponding to your strategy for details: xref:operating/compaction/stcs.adoc#stcs_options[STCS], xref:operating/compaction/lcs.adoc#lcs_options[LCS], xref:operating/compaction/twcs.adoc#twcs_options[TWCS].

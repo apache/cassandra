@@ -77,7 +77,9 @@ public class TableMetricTables
             new HistogramTableMetric(name, "tombstones_per_read", t -> t.tombstoneScannedHistogram.cf),
             new HistogramTableMetric(name, "rows_per_read", t -> t.liveScannedHistogram.cf),
             new StorageTableMetric(name, "disk_usage", (TableMetrics t) -> t.totalDiskSpaceUsed),
-            new StorageTableMetric(name, "max_partition_size", (TableMetrics t) -> t.maxPartitionSize));
+            new StorageTableMetric(name, "max_partition_size", (TableMetrics t) -> t.maxPartitionSize),
+            new StorageTableMetric(name, "max_sstable_size", (TableMetrics t) -> t.maxSSTableSize),
+            new TableMetricTable(name, "max_sstable_duration", t -> t.maxSSTableDuration, "max_sstable_duration", LongType.instance, ""));
     }
 
     /**

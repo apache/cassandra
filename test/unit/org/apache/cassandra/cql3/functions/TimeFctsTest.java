@@ -88,31 +88,12 @@ public class TimeFctsTest
     }
 
     @Test
-    public void testDateOf()
-    {
-
-        long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
-        ByteBuffer input = ByteBuffer.wrap(atUnixMillisAsBytes(timeInMillis, 0));
-        ByteBuffer output = executeFunction(TimeFcts.dateOfFct, input);
-        assertEquals(Date.from(DATE_TIME.toInstant()), TimestampType.instance.compose(output));
-    }
-
-    @Test
     public void testTimeUuidToTimestamp()
     {
         long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
         ByteBuffer input = ByteBuffer.wrap(atUnixMillisAsBytes(timeInMillis, 0));
         ByteBuffer output = executeFunction(toTimestamp(TimeUUIDType.instance), input);
         assertEquals(Date.from(DATE_TIME.toInstant()), TimestampType.instance.compose(output));
-    }
-
-    @Test
-    public void testUnixTimestampOfFct()
-    {
-        long timeInMillis = DATE_TIME.toInstant().toEpochMilli();
-        ByteBuffer input = ByteBuffer.wrap(atUnixMillisAsBytes(timeInMillis, 0));
-        ByteBuffer output = executeFunction(TimeFcts.unixTimestampOfFct, input);
-        assertEquals(timeInMillis, LongType.instance.compose(output).longValue());
     }
 
     @Test
