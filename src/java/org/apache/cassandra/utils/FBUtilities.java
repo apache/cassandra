@@ -54,7 +54,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 import javax.annotation.Nonnull;

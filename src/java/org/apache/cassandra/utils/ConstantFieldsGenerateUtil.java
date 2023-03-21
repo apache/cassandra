@@ -23,7 +23,7 @@ import java.io.FileWriter; //checkstyle: permit this import
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.URL;
-import java.nio.file.Paths;
+import java.nio.file.Paths; //checkstyle: permit this import
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
