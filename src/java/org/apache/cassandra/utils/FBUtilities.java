@@ -950,12 +950,24 @@ public class FBUtilities
         }
     }
 
+    public static void updateChecksumShort(Checksum checksum, short v)
+    {
+        checksum.update((v >>> 8) & 0xFF);
+        checksum.update((v >>> 0) & 0xFF);
+    }
+
     public static void updateChecksumInt(Checksum checksum, int v)
     {
         checksum.update((v >>> 24) & 0xFF);
         checksum.update((v >>> 16) & 0xFF);
         checksum.update((v >>> 8) & 0xFF);
         checksum.update((v >>> 0) & 0xFF);
+    }
+
+    public static void updateChecksumLong(Checksum checksum, long v)
+    {
+        updateChecksumInt(checksum, (int) (v >>> 32));
+        updateChecksumInt(checksum, (int) (v & 0xFFFFFFFFL));
     }
 
     /**
