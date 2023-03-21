@@ -1,3 +1,6 @@
+4.1.2
+ 
+
 4.1.1
  * Deprecate org.apache.cassandra.hadoop code (CASSANDRA-16984)
  * Fix too early schema version change in sysem local table (CASSANDRA-18291)
