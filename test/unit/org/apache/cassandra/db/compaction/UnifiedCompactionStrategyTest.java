@@ -491,6 +491,9 @@ public class UnifiedCompactionStrategyTest
         return createSStables(partitioner, sstablesMap, 10000);
     }
 
+    // Used to make sure timestamps are not exactly the same, which disables expiration
+    int millisAdjustment = 0;
+
     private List<SSTableReader> createSStables(IPartitioner partitioner,
                                                Map<Long, Integer> sstablesMap,
                                                int ttl)
@@ -507,7 +510,7 @@ public class UnifiedCompactionStrategyTest
                 // pending repair
                 mockSSTables.add(mockSSTable(0,
                                              size,
-                                             System.currentTimeMillis(),
+                                             System.currentTimeMillis() + millisAdjustment++,
                                              0.0,
                                              new BufferDecoratedKey(first, bb),
                                              new BufferDecoratedKey(max, bb),
