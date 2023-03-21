@@ -42,6 +42,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.utils.FBUtilities.runExceptionally;
 
 final class SettingsTable extends AbstractMutableVirtualTable
 {
@@ -71,7 +72,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     protected void applyColumnDeletion(ColumnValues partitionKey, ColumnValues clusteringColumns, String columnName)
     {
         String key = partitionKey.value(0);
-        runWithExceptionHandling(() -> registry.set(key, null));
+        runExceptionally(() -> registry.set(key, null), e -> invalidRequest("Invalid deletion request; cause: '%s'", e.getMessage()));
     }
 
     @Override
@@ -81,7 +82,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         String key = partitionKey.value(0);
         String value = columnValue.map(v -> v.value().toString()).orElse(null);
-        runWithExceptionHandling(() -> registry.set(key, value));
+        runExceptionally(() -> registry.set(key, value), e -> invalidRequest("Invalid update request; cause: '%s'", e.getMessage()));
     }
 
     @Override
@@ -90,9 +91,10 @@ final class SettingsTable extends AbstractMutableVirtualTable
         SimpleDataSet result = new SimpleDataSet(metadata());
         String name = UTF8Type.instance.compose(partitionKey.getKey());
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
-            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
+            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + '\'');
         if (registry.contains(name))
-            runWithExceptionHandling(() -> result.row(name).column(VALUE, registry.getString(name)));
+            runExceptionally(() -> result.row(name).column(VALUE, registry.getString(name)),
+                                         e -> invalidRequest("Invalid configuration request during searching by key; cause: '%s'", e.getMessage()));
         return result;
     }
 
@@ -101,26 +103,9 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         for (String name : registry.keys())
-            runWithExceptionHandling(() -> result.row(name).column(VALUE, registry.getString(name)));
+            runExceptionally(() -> result.row(name).column(VALUE, registry.getString(name)),
+                                         e -> invalidRequest("Invalid configuration request; cause: '%s'", e.getMessage()));
         return result;
-    }
-
-    /**
-     * Covers the case where nested value converters throw internal C* exceptions, but we want to throw an  input
-     * request validation exception instead.
-     *
-     * @param action Converter to use to convert the value.
-     */
-    private static void runWithExceptionHandling(Runnable action)
-    {
-        try
-        {
-            action.run();
-        }
-        catch (Exception e)
-        {
-            throw invalidRequest("Invalid configuration request, cause: '%s'", e.getMessage());
-        }
     }
 
     @VisibleForTesting

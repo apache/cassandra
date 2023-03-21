@@ -4478,7 +4478,11 @@ public class DatabaseDescriptor
 
     public static void setDefaultKeyspaceRF(int value) throws IllegalArgumentException
     {
-        confRegistry.set(ConfigFields.DEFAULT_KEYSPACE_RF, value);
+        FBUtilities.runExceptionally(() -> confRegistry.set(ConfigFields.DEFAULT_KEYSPACE_RF, value),
+                                     e -> {
+                                         IllegalArgumentException cause = FBUtilities.cause(e, IllegalArgumentException.class);
+                                         return cause == null ? new RuntimeException(e) : new IllegalArgumentException(e);
+                                     });
     }
 
     public static boolean getUseStatementsEnabled()

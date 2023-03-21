@@ -37,13 +37,11 @@ import org.apache.cassandra.config.registry.ConfigurationRegistry;
 import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.assertj.core.util.Streams;
 
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**

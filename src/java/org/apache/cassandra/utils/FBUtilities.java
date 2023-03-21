@@ -40,17 +40,21 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 import javax.annotation.Nonnull;
@@ -1180,5 +1184,87 @@ public class FBUtilities
                 builder.add(values[i]);
         }
         return builder.build();
+    }
+
+    /**
+     * Wraps the passed in {@link Runnable} that will throw the passed in {@code exceptionFactory}.
+     * @param runnable Runnable to wrap.
+     * @param exceptionFactory Factory to create the exception to throw.
+     */
+    public static void runExceptionally(Runnable runnable, Function<Exception, ? extends RuntimeException> exceptionFactory)
+    {
+        try
+        {
+            runnable.run();
+        }
+        catch (Exception e)
+        {
+            throw exceptionFactory.apply(e);
+        }
+    }
+
+    /**
+     * Gets the first cause for the passed in {@code Throwable} that is assignable from the given class
+     * in the {@code cause} hierarchy. Note that this method follows includes {@link Throwable#getSuppressed()}
+     * into check.
+     *
+     * @param t   Throwable to get cause from.
+     * @param cls Cause class type to search for.
+     * @return The first cause of passed in class, {@code null} otherwise.
+     */
+    @Nullable
+    @SuppressWarnings("unchecked")
+    public static <T extends Throwable> T cause(Throwable t, Class<T> cls)
+    {
+        return (T) searchForCause(t, Collections.newSetFromMap(new IdentityHashMap<>()), null, cls);
+    }
+
+    /**
+     * Recursively searches for the first cause of the passed in {@code Throwable} that is assignable from
+     * any of the given classes in the {@code cause} hierarchy. Note that this method follows includes
+     *
+     * @param t     Throwable to get cause from.
+     * @param seen  Set of throwable for tracking tested objects.
+     * @param types Candidate types.
+     * @return The first throwable meets test condition or {@code null} if none has matched.
+     */
+    @Nullable
+    private static Throwable searchForCause(Throwable t, Set<Throwable> seen, Class<?>... types)
+    {
+        if (checkThrowable(t, types))
+            return t;
+        if (!seen.add(t))
+            return null;
+        Throwable cause = t.getCause();
+        if (cause != null)
+        {
+            Throwable found = searchForCause(cause, seen, types);
+            if (found != null)
+                return found;
+        }
+        for (Throwable suppressed : t.getSuppressed())
+        {
+            Throwable found = searchForCause(suppressed, seen, types);
+            if (found != null)
+                return found;
+        }
+        return null;
+    }
+
+    /**
+     * @param t          Throwable to check.
+     * @param candidates Candidate types.
+     * @return {@code true} if such type is found, or {@code false} otherwise.
+     */
+    private static boolean checkThrowable(Throwable t, Class<?>... candidates)
+    {
+        for (Class<?> c : candidates)
+        {
+            if (c == null)
+                continue;
+            if (c.isAssignableFrom(t.getClass()))
+                return true;
+        }
+        return false;
     }
 }

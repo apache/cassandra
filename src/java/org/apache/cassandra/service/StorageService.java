@@ -7005,7 +7005,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setDefaultKeyspaceReplicationFactor(int value)
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(value);
-        logger.info("set default keyspace rf to {}", value);
     }
 
     private static DataStorageSpec.LongBytesBound parseDataStorageSpec(String threshold)
