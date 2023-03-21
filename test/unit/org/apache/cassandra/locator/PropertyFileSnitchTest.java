@@ -35,12 +35,11 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.CassandraTestBase;
+import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
 import org.apache.cassandra.CassandraTestBase.UseRandomPartitioner;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -56,6 +55,7 @@ import static org.junit.Assert.assertEquals;
 /**
  * Unit tests for {@link PropertyFileSnitch}.
  */
+@DDDaemonInitialization
 @UseRandomPartitioner
 public class PropertyFileSnitchTest extends CassandraTestBase
 {
@@ -64,12 +64,6 @@ public class PropertyFileSnitchTest extends CassandraTestBase
 
     private VersionedValue.VersionedValueFactory valueFactory;
     private Map<InetAddressAndPort, Set<Token>> tokenMap;
-
-    @BeforeClass
-    public static void setupDD()
-    {
-        DatabaseDescriptor.daemonInitialization();
-    }
 
     @Before
     public void setup() throws ConfigurationException, IOException
