@@ -245,6 +245,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_
 import static org.apache.cassandra.config.CassandraRelevantProperties.DRAIN_EXECUTOR_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMENT_ALLOW_EMPTY;
 import static org.apache.cassandra.config.ConfigFields.REPAIR_REQUEST_TIMEOUT;
+import static org.apache.cassandra.config.DatabaseDescriptor.getConfigRegistry;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -973,10 +974,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
-        DatabaseDescriptor.getConfigRegistry().addPropertyConstraint(REPAIR_REQUEST_TIMEOUT,
-                                                                     DurationSpec.LongMillisecondsBound.class, (newVal) -> Preconditions.checkState(newVal.toMilliseconds() > 0)
-        );
-
+        getConfigRegistry().addPropertyConstraint(REPAIR_REQUEST_TIMEOUT,
+                                                  DurationSpec.LongMillisecondsBound.class, (newVal) -> Preconditions.checkState(newVal.toMilliseconds() > 0));
         completeInitialization();
     }
 

@@ -23,6 +23,17 @@ import org.apache.cassandra.db.ConsistencyLevel;
 
 import static org.apache.cassandra.config.registry.PrimitiveUnaryConverter.convertSafe;
 
+/**
+ * String converters for Cassandra configuration types used in {@link Config}. These are used to convert
+ * configuration values from their string representation to their actual type and back. The converters
+ * are uses the {@link TypeConverter} interface.
+ * <p>
+ * Take care when adding new converters, only one converter per type is allowed. If a converter for a
+ * type already exists, the new converter will be ignored since the first converter for a type is used.
+ *
+ * @see Config
+ * @see TypeConverter
+ */
 public enum StringConverters
 {
     PRIMITIVE_BOOLEAN(Boolean.TYPE, s -> Boolean.parseBoolean((String) s), b -> Boolean.toString((Boolean) b)),
@@ -52,13 +63,18 @@ public enum StringConverters
     private final TypeConverter<?> forward;
     private final TypeConverter<String> reverse;
 
+    /**
+     * Creates a new converter for the given type and using the given converters.
+     * @param type the type this converter converts to and from.
+     * @param forward the forward converter to use.
+     * @param reverse the reverse converter to use.
+     */
     <T> StringConverters(Class<T> type, TypeConverter<T> forward, TypeConverter<String> reverse)
     {
         this.type = type;
         this.forward = forward;
         this.reverse = reverse;
     }
-
     public <T> T fromString(String value, Class<T> target)
     {
         if (target.equals(type))
@@ -71,6 +87,12 @@ public enum StringConverters
         return reverse.convertNullable(value);
     }
 
+    /**
+     * Returns the converter for the given type.
+     * @param type the type to return the converter for.
+     * @return the converter for the given type or {@code null} if no converter exists for the given type
+     * or default conversion should be used instead.
+     */
     public static StringConverters fromType(Class<?> type)
     {
         for (StringConverters converter : values())

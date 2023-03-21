@@ -24,7 +24,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation denoting that a configuration field is mutable with a live update.
+ * Annotation denoting that a configuration field in the {@link Config} is mutable with a live update.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)

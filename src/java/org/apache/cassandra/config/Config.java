@@ -47,8 +47,9 @@ import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
  * <p>
- * Properties annotated with {@link Mutable} are mutated via JMX and
- * {@code org.apache.cassandra.db.virtual.SettingsTable} virtual table.
+ * Properties annotated by {@link Mutable} are mutated via JMX and {@code org.apache.cassandra.db.virtual.SettingsTable}
+ * virtual table. The volatile fields are used to avoid the need for synchronization when reading the values and
+ * might be mutated by JMX interface but not by {@code SettingsTable} update statements.
  */
 public class Config
 {

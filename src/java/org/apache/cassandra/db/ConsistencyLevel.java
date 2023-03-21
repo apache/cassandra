@@ -267,6 +267,6 @@ public enum ConsistencyLevel
 
     public static ConsistencyLevel fromStringIgnoreCase(String s)
     {
-        return valueOf(s.trim().toUpperCase());
+        return valueOf(s.toUpperCase());
     }
 }
