@@ -1603,7 +1603,7 @@ public class DatabaseDescriptor
 
     public static void setPermissionsValidity(int timeout)
     {
-        confRegistry.set(ConfigFields.PERMISSIONS_VALIDITY, new DurationSpec.IntMillisecondsBound(timeout));
+        setProperty(ConfigFields.PERMISSIONS_VALIDITY, new DurationSpec.IntMillisecondsBound(timeout));
     }
 
     public static int getPermissionsUpdateInterval()
@@ -1616,7 +1616,7 @@ public class DatabaseDescriptor
     public static void setPermissionsUpdateInterval(int updateInterval)
     {
         DurationSpec.IntMillisecondsBound interval = updateInterval == -1 ? null : new DurationSpec.IntMillisecondsBound(updateInterval);
-        confRegistry.set(ConfigFields.PERMISSIONS_UPDATE_INTERVAL, interval);
+        setProperty(ConfigFields.PERMISSIONS_UPDATE_INTERVAL, interval);
     }
 
     public static int getPermissionsCacheMaxEntries()
@@ -1626,7 +1626,7 @@ public class DatabaseDescriptor
 
     public static void setPermissionsCacheMaxEntries(int maxEntries)
     {
-        confRegistry.set(ConfigFields.PERMISSIONS_CACHE_MAX_ENTRIES, maxEntries);
+        setProperty(ConfigFields.PERMISSIONS_CACHE_MAX_ENTRIES, maxEntries);
     }
 
     public static boolean getPermissionsCacheActiveUpdate()
@@ -1636,7 +1636,7 @@ public class DatabaseDescriptor
 
     public static void setPermissionsCacheActiveUpdate(boolean update)
     {
-        confRegistry.set(ConfigFields.PERMISSIONS_CACHE_ACTIVE_UPDATE, update);
+        setProperty(ConfigFields.PERMISSIONS_CACHE_ACTIVE_UPDATE, update);
     }
 
     public static int getRolesValidity()
@@ -1646,7 +1646,7 @@ public class DatabaseDescriptor
 
     public static void setRolesValidity(int validity)
     {
-        confRegistry.set(ConfigFields.ROLES_VALIDITY, new DurationSpec.IntMillisecondsBound(validity));
+        setProperty(ConfigFields.ROLES_VALIDITY, new DurationSpec.IntMillisecondsBound(validity));
     }
 
     public static int getRolesUpdateInterval()
@@ -1658,7 +1658,7 @@ public class DatabaseDescriptor
 
     public static void setRolesCacheActiveUpdate(boolean update)
     {
-        confRegistry.set(ConfigFields.ROLES_CACHE_ACTIVE_UPDATE, update);
+        setProperty(ConfigFields.ROLES_CACHE_ACTIVE_UPDATE, update);
     }
 
     public static boolean getRolesCacheActiveUpdate()
@@ -1669,7 +1669,7 @@ public class DatabaseDescriptor
     public static void setRolesUpdateInterval(int interval)
     {
         DurationSpec.IntMillisecondsBound updateInterval = interval == -1 ? null : new DurationSpec.IntMillisecondsBound(interval);
-        confRegistry.set(ConfigFields.ROLES_UPDATE_INTERVAL, updateInterval);
+        setProperty(ConfigFields.ROLES_UPDATE_INTERVAL, updateInterval);
     }
 
     public static int getRolesCacheMaxEntries()
@@ -1679,7 +1679,7 @@ public class DatabaseDescriptor
 
     public static void setRolesCacheMaxEntries(int maxEntries)
     {
-        confRegistry.set(ConfigFields.ROLES_CACHE_MAX_ENTRIES, maxEntries);
+        setProperty(ConfigFields.ROLES_CACHE_MAX_ENTRIES, maxEntries);
     }
 
     public static int getCredentialsValidity()
@@ -1689,7 +1689,7 @@ public class DatabaseDescriptor
 
     public static void setCredentialsValidity(int timeout)
     {
-        confRegistry.set(ConfigFields.CREDENTIALS_VALIDITY, new DurationSpec.IntMillisecondsBound(timeout));
+        setProperty(ConfigFields.CREDENTIALS_VALIDITY, new DurationSpec.IntMillisecondsBound(timeout));
     }
 
     public static int getCredentialsUpdateInterval()
@@ -1702,7 +1702,7 @@ public class DatabaseDescriptor
     public static void setCredentialsUpdateInterval(int updateInterval)
     {
         DurationSpec.IntMillisecondsBound interval = updateInterval == -1 ? null : new DurationSpec.IntMillisecondsBound(updateInterval);
-        confRegistry.set(ConfigFields.CREDENTIALS_UPDATE_INTERVAL, interval);
+        setProperty(ConfigFields.CREDENTIALS_UPDATE_INTERVAL, interval);
     }
 
     public static int getCredentialsCacheMaxEntries()
@@ -1712,7 +1712,7 @@ public class DatabaseDescriptor
 
     public static void setCredentialsCacheMaxEntries(int maxEntries)
     {
-        confRegistry.set(ConfigFields.CREDENTIALS_CACHE_MAX_ENTRIES, maxEntries);
+        setProperty(ConfigFields.CREDENTIALS_CACHE_MAX_ENTRIES, maxEntries);
     }
 
     public static boolean getCredentialsCacheActiveUpdate()
@@ -1722,7 +1722,7 @@ public class DatabaseDescriptor
 
     public static void setCredentialsCacheActiveUpdate(boolean update)
     {
-        confRegistry.set(ConfigFields.CREDENTIALS_CACHE_ACTIVE_UPDATE, update);
+        setProperty(ConfigFields.CREDENTIALS_CACHE_ACTIVE_UPDATE, update);
     }
 
     public static int getMaxValueSize()
@@ -1984,7 +1984,7 @@ public class DatabaseDescriptor
 
     public static void setRpcTimeout(long timeOutInMillis)
     {
-        confRegistry.set(ConfigFields.REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
+        setProperty(ConfigFields.REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getReadRpcTimeout(TimeUnit unit)
@@ -1994,7 +1994,7 @@ public class DatabaseDescriptor
 
     public static void setReadRpcTimeout(long timeOutInMillis)
     {
-        confRegistry.set(ConfigFields.READ_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
+        setProperty(ConfigFields.READ_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getRangeRpcTimeout(TimeUnit unit)
@@ -2004,7 +2004,7 @@ public class DatabaseDescriptor
 
     public static void setRangeRpcTimeout(long timeOutInMillis)
     {
-        confRegistry.set(ConfigFields.RANGE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
+        setProperty(ConfigFields.RANGE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getWriteRpcTimeout(TimeUnit unit)
@@ -2014,7 +2014,7 @@ public class DatabaseDescriptor
 
     public static void setWriteRpcTimeout(long timeOutInMillis)
     {
-        confRegistry.set(ConfigFields.WRITE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
+        setProperty(ConfigFields.WRITE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getCounterWriteRpcTimeout(TimeUnit unit)
@@ -2024,7 +2024,7 @@ public class DatabaseDescriptor
 
     public static void setCounterWriteRpcTimeout(long timeOutInMillis)
     {
-        confRegistry.set(ConfigFields.COUNTER_WRITE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
+        setProperty(ConfigFields.COUNTER_WRITE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getCasContentionTimeout(TimeUnit unit)
@@ -2034,7 +2034,7 @@ public class DatabaseDescriptor
 
     public static void setCasContentionTimeout(long timeOutInMillis)
     {
-        confRegistry.set(ConfigFields.CAS_CONTENTION_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
+        setProperty(ConfigFields.CAS_CONTENTION_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getTruncateRpcTimeout(TimeUnit unit)
@@ -2044,7 +2044,7 @@ public class DatabaseDescriptor
 
     public static void setTruncateRpcTimeout(long timeOutInMillis)
     {
-        confRegistry.set(ConfigFields.TRUNCATE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
+        setProperty(ConfigFields.TRUNCATE_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static long getRepairRpcTimeout(TimeUnit unit)
@@ -2054,7 +2054,7 @@ public class DatabaseDescriptor
 
     public static void setRepairRpcTimeout(Long timeOutInMillis)
     {
-        confRegistry.set(ConfigFields.REPAIR_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
+        setProperty(ConfigFields.REPAIR_REQUEST_TIMEOUT, new DurationSpec.LongMillisecondsBound(timeOutInMillis));
     }
 
     public static boolean hasCrossNodeTimeout()
@@ -2097,7 +2097,7 @@ public class DatabaseDescriptor
 
     public static void setPhiConvictThreshold(double phiConvictThreshold)
     {
-        confRegistry.set(ConfigFields.PHI_CONVICT_THRESHOLD, phiConvictThreshold);
+        setProperty(ConfigFields.PHI_CONVICT_THRESHOLD, phiConvictThreshold);
     }
 
     public static int getConcurrentReaders()
@@ -2526,7 +2526,7 @@ public class DatabaseDescriptor
 
     public static void setTombstoneWarnThreshold(int threshold)
     {
-        confRegistry.set(ConfigFields.TOMBSTONE_WARN_THRESHOLD, threshold);
+        setProperty(ConfigFields.TOMBSTONE_WARN_THRESHOLD, threshold);
     }
 
     public static int getTombstoneFailureThreshold()
@@ -2536,7 +2536,7 @@ public class DatabaseDescriptor
 
     public static void setTombstoneFailureThreshold(int threshold)
     {
-        confRegistry.set(ConfigFields.TOMBSTONE_FAILURE_THRESHOLD, threshold);
+        setProperty(ConfigFields.TOMBSTONE_FAILURE_THRESHOLD, threshold);
     }
 
     public static int getCachedReplicaRowsWarnThreshold()
@@ -2726,7 +2726,7 @@ public class DatabaseDescriptor
 
     public static void setInternodeTcpConnectTimeoutInMS(int value)
     {
-        confRegistry.set(ConfigFields.INTERNODE_TCP_CONNECT_TIMEOUT, new DurationSpec.IntMillisecondsBound(value));
+        setProperty(ConfigFields.INTERNODE_TCP_CONNECT_TIMEOUT, new DurationSpec.IntMillisecondsBound(value));
     }
 
     public static int getInternodeTcpUserTimeoutInMS()
@@ -2736,7 +2736,7 @@ public class DatabaseDescriptor
 
     public static void setInternodeTcpUserTimeoutInMS(int value)
     {
-        confRegistry.set(ConfigFields.INTERNODE_TCP_USER_TIMEOUT, new DurationSpec.IntMillisecondsBound(value));
+        setProperty(ConfigFields.INTERNODE_TCP_USER_TIMEOUT, new DurationSpec.IntMillisecondsBound(value));
     }
 
     public static int getInternodeStreamingTcpUserTimeoutInMS()
@@ -2746,7 +2746,7 @@ public class DatabaseDescriptor
 
     public static void setInternodeStreamingTcpUserTimeoutInMS(int value)
     {
-        confRegistry.set(ConfigFields.INTERNODE_STREAMING_TCP_USER_TIMEOUT, new DurationSpec.IntMillisecondsBound(value));
+        setProperty(ConfigFields.INTERNODE_STREAMING_TCP_USER_TIMEOUT, new DurationSpec.IntMillisecondsBound(value));
     }
 
     public static int getInternodeMaxMessageSizeInBytes()
@@ -2834,7 +2834,7 @@ public class DatabaseDescriptor
 
     public static void setNativeTransportMaxConcurrentConnections(long nativeTransportMaxConcurrentConnections)
     {
-        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS, nativeTransportMaxConcurrentConnections);
+        setProperty(ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS, nativeTransportMaxConcurrentConnections);
     }
 
     public static long getNativeTransportMaxConcurrentConnectionsPerIp()
@@ -2844,7 +2844,7 @@ public class DatabaseDescriptor
 
     public static void setNativeTransportMaxConcurrentConnectionsPerIp(long native_transport_max_concurrent_connections_per_ip)
     {
-        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS_PER_IP, native_transport_max_concurrent_connections_per_ip);
+        setProperty(ConfigFields.NATIVE_TRANSPORT_MAX_CONCURRENT_CONNECTIONS_PER_IP, native_transport_max_concurrent_connections_per_ip);
     }
 
     public static boolean useNativeTransportLegacyFlusher()
@@ -2859,7 +2859,7 @@ public class DatabaseDescriptor
 
     public static void setNativeTransportAllowOlderProtocols(boolean isEnabled)
     {
-        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_ALLOW_OLDER_PROTOCOLS, isEnabled);
+        setProperty(ConfigFields.NATIVE_TRANSPORT_ALLOW_OLDER_PROTOCOLS, isEnabled);
     }
 
     public static long getCommitLogSyncGroupWindow()
@@ -3012,7 +3012,7 @@ public class DatabaseDescriptor
         if (maxRequestDataInFlightInBytes == -1)
             maxRequestDataInFlightInBytes = Runtime.getRuntime().maxMemory() / 40;
 
-        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_MAX_REQUEST_DATA_IN_FLIGHT_PER_IP, new DataStorageSpec.LongBytesBound(maxRequestDataInFlightInBytes));
+        setProperty(ConfigFields.NATIVE_TRANSPORT_MAX_REQUEST_DATA_IN_FLIGHT_PER_IP, new DataStorageSpec.LongBytesBound(maxRequestDataInFlightInBytes));
     }
 
     public static long getNativeTransportMaxRequestDataInFlightInBytes()
@@ -3035,12 +3035,12 @@ public class DatabaseDescriptor
 
     public static void setNativeTransportMaxRequestsPerSecond(int perSecond)
     {
-        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_MAX_REQUESTS_PER_SECOND, perSecond);
+        setProperty(ConfigFields.NATIVE_TRANSPORT_MAX_REQUESTS_PER_SECOND, perSecond);
     }
 
     public static void setNativeTransportRateLimitingEnabled(boolean enabled)
     {
-        confRegistry.set(ConfigFields.NATIVE_TRANSPORT_RATE_LIMITING_ENABLED, enabled);
+        setProperty(ConfigFields.NATIVE_TRANSPORT_RATE_LIMITING_ENABLED, enabled);
     }
 
     public static boolean getNativeTransportRateLimitingEnabled()
@@ -3177,7 +3177,7 @@ public class DatabaseDescriptor
 
     public static void setHintedHandoffEnabled(boolean hintedHandoffEnabled)
     {
-        confRegistry.set(ConfigFields.HINTED_HANDOFF_ENABLED, hintedHandoffEnabled);
+        setProperty(ConfigFields.HINTED_HANDOFF_ENABLED, hintedHandoffEnabled);
     }
 
     public static boolean hintedHandoffEnabled()
@@ -3199,7 +3199,7 @@ public class DatabaseDescriptor
 
     public static void useDeterministicTableID(boolean value)
     {
-        confRegistry.set(ConfigFields.USE_DETERMINISTIC_TABLE_ID, value);
+        setProperty(ConfigFields.USE_DETERMINISTIC_TABLE_ID, value);
     }
 
     public static void enableHintsForDC(String dc)
@@ -3214,7 +3214,7 @@ public class DatabaseDescriptor
 
     public static void setMaxHintWindow(int ms)
     {
-        confRegistry.set(ConfigFields.MAX_HINT_WINDOW, new DurationSpec.IntMillisecondsBound(ms));
+        setProperty(ConfigFields.MAX_HINT_WINDOW, new DurationSpec.IntMillisecondsBound(ms));
     }
 
     public static int getMaxHintWindow()
@@ -3224,7 +3224,7 @@ public class DatabaseDescriptor
 
     public static void setMaxHintsSizePerHostInMiB(int value)
     {
-        confRegistry.set(ConfigFields.MAX_HINTS_SIZE_PER_HOST, new DataStorageSpec.LongBytesBound(value, MEBIBYTES));
+        setProperty(ConfigFields.MAX_HINTS_SIZE_PER_HOST, new DataStorageSpec.LongBytesBound(value, MEBIBYTES));
     }
 
     public static int getMaxHintsSizePerHostInMiB()
@@ -3356,7 +3356,7 @@ public class DatabaseDescriptor
 
     public static void setAutoHintsCleanupEnabled(boolean value)
     {
-        confRegistry.set(ConfigFields.AUTO_HINTS_CLEANUP_ENABLED, value);
+        setProperty(ConfigFields.AUTO_HINTS_CLEANUP_ENABLED, value);
     }
 
     public static boolean getTransferHintsOnDecommission()
@@ -3366,7 +3366,7 @@ public class DatabaseDescriptor
 
     public static void setTransferHintsOnDecommission(boolean enabled)
     {
-        confRegistry.set(ConfigFields.TRANSFER_HINTS_ON_DECOMMISSION, enabled);
+        setProperty(ConfigFields.TRANSFER_HINTS_ON_DECOMMISSION, enabled);
     }
 
     public static boolean isIncrementalBackupsEnabled()
@@ -3376,7 +3376,7 @@ public class DatabaseDescriptor
 
     public static void setIncrementalBackupsEnabled(boolean value)
     {
-        confRegistry.set(ConfigFields.INCREMENTAL_BACKUPS, value);
+        setProperty(ConfigFields.INCREMENTAL_BACKUPS, value);
     }
 
     public static boolean getFileCacheEnabled()
@@ -3461,7 +3461,7 @@ public class DatabaseDescriptor
     public static void setSSTablePreemptiveOpenIntervalInMiB(int mib)
     {
         DataStorageSpec.IntMebibytesBound value = mib < 0 ? null : new DataStorageSpec.IntMebibytesBound(mib);
-        confRegistry.set(ConfigFields.SSTABLE_PREEMPTIVE_OPEN_INTERVAL, value);
+        setProperty(ConfigFields.SSTABLE_PREEMPTIVE_OPEN_INTERVAL, value);
     }
 
     public static boolean getTrickleFsync()
@@ -3669,7 +3669,7 @@ public class DatabaseDescriptor
 
     public static void setRepairSessionSpaceInMiB(int sizeInMiB)
     {
-        confRegistry.set(ConfigFields.REPAIR_SESSION_SPACE, new DataStorageSpec.IntMebibytesBound(sizeInMiB));
+        setProperty(ConfigFields.REPAIR_SESSION_SPACE, new DataStorageSpec.IntMebibytesBound(sizeInMiB));
     }
 
     public static int getPaxosRepairParallelism()
@@ -3881,7 +3881,7 @@ public class DatabaseDescriptor
 
     public static void setCDCBlockWrites(boolean val)
     {
-        confRegistry.set(ConfigFields.CDC_BLOCK_WRITES, val);
+        setProperty(ConfigFields.CDC_BLOCK_WRITES, val);
     }
 
     public static boolean isCDCOnRepairEnabled()
@@ -3891,7 +3891,7 @@ public class DatabaseDescriptor
 
     public static void setCDCOnRepairEnabled(boolean val)
     {
-        confRegistry.set(ConfigFields.CDC_ON_REPAIR_ENABLED, val);
+        setProperty(ConfigFields.CDC_ON_REPAIR_ENABLED, val);
     }
 
     public static String getCDCLogLocation()
@@ -3948,7 +3948,7 @@ public class DatabaseDescriptor
 
     public static void setIdealConsistencyLevel(ConsistencyLevel cl)
     {
-        confRegistry.set(ConfigFields.IDEAL_CONSISTENCY_LEVEL, cl);
+        setProperty(ConfigFields.IDEAL_CONSISTENCY_LEVEL, cl);
     }
 
     public static int getRepairCommandPoolSize()
@@ -4091,7 +4091,7 @@ public class DatabaseDescriptor
 
     public static void useOffheapMerkleTrees(boolean value)
     {
-        confRegistry.set(ConfigFields.USE_OFFHEAP_MERKLE_TREES, value);
+        setProperty(ConfigFields.USE_OFFHEAP_MERKLE_TREES, value);
     }
 
     public static Function<CommitLog, AbstractCommitLogSegmentManager> getCommitLogSegmentMgrProvider()
@@ -4400,7 +4400,7 @@ public class DatabaseDescriptor
 
     public static void setReadThresholdsEnabled(boolean value)
     {
-        confRegistry.set(ConfigFields.READ_THRESHOLDS_ENABLED, value);
+        setProperty(ConfigFields.READ_THRESHOLDS_ENABLED, value);
     }
 
     @Nullable
@@ -4411,7 +4411,7 @@ public class DatabaseDescriptor
 
     public static void setCoordinatorReadSizeWarnThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        confRegistry.set(ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD, value);
+        setProperty(ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD, value);
     }
 
     @Nullable
@@ -4422,7 +4422,7 @@ public class DatabaseDescriptor
 
     public static void setCoordinatorReadSizeFailThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        confRegistry.set(ConfigFields.COORDINATOR_READ_SIZE_FAIL_THRESHOLD, value);
+        setProperty(ConfigFields.COORDINATOR_READ_SIZE_FAIL_THRESHOLD, value);
     }
 
     @Nullable
@@ -4433,7 +4433,7 @@ public class DatabaseDescriptor
 
     public static void setLocalReadSizeWarnThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        confRegistry.set(ConfigFields.LOCAL_READ_SIZE_WARN_THRESHOLD, value);
+        setProperty(ConfigFields.LOCAL_READ_SIZE_WARN_THRESHOLD, value);
     }
 
     @Nullable
@@ -4444,7 +4444,7 @@ public class DatabaseDescriptor
 
     public static void setLocalReadSizeFailThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        confRegistry.set(ConfigFields.LOCAL_READ_SIZE_FAIL_THRESHOLD, value);
+        setProperty(ConfigFields.LOCAL_READ_SIZE_FAIL_THRESHOLD, value);
     }
 
     @Nullable
@@ -4455,7 +4455,7 @@ public class DatabaseDescriptor
 
     public static void setRowIndexReadSizeWarnThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        confRegistry.set(ConfigFields.ROW_INDEX_READ_SIZE_WARN_THRESHOLD, value);
+        setProperty(ConfigFields.ROW_INDEX_READ_SIZE_WARN_THRESHOLD, value);
     }
 
     @Nullable
@@ -4466,7 +4466,7 @@ public class DatabaseDescriptor
 
     public static void setRowIndexReadSizeFailThreshold(@Nullable DataStorageSpec.LongBytesBound value)
     {
-        confRegistry.set(ConfigFields.ROW_INDEX_READ_SIZE_FAIL_THRESHOLD, value);
+        setProperty(ConfigFields.ROW_INDEX_READ_SIZE_FAIL_THRESHOLD, value);
 
     }
 
@@ -4477,8 +4477,7 @@ public class DatabaseDescriptor
 
     public static void setDefaultKeyspaceRF(int value) throws IllegalArgumentException
     {
-        runExceptionally(() -> confRegistry.set(ConfigFields.DEFAULT_KEYSPACE_RF, value),
-                                     new SearchInternalCauseForPublicAPI());
+        setProperty(ConfigFields.DEFAULT_KEYSPACE_RF, value);
     }
 
     public static boolean getUseStatementsEnabled()
@@ -4502,7 +4501,7 @@ public class DatabaseDescriptor
 
     public static void setForceNewPreparedStatementBehaviour(boolean value)
     {
-        confRegistry.set(ConfigFields.FORCE_NEW_PREPARED_STATEMENT_BEHAVIOUR, value);
+        setProperty(ConfigFields.FORCE_NEW_PREPARED_STATEMENT_BEHAVIOUR, value);
     }
 
     public static DurationSpec.LongNanosecondsBound getStreamingStateExpires()
@@ -4728,6 +4727,18 @@ public class DatabaseDescriptor
     public static Map<String, Supplier<SSTableFormat<?, ?>>> getSSTableFormatFactories()
     {
         return Objects.requireNonNull(sstableFormatFactories, "Forgot to initialize DatabaseDescriptor?");
+    }
+
+    /**
+     * Set configuration property for the given name to {@link #confRegistry} if a safe manner
+     * with handling internal Cassandra exceptions.
+     *
+     * @param name Property name.
+     * @param value Property value.
+     */
+    private static void setProperty(String name, Object value)
+    {
+        runExceptionally(() -> confRegistry.set(name, value), new SearchInternalCauseForPublicAPI());
     }
 
     private static class SearchInternalCauseForPublicAPI implements Function<Exception, RuntimeException>
