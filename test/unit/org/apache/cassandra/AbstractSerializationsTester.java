@@ -41,7 +41,7 @@ public class AbstractSerializationsTester
         put("5.0", MessagingService.VERSION_50);
     }};
 
-    protected static final boolean EXECUTE_WRITES =Boolean.getBoolean("cassandra.test-serialization-writes");
+    protected static final boolean EXECUTE_WRITES = Boolean.getBoolean("cassandra.test-serialization-writes");
 
     protected static int getVersion()
     {
