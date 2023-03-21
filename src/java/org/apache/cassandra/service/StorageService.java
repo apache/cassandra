@@ -258,12 +258,9 @@ import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
 import static org.apache.cassandra.service.ConsensusTableMigrationState.startMigrationToConsensusProtocol;
-import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
-import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
-import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.apache.cassandra.utils.PojoToString.pojoMapToString;
 

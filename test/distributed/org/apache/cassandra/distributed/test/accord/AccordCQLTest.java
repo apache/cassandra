@@ -36,9 +36,6 @@ import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
-import org.apache.cassandra.distributed.Cluster;
-import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -55,6 +52,7 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.QueryResults;
@@ -84,7 +82,6 @@ public class AccordCQLTest extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws IOException
     {
-//        AccordTestBase.setupCluster(builder -> builder);
         AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("legacy_paxos_strategy", "accord")));
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
     }

@@ -38,7 +38,6 @@ import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.FilteredPartition;
-import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -108,10 +107,8 @@ public abstract class TxnQuery implements Query
             {
                 TxnRead txnRead = (TxnRead)read;
                 SinglePartitionReadCommand command = (SinglePartitionReadCommand)txnRead.iterator().next().get();
-                RowIterator emptyRow = EmptyIterators.row(command.metadata(), command.partitionKey(), command.isReversed());
-                FilteredPartition partition = FilteredPartition.create(emptyRow);
                 // For CAS must return a non-empty result to indicate error even if there was no partition found
-                return new TxnData(ImmutableMap.of(CAS_READ, partition));
+                return new TxnData(ImmutableMap.of(CAS_READ, FilteredPartition.create(EmptyIterators.row(command.metadata(), command.partitionKey(), command.isReversed()))));
             }
             else
                 // If it failed to apply the partition contents are returned and it indicates failure

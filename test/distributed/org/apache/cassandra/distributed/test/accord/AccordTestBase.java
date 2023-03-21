@@ -25,8 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.primitives.Ints;
 import org.junit.AfterClass;
@@ -34,8 +34,6 @@ import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.primitives.Txn;
-import accord.coordinate.Preempted;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -66,7 +64,6 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
-import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.AssertionUtils;
 import org.apache.cassandra.utils.FBUtilities;
