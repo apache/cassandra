@@ -27,21 +27,12 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  * a primitive type (e.g. Boolean.TYPE, Long.TYPE etc), the value returned will use the corresponding
  * wrapper type (Long.class, Boolean.class, etc).
  *
- * @param <T> Type to convert to.
- *
  * @see TypeConverter
  * @see org.apache.cassandra.config.StringConverters
  */
-public class PrimitiveUnaryConverter<T> implements TypeConverter<T>
+public class PrimitiveUnaryConverter
 {
-    private final Class<T> targetClass;
-
-    public PrimitiveUnaryConverter(Class<T> targetClass)
-    {
-        this.targetClass = targetClass;
-    }
-
-    public static Object to(Class<?> cls, @Nonnull Object value)
+    private static Object to(Class<?> cls, @Nonnull Object value)
     {
         if (cls.isInstance(value))
             return value;
@@ -84,9 +75,10 @@ public class PrimitiveUnaryConverter<T> implements TypeConverter<T>
     }
 
     @SuppressWarnings("unchecked")
-    @Override
-    public T convert(Object value)
+    public static <T> T convertSafe(Class<?> cls, Object value)
     {
-        return (T) to(targetClass, value);
+        if (value == null)
+            return null;
+        return (T) to(cls, value);
     }
 }

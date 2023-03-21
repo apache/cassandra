@@ -45,13 +45,4 @@ public interface TypeConverter<T>
     {
         return value == null ? null : convert(value);
     }
-
-    /**
-     * @param next converter to apply after this one.
-     * @return a converter that applies this converter, then the next one.
-     */
-    default TypeConverter<T> then(TypeConverter<? extends T> next)
-    {
-        return value -> next.convertNullable(convertNullable(value));
-    }
 }

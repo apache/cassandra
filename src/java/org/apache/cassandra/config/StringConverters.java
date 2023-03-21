@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.config;
 
-import org.apache.cassandra.config.registry.PrimitiveUnaryConverter;
 import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.db.ConsistencyLevel;
+
+import static org.apache.cassandra.config.registry.PrimitiveUnaryConverter.convertSafe;
 
 public enum StringConverters
 {
@@ -54,15 +55,14 @@ public enum StringConverters
     <T> StringConverters(Class<T> type, TypeConverter<T> forward, TypeConverter<String> reverse)
     {
         this.type = type;
-        this.forward = forward.then(new PrimitiveUnaryConverter<>(type));
+        this.forward = forward;
         this.reverse = reverse;
     }
 
-    @SuppressWarnings("unchecked")
     public <T> T fromString(String value, Class<T> target)
     {
         if (target.equals(type))
-            return (T) forward.convertNullable(value);
+            return convertSafe(type, forward.convertNullable(value));
         throw new IllegalArgumentException(String.format("Invalid target type '%s' for converter '%s'", target, this));
     }
 

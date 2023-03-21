@@ -42,7 +42,7 @@ import org.apache.cassandra.config.StringConverters;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.yaml.snakeyaml.introspector.Property;
 
-import static org.apache.cassandra.config.registry.PrimitiveUnaryConverter.to;
+import static org.apache.cassandra.config.registry.PrimitiveUnaryConverter.convertSafe;
 import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 
 
@@ -130,7 +130,6 @@ public class ConfigurationRegistry implements Registry
      * @param name the property name to get.
      * @return The value of the property with the given name.
      */
-    @SuppressWarnings("unchecked")
     public <T> T get(Class<T> cls, String name)
     {
         rwLock.readLock().lock();
@@ -140,7 +139,7 @@ public class ConfigurationRegistry implements Registry
             Class<?> propertyType = type(name);
             Object value = properties.get(name).getValue();
             if (cls.equals(propertyType))
-                return value == null ? null : (T) to(cls, value);
+                return convertSafe(cls, value);
             else if (cls.equals(String.class))
             {
                 StringConverters converter = StringConverters.fromType(propertyType);
@@ -244,35 +243,35 @@ public class ConfigurationRegistry implements Registry
     private static class TypedListenerAdapter<T>
     {
         private final ConfigurationListener<T> listener;
-        private final PrimitiveUnaryConverter<T> primitiveConverter;
+        private final Class<T> type;
 
         public TypedListenerAdapter(ConfigurationListener<T> listener, Class<T> type)
         {
             this.listener = listener;
-            this.primitiveConverter = new PrimitiveUnaryConverter<>(type);
+            this.type = type;
         }
 
         public void fireTypeCast(String name, Object oldValue, Object newValue)
         {
             // Casting to the type of the listener is safe because we validate the type of the property on listener's registration.
-            listener.onUpdate(name, primitiveConverter.convertNullable(oldValue), primitiveConverter.convertNullable(newValue));
+            listener.onUpdate(name, convertSafe(type, oldValue), convertSafe(type, newValue));
         }
     }
 
     private static class TypedConstraintAdapter<T>
     {
         private final ConfigurationConstraint<T> constraint;
-        private final PrimitiveUnaryConverter<T> primitiveConverter;
+        private final Class<T> type;
 
         public TypedConstraintAdapter(ConfigurationConstraint<T> constraint, Class<T> type)
         {
             this.constraint = constraint;
-            this.primitiveConverter = new PrimitiveUnaryConverter<>(type);
+            this.type = type;
         }
 
         public void validateTypeCast(Object newValue)
         {
-            constraint.validate(primitiveConverter.convertNullable(newValue));
+            constraint.validate(convertSafe(type, newValue));
         }
     }
 
