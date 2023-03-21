@@ -76,6 +76,11 @@ public abstract class AbstractReplicationStrategy
         return replicas.get(ringVersion, t);
     }
 
+    public Map<String, String> getConfigOptions()
+    {
+        return configOptions;
+    }
+
     /**
      * get the (possibly cached) endpoints that should store the given Token.
      * Note that while the endpoints are conceptually a Set (no duplicates will be included),

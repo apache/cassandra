@@ -182,7 +182,6 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
-import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaTransformations;
@@ -3796,9 +3795,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspaceName);
         if (keyspaceInstance == null)
             throw new IllegalArgumentException(); // ideally should never happen
-        ReplicationParams replicationParams = keyspaceInstance.getMetadata().params.replication;
-        String replicationInfo = replicationParams.klass.getSimpleName() + " " + replicationParams.options.toString();
-        return replicationInfo;
+
+        AbstractReplicationStrategy replicationStrategy = keyspaceInstance.getReplicationStrategy();
+        return replicationStrategy.getClass().getSimpleName() + ' ' + replicationStrategy.getConfigOptions().toString();
     }
 
     @Deprecated
