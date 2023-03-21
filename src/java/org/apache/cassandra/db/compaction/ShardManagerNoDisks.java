@@ -55,7 +55,8 @@ public class ShardManagerNoDisks implements ShardManager
 
     public boolean isOutOfDate(long ringVersion)
     {
-        return ringVersion != localRanges.ringVersion;
+        return ringVersion != localRanges.ringVersion &&
+               localRanges.ringVersion != ColumnFamilyStore.RING_VERSION_IRRELEVANT;
     }
 
     @Override

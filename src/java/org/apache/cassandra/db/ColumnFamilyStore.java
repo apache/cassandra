@@ -258,6 +258,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public static final String SNAPSHOT_DROP_PREFIX = "dropped";
     static final String TOKEN_DELIMITER = ":";
 
+    /** Special values used when the local ranges are not changed with ring changes (e.g. local tables). */
+    public static final int RING_VERSION_IRRELEVANT = -1;
+
     static
     {
         try
@@ -1495,7 +1498,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             // Local tables need to cover the full token range and don't care about ring changes.
             // We also end up here if the table's partitioner is not the database's, which can happen in tests.
-            return fullWeightedRange(-1, getPartitioner());
+            return fullWeightedRange(RING_VERSION_IRRELEVANT, getPartitioner());
         }
     }
 
@@ -1509,7 +1512,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
         if (shardBoundaries == null ||
             shardBoundaries.shardCount() != shardCount ||
-            shardBoundaries.ringVersion != -1 && shardBoundaries.ringVersion != StorageService.instance.getTokenMetadata().getRingVersion())
+            (shardBoundaries.ringVersion != RING_VERSION_IRRELEVANT &&
+             shardBoundaries.ringVersion != StorageService.instance.getTokenMetadata().getRingVersion()))
         {
             VersionedLocalRanges weightedRanges = localRangesWeighted();
 
