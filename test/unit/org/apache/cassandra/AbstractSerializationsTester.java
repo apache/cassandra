@@ -38,7 +38,7 @@ public class AbstractSerializationsTester
     {{
         put("3.0", MessagingService.VERSION_30);
         put("4.0", MessagingService.VERSION_40);
-        put("4.2", MessagingService.VERSION_50);
+        put("5.0", MessagingService.VERSION_50);
     }};
 
     protected static final boolean EXECUTE_WRITES = Boolean.getBoolean("cassandra.test-serialization-writes");
