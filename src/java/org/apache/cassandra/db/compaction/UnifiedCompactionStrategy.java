@@ -590,14 +590,20 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             if (buckets == null)
                 return null;    // nothing crosses the threshold in this level, nothing to do
 
+            int estimatedRemainingTasks = 0;
             Controller controller = context.controller;
             for (Bucket bucket : buckets)
             {
                 // The estimated remaining tasks is a measure of the remaining amount of work, thus we prefer to
                 // calculate the number of tasks we would do in normal operation, even though we may compact in bigger
                 // chunks when we are late.
-                context.estimatedRemainingTasks += bucket.maxOverlap / fanout;
+                estimatedRemainingTasks += bucket.maxOverlap / fanout;
             }
+            context.estimatedRemainingTasks += estimatedRemainingTasks;
+
+            if (logger.isDebugEnabled())
+                logger.debug("Level {} sstables {} max overlap {} buckets with compactions {} tasks {}",
+                             index, sstables.size(), maxOverlap, buckets.size(), estimatedRemainingTasks);
 
             // We can have just one pick in each level. Picking a fixed one may cause us to neglect parts of
             // the token space, so choose one uniformly randomly.
