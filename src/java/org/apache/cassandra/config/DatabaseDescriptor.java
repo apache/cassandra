@@ -111,6 +111,8 @@ import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBY
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
+import static org.apache.cassandra.utils.FBUtilities.cause;
+import static org.apache.cassandra.utils.FBUtilities.runExceptionally;
 
 public class DatabaseDescriptor
 {
@@ -1483,14 +1485,14 @@ public class DatabaseDescriptor
     private static void phiConvictThesholdBoundsConstraint(double newValue)
     {
         if (newValue < 5 || newValue > 16)
-            throw new ConfigurationException(String.format("%s must be between 5 and 16, but was %s", ConfigFields.PHI_CONVICT_THRESHOLD, newValue), false);
+            throw new IllegalArgumentException(String.format("%s must be between 5 and 16, but was %s", ConfigFields.PHI_CONVICT_THRESHOLD, newValue));
     }
 
     private static void repairSessionSpaceConstraint(DataStorageSpec.IntMebibytesBound newValue)
     {
         int sizeInMiB = newValue.toMebibytes();
         if (sizeInMiB < 1)
-            throw new ConfigurationException(String.format("%s must be > 0, but was %s", ConfigFields.REPAIR_SESSION_SPACE, sizeInMiB));
+            throw new IllegalArgumentException(String.format("%s must be > 0, but was %s", ConfigFields.REPAIR_SESSION_SPACE, sizeInMiB));
         else if (sizeInMiB > (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)))
             logger.warn("A {} of {} mebibytes is likely to cause heap pressure", ConfigFields.REPAIR_SESSION_SPACE, newValue);
     }
@@ -4475,11 +4477,8 @@ public class DatabaseDescriptor
 
     public static void setDefaultKeyspaceRF(int value) throws IllegalArgumentException
     {
-        FBUtilities.runExceptionally(() -> confRegistry.set(ConfigFields.DEFAULT_KEYSPACE_RF, value),
-                                     e -> {
-                                         IllegalArgumentException cause = FBUtilities.cause(e, IllegalArgumentException.class);
-                                         return cause == null ? new RuntimeException(e) : new IllegalArgumentException(e);
-                                     });
+        runExceptionally(() -> confRegistry.set(ConfigFields.DEFAULT_KEYSPACE_RF, value),
+                                     new SearchInternalCauseForPublicAPI());
     }
 
     public static boolean getUseStatementsEnabled()
@@ -4729,5 +4728,25 @@ public class DatabaseDescriptor
     public static Map<String, Supplier<SSTableFormat<?, ?>>> getSSTableFormatFactories()
     {
         return Objects.requireNonNull(sstableFormatFactories, "Forgot to initialize DatabaseDescriptor?");
+    }
+
+    private static class SearchInternalCauseForPublicAPI implements Function<Exception, RuntimeException>
+    {
+        @Override
+        public RuntimeException apply(Exception e)
+        {
+            RuntimeException rt;
+            if ((rt = cause(e, IllegalArgumentException.class)) != null)
+                return new IllegalArgumentException(rt.getMessage());
+            else if ((rt = cause(e, IllegalStateException.class)) != null)
+                return new IllegalStateException(rt.getMessage());
+            else if ((rt = cause(e, UnsupportedOperationException.class)) != null)
+                return new UnsupportedOperationException(rt.getMessage());
+            else
+            {
+                logger.error("Unexpected exception", e);
+                return new RuntimeException(e.getMessage());
+            }
+        }
     }
 }
