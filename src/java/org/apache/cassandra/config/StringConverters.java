@@ -18,7 +18,7 @@
 
 package org.apache.cassandra.config;
 
-import org.apache.cassandra.config.registry.PrimitiveTypeConverter;
+import org.apache.cassandra.config.registry.PrimitiveUnaryConverter;
 import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.db.ConsistencyLevel;
 
@@ -54,7 +54,7 @@ public enum StringConverters
     <T> StringConverters(Class<T> type, TypeConverter<T> forward, TypeConverter<String> reverse)
     {
         this.type = type;
-        this.forward = forward.then(new PrimitiveTypeConverter<>(type));
+        this.forward = forward.then(new PrimitiveUnaryConverter<>(type));
         this.reverse = reverse;
     }
 

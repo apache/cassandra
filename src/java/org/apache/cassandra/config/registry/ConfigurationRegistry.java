@@ -138,7 +138,7 @@ public class ConfigurationRegistry implements Registry
             Class<?> propertyType = type(name);
             Object value = properties.get(name).getValue();
             if (cls.equals(propertyType))
-                return new PrimitiveTypeConverter<>(cls).convertNullable(value);
+                return new PrimitiveUnaryConverter<>(cls).convertNullable(value);
             else if (cls.equals(String.class))
             {
                 StringConverters converter = StringConverters.fromType(propertyType);
@@ -242,12 +242,12 @@ public class ConfigurationRegistry implements Registry
     private static class TypedListenerAdapter<T>
     {
         private final ConfigurationListener<T> listener;
-        private final PrimitiveTypeConverter<T> primitiveConverter;
+        private final PrimitiveUnaryConverter<T> primitiveConverter;
 
         public TypedListenerAdapter(ConfigurationListener<T> listener, Class<T> type)
         {
             this.listener = listener;
-            this.primitiveConverter = new PrimitiveTypeConverter<>(type);
+            this.primitiveConverter = new PrimitiveUnaryConverter<>(type);
         }
 
         public void fireTypeCast(String name, Object oldValue, Object newValue)
@@ -260,12 +260,12 @@ public class ConfigurationRegistry implements Registry
     private static class TypedConstraintAdapter<T>
     {
         private final ConfigurationConstraint<T> constraint;
-        private final PrimitiveTypeConverter<T> primitiveConverter;
+        private final PrimitiveUnaryConverter<T> primitiveConverter;
 
         public TypedConstraintAdapter(ConfigurationConstraint<T> constraint, Class<T> type)
         {
             this.constraint = constraint;
-            this.primitiveConverter = new PrimitiveTypeConverter<>(type);
+            this.primitiveConverter = new PrimitiveUnaryConverter<>(type);
         }
 
         public void validateTypeCast(Object newValue)

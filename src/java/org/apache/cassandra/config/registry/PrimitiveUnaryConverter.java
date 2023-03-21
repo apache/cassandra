@@ -32,11 +32,11 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  * @see TypeConverter
  * @see org.apache.cassandra.config.StringConverters
  */
-public class PrimitiveTypeConverter<T> implements TypeConverter<T>
+public class PrimitiveUnaryConverter<T> implements TypeConverter<T>
 {
     private final Class<T> targetClass;
 
-    public PrimitiveTypeConverter(Class<T> targetClass)
+    public PrimitiveUnaryConverter(Class<T> targetClass)
     {
         this.targetClass = targetClass;
     }
