@@ -450,7 +450,7 @@ public class RangeStreamer
             EndpointsForRange wrappedEndpointsForRange = null;
             for (Range<Token> r : maybeWrappingRange.unwrap())
             {
-                EndpointsForRange ep1 = placements.forRange(r);
+                EndpointsForRange ep1 = placements.forRange(r.right);
                 if (wrappedEndpointsForRange == null)
                     wrappedEndpointsForRange = ep1;
                 assert wrappedEndpointsForRange.endpoints().equals(ep1.endpoints()) : wrappedEndpointsForRange +" != " + ep1;
@@ -462,7 +462,7 @@ public class RangeStreamer
         }
         else
         {
-            endpoints = placements.forRange(maybeWrappingRange);
+            endpoints = placements.forRange(maybeWrappingRange.right);
         }
         return endpoints;
     }
