@@ -121,9 +121,13 @@
  * Add new CQL function maxWritetime (CASSANDRA-17425)
  * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
-Merged from 4.1:
+
+4.1.2
+
+
+4.1.1
  * Deprecate org.apache.cassandra.hadoop code (CASSANDRA-16984)
- * Fix too early schema version change in system local table (CASSANDRA-18291)
+ * Fix too early schema version change in sysem local table (CASSANDRA-18291)
  * Fix copying of JAR of a trigger to temporary file (CASSANDRA-18264)
  * Fix possible NoSuchFileException when removing a snapshot (CASSANDRA-18211)
  * PaxosPrepare may add instances to the Electorate that are not in gossip (CASSANDRA-18194)
@@ -166,13 +170,39 @@ Merged from 3.0:
 
 4.1.0
  * Fix ContentionStrategy backoff and Clock.waitUntil (CASSANDRA-18086)
+Merged from 4.0:
+Merged from 3.11:
+Merged from 3.0:
+ * Fix incorrect resource name in LIST PERMISSION output (CASSANDRA-17848)
+ * Suppress CVE-2022-41854 and similar (CASSANDRA-18083)
+
+
+4.1-rc1
  * Avoid schema mismatch problems on memtable API misconfiguration (CASSANDRA-18040)
  * Start Paxos auto repair in CassandraDaemon (CASSANDRA-18029)
- * Fix error message about type hints (CASSANDRA-17915)
  * Restore streaming_keep_alive_period on the netty control streaming channel (CASSANDRA-17768)
  * Move Schema.FORCE_LOAD_KEYSPACES and Schema.FORCE_LOAD_KEYSPACES_PROP to CassandraRelevantProps (CASSANDRA-17783)
  * Add --resolve-ip option to nodetool gossipinfo (CASSANDRA-17934)
  * Allow pre-V5 global limit on bytes in flight to revert to zero asynchronously in RateLimitingTest (CASSANDRA-17927)
+Merged from 4.0:
+ * Harden parsing of boolean values in CQL in PropertyDefinitions (CASSANDRA-17878)
+ * Fix error message about type hints (CASSANDRA-17915)
+ * Fix possible race condition on repair snapshots (CASSANDRA-17955)
+ * Fix ASM bytecode version inconsistency (CASSANDRA-17873)
+ * Remove empty cq4 files in log directory to not fail the startup of BinLog (CASSANDRA-17933)
+ * Fix multiple BufferPool bugs (CASSANDRA-16681)
+ * Fix StorageService.getNativeaddress handling of IPv6 addresses (CASSANDRA-17945)
+Merged from 3.11:
+ * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
+ * Suppress CVE-2022-42003 and CVE-2022-42004 (CASSANDRA-17966)
+ * Make LongBufferPoolTest insensitive to timing (CASSANDRA-16681)
+Merged from 3.0:
+ * Fix running Ant rat targets without git (CASSANDRA-17974)
+ * Harden JMX by resolving beanshooter issues (CASSANDRA-17921)
+ * Suppress CVE-2019-2684 (CASSANDRA-17965)
+ * Fix auto-completing "WITH" when creating a materialized view (CASSANDRA-17879)
+
+4.1-beta1
  * We should not emit deprecation warning on startup for `key_cache_save_period`, `row_cache_save_period`, `counter_cache_save_period` (CASSANDRA-17904)
  * upsert with adder support is not consistent with numbers and strings in LWT (CASSANDRA-17857)
  * Fix race and return after failing connections (CASSANDRA-17618)
@@ -202,13 +232,6 @@ Merged from 3.0:
  * Revert removal of withBufferSizeInMB(int size) in CQLSSTableWriter.Builder class and deprecate it in favor of withBufferSizeInMiB(int size) (CASSANDRA-17675)
  * Remove expired snapshots of dropped tables after restart (CASSANDRA-17619)
 Merged from 4.0:
- * Restore internode custom tracing on 4.0's new messaging system (CASSANDRA-17981)
- * Harden parsing of boolean values in CQL in PropertyDefinitions (CASSANDRA-17878)
- * Fix possible race condition on repair snapshots (CASSANDRA-17955)
- * Fix ASM bytecode version inconsistency (CASSANDRA-17873)
- * Remove empty cq4 files in log directory to not fail the startup of BinLog (CASSANDRA-17933)
- * Fix multiple BufferPool bugs (CASSANDRA-16681)
- * Fix StorageService.getNativeaddress handling of IPv6 addresses (CASSANDRA-17945)
  * Mitigate direct buffer memory OOM on replacements (CASSANDRA-17895)
  * Fix repair failure on assertion if two peers have overlapping mismatching ranges (CASSANDRA-17900)
  * Better handle null state in Gossip schema migration to avoid NPE (CASSANDRA-17864)
@@ -231,23 +254,11 @@ Merged from 4.0:
  * Ensure FileStreamTask cannot compromise shared channel proxy for system table when interrupted (CASSANDRA-17663)
  * silence benign SslClosedEngineException (CASSANDRA-17565)
 Merged from 3.11:
- * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
- * Suppress CVE-2022-42003 and CVE-2022-42004 (CASSANDRA-17966)
- * Make LongBufferPoolTest insensitive to timing (CASSANDRA-16681)
  * Fix potential IndexOutOfBoundsException in PagingState in mixed mode clusters (CASSANDRA-17840)
  * Document usage of closed token intervals in manual compaction (CASSANDRA-17575)
  * Creating of a keyspace on insufficient number of replicas should filter out gosspping-only members (CASSANDRA-17759)
  * Suppress CVE-2022-25857 and other snakeyaml CVEs (CASSANDRA-17907)
 Merged from 3.0:
- * Add to the IntelliJ Git Window issue navigation links to Cassandra's Jira (CASSANDRA-18126)
- * Avoid anticompaction mixing data from two different time windows with TWCS (CASSANDRA-17970)
- * Do not spam the logs with MigrationCoordinator not being able to pull schemas (CASSANDRA-18096)
- * Fix incorrect resource name in LIST PERMISSION output (CASSANDRA-17848)
- * Suppress CVE-2022-41854 and similar (CASSANDRA-18083)
- * Fix running Ant rat targets without git (CASSANDRA-17974)
- * Harden JMX by resolving beanshooter issues (CASSANDRA-17921)
- * Suppress CVE-2019-2684 (CASSANDRA-17965)
- * Fix auto-completing "WITH" when creating a materialized view (CASSANDRA-17879)
  * Improve libjemalloc resolution in bin/cassandra (CASSANDRA-15767)
  * Fix restarting of services on gossipping-only member (CASSANDRA-17752)
  * Fix scrubber falling into infinite loop when the last partition is broken (CASSANDRA-17862)
@@ -430,7 +441,6 @@ Merged from 3.0:
  * Fix issue where frozen maps may not be serialized in the correct order (CASSANDRA-17623)
  * Suppress CVE-2022-24823 (CASSANDRA-17633)
  * fsync TOC and digest files (CASSANDRA-10709)
-
 
 4.0.4
  * Optimise BTree build,update and transform operations (CASSANDRA-15510)
