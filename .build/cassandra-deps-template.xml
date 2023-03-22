@@ -146,6 +146,10 @@
       <artifactId>metrics-logback</artifactId>
     </dependency>
     <dependency>
+      <groupId>io.dropwizard.metrics</groupId>
+      <artifactId>metrics-jmx</artifactId>
+    </dependency>
+    <dependency>
       <groupId>com.addthis.metrics</groupId>
       <artifactId>reporter-config3</artifactId>
     </dependency>
