@@ -61,8 +61,7 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
 /*
- * Commit Log tracks every write operation into the system. The aim of the commit log is to be able to
- * successfully recover data that was not stored to disk via the Memtable.
+ * 提交日志跟踪对系统的每次写入操作。提交日志的目的是能够成功恢复未通过Memtable存储到磁盘的数据。
  */
 public class CommitLog implements CommitLogMBean
 {

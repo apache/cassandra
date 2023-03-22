@@ -51,6 +51,11 @@ public class CDCTestReplayer extends CommitLogReplayer
     private class CommitLogTestReader extends CommitLogReader
     {
         @Override
+        public void readAllFiles(CommitLogReadHandler handler, File[] files) throws IOException {
+            super.readAllFiles(handler, files);
+        }
+
+        @Override
         protected void readMutation(CommitLogReadHandler handler,
                                     byte[] inputBuffer,
                                     int size,

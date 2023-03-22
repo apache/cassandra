@@ -73,7 +73,7 @@ public class CommitLogReader
     }
 
     /**
-     * Reads all passed in files with no minimum, no start, and no mutation limit.
+     * 读取所有传入的文件，没有最小值，没有起始值，也没有突变限制。
      */
     public void readAllFiles(CommitLogReadHandler handler, File[] files) throws IOException
     {
@@ -118,7 +118,7 @@ public class CommitLogReader
     }
 
     /**
-     * Reads all passed in files with minPosition, no start, and no mutation limit.
+     * 读取带有minPosition、无起始和无突变限制的所有传入文件。
      */
     public void readAllFiles(CommitLogReadHandler handler, File[] files, CommitLogPosition minPosition) throws IOException
     {
