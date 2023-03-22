@@ -1010,7 +1010,7 @@ public class Config
     /**
      * See {@link PaxosVariant}. Defaults to v1, recommend upgrading to v2 at earliest opportunity.
      */
-    public volatile PaxosVariant paxos_variant = PaxosVariant.v2; // TODO: only use v2 for CMS operations
+    public volatile PaxosVariant paxos_variant = PaxosVariant.v1;
 
     /**
      * If true, paxos topology change repair will not run on a topology change - this option should only be used in
