@@ -15,6 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# Change default memtable implementation to TrieMemtable
 # Note: this attaches at the end of cassandra.yaml, where the memtable configuration setting must be.
         default:
             inherits: trie
+
+# Change default compaction to UCS
+default_compaction:
+  class_name: UnifiedCompactionStrategy
+  parameters:
+    base_shard_count: 1

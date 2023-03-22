@@ -70,6 +70,7 @@ public class StatsMetadata extends MetadataComponent
     public final int sstableLevel;
     public final Slice coveredClustering;
     public final boolean hasLegacyCounterShards;
+    public final double tokenSpaceCoverage;
     public final long repairedAt;
     public final long totalColumnsSet;
     public final long totalRows;
@@ -114,6 +115,7 @@ public class StatsMetadata extends MetadataComponent
                          long repairedAt,
                          long totalColumnsSet,
                          long totalRows,
+                         double tokenSpaceCoverage,
                          UUID originatingHostId,
                          TimeUUID pendingRepair,
                          boolean isTransient,
@@ -139,6 +141,7 @@ public class StatsMetadata extends MetadataComponent
         this.repairedAt = repairedAt;
         this.totalColumnsSet = totalColumnsSet;
         this.totalRows = totalRows;
+        this.tokenSpaceCoverage = tokenSpaceCoverage;
         this.originatingHostId = originatingHostId;
         this.pendingRepair = pendingRepair;
         this.isTransient = isTransient;
@@ -197,6 +200,7 @@ public class StatsMetadata extends MetadataComponent
                                  repairedAt,
                                  totalColumnsSet,
                                  totalRows,
+                                 tokenSpaceCoverage,
                                  originatingHostId,
                                  pendingRepair,
                                  isTransient,
@@ -225,6 +229,7 @@ public class StatsMetadata extends MetadataComponent
                                  newRepairedAt,
                                  totalColumnsSet,
                                  totalRows,
+                                 tokenSpaceCoverage,
                                  originatingHostId,
                                  newPendingRepair,
                                  newIsTransient,
@@ -258,6 +263,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasLegacyCounterShards, that.hasLegacyCounterShards)
                        .append(totalColumnsSet, that.totalColumnsSet)
                        .append(totalRows, that.totalRows)
+                       .append(tokenSpaceCoverage, that.tokenSpaceCoverage)
                        .append(originatingHostId, that.originatingHostId)
                        .append(pendingRepair, that.pendingRepair)
                        .append(hasPartitionLevelDeletions, that.hasPartitionLevelDeletions)
@@ -287,6 +293,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasLegacyCounterShards)
                        .append(totalColumnsSet)
                        .append(totalRows)
+                       .append(tokenSpaceCoverage)
                        .append(originatingHostId)
                        .append(pendingRepair)
                        .append(hasPartitionLevelDeletions)
@@ -366,6 +373,11 @@ public class StatsMetadata extends MetadataComponent
             {
                 size += ByteBufferUtil.serializedSizeWithVIntLength(component.firstKey);
                 size += ByteBufferUtil.serializedSizeWithVIntLength(component.lastKey);
+            }
+
+            if (version.hasTokenSpaceCoverage())
+            {
+                size += Double.BYTES;
             }
 
             return size;
@@ -467,6 +479,11 @@ public class StatsMetadata extends MetadataComponent
             {
                 ByteBufferUtil.writeWithVIntLength(component.firstKey, out);
                 ByteBufferUtil.writeWithVIntLength(component.lastKey, out);
+            }
+
+            if (version.hasTokenSpaceCoverage())
+            {
+                out.writeDouble(component.tokenSpaceCoverage);
             }
         }
 
@@ -575,6 +592,12 @@ public class StatsMetadata extends MetadataComponent
                 lastKey = ByteBufferUtil.readWithVIntLength(in);
             }
 
+            double tokenSpaceCoverage = Double.NaN;
+            if (version.hasTokenSpaceCoverage())
+            {
+                tokenSpaceCoverage = in.readDouble();
+            }
+
             return new StatsMetadata(partitionSizes,
                                      columnCounts,
                                      commitLogIntervals,
@@ -593,6 +616,7 @@ public class StatsMetadata extends MetadataComponent
                                      repairedAt,
                                      totalColumnsSet,
                                      totalRows,
+                                     tokenSpaceCoverage,
                                      originatingHostId,
                                      pendingRepair,
                                      isTransient,

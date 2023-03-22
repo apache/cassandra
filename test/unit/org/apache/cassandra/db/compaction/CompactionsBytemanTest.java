@@ -120,7 +120,7 @@ public class CompactionsBytemanTest extends CQLTester
             targetClass = "CompactionManager",
             targetMethod = "submitBackground",
             targetLocation = "AT INVOKE java.util.concurrent.Future.isCancelled",
-            condition = "!$cfs.keyspace.getName().contains(\"system\")",
+            condition = "!$cfs.getKeyspaceName().contains(\"system\")",
             action = "Thread.sleep(5000)")
     public void testCompactingCFCounting() throws Throwable
     {

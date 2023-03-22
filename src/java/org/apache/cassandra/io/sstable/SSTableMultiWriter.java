@@ -34,16 +34,16 @@ public interface SSTableMultiWriter extends Transactional
      * @param partition the partition to append
      * @return true if the partition was written, false otherwise
      */
-    boolean append(UnfilteredRowIterator partition);
+    void append(UnfilteredRowIterator partition);
 
-    Collection<SSTableReader> finish(long repairedAt, long maxDataAge, boolean openResult);
     Collection<SSTableReader> finish(boolean openResult);
     Collection<SSTableReader> finished();
 
     SSTableMultiWriter setOpenResult(boolean openResult);
 
     String getFilename();
-    long getFilePointer();
+    long getBytesWritten();
+    long getOnDiskBytesWritten();
     TableId getTableId();
 
     static void abortOrDie(SSTableMultiWriter writer)

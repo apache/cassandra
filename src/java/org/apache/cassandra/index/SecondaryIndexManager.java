@@ -621,7 +621,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      */
     private synchronized void markIndexesBuilding(Set<Index> indexes, boolean isFullRebuild, boolean isNewCF)
     {
-        String keyspaceName = baseCfs.keyspace.getName();
+        String keyspaceName = baseCfs.getKeyspaceName();
 
         // First step is to validate against concurrent rebuilds; it would be more optimized to do everything on a single
         // step, but we're not really expecting a very high number of indexes, and this isn't on any hot path, so
@@ -676,7 +676,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             {
                 inProgressBuilds.remove(indexName);
                 if (!needsFullRebuild.contains(indexName) && DatabaseDescriptor.isDaemonInitialized() && Keyspace.isInitialized())
-                    SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), indexName);
+                    SystemKeyspace.setIndexBuilt(baseCfs.getKeyspaceName(), indexName);
             }
         }
     }
@@ -700,7 +700,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             counter.decrementAndGet();
 
             if (DatabaseDescriptor.isDaemonInitialized())
-                SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), indexName);
+                SystemKeyspace.setIndexRemoved(baseCfs.getKeyspaceName(), indexName);
 
             needsFullRebuild.add(indexName);
 
@@ -729,7 +729,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      */
     private synchronized void markIndexRemoved(String indexName)
     {
-        SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), indexName);
+        SystemKeyspace.setIndexRemoved(baseCfs.getKeyspaceName(), indexName);
         queryableIndexes.remove(indexName);
         writableIndexes.remove(indexName);
         needsFullRebuild.remove(indexName);
@@ -862,7 +862,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         indexes.values().stream()
                .map(i -> i.getIndexMetadata().name)
                .forEach(allIndexNames::add);
-        return SystemKeyspace.getBuiltIndexes(baseCfs.keyspace.getName(), allIndexNames);
+        return SystemKeyspace.getBuiltIndexes(baseCfs.getKeyspaceName(), allIndexNames);
     }
 
     /**

@@ -24,15 +24,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 
 /**
  * CompactionAwareWriter that splits input in differently sized sstables
@@ -84,36 +79,28 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     }
 
     @Override
-    public boolean realAppend(UnfilteredRowIterator partition)
+    protected boolean shouldSwitchWriterInCurrentLocation(DecoratedKey key)
     {
-        AbstractRowIndexEntry rie = sstableWriter.append(partition);
         if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > currentBytesToWrite && currentRatioIndex < ratios.length - 1) // if we underestimate how many keys we have, the last sstable might get more than we expect
         {
             currentRatioIndex++;
-
             currentBytesToWrite = getExpectedWriteSize();
-            switchCompactionLocation(sstableDirectory);
             logger.debug("Switching writer, currentBytesToWrite = {}", currentBytesToWrite);
+            return true;
         }
-        return rie != null;
+        return false;
     }
 
-    @Override
-    public void switchCompactionLocation(Directories.DataDirectory location)
+    protected int sstableLevel()
     {
-        sstableDirectory = location;
-        long currentPartitionsToWrite = Math.round(ratios[currentRatioIndex] * estimatedTotalKeys);
-        Descriptor descriptor = cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(location));
-        MetadataCollector collector = new MetadataCollector(allSSTables, cfs.metadata().comparator, 0);
-        SerializationHeader header = SerializationHeader.make(cfs.metadata(), nonExpiredSSTables);
+        return 0;
+    }
 
-        @SuppressWarnings("resource")
-        SSTableWriter writer = newWriterBuilder(descriptor).setKeyCount(currentPartitionsToWrite)
-                                                              .setMetadataCollector(collector)
-                                                              .setSerializationHeader(header)
-                                                              .build(txn, cfs);
+    protected long sstableKeyCount()
+    {
+        long currentPartitionsToWrite = Math.round(ratios[currentRatioIndex] * estimatedTotalKeys);
         logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
-        sstableWriter.switchWriter(writer);
+        return currentPartitionsToWrite;
     }
 
     @Override

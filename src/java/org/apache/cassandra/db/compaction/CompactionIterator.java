@@ -743,6 +743,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     private static boolean isPaxos(ColumnFamilyStore cfs)
     {
-        return cfs.name.equals(SystemKeyspace.PAXOS) && cfs.keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        return cfs.name.equals(SystemKeyspace.PAXOS) && cfs.getKeyspaceName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
     }
 }

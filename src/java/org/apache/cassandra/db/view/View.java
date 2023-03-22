@@ -169,7 +169,7 @@ public class View
                                                false);
 
             SelectStatement.RawStatement rawSelect =
-                new SelectStatement.RawStatement(new QualifiedName(baseCfs.keyspace.getName(), baseCfs.name),
+                new SelectStatement.RawStatement(new QualifiedName(baseCfs.getKeyspaceName(), baseCfs.name),
                                                  parameters,
                                                  selectClause(),
                                                  definition.whereClause,

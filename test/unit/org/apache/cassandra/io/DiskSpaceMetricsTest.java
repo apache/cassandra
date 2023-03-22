@@ -48,6 +48,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.psjava.util.AssertStatus.assertTrue;
 
 public class DiskSpaceMetricsTest extends CQLTester
 {
@@ -93,6 +94,29 @@ public class DiskSpaceMetricsTest extends CQLTester
             indexDownsampleCancelLastSSTable(cfs);
             assertDiskSpaceEqual(cfs);
         }
+    }
+
+    @Test
+    public void testFlushSize() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk bigint, PRIMARY KEY (pk))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        assertTrue(Double.isNaN(cfs.metric.flushSizeOnDisk.get()));
+
+        // disable compaction so nothing changes between calculations
+        cfs.disableAutoCompaction();
+
+        for (int i = 0; i < 3; i++)
+            insertN(cfs, 1000, 55);
+
+        int totalSize = 0;
+        final Set<SSTableReader> liveSSTables = cfs.getLiveSSTables();
+        for (SSTableReader rdr : liveSSTables)
+        {
+            totalSize += rdr.onDiskLength();
+        }
+        final int avgSize = totalSize / liveSSTables.size();
+        assertEquals(avgSize, cfs.metric.flushSizeOnDisk.get(), 0.05 * avgSize);
     }
 
     private void insert(ColumnFamilyStore cfs, long value) throws Throwable

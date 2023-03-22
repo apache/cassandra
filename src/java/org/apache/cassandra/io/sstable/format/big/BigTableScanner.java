@@ -140,30 +140,30 @@ public class BigTableScanner implements ISSTableScanner
 
     private static AbstractBounds<PartitionPosition> fullRange(SSTableReader sstable)
     {
-        return new Bounds<PartitionPosition>(sstable.first, sstable.last);
+        return new Bounds<PartitionPosition>(sstable.getFirst(), sstable.getLast());
     }
 
     private static void addRange(SSTableReader sstable, AbstractBounds<PartitionPosition> requested, List<AbstractBounds<PartitionPosition>> boundsList)
     {
         if (requested instanceof Range && ((Range) requested).isWrapAround())
         {
-            if (requested.right.compareTo(sstable.first) >= 0)
+            if (requested.right.compareTo(sstable.getFirst()) >= 0)
             {
                 // since we wrap, we must contain the whole sstable prior to stopKey()
-                Boundary<PartitionPosition> left = new Boundary<PartitionPosition>(sstable.first, true);
+                Boundary<PartitionPosition> left = new Boundary<PartitionPosition>(sstable.getFirst(), true);
                 Boundary<PartitionPosition> right;
                 right = requested.rightBoundary();
-                right = minRight(right, sstable.last, true);
+                right = minRight(right, sstable.getLast(), true);
                 if (!isEmpty(left, right))
                     boundsList.add(AbstractBounds.bounds(left, right));
             }
-            if (requested.left.compareTo(sstable.last) <= 0)
+            if (requested.left.compareTo(sstable.getLast()) <= 0)
             {
                 // since we wrap, we must contain the whole sstable after dataRange.startKey()
-                Boundary<PartitionPosition> right = new Boundary<PartitionPosition>(sstable.last, true);
+                Boundary<PartitionPosition> right = new Boundary<PartitionPosition>(sstable.getLast(), true);
                 Boundary<PartitionPosition> left;
                 left = requested.leftBoundary();
-                left = maxLeft(left, sstable.first, true);
+                left = maxLeft(left, sstable.getFirst(), true);
                 if (!isEmpty(left, right))
                     boundsList.add(AbstractBounds.bounds(left, right));
             }
@@ -174,10 +174,10 @@ public class BigTableScanner implements ISSTableScanner
             Boundary<PartitionPosition> left, right;
             left = requested.leftBoundary();
             right = requested.rightBoundary();
-            left = maxLeft(left, sstable.first, true);
+            left = maxLeft(left, sstable.getFirst(), true);
             // apparently isWrapAround() doesn't count Bounds that extend to the limit (min) as wrapping
-            right = requested.right.isMinimum() ? new Boundary<PartitionPosition>(sstable.last, true)
-                                                : minRight(right, sstable.last, true);
+            right = requested.right.isMinimum() ? new Boundary<PartitionPosition>(sstable.getLast(), true)
+                                                : minRight(right, sstable.getLast(), true);
             if (!isEmpty(left, right))
                 boundsList.add(AbstractBounds.bounds(left, right));
         }

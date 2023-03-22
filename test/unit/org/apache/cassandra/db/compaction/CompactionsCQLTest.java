@@ -38,6 +38,7 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Mutation;
@@ -56,6 +57,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.serializers.MarshalException;
@@ -203,6 +205,18 @@ public class CompactionsCQLTest extends CQLTester
     public void testSetLocalCompactionStrategy() throws Throwable
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+        testSetLocalCompactionStrategy(SizeTieredCompactionStrategy.class);
+    }
+
+    @Test
+    public void testSetLocalCompactionStrategyUCS() throws Throwable
+    {
+        testSetLocalCompactionStrategy(UnifiedCompactionStrategy.class);
+    }
+
+    private void testSetLocalCompactionStrategy(Class<? extends AbstractCompactionStrategy> strategy) throws Throwable
+    {
+        createTable(String.format("CREATE TABLE %%s (id text PRIMARY KEY) with compaction = {'class': '%s'}", strategy.getSimpleName()));
         Map<String, String> localOptions = new HashMap<>();
         localOptions.put("class", "SizeTieredCompactionStrategy");
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
@@ -549,12 +563,14 @@ public class CompactionsCQLTest extends CQLTester
             return new MaxSSTableSizeWriter(cfs, directories, txn, nonExpiredSSTables, 1 << 20, 1)
             {
                 int switchCount = 0;
-                public void switchCompactionLocation(Directories.DataDirectory directory)
+
+                @Override
+                public SSTableWriter sstableWriter(Directories.DataDirectory directory, DecoratedKey nextKey)
                 {
                     switchCount++;
                     if (switchCount > 5)
                         throw new RuntimeException("Throw after a few sstables have had their starts moved");
-                    super.switchCompactionLocation(directory);
+                    return super.sstableWriter(directory, nextKey);
                 }
             };
         }

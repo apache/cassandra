@@ -427,7 +427,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
             totalLength = length;
             compressedLength = cLength;
-            Collections.sort(this.sstables, SSTableReader.sstableComparator);
+            Collections.sort(this.sstables, SSTableReader.firstKeyComparator);
             sstableIterator = this.sstables.iterator();
             assert sstableIterator.hasNext(); // caller should check intersecting first
             SSTableReader currentSSTable = sstableIterator.next();
@@ -445,7 +445,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             {
                 for (SSTableReader sstable : sstables)
                 {
-                    Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken());
+                    Range<Token> sstableRange = new Range<>(sstable.getFirst().getToken(), sstable.getLast().getToken());
                     if (range == null || sstableRange.intersects(range))
                         filtered.add(sstable);
                 }
@@ -555,8 +555,8 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             {
                 ObjectNode node = JsonNodeFactory.instance.objectNode();
                 node.put("level", sstable.getSSTableLevel());
-                node.put("min_token", sstable.first.getToken().toString());
-                node.put("max_token", sstable.last.getToken().toString());
+                node.put("min_token", sstable.getFirst().getToken().toString());
+                node.put("max_token", sstable.getLast().getToken().toString());
                 return node;
             }
 

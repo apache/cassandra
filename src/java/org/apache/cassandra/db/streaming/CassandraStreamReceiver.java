@@ -250,7 +250,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                 if (cfs.isRowCacheEnabled() || cfs.metadata().isCounter())
                 {
                     List<Bounds<Token>> boundsToInvalidate = new ArrayList<>(readers.size());
-                    readers.forEach(sstable -> boundsToInvalidate.add(new Bounds<Token>(sstable.first.getToken(), sstable.last.getToken())));
+                    readers.forEach(sstable -> boundsToInvalidate.add(new Bounds<Token>(sstable.getFirst().getToken(), sstable.getLast().getToken())));
                     Set<Bounds<Token>> nonOverlappingBounds = Bounds.getNonOverlappingBounds(boundsToInvalidate);
 
                     if (cfs.isRowCacheEnabled())
@@ -259,7 +259,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                         if (invalidatedKeys > 0)
                             logger.debug("[Stream #{}] Invalidated {} row cache entries on table {}.{} after stream " +
                                          "receive task completed.", session.planId(), invalidatedKeys,
-                                         cfs.keyspace.getName(), cfs.getTableName());
+                                         cfs.getKeyspaceName(), cfs.getTableName());
                     }
 
                     if (cfs.metadata().isCounter())
@@ -268,7 +268,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                         if (invalidatedKeys > 0)
                             logger.debug("[Stream #{}] Invalidated {} counter cache entries on table {}.{} after stream " +
                                          "receive task completed.", session.planId(), invalidatedKeys,
-                                         cfs.keyspace.getName(), cfs.getTableName());
+                                         cfs.getKeyspaceName(), cfs.getTableName());
                     }
                 }
             }
