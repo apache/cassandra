@@ -183,6 +183,8 @@
       <groupId>io.netty</groupId>
       <artifactId>netty-all</artifactId>
     </dependency>
+
+    <!-- chronicle queue, and fixed transitive dependencies -->
     <dependency>
       <groupId>net.openhft</groupId>
       <artifactId>chronicle-queue</artifactId>
@@ -203,6 +205,40 @@
       <groupId>net.openhft</groupId>
       <artifactId>chronicle-threads</artifactId>
     </dependency>
+    <dependency>
+      <!-- transitive to chronicle-core -->
+      <groupId>net.openhft</groupId>
+      <artifactId>posix</artifactId>
+    </dependency>
+    <dependency>
+      <!-- transitive to posix to chronicle-core -->
+      <groupId>net.java.dev.jna</groupId>
+      <artifactId>jna-platform</artifactId>
+    </dependency>
+    <dependency>
+      <!-- transitive to posix to chronicle-core -->
+      <groupId>com.github.jnr</groupId>
+      <artifactId>jnr-ffi</artifactId>
+    </dependency>
+    <dependency>
+      <!-- transitive to jnr-ffi to posix to chronicle-core -->
+      <groupId>com.github.jnr</groupId>
+      <artifactId>jffi</artifactId>
+    </dependency>
+    <dependency>
+      <!-- transitive to jnr-ffi to posix to chronicle-core -->
+      <groupId>com.github.jnr</groupId>
+      <artifactId>jffi</artifactId>
+      <classifier>native</classifier>
+    </dependency>
+    <dependency>
+        <!-- transitive to jnr-ffi to chronicle-core -->
+      <groupId>com.github.jnr</groupId>
+      <artifactId>jnr-constants</artifactId>
+    </dependency>
+
+    <!-- end of chronicle-queue -->
+
     <dependency>
       <groupId>org.fusesource</groupId>
       <artifactId>sigar</artifactId>
