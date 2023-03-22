@@ -173,9 +173,13 @@ public class JVMDTestTest extends TestBaseImpl
             assertRows(cluster.get(2).executeInternal("SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?", KEYSPACE),
                        row("tbl1"), row("tbl2"), row("tbl3"));
 
-            // Finally test schema can be changed with the first node down
-            cluster.get(1).shutdown(true).get(1, TimeUnit.MINUTES);
+            // Finally test schema can be changed with the non-CMS node down
+            cluster.get(2).shutdown(true).get(1, TimeUnit.MINUTES);
             cluster.schemaChangeIgnoringStoppedInstances("CREATE TABLE "+KEYSPACE+".tbl4 (id int primary key, i int)");
+            assertRows(cluster.get(1).executeInternal("SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?", KEYSPACE),
+                       row("tbl1"), row("tbl2"), row("tbl3"), row("tbl4"));
+            // Restart the down node and check it catches up with the new schema
+            cluster.get(2).startup();
             assertRows(cluster.get(2).executeInternal("SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?", KEYSPACE),
                        row("tbl1"), row("tbl2"), row("tbl3"), row("tbl4"));
         }
