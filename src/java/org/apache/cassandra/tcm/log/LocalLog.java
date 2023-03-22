@@ -284,7 +284,7 @@ public abstract class LocalLog implements Closeable
 
                     if (committed.compareAndSet(prev, next))
                     {
-                        logger.debug("Enacted {}. New tail is {}", pendingEntry.transform, next.epoch);
+                        logger.info("Enacted {}. New tail is {}", pendingEntry.transform, next.epoch);
                         maybeNotifyListeners(pendingEntry, transformed);
                     }
                     else

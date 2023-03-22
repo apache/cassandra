@@ -701,7 +701,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                        valueFactory.sstableVersions(versions));
         });
 
-        Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration());
+        Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration(),
+                                ClusterMetadataService.state() != ClusterMetadataService.State.GOSSIP); // only populate local state if not running in gossip mode
         Gossiper.instance.register(this);
         Gossiper.instance.addLocalApplicationState(ApplicationState.SSTABLE_VERSIONS,
                                                    valueFactory.sstableVersions(sstablesTracker.versionsInUse()));
@@ -2150,7 +2151,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void updateTopology()
     {
-        throw new IllegalStateException();
+        logger.error("Caller should be updated, updateTopology is no longer supported", new RuntimeException());
     }
 
     private void notifyRpcChange(InetAddressAndPort endpoint, boolean ready)

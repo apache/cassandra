@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm.listeners;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
@@ -31,8 +32,8 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.membership.NodeState;
 
 import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
 
@@ -48,9 +49,7 @@ public class LegacyStateListener implements ChangeListener
             Set<NodeId> changed = new HashSet<>();
             for (NodeId node : next.directory.peerIds())
             {
-                NodeState oldState = prev.directory.peerState(node);
-                NodeState newState = next.directory.peerState(node);
-                if (oldState == null || oldState != newState || !prev.tokenMap.tokens(node).equals(next.tokenMap.tokens(node)))
+                if (directoryEntryChangedFor(node, prev.directory, next.directory) || !prev.tokenMap.tokens(node).equals(next.tokenMap.tokens(node)))
                     changed.add(node);
             }
 
@@ -71,6 +70,7 @@ public class LegacyStateListener implements ChangeListener
                             Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
                             break;
                         case JOINED:
+                            SystemKeyspace.updateTokens(next.tokenMap.tokens());
                             // needed if we miss the REGISTERED above; Does nothing if we are already in epStateMap:
                             Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
                             SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
@@ -87,5 +87,12 @@ public class LegacyStateListener implements ChangeListener
                 PeersTable.updateLegacyPeerTable(change, prev, next);
             }
         }
+    }
+
+    private boolean directoryEntryChangedFor(NodeId nodeId, Directory prev, Directory next)
+    {
+        return prev.peerState(nodeId) != next.peerState(nodeId) ||
+               !Objects.equals(prev.getNodeAddresses(nodeId), next.getNodeAddresses(nodeId)) ||
+               !Objects.equals(prev.version(nodeId), next.version(nodeId));
     }
 }

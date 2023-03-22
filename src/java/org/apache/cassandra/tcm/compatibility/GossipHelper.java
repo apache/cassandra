@@ -33,6 +33,9 @@ import java.util.UUID;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -48,7 +51,6 @@ import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Period;
@@ -82,12 +84,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 public class GossipHelper
 {
-    public static void updateSchemaVersionInGossip(UUID version)
-    {
-        Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA,
-                                                   StorageService.instance.valueFactory.schema(version));
-    }
-
+    private static final Logger logger = LoggerFactory.getLogger(GossipHelper.class);
     public static void removeFromGossip(InetAddressAndPort addr)
     {
         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(addr));
@@ -177,7 +174,9 @@ public class GossipHelper
                 }
             }
             HeartBeatState heartBeatState = new HeartBeatState(epstate.getHeartBeatState().getGeneration(), isLocal ? VersionGenerator.getNextVersion() : 0);
-            Gossiper.instance.unsafeUpdateEpStates(endpoint, new EndpointState(heartBeatState, newStates));
+            EndpointState newepstate = new EndpointState(heartBeatState, newStates);
+            Gossiper.instance.unsafeUpdateEpStates(endpoint, newepstate);
+            logger.debug("Updated epstates for {}: {}", endpoint, newepstate);
         });
     }
 
