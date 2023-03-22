@@ -123,8 +123,8 @@
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
 
 4.1.2
-
-
+ * Remove six and Py2SaferScanner merge cruft (CASSANDRA-18354)
+ 
 4.1.1
  * Deprecate org.apache.cassandra.hadoop code (CASSANDRA-16984)
  * Fix too early schema version change in sysem local table (CASSANDRA-18291)

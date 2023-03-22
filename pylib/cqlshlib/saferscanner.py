@@ -19,7 +19,6 @@
 # regex in-pattern flags. Any of those can break correct operation of Scanner.
 
 import re
-import six
 try:
     from sre_constants import BRANCH, SUBPATTERN, GROUPREF, GROUPREF_IGNORE, GROUPREF_EXISTS
 except ImportError:
@@ -101,7 +100,7 @@ class Py311SaferScanner(SaferScannerBase):
         self.scanner = re._compiler.compile(p)
 
 
-SaferScanner = Py36SaferScanner if six.PY3 else Py2SaferScanner
+SaferScanner = Py36SaferScanner
 if version_info >= (3, 11):
     SaferScanner = Py311SaferScanner
 elif version_info >= (3, 8):
