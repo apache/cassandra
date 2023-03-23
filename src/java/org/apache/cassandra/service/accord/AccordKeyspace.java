@@ -126,7 +126,6 @@ import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.serializers.DepsSerializer;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ListenerSerializers;
-import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
@@ -216,7 +215,6 @@ public class AccordKeyspace
               + format("accepted_ballot %s,", TIMESTAMP_TUPLE)
               + "dependencies blob,"
               + "writes blob,"
-              + "result blob,"
               + format("waiting_on_commit set<%s>,", TIMESTAMP_TUPLE)
               + format("waiting_on_apply map<%s, blob>,", TIMESTAMP_TUPLE)
               + "listeners set<blob>, "
@@ -233,7 +231,6 @@ public class AccordKeyspace
         static final LocalVersionedSerializer<PartialTxn> partialTxn = localSerializer(CommandSerializers.partialTxn);
         static final LocalVersionedSerializer<PartialDeps> partialDeps = localSerializer(DepsSerializer.partialDeps);
         static final LocalVersionedSerializer<Writes> writes = localSerializer(CommandSerializers.writes);
-        static final LocalVersionedSerializer<TxnData> result = localSerializer(TxnData.serializer);
         static final LocalVersionedSerializer<Command.DurableAndIdempotentListener> listeners = localSerializer(ListenerSerializers.listener);
 
         private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
@@ -264,7 +261,6 @@ public class AccordKeyspace
         static final ColumnMetadata accepted_ballot = getColumn(Commands, "accepted_ballot");
         static final ColumnMetadata dependencies = getColumn(Commands, "dependencies");
         static final ColumnMetadata writes = getColumn(Commands, "writes");
-        static final ColumnMetadata result = getColumn(Commands, "result");
         static final ColumnMetadata waiting_on_commit = getColumn(Commands, "waiting_on_commit");
         static final ColumnMetadata waiting_on_apply = getColumn(Commands, "waiting_on_apply");
         static final ColumnMetadata listeners = getColumn(Commands, "listeners");
@@ -568,7 +564,6 @@ public class AccordKeyspace
                     Command.Executed executed = command.asExecuted();
                     Command.Executed originalExecuted = original != null && original.isExecuted() ? original.asExecuted() : null;
                     addCellIfModified(CommandsColumns.writes, Command.Executed::writes, v -> serialize(v, CommandsSerializers.writes), builder, timestampMicros, originalExecuted, executed);
-                    addCellIfModified(CommandsColumns.result, Command.Executed::result, v -> serialize((TxnData) v, CommandsSerializers.result), builder, timestampMicros, originalExecuted, executed);
                 }
             }
 
@@ -904,7 +899,6 @@ public class AccordKeyspace
             ImmutableSortedSet<TxnId> waitingOnCommit = deserializeTxnIdNavigableSet(row, "waiting_on_commit");
             ImmutableSortedMap<Timestamp, TxnId> waitingOnApply = deserializeWaitingOnApply(row.getMap("waiting_on_apply", BytesType.instance, BytesType.instance));
             Writes writes = deserializeWithVersionOr(row, "writes", CommandsSerializers.writes, () -> null);
-            Result result = deserializeWithVersionOr(row, "result", CommandsSerializers.result, () -> null);
 
             switch (status.status)
             {
@@ -921,8 +915,9 @@ public class AccordKeyspace
                     return Command.SerializerSupport.committed(attributes, status, executeAt, promised, accepted, waitingOnCommit, waitingOnApply);
                 case PreApplied:
                 case Applied:
+                    return Command.SerializerSupport.executed(attributes, status, executeAt, promised, accepted, waitingOnCommit, waitingOnApply, writes, Result.APPLIED);
                 case Invalidated:
-                    return Command.SerializerSupport.executed(attributes, status, executeAt, promised, accepted, waitingOnCommit, waitingOnApply, writes, result);
+                    return Command.SerializerSupport.executed(attributes, status, executeAt, promised, accepted, waitingOnCommit, waitingOnApply, writes, Result.INVALIDATED);
                 default:
                     throw new IllegalStateException("Unhandled status " + status);
             }

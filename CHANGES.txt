@@ -1,4 +1,5 @@
 accord
+ * Avoid serializing full TxnData instances to Accord state tables (CASSANDRA-18355)
  * Improve transaction statement validation (CASSANDRA-18302)
  * Add support for prepared statements for accord transactions (CASSANDRA-18299)
  * Fix statement validation against partition range queries (CASSANDRA-18240)

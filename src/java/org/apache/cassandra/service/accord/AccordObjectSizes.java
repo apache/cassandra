@@ -336,7 +336,7 @@ public class AccordObjectSizes
         Command.Executed executed = command.asExecuted();
         size += sizeNullable(executed.writes(), AccordObjectSizes::writes);
         Result result = executed.result();
-        if (result != null)
+        if (result instanceof TxnData)
             size += ((TxnData) result).estimatedSizeOnHeap();
 
         return size;
@@ -353,9 +353,9 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static long EMPTY_CFK_SIZE = measure(CommandsForKey.SerializerSupport.create(null, null, null, 0, null, null,
-                                                                                         ImmutableSortedMap.of(),
-                                                                                         ImmutableSortedMap.of()));
+    private static final long EMPTY_CFK_SIZE = measure(CommandsForKey.SerializerSupport.create(null, null, null, 0, null, null,
+                                                                                               ImmutableSortedMap.of(),
+                                                                                               ImmutableSortedMap.of()));
     public static long commandsForKey(CommandsForKey cfk)
     {
         long size = EMPTY_CFK_SIZE;
