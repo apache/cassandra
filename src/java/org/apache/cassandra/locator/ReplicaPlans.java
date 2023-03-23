@@ -18,17 +18,31 @@
 
 package org.apache.cassandra.locator;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.cursors.ObjectIntCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -44,20 +58,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
-
 import org.apache.cassandra.utils.FBUtilities;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.filter;
@@ -209,12 +210,13 @@ public class ReplicaPlans
     }
 
     /**
-     * Requires that the provided endpoints are alive.  Converts them to their relevant system replicas.
-     * Note that the liveAndDown collection and live are equal to the provided endpoints.
+     * Returns endpoint for a batchlog write.
      *
      * @param isAny if batch consistency level is ANY, in which case a local node will be picked
+     * @param preferLocalRack if true, a random endpoint from the local rack will be preferred for batch storage
+     * @param keyspaceName the name of the keyspace used to compute batch storage endpoints
      */
-    public static ReplicaPlan.ForTokenWrite forBatchlogWrite(boolean isAny, String keyspaceName) throws UnavailableException
+    public static ReplicaPlan.ForTokenWrite forBatchlogWrite(boolean isAny, boolean preferLocalRack, String keyspaceName) throws UnavailableException
     {
         // A single case we write not for range or token, but multiple mutations to many tokens
         Token token = DatabaseDescriptor.getPartitioner().getMinimumToken();
@@ -228,7 +230,7 @@ public class ReplicaPlans
         //  - replicas should be in the local datacenter
         //  - choose min(2, number of qualifying candiates above)
         //  - allow the local node to be the only replica only if it's a single-node DC
-        Collection<InetAddressAndPort> chosenEndpoints = filterBatchlogEndpoints(snitch.getLocalRack(), localEndpoints);
+        Collection<InetAddressAndPort> chosenEndpoints = filterBatchlogEndpoints(preferLocalRack, snitch.getLocalRack(), localEndpoints);
 
         if (chosenEndpoints.isEmpty() && isAny)
             chosenEndpoints = Collections.singleton(FBUtilities.getBroadcastAddressAndPort());
@@ -245,10 +247,10 @@ public class ReplicaPlans
         return forWrite(systemKeypsace, consistencyLevel, liveAndDown, liveAndDown, writeAll);
     }
 
-    private static Collection<InetAddressAndPort> filterBatchlogEndpoints(String localRack,
+    private static Collection<InetAddressAndPort> filterBatchlogEndpoints(boolean preferLocalRack, String localRack,
                                                                           Multimap<String, InetAddressAndPort> endpoints)
     {
-        return filterBatchlogEndpoints(localRack,
+        return filterBatchlogEndpoints(preferLocalRack, localRack,
                                        endpoints,
                                        Collections::shuffle,
                                        IFailureDetector.isEndpointAlive,
@@ -257,7 +259,7 @@ public class ReplicaPlans
 
     // Collect a list of candidates for batchlog hosting. If possible these will be two nodes from different racks.
     @VisibleForTesting
-    public static Collection<InetAddressAndPort> filterBatchlogEndpoints(String localRack,
+    public static Collection<InetAddressAndPort> filterBatchlogEndpoints(boolean preferLocalRack, String localRack,
                                                                          Multimap<String, InetAddressAndPort> endpoints,
                                                                          Consumer<List<?>> shuffle,
                                                                          Predicate<InetAddressAndPort> isAlive,
@@ -276,32 +278,41 @@ public class ReplicaPlans
                 validated.put(entry.getKey(), entry.getValue());
         }
 
+        // return early if no more than 2 nodes:
         if (validated.size() <= 2)
             return validated.values();
 
-        if (validated.size() - validated.get(localRack).size() >= 2)
+        // if the local rack should not be preferred and there are enough nodes in other racks, remove it:
+        if (!preferLocalRack && validated.size() - validated.get(localRack).size() >= 2)
         {
-            // we have enough endpoints in other racks
             validated.removeAll(localRack);
         }
 
+        /*
+         * if we have only 1 `other` rack to select replicas from (whether it be the local rack or a single non-local rack),
+         * pick two random nodes from there and return early;
+         * we are guaranteed to have at least two nodes in the single remaining rack because of the above if block.
+         */
         if (validated.keySet().size() == 1)
         {
-            /*
-             * we have only 1 `other` rack to select replicas from (whether it be the local rack or a single non-local rack)
-             * pick two random nodes from there; we are guaranteed to have at least two nodes in the single remaining rack
-             * because of the preceding if block.
-             */
             List<InetAddressAndPort> otherRack = Lists.newArrayList(validated.values());
             shuffle.accept(otherRack);
             return otherRack.subList(0, 2);
         }
 
         // randomize which racks we pick from if more than 2 remaining
+
         Collection<String> racks;
         if (validated.keySet().size() == 2)
         {
             racks = validated.keySet();
+        }
+        else if (preferLocalRack)
+        {
+            List<String> nonLocalRacks = Lists.newArrayList(Sets.difference(validated.keySet(), ImmutableSet.of(localRack)));
+            racks = new LinkedHashSet<>();
+            racks.add(localRack);
+            racks.add(nonLocalRacks.get(indexPicker.apply(nonLocalRacks.size())));
         }
         else
         {
@@ -309,7 +320,8 @@ public class ReplicaPlans
             shuffle.accept((List<?>) racks);
         }
 
-        // grab a random member of up to two racks
+        // grab two random nodes from two different racks
+
         List<InetAddressAndPort> result = new ArrayList<>(2);
         for (String rack : Iterables.limit(racks, 2))
         {

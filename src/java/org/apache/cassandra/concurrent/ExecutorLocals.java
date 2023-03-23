@@ -68,6 +68,11 @@ public class ExecutorLocals
             return new ExecutorLocals(traceState, clientWarnState);
     }
 
+    public static ExecutorLocals create(TraceState traceState, ClientWarn.State clientWarnState)
+    {
+        return new ExecutorLocals(traceState, clientWarnState);
+    }
+
     public static ExecutorLocals create(TraceState traceState)
     {
         ClientWarn.State clientWarnState = clientWarn.get();
