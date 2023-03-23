@@ -46,6 +46,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -53,6 +54,17 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.PatternLayout;
+import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.FileAppender;
+import ch.qos.logback.core.Layout;
+import ch.qos.logback.core.read.ListAppender;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
@@ -111,6 +123,9 @@ public class DirectoriesTest
     private static Set<TableMetadata> CFM;
     private static Map<String, List<File>> sstablesByTableName;
 
+    private Logger logger;
+    ListAppender<ILoggingEvent> listAppender;
+
     @Parameterized.Parameter
     public SSTableId.Builder<? extends SSTableId> idBuilder;
 
@@ -152,6 +167,7 @@ public class DirectoriesTest
 
         // Create two fake data dir for tests, one using CF directories, one that do not.
         createTestFiles();
+        tailLogs();
     }
 
     @AfterClass
@@ -160,6 +176,11 @@ public class DirectoriesTest
         tempDataDir.deleteRecursive();
     }
 
+    @After
+    public void afterTest()
+    {
+        detachLogger();
+    }
     private static DataDirectory[] toDataDirectories(File location)
     {
         return new DataDirectory[] { new DataDirectory(location) };
@@ -892,7 +913,65 @@ public class DirectoriesTest
             DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(oldFreeSpace / FileUtils.ONE_MIB);
         }
     }
+    static private int diyThreadId=0;
+    private int myDiyId=0;
+    private synchronized int getDiyThreadId()
+    {
+        diyThreadId++;
+        myDiyId = diyThreadId;
+        return myDiyId;
+    }
+    private void detachLogger()
+    {
+        logger.detachAppender(listAppender);
+        MDC.remove("Junit-DirectoriesTest-id");
+    }
+    private void tailLogs()
+    {
+        int diyId = getDiyThreadId();
+        MDC.put("Junit-DirectoriesTest-id", String.valueOf(diyId));
+        logger = (Logger) LoggerFactory.getLogger(Directories.class);
 
+        // create and start a ListAppender
+        listAppender = new ListAppender<>();
+        listAppender.start();
+
+        // add the appender to the logger
+        logger.addAppender(listAppender);
+    }
+    private List<ILoggingEvent> filterLogByDiyId(List<ILoggingEvent> log)
+    {
+        ArrayList<ILoggingEvent> filteredLog = new ArrayList<>();
+        for(ILoggingEvent event : log)
+        {
+            int mdcId = Integer.parseInt(event.getMDCPropertyMap().get("Junit-DirectoriesTest-id"));
+            if(mdcId == myDiyId){
+                filteredLog.add(event);
+            }
+        }
+        return filteredLog;
+    }
+    private void checkLevel(List<ILoggingEvent> log, Level level, int expectedCount)
+    {
+        int found=0;
+        for(ILoggingEvent e: log)
+        {
+            if (e.getLevel() == level)
+                found++;
+        }
+        assertEquals(expectedCount, found);
+    }
+    private void checkFormattedMessage(List<ILoggingEvent> log, String expectedMessage, int expectedCount)
+    {
+        int found=0;
+        for(ILoggingEvent e: log)
+        {
+            if(e.getFormattedMessage().endsWith(expectedMessage))
+                found++;
+        }
+
+        assertEquals(expectedCount, found);
+    }
     @Test
     public void testHasAvailableSpace()
     {
@@ -918,6 +997,28 @@ public class DirectoriesTest
 
             fs1.usableSpace = 19;
             assertFalse(Directories.hasDiskSpaceForCompactionsAndStreams(writes));
+
+            writes.put(fs2, 25L*1024*1024+9);
+            fs2.usableSpace = 20L*1024*1024-9;
+            assertFalse(Directories.hasDiskSpaceForCompactionsAndStreams(writes));
+
+            List<ILoggingEvent> filteredLog = filterLogByDiyId(listAppender.list);
+            // Log messages can be out of order, even for the single thread. (e tui AsyncAppender?)
+            // We can deal with it, it's sufficient to just check that all messages exist in the result
+            assertEquals(12, filteredLog.size());
+
+            String logMsg = "30 bytes available, checking if we can write 20 bytes";
+            checkLevel(filteredLog, Level.DEBUG, 9);
+            checkFormattedMessage(filteredLog, logMsg, 6);
+            logMsg = "19 bytes available, checking if we can write 20 bytes";
+            checkFormattedMessage(filteredLog, logMsg, 2);
+
+
+            logMsg = "0 MiB available, but 0 MiB is needed";
+            checkLevel(filteredLog, Level.WARN, 3);
+            checkFormattedMessage(filteredLog, logMsg, 2);
+            logMsg = "has only 20 MiB available, but 25 MiB is needed";
+            checkFormattedMessage(filteredLog, logMsg, 1);
         }
         finally
         {

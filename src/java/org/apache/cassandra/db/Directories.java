@@ -544,14 +544,21 @@ public class Directories
      */
     public static boolean hasDiskSpaceForCompactionsAndStreams(Map<FileStore, Long> totalToWrite)
     {
+        boolean hasSpace = true;
         for (Map.Entry<FileStore, Long> toWrite : totalToWrite.entrySet())
         {
             long availableForCompaction = getAvailableSpaceForCompactions(toWrite.getKey());
             logger.debug("FileStore {} has {} bytes available, checking if we can write {} bytes", toWrite.getKey(), availableForCompaction, toWrite.getValue());
             if (availableForCompaction < toWrite.getValue())
-                return false;
+            {
+                logger.warn("FileStore {} has only {} MiB available, but {} MiB is needed",
+                            toWrite.getKey(),
+                            Math.round(availableForCompaction/1024.0/1024.0),
+                            Math.round(toWrite.getValue()/1024.0/1024.0));
+                hasSpace = false;
+            }
         }
-        return true;
+        return hasSpace;
     }
 
     public static long getAvailableSpaceForCompactions(FileStore fileStore)
