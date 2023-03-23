@@ -31,10 +31,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.GuardrailsOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.utils.MBeanWrapper;
 
@@ -419,6 +421,24 @@ public final class Guardrails implements GuardrailsMBean
                      state -> CONFIG_PROVIDER.getOrCreate(state).getMaximumReplicationFactorFailThreshold(),
                      (isWarning, what, value, threshold) ->
                      format("The keyspace %s has a replication factor of %s, above the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    public static final MaxThreshold maximumAllowableTimestamp =
+    new MaxThreshold("maximum_timestamp",
+                     "Timestamps too far in the future can lead to data that can't be easily overwritten",
+                     state -> maximumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMaximumTimestampWarnThreshold()),
+                     state -> maximumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMaximumTimestampFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                    format("The modification to table %s has a timestamp %s after the maximum allowable %s threshold %s",
+                           what, value, isWarning ? "warning" : "failure", threshold));
+
+    public static final MinThreshold minimumAllowableTimestamp =
+    new MinThreshold("minimum_timestamp",
+                     "Timestamps too far in the past can cause writes can be unexpectedly lost",
+                     state -> minimumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMinimumTimestampWarnThreshold()),
+                     state -> minimumTimestampAsRelativeMicros(CONFIG_PROVIDER.getOrCreate(state).getMinimumTimestampFailThreshold()),
+                     (isWarning, what, value, threshold) ->
+                     format("The modification to table %s has a timestamp %s before the minimum allowable %s threshold %s",
                             what, value, isWarning ? "warning" : "failure", threshold));
 
     private Guardrails()
@@ -1052,6 +1072,42 @@ public final class Guardrails implements GuardrailsMBean
         DEFAULT_CONFIG.setZeroTTLOnTWCSWarned(value);
     }
 
+    @Override
+    public String getMaximumTimestampWarnThreshold()
+    {
+        return durationToString(DEFAULT_CONFIG.getMaximumTimestampWarnThreshold());
+    }
+
+    @Override
+    public String getMaximumTimestampFailThreshold()
+    {
+        return durationToString(DEFAULT_CONFIG.getMaximumTimestampFailThreshold());
+    }
+
+    @Override
+    public void setMaximumTimestampThreshold(String warnSeconds, String failSeconds)
+    {
+        DEFAULT_CONFIG.setMaximumTimestampThreshold(durationFromString(warnSeconds), durationFromString(failSeconds));
+    }
+
+    @Override
+    public String getMinimumTimestampWarnThreshold()
+    {
+        return durationToString(DEFAULT_CONFIG.getMinimumTimestampWarnThreshold());
+    }
+
+    @Override
+    public String getMinimumTimestampFailThreshold()
+    {
+        return durationToString(DEFAULT_CONFIG.getMinimumTimestampFailThreshold());
+    }
+
+    @Override
+    public void setMinimumTimestampThreshold(String warnSeconds, String failSeconds)
+    {
+        DEFAULT_CONFIG.setMinimumTimestampThreshold(durationFromString(warnSeconds), durationFromString(failSeconds));
+    }
+
     private static String toCSV(Set<String> values)
     {
         return values == null || values.isEmpty() ? "" : String.join(",", values);
@@ -1099,5 +1155,29 @@ public final class Guardrails implements GuardrailsMBean
     private static DataStorageSpec.LongBytesBound sizeFromString(@Nullable String size)
     {
         return StringUtils.isEmpty(size) ? null : new DataStorageSpec.LongBytesBound(size);
+    }
+
+    private static String durationToString(@Nullable DurationSpec duration)
+    {
+        return duration == null ? null : duration.toString();
+    }
+
+    private static DurationSpec.LongMicrosecondsBound durationFromString(@Nullable String duration)
+    {
+        return StringUtils.isEmpty(duration) ? null : new DurationSpec.LongMicrosecondsBound(duration);
+    }
+
+    private static long maximumTimestampAsRelativeMicros(@Nullable DurationSpec.LongMicrosecondsBound duration)
+    {
+        return duration == null
+               ? Long.MAX_VALUE
+               : (ClientState.getLastTimestampMicros() + duration.toMicroseconds());
+    }
+
+    private static long minimumTimestampAsRelativeMicros(@Nullable DurationSpec.LongMicrosecondsBound duration)
+    {
+        return duration == null
+               ? Long.MIN_VALUE
+               : (ClientState.getLastTimestampMicros() - duration.toMicroseconds());
     }
 }
