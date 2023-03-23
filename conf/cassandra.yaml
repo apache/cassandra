@@ -1939,3 +1939,6 @@ sstable_formats:
     parameters:
       id: 0
       name: big
+
+metadata_provider:
+  - class_name: org.apache.cassandra.service.metadata.EnvironmentPropertiesMetadataProvider

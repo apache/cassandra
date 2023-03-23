@@ -77,7 +77,7 @@ public class GossipInfoTableTest extends CQLTester
 
             assertThat(resultSet.size()).isEqualTo(1);
             UntypedResultSet.Row row = resultSet.one();
-            assertThat(row.getColumns().size()).isEqualTo(64);
+            assertThat(row.getColumns().size()).isEqualTo(66);
 
             assertThat(endpoint).isNotNull();
             assertThat(localState).isNotNull();
@@ -105,6 +105,7 @@ public class GossipInfoTableTest extends CQLTester
             assertValue(row, "status_with_port", localState, ApplicationState.STATUS_WITH_PORT);
             assertValue(row, "sstable_versions", localState, ApplicationState.SSTABLE_VERSIONS);
             assertValue(row, "disk_usage", localState, ApplicationState.DISK_USAGE);
+            assertValue(row, "metadata", localState, ApplicationState.METADATA);
             assertValue(row, "x_11_padding", localState, ApplicationState.X_11_PADDING);
             assertValue(row, "x1", localState, ApplicationState.X1);
             assertValue(row, "x2", localState, ApplicationState.X2);
@@ -136,6 +137,7 @@ public class GossipInfoTableTest extends CQLTester
             assertVersion(row, "status_with_port_version", localState, ApplicationState.STATUS_WITH_PORT);
             assertVersion(row, "sstable_versions_version", localState, ApplicationState.SSTABLE_VERSIONS);
             assertVersion(row, "disk_usage_version", localState, ApplicationState.DISK_USAGE);
+            assertVersion(row, "metadata_version", localState, ApplicationState.METADATA);
             assertVersion(row, "x_11_padding", localState, ApplicationState.X_11_PADDING);
             assertVersion(row, "x1", localState, ApplicationState.X1);
             assertVersion(row, "x2", localState, ApplicationState.X2);

@@ -16,33 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.config;
+package org.apache.cassandra.service.metadata;
 
-public enum CassandraRelevantEnv
+import java.util.Map;
+
+public interface MetadataProvider
 {
-    /**
-     * Searching in the JAVA_HOME is safer than searching into System.getProperty("java.home") as the Oracle
-     * JVM might use the JRE which do not contains jmap.
-     */
-    JAVA_HOME ("JAVA_HOME"),
-    /**
-     * Environment property to get metadata from.
-     */
-    SYSTEM_PROPERTIES_METADATA("CASSANDRA.METADATA");
-
-    CassandraRelevantEnv(String key)
-    {
-        this.key = key;
-    }
-
-    private final String key;
-
-    public String getString()
-    {
-        return System.getenv(key);
-    }
-
-    public String getKey() {
-        return key;
-    }
+    Map<String, String> load();
 }

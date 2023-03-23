@@ -49,6 +49,7 @@ import org.apache.cassandra.concurrent.FutureTask;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.metadata.MetadataService;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.ExpiringMemoizingSupplier;
@@ -637,6 +638,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         quarantineEndpoint(endpoint);
         if (logger.isDebugEnabled())
             logger.debug("evicting {} from gossip", endpoint);
+        MetadataService.instance.remove(endpoint);
         GossiperDiagnostics.evictedFromMembership(this, endpoint);
     }
 
@@ -668,6 +670,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         quarantineEndpoint(endpoint);
         MessagingService.instance().closeOutbound(endpoint);
         MessagingService.instance().removeInbound(endpoint);
+        MetadataService.instance.remove(endpoint);
         logger.debug("removing endpoint {}", endpoint);
         GossiperDiagnostics.removedEndpoint(this, endpoint);
     }

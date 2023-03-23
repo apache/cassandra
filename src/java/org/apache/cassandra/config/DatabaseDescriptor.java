@@ -98,6 +98,8 @@ import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
+import org.apache.cassandra.service.metadata.FileSystemMetadataProvider;
+import org.apache.cassandra.service.metadata.MetadataProvider;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -142,6 +144,7 @@ public class DatabaseDescriptor
     private static InetAddress rpcAddress;
     private static InetAddress broadcastRpcAddress;
     private static SeedProvider seedProvider;
+    private static MetadataProvider metadataProvider;
     private static IInternodeAuthenticator internodeAuthenticator = new AllowAllInternodeAuthenticator();
 
     /* Hashing strategy Random or OPHF */
@@ -418,6 +421,8 @@ public class DatabaseDescriptor
         applyGuardrails();
 
         applyStartupChecks();
+
+        applyMetadataProvider();
     }
 
     private static void applySimpleConfig()
@@ -1208,6 +1213,26 @@ public class DatabaseDescriptor
         }
         if (seedProvider.getSeeds().size() == 0)
             throw new ConfigurationException("The seed provider lists no seeds.", false);
+    }
+
+    public static void applyMetadataProvider()
+    {
+        if (conf.metadata_provider == null)
+            conf.metadata_provider = new ParameterizedClass(FileSystemMetadataProvider.class.getName(),
+                                                            new HashMap<String, String>() {{
+                                                                put(FileSystemMetadataProvider.METADATA_FILE_NAME_KEY,
+                                                                    FileSystemMetadataProvider.DEFAULT_METADATA_FILE_NAME);
+                                                            }});
+
+        try
+        {
+            Class<?> metadataProviderClass = Class.forName(conf.metadata_provider.class_name);
+            metadataProvider = (MetadataProvider) metadataProviderClass.getConstructor(Map.class).newInstance(conf.metadata_provider.parameters);
+        }
+        catch (Exception ex)
+        {
+            throw new ConfigurationException(ex.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.", true);
+        }
     }
 
     @VisibleForTesting
@@ -2511,6 +2536,11 @@ public class DatabaseDescriptor
         seedProvider = newSeedProvider;
     }
 
+    public static MetadataProvider getMetadataProvider()
+    {
+        return metadataProvider;
+    }
+
     public static InetAddress getListenAddress()
     {
         return listenAddress;
@@ -2720,7 +2750,7 @@ public class DatabaseDescriptor
 
     /**
      * If this value is set to <= 0 it will move auth requests to the standard request pool regardless of the current
-     * size of the {@link org.apache.cassandra.transport.Dispatcher#authExecutor}'s active size.
+     * size of the {@link org.apache.cassandra.transport.Dispatcher}'s in authExecutor active size.
      *
      * see {@link org.apache.cassandra.transport.Dispatcher#dispatch} for executor selection
      */

@@ -20,6 +20,7 @@ package org.apache.cassandra.io.util;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStreamWriter;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -45,6 +46,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -614,6 +616,20 @@ public final class FileUtils
             if (ex instanceof NoSuchFileException)
                 return Collections.emptyList();
 
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public static Properties readProperties(File file)
+    {
+        Properties properties = new Properties();
+        try (InputStream is = file.newInputStream())
+        {
+            properties.load(is);
+            return properties;
+        }
+        catch (Exception ex)
+        {
             throw new RuntimeException(ex);
         }
     }
