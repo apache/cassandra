@@ -94,7 +94,6 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
-import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -164,7 +163,7 @@ public class StorageProxy implements StorageProxyMBean
 
     private static final Mutator mutator = MutatorProvider.instance;
 
-    static class DefaultMutator implements Mutator
+    public static class DefaultMutator implements Mutator
     {
         @Override
         public AbstractWriteResponseHandler<IMutation> mutateCounter(CounterMutation cm, String localDataCenter, long queryStartNanoTime)
@@ -222,7 +221,7 @@ public class StorageProxy implements StorageProxyMBean
                 }
 
                 String keyspace = mutations.iterator().next().getKeyspaceName();
-                ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forBatchlogWrite(batchConsistencyLevel == ConsistencyLevel.ANY, keyspace);
+                ReplicaPlan.ForTokenWrite replicaPlan = ReplicaPlans.forBatchlogWrite(batchConsistencyLevel == ConsistencyLevel.ANY, false, keyspace);
 
                 final UUID batchUUID = UUIDGen.getTimeUUID();
 
@@ -275,6 +274,19 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
 
+        @Override
+        public void clearBatchlog(String keyspace, ReplicaPlan.ForTokenWrite replicaPlan, UUID batchUUID)
+        {
+            StorageProxy.asyncRemoveFromBatchlog(replicaPlan, batchUUID);
+        }
+
+        @Override
+        public void persistBatchlog(Collection<Mutation> mutations, long queryStartNanoTime, ReplicaPlan.ForTokenWrite replicaPlan, UUID batchUUID)
+        {
+            // write to the batchlog
+            StorageProxy.syncWriteToBatchlog(mutations, replicaPlan, batchUUID, queryStartNanoTime);
+        }
+
         private List<WriteResponseHandlerWrapper> wrapBatchResponseHandlers(Collection<Mutation> mutations,
                                                                               ConsistencyLevel consistencyLevel,
                                                                               ConsistencyLevel batchConsistencyLevel,
@@ -297,17 +309,6 @@ public class StorageProxy implements StorageProxyMBean
             }
 
             return wrappers;
-        }
-
-        private void clearBatchlog(String keyspace, ReplicaPlan.ForTokenWrite replicaPlan, UUID batchUUID)
-        {
-            StorageProxy.asyncRemoveFromBatchlog(replicaPlan, batchUUID);
-        }
-
-        private void persistBatchlog(Collection<Mutation> mutations, long queryStartNanoTime, ReplicaPlan.ForTokenWrite replicaPlan, UUID batchUUID)
-        {
-            // write to the batchlog
-            StorageProxy.syncWriteToBatchlog(mutations, replicaPlan, batchUUID, queryStartNanoTime);
         }
 
         private void asyncWriteBatchedMutations(List<StorageProxy.WriteResponseHandlerWrapper> wrappers)

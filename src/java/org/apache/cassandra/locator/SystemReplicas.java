@@ -19,19 +19,24 @@
 package org.apache.cassandra.locator;
 
 import java.util.Collection;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Collections2;
+
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
 public class SystemReplicas
 {
-    private static final Map<InetAddressAndPort, Replica> systemReplicas = new ConcurrentHashMap<>();
     public static final Range<Token> FULL_RANGE = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(),
                                                               DatabaseDescriptor.getPartitioner().getMinimumToken());
+
+    // System replicas cache: entries expire after 1 day of being unused to avoid growing indefinitely
+    private static final Cache<InetAddressAndPort, Replica> systemReplicas = Caffeine.newBuilder().expireAfterAccess(1, TimeUnit.DAYS).build();
+
 
     private static Replica createSystemReplica(InetAddressAndPort endpoint)
     {
@@ -44,7 +49,7 @@ public class SystemReplicas
      */
     public static Replica getSystemReplica(InetAddressAndPort endpoint)
     {
-        return systemReplicas.computeIfAbsent(endpoint, SystemReplicas::createSystemReplica);
+        return systemReplicas.get(endpoint, SystemReplicas::createSystemReplica);
     }
 
     public static EndpointsForRange getSystemReplicas(Collection<InetAddressAndPort> endpoints)
