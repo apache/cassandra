@@ -302,6 +302,16 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
     }
 
+    public void validateTimestamp(QueryState queryState, QueryOptions options)
+    {
+        if (!isTimestampSet())
+            return;
+
+        long ts = attrs.getTimestamp(options.getTimestamp(queryState), options);
+        Guardrails.maximumAllowableTimestamp.guard(ts, table(), false, queryState.getClientState());
+        Guardrails.minimumAllowableTimestamp.guard(ts, table(), false, queryState.getClientState());
+    }
+
     public RegularAndStaticColumns updatedColumns()
     {
         return updatedColumns;
@@ -506,6 +516,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
             cl.validateForWrite();
 
         validateDiskUsage(options, queryState.getClientState());
+        validateTimestamp(queryState, options);
 
         List<? extends IMutation> mutations =
             getMutations(queryState.getClientState(),
