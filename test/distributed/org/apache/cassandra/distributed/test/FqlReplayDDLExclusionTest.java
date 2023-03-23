@@ -55,7 +55,7 @@ public class FqlReplayDDLExclusionTest extends TestBaseImpl
 
             // using driver path is important because dtest API and query execution does not invoke code
             // in Cassandra where events are propagated to logger
-            try (com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+            try (com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder().withoutMetrics().addContactPoint("127.0.0.1").build();
                  Session s = c.connect())
             {
                 s.execute("CREATE KEYSPACE fql_ks WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};");

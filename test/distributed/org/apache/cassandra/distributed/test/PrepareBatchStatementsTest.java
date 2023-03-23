@@ -46,7 +46,7 @@ public class PrepareBatchStatementsTest extends TestBaseImpl
                                                             .start()))
         {
             try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder()
-                                                                                            .addContactPoint("127.0.0.1")
+                                                                                            .withoutMetrics().addContactPoint("127.0.0.1")
                                                                                             .build();
                  Session s = cluster.connect())
             {

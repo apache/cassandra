@@ -32,7 +32,7 @@ public class PaxosUncommittedIndexTest extends TestBaseImpl
         String expectedCreateCustomIndex = "CREATE CUSTOM INDEX \"PaxosUncommittedIndex\" ON system.paxos () USING 'org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedIndex'";
         try (Cluster dtestCluster = init(Cluster.build(1).withConfig(c -> c.with(Feature.NATIVE_PROTOCOL)).start()))
         {
-            try (com.datastax.driver.core.Cluster clientCluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build())
+            try (com.datastax.driver.core.Cluster clientCluster = com.datastax.driver.core.Cluster.builder().withoutMetrics().addContactPoint("127.0.0.1").build())
             {
                 Assert.assertTrue(clientCluster.getMetadata().exportSchemaAsString()
                                                .contains(expectedCreateCustomIndex));

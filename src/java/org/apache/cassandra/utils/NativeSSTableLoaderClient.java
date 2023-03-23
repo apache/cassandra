@@ -60,7 +60,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
     public void init(String keyspace)
     {
-        Cluster.Builder builder = Cluster.builder().addContactPointsWithPorts(hosts).allowBetaProtocolVersion();
+        Cluster.Builder builder = Cluster.builder().withoutMetrics().addContactPointsWithPorts(hosts).allowBetaProtocolVersion();
 
         if (sslOptions != null)
             builder.withSSL(sslOptions);

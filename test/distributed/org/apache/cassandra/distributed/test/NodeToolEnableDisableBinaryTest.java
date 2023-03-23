@@ -151,7 +151,7 @@ public class NodeToolEnableDisableBinaryTest extends TestBaseImpl
     {
         boolean canConnect = false;
         try(com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder()
-                                                                                 .addContactPoint("127.0.0.1")
+                                                                                 .withoutMetrics().addContactPoint("127.0.0.1")
                                                                                  .build();
             Session s = c.connect("system_schema"))
         {

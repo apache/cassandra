@@ -65,7 +65,7 @@ public class PagingTest
         // to wait slightly before trying to connect to it. We should fix this but in the meantime using a sleep.
         Thread.sleep(500);
 
-        cluster = Cluster.builder().addContactPoint("127.0.0.1")
+        cluster = Cluster.builder().withoutMetrics().addContactPoint("127.0.0.1")
                                    .withPort(DatabaseDescriptor.getNativeTransportPort())
                                    .build();
         session = cluster.connect();

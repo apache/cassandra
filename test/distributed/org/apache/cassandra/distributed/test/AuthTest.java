@@ -191,7 +191,7 @@ public class AuthTest extends TestBaseImpl
         com.datastax.driver.core.Cluster.Builder builder = com.datastax.driver.core.Cluster.builder()
                                                                                            .withLoadBalancingPolicy(new DCAwareRoundRobinPolicy.Builder().withLocalDc(datacenter).build())
                                                                                            .withAuthProvider(new PlainTextAuthProvider("cassandra", password))
-                                                                                           .addContactPoint(host);
+                                                                                           .withoutMetrics().addContactPoint(host);
 
         try (com.datastax.driver.core.Cluster c = builder.build(); Session session = c.connect())
         {

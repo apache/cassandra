@@ -96,6 +96,7 @@ public class ReprepareOldBehaviourTest extends ReprepareTestBase
                     for (boolean clearBetweenExecutions : new boolean[]{ true, false })
                     {
                         try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder()
+                                                                                                        .withoutMetrics()
                                                                                                         .addContactPoint("127.0.0.1")
                                                                                                         .addContactPoint("127.0.0.2")
                                                                                                         .withLoadBalancingPolicy(lbp)

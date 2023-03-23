@@ -111,7 +111,7 @@ public class ReprepareFuzzTest extends TestBaseImpl
                         Map<Pair<Integer, Integer>, PreparedStatement> unqualifiedStatements = new HashMap<>();
 
                         cluster = com.datastax.driver.core.Cluster.builder()
-                                                                  .addContactPoint("127.0.0.1")
+                                                                  .withoutMetrics().addContactPoint("127.0.0.1")
                                                                   .build();
                         session = cluster.connect();
                         while (!interrupt.get() && (System.nanoTime() < deadline))
@@ -258,7 +258,7 @@ public class ReprepareFuzzTest extends TestBaseImpl
                                     session.close();
                                     cluster.close();
                                     cluster = com.datastax.driver.core.Cluster.builder()
-                                                                              .addContactPoint("127.0.0.1")
+                                                                              .withoutMetrics().addContactPoint("127.0.0.1")
                                                                               .build();
                                     session = cluster.connect();
                                     qualifiedStatements.clear();

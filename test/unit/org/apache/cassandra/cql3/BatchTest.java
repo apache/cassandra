@@ -49,7 +49,7 @@ public class BatchTest extends CQLTester
     {
         cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
-        cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
+        cluster = Cluster.builder().withoutMetrics().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
         session = cluster.connect();
 
         session.execute("drop keyspace if exists junit;");

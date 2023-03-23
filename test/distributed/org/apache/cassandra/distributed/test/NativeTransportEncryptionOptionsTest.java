@@ -285,7 +285,7 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
                                                      .build();
             final SSLOptions sslOptions = socketChannel -> sslContext.newHandler(socketChannel.alloc());
             com.datastax.driver.core.Cluster driverCluster = com.datastax.driver.core.Cluster.builder()
-                                                                                             .addContactPoint(address.getHostAddress())
+                                                                                             .withoutMetrics().addContactPoint(address.getHostAddress())
                                                                                              .withSSL(sslOptions)
                                                                                              .build();
 

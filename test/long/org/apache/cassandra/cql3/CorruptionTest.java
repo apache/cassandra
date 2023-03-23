@@ -62,7 +62,7 @@ public class CorruptionTest
     {
         cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
-        cluster = Cluster.builder().addContactPoint("127.0.0.1")
+        cluster = Cluster.builder().withoutMetrics().addContactPoint("127.0.0.1")
                          .withRetryPolicy(new LoggingRetryPolicy(Policies.defaultRetryPolicy()))
                          .withPort(DatabaseDescriptor.getNativeTransportPort()).build();
         session = cluster.connect();

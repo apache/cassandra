@@ -81,7 +81,7 @@ public abstract class AbstractNetstatsStreaming extends TestBaseImpl
 
     protected void changeReplicationFactor()
     {
-        try (com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+        try (com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder().withoutMetrics().addContactPoint("127.0.0.1").build();
              Session s = c.connect())
         {
             s.execute("ALTER KEYSPACE netstats_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2 };");
@@ -105,7 +105,9 @@ public abstract class AbstractNetstatsStreaming extends TestBaseImpl
 
     protected void populateData(boolean forCompressedTest)
     {
-        try (com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+        try (com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder()
+                                                                                  .withoutMetrics()
+                                                                                  .withoutMetrics().addContactPoint("127.0.0.1").build();
              Session s = c.connect("netstats_test"))
         {
             int records = forCompressedTest ? 100_000 : 70_000;

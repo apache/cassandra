@@ -251,7 +251,7 @@ public class QueryReplayer implements Closeable
             builder.withPort(pth.port);
             if (pth.user != null)
                 builder.withCredentials(pth.user, pth.password);
-            Cluster c = builder.build();
+            Cluster c = builder.withoutMetrics().build();
             sessionCache.put(connectionString, c.connect());
             return sessionCache.get(connectionString);
         }

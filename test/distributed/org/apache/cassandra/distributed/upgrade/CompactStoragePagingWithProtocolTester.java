@@ -139,7 +139,7 @@ public abstract class CompactStoragePagingWithProtocolTester extends UpgradeTest
     private static void assertRows(String query, ProtocolVersion protocolVersion, Object[]... expectedRows)
     {
         Cluster.Builder builder = com.datastax.driver.core.Cluster.builder()
-                                                                  .addContactPoint("127.0.0.1")
+                                                                  .withoutMetrics().addContactPoint("127.0.0.1")
                                                                   .withProtocolVersion(protocolVersion);
         try (com.datastax.driver.core.Cluster cluster = builder.build();
              Session session = cluster.connect())

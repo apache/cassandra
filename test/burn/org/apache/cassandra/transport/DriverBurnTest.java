@@ -107,17 +107,17 @@ public class DriverBurnTest extends CQLTester
         });
 
         List<AssertUtil.ThrowingSupplier<Cluster.Builder>> suppliers =
-        Arrays.asList(() -> Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+        Arrays.asList(() -> Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                                    .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V4)
                                    .withPort(nativePort),
-                      () -> Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                      () -> Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                                    .allowBetaProtocolVersion()
                                    .withPort(nativePort),
-                      () -> Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                      () -> Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                                    .withCompression(ProtocolOptions.Compression.LZ4)
                                    .allowBetaProtocolVersion()
                                    .withPort(nativePort),
-                      () -> Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                      () -> Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                                    .withCompression(ProtocolOptions.Compression.LZ4)
                                    .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V4)
                                    .withPort(nativePort)
@@ -189,7 +189,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(10, 20, 5, 10),
                  new SizeCaps(10, 20, 5, 10),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .allowBetaProtocolVersion()
                         .withPort(nativePort),
                  ProtocolVersion.V6);
@@ -200,7 +200,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(10, 20, 5, 10),
                  new SizeCaps(10, 20, 5, 10),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V5)
                         .withPort(nativePort),
                  ProtocolVersion.V5);
@@ -211,7 +211,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(10, 20, 5, 10),
                  new SizeCaps(10, 20, 5, 10),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V4)
                         .withPort(nativePort),
                  ProtocolVersion.V4);
@@ -222,7 +222,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(1000, 2000, 5, 150),
                  new SizeCaps(1000, 2000, 5, 150),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .allowBetaProtocolVersion()
                         .withPort(nativePort),
                  ProtocolVersion.V6);
@@ -233,7 +233,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(1000, 2000, 5, 150),
                  new SizeCaps(1000, 2000, 5, 150),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V5)
                         .withPort(nativePort),
                  ProtocolVersion.V5);
@@ -244,7 +244,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(1000, 2000, 5, 150),
                  new SizeCaps(1000, 2000, 5, 150),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V4)
                         .withPort(nativePort),
                  ProtocolVersion.V4);
@@ -255,7 +255,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(10, 20, 5, 10),
                  new SizeCaps(10, 20, 5, 10),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .allowBetaProtocolVersion()
                         .withCompression(ProtocolOptions.Compression.LZ4)
                         .withPort(nativePort),
@@ -267,7 +267,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(10, 20, 5, 10),
                  new SizeCaps(10, 20, 5, 10),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V5)
                         .withCompression(ProtocolOptions.Compression.LZ4)
                         .withPort(nativePort),
@@ -279,7 +279,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(10, 20, 5, 10),
                  new SizeCaps(10, 20, 5, 10),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V4)
                         .withCompression(ProtocolOptions.Compression.LZ4)
                         .withPort(nativePort),
@@ -291,7 +291,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(1000, 2000, 5, 150),
                  new SizeCaps(1000, 2000, 5, 150),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .allowBetaProtocolVersion()
                         .withCompression(ProtocolOptions.Compression.LZ4)
                         .withPort(nativePort),
@@ -303,7 +303,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(1000, 2000, 5, 150),
                  new SizeCaps(1000, 2000, 5, 150),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V5)
                         .withCompression(ProtocolOptions.Compression.LZ4)
                         .withPort(nativePort),
@@ -315,7 +315,7 @@ public class DriverBurnTest extends CQLTester
     {
         perfTest(new SizeCaps(1000, 2000, 5, 150),
                  new SizeCaps(1000, 2000, 5, 150),
-                 Cluster.builder().addContactPoint(nativeAddr.getHostAddress())
+                 Cluster.builder().withoutMetrics().addContactPoint(nativeAddr.getHostAddress())
                         .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.V4)
                         .withCompression(ProtocolOptions.Compression.LZ4)
                         .withPort(nativePort),

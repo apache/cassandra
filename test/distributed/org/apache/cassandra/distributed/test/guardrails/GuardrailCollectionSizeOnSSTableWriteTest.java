@@ -58,7 +58,7 @@ public class GuardrailCollectionSizeOnSSTableWriteTest extends GuardrailTester
                                                 .set("collection_size_fail_threshold", FAIL_THRESHOLD + "B"))
                               .start());
         cluster.disableAutoCompaction(KEYSPACE);
-        driverCluster = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+        driverCluster = com.datastax.driver.core.Cluster.builder().withoutMetrics().addContactPoint("127.0.0.1").build();
         driverSession = driverCluster.connect();
     }
 

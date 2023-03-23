@@ -80,6 +80,7 @@ public class ReprepareTestBase extends TestBaseImpl
                 for (int firstContact : new int[]{ 1, 2 })
                 {
                     try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder()
+                                                                                                    .withoutMetrics()
                                                                                                     .addContactPoint("127.0.0.1")
                                                                                                     .addContactPoint("127.0.0.2")
                                                                                                     .withLoadBalancingPolicy(lbp)
@@ -130,6 +131,7 @@ public class ReprepareTestBase extends TestBaseImpl
 
             for (int firstContact : new int[]{ 1, 2 })
                 try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder()
+                                                                                                .withoutMetrics()
                                                                                                 .addContactPoint("127.0.0.1")
                                                                                                 .addContactPoint("127.0.0.2")
                                                                                                 .withLoadBalancingPolicy(lbp)

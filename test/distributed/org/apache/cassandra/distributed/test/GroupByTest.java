@@ -143,7 +143,7 @@ public class GroupByTest extends TestBaseImpl
             Iterator<Object[]> rows = coordinator.executeWithPaging(query, ConsistencyLevel.ALL, 1);
             assertRows(Iterators.toArray(rows, Object[].class));
 
-            try (com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder().addContactPoint("127.0.0.1").build();
+            try (com.datastax.driver.core.Cluster c = com.datastax.driver.core.Cluster.builder().withoutMetrics().addContactPoint("127.0.0.1").build();
                  Session session = c.connect())
             {
                 SimpleStatement stmt = new SimpleStatement(withKeyspace("select * from %s.tbl where pk = 1 group by pk"));

@@ -119,6 +119,7 @@ public class MixedModeFuzzTest extends TestBaseImpl
 
                         Supplier<Cluster> clusterSupplier = () -> {
                             return com.datastax.driver.core.Cluster.builder()
+                                                                   .withoutMetrics()
                                                                    .addContactPoint("127.0.0.1")
                                                                    .addContactPoint("127.0.0.2")
                                                                    .build();

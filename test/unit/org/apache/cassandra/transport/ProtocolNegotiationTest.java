@@ -161,6 +161,7 @@ public class ProtocolNegotiationTest extends CQLTester
     {
         boolean expectError = requestedVersion != null && requestedVersion != expectedVersion;
         Cluster.Builder builder = Cluster.builder()
+                                         .withoutMetrics()
                                          .addContactPoints(nativeAddr)
                                          .withClusterName("Test Cluster" + clusterId++)
                                          .withPort(nativePort);

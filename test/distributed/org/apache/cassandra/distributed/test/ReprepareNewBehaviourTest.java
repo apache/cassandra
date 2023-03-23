@@ -41,7 +41,7 @@ public class ReprepareNewBehaviourTest extends ReprepareTestBase
                                                             .start()))
         {
             try (com.datastax.driver.core.Cluster cluster = com.datastax.driver.core.Cluster.builder()
-                                                                                            .addContactPoint("127.0.0.1")
+                                                                                            .withoutMetrics().addContactPoint("127.0.0.1")
                                                                                             .build();
                  Session session = cluster.connect())
             {

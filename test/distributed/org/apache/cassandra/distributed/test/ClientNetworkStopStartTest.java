@@ -53,7 +53,7 @@ public class ClientNetworkStopStartTest extends TestBaseImpl
             // now use it to make sure it still works!
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, value int, PRIMARY KEY (pk))");
 
-            try (com.datastax.driver.core.Cluster client = com.datastax.driver.core.Cluster.builder().addContactPoints(node.broadcastAddress().getAddress()).build();
+            try (com.datastax.driver.core.Cluster client = com.datastax.driver.core.Cluster.builder().withoutMetrics().addContactPoints(node.broadcastAddress().getAddress()).build();
                  Session session = client.connect())
             {
                 session.execute("INSERT INTO " + KEYSPACE + ".tbl (pk, value) VALUES (?, ?)", 0, 0);
