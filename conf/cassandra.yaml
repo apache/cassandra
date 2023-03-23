@@ -1767,6 +1767,13 @@ drop_compact_storage_enabled: false
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
 # user_timestamps_enabled: true
 #
+# Guardrail to bound user-provided timestamps within a given range. Default is infinite (denoted by null).
+# Accepted values are durations of the form 12h, 24h, etc.
+# maximum_timestamp_warn_threshold:
+# maximum_timestamp_fail_threshold:
+# minimum_timestamp_warn_threshold:
+# minimum_timestamp_fail_threshold:
+#
 # Guardrail to allow/disallow GROUP BY functionality.
 # group_by_enabled: true
 #
