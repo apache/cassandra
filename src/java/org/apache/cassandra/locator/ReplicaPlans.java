@@ -720,11 +720,6 @@ public class ReplicaPlans
 
     private static ReplicaPlan.ForRangeRead forSingleReplicaRead(ClusterMetadata metadata, Keyspace keyspace, AbstractBounds<PartitionPosition> range, Replica replica, int vnodeCount)
     {
-        ReplicaLayout.ForRangeRead forRangeRead = ReplicaLayout.forRangeReadLiveSorted(metadata, keyspace, keyspace.getReplicationStrategy(), range);
-
-        if (!forRangeRead.all().contains(replica))
-            throw UnavailableException.create(ConsistencyLevel.ONE, 1, 1, forRangeRead.all().size(), forRangeRead.all().size());
-
         // TODO: this is unsafe, as one.range() may be inconsistent with our supplied range; should refactor Range/AbstractBounds to single class
         EndpointsForRange one = EndpointsForRange.of(replica);
 
