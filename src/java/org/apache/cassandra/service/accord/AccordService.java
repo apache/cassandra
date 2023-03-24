@@ -141,7 +141,7 @@ public class AccordService implements IAccordService, Shutdownable
                              configService,
                              AccordService::uniqueNow,
                              () -> null,
-                             new KeyspaceSplitter(new EvenSplit<>(Runtime.getRuntime().availableProcessors(), getPartitioner().accordSplitter())),
+                             new KeyspaceSplitter(new EvenSplit<>(DatabaseDescriptor.getAccordShardCount(), getPartitioner().accordSplitter())),
                              new AccordAgent(),
                              new DefaultRandom(),
                              scheduler,

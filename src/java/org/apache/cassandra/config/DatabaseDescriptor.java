@@ -2096,7 +2096,13 @@ public class DatabaseDescriptor
 
     public static int getAvailableProcessors()
     {
-        return conf == null ? -1 : conf.available_processors;
+        PositiveInt.DisableablePositiveInt ap = conf == null ? PositiveInt.DisableablePositiveInt.DISABLED : conf.available_processors;
+        return ap.or(Runtime.getRuntime()::availableProcessors);
+    }
+
+    public static void setAvailableProcessors(int value)
+    {
+        conf.available_processors = new PositiveInt.DisableablePositiveInt(value);
     }
 
     public static int getConcurrentCompactors()
@@ -4473,6 +4479,11 @@ public class DatabaseDescriptor
     public static void setAccordTransactionsEnabled(boolean b)
     {
         conf.accord_transactions_enabled = b;
+    }
+
+    public static int getAccordShardCount()
+    {
+        return conf.accord_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
     }
 
     public static boolean getForceNewPreparedStatementBehaviour()
