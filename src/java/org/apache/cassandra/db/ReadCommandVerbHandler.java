@@ -22,10 +22,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.exceptions.InvalidRoutingException;
+import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.net.IVerbHandler;
@@ -121,8 +122,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             Replica localReplica = getLocalReplica(metadata, token, command.metadata().keyspace);
             if (localReplica == null)
             {
-                throw new InvalidRequestException(String.format("Received a read request from %s for a token %s that is not owned by the current replica as of %s: %s.",
-                                                                message.from(), token, metadata.epoch, message.payload));
+                throw InvalidRoutingException.forTokenRead(message.from(), token, metadata.epoch, message.payload);
             }
 
             if (!command.acceptsTransient() && localReplica.isTransient())
@@ -142,8 +142,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
             Replica maxTokenLocalReplica = getLocalReplica(metadata, range.right.getToken(), command.metadata().keyspace);
             if (maxTokenLocalReplica == null)
             {
-                throw new InvalidRequestException(String.format("Received a read request from %s for a range [%s,%s] that is not owned by the current replica as of %s: %s.",
-                                                                message.from(), range.left, range.right, metadata.epoch, message.payload));
+                throw InvalidRoutingException.forRangeRead(message.from(), range, metadata.epoch, message.payload);
             }
 
             // TODO: preexisting issue: we should change the whole range for transient-ness, not just the right token

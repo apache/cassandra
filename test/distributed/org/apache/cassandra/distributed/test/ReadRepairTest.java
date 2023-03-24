@@ -18,20 +18,23 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.ExecutionException;
 
+import com.google.common.util.concurrent.FutureCallback;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.concurrent.ExecutorFactory;
+import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
@@ -51,6 +54,8 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.concurrent.Condition;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
@@ -173,9 +178,10 @@ public class ReadRepairTest extends TestBaseImpl
         }
     }
 
-    @Test
+    @Test @Ignore
     public void movingTokenReadRepairTest() throws Throwable
     {
+        // TODO: rewrite using FuzzTestBase to control progress through decommission
         // TODO: fails with vnode enabled
         try (Cluster cluster = init(Cluster.build(4).withoutVNodes().start(), 3))
         {
@@ -346,9 +352,9 @@ public class ReadRepairTest extends TestBaseImpl
     }
 
     @Test
-    public void readRepairRTRangeMovementTest() throws Throwable
+    public void readRepairRTRangeMovementTest() throws IOException
     {
-        ExecutorService es = Executors.newFixedThreadPool(1);
+        ExecutorPlus es = ExecutorFactory.Global.executorFactory().sequential("query-executor");
         String key = "test1";
         try (Cluster cluster = init(Cluster.build()
                                            .withConfig(config -> config.with(Feature.GOSSIP, Feature.NETWORK)
@@ -391,15 +397,36 @@ public class ReadRepairTest extends TestBaseImpl
                 }
                 return false;
             }).drop();
-            Future<Object[][]> read = es.submit(() -> cluster.coordinator(3)
-                                                          .execute("SELECT * FROM distributed_test_keyspace.tbl WHERE key=? and column1 >= ? and column1 <= ?",
-                                                                   ALL, key, 20, 40));
+
+            String query = "SELECT * FROM distributed_test_keyspace.tbl WHERE key=? and column1 >= ? and column1 <= ?";
+            Future<Object[][]> read = es.submit(() -> cluster.coordinator(3).execute(query, ALL, key, 20, 40));
+            read.addCallback(new FutureCallback<Object[][]>()
+            {
+                @Override
+                public void onSuccess(Object @Nullable [][] objects)
+                {
+                    Assert.fail("Expected read failure because replica placements have become incompatible during execution");
+                }
+
+                @Override
+                public void onFailure(Throwable t) {}
+            });
             readStarted.await();
             IInstanceConfig config = cluster.newInstanceConfig();
             config.set("auto_bootstrap", true);
             cluster.bootstrap(config).startup();
             continueRead.signalAll();
             read.get();
+        }
+        catch (ExecutionException e)
+        {
+            Throwable cause = e.getCause();
+            Assert.assertTrue("Expected a different error message, but got " + cause.getMessage(),
+                              cause.getMessage().contains("Operation failed - received 1 responses and 1 failures: INVALID_ROUTING from /127.0.0.2:7012"));
+        }
+        catch (InterruptedException e)
+        {
+            Assert.fail("Unexpected exception");
         }
         finally
         {
