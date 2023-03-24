@@ -49,7 +49,7 @@ class AccordCallback<T extends Reply> implements RequestCallback<T>
         logger.debug("Received response {} from {}", msg.payload, msg.from());
         commandStore.execute(PreLoadContext.empty(), ignore ->
                                                      callback.onSuccess(EndpointMapping.endpointToId(msg.from()), msg.payload))
-        .begin(commandStore.agent());
+                    .begin(commandStore.agent());
     }
 
     private static Throwable convertReason(RequestFailureReason reason)
