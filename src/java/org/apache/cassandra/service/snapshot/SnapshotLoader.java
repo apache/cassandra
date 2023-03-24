@@ -102,6 +102,10 @@ public class SnapshotLoader
         @Override
         public FileVisitResult preVisitDirectory(Path subdir, BasicFileAttributes attrs)
         {
+            // see CASSANDRA-18359
+            if (subdir.getParent() == null || subdir.getParent().getFileName() == null)
+                return FileVisitResult.CONTINUE;
+
             if (subdir.getParent().getFileName().toString().equals(SNAPSHOT_SUBDIR))
             {
                 logger.trace("Processing directory " + subdir);
