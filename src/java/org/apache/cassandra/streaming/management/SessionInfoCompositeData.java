@@ -151,7 +151,7 @@ public class SessionInfoCompositeData
                                            connecting,
                                            fromArrayOfCompositeData((CompositeData[]) values[5], toStreamSummary),
                                            fromArrayOfCompositeData((CompositeData[]) values[6], toStreamSummary),
-                                           StreamSession.State.valueOf((String) values[7]));
+                                           StreamSession.State.valueOf((String) values[7]), null); // null is here to maintain backwards compatibility
         Function<CompositeData, ProgressInfo> toProgressInfo = new Function<CompositeData, ProgressInfo>()
         {
             public ProgressInfo apply(CompositeData input)

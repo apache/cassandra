@@ -31,6 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.Weigher;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
@@ -252,16 +253,33 @@ public class StreamManager implements StreamManagerMBean
         }
     };
 
+    protected void addStreamingStateAgain(StreamingState state)
+    {
+        if (!DatabaseDescriptor.getStreamingStatsEnabled())
+            return;
+        states.put(state.id(), state);
+    }
+
     public StreamManager()
     {
         DurationSpec.LongNanosecondsBound duration = DatabaseDescriptor.getStreamingStateExpires();
         long sizeBytes = DatabaseDescriptor.getStreamingStateSize().toBytes();
-        long numElements = sizeBytes / StreamingState.ELEMENT_SIZE;
-        logger.info("Storing streaming state for {} or for {} elements", duration, numElements);
+        logger.info("Storing streaming state for {} or for size {}", duration, sizeBytes);
         states = CacheBuilder.newBuilder()
                              .expireAfterWrite(duration.quantity(), duration.unit())
-                             .maximumSize(numElements)
+                             .maximumWeight(sizeBytes)
+                             .weigher(new StreamingStateWeigher())
                              .build();
+    }
+
+    private static class StreamingStateWeigher implements Weigher<TimeUUID,StreamingState>
+    {
+        @Override
+        public int weigh(TimeUUID key, StreamingState val)
+        {
+            long costOfStreamingState = val.unsharedHeapSize() + TimeUUID.TIMEUUID_SIZE;
+            return Math.toIntExact(costOfStreamingState);
+        }
     }
 
     public void start()

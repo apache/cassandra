@@ -3510,6 +3510,11 @@ public class DatabaseDescriptor
         return conf.stream_entire_sstables;
     }
 
+    public static DurationSpec.LongMillisecondsBound getStreamTransferTaskTimeout()
+    {
+        return conf.stream_transfer_task_timeout;
+    }
+
     public static boolean getSkipStreamDiskSpaceCheck()
     {
         return conf.skip_stream_disk_space_check;

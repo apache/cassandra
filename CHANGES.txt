@@ -1,4 +1,5 @@
 5.0
+ * Provide summary of failed SessionInfo's in StreamResultFuture (CASSANDRA-17199)
  * CEP-20: Dynamic Data Masking (CASSANDRA-17940)
  * Add system_views.snapshots virtual table (CASSANDRA-18102)
  * Update OpenHFT dependencies (chronicle-queue, chronicle-core, chronicle-bytes, chronicle-wire, chronicle-threads) (CASSANDRA-18049)
