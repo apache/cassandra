@@ -22,6 +22,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.coordinate.Timeout;
+import accord.local.CommandStore;
+import accord.local.PreLoadContext;
 import accord.messages.Callback;
 import accord.messages.Reply;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -32,10 +34,12 @@ import org.apache.cassandra.net.RequestCallback;
 class AccordCallback<T extends Reply> implements RequestCallback<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCallback.class);
+    private final CommandStore commandStore;
     private final Callback<T> callback;
 
-    public AccordCallback(Callback<T> callback)
+    public AccordCallback(CommandStore commandStore, Callback<T> callback)
     {
+        this.commandStore = commandStore;
         this.callback = callback;
     }
 
@@ -43,7 +47,9 @@ class AccordCallback<T extends Reply> implements RequestCallback<T>
     public void onResponse(Message<T> msg)
     {
         logger.debug("Received response {} from {}", msg.payload, msg.from());
-        callback.onSuccess(EndpointMapping.endpointToId(msg.from()), msg.payload);
+        commandStore.execute(PreLoadContext.empty(), ignore ->
+                                                     callback.onSuccess(EndpointMapping.endpointToId(msg.from()), msg.payload))
+        .begin(commandStore.agent());
     }
 
     private static Throwable convertReason(RequestFailureReason reason)
@@ -58,7 +64,9 @@ class AccordCallback<T extends Reply> implements RequestCallback<T>
     {
         logger.debug("Received failure {} from {} for {}", failureReason, from, callback);
         // TODO (now): we should distinguish timeout failures with some placeholder Exception
-        callback.onFailure(EndpointMapping.endpointToId(from), convertReason(failureReason));
+        commandStore.execute(PreLoadContext.empty(), ignore ->
+                                                     callback.onFailure(EndpointMapping.endpointToId(from), convertReason(failureReason)))
+                    .begin(commandStore.agent());
     }
 
     @Override

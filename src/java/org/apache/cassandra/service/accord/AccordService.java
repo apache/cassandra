@@ -61,7 +61,6 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentAccordOps;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -142,7 +141,7 @@ public class AccordService implements IAccordService, Shutdownable
                              configService,
                              AccordService::uniqueNow,
                              () -> null,
-                             new KeyspaceSplitter(new EvenSplit<>(getConcurrentAccordOps(), getPartitioner().accordSplitter())),
+                             new KeyspaceSplitter(new EvenSplit<>(Runtime.getRuntime().availableProcessors(), getPartitioner().accordSplitter())),
                              new AccordAgent(),
                              new DefaultRandom(),
                              scheduler,

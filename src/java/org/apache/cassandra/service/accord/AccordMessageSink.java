@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.MessageSink;
+import accord.local.CommandStore;
 import accord.local.Node;
 import accord.messages.Callback;
 import accord.messages.MessageType;
@@ -117,14 +118,14 @@ public class AccordMessageSink implements MessageSink
     }
 
     @Override
-    public void send(Node.Id to, Request request, Callback callback)
+    public void send(Node.Id to, Request request, CommandStore commandStore, Callback callback)
     {
         Verb verb = getVerb(request.type());
         Preconditions.checkArgument(verb != null);
         Message<Request> message = Message.out(verb, request);
         InetAddressAndPort endpoint = getEndpoint(to);
         logger.debug("Sending {} {} to {}", verb, message.payload, endpoint);
-        messaging.sendWithCallback(message, endpoint, new AccordCallback<>((Callback<Reply>) callback));
+        messaging.sendWithCallback(message, endpoint, new AccordCallback<>(commandStore, (Callback<Reply>) callback));
     }
 
     @Override
