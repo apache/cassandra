@@ -34,6 +34,7 @@ import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
@@ -43,11 +44,11 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class StreamingState implements StreamEventHandler
+public class StreamingState implements StreamEventHandler, IMeasurableMemory
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingState.class);
 
-    public static final long ELEMENT_SIZE = ObjectSizes.measureDeep(new StreamingState(nextTimeUUID(), StreamOperation.OTHER, false));
+    public static final long EMPTY = ObjectSizes.measureDeep(new StreamingState(nextTimeUUID(), StreamOperation.OTHER, false));
 
     public enum Status
     {INIT, START, SUCCESS, FAILURE}
@@ -69,6 +70,14 @@ public class StreamingState implements StreamEventHandler
 
     // API for state changes
     public final Phase phase = new Phase();
+
+    @Override
+    public long unsharedHeapSize()
+    {
+        long costOfPeers = peers().size() * (ObjectSizes.IPV6_SOCKET_ADDRESS_SIZE + 48); // 48 represents the datastructure cost computed by the JOL
+        long costOfCompleteMessage = ObjectSizes.sizeOf(completeMessage());
+        return costOfPeers + costOfCompleteMessage + EMPTY;
+    }
 
     public StreamingState(StreamResultFuture result)
     {
@@ -102,6 +111,11 @@ public class StreamingState implements StreamEventHandler
     public Set<InetSocketAddress> peers()
     {
         return this.peers;
+    }
+
+    public String completeMessage()
+    {
+        return this.completeMessage;
     }
 
     public Status status()
@@ -283,6 +297,8 @@ public class StreamingState implements StreamEventHandler
     {
         completeMessage = Throwables.getStackTraceAsString(throwable);
         updateState(Status.FAILURE);
+        //we know the size is now very different from the estimate so recompute by adding again
+        StreamManager.instance.addStreamingStateAgain(this);
     }
 
     private synchronized void updateState(Status state)
