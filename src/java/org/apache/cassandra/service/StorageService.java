@@ -85,6 +85,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.audit.AuditUsersCacheService;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.fql.FullQueryLogger;
@@ -431,6 +432,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private volatile boolean joined = false;
     private volatile boolean gossipActive = false;
     private final AtomicBoolean authSetupCalled = new AtomicBoolean(false);
+    private final AtomicBoolean auditLogUsersCacheSetupCalled = new AtomicBoolean(false);
     private volatile boolean authSetupComplete = false;
 
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
@@ -999,6 +1001,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 Gossiper.instance.addLocalApplicationStates(states);
             }
             doAuthSetup(true);
+            doAuditLogUsersCacheSetup();
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
@@ -1315,6 +1318,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 joinTokenRing(SCHEMA_DELAY_MILLIS, 0);
                 doAuthSetup(false);
+                doAuditLogUsersCacheSetup();
             }
             catch (ConfigurationException e)
             {
@@ -1330,6 +1334,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 logger.info("Leaving write survey mode and joining ring at operator request");
                 finishJoiningRing(resumedBootstrap, SystemKeyspace.getSavedTokens());
                 doAuthSetup(false);
+                doAuditLogUsersCacheSetup();
                 isSurveyMode = false;
                 daemon.start();
             }
@@ -1387,6 +1392,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             AuthCacheService.initializeAndRegisterCaches();
             Schema.instance.registerListener(new AuthSchemaChangeListener());
             authSetupComplete = true;
+        }
+    }
+
+    public void doAuditLogUsersCacheSetup()
+    {
+        if (!auditLogUsersCacheSetupCalled.getAndSet(true)) {
+            if (DatabaseDescriptor.getAuditLoggingOptions().enabled)
+                AuditUsersCacheService.instance.setup();
         }
     }
 
@@ -2211,6 +2224,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                             progressSupport.progress("bootstrap", ProgressEvent.createNotification("Joining ring..."));
                             finishJoiningRing(true, bootstrapTokens);
                             doAuthSetup(false);
+                            doAuditLogUsersCacheSetup();
                         }
                         progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
                         if (!isNativeTransportRunning())

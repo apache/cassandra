@@ -57,6 +57,7 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.String.format;
 
+import static java.util.Collections.emptyMap;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public final class SystemDistributedKeyspace
@@ -92,6 +93,8 @@ public final class SystemDistributedKeyspace
     public static final String VIEW_BUILD_STATUS = "view_build_status";
 
     public static final String PARTITION_DENYLIST_TABLE = "partition_denylist";
+
+    public static final String AUDIT_USER = "audit_users";
 
     private static final TableMetadata RepairHistory =
         parse(REPAIR_HISTORY,
@@ -158,6 +161,18 @@ public final class SystemDistributedKeyspace
           + "PRIMARY KEY ((ks_name, table_name), key))")
     .build();
 
+    private static final TableMetadata AuditUser =
+        parse(AUDIT_USER,
+              "Audit user",
+              "CREATE TABLE %s ("
+              + "role text,"
+              + "account_type text,"
+              + "filter_percent double,"
+              + "PRIMARY KEY (role, filter_percent))")
+        .compaction(CompactionParams.lcs(emptyMap()))
+        .defaultTimeToLive(864000)
+        .comment("List of audit users").build();
+
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
@@ -167,6 +182,9 @@ public final class SystemDistributedKeyspace
 
     public static KeyspaceMetadata metadata()
     {
+        if (DatabaseDescriptor.getAuditLoggingOptions().enabled) {
+            return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable, AuditUser));
+        }
         return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable));
     }
 

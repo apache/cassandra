@@ -46,6 +46,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -95,6 +96,15 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
             MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
     }
 
+    private boolean shouldLog(QueryState state) {
+        ClientState clientState = state.getClientState();
+        if (clientState != null && clientState.getUser() != null)  {
+            String user = clientState.getUser().getName();
+            return AuditUsersCacheService.instance.shouldLog(user);
+        }
+        return true;
+    }
+
     private IAuditLogger getAuditLogger(AuditLogOptions options) throws ConfigurationException
     {
         final ParameterizedClass logger = options.logger;
@@ -133,7 +143,7 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
      * Logs AudigLogEntry to standard audit logger
      * @param logEntry AuditLogEntry to be logged
      */
-    private void log(AuditLogEntry logEntry)
+    public void log(AuditLogEntry logEntry)
     {
         if (!filter.isFiltered(logEntry))
         {
@@ -241,14 +251,16 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     public void querySuccess(CQLStatement statement, String query, QueryOptions options, QueryState state, long queryTime, Message.Response response)
     {
-        AuditLogEntry entry = new AuditLogEntry.Builder(state).setType(statement.getAuditLogContext().auditLogEntryType)
-                                                              .setOperation(query)
-                                                              .setTimestamp(queryTime)
-                                                              .setScope(statement)
-                                                              .setKeyspace(state, statement)
-                                                              .setOptions(options)
-                                                              .build();
-        log(entry);
+        if (shouldLog(state)) {
+            AuditLogEntry entry = new AuditLogEntry.Builder(state).setType(statement.getAuditLogContext().auditLogEntryType)
+                                                                  .setOperation(query)
+                                                                  .setTimestamp(queryTime)
+                                                                  .setScope(statement)
+                                                                  .setKeyspace(state, statement)
+                                                                  .setOptions(options)
+                                                                  .build();
+            log(entry);
+        }
     }
 
     public void queryFailure(CQLStatement stmt, String query, QueryOptions options, QueryState state, Exception cause)
@@ -261,14 +273,17 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     public void executeSuccess(CQLStatement statement, String query, QueryOptions options, QueryState state, long queryTime, Message.Response response)
     {
-        AuditLogEntry entry = new AuditLogEntry.Builder(state).setType(statement.getAuditLogContext().auditLogEntryType)
-                                                              .setOperation(query)
-                                                              .setTimestamp(queryTime)
-                                                              .setScope(statement)
-                                                              .setKeyspace(state, statement)
-                                                              .setOptions(options)
-                                                              .build();
-        log(entry);
+        if (shouldLog(state))
+        {
+            AuditLogEntry entry = new AuditLogEntry.Builder(state).setType(statement.getAuditLogContext().auditLogEntryType)
+                                                                  .setOperation(query)
+                                                                  .setTimestamp(queryTime)
+                                                                  .setScope(statement)
+                                                                  .setKeyspace(state, statement)
+                                                                  .setOptions(options)
+                                                                  .build();
+            log(entry);
+        }
     }
 
     public void executeFailure(CQLStatement statement, String query, QueryOptions options, QueryState state, Exception cause)
@@ -295,11 +310,14 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     public void batchSuccess(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<List<ByteBuffer>> values, QueryOptions options, QueryState state, long queryTime, Message.Response response)
     {
-        List<AuditLogEntry> entries = buildEntriesForBatch(statements, queries, state, options, queryTime);
-        for (AuditLogEntry auditLogEntry : entries)
-        {
-            log(auditLogEntry);
+        if (shouldLog(state)) {
+            List<AuditLogEntry> entries = buildEntriesForBatch(statements, queries, state, options, queryTime);
+            for (AuditLogEntry auditLogEntry : entries)
+            {
+                log(auditLogEntry);
+            }
         }
+
     }
 
     public void batchFailure(BatchStatement.Type batchType, List<? extends CQLStatement> statements, List<String> queries, List<List<ByteBuffer>> values, QueryOptions options, QueryState state, Exception cause)
@@ -310,6 +328,17 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
                                                               .setType(AuditLogEntryType.BATCH)
                                                               .build();
         log(entry, cause, queries);
+    }
+
+    public void logsstableloadfailure(AuditLogEntry logEntry, Throwable t)
+    {
+        if ((logEntry != null) && (isEnabled()))
+        {
+            AuditLogEntry.Builder builder = new AuditLogEntry.Builder(logEntry);
+            builder.setType(AuditLogEntryType.SSTABLELOAD_FAILURE);
+            builder.appendToOperation(t.toString());
+            log(builder.build());
+        }
     }
 
     private static List<AuditLogEntry> buildEntriesForBatch(List<? extends CQLStatement> statements, List<String> queries, QueryState state, QueryOptions options, long queryStartTimeMillis)
@@ -346,12 +375,14 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     public void prepareSuccess(CQLStatement statement, String query, QueryState state, long queryTime, ResultMessage.Prepared response)
     {
-        AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation(query)
-                                                              .setType(AuditLogEntryType.PREPARE_STATEMENT)
-                                                              .setScope(statement)
-                                                              .setKeyspace(statement)
-                                                              .build();
-        log(entry);
+        if (shouldLog(state)) {
+            AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation(query)
+                                                                  .setType(AuditLogEntryType.PREPARE_STATEMENT)
+                                                                  .setScope(statement)
+                                                                  .setKeyspace(statement)
+                                                                  .build();
+            log(entry);
+        }
     }
 
     public void prepareFailure(@Nullable CQLStatement stmt, @Nullable String query, QueryState state, Exception cause)
@@ -365,10 +396,13 @@ public class AuditLogManager implements QueryEvents.Listener, AuthEvents.Listene
 
     public void authSuccess(QueryState state)
     {
-        AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation("LOGIN SUCCESSFUL")
-                                                              .setType(AuditLogEntryType.LOGIN_SUCCESS)
-                                                              .build();
-        log(entry);
+        if (shouldLog(state))
+        {
+            AuditLogEntry entry = new AuditLogEntry.Builder(state).setOperation("LOGIN SUCCESSFUL")
+                                                                  .setType(AuditLogEntryType.LOGIN_SUCCESS)
+                                                                  .build();
+            log(entry);
+        }
     }
 
     public void authFailure(QueryState state, Exception cause)

@@ -358,6 +358,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     }
 
     /**
+     * Return the connecting address this stream session is connecting to
+     */
+    public InetAddressAndPort getConnecting() {
+        return InetAddressAndPort.getByAddress(channel.connectedTo());
+    }
+
+    /**
      * invoked by the node that begins the stream session (it may be sending files, receiving files, or both)
      */
     public void start()

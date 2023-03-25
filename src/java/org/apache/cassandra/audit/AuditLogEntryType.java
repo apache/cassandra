@@ -60,6 +60,7 @@ public enum AuditLogEntryType
     CREATE_ROLE(AuditLogEntryCategory.DCL),
     USE_KEYSPACE(AuditLogEntryCategory.OTHER),
     DESCRIBE(AuditLogEntryCategory.OTHER),
+    SSTABLELOADER(AuditLogEntryCategory.BULKLOAD),
 
     /*
      * Common Audit Log Entry Types
@@ -68,7 +69,8 @@ public enum AuditLogEntryType
     REQUEST_FAILURE(AuditLogEntryCategory.ERROR),
     LOGIN_ERROR(AuditLogEntryCategory.AUTH),
     UNAUTHORIZED_ATTEMPT(AuditLogEntryCategory.AUTH),
-    LOGIN_SUCCESS(AuditLogEntryCategory.AUTH);
+    LOGIN_SUCCESS(AuditLogEntryCategory.AUTH),
+    SSTABLELOAD_FAILURE(AuditLogEntryCategory.BULKLOAD);
 
     private final AuditLogEntryCategory category;
 

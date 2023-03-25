@@ -25,6 +25,11 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.audit.AuditLogEntry;
+import org.apache.cassandra.audit.AuditLogEntryType;
+import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -122,8 +127,34 @@ public class StreamReceiveTask extends StreamTask
             this.task = task;
         }
 
+        public boolean isStreamingBulkLoad()
+        {
+            StreamOperation streamOperation = task.session.streamOperation();
+            if (streamOperation == null) {
+                return false;
+            }
+            if (streamOperation == StreamOperation.BULK_LOAD) {
+                return true;
+            }
+            return false;
+        }
+
+        AuditLogEntry getSstableLoaderAuditLogEntry(ColumnFamilyStore cfs)
+        {
+           return new AuditLogEntry.Builder(QueryState.forInternalCalls())
+                    .setSource(task.session.getConnecting())
+                    .setType(AuditLogEntryType.SSTABLELOADER)
+                    .setOperation("SSTABLELOADER")
+                    .setTimestamp(System.currentTimeMillis())
+                    .setScope(cfs.getTableName())
+                    .setKeyspace(cfs.keyspace.getName())
+                    .build();
+        }
+
         public void run()
         {
+            AuditLogManager auditLogManager = AuditLogManager.instance;
+            ColumnFamilyStore cfs = null;
             try
             {
                 if (ColumnFamilyStore.getIfExists(task.tableId) == null)
@@ -136,11 +167,23 @@ public class StreamReceiveTask extends StreamTask
 
                 task.receiver.finished();
                 task.session.taskCompleted(task);
+
+                // We only want to auditLog streaming event if its triggered by SSTABLELOADER
+                if (isStreamingBulkLoad() && auditLogManager.isEnabled())
+                {
+                    AuditLogEntry auditEntry = getSstableLoaderAuditLogEntry(cfs);
+                    auditLogManager.log(auditEntry);
+                }
             }
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);
                 task.session.onError(t);
+                if (isStreamingBulkLoad() && auditLogManager.isEnabled())
+                {
+                    AuditLogEntry auditEntry = getSstableLoaderAuditLogEntry(cfs);
+                    auditLogManager.logsstableloadfailure(auditEntry, t);
+                }
             }
             finally
             {

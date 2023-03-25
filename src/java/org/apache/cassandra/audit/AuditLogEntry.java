@@ -39,6 +39,7 @@ public class AuditLogEntry
     private final InetAddressAndPort host = FBUtilities.getBroadcastAddressAndPort();
     private final InetAddressAndPort source;
     private final String user;
+    private final String userType;
     private final long timestamp;
     private final AuditLogEntryType type;
     private final UUID batch;
@@ -51,6 +52,7 @@ public class AuditLogEntry
     private AuditLogEntry(AuditLogEntryType type,
                           InetAddressAndPort source,
                           String user,
+                          String userType,
                           long timestamp,
                           UUID batch,
                           String keyspace,
@@ -62,6 +64,7 @@ public class AuditLogEntry
         this.type = type;
         this.source = source;
         this.user = user;
+        this.userType = userType;
         this.timestamp = timestamp;
         this.batch = batch;
         this.keyspace = keyspace;
@@ -75,6 +78,7 @@ public class AuditLogEntry
     {
         StringBuilder builder = new StringBuilder(100);
         builder.append("user:").append(user)
+               .append("|userType:").append(userType)
                .append("|host:").append(host)
                .append("|source:").append(source.getAddress());
         if (source.getPort() > 0)
@@ -119,6 +123,8 @@ public class AuditLogEntry
     {
         return user;
     }
+
+    public String getUserType() { return userType; }
 
     public long getTimestamp()
     {
@@ -168,7 +174,7 @@ public class AuditLogEntry
         {
             try
             {
-                DEFAULT_SOURCE = InetAddressAndPort.getByNameOverrideDefaults("0.0.0.0", 0);
+                DEFAULT_SOURCE = InetAddressAndPort.getByNameOverrideDefaults("127.0.0.1", 0);
             }
             catch (UnknownHostException e)
             {
@@ -182,6 +188,7 @@ public class AuditLogEntry
         private AuditLogEntryType type;
         private InetAddressAndPort source;
         private String user;
+        private String userType;
         private long timestamp;
         private UUID batch;
         private String keyspace;
@@ -216,6 +223,7 @@ public class AuditLogEntry
                 user = AuthenticatedUser.SYSTEM_USER.getName();
             }
 
+            userType = AuditUsersCacheService.instance.getAccountType(user);
             timestamp = currentTimeMillis();
         }
 
@@ -224,6 +232,7 @@ public class AuditLogEntry
             type = entry.type;
             source = entry.source;
             user = entry.user;
+            userType = entry.userType;
             timestamp = entry.timestamp;
             batch = entry.batch;
             keyspace = entry.keyspace;
@@ -239,6 +248,12 @@ public class AuditLogEntry
             return this;
         }
 
+        public Builder setSource(InetAddressAndPort src)
+        {
+            this.source = src;
+            return this;
+        }
+
         public Builder(AuditLogEntryType type)
         {
             this.type = type;
@@ -248,6 +263,12 @@ public class AuditLogEntry
         public Builder setUser(String user)
         {
             this.user = user;
+            return this;
+        }
+
+        public Builder setUserType(String userType)
+        {
+            this.userType = userType;
             return this;
         }
 
@@ -289,6 +310,12 @@ public class AuditLogEntry
             return this;
         }
 
+        public Builder setScope(String scope)
+        {
+            this.scope = scope;
+            return this;
+        }
+
         public Builder setOperation(String operation)
         {
             this.operation = operation;
@@ -315,7 +342,7 @@ public class AuditLogEntry
         public AuditLogEntry build()
         {
             timestamp = timestamp > 0 ? timestamp : currentTimeMillis();
-            return new AuditLogEntry(type, source, user, timestamp, batch, keyspace, scope, operation, options, state);
+            return new AuditLogEntry(type, source, user, userType, timestamp, batch, keyspace, scope, operation, options, state);
         }
     }
 }
