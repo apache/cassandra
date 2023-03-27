@@ -173,7 +173,7 @@ public class Config
     public int concurrent_writes = 32;
     public int concurrent_counter_writes = 32;
     public int concurrent_materialized_view_writes = 32;
-    public PositiveInt.DisableablePositiveInt available_processors = new PositiveInt.DisableablePositiveInt(Integer.getInteger("cassandra.available_processors", PositiveInt.DisableablePositiveInt.DISABLED_VALUE));
+    public PositiveInt.UndefinedPositiveInt available_processors = new PositiveInt.UndefinedPositiveInt(Integer.getInteger("cassandra.available_processors", PositiveInt.UndefinedPositiveInt.UNDEFINED_VALUE));
 
     @Deprecated
     public Integer concurrent_replicates = null;
@@ -595,7 +595,7 @@ public class Config
     public volatile boolean use_statements_enabled = true;
 
     public boolean accord_transactions_enabled = false;
-    public PositiveInt.DisableablePositiveInt accord_shard_count = PositiveInt.DisableablePositiveInt.DISABLED;
+    public PositiveInt.UndefinedPositiveInt accord_shard_count = PositiveInt.UndefinedPositiveInt.UNDEFINED;
 
     /**
      * Optionally disable asynchronous UDF execution.

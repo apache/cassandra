@@ -31,6 +31,9 @@ import java.util.function.Predicate;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
 import org.yaml.snakeyaml.error.YAMLException;
@@ -359,6 +362,36 @@ public class YamlConfigurationLoaderTest
         assertThat(from("sstable_preemptive_open_interval_in_mb", -2).sstable_preemptive_open_interval).isNull();
     }
 
+    @Test
+    public void process()
+    {
+        for (Type type : Type.values())
+        {
+            Config c = fromType(type, "available_processors", 4);
+            assertThat(c.available_processors).isEqualTo(new PositiveInt.UndefinedPositiveInt(4));
+            assertThat(c.accord_shard_count).isEqualTo(PositiveInt.UndefinedPositiveInt.UNDEFINED);
+
+            c = fromType(type, "available_processors", 3, "accord_shard_count", 1);
+            assertThat(c.available_processors).isEqualTo(new PositiveInt.UndefinedPositiveInt(3));
+            assertThat(c.accord_shard_count).isEqualTo(new PositiveInt.UndefinedPositiveInt(1));
+        }
+    }
+
+    private enum Type { MAP, YAML }
+
+    private static Config fromType(Type type, Object... values)
+    {
+        switch (type)
+        {
+            case MAP:
+                return from(values);
+            case YAML:
+                return fromYaml(values);
+            default:
+                throw new AssertionError("Unexpected type: " + type);
+        }
+    }
+
     private static Config from(Object... values)
     {
         assert values.length % 2 == 0 : "Map can only be created with an even number of inputs: given " + values.length;
@@ -366,6 +399,24 @@ public class YamlConfigurationLoaderTest
         for (int i = 0; i < values.length; i += 2)
             builder.put((String) values[i], values[i + 1]);
         return YamlConfigurationLoader.fromMap(builder.build(), Config.class);
+    }
+
+    private static Config fromYaml(Object... values)
+    {
+        assert values.length % 2 == 0 : "Map can only be created with an even number of inputs: given " + values.length;
+        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
+        for (int i = 0; i < values.length; i += 2)
+            builder.put((String) values[i], values[i + 1]);
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        try
+        {
+            byte[] bytes = mapper.writeValueAsBytes(builder.build());
+            return YamlConfigurationLoader.loadConfig(bytes);
+        }
+        catch (JsonProcessingException e)
+        {
+            throw new AssertionError("Unable to convert map to YAML", e);
+        }
     }
 
     private static Config load(String path)

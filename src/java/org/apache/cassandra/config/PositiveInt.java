@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.config;
 
+import java.util.Objects;
 import java.util.function.IntSupplier;
 
 public class PositiveInt
@@ -42,12 +43,27 @@ public class PositiveInt
         return Integer.toString(value);
     }
 
-    public static class DisableablePositiveInt extends PositiveInt
+    @Override
+    public boolean equals(Object o)
     {
-        public static final int DISABLED_VALUE = -1;
-        public static final DisableablePositiveInt DISABLED = new DisableablePositiveInt(DISABLED_VALUE);
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        PositiveInt that = (PositiveInt) o;
+        return value == that.value;
+    }
 
-        public DisableablePositiveInt(int value)
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(value);
+    }
+
+    public static class UndefinedPositiveInt extends PositiveInt
+    {
+        public static final int UNDEFINED_VALUE = -1;
+        public static final UndefinedPositiveInt UNDEFINED = new UndefinedPositiveInt(UNDEFINED_VALUE);
+
+        public UndefinedPositiveInt(int value)
         {
             super(value, false);
             if (!(value == -1 || value >= 1))
@@ -56,17 +72,17 @@ public class PositiveInt
 
         public boolean isEnabled()
         {
-            return value != DISABLED_VALUE;
+            return value != UNDEFINED_VALUE;
         }
 
         public int or(int defaultValue)
         {
-            return value == DISABLED_VALUE ? defaultValue : value;
+            return value == UNDEFINED_VALUE ? defaultValue : value;
         }
 
         public int or(IntSupplier defaultValue)
         {
-            return value == DISABLED_VALUE ? defaultValue.getAsInt() : value;
+            return value == UNDEFINED_VALUE ? defaultValue.getAsInt() : value;
         }
     }
 }
