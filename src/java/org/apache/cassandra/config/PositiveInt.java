@@ -67,7 +67,7 @@ public class PositiveInt
         {
             super(value, false);
             if (!(value == -1 || value >= 1))
-                throw new IllegalArgumentException(String.format("Only -1 (disabled) and positive values are allowed; given %d", value));
+                throw new IllegalArgumentException(String.format("Only -1 (undefined) and positive values are allowed; given %d", value));
         }
 
         public boolean isEnabled()
