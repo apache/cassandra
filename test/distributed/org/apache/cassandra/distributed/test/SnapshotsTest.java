@@ -52,7 +52,8 @@ public class SnapshotsTest extends TestBaseImpl
     private static Cluster cluster;
 
     private final String[] exoticSnapshotNames = new String[] { "snapshot", "snapshots", "backup", "backups",
-                                                                "Snapshot", "Snapshots", "Backups", "Backup"};
+                                                                "Snapshot", "Snapshots", "Backups", "Backup",
+                                                                "snapshot.with.dots-and-dashes"};
 
     @BeforeClass
     public static void before() throws IOException

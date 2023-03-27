@@ -54,7 +54,7 @@ public class SnapshotLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(SnapshotLoader.class);
 
-    static final Pattern SNAPSHOT_DIR_PATTERN = Pattern.compile("(?<keyspace>\\w+)/(?<tableName>\\w+)-(?<tableId>[0-9a-f]{32})/snapshots/(?<tag>[\\w-]+)$");
+    static final Pattern SNAPSHOT_DIR_PATTERN = Pattern.compile("(?<keyspace>\\w+)/(?<tableName>\\w+)-(?<tableId>[0-9a-f]{32})/snapshots/(?<tag>.+)$");
 
     private final Collection<Path> dataDirectories;
 
