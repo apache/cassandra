@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service.accord;
 
 import accord.api.Agent;
@@ -29,13 +28,38 @@ import accord.utils.RandomSource;
 
 public class AccordCommandStores extends CommandStores<AccordCommandStore>
 {
-    private long cacheSize;
+    private final AccordJournal journal;
+
     AccordCommandStores(NodeTimeService time, Agent agent, DataStore store, RandomSource random,
-                        ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory)
+                        ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory, AccordJournal journal)
     {
-        super(time, agent, store, random, shardDistributor, progressLogFactory, AccordCommandStore::new);
+        super(time, agent, store, random, shardDistributor, progressLogFactory, AccordCommandStore.factory(journal));
+        this.journal = journal;
         setCacheSize(maxCacheSize());
     }
+
+    static Factory factory(AccordJournal journal)
+    {
+        return (time, agent, store, random, shardDistributor, progressLogFactory) ->
+               new AccordCommandStores(time, agent, store, random, shardDistributor, progressLogFactory, journal);
+    }
+
+    @Override
+    public synchronized void shutdown()
+    {
+        super.shutdown();
+        journal.shutdown();
+        //TODO shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
+    }
+
+    @Override
+    public synchronized void updateTopology(Topology newTopology)
+    {
+        super.updateTopology(newTopology);
+        refreshCacheSizes();
+    }
+
+    private long cacheSize;
 
     synchronized void setCacheSize(long bytes)
     {
@@ -55,19 +79,5 @@ public class AccordCommandStores extends CommandStores<AccordCommandStore>
     private static long maxCacheSize()
     {
         return 5 << 20; // TODO (required): make configurable
-    }
-
-    @Override
-    public synchronized void updateTopology(Topology newTopology)
-    {
-        super.updateTopology(newTopology);
-        refreshCacheSizes();
-    }
-
-    @Override
-    public synchronized void shutdown()
-    {
-        super.shutdown();
-        //TODO shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
     }
 }

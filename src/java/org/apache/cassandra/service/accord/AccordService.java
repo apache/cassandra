@@ -77,6 +77,7 @@ public class AccordService implements IAccordService, Shutdownable
     private final AccordConfigurationService configService;
     private final AccordScheduler scheduler;
     private final AccordVerbHandler<? extends Request> verbHandler;
+    private final AccordJournal journal;
     
     private static final IAccordService NOOP_SERVICE = new IAccordService()
     {
@@ -137,6 +138,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.messageSink = new AccordMessageSink(agent);
         this.configService = new AccordConfigurationService(localId);
         this.scheduler = new AccordScheduler();
+        this.journal = new AccordJournal().start();
         this.node = new Node(localId,
                              messageSink,
                              configService,
@@ -148,7 +150,7 @@ public class AccordService implements IAccordService, Shutdownable
                              scheduler,
                              SizeOfIntersectionSorter.SUPPLIER,
                              SimpleProgressLog::new,
-                             AccordCommandStores::new);
+                             AccordCommandStores.factory(journal));
         this.nodeShutdown = toShutdownable(node);
         this.verbHandler = new AccordVerbHandler<>(this.node);
     }

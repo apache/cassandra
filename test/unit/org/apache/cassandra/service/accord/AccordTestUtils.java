@@ -179,6 +179,11 @@ public class AccordTestUtils
         @Override public void waiting(TxnId txnId, Known known, Unseekables<?, ?> unseekables) {}
     };
 
+    public static final AccordJournal NOOP_ACCORD_JOURNAL = new AccordJournal()
+    {
+        @Override boolean mustAppend(PreLoadContext context) { return false; }
+    };
+
     public static TxnId txnId(long epoch, long hlc, int node)
     {
         return new TxnId(epoch, hlc, Txn.Kind.Write, Key, new Node.Id(node));
@@ -331,7 +336,8 @@ public class AccordTestUtils
                                       new AccordAgent(),
                                       null,
                                       cs -> NOOP_PROGRESS_LOG,
-                                      new SingleEpochRanges(topology.rangesForNode(node)));
+                                      new SingleEpochRanges(topology.rangesForNode(node)),
+                                      NOOP_ACCORD_JOURNAL);
     }
 
     public static AccordCommandStore createAccordCommandStore(LongSupplier now, String keyspace, String table)

@@ -77,15 +77,18 @@ public class AccordCommandStore extends CommandStore
     private AsyncOperation<?> currentOperation = null;
     private AccordSafeCommandStore current = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
+    private final AccordJournal journal;
 
     public AccordCommandStore(int id,
                               NodeTimeService time,
                               Agent agent,
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
-                              RangesForEpochHolder rangesForEpoch)
+                              RangesForEpochHolder rangesForEpoch,
+                              AccordJournal journal)
     {
         super(id, time, agent, dataStore, progressLogFactory, rangesForEpoch);
+        this.journal = journal;
         this.loggingId = String.format("[%s]", id);
         this.executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
         this.threadId = getThreadId(this.executor);
@@ -93,6 +96,12 @@ public class AccordCommandStore extends CommandStore
         this.commandCache = stateCache.instance(TxnId.class, accord.local.Command.class, AccordSafeCommand::new, AccordObjectSizes::command);
         this.commandsForKeyCache = stateCache.instance(RoutableKey.class, CommandsForKey.class, AccordSafeCommandsForKey::new, AccordObjectSizes::commandsForKey);
         executor.execute(() -> CommandStore.register(this));
+    }
+
+    static Factory factory(AccordJournal journal)
+    {
+        return (id, time, agent, dataStore, progressLogFactory, rangesForEpoch) ->
+               new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, rangesForEpoch, journal);
     }
 
     @Override
@@ -172,6 +181,12 @@ public class AccordCommandStore extends CommandStore
         lastSystemTimestampMicros = Math.max(TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis()), lastSystemTimestampMicros + 1);
         return lastSystemTimestampMicros;
     }
+
+    public <T> AsyncChain<T> submit(Callable<T> task)
+    {
+        return AsyncChains.ofCallable(executor, task);
+    }
+
     @Override
     public <T> AsyncChain<T> submit(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
@@ -179,9 +194,9 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public <T> AsyncChain<T> submit(Callable<T> task)
+    public AsyncChain<Void> execute(PreLoadContext loadCtx, Consumer<? super SafeCommandStore> consumer)
     {
-        return AsyncChains.ofCallable(executor, task);
+        return AsyncOperation.create(this, loadCtx, consumer);
     }
 
     public DataStore dataStore()
@@ -202,12 +217,6 @@ public class AccordCommandStore extends CommandStore
     RangesForEpoch ranges()
     {
         return rangesForEpochHolder.get();
-    }
-
-    @Override
-    public AsyncChain<Void> execute(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
-    {
-        return AsyncOperation.create(this, preLoadContext, consumer);
     }
 
     public void executeBlocking(Runnable runnable)
@@ -249,6 +258,16 @@ public class AccordCommandStore extends CommandStore
     public void abortCurrentOperation()
     {
         current = null;
+    }
+
+    public boolean mustAppendToJournal(PreLoadContext preLoadContext)
+    {
+        return journal.mustAppend(preLoadContext);
+    }
+
+    public void appendToJournal(PreLoadContext preLoadContext, Runnable onDurable)
+    {
+        journal.append(id, preLoadContext, executor, onDurable);
     }
 
     @Override
