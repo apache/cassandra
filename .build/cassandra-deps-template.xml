@@ -232,11 +232,15 @@
       <classifier>native</classifier>
     </dependency>
     <dependency>
-        <!-- transitive to jnr-ffi to chronicle-core -->
+      <!-- transitive to jnr-ffi to chronicle-core -->
       <groupId>com.github.jnr</groupId>
       <artifactId>jnr-constants</artifactId>
     </dependency>
-
+    <dependency>
+      <!-- transitive to chronicle-threads -->
+      <groupId>net.openhft</groupId>
+      <artifactId>affinity</artifactId>
+    </dependency>
     <!-- end of chronicle-queue -->
 
     <dependency>

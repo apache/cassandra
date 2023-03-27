@@ -687,6 +687,8 @@
         <artifactId>netty-tcnative-boringssl-static</artifactId>
         <version>2.0.36.Final</version>
       </dependency>
+
+      <!-- chronicle-queue deps -->
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-queue</artifactId>
@@ -695,6 +697,11 @@
           <exclusion>
             <artifactId>tools</artifactId>
             <groupId>com.sun</groupId>
+          </exclusion>
+          <exclusion>
+              <!-- pulls in affinity-3.23ea1 which pulls in third-party-bom-3.22.4-SNAPSHOT -->
+            <groupId>net.openhft</groupId>
+            <artifactId>affinity</artifactId>
           </exclusion>
         </exclusions>
       </dependency>
@@ -733,19 +740,39 @@
             <artifactId>compiler</artifactId>
             <groupId>net.openhft</groupId>
           </exclusion>
+          <exclusion>
+              <!-- pulls in affinity-3.23ea1 which pulls in third-party-bom-3.22.4-SNAPSHOT -->
+            <groupId>net.openhft</groupId>
+            <artifactId>affinity</artifactId>
+          </exclusion>
         </exclusions>
       </dependency>
       <dependency>
         <groupId>net.openhft</groupId>
         <artifactId>chronicle-threads</artifactId>
         <version>2.23.25</version>
+        <exclusions>
+          <exclusion>
+              <!-- pulls in affinity-3.23ea1 which pulls in third-party-bom-3.22.4-SNAPSHOT -->
+            <groupId>net.openhft</groupId>
+            <artifactId>affinity</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
-        <!-- transitive to chronicle-queue -->
+        <!-- transitive to chronicle-queue, declared explicit to use newer version -->
+        <groupId>net.openhft</groupId>
+        <artifactId>affinity</artifactId>
+        <version>3.23.3</version>
+      </dependency>
+      <dependency>
+        <!-- transitive to chronicle-queue, declared explicit to use newer version -->
         <groupId>net.openhft</groupId>
         <artifactId>posix</artifactId>
         <version>2.24ea4</version>
       </dependency>
+      <!-- end of chronicle-queue -->
+
       <dependency>
         <groupId>com.google.code.findbugs</groupId>
         <artifactId>jsr305</artifactId>
