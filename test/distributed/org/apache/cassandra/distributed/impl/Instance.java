@@ -18,12 +18,12 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.io.File;
-import java.io.IOException;
-import java.net.InetAddress;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
+import java.io.File;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -79,8 +79,8 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbe;
 import org.apache.cassandra.distributed.mock.nodetool.InternalNodeProbeFactory;
-import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.Metrics;
+import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
@@ -107,8 +107,8 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.StorageServiceMBean;
 import org.apache.cassandra.streaming.StreamCoordinator;
 import org.apache.cassandra.streaming.StreamSession;
-import org.apache.cassandra.tools.Output;
 import org.apache.cassandra.tools.NodeTool;
+import org.apache.cassandra.tools.Output;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -524,7 +524,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 // We need to  persist this as soon as possible after startup checks.
                 // This should be the first write to SystemKeyspace (CASSANDRA-11742)
-                SystemKeyspace.persistLocalMetadata();
+                SystemKeyspace.persistLocalMetadata(config::hostId);
                 LegacySchemaMigrator.migrate();
 
                 MessagingService.instance().verbSerializers.put(MessagingService.Verb.HINT,
