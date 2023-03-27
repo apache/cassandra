@@ -23,8 +23,8 @@ import org.slf4j.LoggerFactory;
 
 import accord.coordinate.Timeout;
 import accord.local.CommandStore;
-import accord.local.PreLoadContext;
 import accord.messages.Callback;
+import accord.messages.CallbackHolder;
 import accord.messages.Reply;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -34,22 +34,18 @@ import org.apache.cassandra.net.RequestCallback;
 class AccordCallback<T extends Reply> implements RequestCallback<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCallback.class);
-    private final CommandStore commandStore;
-    private final Callback<T> callback;
+    private final CallbackHolder<T> callback;
 
     public AccordCallback(CommandStore commandStore, Callback<T> callback)
     {
-        this.commandStore = commandStore;
-        this.callback = callback;
+        this.callback = new CallbackHolder<>(commandStore, callback);
     }
 
     @Override
     public void onResponse(Message<T> msg)
     {
         logger.debug("Received response {} from {}", msg.payload, msg.from());
-        commandStore.execute(PreLoadContext.empty(), ignore ->
-                                                     callback.onSuccess(EndpointMapping.endpointToId(msg.from()), msg.payload))
-                    .begin(commandStore.agent());
+        callback.success(EndpointMapping.endpointToId(msg.from()), msg.payload);
     }
 
     private static Throwable convertReason(RequestFailureReason reason)
@@ -64,9 +60,7 @@ class AccordCallback<T extends Reply> implements RequestCallback<T>
     {
         logger.debug("Received failure {} from {} for {}", failureReason, from, callback);
         // TODO (now): we should distinguish timeout failures with some placeholder Exception
-        commandStore.execute(PreLoadContext.empty(), ignore ->
-                                                     callback.onFailure(EndpointMapping.endpointToId(from), convertReason(failureReason)))
-                    .begin(commandStore.agent());
+        callback.failure(EndpointMapping.endpointToId(from), convertReason(failureReason));
     }
 
     @Override
