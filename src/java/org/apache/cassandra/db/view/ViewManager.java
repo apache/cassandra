@@ -94,9 +94,9 @@ public class ViewManager
         return viewsByName.values();
     }
 
-    public void reload(boolean buildAllViews)
+    public void reload(KeyspaceMetadata keyspaceMetadata)
     {
-        Views views = keyspace.getMetadata().views;
+        Views views = keyspaceMetadata.views;
         Map<String, ViewMetadata> newViewsByName = Maps.newHashMapWithExpectedSize(views.size());
         for (ViewMetadata definition : views)
         {
@@ -108,10 +108,16 @@ public class ViewManager
             if (!viewsByName.containsKey(entry.getKey()))
                 addView(entry.getValue());
         }
+    }
 
-        if (!buildAllViews)
-            return;
-
+    public void buildViews()
+    {
+        Views views = keyspace.getMetadata().views;
+        Map<String, ViewMetadata> newViewsByName = Maps.newHashMapWithExpectedSize(views.size());
+        for (ViewMetadata definition : views)
+        {
+            newViewsByName.put(definition.name(), definition);
+        }
         // Building views involves updating view build status in the system_distributed
         // keyspace and therefore it requires ring information. This check prevents builds
         // being submitted when Keyspaces are initialized during CassandraDaemon::setup as

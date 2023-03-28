@@ -155,7 +155,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
                 schemaChangeNotifier.notifyKeyspaceAltered(delta, loadSSTables);
                 // deal with all added, and altered views
-                keyspaceInstances.get(delta.after.name).viewManager.reload(true);
+                keyspace.viewManager.reload(keyspaces.get(keyspace.getName()).get());
             }
 
             //schemaChangeNotifier.notifyKeyspaceAltered(delta);
@@ -171,6 +171,22 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
         QueryProcessor.clearInternalStatementsCache();
         QueryProcessor.clearPreparedStatementsCache();
+    }
+
+    public static void maybeRebuildViews(DistributedSchema prev, DistributedSchema current)
+    {
+        Keyspaces.KeyspacesDiff ksDiff = Keyspaces.diff(prev.getKeyspaces(), current.getKeyspaces());
+        if (ksDiff.isEmpty() || ksDiff.altered.isEmpty())
+            return;
+        ksDiff.altered.forEach(delta -> {
+            if (delta.views.isEmpty())
+                return;
+            boolean initialized = Keyspace.isInitialized();
+            Keyspace keyspace = initialized ? current.keyspaceInstances.get(delta.after.name) : null;
+            if (keyspace != null)
+                keyspace.viewManager.buildViews();
+        });
+
     }
 
     private void dropView(Keyspace keyspace, ViewMetadata metadata, boolean dropData)

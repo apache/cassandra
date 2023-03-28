@@ -327,7 +327,7 @@ public class Keyspace
             initCf(cfm, loadSSTables);
         }
 
-        this.viewManager.reload(false);
+        this.viewManager.reload(metadata);
         this.metadataRef.unsetInitial();
 
         this.repairManager = new CassandraKeyspaceRepairManager(this);

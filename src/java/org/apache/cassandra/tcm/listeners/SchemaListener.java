@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.listeners;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaDiagnostics;
 import org.apache.cassandra.service.StorageService;
@@ -40,6 +41,7 @@ public class SchemaListener implements ChangeListener
     {
         if (!next.schema.lastModified().equals(prev.schema.lastModified()))
         {
+            DistributedSchema.maybeRebuildViews(prev.schema, next.schema);
             SchemaDiagnostics.versionUpdated(Schema.instance);
             Gossiper.instance.addLocalApplicationState(ApplicationState.SCHEMA, StorageService.instance.valueFactory.schema(next.schema.getVersion()));
             SystemKeyspace.updateSchemaVersion(next.schema.getVersion());
