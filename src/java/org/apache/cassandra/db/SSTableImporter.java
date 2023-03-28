@@ -50,6 +50,7 @@ public class SSTableImporter
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
     private final ColumnFamilyStore cfs;
+    private volatile boolean abort = false;
 
     public SSTableImporter(ColumnFamilyStore cfs)
     {
@@ -130,6 +131,8 @@ public class SSTableImporter
             {
                 try
                 {
+                    if (abort)
+                        throw new InterruptedException("SSTables import has been aborted");
                     Descriptor oldDescriptor = entry.getKey();
                     if (currentDescriptors.contains(oldDescriptor))
                         continue;
@@ -193,6 +196,15 @@ public class SSTableImporter
 
         logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.keyspace.getName(), cfs.getTableName());
         return failedDirectories;
+    }
+
+    /**
+     * Signals this {@link SSTableImporter} to abort its current activity as soon as possible, and
+     * then reject all future requests ({@link #signalAbort()} is called when the node is draining).
+     */
+    void signalAbort()
+    {
+        abort = true;
     }
 
     private void logLeveling(UUID importID, Set<SSTableReader> newSSTables)
