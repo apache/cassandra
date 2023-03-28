@@ -56,12 +56,14 @@ public class AuthMetricsTest
     private static final String TEST_WRONG_PW = "testwrongpassword";
     private static final String TEST_WRONG_DELAYED_USER = "testwrongdelayeduser";
     private static final String TEST_NON_EXISTING_USER = "testnonexistinguser";
+    private static final String TEST_INVALID_CHAR_USER = "testinvalid:=\nuser*name";
 
 
     private static PasswordAuthenticator authenticator;
     private final boolean authEnabled = DatabaseDescriptor.getAuthenticator().requireAuthentication();
     AuthEnforcementFlag authEnforcementFlag;
-    long test_user_success_count, test_user_failure_count, test_wrong_user_success_count, test_wrong_user_failure_count;
+    long test_user_success_count, test_user_failure_count, test_wrong_user_success_count, test_wrong_user_failure_count,
+    test_invalid_char_user_count;
     long test_wrong_delayed_user_count, prevCalls;
 
     public AuthMetricsTest(AuthEnforcementFlag authEnforcementFlag)
@@ -73,6 +75,7 @@ public class AuthMetricsTest
             test_user_failure_count = 2;
             test_wrong_user_success_count = 0;
             test_wrong_user_failure_count = 2;
+            test_invalid_char_user_count = 2;
             test_wrong_delayed_user_count = 4;
             // prevCalls = 2 since testDelayedAuthMetrics was called 2 times when soft_enforcement_flag was "hard"
             prevCalls = 2;
@@ -82,6 +85,7 @@ public class AuthMetricsTest
             test_user_failure_count = 1;
             test_wrong_user_success_count = 0;
             test_wrong_user_failure_count = 1;
+            test_invalid_char_user_count = 1;
             test_wrong_delayed_user_count = 0;
             prevCalls = 0;
         }
@@ -136,16 +140,19 @@ public class AuthMetricsTest
         long test_user_failure_count_old = AuthMetricsManager.getMetrics(TEST_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount();
         long test_wrong_user_success_count_old = AuthMetricsManager.getMetrics(TEST_WRONG_USER, authEnabled, authEnforcementFlag.name()).userSuccessMetrics.getCount();
         long test_wrong_user_failure_count_old = AuthMetricsManager.getMetrics(TEST_WRONG_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount();
+        long test_invalid_char_user_failure_count_old = AuthMetricsManager.getMetrics(TEST_INVALID_CHAR_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount();
 
         String cql = "SELECT * FROM testks.table1";
         executeWithCredentials(Arrays.asList(cql, cql), TEST_USER, TEST_PW);
         executeWithCredentials(Collections.singletonList(cql), TEST_USER, TEST_WRONG_PW);
         executeWithCredentials(Collections.singletonList(cql), TEST_WRONG_USER, TEST_WRONG_PW);
+        executeWithCredentials(Collections.singletonList(cql), TEST_INVALID_CHAR_USER, TEST_WRONG_PW);
 
         long test_user_success_count_new = AuthMetricsManager.getMetrics(TEST_USER, authEnabled, authEnforcementFlag.name()).userSuccessMetrics.getCount();
         long test_user_failure_count_new = AuthMetricsManager.getMetrics(TEST_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount();
         long test_wrong_user_success_count_new = AuthMetricsManager.getMetrics(TEST_WRONG_USER, authEnabled, authEnforcementFlag.name()).userSuccessMetrics.getCount();
         long test_wrong_user_failure_count_new = AuthMetricsManager.getMetrics(TEST_WRONG_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount();
+        long test_invalid_char_user_failure_count_new = AuthMetricsManager.getMetrics(TEST_INVALID_CHAR_USER, authEnabled, authEnforcementFlag.name()).userFailureMetrics.getCount();
 
         /*
          * Whenever a new session is created, Cassandra creates 2 caches (PermissionsCache and RolesCache).
@@ -156,6 +163,7 @@ public class AuthMetricsTest
         assertEquals(test_user_failure_count_new - test_user_failure_count_old, test_user_failure_count);
         assertEquals(test_wrong_user_success_count_new - test_wrong_user_success_count_old, test_wrong_user_success_count);
         assertEquals(test_wrong_user_failure_count_new - test_wrong_user_failure_count_old, test_wrong_user_failure_count);
+        assertEquals(test_invalid_char_user_failure_count_new - test_invalid_char_user_failure_count_old, test_invalid_char_user_count);
     }
 
     /*

@@ -34,6 +34,7 @@ public class AuthMetrics
     public UserMetricsFactory userMetricsFactory;
 
     public AuthMetrics(String userName, boolean authEnabled, String authEnforcementFlag) {
+        userName = userName.replaceAll("[:=\n]", "_");
         userMetricsFactory = new UserMetricsFactory(userName, authEnabled, authEnforcementFlag);
 
         userSuccessMetrics = Metrics.counter(userMetricsFactory.createMetricName("AuthSuccesses"));
