@@ -110,7 +110,7 @@ public class AccordMessageSink implements MessageSink
     public void send(Node.Id to, Request request)
     {
         Verb verb = getVerb(request.type());
-        Objects.requireNonNull(verb, "verb");
+        Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
         Message<Request> message = Message.out(verb, request);
         InetAddressAndPort endpoint = getEndpoint(to);
         logger.debug("Sending {} {} to {}", verb, message.payload, endpoint);
@@ -121,7 +121,7 @@ public class AccordMessageSink implements MessageSink
     public void send(Node.Id to, Request request, CommandStore commandStore, Callback callback)
     {
         Verb verb = getVerb(request.type());
-        Preconditions.checkArgument(verb != null);
+        Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
         Message<Request> message = Message.out(verb, request);
         InetAddressAndPort endpoint = getEndpoint(to);
         logger.debug("Sending {} {} to {}", verb, message.payload, endpoint);
@@ -133,7 +133,9 @@ public class AccordMessageSink implements MessageSink
     {
         Message<?> replyTo = (Message<?>) replyContext;
         Message<?> replyMsg = replyTo.responseWith(reply);
-        Preconditions.checkArgument(replyMsg.verb() == getVerb(reply.type()));
+        Verb verb = getVerb(reply.type());
+        Preconditions.checkNotNull(verb, "Verb is null for type %s", reply.type());
+        Preconditions.checkArgument(replyMsg.verb() == verb, "Expected reply message with verb %s but got %s", replyMsg.verb(), verb);
         InetAddressAndPort endpoint = getEndpoint(replyingToNode);
         logger.debug("Replying {} {} to {}", replyMsg.verb(), replyMsg.payload, endpoint);
         messaging.send(replyMsg, endpoint);
