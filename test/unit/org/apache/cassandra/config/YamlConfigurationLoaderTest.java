@@ -32,6 +32,7 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.util.File;
 import org.yaml.snakeyaml.error.YAMLException;
 
@@ -42,6 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 
@@ -175,12 +177,16 @@ public class YamlConfigurationLoaderTest
     {
         Config c = load("test/conf/cassandra.yaml");
 
+        assertNull(c.sstable_compressor);
+
+        c = load("test/conf/cassandra_with_sstable_compressor.yaml");
+
         assertNotNull(c.sstable_compressor);
-        assertThat(c.sstable_compressor.type).isNull();
-        assertThat(c.sstable_compressor.chunk_length).isEqualTo("");
-        assertThat(c.sstable_compressor.min_compress_ratio).isNull();
+        assertThat(c.sstable_compressor.type).isEqualTo(SSTableCompressionOptions.CompressorType.lz4);
+        assertThat(c.sstable_compressor.chunk_length).isEqualTo("32MiB");
+        assertThat(c.sstable_compressor.min_compress_ratio).isEqualTo(0.5D);
         assertThat(c.sstable_compressor.compressor).isNull();
-        assertThat(c.sstable_compressor.enabled).isFalse();
+        assertThat(c.sstable_compressor.enabled).isTrue();
     }
 
     @Test

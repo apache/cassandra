@@ -568,8 +568,8 @@ commitlog_segment_size: 32MiB
 
 
 # Defines the compression params used to read/write the sstables.  If undefined the default is LZ4 with 16kb chunk
-# length. To disable compression set `class_name: org.apache.cassandra.io.compress.NoopCompressor` or
-# set the `enable` parameter as `false` .
+# length and min_compress_ratio of 0.0 (see CompressionParams.DEFAULT_MIN_COMPRESS_RATIO).
+# To disable compression set `type: none` or set the `enable` parameter as `false`.
 # This is the default options for sstable compression, the (schema) table-level settings will override this option.
 #sstable_compressor:
 #
@@ -577,7 +577,7 @@ commitlog_segment_size: 32MiB
 #
   #chunk_length: 16KiB : defaults to 16KiB
 #
-  # min_compress_ratio is only used in snappy and custom implementations.
+  # min_compress_ratio is only used in snappy, lz4, and custom implementations.
   #min_compress_ratio: 0.0 : defaults to 0.0 see CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
 #
   # type should be one of the `CompressorType` values:
