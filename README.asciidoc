@@ -12,6 +12,13 @@ https://cwiki.apache.org/confluence/display/CASSANDRA2/DataModel[Row store] 的�
 
 目前是个镜像项目，好多内容还在看，不知道会做些什么，以后做什么，文档里会说。
 
+== 跟官方比源码修改内容
+. 注释掉了一些cassandra需要去官方下载一些文件的代码，改为直接读取本地的文件。
+. 修改了FileAuditLogger写入sql带有换行符,导致数据不是一条的问题。
+. 默认分发包配置会自动打开FileAuditLogger
+
+
+
 == 其他的一些内容
 
 . xref:doc/无法下载的包.adoc[无法下载的依赖包]
