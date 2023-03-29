@@ -551,10 +551,10 @@ public class Directories
             logger.debug("FileStore {} has {} bytes available, checking if we can write {} bytes", toWrite.getKey(), availableForCompaction, toWrite.getValue());
             if (availableForCompaction < toWrite.getValue())
             {
-                logger.warn("FileStore {} has only {} MiB available, but {} MiB is needed",
+                logger.warn("FileStore {} has only {} available, but {} is needed",
                             toWrite.getKey(),
-                            Math.round(availableForCompaction/1024.0/1024.0),
-                            Math.round(toWrite.getValue()/1024.0/1024.0));
+                            FileUtils.stringifyFileSize(availableForCompaction),
+                            FileUtils.stringifyFileSize((long) toWrite.getValue()));
                 hasSpace = false;
             }
         }

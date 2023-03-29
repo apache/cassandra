@@ -1000,24 +1000,39 @@ public class DirectoriesTest
 
             writes.put(fs2, 25L*1024*1024+9);
             fs2.usableSpace = 20L*1024*1024-9;
+            writes.put(fs3, 999L*1024*1024*1024+9);
+            fs2.usableSpace = 20L*1024+99;
+            assertFalse(Directories.hasDiskSpaceForCompactionsAndStreams(writes));
+
+            fs1.usableSpace = 30;
+            fs2.usableSpace = 30;
+            fs3.usableSpace = 30L*1024*1024*1024*1024;
+
+            writes.put(fs1, 20L);
+            writes.put(fs2, 20L);
+            writes.put(fs3, 30L*1024*1024*1024*1024+1);
             assertFalse(Directories.hasDiskSpaceForCompactionsAndStreams(writes));
 
             List<ILoggingEvent> filteredLog = filterLogByDiyId(listAppender.list);
             // Log messages can be out of order, even for the single thread. (e tui AsyncAppender?)
             // We can deal with it, it's sufficient to just check that all messages exist in the result
-            assertEquals(12, filteredLog.size());
+            assertEquals(17, filteredLog.size());
 
             String logMsg = "30 bytes available, checking if we can write 20 bytes";
-            checkLevel(filteredLog, Level.DEBUG, 9);
-            checkFormattedMessage(filteredLog, logMsg, 6);
+            checkLevel(filteredLog, Level.DEBUG, 12);
+            checkFormattedMessage(filteredLog, logMsg, 7);
             logMsg = "19 bytes available, checking if we can write 20 bytes";
             checkFormattedMessage(filteredLog, logMsg, 2);
 
 
-            logMsg = "0 MiB available, but 0 MiB is needed";
-            checkLevel(filteredLog, Level.WARN, 3);
+            logMsg = "19 bytes available, but 20 bytes is needed";
+            checkLevel(filteredLog, Level.WARN, 5);
             checkFormattedMessage(filteredLog, logMsg, 2);
-            logMsg = "has only 20 MiB available, but 25 MiB is needed";
+            logMsg = "has only 20.1 KiB available, but 25 MiB is needed";
+            checkFormattedMessage(filteredLog, logMsg, 1);
+            logMsg = "has only 30 bytes available, but 999 GiB is needed";
+            checkFormattedMessage(filteredLog, logMsg, 1);
+            logMsg = "has only 30 TiB available, but 30 TiB is needed";
             checkFormattedMessage(filteredLog, logMsg, 1);
         }
         finally
