@@ -49,6 +49,7 @@ public interface CommitLogReadHandler
     /**
      * Handle an error during segment read, signaling whether or not you want the reader to skip the remainder of the
      * current segment on error.
+     * 在段读取过程中处理错误，指示您是否希望读取器在出现错误时跳过当前段的剩余部分。
      *
      * @param exception CommitLogReadException w/details on exception state
      * @return boolean indicating whether to stop reading
@@ -58,6 +59,7 @@ public interface CommitLogReadHandler
 
     /**
      * In instances where we cannot recover from a specific error and don't care what the reader thinks
+     * 在我们无法从特定错误中恢复并且不在乎读者怎么想的情况下
      *
      * @param exception CommitLogReadException w/details on exception state
      * @throws IOException
@@ -66,11 +68,12 @@ public interface CommitLogReadHandler
 
     /**
      * Process a deserialized mutation
+     * 处理反序列化的改变
      *
-     * @param m deserialized mutation
-     * @param size serialized size of the mutation
-     * @param entryLocation filePointer offset inside the CommitLogSegment for the end of the record
-     * @param desc CommitLogDescriptor for mutation being processed
+     * @param m deserialized mutation 反序列化突变
+     * @param size serialized size of the mutation 改变的序列化大小
+     * @param entryLocation filePointer offset inside the CommitLogSegment for the end of the   recordfileCommitLogSegment内记录结尾的指针偏移量
+     * @param desc CommitLogDescriptor for mutation being processed 正在处理的变异的CommitLogDescriptor
      */
     void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc);
 }

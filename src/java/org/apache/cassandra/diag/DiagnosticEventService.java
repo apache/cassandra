@@ -68,6 +68,7 @@ public final class DiagnosticEventService implements DiagnosticEventServiceMBean
 
     /**
      * Makes provided event available to all subscribers.
+     * 使提供的活动对所有订阅者都可用。
      */
     public void publish(DiagnosticEvent event)
     {

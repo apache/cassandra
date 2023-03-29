@@ -1,0 +1,40 @@
+== 依赖包build时候需要下载
+
+=== 先放链接
+
+----
+
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/geomet-0.1.0.zip
+
+
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-amd64-freebsd-6.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-amd64-linux.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-amd64-solaris.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-ia64-hpux-11.sl
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-ia64-linux.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-pa-hpux-11.sl
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-ppc-aix-5.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-ppc-linux.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-ppc64-aix-5.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-ppc64-linux.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-ppc64le-linux.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-s390x-linux.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-sparc-solaris.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-sparc64-solaris.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-universal-macosx.dylib
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-universal64-macosx.dylib
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-x86-freebsd-5.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-x86-freebsd-6.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-x86-linux.so
+https://raw.githubusercontent.com/apache/cassandra/1371883db3d8bf7d7c54e0baaca89c6c2d2a5abe/lib/sigar-bin/libsigar-x86-solaris.so
+
+----
+
+
+都是需要下载到lib目录的，梯子的原因下载不到。
+
+所以build.xml 里下载的地方被我注释掉了。
+
+从新指向了，本地路径lib文件夹。
+
+如果实在没办法找到梯子，在 package 文件夹存放了，我已经下载好的文件。拷贝到lib文件使用。

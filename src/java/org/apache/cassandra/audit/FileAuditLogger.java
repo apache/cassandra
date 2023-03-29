@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Synchronous, file-based audit logger; just uses the standard logging mechansim.
+ * 同步的、基于文件的审计记录器；只使用标准的日志机制。写入文本文件
  */
 public class FileAuditLogger implements IAuditLogger
 {
@@ -48,6 +49,7 @@ public class FileAuditLogger implements IAuditLogger
     {
         // don't bother with the volatile read of enabled here. just go ahead and log, other components
         // will check the enbaled field.
+        // 不要为这里启用的volatile读取而烦恼。只需继续进行日志记录，其他组件就会检查enbaled字段。
         logger.info(auditLogEntry.getLogString());
     }
 

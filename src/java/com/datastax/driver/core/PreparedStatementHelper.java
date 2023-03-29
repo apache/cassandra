@@ -23,7 +23,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 // Unfortunately, MD5Digest and fields in PreparedStatement are package-private, so the easiest way to test these
+// 不幸的是，MD5Digest和PreparedStatement中的字段是包私有的，因此测试这些的最简单方法
 // things while still using the driver was to create a class in DS package.
+// 在使用驱动程序的同时，要在DS包中创建一个类。
 public class PreparedStatementHelper
 {
     private static final MessageDigest cachedDigest;

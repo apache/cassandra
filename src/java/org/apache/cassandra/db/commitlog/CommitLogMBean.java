@@ -26,16 +26,19 @@ public interface CommitLogMBean
 {
     /**
      *  Command to execute to archive a commitlog segment.  Blank to disabled.
+     *  要执行以存档commitlog段的命令。空白为禁用。
      */
     public String getArchiveCommand();
 
     /**
      * Command to execute to make an archived commitlog live again
+     * 要执行的命令以使存档的commitlog重新生效
      */
     public String getRestoreCommand();
 
     /**
      * Directory to scan the recovery files in
+     * 要扫描恢复文件的目录
      */
     public String getRestoreDirectories();
 

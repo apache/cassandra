@@ -100,10 +100,12 @@ public class AuditLogEntry
         }
         if (StringUtils.isNotBlank(operation))
         {
-            builder.append("|operation:").append(operation);
+            String s = operation.replace('\r', ' ').replace('\n', ' ').replaceAll(" {2,}+", " ");
+            builder.append("|operation:").append(s);
         }
         return builder.toString();
     }
+
 
     public InetAddressAndPort getHost()
     {

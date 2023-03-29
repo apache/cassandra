@@ -146,6 +146,7 @@ public class CommitLog implements CommitLogMBean
 
     /**
      * Perform recovery on commit logs located in the directory specified by the config file.
+     * 对位于配置文件指定的目录中的提交日志执行恢复。
      *
      * @return the number of mutations replayed
      * @throws IOException
@@ -189,6 +190,7 @@ public class CommitLog implements CommitLogMBean
 
     /**
      * Perform recovery on a list of commit log files.
+     * 对提交日志文件的列表执行恢复
      *
      * @param clogs   the list of commit log files to replay
      * @return the number of mutations replayed

@@ -12,6 +12,10 @@ https://cwiki.apache.org/confluence/display/CASSANDRA2/DataModel[Row store] 的�
 
 目前是个镜像项目，好多内容还在看，不知道会做些什么，以后做什么，文档里会说。
 
+== 其他的一些内容
+
+. xref:doc/无法下载的包.adoc[无法下载的依赖包]
+
 == 安装要求
 ------------
 . Java >= 1.8 (OpenJDK and Oracle JVMS have been tested)

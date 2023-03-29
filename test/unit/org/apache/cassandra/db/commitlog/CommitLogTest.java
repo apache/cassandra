@@ -914,19 +914,23 @@ public abstract class CommitLogTest
         public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc)
         {
             // Filter out system writes that could flake the test.
+            // 过滤掉可能导致测试失败的系统写入。
             if (!KEYSPACE1.equals(m.getKeyspaceName()))
                 return;
 
             if (entryLocation <= filterPosition.position)
             {
                 // Skip over this mutation.
+                // 跳过这个 改变
                 skipped++;
                 return;
             }
             for (PartitionUpdate partitionUpdate : m.getPartitionUpdates())
             {
                 // Only process mutations for the CF's we're testing against, since we can't deterministically predict
+                // 只处理我们正在测试的CF的突变，因为我们无法确定地预测
                 // whether or not system keyspaces will be mutated during a test.
+                // 系统密钥空间在测试期间是否会发生突变。
                 if (partitionUpdate.metadata().name.equals(metadata.name))
                 {
                     for (Row row : partitionUpdate)

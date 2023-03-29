@@ -99,7 +99,7 @@
     <property name="maven-ant-tasks.version" value="2.1.3" />
     <property name="maven-ant-tasks.local" value="${local.repository}/org/apache/maven/maven-ant-tasks"/>
     <property name="maven-ant-tasks.url"
-              value="lib/maven-ant-tasks-2.1.3.jar" />
+              value="https://repo.maven.apache.org/maven2/org/apache/maven/maven-ant-tasks" />
     <!-- details of how and which Maven repository we publish to -->
     <property name="maven.version" value="3.0.3" />
     <condition property="maven-repository-url" value="https://repository.apache.org/service/local/staging/deploy/maven2">
