@@ -153,6 +153,8 @@ public class KubernetesSecretsSslContextFactoryTest
         Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.put(KEYSTORE_PATH, "/this/is/probably/not/a/file/on/your/test/machine");
+        config.put(KEYSTORE_PASSWORD_ENV_VAR, "MY_KEYSTORE_PASSWORD");
+        config.put("MY_KEYSTORE_PASSWORD","ThisWontMatter");
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory = new KubernetesSecretsSslContextFactoryForTestOnly(config);
         kubernetesSecretsSslContextFactory.keystoreContext.checkedExpiry = false;
