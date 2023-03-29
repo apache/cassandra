@@ -59,6 +59,9 @@ nbactions.xml
 out/
 target/
 
+# Sonar
+.scannerwork/
+
 # General
 **/__pycache__
 *.pyc

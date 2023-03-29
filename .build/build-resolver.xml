@@ -108,6 +108,12 @@
         </resolve>
         <resolve>
             <dependencies>
+                <dependency groupId="org.sonarsource.scanner.ant" artifactId="sonarqube-ant-task" version="2.7.1.1951" />
+            </dependencies>
+            <path refid="sonar.classpath" classpath="runtime"/>
+        </resolve>
+        <resolve>
+            <dependencies>
                 <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}" />
             </dependencies>
             <path refid="jacocoant.classpath" classpath="runtime"/>
