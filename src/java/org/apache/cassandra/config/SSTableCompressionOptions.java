@@ -53,18 +53,21 @@ public class SSTableCompressionOptions
                                  ? CompressionParams.DEFAULT_CHUNK_LENGTH
                                  : new DataStorageSpec.IntKibibytesBound(this.chunk_length).toKibibytes();
 
-        double min_compress_ratio_as_dbl = this.min_compress_ratio == null || this.min_compress_ratio < 0.0
-                                           ? CompressionParams.DEFAULT_MIN_COMPRESS_RATIO : this.min_compress_ratio;
-
         switch (myType)
         {
             case none:
                 return CompressionParams.noCompression();
             default:
+                return CompressionParams.fromOptions(null);
             case lz4:
-                return CompressionParams.lz4(chunk_length_in_kb);
+                return this.min_compress_ratio == null || this.min_compress_ratio < 0.0
+                       ? CompressionParams.lz4(chunk_length_in_kb)
+                       : CompressionParams.lz4(chunk_length_in_kb, CompressionParams.calcMaxCompressedLength(chunk_length_in_kb, this.min_compress_ratio));
             case snappy:
-               return CompressionParams.snappy(chunk_length_in_kb, min_compress_ratio_as_dbl);
+               return CompressionParams.snappy(chunk_length_in_kb,
+                        this.min_compress_ratio == null || this.min_compress_ratio < 0.0
+                               ? CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
+                               : this.min_compress_ratio);
             case deflate:
                 return CompressionParams.deflate(chunk_length_in_kb);
             case zstd:
@@ -81,7 +84,9 @@ public class SSTableCompressionOptions
                 CompressionParams cp = new CompressionParams(compressor.class_name,
                                              compressor.parameters == null ? Collections.emptyMap() : compressor.parameters,
                                              chunk_length_in_kb,
-                                             min_compress_ratio_as_dbl);
+                                             this.min_compress_ratio == null || this.min_compress_ratio < 0.0
+                                                     ? CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
+                                                     : this.min_compress_ratio);
                 if (cp.getSstableCompressor() == null)
                 {
                     throw new ConfigurationException(format("Missing '%s' is not a valid compressor class name.", compressor.class_name));
