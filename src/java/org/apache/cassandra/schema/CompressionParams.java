@@ -74,6 +74,12 @@ public final class CompressionParams
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        Collections.emptyMap());
 
+    private static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.<String, String>emptyMap()),
+                                                                       DEFAULT_CHUNK_LENGTH,
+                                                                       calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
+                                                                       DEFAULT_MIN_COMPRESS_RATIO,
+                                                                       Collections.emptyMap());
+
     private static final String CRC_CHECK_CHANCE_WARNING = "The option crc_check_chance was deprecated as a compression option. " +
                                                            "You should specify it as a top-level table option instead";
 
@@ -95,7 +101,7 @@ public final class CompressionParams
         {
             return !CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.getBoolean()
                    ? noCompression()
-                   : lz4();
+                   : DEFAULT;
         } else {
             return options.getCompressionParams();
         }
@@ -215,7 +221,7 @@ public final class CompressionParams
         this(createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, otherOptions);
     }
 
-    static int calcMaxCompressedLength(int chunkLength, double minCompressRatio)
+    public static int calcMaxCompressedLength(int chunkLength, double minCompressRatio)
     {
         return (int) Math.ceil(Math.min(chunkLength / minCompressRatio, Integer.MAX_VALUE));
     }
