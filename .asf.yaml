@@ -1,8 +1,0 @@
-github:
-  enabled_merge_buttons:
-    squash:  false
-    merge:   false
-    rebase:  true
-
-notifications:
-  jira_options: link worklog
