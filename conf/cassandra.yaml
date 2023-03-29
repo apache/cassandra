@@ -1360,6 +1360,7 @@ server_encryption_options:
   # during upgrade to 4.0; otherwise, set to false.
   legacy_ssl_storage_port_enabled: false
   # Set to a valid keystore if internode_encryption is dc, rack or all
+  # For configurating PEM based key material refer, to https://cassandra.apache.org/doc/latest/cassandra/operating/security.html#using-pem-based-key-material
   keystore: conf/.keystore
   keystore_password: cassandra
   # During internode mTLS authentication, inbound connections (acting as servers) use keystore, keystore_password
@@ -1405,6 +1406,7 @@ client_encryption_options:
   # optional defaults to true when enabled is false, and false when enabled is true.
   # optional: true
   # Set keystore and keystore_password to valid keystores if enabled is true
+  # For configurating PEM based key material, refer to https://cassandra.apache.org/doc/latest/cassandra/operating/security.html#using-pem-based-key-material
   keystore: conf/.keystore
   keystore_password: cassandra
   # Verify client certificates
