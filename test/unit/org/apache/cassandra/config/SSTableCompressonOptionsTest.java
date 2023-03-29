@@ -38,6 +38,8 @@ import org.apache.cassandra.schema.CompressionParams;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class SSTableCompressonOptionsTest
 {
@@ -74,6 +76,12 @@ public class SSTableCompressonOptionsTest
         params = options.getCompressionParams();
         assertParams(true, 5 * 1024, LZ4Compressor.class);
 
+        options.min_compress_ratio=0.5;
+        params = options.getCompressionParams();
+        assertParams(true, 5 * 1024, LZ4Compressor.class);
+        Map<String,String> map = params.asMap();
+        assertEquals("0.5", map.get(CompressionParams.MIN_COMPRESS_RATIO));
+
         options.enabled = false;
         params = options.getCompressionParams();
         assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
@@ -90,6 +98,12 @@ public class SSTableCompressonOptionsTest
         params = options.getCompressionParams();
         // none does not set chunk length
         assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
+
+        options.min_compress_ratio=0.5;
+        params = options.getCompressionParams();
+        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
+        Map<String,String> map = params.asMap();
+        assertNull( map.get(CompressionParams.MIN_COMPRESS_RATIO));
 
         options.enabled = false;
         params = options.getCompressionParams();
@@ -108,6 +122,12 @@ public class SSTableCompressonOptionsTest
         // noop does not set chunk length
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, NoopCompressor.class);
 
+        options.min_compress_ratio=0.5;
+        params = options.getCompressionParams();
+        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, NoopCompressor.class);
+        Map<String,String> map = params.asMap();
+        assertNull( map.get(CompressionParams.MIN_COMPRESS_RATIO));
+
         options.enabled = false;
         params = options.getCompressionParams();
         assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
@@ -123,8 +143,11 @@ public class SSTableCompressonOptionsTest
         params = options.getCompressionParams();
         assertParams(true, 5 * 1024, SnappyCompressor.class);
 
+        options.min_compress_ratio=0.5;
         params = options.getCompressionParams();
         assertParams(true, 5 * 1024, SnappyCompressor.class);
+        Map<String,String> map = params.asMap();
+        assertEquals("0.5", map.get(CompressionParams.MIN_COMPRESS_RATIO));
 
         options.enabled = false;
         params = options.getCompressionParams();
@@ -141,6 +164,12 @@ public class SSTableCompressonOptionsTest
         params = options.getCompressionParams();
         assertParams(true, 5 * 1024, DeflateCompressor.class);
 
+        options.min_compress_ratio=0.5;
+        params = options.getCompressionParams();
+        assertParams(true, 5 * 1024, DeflateCompressor.class);
+        Map<String,String> map = params.asMap();
+        assertNull( map.get(CompressionParams.MIN_COMPRESS_RATIO));
+
         options.enabled = false;
         params = options.getCompressionParams();
         assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
@@ -155,6 +184,12 @@ public class SSTableCompressonOptionsTest
         options.chunk_length = "5MiB";
         params = options.getCompressionParams();
         assertParams(true, 5 * 1024, ZstdCompressor.class);
+
+        options.min_compress_ratio=0.5;
+        params = options.getCompressionParams();
+        assertParams(true, 5 * 1024, ZstdCompressor.class);
+        Map<String,String> map = params.asMap();
+        assertNull(map.get(CompressionParams.MIN_COMPRESS_RATIO));
 
         options.enabled = false;
         params = options.getCompressionParams();

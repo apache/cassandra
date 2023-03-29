@@ -103,3 +103,12 @@ memtable:
             class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryMethod
         test_invalid_factory_field:
             class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryField
+
+sstable_compressor:
+    chunk_length: 32MiB
+    min_compress_ratio: 0.5
+    type: lz4
+    # if custom type is specified compressor class and parameters must be provided
+    #compressor:
+    #    class_name: org.apache.cassandra.io.compress.LZ4Compressor # the compressor class
+    #    parameters:
