@@ -49,4 +49,10 @@ public class BulkLoadConnectionFactory extends DefaultConnectionFactory implemen
 
         return super.createConnection(template, messagingVersion);
     }
+
+    @Override
+    public boolean supportsPreferredIp()
+    {
+        return false; // called in a tool context, do not use getPreferredIP
+    }
 }

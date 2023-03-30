@@ -238,7 +238,7 @@ public class NettyStreamingMessageSender implements StreamingMessageSender
                 logger.debug("{} Sending {}", createLogTag(session, null), message);
 
             // Supply a preferred IP up-front to avoid trying to get it in the executor thread, which can be interrupted.
-            OutboundConnectionSettings templateWithConnectTo = template.withConnectTo(template.connectTo());
+            OutboundConnectionSettings templateWithConnectTo = factory.supportsPreferredIp() ? template.withConnectTo(template.connectTo()) : template;
             fileTransferExecutor.submit(new FileStreamTask((OutgoingStreamMessage) message, templateWithConnectTo));
             return;
         }
