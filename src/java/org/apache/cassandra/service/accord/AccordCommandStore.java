@@ -279,4 +279,12 @@ public class AccordCommandStore implements CommandStore
     {
         executor.shutdown();
     }
+
+    @Override
+    public String toString()
+    {
+        return "AccordCommandStore{" +
+               "id=" + id +
+               '}';
+    }
 }
