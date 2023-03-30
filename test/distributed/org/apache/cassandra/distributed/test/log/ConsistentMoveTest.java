@@ -41,17 +41,19 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.fuzz.HarryHelper;
 import org.apache.cassandra.distributed.fuzz.InJVMTokenAwareVisitorExecutor;
 import org.apache.cassandra.distributed.fuzz.InJvmSut;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicationFactor;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
 
+import static org.apache.cassandra.distributed.shared.ClusterUtils.getSequenceAfterCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -73,7 +75,7 @@ public class ConsistentMoveTest extends FuzzTestBase
         {
             IInvokableInstance cmsInstance = cluster.get(1);
             IInvokableInstance movingInstance = cluster.get(2);
-            ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
+            waitForCMSToQuiesce(cluster, cmsInstance);
 
             configBuilder.setSUT(() -> new InJvmSut(cluster));
             Run run = configBuilder.build().createRun();
@@ -82,7 +84,7 @@ public class ConsistentMoveTest extends FuzzTestBase
                                            " WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 2};",
                                            ConsistencyLevel.ALL);
             cluster.coordinator(1).execute(run.schemaSpec.compile().cql(), ConsistencyLevel.ALL);
-            ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
+            waitForCMSToQuiesce(cluster, cmsInstance);
 
             FuzzTestBase.QuiescentLocalStateChecker model = new FuzzTestBase.QuiescentLocalStateChecker(run, ReplicationFactor.fullOnly(2));
             Visitor visitor = new LoggingVisitor(run, MutatingRowVisitor::new);
@@ -92,7 +94,7 @@ public class ConsistentMoveTest extends FuzzTestBase
             model.validateAll();
 
             // Make sure there can be only one FinishLeave in flight
-            ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
+            waitForCMSToQuiesce(cluster, cmsInstance);
 
             Callable<?> pending = pauseBeforeCommit(cmsInstance, (e) -> e instanceof PrepareMove.FinishMove);
             new Thread(() -> {
@@ -103,15 +105,11 @@ public class ConsistentMoveTest extends FuzzTestBase
 
             assertGossipStatus(cluster, movingInstance.config().num(), "MOVING");
 
-            Callable<Epoch> finishedMoving = getSequenceAfterCommit(cmsInstance, (e, r) -> e instanceof PrepareMove.FinishMove && r.isSuccess());
-            cmsInstance.runOnInstance(() -> {
-                TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
-                processor.unpause();
-            });
-
-            Epoch nextEpoch = finishedMoving.call();
             // wait for the cluster to all witness the finish join event
-            ClusterUtils.waitForCMSToQuiesce(cluster, nextEpoch);
+            Callable<Epoch> finishedMoving = getSequenceAfterCommit(cmsInstance, (e, r) -> e instanceof PrepareMove.FinishMove && r.isSuccess());
+            unpauseCommits(cmsInstance);
+            Epoch nextEpoch = finishedMoving.call();
+            waitForCMSToQuiesce(cluster, nextEpoch);
 
             // Streaming for unbootstrap has finished, any rows from the first batch should have been transferred
             // from the leaving node to the new replicas. Continue to write at ONE, replication of these rows will

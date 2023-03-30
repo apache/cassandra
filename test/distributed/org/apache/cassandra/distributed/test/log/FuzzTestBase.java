@@ -19,14 +19,10 @@
 package org.apache.cassandra.distributed.test.log;
 
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiPredicate;
-import java.util.function.Predicate;
 
 import org.junit.BeforeClass;
 
@@ -38,19 +34,12 @@ import harry.model.sut.SystemUnderTest;
 import harry.operations.CompiledStatement;
 import harry.operations.Query;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.fuzz.HarryHelper;
 import org.apache.cassandra.distributed.fuzz.InJvmSut;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.test.ExecUtil;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.locator.ReplicationFactor;
-import org.apache.cassandra.tcm.Commit;
-import org.apache.cassandra.tcm.Transformation;
-import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 import static harry.model.SelectHelper.resultSetToRow;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -72,58 +61,6 @@ public class FuzzTestBase extends TestBaseImpl
                                           // Since we'll be pausing the commit request, it may happen that it won't get
                                           // unpaused before event expiration.
                                .set("request_timeout", String.format("%dms", TimeUnit.MINUTES.toMillis(10))));
-    }
-
-    protected static Callable<Void> pauseBeforeCommit(IInvokableInstance cmsInstance, SerializablePredicate<Transformation> predicate)
-    {
-        return cmsInstance.callOnInstance(() -> {
-            TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
-            AsyncPromise<?> promise = new AsyncPromise<>();
-            processor.pauseIf(predicate, () -> promise.setSuccess(null));
-            return () -> {
-                try
-                {
-                    promise.get(30, TimeUnit.SECONDS);
-                    return null;
-                }
-                catch (Throwable e)
-                {
-                    throw new RuntimeException(e);
-                }
-            };
-        });
-    }
-
-    // todo; assumes period = 1
-    protected static Callable<Epoch> getSequenceAfterCommit(IInvokableInstance cmsInstance,
-                                                            SerializableBiPredicate<Transformation, Commit.Result> predicate)
-    {
-        Callable<Long> remoteCallable = cmsInstance.callOnInstance(() -> {
-            TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
-
-            AsyncPromise<Epoch> promise = new AsyncPromise<>();
-            processor.registerCommitPredicate((event, result) -> {
-                if (predicate.test(event, result))
-                {
-                    promise.setSuccess(result.success().replication.latestEpoch());
-                    return true;
-                }
-
-                return false;
-            });
-            return () -> {
-                try
-                {
-                    return ClusterUtils.encode(promise.get(30, TimeUnit.SECONDS));
-                }
-                catch (Throwable e)
-                {
-                    throw new RuntimeException(e);
-                }
-            };
-        });
-
-        return () -> ClusterUtils.decode(remoteCallable.call());
     }
 
     public static IIsolatedExecutor.SerializableRunnable toRunnable(ExecUtil.ThrowingSerializableRunnable runnable)
@@ -202,7 +139,4 @@ public class FuzzTestBase extends TestBaseImpl
             }
         }
     }
-
-    public static interface SerializablePredicate<T> extends Predicate<T>, Serializable {}
-    public static interface SerializableBiPredicate<T1, T2> extends BiPredicate<T1, T2>, Serializable {}
 }

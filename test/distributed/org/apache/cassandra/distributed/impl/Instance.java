@@ -729,6 +729,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 registerOutboundFilter(cluster);
         });
         QueryProcessor.registerStatementInvalidatingListener();
+        TestChangeListener.register();
 
         // We need to persist this as soon as possible after startup checks.
         // This should be the first write to SystemKeyspace (CASSANDRA-11742)

@@ -38,18 +38,20 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.fuzz.HarryHelper;
 import org.apache.cassandra.distributed.fuzz.InJVMTokenAwareVisitorExecutor;
 import org.apache.cassandra.distributed.fuzz.InJvmSut;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.ReplicationFactor;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getClusterMetadataVersion;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.getSequenceAfterCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 import static org.junit.Assert.assertFalse;
 
 public class ConsistentLeaveTest extends FuzzTestBase
@@ -70,7 +72,7 @@ public class ConsistentLeaveTest extends FuzzTestBase
         {
             IInvokableInstance cmsInstance = cluster.get(1);
             IInvokableInstance leavingInstance = cluster.get(2);
-            ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
+            waitForCMSToQuiesce(cluster, cmsInstance);
 
             configBuilder.setSUT(() -> new InJvmSut(cluster));
             Run run = configBuilder.build().createRun();
@@ -79,7 +81,7 @@ public class ConsistentLeaveTest extends FuzzTestBase
                                            " WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 2};",
                                            ConsistencyLevel.ALL);
             cluster.coordinator(1).execute(run.schemaSpec.compile().cql(), ConsistencyLevel.ALL);
-            ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
+            waitForCMSToQuiesce(cluster, cmsInstance);
 
             QuiescentLocalStateChecker model = new QuiescentLocalStateChecker(run, ReplicationFactor.fullOnly(2));
             Visitor visitor = new LoggingVisitor(run, MutatingRowVisitor::new);
@@ -103,20 +105,17 @@ public class ConsistentLeaveTest extends FuzzTestBase
             model.validateAll();
 
             // Make sure there can be only one FinishLeave in flight
-            ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
+            waitForCMSToQuiesce(cluster, cmsInstance);
             // set expectation of finish leave & retrieve the sequence when it gets committed
             Epoch currentEpoch = getClusterMetadataVersion(cmsInstance);
             Callable<Epoch> finishedLeaving = getSequenceAfterCommit(cmsInstance, (e, r) -> e instanceof PrepareLeave.FinishLeave && r.isSuccess());
-            cmsInstance.runOnInstance(() -> {
-                TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
-                processor.unpause();
-            });
+            unpauseCommits(cmsInstance);
             Epoch nextEpoch = finishedLeaving.call();
             Assert.assertEquals(String.format("Epoch %s should have immediately superseded epoch %s.", nextEpoch, currentEpoch),
                                 nextEpoch.getEpoch(), currentEpoch.getEpoch() + 1);
 
             // wait for the cluster to all witness the finish join event
-            ClusterUtils.waitForCMSToQuiesce(cluster, nextEpoch);
+            waitForCMSToQuiesce(cluster, nextEpoch);
 
             assertGossipStatus(cluster, leavingInstance.config().num(), "LEFT");
 

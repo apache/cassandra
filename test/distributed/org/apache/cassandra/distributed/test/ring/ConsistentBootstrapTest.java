@@ -37,13 +37,15 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.fuzz.HarryHelper;
 import org.apache.cassandra.distributed.fuzz.InJvmSut;
-import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.log.FuzzTestBase;
-import org.apache.cassandra.distributed.test.log.TestProcessor;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
+
+import static org.apache.cassandra.distributed.shared.ClusterUtils.getSequenceAfterCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.waitForCMSToQuiesce;
 
 public class ConsistentBootstrapTest extends FuzzTestBase
 {
@@ -63,7 +65,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
                                         .start())
         {
             IInvokableInstance cmsInstance = cluster.get(1);
-            ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
+            waitForCMSToQuiesce(cluster, cmsInstance);
             configBuilder.setSUT(() -> new InJvmSut(cluster));
             Run run = configBuilder.build().createRun();
 
@@ -71,7 +73,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
                                            " WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 3};",
                                            ConsistencyLevel.ALL);
             cluster.coordinator(1).execute(run.schemaSpec.compile().cql(), ConsistencyLevel.ALL);
-            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
+            waitForCMSToQuiesce(cluster, cluster.get(1));
             Visitor visitor = new LoggingVisitor(run, MutatingRowVisitor::new);
             QuiescentLocalStateChecker model = new QuiescentLocalStateChecker(run);
             System.out.println("Starting write phase...");
@@ -86,7 +88,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
                                             .set(Constants.KEY_DTEST_FULL_STARTUP, true);
             IInvokableInstance newInstance = cluster.bootstrap(config);
 
-            // Prime the DPS node to pause before the finish join event is committed
+            // Prime the CMS node to pause before the finish join event is committed
             Callable<?> pending = pauseBeforeCommit(cmsInstance, (e) -> e instanceof PrepareJoin.FinishJoin);
             new Thread(() -> newInstance.startup()).start();
             pending.call();
@@ -102,25 +104,18 @@ public class ConsistentBootstrapTest extends FuzzTestBase
             catch (Throwable t)
             {
                 // Unpause, since otherwise validation exception will prevent graceful shutdown
-                cmsInstance.runOnInstance(() -> {
-                    TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
-                    processor.unpause();
-                });
+                unpauseCommits(cmsInstance);
                 throw t;
             }
 
             // Make sure there can be only one FinishJoin in flight
-            ClusterUtils.waitForCMSToQuiesce(cluster, cmsInstance);
+            waitForCMSToQuiesce(cluster, cmsInstance);
             // set expectation of finish join & retrieve the sequence when it gets committed
             Callable<Epoch> bootstrapVisible = getSequenceAfterCommit(cmsInstance, (e, r) -> e instanceof PrepareJoin.FinishJoin && r.isSuccess());
 
-            cmsInstance.runOnInstance(() -> {
-                TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
-                processor.unpause();
-            });
-
             // wait for the cluster to all witness the finish join event
-            ClusterUtils.waitForCMSToQuiesce(cluster, bootstrapVisible.call());
+            unpauseCommits(cmsInstance);
+            waitForCMSToQuiesce(cluster, bootstrapVisible.call());
 
             for (int i = 0; i < WRITES; i++)
                 visitor.visit();

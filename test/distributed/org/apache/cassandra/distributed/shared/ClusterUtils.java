@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.shared;
 
+import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.net.InetSocketAddress;
 import java.security.Permission;
@@ -31,10 +32,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
@@ -61,6 +64,8 @@ import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.distributed.impl.TestChangeListener;
+import org.apache.cassandra.distributed.test.log.TestProcessor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -72,11 +77,14 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.Isolated;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
@@ -415,6 +423,132 @@ public class ClusterUtils
     {
         ClusterUtils.waitForCMSToQuiesce(cluster, getClusterMetadataVersion(leader), ignored);
     }
+
+    public static Callable<Void> pauseBeforeEnacting(IInvokableInstance instance, Epoch epoch)
+    {
+        return pauseBeforeEnacting(instance, epoch, 10, TimeUnit.SECONDS);
+    }
+
+    protected static Callable<Void> pauseBeforeEnacting(IInvokableInstance instance,
+                                                        Epoch epoch,
+                                                        long wait,
+                                                        TimeUnit waitUnit)
+    {
+        return instance.callOnInstance(() -> {
+            TestChangeListener listener = TestChangeListener.instance;
+            AsyncPromise<?> promise = new AsyncPromise<>();
+            listener.pauseBefore(epoch, () -> promise.setSuccess(null));
+            return () -> {
+                try
+                {
+                    promise.get(wait, waitUnit);
+                    return null;
+                }
+                catch (Throwable e)
+                {
+                    throw new RuntimeException(e);
+                }
+            };
+        });
+    }
+
+    public static Callable<Void> pauseAfterEnacting(IInvokableInstance instance, Epoch epoch)
+    {
+        return pauseAfterEnacting(instance, epoch, 10, TimeUnit.SECONDS);
+    }
+
+    protected static Callable<Void> pauseAfterEnacting(IInvokableInstance instance,
+                                                       Epoch epoch,
+                                                       long wait,
+                                                       TimeUnit waitUnit)
+    {
+        return instance.callOnInstance(() -> {
+            TestChangeListener listener = TestChangeListener.instance;
+            AsyncPromise<?> promise = new AsyncPromise<>();
+            listener.pauseAfter(epoch, () -> promise.setSuccess(null));
+            return () -> {
+                try
+                {
+                    promise.get(wait, waitUnit);
+                    return null;
+                }
+                catch (Throwable e)
+                {
+                    throw new RuntimeException(e);
+                }
+            };
+        });
+    }
+
+    public static Callable<Epoch> pauseBeforeCommit(IInvokableInstance cmsInstance, SerializablePredicate<Transformation> predicate)
+    {
+        Callable<Long> remoteCallable = cmsInstance.callOnInstance(() -> {
+            TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
+            AsyncPromise<Epoch> promise = new AsyncPromise<>();
+            processor.pauseIf(predicate, () -> promise.setSuccess(ClusterMetadata.current().epoch));
+            return () -> {
+                try
+                {
+                    return promise.get(30, TimeUnit.SECONDS).getEpoch();
+                }
+                catch (Throwable e)
+                {
+                    throw new RuntimeException(e);
+                }
+            };
+        });
+        return () -> Epoch.create(remoteCallable.call());
+
+    }
+
+    public static Callable<Epoch> getSequenceAfterCommit(IInvokableInstance cmsInstance,
+                                                         SerializableBiPredicate<Transformation, Commit.Result> predicate)
+    {
+        Callable<Long> remoteCallable = cmsInstance.callOnInstance(() -> {
+            TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
+
+            AsyncPromise<Epoch> promise = new AsyncPromise<>();
+            processor.registerCommitPredicate((event, result) -> {
+                if (predicate.test(event, result))
+                {
+                    promise.setSuccess(result.success().replication.latestEpoch());
+                    return true;
+                }
+
+                return false;
+            });
+            return () -> {
+                try
+                {
+                    return promise.get(30, TimeUnit.SECONDS).getEpoch();
+                }
+                catch (Throwable e)
+                {
+                    throw new RuntimeException(e);
+                }
+            };
+        });
+
+        return () -> Epoch.create(remoteCallable.call());
+    }
+
+    public static void unpauseCommits(IInvokableInstance instance)
+    {
+        instance.runOnInstance(() -> {
+            TestProcessor processor = (TestProcessor) ((ClusterMetadataService.SwitchableProcessor) ClusterMetadataService.instance().processor()).delegate();
+            processor.unpause();
+        });
+    }
+
+    public static void unpauseEnactment(IInvokableInstance instance)
+    {
+        instance.runOnInstance(() -> TestChangeListener.instance.unpause());
+    }
+
+    public static interface SerializablePredicate<T> extends Predicate<T>, Serializable
+    {}
+
+    public static interface SerializableBiPredicate<T1, T2> extends BiPredicate<T1, T2>, Serializable {}
 
     private static class ClusterMetadataVersion
     {

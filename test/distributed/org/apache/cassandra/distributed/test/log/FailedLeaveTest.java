@@ -45,6 +45,7 @@ import org.apache.cassandra.distributed.fuzz.HarryHelper;
 import org.apache.cassandra.distributed.fuzz.InJVMTokenAwareVisitorExecutor;
 import org.apache.cassandra.distributed.fuzz.InJvmSut;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.distributed.shared.ClusterUtils.SerializableBiPredicate;
 import org.apache.cassandra.locator.ReplicationFactor;
 import org.apache.cassandra.tcm.Commit;
 import org.apache.cassandra.tcm.Epoch;
@@ -58,6 +59,7 @@ import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.cancelInProgressSequences;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.decommission;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getClusterMetadataVersion;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.getSequenceAfterCommit;
 
 public class FailedLeaveTest extends FuzzTestBase
 {

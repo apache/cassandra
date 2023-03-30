@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.util.concurrent.Callable;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -27,10 +29,17 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.transformations.AlterSchema;
 import org.awaitility.Awaitility;
 import org.awaitility.core.ConditionFactory;
 
 import static java.time.Duration.ofSeconds;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseAfterEnacting;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeCommit;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.pauseBeforeEnacting;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseCommits;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.unpauseEnactment;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.junit.Assert.assertTrue;
 
@@ -46,15 +55,40 @@ public class SchemaTest extends TestBaseImpl
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int,  primary key (pk, ck))");
             String name = "aaa";
-            cluster.get(1).schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
-            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) values (?,1,1,1)", 1);
-            selectSilent(cluster, name);
+            // have the CMS node pause directly before committing the ALTER TABLE so we can infer the next epoch
+            Callable<Epoch> beforeCommit = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof AlterSchema);
+            new Thread(() -> {
+                cluster.get(1).schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
+                cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) values (?,1,1,1)", 1);
+            }).start();
+
+            Epoch targetEpoch = beforeCommit.call().nextEpoch();
+            // pause the replica immediately before and after enacting the ALTER TABLE stmt
+            Callable<?> beforeEnactedOnReplica = pauseBeforeEnacting(cluster.get(2), targetEpoch);
+            Callable<?> afterEnactedOnReplica = pauseAfterEnacting(cluster.get(2), targetEpoch);
+            // unpause the CMS node and allow it to commit and replicate the ALTER TABLE
+            unpauseCommits(cluster.get(1));
+
+            // Wait for the replica to signal that it has paused before enacting the schema change
+            // then execute the query and assert that a schema disagreement error was triggered
+            beforeEnactedOnReplica.call();
+            selectExpectingError(cluster, name);
+
+            // unpause the replica and wait until it notifies that it has enacted the schema change
+            unpauseEnactment(cluster.get(2));
+            afterEnactedOnReplica.call();
+            unpauseEnactment(cluster.get(2));
 
             cluster.get(2).flush(KEYSPACE);
-            cluster.get(2).schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
+            // now that the replica has enacted the alter table, an attempt to repeat it should be rejected
+            alterTableExpectingError(cluster.get(2), name);
+            // bouncing the replica should be safe as SSTables aren't loaded until the log replay is complete
+            // and the schema is in it's most up to date state
             cluster.get(2).shutdown().get();
             cluster.get(2).startup();
+            cluster.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk = ?"), ConsistencyLevel.ALL, 1);
             cluster.get(2).forceCompact(KEYSPACE, "tbl");
+            cluster.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk = ?"), ConsistencyLevel.ALL, 1);
         }
     }
 
@@ -65,21 +99,50 @@ public class SchemaTest extends TestBaseImpl
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v1 int, v2 int,  primary key (pk, ck))");
             String name = "v10";
-            cluster.get(1).schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
-            cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) values (?,1,1,1)", 1);
-            selectSilent(cluster, name);
+
+            // have the CMS node pause directly before committing the ALTER TABLE so we can infer the next epoch
+            Callable<Epoch> beforeCommit = pauseBeforeCommit(cluster.get(1), (e) -> e instanceof AlterSchema);
+            new Thread(() -> {
+                cluster.get(1).schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
+                cluster.get(1).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2) values (?,1,1,1)", 1);
+            }).start();
+            Epoch targetEpoch = beforeCommit.call().nextEpoch();
+
+            // pause the replica immediately before and after enacting the ALTER TABLE stmt
+            Callable<?> beforeEnactedOnReplica = pauseBeforeEnacting(cluster.get(2), targetEpoch);
+            Callable<?> afterEnactedOnReplica = pauseAfterEnacting(cluster.get(2), targetEpoch);
+            // unpause the CMS node and allow it to commit and replicate the ALTER TABLE
+            unpauseCommits(cluster.get(1));
+
+            // Wait for the replica to signal that it has paused before enacting the schema change
+            // then execute the query and assert that a schema disagreement error was triggered
+            beforeEnactedOnReplica.call();
+            selectExpectingError(cluster, name);
+
+            // unpause the replica and wait until it notifies that it has enacted the schema change
+            unpauseEnactment(cluster.get(2));
+            afterEnactedOnReplica.call();
+            unpauseEnactment(cluster.get(2));
+
             cluster.get(2).flush(KEYSPACE);
-            cluster.get(2).schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
+            // now that the replica has enacted the alter table, an attempt to repeat it should be rejected
+            alterTableExpectingError(cluster.get(2), name);
             cluster.get(2).executeInternal("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v1, v2, " + name + ") values (?,1,1,1,[1])", 1);
             cluster.get(2).flush(KEYSPACE);
             cluster.get(2).forceCompact(KEYSPACE, "tbl");
+
+            // bouncing the replica should be safe as SSTables aren't loaded until the log replay is complete
+            // and the schema is in it's most up to date state
             cluster.get(2).shutdown().get();
             cluster.get(2).startup();
+
+            cluster.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk = ?"), ConsistencyLevel.ALL, 1);
             cluster.get(2).forceCompact(KEYSPACE, "tbl");
+            cluster.coordinator(1).execute(withKeyspace("SELECT * FROM %s.tbl WHERE pk = ?"), ConsistencyLevel.ALL, 1);
         }
     }
 
-    private void selectSilent(Cluster cluster, String name)
+    private void selectExpectingError(Cluster cluster, String name)
     {
         try
         {
@@ -99,26 +162,42 @@ public class SchemaTest extends TestBaseImpl
         }
     }
 
+    private void alterTableExpectingError(IInvokableInstance instance, String name)
+    {
+        try
+        {
+            instance.schemaChangeInternal("ALTER TABLE " + KEYSPACE + ".tbl ADD " + name + " list<int>");
+        }
+        catch (Exception e)
+        {
+            boolean causeIsColumnExists = false;
+            Throwable cause = e;
+            while (cause != null)
+            {
+                if (cause.getMessage() != null && cause.getMessage().contains("Column with name '" + name + "' already exists"))
+                    causeIsColumnExists = true;
+                cause = cause.getCause();
+            }
+            assertTrue(causeIsColumnExists);
+        }
+    }
+
     /**
-     * The purpose of this test is to verify manual schema reset functinality.
+     * The original purpose of this test was to verify manual schema reset functionality, but with schema updates being
+     * serialized in the cluster metadata log local schema reset no longer makes sense so the assertions have been
+     * modified to verify that schema changes are correctly propagated to down nodes once they come back up.
      * <p>
      * There is a 2-node cluster and a TABLE_ONE created. The schema version is agreed on both nodes. Then the 2nd node
      * is shutdown. We introduce a disagreement by dropping TABLE_ONE and creating TABLE_TWO on the 1st node. Therefore,
      * the 1st node has a newer schema version with TABLE_TWO, while the shutdown 2nd node has older schema version with
      * TABLE_ONE.
      * <p>
-     * At this point, if we just started the 2nd node, it would sync its schema by getting fresh mutations from the 1st
-     * node which would result in both nodes having only the definition of TABLE_TWO.
+     * At this point, if we just start the 2nd node, it would sync its schema by getting the transformations that it
+     * missed while down, which would result in both nodes having only the definition of TABLE_TWO.
      * <p>
-     * However, before starting the 2nd node the schema is reset on the 1st node, so the 1st node will discard its local
-     * schema whenever it manages to fetch a schema definition from some other node (the 2nd node in this case).
-     * It is expected to end up with both nodes having only the definition of TABLE_ONE.
-     * <p>
-     * In the second phase of the test we simply break the schema on the 1st node and call reset to fetch the schema
-     * definition it from the 2nd node.
      */
     @Test
-    public void schemaReset() throws Throwable
+    public void schemaPropagationToDownNode() throws Throwable
     {
         CassandraRelevantProperties.MIGRATION_DELAY.setLong(10000);
         CassandraRelevantProperties.SCHEMA_PULL_INTERVAL_MS.setLong(10000);
@@ -137,43 +216,16 @@ public class SchemaTest extends TestBaseImpl
                                         .allMatch(e -> e.equals(getBroadcastAddressAndPort()));
             }));
 
-            // when there is no node to fetch the schema from, reset local schema should immediately fail
-//            Assertions.assertThatExceptionOfType(RuntimeException.class).isThrownBy(() -> {
-//                cluster.get(1).runOnInstance(() -> Schema.instance.resetLocalSchema());
-//            }).withMessageContaining("Cannot reset local schema when there are no other live nodes");
-
             // now, let's make a disagreement, the shutdown node 2 has a definition of TABLE_ONE, while the running
             // node 1 will have a definition of TABLE_TWO
             cluster.coordinator(1).execute(String.format("DROP TABLE %s.%s", KEYSPACE, TABLE_ONE), ConsistencyLevel.ONE);
             cluster.coordinator(1).execute(String.format("CREATE TABLE %s.%s (pk INT PRIMARY KEY, v TEXT)", KEYSPACE, TABLE_TWO), ConsistencyLevel.ONE);
             await(30).until(() -> checkTablesPropagated(cluster.get(1), false, true));
 
-            // Schema.resetLocalSchema is guarded by some conditions which would not let us reset schema if there is no
-            // live node in the cluster, therefore we simply call SchemaUpdateHandler.clear (this is the only real thing
-            // being done by Schema.resetLocalSchema under the hood)
-//            SerializableCallable<Boolean> clear = () -> Schema.instance.updateHandler.clear().awaitUninterruptibly(1, TimeUnit.MINUTES);
-//            Future<Boolean> clear1 = cluster.get(1).asyncCallsOnInstance(clear).call();
-//            assertFalse(clear1.isDone());
-
             // when the 2nd node is started, schema should be back in sync
             cluster.get(2).startup();
-//            await(30).until(() -> clear1.isDone() && clear1.get());
-
-            // this proves that reset schema works on the 1st node - the most recent change should be discarded because
-            // it receives the schema from the 2nd node and applies it on empty schema
-            await(60).until(() -> checkTablesPropagated(cluster.get(1), true, false));
-
-            // now let's break schema locally and let it be reset
-//            cluster.get(1).runOnInstance(() -> Schema.instance.getLocalKeyspaces()
-//                                                              .get(SchemaConstants.SCHEMA_KEYSPACE_NAME)
-//                                                              .get().tables.forEach(t -> ColumnFamilyStore.getIfExists(t.keyspace, t.name).truncateBlockingWithoutSnapshot()));
-
-            // when schema is removed and there is a node to fetch it from, the 1st node should immediately restore it
-//            cluster.get(1).runOnInstance(() -> Schema.instance.resetLocalSchema());
-            // note that we should not wait for this to be true because resetLocalSchema is blocking
-            // and after successfully completing it, the schema should be already back in sync
-            assertTrue(checkTablesPropagated(cluster.get(1), true, false));
-            assertTrue(checkTablesPropagated(cluster.get(2), true, false));
+            assertTrue(checkTablesPropagated(cluster.get(1), false, true));
+            assertTrue(checkTablesPropagated(cluster.get(2), false, true));
         }
     }
 

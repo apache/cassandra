@@ -47,6 +47,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_PROGRE
 import static org.apache.cassandra.distributed.Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN;
 import static org.apache.cassandra.distributed.Constants.KEY_DTEST_FULL_STARTUP;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.addInstance;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.getSequenceAfterCommit;
 import static org.apache.cassandra.net.Verb.TCM_REPLICATION;
 import static org.apache.cassandra.tcm.sequences.InProgressSequences.SequenceState.BLOCKED;
 import static org.apache.cassandra.tcm.sequences.InProgressSequences.SequenceState.CONTINUING;
