@@ -1,4 +1,5 @@
 3.11.15
+ * Suppress CVE-2022-45688 (CASSANDRA-18389)
  * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
 Merged from 3.0:
  * Fix RepairJob unnecessarily reporting cancellation error (CASSANDRA-17701)
