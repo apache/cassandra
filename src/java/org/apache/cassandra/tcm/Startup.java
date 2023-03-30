@@ -18,37 +18,40 @@
 
 package org.apache.cassandra.tcm;
 
- import java.io.IOException;
- import java.util.Collections;
- import java.util.Map;
- import java.util.Set;
- import java.util.concurrent.ExecutionException;
- import java.util.concurrent.TimeUnit;
- import java.util.function.Function;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
- import com.google.common.util.concurrent.Uninterruptibles;
- import org.slf4j.Logger;
- import org.slf4j.LoggerFactory;
+import com.google.common.util.concurrent.Uninterruptibles;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
- import org.apache.cassandra.config.DatabaseDescriptor;
- import org.apache.cassandra.db.SystemKeyspace;
- import org.apache.cassandra.db.commitlog.CommitLog;
- import org.apache.cassandra.gms.EndpointState;
- import org.apache.cassandra.gms.Gossiper;
- import org.apache.cassandra.gms.NewGossiper;
- import org.apache.cassandra.locator.InetAddressAndPort;
- import org.apache.cassandra.net.MessagingService;
- import org.apache.cassandra.schema.DistributedSchema;
- import org.apache.cassandra.tcm.compatibility.GossipHelper;
- import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
- import org.apache.cassandra.tcm.migration.Election;
- import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
- import org.apache.cassandra.tcm.transformations.cms.Initialize;
- import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.NewGossiper;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.tcm.compatibility.GossipHelper;
+import org.apache.cassandra.tcm.listeners.SchemaListener;
+import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
+import org.apache.cassandra.tcm.migration.Election;
+import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.transformations.cms.Initialize;
+import org.apache.cassandra.utils.FBUtilities;
 
- import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
- import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
- import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointStates;
+import static org.apache.cassandra.tcm.ClusterMetadataService.State.LOCAL;
+import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchemaFromSystemTables;
+import static org.apache.cassandra.tcm.compatibility.GossipHelper.fromEndpointStates;
 
  public class Startup
  {
@@ -103,7 +106,6 @@ package org.apache.cassandra.tcm;
      {
          ClusterMetadataService.instance().log().bootstrap(FBUtilities.getBroadcastAddressAndPort());
          assert ClusterMetadataService.state() == LOCAL : String.format("Can't initialize as node hasn't transitioned to CMS state. State: %s.\n%s", ClusterMetadataService.state(), ClusterMetadata.current());
-
          Initialize initialize = new Initialize(ClusterMetadata.current());
          ClusterMetadataService.instance().commit(initialize);
      }
@@ -116,23 +118,28 @@ package org.apache.cassandra.tcm;
                                                                        initial,
                                                                        wrapProcessor,
                                                                        ClusterMetadataService::state));
-
          ClusterMetadataService.instance().initRecentlySealedPeriodsIndex();
          ClusterMetadataService.instance().log().replayPersisted();
+         ClusterMetadataService.instance().log().removeListener(SchemaListener.INSTANCE_FOR_STARTUP);
+         DistributedSchema schema = ClusterMetadata.current().schema;
+         schema.getKeyspaces().forEach(ksm -> {
+             Keyspace ks = schema.getKeyspace(ksm.name);
+             ks.getColumnFamilyStores().forEach(cfs -> {
+                 cfs.concatWithIndexes().forEach(ColumnFamilyStore::loadInitialSSTables);
+             });
+         });
+         ClusterMetadataService.instance().log().addListener(new SchemaListener());
      }
 
      public static void initializeForDiscovery(Runnable initMessaging)
      {
          initMessaging.run();
-
          logger.debug("Discovering other nodes in the system");
          Discovery.DiscoveredNodes candidates = Discovery.instance.discover();
-
          if (candidates.kind() == Discovery.DiscoveredNodes.Kind.KNOWN_PEERS)
          {
              logger.debug("Got candidates: " + candidates);
              InetAddressAndPort min = candidates.nodes().stream().min(InetAddressAndPort::compareTo).get();
-
              // identify if you need to start the vote
              if (min.equals(FBUtilities.getBroadcastAddressAndPort()) || FBUtilities.getBroadcastAddressAndPort().compareTo(min) < 0)
              {

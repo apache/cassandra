@@ -272,10 +272,10 @@ public abstract class LocalLog implements Closeable
                     assert transformed.isSuccess();
                     ClusterMetadata next = transformed.success().metadata;
                     assert pendingEntry.epoch.is(next.epoch) :
-                           String.format("Entry epoch %s does not match metadata epoch %s", pendingEntry.epoch, next.epoch);
+                    String.format("Entry epoch %s does not match metadata epoch %s", pendingEntry.epoch, next.epoch);
                     assert next.epoch.isDirectlyAfter(prev.epoch) || pendingEntry.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT || pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS :
-                           String.format("Epoch %s for %s can either force snapshot, or immediately follow %s",
-                                         next.epoch, pendingEntry.transform, prev.epoch);
+                    String.format("Epoch %s for %s can either force snapshot, or immediately follow %s",
+                                  next.epoch, pendingEntry.transform, prev.epoch);
 
                     persistence.append(transformed.success().metadata.period, pendingEntry.maybeUnwrapExecuted());
 
@@ -351,6 +351,11 @@ public abstract class LocalLog implements Closeable
     public void addListener(ChangeListener listener)
     {
         this.cmListeners.add(listener);
+    }
+
+    public void removeListener(ChangeListener listener)
+    {
+        this.cmListeners.remove(listener);
     }
 
     private static class Async extends LocalLog
@@ -562,7 +567,7 @@ public abstract class LocalLog implements Closeable
     {
         addListener(snapshotListener());
         addListener(new InitializationListener());
-        addListener(new SchemaListener());
+        addListener(SchemaListener.INSTANCE_FOR_STARTUP);
         addListener(new LegacyStateListener());
         addListener(new PlacementsChangeListener());
         addListener(new MetadataSnapshotListener());

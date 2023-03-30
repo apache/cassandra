@@ -146,7 +146,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
                 delta.tables.dropped.forEach(t -> dropTable(keyspace, t, true));
 
                 // add tables and views
-                delta.tables.created.forEach(t -> createTable(keyspace, t));
+                delta.tables.created.forEach(t -> createTable(keyspace, t, loadSSTables));
                 delta.views.created.forEach(v -> createView(keyspace, v));
 
                 // update tables and views
@@ -238,10 +238,10 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
         SchemaDiagnostics.tableDropped(Schema.instance, metadata);
     }
 
-    private void createTable(Keyspace keyspace, TableMetadata table)
+    private void createTable(Keyspace keyspace, TableMetadata table, boolean loadSSTables)
     {
         SchemaDiagnostics.tableCreating(Schema.instance, table);
-        keyspace.initCf(table, true);
+        keyspace.initCf(table, loadSSTables);
         SchemaDiagnostics.tableCreated(Schema.instance, table);
     }
 

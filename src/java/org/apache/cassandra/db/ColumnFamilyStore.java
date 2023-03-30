@@ -510,6 +510,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             initialMemtable = createMemtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()));
             memtableMetrics = memtableFactory.createMemtableMetrics(metadata);
         }
+        metric = new TableMetrics(this, memtableMetrics);
         data = new Tracker(this, initialMemtable, loadSSTables);
 
         // Note that this needs to happen before we load the first sstables, or the global sstable tracker will not
@@ -541,8 +542,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             indexManager.addIndex(info, true);
         }
 
-        metric = new TableMetrics(this, memtableMetrics);
-
         if (data.loadsstables)
         {
             data.updateInitialSSTableSize(sstables);
@@ -572,6 +571,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             topPartitions = null;
         else
             topPartitions = new TopPartitionTracker(initMetadata);
+    }
+
+    public void loadInitialSSTables()
+    {
+        if (data.loadsstables)
+        {
+            logger.info("Attempted to load initial SSTables for {}.{} but this was done during construction, ignoring",
+                        keyspace.getName(), name);
+            return;
+        }
+        Collection<SSTableReader> sstables;
+        Directories.SSTableLister sstableFiles = directories.sstableLister(Directories.OnTxnErr.IGNORE).skipTemporary(true);
+        sstables = SSTableReader.openAll(this, sstableFiles.list().entrySet(), metadata);
+        data.addInitialSSTablesWithoutUpdatingSize(sstables, this);
+        data.updateInitialSSTableSize(sstables);
     }
 
     public static String getTableMBeanName(String ks, String name, boolean isIndex)
