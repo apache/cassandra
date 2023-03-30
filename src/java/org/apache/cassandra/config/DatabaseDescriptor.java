@@ -350,7 +350,7 @@ public class DatabaseDescriptor
     public static Config loadConfig() throws ConfigurationException
     {
         if (Config.getOverrideLoadConfig() != null)
-            return Config.getOverrideLoadConfig().get();src/java/org/apache/cassandra/config/DatabaseDescriptor.java>>>
+            return Config.getOverrideLoadConfig().get();
 
         String loaderClass = System.getProperty(Config.PROPERTY_PREFIX + "config.loader");
         ConfigurationLoader loader = loaderClass == null
