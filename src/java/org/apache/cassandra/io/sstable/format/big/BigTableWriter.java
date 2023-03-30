@@ -80,7 +80,6 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
         checkNotNull(builder.getRowIndexEntrySerializer());
         checkNotNull(builder.getIndexWriter());
 
-
         this.rowIndexEntrySerializer = builder.getRowIndexEntrySerializer();
         this.indexWriter = builder.getIndexWriter();
         this.shouldMigrateKeyCache = DatabaseDescriptor.shouldMigrateKeycacheOnCompaction()
