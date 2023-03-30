@@ -32,11 +32,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Enumeration;
-
 import java.util.HashMap;
 import java.util.HashSet;
-
-
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -85,8 +82,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.LZ4Compressor;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
@@ -862,12 +857,7 @@ public class DatabaseDescriptor
         if (conf.allow_extra_insecure_udfs)
             logger.warn("Allowing java.lang.System.* access in UDFs is dangerous and not recommended. Set allow_extra_insecure_udfs: false to disable.");
 
-<<<<<<< HEAD
-
-        if(conf.scripted_user_defined_functions_enabled)
-=======
         if (conf.scripted_user_defined_functions_enabled)
->>>>>>> e855c33749 (removed accidental formatting)
             throw new ConfigurationException("JavaScript user-defined functions were removed in CASSANDRA-18252. " +
                                              "Hooks are planned to be introduced as part of CASSANDRA-17280");
 

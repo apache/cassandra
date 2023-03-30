@@ -1963,4 +1963,3 @@ sstable_formats:
     parameters:
       id: 0
       name: big
-
