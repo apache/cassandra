@@ -71,6 +71,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -1012,6 +1013,11 @@ public abstract class ReadCommand extends AbstractReadQuery
     @VisibleForTesting
     public static class Serializer implements IVersionedSerializer<ReadCommand>
     {
+        private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 10L, TimeUnit.SECONDS);
+        private static final NoSpamLogger.NoSpamLogStatement schemaMismatchStmt =
+            noSpamLogger.getStatement("Schema epoch mismatch during read command deserialization. " +
+                                      "TableId: {}, remote epoch: {}, local epoch: {}", 10L, TimeUnit.SECONDS);
+
         private final SchemaProvider schema;
 
         public Serializer()
@@ -1111,7 +1117,8 @@ public abstract class ReadCommand extends AbstractReadQuery
             Epoch schemaVersion = null;
             if (version >= MessagingService.VERSION_50)
                 schemaVersion = Epoch.serializer.deserialize(in);
-            assert schemaVersion == null || metadata.epoch.equals(schemaVersion) : metadata.epoch + " " + schemaVersion; // TODO: handle etc
+            if (schemaVersion != null && !(metadata.epoch.equals(schemaVersion)))
+                schemaMismatchStmt.info(metadata.id, schemaVersion.getEpoch(), metadata.epoch.getEpoch());
             long nowInSec = version >= MessagingService.VERSION_50 ? CassandraUInt.toLong(in.readInt()) : in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
             RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, metadata);

@@ -19,18 +19,24 @@
 package org.apache.cassandra.tcm.transformations;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.schema.SchemaTransformation;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
@@ -41,7 +47,7 @@ public class AlterSchema implements Transformation
 {
     public static final Serializer serializer = new Serializer();
 
-    protected final SchemaTransformation schemaTransformation;
+    public final SchemaTransformation schemaTransformation;
     protected final SchemaProvider schemaProvider;
 
     public AlterSchema(SchemaTransformation schemaTransformation,
@@ -65,14 +71,44 @@ public class AlterSchema implements Transformation
             return new Rejected("Can't have schema changes during ring movements: " + prev.lockedRanges.locked);
 
         Keyspaces newKeyspaces;
-
         try
         {
             newKeyspaces = schemaTransformation.apply(prev, prev.schema.getKeyspaces());
+            newKeyspaces.forEach(ksm -> {
+               ksm.tables.forEach(tm -> {
+                   if (tm.epoch.isAfter(prev.nextEpoch()))
+                       throw new InvalidRequestException(String.format("Invalid schema transformation. " +
+                                                                       "Resultant epoch for table metadata of %s.%s (%d) " +
+                                                                       "is greater than for cluster metadata (%d)",
+                                                                       ksm.name, tm.name, tm.epoch.getEpoch(),
+                                                                       prev.nextEpoch().getEpoch()));
+               });
+            });
         }
         catch (ConfigurationException | InvalidRequestException t)
         {
             return new Rejected(t.getMessage());
+        }
+
+        // Ensure that any new or modified TableMetadata has the correct epoch
+        Epoch nextEpoch = prev.nextEpoch();
+        Keyspaces.KeyspacesDiff diff = Keyspaces.diff(prev.schema.getKeyspaces(), newKeyspaces);
+
+        for (KeyspaceMetadata newKSM : diff.created)
+        {
+            Tables tables = Tables.of(normaliseEpochs(nextEpoch, newKSM.tables.stream()));
+            newKeyspaces = newKeyspaces.withAddedOrUpdated(newKSM.withSwapped(tables));
+        }
+
+        for (KeyspaceMetadata.KeyspaceDiff alteredKSM : diff.altered)
+        {
+            Tables tables = Tables.of(alteredKSM.after.tables);
+            for (TableMetadata created : normaliseEpochs(nextEpoch, alteredKSM.tables.created.stream()))
+                tables = tables.withSwapped(created);
+
+            for (TableMetadata altered : normaliseEpochs(nextEpoch, alteredKSM.tables.altered.stream().map(altered -> altered.after)))
+                tables = tables.withSwapped(altered);
+            newKeyspaces = newKeyspaces.withAddedOrUpdated(alteredKSM.after.withSwapped(tables));
         }
 
         DistributedSchema snapshotAfter = new DistributedSchema(newKeyspaces);
@@ -89,6 +125,15 @@ public class AlterSchema implements Transformation
 
         return success(next, LockedRanges.AffectedRanges.EMPTY);
     }
+
+    private static Iterable<TableMetadata> normaliseEpochs(Epoch nextEpoch, Stream<TableMetadata> tables)
+    {
+        return tables.map(tm -> tm.epoch.is(nextEpoch)
+                                ? tm
+                                : tm.unbuild().epoch(nextEpoch).build())
+                     .collect(Collectors.toList());
+    }
+
 
     static class Serializer implements AsymmetricMetadataSerializer<Transformation, AlterSchema>
     {

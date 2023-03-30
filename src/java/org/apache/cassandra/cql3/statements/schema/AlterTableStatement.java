@@ -379,7 +379,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
-            TableMetadata.Builder builder = table.unbuild().epoch(epoch);
+            TableMetadata.Builder builder = table.unbuild();
             removedColumns.forEach(c -> dropColumn(keyspace, table, c, ifColumnExists, builder));
             return keyspace.withSwapped(keyspace.tables.withSwapped(builder.build()));
         }
@@ -584,7 +584,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                             ? ImmutableSet.of(Flag.COMPOUND, Flag.COUNTER)
                             : ImmutableSet.of(Flag.COMPOUND);
 
-            return keyspace.withSwapped(keyspace.tables.withSwapped(table.unbuild().epoch(epoch).flags(flags).build()));
+            return keyspace.withSwapped(keyspace.tables.withSwapped(table.unbuild().flags(flags).build()));
         }
 
         /**
