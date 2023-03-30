@@ -26,4 +26,18 @@ import org.apache.cassandra.net.OutboundConnectionSettings;
 public interface StreamConnectionFactory
 {
     Channel createConnection(OutboundConnectionSettings template, int messagingVersion) throws IOException;
+
+    /** Provide way to disable getPreferredIP() for tools without access to the system keyspace
+     * <p> 
+     * CASSANDRA-17663 moves calls to SystemKeyspace.getPreferredIP() outside of any threads
+     * that are regularly interrupted.  However the streaming subsystem is also used
+     * by the bulk loader tool, which does not have direct access to the local tables
+     * and uses the client metadata/queries to retrieve it.
+     *
+     * @return true if SystemKeyspace.getPreferredIP() should be used when connecting
+     */
+    default boolean supportsPreferredIp()
+    {
+        return true;
+    }
 }
