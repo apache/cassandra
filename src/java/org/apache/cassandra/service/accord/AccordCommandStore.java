@@ -112,6 +112,12 @@ public class AccordCommandStore implements CommandStore
         return id;
     }
 
+    @Override
+    public boolean inStore()
+    {
+        return Thread.currentThread().getId() == threadId;
+    }
+
     public void setCacheSize(long bytes)
     {
         checkInStoreThread();
@@ -125,12 +131,12 @@ public class AccordCommandStore implements CommandStore
 
     public void checkInStoreThread()
     {
-        Invariants.checkState(Thread.currentThread().getId() == threadId);
+        Invariants.checkState(inStore());
     }
 
     public void checkNotInStoreThread()
     {
-        Invariants.checkState(Thread.currentThread().getId() != threadId);
+        Invariants.checkState(!inStore());
     }
 
     public ExecutorService executor()

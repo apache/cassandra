@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 

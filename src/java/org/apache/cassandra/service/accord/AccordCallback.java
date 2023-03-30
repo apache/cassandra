@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
 import accord.coordinate.Timeout;
 import accord.local.CommandStore;
 import accord.messages.Callback;
-import accord.messages.CallbackHolder;
+import accord.messages.SafeCallback;
 import accord.messages.Reply;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -34,11 +34,11 @@ import org.apache.cassandra.net.RequestCallback;
 class AccordCallback<T extends Reply> implements RequestCallback<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCallback.class);
-    private final CallbackHolder<T> callback;
+    private final SafeCallback<T> callback;
 
     public AccordCallback(CommandStore commandStore, Callback<T> callback)
     {
-        this.callback = new CallbackHolder<>(commandStore, callback);
+        this.callback = new SafeCallback<>(commandStore, callback);
     }
 
     @Override
