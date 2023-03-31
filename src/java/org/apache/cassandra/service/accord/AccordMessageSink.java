@@ -24,6 +24,7 @@ import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
+import org.apache.cassandra.net.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,9 +36,6 @@ import accord.messages.Reply;
 import accord.messages.ReplyContext;
 import accord.messages.Request;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.Verb;
 
 import static org.apache.cassandra.service.accord.EndpointMapping.getEndpoint;
 
@@ -92,6 +90,18 @@ public class AccordMessageSink implements MessageSink
         return VerbMapping.instance.mapping.get(type);
     }
 
+    private final MessageDelivery messaging;
+
+    public AccordMessageSink(MessageDelivery messaging)
+    {
+        this.messaging = messaging;
+    }
+
+    public AccordMessageSink()
+    {
+        this(MessagingService.instance());
+    }
+
     @Override
     public void send(Node.Id to, Request request)
     {
@@ -100,7 +110,7 @@ public class AccordMessageSink implements MessageSink
         Message<Request> message = Message.out(verb, request);
         InetAddressAndPort endpoint = getEndpoint(to);
         logger.debug("Sending {} {} to {}", verb, message.payload, endpoint);
-        MessagingService.instance().send(message, endpoint);
+        messaging.send(message, endpoint);
     }
 
     @Override
@@ -111,7 +121,7 @@ public class AccordMessageSink implements MessageSink
         Message<Request> message = Message.out(verb, request);
         InetAddressAndPort endpoint = getEndpoint(to);
         logger.debug("Sending {} {} to {}", verb, message.payload, endpoint);
-        MessagingService.instance().sendWithCallback(message, endpoint, new AccordCallback<>((Callback<Reply>) callback));
+        messaging.sendWithCallback(message, endpoint, new AccordCallback<>((Callback<Reply>) callback));
     }
 
     @Override
@@ -122,6 +132,6 @@ public class AccordMessageSink implements MessageSink
         Preconditions.checkArgument(replyMsg.verb() == getVerb(reply.type()));
         InetAddressAndPort endpoint = getEndpoint(replyingToNode);
         logger.debug("Replying {} {} to {}", replyMsg.verb(), replyMsg.payload, endpoint);
-        MessagingService.instance().send(replyMsg, endpoint);
+        messaging.send(replyMsg, endpoint);
     }
 }
