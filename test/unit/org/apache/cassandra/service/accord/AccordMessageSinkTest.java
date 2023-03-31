@@ -32,8 +32,6 @@ import org.mockito.Mockito;
 
 public class AccordMessageSinkTest
 {
-    private static final AccordMessageSink SINK = new AccordMessageSink(Mockito.mock(Messaging.class));
-
     @BeforeClass
     public static void setup()
     {
@@ -49,6 +47,10 @@ public class AccordMessageSinkTest
         Message<InformOfTxnId> req = Message.builder(Verb.ACCORD_INFORM_OF_TXNID_REQ, info).build();
         SimpleReply reply = SimpleReply.Ok;
 
-        SINK.reply(new Node.Id(1), req, reply);
+        Messaging messaging = Mockito.mock(Messaging.class);
+        AccordMessageSink sink = new AccordMessageSink(messaging);
+        sink.reply(new Node.Id(1), req, reply);
+
+        Mockito.verify(messaging).send(Mockito.any(), Mockito.any());
     }
 }
