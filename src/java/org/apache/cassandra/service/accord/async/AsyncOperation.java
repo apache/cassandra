@@ -80,7 +80,19 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         AWAITING_SAVE,  // wait for writes to complete
         COMPLETING,
         FINISHED,
-        FAILED
+        FAILED;
+
+        boolean isComplete()
+        {
+            switch (this)
+            {
+                case FAILED:
+                case FINISHED:
+                    return true;
+                default:
+                    return false;
+            }
+        }
     }
 
     private State state = State.INITIALIZED;
@@ -179,7 +191,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     private void fail(Throwable throwable)
     {
         Invariants.nonNull(throwable);
-        Invariants.checkArgument(state != State.FINISHED && state != State.FAILED, "Unexpected state %s", state);
+        if (state.isComplete())
+            throw new IllegalStateException("Unexpected state " + state, throwable);
         try
         {
             switch (state)
