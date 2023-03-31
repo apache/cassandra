@@ -17,9 +17,18 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.*;
+import java.io.File;
+import java.io.FilenameFilter;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.UUID;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -30,7 +39,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.ICompressor;
@@ -62,6 +71,8 @@ public class CommitLog implements CommitLogMBean
     private static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
 
     public static final CommitLog instance = CommitLog.construct();
+
+    private static final FilenameFilter unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
 
     // we only permit records HALF the size of a commit log, to ensure we don't spin allocating many mostly
     // empty segments when writing large records
@@ -112,6 +123,19 @@ public class CommitLog implements CommitLogMBean
         return this;
     }
 
+    public boolean hasFilesToReplay()
+    {
+        return getUnmanagedFiles().length > 0;
+    }
+
+    private File[] getUnmanagedFiles()
+    {
+        File[] files = new File(segmentManager.storageDirectory).listFiles(unmanagedFilesFilter);
+        if (files == null)
+            return new File[0];
+        return files;
+    }
+
     /**
      * Perform recovery on commit logs located in the directory specified by the config file.
      *
@@ -120,12 +144,10 @@ public class CommitLog implements CommitLogMBean
      */
     public int recoverSegmentsOnDisk() throws IOException
     {
-        FilenameFilter unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
-
         // submit all files for this segment manager for archiving prior to recovery - CASSANDRA-6904
         // The files may have already been archived by normal CommitLog operation. This may cause errors in this
-        // archiving pass, which we should not treat as serious. 
-        for (File file : new File(segmentManager.storageDirectory).listFiles(unmanagedFilesFilter))
+        // archiving pass, which we should not treat as serious.
+        for (File file : getUnmanagedFiles())
         {
             archiver.maybeArchive(file.getPath(), file.getName());
             archiver.maybeWaitForArchiving(file.getName());
@@ -135,7 +157,7 @@ public class CommitLog implements CommitLogMBean
         archiver.maybeRestoreArchive();
 
         // List the files again as archiver may have added segments.
-        File[] files = new File(segmentManager.storageDirectory).listFiles(unmanagedFilesFilter);
+        File[] files = getUnmanagedFiles();
         int replayed = 0;
         if (files.length == 0)
         {
@@ -177,7 +199,7 @@ public class CommitLog implements CommitLogMBean
 
     private static UUID getLocalHostId()
     {
-        return Optional.ofNullable(StorageService.instance.getLocalHostUUID()).orElseGet(SystemKeyspace::getLocalHostId);
+        return StorageService.instance.getLocalHostUUID();
     }
 
     /**
