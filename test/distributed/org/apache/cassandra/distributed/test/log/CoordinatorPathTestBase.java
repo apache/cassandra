@@ -220,9 +220,9 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         protected final EnumMap<Verb, SimulatedAction<?, ?>> actions;
         protected final SimulatedCluster cluster;
 
-        private RealSimulatedNode(SimulatedCluster simulatedCluster, int idx, String name, long token)
+        private RealSimulatedNode(SimulatedCluster simulatedCluster, Node node)
         {
-            super(simulatedCluster.state, idx, name, token);
+            super(simulatedCluster.state, node);
 
             this.entryIdGen = new Entry.DefaultEntryIdGen();
             this.actions = new EnumMap<>(Verb.class);
@@ -246,9 +246,8 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         public String toString()
         {
             return "RealSimulatedNode{" +
-                   "id=" + id +
-                   ", name='" + name + '\'' +
-                   ", token=" + token +
+                   "id=" + node.idx() +
+                   ", token=" + node.token() +
                    '}';
         }
 
@@ -256,34 +255,34 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         public void register()
         {
             super.register();
-            ClusterMetadataTestHelper.register(id);
+            ClusterMetadataTestHelper.register(node.idx());
         }
 
         @Override
         public void join()
         {
             super.join();
-            ClusterMetadataTestHelper.join(id, token);
+            ClusterMetadataTestHelper.join(node.idx(), node.token());
         }
 
         @Override
         public void leave()
         {
             super.leave();
-            ClusterMetadataTestHelper.leave(id);
+            ClusterMetadataTestHelper.leave(node.idx());
         }
 
-        public void replace()
+        public void replace(int replaced)
         {
             super.replace();
-            ClusterMetadataTestHelper.replace(id, this.id);
+            ClusterMetadataTestHelper.replace(replaced, node.idx());
         }
 
         @Override
         public ClusterMetadataTestHelper.JoinProcess lazyJoin()
         {
             ClusterMetadataTestHelper.JoinProcess virtual = super.lazyJoin();
-            ClusterMetadataTestHelper.JoinProcess real = ClusterMetadataTestHelper.lazyJoin(id, token);
+            ClusterMetadataTestHelper.JoinProcess real = ClusterMetadataTestHelper.lazyJoin(node.idx(), node.token());
             return new ClusterMetadataTestHelper.JoinProcess()
             {
                 public ClusterMetadataTestHelper.JoinProcess prepareJoin()
@@ -320,7 +319,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         public ClusterMetadataTestHelper.LeaveProcess lazyLeave()
         {
             ClusterMetadataTestHelper.LeaveProcess virtual = super.lazyLeave();
-            ClusterMetadataTestHelper.LeaveProcess real = ClusterMetadataTestHelper.lazyLeave(id);
+            ClusterMetadataTestHelper.LeaveProcess real = ClusterMetadataTestHelper.lazyLeave(node.idx());
             return new ClusterMetadataTestHelper.LeaveProcess()
             {
                 public ClusterMetadataTestHelper.LeaveProcess prepareLeave()
@@ -383,7 +382,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                             }
                                         },
                                         () -> {
-                                            sendFrom(id, payload);
+                                            sendFrom(node.idx(), payload);
                                             try
                                             {
                                                 return resFuture.get(10, TimeUnit.SECONDS);
@@ -433,6 +432,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             try
             {
                 cluster.realCluster.deliverMessage(cluster.realCluster.get(1).broadcastAddress(),
+                                                   // todo: use addr from the node!
                                                    Instance.serializeMessage(ClusterMetadataTestHelper.addr(from),
                                                                              ClusterMetadataTestHelper.addr(1),
                                                                              message));
@@ -488,19 +488,15 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
      */
     protected static class VirtualSimulatedNode implements ClusterMetadataTestHelper.NodeOperations
     {
-        public final int id;
-        public final String name;
-        public final long token;
+        public final Node node;
         public final Predicate<Node> matcher;
         protected final SimulatedPlacementHolder ref;
 
-        public VirtualSimulatedNode(SimulatedPlacementHolder ref, int id, String name, long token)
+        public VirtualSimulatedNode(SimulatedPlacementHolder ref, Node node)
         {
             this.ref = ref;
-            this.id = id;
-            this.name = name;
-            this.token = token;
-            this.matcher = (node) -> node.id.equals(name);
+            this.node = node;
+            this.matcher = (o) -> node.idx() == o.idx();
         }
 
         @Override
@@ -547,7 +543,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                     assert idx == -1;
                     assert steps == null;
 
-                    ModelChecker.Pair<SimulatedPlacements, PlacementSimulator.Transformations> res = bootstrap_diffBased(ref.get(), name, token);
+                    ModelChecker.Pair<SimulatedPlacements, PlacementSimulator.Transformations> res = bootstrap_diffBased(ref.get(), node.idx(), node.token());
                     ref.set(res.l);
                     steps = res.r;
                     ref.apply(steps);
@@ -594,7 +590,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                     assert idx == -1;
                     assert steps == null;
 
-                    ModelChecker.Pair<SimulatedPlacements, Transformations> res = leave_diffBased(ref.get(), token);
+                    ModelChecker.Pair<SimulatedPlacements, Transformations> res = leave_diffBased(ref.get(), node.token());
                     ref.set(res.l);
                     steps = res.r;
                     idx++;
@@ -638,7 +634,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                     assert idx == -1;
                     assert steps == null;
 
-                    ModelChecker.Pair<SimulatedPlacements, PlacementSimulator.Transformations> res = replace_directly(ref.get(), token, name);
+                    ModelChecker.Pair<SimulatedPlacements, PlacementSimulator.Transformations> res = replace_directly(ref.get(), node.token(), node.idx());
                     ref.set(res.l);
                     steps = res.r;
                     ref.apply(steps);
@@ -689,7 +685,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             this.tokenSupplier = tokenSupplier;
 
             InetAddressAndPort nodeUnderTestAddr = ClusterMetadataTestHelper.addr(1);
-            Node nodeUnderTest = new Node(tokenSupplier.token(1), nodeUnderTestAddr.toString());
+            Node nodeUnderTest = new Node(tokenSupplier.token(1), nodeUnderTestAddr.addressBytes[3]);
             List<Node> orig = Collections.singletonList(nodeUnderTest);
             this.state = new RefSimulatedPlacementHolder(new SimulatedPlacements(3,
                                                                                  Collections.singletonList(nodeUnderTest),
@@ -700,7 +696,8 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             this.nodes = new HashMap<>();
 
             // We would like all messages directed to the node under test to be delivered it.
-            this.nodes.put(nodeUnderTestAddr, new RealSimulatedNode(this, 1, nodeUnderTestAddr.toString(), tokenSupplier.token(1)) {
+            this.nodes.put(nodeUnderTestAddr, new RealSimulatedNode(this, new Node(tokenSupplier.token(1), 1)) {
+                @Override
                 public boolean test(Message<?> message)
                 {
                     realCluster.get(1).receiveMessage(Instance.serializeMessage(message.from(), nodeUnderTestAddr, message));
@@ -865,9 +862,9 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         public RealSimulatedNode createNode()
         {
             int idx = this.nodes.size() + 1;
-            RealSimulatedNode node = new RealSimulatedNode(this, idx, ClusterMetadataTestHelper.addr(idx).toString(), tokenSupplier.token(idx));
+            RealSimulatedNode node = new RealSimulatedNode(this, new Node(tokenSupplier.token(idx), idx));
             node.initializeDefaultHandlers();
-            nodes.put(ClusterMetadataTestHelper.addr(node.id), node);
+            nodes.put(node.node.addr(), node);
             return node;
         }
 
@@ -924,16 +921,13 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             this.tokenSupplier = tokenSupplier;
             this.nodes = new ArrayList<>();
             for (Node node : state.get().nodes)
-            {
-                int idx = nodes.size() + 1;
-                this.nodes.add(new VirtualSimulatedNode(state, idx++, node.id, node.token));
-            }
+                this.nodes.add(new VirtualSimulatedNode(state, node));
         }
 
         public VirtualSimulatedNode createNode()
         {
             int idx = nodes.size() + 1;
-            VirtualSimulatedNode node = new VirtualSimulatedNode(state, idx, ClusterMetadataTestHelper.addr(idx).toString(), tokenSupplier.token(idx));
+            VirtualSimulatedNode node = new VirtualSimulatedNode(state, new Node(tokenSupplier.token(idx), idx));
             nodes.add(node);
             return node;
         }
@@ -944,7 +938,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         }
     }
 
-    public static interface SimulatedAction<IN, OUT>
+    public interface SimulatedAction<IN, OUT>
     {
         Verb verb();
         void validate(Message<IN> request);
@@ -1080,7 +1074,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             {
                 ReadCommand command = request.payload;
                 return Message.remoteResponseForTests(request.id(),
-                                                      ClusterMetadataTestHelper.addr(node.id),
+                                                      node.node.addr(),
                                                       request.verb().responseVerb,
                                                       ReadResponse.createDataResponse(EmptyIterators.unfilteredPartition(command.metadata()),
                                                                                       command));
@@ -1149,13 +1143,13 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             Mutation command = request.payload;
             Murmur3Partitioner.LongToken requestToken = (Murmur3Partitioner.LongToken) command.key().getToken();
             assert node.cluster.state.get().isWriteTargetFor(requestToken.token, node.matcher) : String.format("Node %s is not a write target for %s. Write placements: %s",
-                                                                                                               node.id, requestToken, node.cluster.state.get().writePlacementsFor(requestToken.token));
+                                                                                                               node.node.idx(), requestToken, node.cluster.state.get().writePlacementsFor(requestToken.token));
         }
 
         public Message<NoPayload> respondTo(Message<Mutation> request)
         {
             if (shouldRespond.getAsBoolean())
-                return Message.remoteResponseForTests(request.id(), ClusterMetadataTestHelper.addr(node.id), request.verb().responseVerb, NoPayload.noPayload);
+                return Message.remoteResponseForTests(request.id(), node.node.addr(), request.verb().responseVerb, NoPayload.noPayload);
             return null;
         }
     }

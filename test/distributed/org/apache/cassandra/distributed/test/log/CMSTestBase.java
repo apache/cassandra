@@ -56,7 +56,7 @@ public class CMSTestBase
         DatabaseDescriptor.setEndpointSnitch(new IEndpointSnitch()
         {
             public String getRack(InetAddressAndPort endpoint) {return "rack1";}
-            public String getDatacenter(InetAddressAndPort endpoint) {return "dc1";}
+            public String getDatacenter(InetAddressAndPort endpoint) {return "datacenter1";}
             public <C extends ReplicaCollection<? extends C>> C sortedByProximity(InetAddressAndPort address, C addresses) {return null;}
             public int compareEndpoints(InetAddressAndPort target, Replica r1, Replica r2) {return 0;}
             public void gossiperStarting() {}
@@ -103,9 +103,9 @@ public class CMSTestBase
             service.commit(new Initialize(ClusterMetadata.current()));
             service.commit(new AlterSchema((cm, schema) -> {
                 return schema.with(Keyspaces.of(KeyspaceMetadata.create("test", KeyspaceParams.simple(rf)),
-                                                KeyspaceMetadata.create("test_nts", KeyspaceParams.nts("datacenter1", 3,
-                                                                                                       "datacenter2", 3,
-                                                                                                       "datacenter3", 3))));
+                                                KeyspaceMetadata.create("test_nts", KeyspaceParams.nts("datacenter1", rf,
+                                                                                                       "datacenter2", rf,
+                                                                                                       "datacenter3", rf))));
             }, schemaProvider));
         }
 

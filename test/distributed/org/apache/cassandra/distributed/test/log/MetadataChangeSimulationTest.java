@@ -20,7 +20,6 @@ package org.apache.cassandra.distributed.test.log;
 
 import java.net.InetAddress;
 import java.util.*;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -31,6 +30,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
 import org.apache.cassandra.distributed.test.log.PlacementSimulator.Transformations;
 import org.apache.cassandra.locator.EndpointsForRange;
@@ -40,7 +40,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.Location;
-import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
@@ -61,6 +61,7 @@ import org.apache.cassandra.tcm.transformations.SealPeriod;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.schema.ReplicationParams;
 
+import static org.apache.cassandra.distributed.test.log.PlacementSimulator.*;
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.bootstrap_diffBased;
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.leave_diffBased;
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.move_diffBased;
@@ -80,7 +81,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         {
             for (int rf : new int[]{ 2, 3, 5 })
             {
-                simulate(50, rf, concurrency, "Diff");
+                simulate(50, rf, concurrency);
             }
         }
     }
@@ -97,9 +98,9 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         testMoveReal(3, 5, 350, 10);
     }
 
-    public static PlacementSimulator.Node n(int id, long token)
+    public static Node n(int idx, long token)
     {
-        return new PlacementSimulator.Node(token, "127.0.0." + id);
+        return new Node(token, idx);
     }
 
     public void testMoveReal(int rf, int moveNodeId, long moveToken, int numberOfNodes) throws Throwable
@@ -111,16 +112,16 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             for (int i = 0; i < numberOfNodes; i++)
             {
                 LongToken token = new Murmur3Partitioner.LongToken((i + 1) * 100L);
-                ModelChecker.Pair<MetadataChangeSimulationTest.ModelState, MetadataChangeSimulationTest.Node> registration = registerNewNode(modelState, sut, () -> token);
+                ModelChecker.Pair<MetadataChangeSimulationTest.ModelState, Node> registration = registerNewNode(modelState, sut, () -> token);
                 if (moveNodeId == i)
                     movingNode = registration.r;
                 modelState = registration.l;
                 modelState = joinWithoutBootstrap(registration.r, modelState, sut).l;
             }
 
-            Node movingTo = new Node(movingNode.nodeId, movingNode.addr, new Murmur3Partitioner.LongToken(moveToken));
-            Move move = prepareMove(sut, movingNode, movingTo.token).get();
-            modelState = scheduleMoveEvents(modelState, sut, movingNode, movingTo.token, move).l;
+            Node movingTo = movingNode.withNewToken(moveToken);
+            Move move = prepareMove(sut, movingNode, movingTo.longToken()).get();
+            modelState = scheduleMoveEvents(modelState, sut, movingNode, movingTo.longToken(), move).l;
 
             while (modelState.operationStates.get(0).remaining.hasNext())
             {
@@ -162,7 +163,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         ClusterMetadata actualMetadata =  sut.service.metadata();
         ReplicationParams replication = actualMetadata.schema.getKeyspaces().get("test").get().params.replication;
 
-        Assert.assertEquals(modelState.simulatedPlacements.nodes.stream().map(t -> t.token).collect(Collectors.toSet()),
+        Assert.assertEquals(modelState.simulatedPlacements.nodes.stream().map(Node::token).collect(Collectors.toSet()),
                             actualMetadata.tokenMap.tokens().stream().map(t -> ((LongToken) t).token).collect(Collectors.toSet()));
 
         for (Map.Entry<ReplicationParams, DataPlacement> e : actualMetadata.placements.asMap().entrySet())
@@ -195,7 +196,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             for (int i = 0; i < 10; i++)
             {
                 LongToken token = new Murmur3Partitioner.LongToken((i + 1) * 100);
-                ModelChecker.Pair<MetadataChangeSimulationTest.ModelState, MetadataChangeSimulationTest.Node> registration = registerNewNode(state, sut, () -> token);
+                ModelChecker.Pair<MetadataChangeSimulationTest.ModelState, Node> registration = registerNewNode(state, sut, () -> token);
                 if (decomNodeId == i)
                     decomNode = registration.r;
                 state = registration.l;
@@ -247,7 +248,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             for (int i = 0; i < 10; i++)
             {
                 LongToken token = new Murmur3Partitioner.LongToken((i + 1) * 100);
-                ModelChecker.Pair<MetadataChangeSimulationTest.ModelState, MetadataChangeSimulationTest.Node> registration = registerNewNode(modelState, sut, () -> token);
+                ModelChecker.Pair<MetadataChangeSimulationTest.ModelState, Node> registration = registerNewNode(modelState, sut, () -> token);
                 modelState = registration.l;
                 if (decomNodeId == i)
                     joiningNode = registration.r;
@@ -294,7 +295,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             for (int i = 0; i < 10; i++)
             {
                 LongToken token = new Murmur3Partitioner.LongToken(rng.nextLong());
-                ModelChecker.Pair<MetadataChangeSimulationTest.ModelState, MetadataChangeSimulationTest.Node> registration = registerNewNode(modelState, sut, () -> token, "datacenter" + (((i + 1) % 3) + 1), "rack1");
+                ModelChecker.Pair<MetadataChangeSimulationTest.ModelState, Node> registration = registerNewNode(modelState, sut, () -> token, (((i + 1) % 3) + 1), 1);
                 modelState = registration.l;
                 modelState = joinWithoutBootstrap(registration.r, modelState, sut).l;
             }
@@ -331,10 +332,10 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     // TODO: use several keyspaces in the test, preferrably with different replication factors, since this will meddle with
     // range locks in a non-trivial way and will probably break things
     // TODO: add keyspace _creation_ to the mix, since this should also preserve placements
-    public void simulate(int toBootstrap, int rf, int concurrency, String desc) throws Throwable
+    public void simulate(int toBootstrap, int rf, int concurrency) throws Throwable
     {
-        System.out.println(String.format("RUNNING SIMULATION. TO BOOTSTRAP: %s, RF: %s, CONCURRENCY: %s, BOOTSTRAP MODE: %s",
-                                         toBootstrap, rf, concurrency, desc));
+        System.out.println(String.format("RUNNING SIMULATION. TO BOOTSTRAP: %s, RF: %s, CONCURRENCY: %s",
+                                         toBootstrap, rf, concurrency));
         long startTime = System.currentTimeMillis();
         final List<Long> longs;
         final Iterator<Long> tokens;
@@ -393,7 +394,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                     .step((state, sut) -> state.shouldReplace(rf, rng),
                           (state, sut, entropySource) -> {
                               Node toReplace = getRemovalCandidate(state, entropySource);
-                              ModelChecker.Pair<ModelState, Node> registration = registerNewNode(state, sut, () -> new LongToken(toReplace.token.token));
+                              ModelChecker.Pair<ModelState, Node> registration = registerNewNode(state, sut, toReplace::longToken);
                               state = registration.l;
                               Node replacement = registration.r;
                               Optional<BootstrapAndReplace> plan = prepareReplace(sut, toReplace, replacement);
@@ -421,9 +422,9 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                                                       ? oldOperationState.nodes[1]
                                                       : oldOperationState.nodes[0];
                                           ClusterMetadata metadata = sut.service.metadata();
-                                          InProgressSequence<?> operation = metadata.inProgressSequences.get(node.nodeId);
-                                          assert operation != null : "No in-progress sequence found for node " + node.nodeId;
-                                          sut.service.commit(new CancelInProgressSequence(node.nodeId));
+                                          InProgressSequence<?> operation = metadata.inProgressSequences.get(node.nodeId());
+                                          assert operation != null : "No in-progress sequence found for node " + node.nodeId();
+                                          sut.service.commit(new CancelInProgressSequence(node.nodeId()));
                                           Transformations steps = oldOperationState.stashedSteps;
                                           simulatedState = steps.revertPublishedEffects(simulatedState);
                                           switch (oldOperationState.type)
@@ -508,11 +509,11 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                         {
                             validatePlacementsFinal(sut, state);
                             sut.close();
-                            System.out.println(String.format("(RF: %d, CONCURRENCY: %d, MODE: %s, RUN TIME: %dms) - " +
+                            System.out.println(String.format("(RF: %d, CONCURRENCY: %d, RUN TIME: %dms) - " +
                                                              "REGISTERED: %d, CURRENT SIZE: %d, JOINED: %d, LEFT: %d, " +
                                                              "REPLACED: %d, MOVED: %s, REJECTED OPS: %d, " +
                                                              "CANCELLED OPS (join/replace/leave/move): %d/%d/%d/%d, INFLIGHT OPS: %d",
-                                                             sut.replication.fullReplicas, concurrency, desc, System.currentTimeMillis() - startTime,
+                                                             sut.replication.fullReplicas, concurrency, System.currentTimeMillis() - startTime,
                                                              state.uniqueNodes, state.currentNodes.size(), state.joined, state.left,
                                                              state.replaced, state.moved, state.rejected,
                                                              state.cancelled[0], state.cancelled[1], state.cancelled[2], state.cancelled[3],
@@ -534,12 +535,12 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     {
         try
         {
-            ClusterMetadata metadata = sut.service.commit(new PrepareJoin(node.nodeId,
-                                                                                 ImmutableSet.of(node.token),
-                                                                                 sut.service.placementProvider(),
-                                                                                 true,
-                                                                                 false));
-            return Optional.of((BootstrapAndJoin) metadata.inProgressSequences.get(node.nodeId));
+            ClusterMetadata metadata = sut.service.commit(new PrepareJoin(node.nodeId(),
+                                                                          ImmutableSet.of(node.longToken()),
+                                                                          sut.service.placementProvider(),
+                                                                          true,
+                                                                          false));
+            return Optional.of((BootstrapAndJoin) metadata.inProgressSequences.get(node.nodeId()));
         }
         catch (Throwable t)
         {
@@ -551,8 +552,8 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     {
         try
         {
-            ClusterMetadata metadata = sut.service.commit(new PrepareMove(node.nodeId, Collections.singleton(newToken), sut.service.placementProvider(), false));
-            return Optional.of((Move) metadata.inProgressSequences.get(node.nodeId));
+            ClusterMetadata metadata = sut.service.commit(new PrepareMove(node.nodeId(), Collections.singleton(newToken), sut.service.placementProvider(), false));
+            return Optional.of((Move) metadata.inProgressSequences.get(node.nodeId()));
         }
         catch (Throwable t) // TODO: do we really want to catch _every_ exception?
         {
@@ -572,19 +573,19 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         int rf = sut.replication.fullReplicas;
         if (simulatedPlacements == null)
         {
-            List<PlacementSimulator.Node> orig = Collections.singletonList(new PlacementSimulator.Node(node.token.token, node.name));
+            List<Node> orig = Collections.singletonList(node);
             Transformations stashedSteps = new Transformations();
             simulatedPlacements = new SimulatedPlacements(rf,
                                                           orig,
-                                                          PlacementSimulator.replicate(orig, rf),
-                                                          PlacementSimulator.replicate(orig, rf),
+                                                          replicate(orig, rf),
+                                                          replicate(orig, rf),
                                                           Collections.emptyList());
 
             bootstrapOperation = OperationState.newBootstrap(node, iter, stashedSteps);
         }
         else
         {
-            ModelChecker.Pair<SimulatedPlacements, Transformations> nextSimulated = bootstrap_diffBased(simulatedPlacements, node.name, node.token.token);
+            ModelChecker.Pair<SimulatedPlacements, Transformations> nextSimulated = bootstrap_diffBased(simulatedPlacements, node.idx(), node.token());
             simulatedPlacements = nextSimulated.l;
             Transformations transformations = nextSimulated.r;
             // immediately execute the first step of bootstrap transformations, the splitting of existing ranges. This
@@ -610,14 +611,14 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         SimulatedPlacements simulatedPlacements = state.simulatedPlacements;
         assert simulatedPlacements != null : "Cannot move in an empty cluster";
 
-        ModelChecker.Pair<SimulatedPlacements, Transformations> nextSimulated = move_diffBased(simulatedPlacements, movingNode.name, newToken.token);
+        ModelChecker.Pair<SimulatedPlacements, Transformations> nextSimulated = move_diffBased(simulatedPlacements, movingNode.idx(), newToken.token);
         Transformations transformations = nextSimulated.r;
         simulatedPlacements = nextSimulated.l;
         // immediately execute the first step of move transformations, the splitting of existing ranges. This
         // is so that subsequent planned operations base their transformations on the split ranges.
         simulatedPlacements = transformations.advance(simulatedPlacements);
         OperationState move = OperationState.newMove(movingNode,
-                                                     new Node(movingNode.nodeId, movingNode.addr, newToken),
+                                                     movingNode.withNewToken(newToken.token),
                                                      iter, transformations);
         return pair(state.transformer()
                          .addOperation(move)
@@ -631,10 +632,10 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     {
         try
         {
-            ClusterMetadata metadata =  sut.service.commit(new PrepareLeave(toRemove.nodeId,
-                                                                                   true,
-                                                                                   sut.service.placementProvider()));
-            UnbootstrapAndLeave plan = (UnbootstrapAndLeave) metadata.inProgressSequences.get(toRemove.nodeId);
+            ClusterMetadata metadata =  sut.service.commit(new PrepareLeave(toRemove.nodeId(),
+                                                                            true,
+                                                                            sut.service.placementProvider()));
+            UnbootstrapAndLeave plan = (UnbootstrapAndLeave) metadata.inProgressSequences.get(toRemove.nodeId());
             return Optional.of(plan);
         }
         catch (Throwable e)
@@ -651,7 +652,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         Iterator<ClusterMetadata> iter = toIter(sut.service, events.startLeave, events.midLeave, events.finishLeave);
 
         SimulatedPlacements simulatedPlacements = state.simulatedPlacements;
-        ModelChecker.Pair<SimulatedPlacements, Transformations> nextSimulated = leave_diffBased(simulatedPlacements, toRemove.token.token);
+        ModelChecker.Pair<SimulatedPlacements, Transformations> nextSimulated = leave_diffBased(simulatedPlacements, toRemove.token());
         simulatedPlacements = nextSimulated.l;
         // we don't remove from bootstrapped nodes until the finish leave event executes
         OperationState leaveOperation = OperationState.newDecommission(toRemove, iter, nextSimulated.r);
@@ -667,12 +668,12 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     {
         try
         {
-            ClusterMetadata result = sut.service.commit(new PrepareReplace(toReplace.nodeId,
-                                                                           replacement.nodeId,
+            ClusterMetadata result = sut.service.commit(new PrepareReplace(toReplace.nodeId(),
+                                                                           replacement.nodeId(),
                                                                            sut.service.placementProvider(),
                                                                            true,
                                                                            false));
-            BootstrapAndReplace plan = (BootstrapAndReplace) result.inProgressSequences.get(replacement.nodeId);
+            BootstrapAndReplace plan = (BootstrapAndReplace) result.inProgressSequences.get(replacement.nodeId());
             return Optional.of(plan);
         }
         catch (Throwable t)
@@ -692,7 +693,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         SimulatedPlacements simulatedPlacements = state.simulatedPlacements;
         assert simulatedPlacements != null : "Cannot replace in an empty cluster";
         OperationState bootstrapOperation;
-        ModelChecker.Pair<SimulatedPlacements, Transformations> nextSimulated = replace_directly(simulatedPlacements, replaced.token.token, replacement.name);
+        ModelChecker.Pair<SimulatedPlacements, Transformations> nextSimulated = replace_directly(simulatedPlacements, replaced.token(), replacement.idx());
         simulatedPlacements = nextSimulated.l;
         bootstrapOperation = OperationState.newReplacement(replaced, replacement, iter, nextSimulated.r);
         return pair(state.transformer()
@@ -704,20 +705,20 @@ public class MetadataChangeSimulationTest extends CMSTestBase
 
     private ModelChecker.Pair<ModelState, CMSSut> joinWithoutBootstrap(Node node,
                                                                        ModelState state,
-                                                                       CMSSut sut) throws InterruptedException, ExecutionException
+                                                                       CMSSut sut)
     {
-        sut.service.commit(new UnsafeJoin(node.nodeId, ImmutableSet.of(node.token), sut.service.placementProvider()));
+        sut.service.commit(new UnsafeJoin(node.nodeId(), ImmutableSet.of(node.longToken()), sut.service.placementProvider()));
 
-        List<PlacementSimulator.Node> nodes = new ArrayList<>();
-        nodes.add(new PlacementSimulator.Node(node.token.token, node.name));
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(node);
         if (state.simulatedPlacements != null)
             nodes.addAll(state.simulatedPlacements.nodes);
-        nodes.sort(PlacementSimulator.Node::compareTo);
+        nodes.sort(Node::compareTo);
 
         int rf = sut.replication.fullReplicas;
         SimulatedPlacements simulatedState = new SimulatedPlacements(rf, nodes,
-                                                                     PlacementSimulator.replicate(nodes, rf),
-                                                                     PlacementSimulator.replicate(nodes, rf),
+                                                                     replicate(nodes, rf),
+                                                                     replicate(nodes, rf),
                                                                      Collections.emptyList());
         return pair(state.transformer()
                          .withJoined(node)
@@ -727,19 +728,16 @@ public class MetadataChangeSimulationTest extends CMSTestBase
     }
 
     private ModelChecker.Pair<ModelState, Node> registerNewNode(ModelState state, CMSSut sut, Supplier<LongToken> token)
-    throws Exception
     {
-        return registerNewNode(state, sut, token, "dc1", "rack1");
+        return registerNewNode(state, sut, token, 1, 1);
     }
 
-    private ModelChecker.Pair<ModelState, Node> registerNewNode(ModelState state, CMSSut sut, Supplier<LongToken> token, String dc, String rack)
-    throws Exception
+    private ModelChecker.Pair<ModelState, Node> registerNewNode(ModelState state, CMSSut sut, Supplier<LongToken> token, int dc, int rack)
     {
         ModelState newState = state.transformer().incrementUniqueNodes().transform();
-        String nodeName = String.format("127.0.%d.%d", newState.uniqueNodes / 256, newState.uniqueNodes % 256);
-        InetAddressAndPort addr = InetAddressAndPort.getByAddress(InetAddress.getByName(nodeName));
-        ClusterMetadata metadata = sut.service.commit(new Register(ClusterMetadataTestHelper.addr(addr), new Location(dc, rack), NodeVersion.CURRENT));
-        return pair(newState, new Node(metadata.directory.peerId(addr), addr, token.get()));
+        Node node = new Node(token.get().token, newState.uniqueNodes, dc, rack);
+        sut.service.commit(new Register(new NodeAddresses(node.addr()), new Location(node.dc(), node.rack()), NodeVersion.CURRENT));
+        return pair(newState, node);
     }
 
     private Node getRemovalCandidate(ModelState state, ModelChecker.EntropySource entropySource)
@@ -777,17 +775,17 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         return sb.toString();
     }
 
-    public static void match(PlacementForRange actual, Map<PlacementSimulator.Range, List<PlacementSimulator.Node>> predicted) throws Throwable
+    public static void match(PlacementForRange actual, Map<PlacementSimulator.Range, List<Node>> predicted) throws Throwable
     {
         Map<Range<Token>, EndpointsForRange> groups = actual.replicaGroups();
         assert predicted.size() == groups.size() :
         String.format("\nPredicted:\n%s(%d)" +
                       "\nActual:\n%s(%d)", toString(predicted), predicted.size(), toString(actual.replicaGroups()), groups.size());
 
-        for (Map.Entry<PlacementSimulator.Range, List<PlacementSimulator.Node>> entry : predicted.entrySet())
+        for (Map.Entry<PlacementSimulator.Range, List<Node>> entry : predicted.entrySet())
         {
             PlacementSimulator.Range range = entry.getKey();
-            List<PlacementSimulator.Node> nodes = entry.getValue();
+            List<Node> nodes = entry.getValue();
             Range<Token> predictedRange = new Range<Token>(new Murmur3Partitioner.LongToken(range.start),
                                                            new Murmur3Partitioner.LongToken(range.end));
             EndpointsForRange endpointsForRange = groups.get(predictedRange);
@@ -798,16 +796,16 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                                               "\nActual:   %s",
                                               range, nodes, endpointsForRange.endpoints()),
                                 nodes.size(), endpointsForRange.size());
-            for (PlacementSimulator.Node node : nodes)
+            for (Node node : nodes)
             {
                 assertTrue(String.format("Endpoints for range %s should have contained %s, but they have not." +
                                                 "\nExpected: %s" +
                                                 "\nActual:   %s.",
                                                 endpointsForRange.range(),
-                                                node.id,
+                                                node.id(),
                                                 nodes,
                                                 endpointsForRange.endpoints()),
-                                  endpointsForRange.endpoints().contains(InetAddressAndPort.getByAddress(InetAddress.getByName(node.id))));
+                                  endpointsForRange.endpoints().contains(InetAddressAndPort.getByAddress(InetAddress.getByName(node.id()))));
             }
         }
     }
@@ -1029,7 +1027,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
                 currentNodes = new ArrayList<>();
                 for (Node n : tmp)
                 {
-                    if (n.nodeId.equals(movingNode.nodeId))
+                    if (n.idx() == movingNode.idx())
                         currentNodes.add(movedTo);
                     else
                         currentNodes.add(n);
@@ -1191,37 +1189,11 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         }
     }
 
-    public static class Node
-    {
-        public final NodeId nodeId;
-        public final InetAddressAndPort addr;
-        public final LongToken token;
-        public final String name;
-
-        public Node(NodeId nodeId, InetAddressAndPort addr, LongToken token)
-        {
-            this.nodeId = nodeId;
-            this.addr = addr;
-            this.token = token;
-            this.name = addr.toString(false).replace("/","");
-        }
-
-        @Override
-        public String toString()
-        {
-            return "Node{" +
-                   "nodeId=" + nodeId +
-                   ", addr=" + addr +
-                   ", token=" + token +
-                   '}';
-        }
-    }
-
     public static List<Token> toTokens(List<Node> nodes)
     {
         List<Token> tokens = new ArrayList<>();
         for (Node node : nodes)
-            tokens.add(node.token);
+            tokens.add(node.longToken());
 
         tokens.sort(Token::compareTo);
         return tokens;
@@ -1257,7 +1229,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
 
         Set<Token> allTokens = new HashSet<>(toTokens(modelState.currentNodes));
         for (OperationState bootstrappedNode : modelState.operationStates)
-            allTokens.add(bootstrappedNode.nodes[0].token);
+            allTokens.add(bootstrappedNode.nodes[0].longToken());
 
         List<Range<Token>> expectedRanges = toRanges(allTokens, partitioner);
 

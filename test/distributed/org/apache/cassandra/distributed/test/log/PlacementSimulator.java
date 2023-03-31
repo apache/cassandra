@@ -24,21 +24,19 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Random;
-import java.util.Set;
-import java.util.TreeMap;
+import java.net.UnknownHostException;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
+
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.locator.InetAddressAndPort;
+;import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeId;
 
 /**
  * A small class that helps to avoid doing mental arithmetics on ranges.
@@ -281,7 +279,7 @@ public class PlacementSimulator
     /**
      * Diff-based bootstrap (very close implementation-wise to what production code does)
      */
-    public static ModelChecker.Pair<SimulatedPlacements, Transformations> bootstrap_diffBased(SimulatedPlacements baseState, String node, long token)
+    public static ModelChecker.Pair<SimulatedPlacements, Transformations> bootstrap_diffBased(SimulatedPlacements baseState, int node, long token)
     {
         List<Node> splitNodes = split(baseState.nodes, token);
         Map<Range, List<Node>> maximalStateWithPlacement = replicate(move(splitNodes, token, node), baseState.rf);
@@ -374,10 +372,10 @@ public class PlacementSimulator
         return new ModelChecker.Pair<>(baseState.withStashed(steps), steps);
     }
 
-    public static ModelChecker.Pair<SimulatedPlacements, Transformations>  move_diffBased(SimulatedPlacements baseState, String node, long newToken)
+    public static ModelChecker.Pair<SimulatedPlacements, Transformations> move_diffBased(SimulatedPlacements baseState, int node, long newToken)
     {
         Node oldLocation = baseState.nodes.stream()
-                           .filter(n -> n.id.equals(node))
+                           .filter(n -> n.idx() == node)
                            .findFirst()
                            .get();
 
@@ -385,7 +383,7 @@ public class PlacementSimulator
         List<Node> finalNodes = new ArrayList<>();
         for (int i = 0; i < origNodes.size(); i++)
         {
-            if (origNodes.get(i).id == oldLocation.id)
+            if (origNodes.get(i).idx == oldLocation.idx)
                 continue;
             finalNodes.add(origNodes.get(i));
         }
@@ -467,7 +465,7 @@ public class PlacementSimulator
             List<Node> newNodes = new ArrayList<>();
             for (int i = 0; i < currentNodes.size(); i++)
             {
-                if (currentNodes.get(i).id == oldLocation.id)
+                if (currentNodes.get(i).idx() == oldLocation.idx())
                     continue;
                 newNodes.add(currentNodes.get(i));
             }
@@ -488,7 +486,7 @@ public class PlacementSimulator
         return new ModelChecker.Pair<>(baseState.withStashed(steps), steps);
     }
 
-    public static SimulatedPlacements bootstrapFully(SimulatedPlacements baseState, String node, long token)
+    public static SimulatedPlacements bootstrapFully(SimulatedPlacements baseState, int node, long token)
     {
         ModelChecker.Pair<SimulatedPlacements, Transformations> a = bootstrap_diffBased(baseState, node, token);
         baseState = a.l;
@@ -583,7 +581,7 @@ public class PlacementSimulator
         return new ModelChecker.Pair<>(baseState.withStashed(steps), steps);
     }
 
-    public static ModelChecker.Pair<SimulatedPlacements, Transformations> replace_directly(SimulatedPlacements baseState, long token, String newNode)
+    public static ModelChecker.Pair<SimulatedPlacements, Transformations> replace_directly(SimulatedPlacements baseState, long token, int newNode)
     {
         // find the node with the specified token
         Node toReplace = baseState.nodes.stream()
@@ -690,8 +688,8 @@ public class PlacementSimulator
             // bootstrap_diffBased implementation and the real code doesn't do this, only the endpoint matters for
             // correctness, so we limit this comparison to endpoints only.
             Assert.assertEquals(String.format("For key: %s\n", k),
-                                expected.get(k).stream().map(n -> n.id).sorted().collect(Collectors.toList()),
-                                actual.get(k).stream().map(n -> n.id).sorted().collect(Collectors.toList()));
+                                expected.get(k).stream().map(n -> n.idx).sorted().collect(Collectors.toList()),
+                                actual.get(k).stream().map(n -> n.idx).sorted().collect(Collectors.toList()));
         });
     }
 
@@ -898,11 +896,11 @@ public class PlacementSimulator
                 // We're trying to split rightmost range
                 if (previous == null)
                 {
-                    newNodes.add(new Node(splitAt, nodes.get(0).id));
+                    newNodes.add(new Node(splitAt, nodes.get(0).idx));
                 }
                 else
                 {
-                    newNodes.add(new Node(splitAt, previous.id));
+                    newNodes.add(new Node(splitAt, previous.idx));
                 }
                 inserted = true;
             }
@@ -913,7 +911,7 @@ public class PlacementSimulator
 
         // Leftmost is split
         if (!inserted)
-            newNodes.add(new Node(splitAt, previous.id));
+            newNodes.add(new Node(splitAt, previous.idx));
 
         newNodes.sort(Node::compareTo);
         return Collections.unmodifiableList(newNodes);
@@ -922,7 +920,7 @@ public class PlacementSimulator
     /**
      * Change the ownership of the freshly split token
      */
-    public static List<Node> move(List<Node> nodes, long tokenToMove, String newOwner)
+    public static List<Node> move(List<Node> nodes, long tokenToMove, int newOwner)
     {
         List<Node> newNodes = new ArrayList<>();
         for (Node node : nodes)
@@ -962,7 +960,7 @@ public class PlacementSimulator
         Map<Range, List<Node>> replication = new TreeMap<>();
         for (Range range : ranges)
         {
-            Set<String> names = new HashSet<>();
+            Set<Integer> names = new HashSet<>();
             List<Node> replicas = new ArrayList<>();
             int idx = primaryReplica(nodes, range);
             if (idx >= 0)
@@ -988,23 +986,192 @@ public class PlacementSimulator
         return Collections.unmodifiableMap(replication);
     }
 
-    public static void addIfUnique(List<Node> nodes, Set<String> names, Node node)
+    public static Map<Range, List<Node>> replicate(List<Node> nodes, Map<String, Integer> rfs)
     {
-        if (names.contains(node.id))
+        nodes.sort(Comparator.comparing(n -> n.token));
+        Map<String, DatacenterNodes> template = new HashMap<>();
+
+        Map<String, List<Node>> nodesByDC = nodesByDC(nodes);
+        Map<String, Set<String>> racksByDC = racksByDC(nodes);
+
+        for (Map.Entry<String, Integer> entry : rfs.entrySet())
+        {
+            String dc = entry.getKey();
+            int rf = entry.getValue();
+            List<Node> nodesInThisDC = nodesByDC.get(dc);
+            Set<String> racksInThisDC = racksByDC.get(dc);
+            int nodeCount = nodesInThisDC == null ? 0 : nodesInThisDC.size();
+            int rackCount = racksInThisDC == null ? 0 : racksInThisDC.size();
+            if (rf <= 0 || nodeCount == 0)
+                continue;
+
+            template.put(dc, new DatacenterNodes(rf, rackCount, nodeCount));
+        }
+
+        List<Range> ranges = toRanges(nodes);
+        Map<Range, Map<String, List<Node>>> replication = new TreeMap<>();
+
+        for (Range range : ranges)
+        {
+            int idx = primaryReplica(nodes, range);
+            if (idx >= 0)
+            {
+                int dcsToFill = template.size();
+
+                Map<String, DatacenterNodes> nodesInDCs = new HashMap<>();
+                for (Map.Entry<String, DatacenterNodes> e : template.entrySet())
+                    nodesInDCs.put(e.getKey(), e.getValue().copy());
+
+                while (dcsToFill > 0)
+                {
+                    Node node = nodes.get(idx);
+                    DatacenterNodes dcNodes = nodesInDCs.get(node.dc());
+                    if (dcNodes != null && dcNodes.addAndCheckIfDone(node, new Location(node.dc(), node.rack())))
+                        dcsToFill--;
+
+                    if (idx + 1 == nodes.size())
+                        idx = 0;
+                    else
+                        idx += 1;
+                }
+
+                replication.put(range, mapValues(nodesInDCs, v -> v.nodes));
+            }
+            else
+            {
+                // if the range end is larger than the highest assigned token, then treat it
+                // as part of the wraparound and replicate it to the same nodes as the first
+                // range. This is most likely caused by a decommission removing the node with
+                // the largest token.
+                replication.put(range, replication.get(ranges.get(0)));
+            }
+        }
+
+        return combine(replication);
+    }
+
+    private static Map<Range, List<Node>> combine(Map<Range, Map<String, List<Node>>> orig)
+    {
+        Map<Range, List<Node>> res = new HashMap<>();
+        for (Map.Entry<Range, Map<String, List<Node>>> e : orig.entrySet())
+        {
+            for (List<Node> v : e.getValue().values())
+                res.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).addAll(v);
+
+        }
+        return res;
+    }
+
+    private static <K, T1, T2> Map<K, T2> mapValues(Map<K, T1> allDCs, Function<T1, T2> map)
+    {
+        Map<K, T2> res = new HashMap<>();
+        for (Map.Entry<K, T1> e : allDCs.entrySet())
+        {
+            res.put(e.getKey(), map.apply(e.getValue()));
+        }
+        return res;
+    }
+
+    public static Map<String, List<Node>> nodesByDC(List<Node> nodes)
+    {
+        Map<String, List<Node>> nodesByDC = new HashMap<>();
+        for (Node node : nodes)
+            nodesByDC.computeIfAbsent(node.dc(), (k) -> new ArrayList<>()).add(node);
+
+        return nodesByDC;
+    }
+
+    public static Map<String, Set<String>> racksByDC(List<Node> nodes)
+    {
+        Map<String, Set<String>> racksByDC = new HashMap<>();
+        for (Node node : nodes)
+            racksByDC.computeIfAbsent(node.dc(), (k) -> new HashSet<>()).add(node.rack());
+
+        return racksByDC;
+    }
+
+    private static final class DatacenterNodes
+    {
+        private final List<Node> nodes = new ArrayList<>();
+        private final Set<Location> racks = new HashSet<>();
+
+        /** Number of replicas left to fill from this DC. */
+        int rfLeft;
+        int acceptableRackRepeats;
+
+        public DatacenterNodes copy()
+        {
+            return new DatacenterNodes(rfLeft, acceptableRackRepeats);
+        }
+
+        DatacenterNodes(int rf,
+                        int rackCount,
+                        int nodeCount)
+        {
+            this.rfLeft = Math.min(rf, nodeCount);
+            acceptableRackRepeats = rf - rackCount;
+        }
+
+        // for copying
+        DatacenterNodes(int rfLeft, int acceptableRackRepeats)
+        {
+            this.rfLeft = rfLeft;
+            this.acceptableRackRepeats = acceptableRackRepeats;
+        }
+
+        boolean addAndCheckIfDone(Node node, Location location)
+        {
+            if (done())
+                return false;
+
+            if (nodes.contains(node))
+                // Cannot repeat a node.
+                return false;
+
+            if (racks.add(location))
+            {
+                // New rack.
+                --rfLeft;
+                nodes.add(node);
+                return done();
+            }
+            if (acceptableRackRepeats <= 0)
+                // There must be rfLeft distinct racks left, do not add any more rack repeats.
+                return false;
+
+            nodes.add(node);
+
+            // Added a node that is from an already met rack to match RF when there aren't enough racks.
+            --acceptableRackRepeats;
+            --rfLeft;
+            return done();
+        }
+
+        boolean done()
+        {
+            assert rfLeft >= 0;
+            return rfLeft == 0;
+        }
+    }
+
+
+    public static void addIfUnique(List<Node> nodes, Set<Integer> names, Node node)
+    {
+        if (names.contains(node.idx()))
             return;
         nodes.add(node);
-        names.add(node.id);
+        names.add(node.idx());
     }
 
     public static List<Node> uniq(List<Node> nodes)
     {
         List<Node> newNodes = new ArrayList<>();
-        Set<String> ids = new HashSet<>();
+        Set<Integer> ids = new HashSet<>();
         for (Node node : nodes)
         {
-            if (!ids.contains(node.id))
+            if (!ids.contains(node.idx))
             {
-                ids.add(node.id);
+                ids.add(node.idx);
                 newNodes.add(node);
             }
         }
@@ -1138,15 +1305,120 @@ public class PlacementSimulator
         }
     }
 
+    public interface Lookup
+    {
+        String id(int idx);
+        String dc(int idx);
+        String rack(int idx);
+        NodeId nodeId(int idx);
+        InetAddressAndPort addr(int idx);
+    }
+
+    public static class DefaultLookup implements Lookup
+    {
+        public String id(int idx)
+        {
+            return String.format("127.0.%d.%d", idx / 256, idx % 256);
+        }
+
+        public NodeId nodeId(int idx)
+        {
+            return ClusterMetadata.current().directory.peerId(addr(idx));
+        }
+
+        public InetAddressAndPort addr(int idx)
+        {
+            try
+            {
+                return InetAddressAndPort.getByName(id(idx));
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public String dc(int dcIdx)
+        {
+            return String.format("datacenter%d", dcIdx);
+        }
+
+        public String rack(int rackIdx)
+        {
+            return String.format("rack%d", rackIdx);
+        }
+    }
+
+    public static Lookup DEFAULT_LOOKUP = new DefaultLookup();
     public static class Node implements Comparable<Node>
     {
-        public final long token;
-        public final String id;
+        private final long token;
+        private final int idx;
+        private final int dc;
+        private final int rack;
+        private final Lookup lookup;
 
-        public Node(long token, String id)
+        public Node(long token, int idx)
+        {
+            this(token, idx, 1, 1, DEFAULT_LOOKUP);
+        }
+
+        public Node(long token, int idx, int dc, int rack)
+        {
+            this(token, idx, dc, rack, DEFAULT_LOOKUP);
+        }
+        public Node(long token, int idx, int dc, int rack, Lookup lookup)
         {
             this.token = token;
-            this.id = id;
+            this.idx = idx;
+            this.dc = dc;
+            this.rack = rack;
+            this.lookup = lookup;
+        }
+
+        public InetAddressAndPort addr()
+        {
+            return lookup.addr(idx);
+        }
+
+        public NodeId nodeId()
+        {
+            return lookup.nodeId(idx);
+        }
+
+        public String id()
+        {
+            return lookup.id(idx);
+        }
+
+        public int idx()
+        {
+            return idx;
+        }
+
+        public String dc()
+        {
+            return lookup.dc(dc);
+        }
+
+        public String rack()
+        {
+            return lookup.rack(rack);
+        }
+
+        public long token()
+        {
+            return token;
+        }
+
+        public Murmur3Partitioner.LongToken longToken()
+        {
+            return new Murmur3Partitioner.LongToken(token);
+        }
+
+        public Node withNewToken(long newToken)
+        {
+            return new Node(newToken, idx, dc, rack, lookup);
         }
 
         public boolean equals(Object o)
@@ -1154,12 +1426,12 @@ public class PlacementSimulator
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Node node = (Node) o;
-            return Objects.equals(id, node.id);
+            return Objects.equals(idx, node.idx);
         }
 
         public int hashCode()
         {
-            return Objects.hash(id);
+            return Objects.hash(idx);
         }
 
         public int compareTo(Node o)
@@ -1169,7 +1441,7 @@ public class PlacementSimulator
 
         public String toString()
         {
-            return "" + id + "@" + token;
+            return "" + idx + "@" + token;
         }
     }
 

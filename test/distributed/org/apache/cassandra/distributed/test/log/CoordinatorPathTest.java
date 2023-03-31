@@ -78,7 +78,7 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                 // At most 2 replicas should respond, so that when the pending node is added, results would be insufficient for recomputed blockFor
                 BooleanSupplier shouldRespond = atMostResponses(simulatedCluster.state.get().isWriteTargetFor(token(pk), simulatedCluster.node(1).matcher) ? 1 : 2);
                 List<WaitingAction<?,?>> waiting = simulatedCluster
-                                                   .filter((n) -> replicas.stream().anyMatch(n.matcher) && n.id != 1)
+                                                   .filter((n) -> replicas.stream().anyMatch(n.matcher) && n.node.idx() != 1)
                                                    .map((nodeToBlockOn) -> nodeToBlockOn.blockOnReplica((node) -> new MutationAction(node, shouldRespond)))
                                                    .collect(Collectors.toList());
 
@@ -139,8 +139,8 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                 List<Node> replicas = simulatedCluster.state.get().readReplicasFor(token(pk));
                 Function<Integer, BooleanSupplier> shouldRespond = respondFrom(1, 4);
                 List<WaitingAction<?,?>> waiting = simulatedCluster
-                                                   .filter((n) -> replicas.stream().anyMatch(n.matcher) && n.id != 1)
-                                                   .map((nodeToBlockOn) -> nodeToBlockOn.blockOnReplica((node) -> new ReadAction(node, shouldRespond.apply(nodeToBlockOn.id))))
+                                                   .filter((n) -> replicas.stream().anyMatch(n.matcher) && n.node.idx() != 1)
+                                                   .map((nodeToBlockOn) -> nodeToBlockOn.blockOnReplica((node) -> new ReadAction(node, shouldRespond.apply(nodeToBlockOn.node.idx()))))
                                                    .collect(Collectors.toList());
 
                 Future<?> readQuery = async(() -> cluster.coordinator(1).execute("select * from distributed_test_keyspace.tbl where pk = ?", ConsistencyLevel.QUORUM, pk));

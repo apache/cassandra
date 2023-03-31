@@ -60,7 +60,7 @@ public class PlacementSimulatorTest
         orig.sort(Node::compareTo);
 
         SimulatedPlacements placements = new SimulatedPlacements(rf, orig, replicate(orig, rf), replicate(orig, rf), Collections.emptyList());
-        ModelChecker.Pair<SimulatedPlacements, Transformations> steps = move_diffBased(placements, "127.0.0.1", newToken);
+        ModelChecker.Pair<SimulatedPlacements, Transformations> steps = move_diffBased(placements, 1, newToken);
 
         List<Node> afterSplit = split(orig, newToken);
         List<Node> finalState = moveFinalState(orig, movingNode, newToken);
@@ -71,13 +71,13 @@ public class PlacementSimulatorTest
         assertPlacements(placements,
                          replicate(afterSplit, rf),
                          superset(replicate(afterSplit, rf),
-                                  replicate(split(finalState, movingNode.token), rf)));
+                                  replicate(split(finalState, movingNode.token()), rf)));
 
         placements = steps.r.advance(placements);
         assertPlacements(placements,
-                         replicate(split(finalState, movingNode.token), rf),
+                         replicate(split(finalState, movingNode.token()), rf),
                          superset(replicate(afterSplit, rf),
-                                  replicate(split(finalState, movingNode.token), rf)));
+                                  replicate(split(finalState, movingNode.token()), rf)));
 
         placements = steps.r.advance(placements);
         assertPlacements(placements,
@@ -108,7 +108,7 @@ public class PlacementSimulatorTest
 
         Node newNode = n(5, newToken);
         SimulatedPlacements placements = new SimulatedPlacements(rf, orig, replicate(orig, rf), replicate(orig, rf), Collections.emptyList());
-        ModelChecker.Pair<SimulatedPlacements, Transformations> steps = bootstrap_diffBased(placements, "127.0.0.5", newToken);
+        ModelChecker.Pair<SimulatedPlacements, Transformations> steps = bootstrap_diffBased(placements, 5, newToken);
 
         List<Node> afterSplit = split(orig, newToken);
         List<Node> finalState = bootstrapFinalState(orig, newNode, newToken);
@@ -158,22 +158,22 @@ public class PlacementSimulatorTest
         orig.sort(Node::compareTo);
 
         SimulatedPlacements placements = new SimulatedPlacements(rf, orig, replicate(orig, rf), replicate(orig, rf), Collections.emptyList());
-        ModelChecker.Pair<SimulatedPlacements, Transformations> steps = leave_diffBased(placements, leavingNode.token);
+        ModelChecker.Pair<SimulatedPlacements, Transformations> steps = leave_diffBased(placements, leavingNode.token());
 
-        List<Node> finalState = leaveFinalState(orig, leavingNode.token);
+        List<Node> finalState = leaveFinalState(orig, leavingNode.token());
 
         //TODO: for some reason diff-based leave is a 3 step operation
         placements = steps.r.advance(placements);
         assertPlacements(placements,
                          replicate(orig, rf),
                          superset(replicate(orig, rf),
-                                  replicate(split(finalState, leavingNode.token), rf)));
+                                  replicate(split(finalState, leavingNode.token()), rf)));
 
         placements = steps.r.advance(placements);
         assertPlacements(placements,
-                         replicate(split(finalState, leavingNode.token), rf),
+                         replicate(split(finalState, leavingNode.token()), rf),
                          superset(replicate(orig, rf),
-                                  replicate(split(finalState, leavingNode.token), rf)));
+                                  replicate(split(finalState, leavingNode.token()), rf)));
 
         placements = steps.r.advance(placements);
         assertPlacements(placements,
@@ -183,29 +183,29 @@ public class PlacementSimulatorTest
 
     public static List<Node> moveFinalState(List<Node> nodes, Node target, long newToken)
     {
-        nodes = filter(nodes, n -> !n.id.equals(target.id)); // filter out current owner
+        nodes = filter(nodes, n -> n.idx() != target.idx()); // filter out current owner
         nodes = split(nodes, newToken);                      // materialize new token
-        nodes = move(nodes, newToken, target.id);            // move new token to the node
+        nodes = move(nodes, newToken, target.idx());         // move new token to the node
         return nodes;
     }
 
     public static List<Node> bootstrapFinalState(List<Node> nodes, Node newNode, long newToken)
     {
-        nodes = split(nodes, newToken);            // materialize new token
-        nodes = move(nodes, newToken, newNode.id); // move new token to the node
+        nodes = split(nodes, newToken);               // materialize new token
+        nodes = move(nodes, newToken, newNode.idx()); // move new token to the node
         return nodes;
     }
 
     public static List<Node> leaveFinalState(List<Node> nodes, long leavingToken)
     {
-        nodes = filter(nodes, n -> n.token != leavingToken);
+        nodes = filter(nodes, n -> n.token() != leavingToken);
         return nodes;
     }
 
 
-    public static PlacementSimulator.Node n(int id, long token)
+    public static PlacementSimulator.Node n(int idx, long token)
     {
-        return new PlacementSimulator.Node(token, "127.0.0." + id);
+        return new PlacementSimulator.Node(token, idx);
     }
 
     @Test
@@ -221,7 +221,7 @@ public class PlacementSimulatorTest
     {
         List<Long> source = readableTokens(100);
         Iterator<Long> tokens = source.iterator();
-        List<Node> orig = Collections.singletonList(new Node(tokens.next(), "127.0.0.1"));
+        List<Node> orig = Collections.singletonList(new Node(tokens.next(), 1));
 
         ModelChecker<SimulatedPlacements, SUTState> modelChecker = new ModelChecker<>();
         AtomicInteger  addressCounter = new AtomicInteger(1);
@@ -231,7 +231,7 @@ public class PlacementSimulatorTest
                           new SUTState())
                     .step((state, sut) -> state.nodes.size() < rf,
                           (state, sut, rng) -> new ModelChecker.Pair<>(bootstrapFully(state,
-                                                                                      "127.0.0." + addressCounter.incrementAndGet(),
+                                                                                      addressCounter.incrementAndGet(),
                                                                                       tokens.next()),
                                                                        sut))
                     .step((state, sut) -> state.nodes.size() >= rf && state.stashedStates.size() < 1,
@@ -241,14 +241,14 @@ public class PlacementSimulatorTest
                                   // randomly schedule either decommission or replacement of an existing node
                                   Node toRemove = state.nodes.get(rng.nextInt(0, state.nodes.size() - 1));
                                   return rng.nextBoolean()
-                                         ? new ModelChecker.Pair<>(replace_directly(state, toRemove.token, "127.0.0." + addressCounter.incrementAndGet()).l, sut)
-                                         : new ModelChecker.Pair<>(leave_diffBased(state, toRemove.token).l, sut);
+                                         ? new ModelChecker.Pair<>(replace_directly(state, toRemove.token(), addressCounter.incrementAndGet()).l, sut)
+                                         : new ModelChecker.Pair<>(leave_diffBased(state, toRemove.token()).l, sut);
                               }
                               else
                               {
                                   // schedule bootstrapping an additional node
                                   return new ModelChecker.Pair<>(bootstrap_diffBased(state,
-                                                                                     "127.0.0." + addressCounter.incrementAndGet(),
+                                                                                     addressCounter.incrementAndGet(),
                                                                                      tokens.next()).l,
                                                                  sut);
                               }
@@ -283,7 +283,7 @@ public class PlacementSimulatorTest
             Iterator<Long> tokens = source.iterator();
             List<Node> nodes = nodes(10, tokens);
             long nextToken = tokens.next();
-            String newNode = "127.0.0." + nodes.size() + 1;
+            int newNode = nodes.size() + 1;
             SimulatedPlacements sim = new SimulatedPlacements(rf, nodes, replicate(nodes, rf), replicate(nodes, rf), Collections.emptyList());
             revertPartiallyCompleteOp(sim, () -> bootstrap_diffBased(sim, newNode, nextToken), 3);
         }
@@ -299,7 +299,7 @@ public class PlacementSimulatorTest
             List<Node> nodes = nodes(10, tokens);
             Node toRemove = nodes.get(5);
             SimulatedPlacements sim = new SimulatedPlacements(rf, nodes, replicate(nodes, rf), replicate(nodes, rf), Collections.emptyList());
-            revertPartiallyCompleteOp(sim, () -> leave_diffBased(sim, toRemove.token), 2);
+            revertPartiallyCompleteOp(sim, () -> leave_diffBased(sim, toRemove.token()), 2);
         }
     }
 
@@ -313,15 +313,16 @@ public class PlacementSimulatorTest
             List<Node> nodes = nodes(10, tokens);
             Node toReplace = nodes.get(5);
             SimulatedPlacements sim = new SimulatedPlacements(rf, nodes, replicate(nodes, rf), replicate(nodes, rf), Collections.emptyList());
-            revertPartiallyCompleteOp(sim, () -> replace_directly(sim, toReplace.token, "127.0.0.99"), 2);
+            revertPartiallyCompleteOp(sim, () -> replace_directly(sim, toReplace.token(), 99), 2);
         }
     }
+
 
     private List<Node> nodes(int n, Iterator<Long> tokens)
     {
         List<Node> nodes = new ArrayList<>();
         for (int i = 0; i < n; i++)
-            nodes.add(new Node(tokens.next(), "127.0.0." + (i+1)));
+            nodes.add(new Node(tokens.next(), i+1));
         nodes.sort(Node::compareTo);
         return nodes;
     }
@@ -347,7 +348,7 @@ public class PlacementSimulatorTest
     {
         Map<Range, List<Node>> startingReadPlacements = sim.readPlacements;
         Map<Range, List<Node>> startingWritePlacements = sim.writePlacements;
-        ModelChecker.Pair<SimulatedPlacements, Transformations> op = opProvider.get();;
+        ModelChecker.Pair<SimulatedPlacements, Transformations> op = opProvider.get();
         sim = op.l;
         Transformations steps = op.r;
         // execute the required steps
