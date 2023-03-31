@@ -17,18 +17,24 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.FileStore;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.io.util.File;
 import com.google.common.base.Preconditions;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -36,13 +42,14 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
@@ -55,7 +62,6 @@ import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
-import static org.apache.cassandra.db.commitlog.CommitLogSegment.CommitLogSegmentFileComparator;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -70,6 +76,8 @@ public class CommitLog implements CommitLogMBean
 
     public static final CommitLog instance = CommitLog.construct();
 
+    private static final BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
+
     final public AbstractCommitLogSegmentManager segmentManager;
 
     public final CommitLogArchiver archiver;
@@ -82,7 +90,6 @@ public class CommitLog implements CommitLogMBean
     private static CommitLog construct()
     {
         CommitLog log = new CommitLog(CommitLogArchiver.construct(), DatabaseDescriptor.getCommitLogSegmentMgrProvider());
-
         MBeanWrapper.instance.registerMBean(log, "org.apache.cassandra.db:type=Commitlog");
         return log;
     }
@@ -145,6 +152,24 @@ public class CommitLog implements CommitLogMBean
         return this;
     }
 
+    public boolean isStarted()
+    {
+        return started;
+    }
+
+    public boolean hasFilesToReplay()
+    {
+        return getUnmanagedFiles().length > 0;
+    }
+
+    private File[] getUnmanagedFiles()
+    {
+        File[] files = new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter);
+        if (files == null)
+            return new File[0];
+        return files;
+    }
+
     /**
      * Perform recovery on commit logs located in the directory specified by the config file.
      *
@@ -153,12 +178,10 @@ public class CommitLog implements CommitLogMBean
      */
     public int recoverSegmentsOnDisk() throws IOException
     {
-        BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
-
         // submit all files for this segment manager for archiving prior to recovery - CASSANDRA-6904
         // The files may have already been archived by normal CommitLog operation. This may cause errors in this
         // archiving pass, which we should not treat as serious.
-        for (File file : new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter))
+        for (File file : getUnmanagedFiles())
         {
             archiver.maybeArchive(file.path(), file.name());
             archiver.maybeWaitForArchiving(file.name());
@@ -168,7 +191,7 @@ public class CommitLog implements CommitLogMBean
         archiver.maybeRestoreArchive();
 
         // List the files again as archiver may have added segments.
-        File[] files = new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter);
+        File[] files = getUnmanagedFiles();
         int replayed = 0;
         if (files.length == 0)
         {
@@ -176,7 +199,7 @@ public class CommitLog implements CommitLogMBean
         }
         else
         {
-            Arrays.sort(files, new CommitLogSegmentFileComparator());
+            Arrays.sort(files, new CommitLogSegment.CommitLogSegmentFileComparator());
             logger.info("Replaying {}", StringUtils.join(files, ", "));
             replayed = recoverFiles(files);
             logger.info("Log replay complete, {} replayed mutations", replayed);
@@ -210,7 +233,7 @@ public class CommitLog implements CommitLogMBean
 
     private static UUID getLocalHostId()
     {
-        return Optional.ofNullable(StorageService.instance.getLocalHostUUID()).orElseGet(SystemKeyspace::getLocalHostId);
+        return StorageService.instance.getLocalHostUUID();
     }
 
     /**
