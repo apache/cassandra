@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.management.openmbean.OpenDataException;
@@ -64,6 +65,7 @@ import org.apache.cassandra.cql3.functions.OperationFcts;
 import org.apache.cassandra.cql3.functions.TimeFcts;
 import org.apache.cassandra.cql3.functions.UuidFcts;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -561,6 +563,12 @@ public final class SystemKeyspace
 
     public static void persistLocalMetadata()
     {
+        persistLocalMetadata(UUID::randomUUID);
+    }
+
+    @VisibleForTesting
+    public static void persistLocalMetadata(Supplier<UUID> nodeIdSupplier)
+    {
         String req = "INSERT INTO system.%s (" +
                      "key," +
                      "cluster_name," +
@@ -593,6 +601,13 @@ public final class SystemKeyspace
                             DatabaseDescriptor.getStoragePort(),
                             FBUtilities.getJustLocalAddress(),
                             DatabaseDescriptor.getStoragePort());
+
+        // We should store host ID as soon as possible in the system.local table and flush that table to disk so that
+        // we can be sure that those changes are stored in sstable and not in the commit log (see CASSANDRA-18153).
+        // It is very unlikely that when upgrading the host id is not flushed to disk, but if that's the case, we limit
+        // this change only to the new installations or the user should just flush system.local table.
+        if (!CommitLog.instance.hasFilesToReplay())
+            SystemKeyspace.getOrInitializeLocalHostId(nodeIdSupplier);
     }
 
     public static void updateCompactionHistory(String ksname,
@@ -1219,12 +1234,17 @@ public final class SystemKeyspace
      */
     public static synchronized UUID getOrInitializeLocalHostId()
     {
+        return getOrInitializeLocalHostId(UUID::randomUUID);
+    }
+
+    private static synchronized UUID getOrInitializeLocalHostId(Supplier<UUID> nodeIdSupplier)
+    {
         UUID hostId = getLocalHostId();
         if (hostId != null)
             return hostId;
 
         // ID not found, generate a new one, persist, and then return it.
-        hostId = UUID.randomUUID();
+        hostId = nodeIdSupplier.get();
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
         return setLocalHostId(hostId);
     }
@@ -1236,6 +1256,7 @@ public final class SystemKeyspace
     {
         String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
         executeInternal(format(req, LOCAL, LOCAL), hostId);
+        forceBlockingFlush(LOCAL);
         return hostId;
     }
 

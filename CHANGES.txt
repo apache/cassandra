@@ -4,7 +4,10 @@
  * Do not submit hints when hinted_handoff_enabled=false (CASSANDRA-18304)
  * Fix COPY ... TO STDOUT behavior in cqlsh (CASSANDRA-18353)
  * Remove six and Py2SaferScanner merge cruft (CASSANDRA-18354)
- 
+Merged from 4.0:
+Merged from 3.11:
+Merged from 3.0: 
+ * Save host id to system.local and flush immediately after startup (CASSANDRA-18153)
 
 4.1.1
  * Deprecate org.apache.cassandra.hadoop code (CASSANDRA-16984)

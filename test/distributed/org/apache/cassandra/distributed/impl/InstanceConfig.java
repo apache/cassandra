@@ -31,7 +31,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.vdurmont.semver4j.Semver;
-
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
@@ -47,7 +46,8 @@ public class InstanceConfig implements IInstanceConfig
     private final NetworkTopology networkTopology;
     public NetworkTopology networkTopology() { return networkTopology; }
 
-    public final UUID hostId;
+    private volatile UUID hostId;
+    public void setHostId(UUID hostId) { this.hostId = hostId; }
     public UUID hostId() { return hostId; }
     private final Map<String, Object> params = new TreeMap<>();
     private final Map<String, Object> dtestParams = new TreeMap<>();
