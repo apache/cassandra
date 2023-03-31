@@ -203,7 +203,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  * implemented in {@link org.apache.cassandra.db.virtual.InternodeInboundTable} and
  * {@link org.apache.cassandra.db.virtual.InternodeOutboundTable} respectively.
  */
-public class MessagingService extends MessagingServiceMBeanImpl
+public class MessagingService extends MessagingServiceMBeanImpl implements Messaging
 {
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
 
@@ -352,6 +352,7 @@ public class MessagingService extends MessagingServiceMBeanImpl
      * @param cb      callback interface which is used to pass the responses or
      *                suggest that a timeout occurred to the invoker of the send().
      */
+    @Override
     public void sendWithCallback(Message message, InetAddressAndPort to, RequestCallback cb)
     {
         sendWithCallback(message, to, cb, null);
@@ -390,6 +391,7 @@ public class MessagingService extends MessagingServiceMBeanImpl
      * @param message messages to be sent.
      * @param to      endpoint to which the message needs to be sent
      */
+    @Override
     public void send(Message message, InetAddressAndPort to)
     {
         send(message, to, null);
