@@ -44,7 +44,7 @@ import javax.management.Notification;
 import javax.management.NotificationListener;
 
 import com.google.common.annotations.VisibleForTesting;
-
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -134,8 +134,8 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.concurrent.Ref;
-import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.memory.BufferPools;
+import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -512,7 +512,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
                 // We need to persist this as soon as possible after startup checks.
                 // This should be the first write to SystemKeyspace (CASSANDRA-11742)
-                SystemKeyspace.persistLocalMetadata();
+                SystemKeyspace.persistLocalMetadata(config::hostId);
                 SystemKeyspaceMigrator40.migrate();
 
                 // Same order to populate tokenMetadata for the first time,
@@ -770,6 +770,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             }
 
             error = parallelRun(error, executor, StorageService.instance::disableAutoCompaction);
+            while (CompactionManager.instance.hasOngoingOrPendingTasks() && !Thread.currentThread().isInterrupted())
+            {
+                inInstancelogger.info("Waiting for compactions to finish");
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+            }
 
             error = parallelRun(error, executor,
                                 () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES),

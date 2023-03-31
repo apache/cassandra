@@ -28,10 +28,10 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
 
-import com.vdurmont.semver4j.Semver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.vdurmont.semver4j.Semver;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
@@ -52,7 +52,8 @@ public class InstanceConfig implements IInstanceConfig
     private final NetworkTopology networkTopology;
     public NetworkTopology networkTopology() { return networkTopology; }
 
-    public final UUID hostId;
+    private volatile UUID hostId;
+    public void setHostId(UUID hostId) { this.hostId = hostId; }
     public UUID hostId() { return hostId; }
     private final Map<String, Object> params = new TreeMap<>();
     private final Map<String, Object> dtestParams = new TreeMap<>();
