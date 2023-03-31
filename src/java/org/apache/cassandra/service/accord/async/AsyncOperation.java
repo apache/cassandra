@@ -179,7 +179,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     private void fail(Throwable throwable)
     {
         Invariants.nonNull(throwable);
-        Invariants.checkArgument(state != State.FINISHED && state != State.FAILED, "Unexpected state %s", state);
+        if (!(state != State.FINISHED && state != State.FAILED))
+            throw new IllegalStateException("Unexpected state " + state, throwable);
         try
         {
             switch (state)
