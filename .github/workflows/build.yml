@@ -78,6 +78,7 @@ jobs:
        run: >
          ant sonar 
          ${{ env.SONAR_OPTS }}
-         -Dsonar.login=${SONARCLOUD_TOKEN}
+         -Dsonar.login=$SONAR_TOKEN
        env:
-         SONARCLOUD_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
+         SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
