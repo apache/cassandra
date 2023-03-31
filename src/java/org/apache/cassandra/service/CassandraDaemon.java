@@ -394,7 +394,7 @@ public class CassandraDaemon
             exitOrFail(1, "Fatal configuration error", e);
         }
 
-        ClusterMetadataService.instance().replayAndWait();
+        ScheduledExecutors.nonPeriodicTasks.execute(() -> ClusterMetadataService.instance().replayAndWait());
 
         // TODO: (TM/alexp), this can be made time-dependent
         // Because we are writing to the system_distributed keyspace, this should happen after that is created, which
@@ -698,7 +698,7 @@ public class CassandraDaemon
         // jsvc takes care of taking the rest down
         logger.info("Cassandra shutting down...");
         destroyClientTransports();
-        //StorageService.instance.setRpcReady(false);
+        StorageService.instance.setRpcReady(false);
 
         if (jmxServer != null)
         {

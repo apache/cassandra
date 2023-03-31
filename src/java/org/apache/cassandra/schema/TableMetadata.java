@@ -822,12 +822,7 @@ public class TableMetadata implements SchemaElement
                 partitioner = DatabaseDescriptor.getPartitioner();
 
             if (id == null)
-            {
-                // make sure vtables use determiniestic ids so they can be referenced in calls cross-nodes
-                // see CASSANDRA-17295
-                if (DatabaseDescriptor.useDeterministicTableID() || kind == Kind.VIRTUAL) id = TableId.unsafeDeterministic(keyspace, name);
-                else id = TableId.generate();
-            }
+                id = TableId.unsafeDeterministic(keyspace, name);
 
             if (Flag.isCQLTable(flags))
                 return new TableMetadata(this);

@@ -186,7 +186,7 @@ public final class RemoteProcessor implements Processor
                     else
                     {
                         candidates.timeout(from);
-                        logger.error("Got error from {}: {} when sending {}, retrying on {}", from, reason, verb, candidates);
+                        logger.warn("Got error from {}: {} when sending {}, retrying on {}", from, reason, verb, candidates);
                     }
 
                     promise.tryFailure(null);

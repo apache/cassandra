@@ -27,7 +27,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -401,9 +400,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
 
     static EndpointsForRange forNonLocalStategyRangeRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, AbstractBounds<PartitionPosition> range)
     {
-        TokenMap tokenMap = metadata.tokenMap;
-        Token token = tokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
-        return  metadata.placements.get(keyspace.params.replication).reads.forRange(token);
+        return metadata.placements.get(keyspace.params.replication).reads.forRange(range.right.getToken());
     }
 
     static EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
