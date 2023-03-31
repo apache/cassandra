@@ -134,7 +134,7 @@ public class AccordMessageSink implements MessageSink
         Message<?> replyMsg = replyTo.responseWith(reply);
         Verb verb = getVerb(reply.type());
         Preconditions.checkNotNull(verb, "Verb is null for type %s", reply.type());
-        Preconditions.checkArgument(replyMsg.verb() == verb, "Expected reply message with verb %s but got %s", replyMsg.verb(), verb);
+        Preconditions.checkArgument(replyMsg.verb() == verb, "Expected reply message with verb %s but got %s; reply type was %s", replyMsg.verb(), verb, reply.type());
         InetAddressAndPort endpoint = getEndpoint(replyingToNode);
         logger.debug("Replying {} {} to {}", replyMsg.verb(), replyMsg.payload, endpoint);
         messaging.send(replyMsg, endpoint);
