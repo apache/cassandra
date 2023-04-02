@@ -4487,6 +4487,11 @@ public class DatabaseDescriptor
         return conf.accord_transactions_enabled;
     }
 
+    public static long getAccordSchedulerDelayInMS()
+    {
+        return conf.accord_scheduler_delay_in_ms;
+    }
+
     public static void setAccordTransactionsEnabled(boolean b)
     {
         conf.accord_transactions_enabled = b;

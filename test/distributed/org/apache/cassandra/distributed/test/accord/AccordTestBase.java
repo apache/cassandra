@@ -139,7 +139,8 @@ public abstract class AccordTestBase extends TestBaseImpl
                            .withoutVNodes()
                            .withConfig(c -> c.with(Feature.NETWORK).set("write_request_timeout", "10s")
                                                                    .set("transaction_timeout", "15s")
-                                                                   .set("legacy_paxos_strategy", "accord"))
+                                                                   .set("legacy_paxos_strategy", "accord")
+                                                                   .set("accord_scheduler_delay_in_ms", 200L))
                            .withInstanceInitializer(EnforceUpdateDoesNotPerformRead::install)
                            .withInstanceInitializer(BBAccordCoordinateCountHelper::install)
                            .start());

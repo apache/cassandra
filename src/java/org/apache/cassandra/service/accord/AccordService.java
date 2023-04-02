@@ -39,6 +39,7 @@ import accord.messages.Request;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.TopologyManager;
+import accord.utils.AccordConfig;
 import accord.utils.DefaultRandom;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.Shutdownable;
@@ -73,6 +74,7 @@ public class AccordService implements IAccordService, Shutdownable
     public static final AccordClientRequestMetrics writeMetrics = new AccordClientRequestMetrics("AccordWrite");
 
     private final Node node;
+    private final AccordConfig config;
     private final Shutdownable nodeShutdown;
     private final AccordMessageSink messageSink;
     private final AccordConfigurationService configService;
@@ -137,7 +139,9 @@ public class AccordService implements IAccordService, Shutdownable
         this.messageSink = new AccordMessageSink();
         this.configService = new AccordConfigurationService(localId);
         this.scheduler = new AccordScheduler();
+        this.config = new AccordConfig(DatabaseDescriptor.getAccordSchedulerDelayInMS());
         this.node = new Node(localId,
+                             config,
                              messageSink,
                              configService,
                              AccordService::uniqueNow,

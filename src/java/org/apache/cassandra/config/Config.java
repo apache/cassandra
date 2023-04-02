@@ -596,6 +596,7 @@ public class Config
     public volatile boolean use_statements_enabled = true;
 
     public boolean accord_transactions_enabled = false;
+    public long accord_scheduler_delay_in_ms = 200L;
 
     /**
      * Optionally disable asynchronous UDF execution.
