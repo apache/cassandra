@@ -447,7 +447,7 @@ results in:
 
 [source, cql]
 ----
-cqlsh> USE system_view;;
+cqlsh> USE system_views;
 cqlsh> DESCRIBE tables;
 ----
 
@@ -468,7 +468,7 @@ local_read_latency  rows_per_read             caches
 
 [source, cql]
 ----
-cqlsh> USE system_view;;
+cqlsh> USE system_views;
 cqlsh> SELECT * FROM clients LIMIT 2;
 ----
  results in:
