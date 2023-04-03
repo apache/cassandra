@@ -112,9 +112,9 @@ We shall discuss some of the virtual tables in more detail next.
 === Clients Virtual Table
 
 The `clients` virtual table lists all active connections (connected
-clients) including their ip address, port, client_options, connection stage, driver
-name, driver version, hostname, protocol version, request count, ssl
-enabled, ssl protocol and user name:
+clients) including their IP address, port, client options, connection stage, driver
+name, driver version, hostname, protocol version, request count, SSL
+enabled, SSL protocol, and username:
 
 ....
 cqlsh> EXPAND ON ;
@@ -194,7 +194,7 @@ Some examples of how `clients` can be used are:
 upgrading and with `nodetool enableoldprotocolversions` and
 `nodetool disableoldprotocolversions` during upgrades.
 * To identify clients sending too many requests.
-* To find if SSL is enabled during the migration to and from ssl.
+* To find if SSL is enabled during the migration to and from SSL.
 
 The virtual tables may be described with `DESCRIBE` statement. The DDL
 listed however cannot be run to create a virtual table. As an example
