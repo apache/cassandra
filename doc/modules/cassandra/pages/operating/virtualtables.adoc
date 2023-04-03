@@ -67,29 +67,29 @@ The following table describes the virtual tables:
 |caches |Displays the general cache information including cache name, capacity_bytes, entry_count, hit_count, hit_ratio double,
 recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and size_bytes.
 
-|clients |Lists information about all connected clients.
+|clients |Lists information about all connected clients including address, port, connection_stage, driver_name, driver_version, hostname, protocol_version, request_count, ssl_cipher_suite, ssl_enabled, ssl_protocol, username.
 
-|coordinator_read_latency |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator reads.
+|coordinator_read_latency |Records counts, keyspace_name, table_name, max, median, 99th percentile, and per_second for coordinator reads.
 
-|coordinator_scan |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator scans.
+|coordinator_scan_latency |Records counts, keyspace_name, table_name, max, median, 99th percentile, and per_second for coordinator scans.
 
-|coordinator_write_latency |Records counts, keyspace_name, table_name, max, median, and per_second for coordinator writes.
+|coordinator_write_latency |Records counts, keyspace_name, table_name, max, median, 99th percentile, and per_second for coordinator writes.
 
-|disk_usage |Records disk usage including disk_space, keyspace_name, and table_name, sorted by system keyspaces.
+|disk_usage |Records disk usage including disk space used (in mebibytes), keyspace_name, and table_name, sorted by system keyspaces.
 
-|internode_inbound |Lists information about the inbound internode messaging.
+|internode_inbound |Information about the inbound internode messaging including address, port, dc, rack, corrupt_frames_recovered, corrupt_frames_unrecovered, error_bytes, error_count, expired_bytes, expired_count, processed_bytes, processed_count, received_bytes, received_count, scheduled_bytes, scheduled_count, throttled_count, throttled_nanos, using_bytes, and using_reserve_bytes.
 
-|internode_outbound |Information about the outbound internode messaging.
+|internode_outbound |Information about the outbound internode messaging including address, port, dc, rack, active_connections, connection_attempts, error_bytes, error_count, expired_bytes, expired_count, overload_bytes, overload_count, pending_bytes, pending_count, sent_bytes, sent_count, successful_connection_attempts, using_bytes, and using_reserve_bytes.
 
-|local_read_latency |Records counts, keyspace_name, table_name, max, median, and per_second for local reads.
+|local_read_latency |Records counts, keyspace_name, table_name, max, median, 99th percentile, and per_second for local reads.
 
-|local_scan |Records counts, keyspace_name, table_name, max, median, and per_second for local scans.
+|local_scan_latency |Records counts, keyspace_name, table_name, max, median, 99th percentile, and per_second for local scans.
 
-|local_write_latency |Records counts, keyspace_name, table_name, max, median, and per_second for local writes.
+|local_write_latency |Records counts, keyspace_name, table_name, max, median, 99th percentile, and per_second for local writes.
 
-|max_partition_size |A table metric for maximum partition size.
+|max_partition_size |A table metric for maximum partition size in mebibytes.
 
-|rows_per_read |Records counts, keyspace_name, tablek_name, max, and median for rows read.
+|rows_per_read |Records counts, keyspace_name, table_name, max, median, and 99th percentile for rows read.
 
 |settings |Displays configuration settings in cassandra.yaml.
 
@@ -99,9 +99,9 @@ recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and s
 
 |system_properties |Displays environmental system properties set on the node.
 
-|thread_pools |Lists metrics for each thread pool.
+|thread_pools |Lists metrics for each thread pool. These metrics include active_tasks, active_tasks_limit, blocked_tasks, blocked_tasks_all_time, completed_tasks, and pending_tasks.
 
-|tombstones_per_read |Records counts, keyspace_name, tablek_name, max, and median for tombstones.
+|tombstones_per_read |Records counts, keyspace_name, table_name, max, median, and 99th percentile for tombstones.
 |===
 
 For improved usability, from https://issues.apache.org/jira/browse/CASSANDRA-18238[CASSANDRA-18238],
