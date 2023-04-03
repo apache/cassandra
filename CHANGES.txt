@@ -197,6 +197,8 @@ Merged from 3.0:
  * Add --resolve-ip option to nodetool gossipinfo (CASSANDRA-17934)
  * Allow pre-V5 global limit on bytes in flight to revert to zero asynchronously in RateLimitingTest (CASSANDRA-17927)
 Merged from 4.0:
+ * Backport CASSANDRA-17205 to 4.0 branch - Remove self-reference in SSTableTidier (CASSANDRA-18332)
+ * Avoid loading the preferred IP for BulkLoader streaming (CASSANDRA-18370)
  * Harden parsing of boolean values in CQL in PropertyDefinitions (CASSANDRA-17878)
  * Fix error message about type hints (CASSANDRA-17915)
  * Fix possible race condition on repair snapshots (CASSANDRA-17955)
