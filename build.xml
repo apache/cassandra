@@ -156,6 +156,9 @@
 
     <property name="dtest-api.version" value="0.0.13"/>
 
+    <property name="fastjson2.version" value="2.0.21" />
+    <property name="unirest-java.version" value="1.4.9" />
+
     <condition property="maven-ant-tasks.jar.exists">
         <available file="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar"/>
     </condition>
@@ -522,6 +525,9 @@
     <!-- this task defines the dependencies that will be fetched by Maven ANT Tasks
          the dependencies are re-used for publishing artifacts to Maven Central
          in order to keep everything consistent -->
+    <!-- 这个任务定义了Maven ANT任务将要获取的依赖
+在向Maven Central发布工件时，将重用依赖项
+为了保持一切的一致性 -->
     <target name="maven-declare-dependencies" depends="maven-ant-tasks-init"
             description="Define dependencies and dependency versions">
         <!-- The parent pom defines the versions of all dependencies -->
@@ -827,6 +833,8 @@
             <dependency groupId="org.jacoco" artifactId="org.jacoco.ant"/>
 
             <dependency groupId="com.fasterxml.jackson.dataformat" artifactId="jackson-dataformat-yaml"/>
+            <dependency groupId="com.alibaba.fastjson2" artifactId="fastjson2" version="${fastjson2.version}"/>
+            <dependency groupId="com.mashape.unirest" artifactId="unirest-java" version="${unirest-java.version}"/>
         </artifact:pom>
 
         <!-- 现在，pom正在部署到Maven Central-->
@@ -927,6 +935,8 @@
             <dependency groupId="org.jboss.byteman" artifactId="byteman-submit"/>
             <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit"/>
             <dependency groupId="com.github.seancfoley" artifactId="ipaddress"/>
+            <dependency groupId="com.alibaba.fastjson2" artifactId="fastjson2" version="2.0.21"/>
+            <dependency groupId="com.mashape.unirest" artifactId="unirest-java" version="1.4.9"/>
         </artifact:pom>
     </target>
 
@@ -1342,10 +1352,11 @@
     </target>
 
     <!-- creates release tarballs -->
+    <!--包名-->
     <target name="artifacts" depends="_artifacts-init,gen-doc,sources-jar"
             description="Create Cassandra release artifacts">
         <tar compression="gzip" longfile="gnu"
-             destfile="${build.dir}/${final.name}-bin.tar.gz">
+             destfile="${build.dir}/${final.name}-es-connection-version-bin.tar.gz">
 
             <!-- Everything but bin/ (default mode) -->
             <tarfileset dir="${dist.dir}" prefix="${final.name}">

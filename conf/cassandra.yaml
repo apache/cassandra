@@ -1805,3 +1805,8 @@ drop_compact_storage_enabled: false
 #    heartbeat_file: /var/lib/cassandra/data/cassandra-heartbeat
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
+
+
+# es 节点 列表
+# es_node_list: http://ip1:9200,http://ip2:9200,http://ip3:9200
+es_node_list:

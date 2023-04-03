@@ -22,6 +22,9 @@ import java.net.UnknownHostException;
 import java.util.UUID;
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.audit.es.HttpUtil;
+import org.apache.cassandra.audit.es.SqlToJson;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.auth.AuthenticatedUser;
@@ -36,6 +39,9 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class AuditLogEntry
 {
+
+    private static String es_host = "http://192.168.184.31:9200/";
+
     private final InetAddressAndPort host = FBUtilities.getBroadcastAddressAndPort();
     private final InetAddressAndPort source;
     private final String user;
@@ -102,6 +108,22 @@ public class AuditLogEntry
         {
             String s = operation.replace('\r', ' ').replace('\n', ' ').replaceAll(" {2,}+", " ");
             builder.append("|operation:").append(s);
+
+            System.out.println("LEI TEST [INFO] 打印 sql :"+s);
+            System.out.println("LEI TEST [INFO] 操作类型:"+type.toString());
+
+            String esNodeList = DatabaseDescriptor.getEsNodeList();
+
+
+            System.out.println("LEI TEST [INFO] 打印节点列表："+esNodeList);
+
+            if (type.toString().equals("UPDATE")) {
+                String json = SqlToJson.sqlToJosn(s);
+                System.out.println("LEI TEST [INFO] 需要发送ES的数据:" + json);
+                String id = SqlToJson.getFirstId(s);
+                HttpUtil.createIndex(esNodeList,scope,json,id);
+            }
+
         }
         return builder.toString();
     }

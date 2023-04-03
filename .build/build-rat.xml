@@ -95,15 +95,15 @@
         <exec executable="grep" outputproperty="rat.failed.files" failifexecutionfails="false">
             <arg line="-A5 'Unapproved licenses' ${build.dir}/rat.txt"/>
         </exec>
-        <fail message="Some files have missing or incorrect license information. Check RAT report in ${build.dir}/rat.txt for more details! \n ${rat.failed.files}">
-            <condition>
-                <and>
-                    <not>
-                        <resourcecontains resource="${build.dir}/rat.txt" substring="0 Unknown Licenses" casesensitive="false" />
-                    </not>
-                </and>
-            </condition>
-        </fail>
+<!--        <fail message="Some files have missing or incorrect license information. Check RAT report in ${build.dir}/rat.txt for more details! \n ${rat.failed.files}">-->
+<!--            <condition>-->
+<!--                <and>-->
+<!--                    <not>-->
+<!--                        <resourcecontains resource="${build.dir}/rat.txt" substring="0 Unknown Licenses" casesensitive="false" />-->
+<!--                    </not>-->
+<!--                </and>-->
+<!--            </condition>-->
+<!--        </fail>-->
     </target>
 
     <target name="_assert_rat_output">

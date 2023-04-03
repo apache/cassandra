@@ -1761,6 +1761,11 @@ public class DatabaseDescriptor
         return conf.cluster_name;
     }
 
+
+    public static String getEsNodeList(){
+        return conf.es_node_list;
+    }
+
     public static int getStoragePort()
     {
         return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "storage_port", Integer.toString(conf.storage_port)));
