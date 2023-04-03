@@ -41,6 +41,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -50,7 +51,6 @@ public class SSTableImporter
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
     private final ColumnFamilyStore cfs;
-    private volatile boolean abort = false;
 
     public SSTableImporter(ColumnFamilyStore cfs)
     {
@@ -96,6 +96,7 @@ public class SSTableImporter
                     {
                         try
                         {
+                            abortIfDraining();
                             verifySSTableForImport(descriptor, entry.getValue(), options.verifyTokens, options.verifySSTables, options.extendedVerify);
                         }
                         catch (Throwable t)
@@ -108,7 +109,7 @@ public class SSTableImporter
                             else
                             {
                                 logger.error("[{}] Failed verifying sstable {}", importID, descriptor, t);
-                                throw new RuntimeException("Failed verifying sstable "+descriptor, t);
+                                throw new RuntimeException("Failed verifying sstable " + descriptor, t);
                             }
                             break;
                         }
@@ -131,8 +132,7 @@ public class SSTableImporter
             {
                 try
                 {
-                    if (abort)
-                        throw new InterruptedException("SSTables import has been aborted");
+                    abortIfDraining();
                     Descriptor oldDescriptor = entry.getKey();
                     if (currentDescriptors.contains(oldDescriptor))
                         continue;
@@ -165,7 +165,7 @@ public class SSTableImporter
                     }
                     else
                     {
-                        logger.error("[{}] Failed importing sstables from data directory - renamed sstables are: {}", importID, movedSSTables);
+                        logger.error("[{}] Failed importing sstables from data directory - renamed sstables are: {}", importID, movedSSTables, t);
                         throw new RuntimeException("Failed importing sstables", t);
                     }
                 }
@@ -185,13 +185,18 @@ public class SSTableImporter
 
         try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
         {
+            abortIfDraining();
             cfs.getTracker().addSSTables(newSSTables);
             for (SSTableReader reader : newSSTables)
             {
                 if (options.invalidateCaches && cfs.isRowCacheEnabled())
                     invalidateCachesForSSTable(reader);
             }
-
+        }
+        catch (Throwable t)
+        {
+            logger.error("[{}] FaiFailed adding sstables", importID, t);
+            throw new RuntimeException("Failed adding sstables", t);
         }
 
         logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.keyspace.getName(), cfs.getTableName());
@@ -199,12 +204,14 @@ public class SSTableImporter
     }
 
     /**
-     * Signals this {@link SSTableImporter} to abort its current activity as soon as possible, and
-     * then reject all future requests ({@link #signalAbort()} is called when the node is draining).
+     * Check the state of this node and throws an {@link InterruptedException} if it is currently draining
+     *
+     * @throws InterruptedException if the node is draining
      */
-    void signalAbort()
+    private static void abortIfDraining() throws InterruptedException
     {
-        abort = true;
+        if (StorageService.instance.isDraining())
+            throw new InterruptedException("SSTables import has been aborted");
     }
 
     private void logLeveling(UUID importID, Set<SSTableReader> newSSTables)

@@ -859,15 +859,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return sstableImporter.importNewSSTables(options);
     }
 
-    /**
-     * Signals the associated {@link SSTableImporter} to abort its current activity as soon as possible
-     * ({@link #abortSSTablesImport()} is called when the node is draining).
-     */
-    public void abortSSTablesImport()
-    {
-        sstableImporter.signalAbort();
-    }
-
     public List<String> importNewSSTables(Set<String> srcPaths, boolean resetLevel, boolean clearRepaired, boolean verifySSTables, boolean verifyTokens, boolean invalidateCaches, boolean extendedVerify)
     {
         return importNewSSTables(srcPaths, resetLevel, clearRepaired, verifySSTables, verifyTokens, invalidateCaches, extendedVerify, false);
