@@ -34,10 +34,11 @@ import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Runnables;
+
+import com.codahale.metrics.Counter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Counter;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
@@ -370,15 +371,15 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             this.lock = parent.lock;
             this.parentRef = parent.selfRef.tryRef();
 
+            if (this.parentRef == null)
+                throw new IllegalStateException("Transaction already completed");
+
             // While the parent cfs may be dropped in the interim of us taking a reference to this and using it, at worst
             // we'll be updating a metric for a now dropped ColumnFamilyStore. We do not hold a reference to the tracker or
             // cfs as that would create a strong ref loop and violate our ability to do leak detection.
             totalDiskSpaceUsed = parent.tracker != null && parent.tracker.cfstore != null ?
                                  parent.tracker.cfstore.metric.totalDiskSpaceUsed :
                                  null;
-
-            if (this.parentRef == null)
-                throw new IllegalStateException("Transaction already completed");
         }
 
         public void run()
