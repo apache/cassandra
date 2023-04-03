@@ -19,7 +19,6 @@
 package org.apache.cassandra.locator;
 
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,14 +36,10 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
 {
     private static final Logger logger = LoggerFactory.getLogger(GossipingPropertyFileSnitch.class);
 
-    private PropertyFileSnitch psnitch;
-
     private final String myDC;
     private final String myRack;
     private final boolean preferLocal;
     private final AtomicReference<ReconnectableSnitchHelper> snitchHelperReference;
-
-    private Map<InetAddressAndPort, Map<String, String>> savedEndpoints;
     private static final String DEFAULT_DC = "UNKNOWN_DC";
     private static final String DEFAULT_RACK = "UNKNOWN_RACK";
 
@@ -56,16 +51,6 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
         myRack = properties.get("rack", DEFAULT_RACK).trim();
         preferLocal = Boolean.parseBoolean(properties.get("prefer_local", "false"));
         snitchHelperReference = new AtomicReference<>();
-
-        try
-        {
-            psnitch = new PropertyFileSnitch();
-            logger.info("Loaded {} for compatibility", PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME);
-        }
-        catch (ConfigurationException e)
-        {
-            logger.info("Unable to load {}; compatibility mode disabled", PropertyFileSnitch.SNITCH_PROPERTIES_FILENAME);
-        }
     }
 
     private static SnitchProperties loadConfiguration() throws ConfigurationException
@@ -90,6 +75,8 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
 
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
+            return DEFAULT_DC;
         return metadata.directory.location(nodeId).rack;
     }
 
@@ -106,6 +93,8 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
 
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
+            return DEFAULT_RACK;
         return metadata.directory.location(nodeId).rack;
     }
 

@@ -73,6 +73,8 @@ abstract class AbstractCloudMetadataServiceSnitch extends AbstractNetworkTopolog
             return getLocalRack();
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
+            return DEFAULT_RACK;
         return metadata.directory.location(nodeId).rack;
     }
 
@@ -83,6 +85,8 @@ abstract class AbstractCloudMetadataServiceSnitch extends AbstractNetworkTopolog
             return getLocalDatacenter();
         ClusterMetadata metadata = ClusterMetadata.current();
         NodeId nodeId = metadata.directory.peerId(endpoint);
+        if (nodeId == null)
+            return DEFAULT_DC;
         return metadata.directory.location(nodeId).datacenter;
     }
 }
