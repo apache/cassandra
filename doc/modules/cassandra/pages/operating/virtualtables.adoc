@@ -455,12 +455,17 @@ results in:
 
 [source, cql]
 ----
-sstable_tasks       clients                   coordinator_write_latency
-disk_usage          local_write_latency       tombstones_per_read
-thread_pools        internode_outbound        settings
-local_scan_latency  coordinator_scan_latency  system_properties
-internode_inbound   coordinator_read_latency  max_partition_size
-local_read_latency  rows_per_read             caches
+caches                     internode_inbound    rows_per_read
+clients                    internode_outbound   settings
+coordinator_read_latency   local_read_latency   sstable_tasks
+coordinator_scan_latency   local_scan_latency   system_properties
+coordinator_write_latency  local_write_latency  thread_pools 
+disk_usage                 max_partition_size   tombstones_per_read 
+              
+    
+     
+              
+
 ----
 
 [arabic, start=4]
