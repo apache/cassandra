@@ -383,7 +383,13 @@ public class HistoryValidatorTest
         return new Event(EnumSet.of(Event.Type.WRITE), pk, null);
     }
 
-    private interface Operation {}
+    private interface Operation
+    {
+        int pk();
+        void check(HistoryValidator.Checker check);
+        void toString(StringBuilder sb);
+    }
+
     private static class Read implements Operation
     {
         final int pk, id, count;
@@ -396,7 +402,26 @@ public class HistoryValidatorTest
             this.count = count;
             this.seq = seq;
         }
+
+        @Override
+        public int pk()
+        {
+            return pk;
+        }
+
+        @Override
+        public void check(HistoryValidator.Checker check)
+        {
+            check.read(pk, id, count, seq);
+        }
+
+        @Override
+        public void toString(StringBuilder sb)
+        {
+            sb.append("read(pk=").append(pk).append(", id=").append(id).append(", count=").append(count).append(", seq=").append(Arrays.toString(seq)).append(")\n");
+        }
     }
+
     private static class Write implements Operation
     {
         final int pk, id;
@@ -407,6 +432,24 @@ public class HistoryValidatorTest
             this.pk = pk;
             this.id = id;
             this.success = success;
+        }
+
+        @Override
+        public int pk()
+        {
+            return pk;
+        }
+
+        @Override
+        public void check(HistoryValidator.Checker check)
+        {
+            check.write(pk, id, success);
+        }
+
+        @Override
+        public void toString(StringBuilder sb)
+        {
+            sb.append("write(pk=").append(pk).append(", id=").append(id).append(", success=").append(success).append(")\n");
         }
     }
 
@@ -435,19 +478,8 @@ public class HistoryValidatorTest
         {
             try (HistoryValidator.Checker check = validator.witness(start, end))
             {
-                for (Object a : actions)
-                {
-                    if (a instanceof Read)
-                    {
-                        Read read = (Read) a;
-                        check.read(read.pk, read.id, read.count, read.seq);
-                    }
-                    else
-                    {
-                        Write write = (Write) a;
-                        check.write(write.pk, write.id, write.success);
-                    }
-                }
+                for (Operation a : actions)
+                    a.check(check);
             }
         }
 
@@ -455,20 +487,7 @@ public class HistoryValidatorTest
         {
             IntSet pks = new IntHashSet();
             for (Operation action : actions)
-            {
-                if (action instanceof Read)
-                {
-                    pks.add(((Read) action).pk);
-                }
-                else if (action instanceof Write)
-                {
-                    pks.add(((Write) action).pk);
-                }
-                else
-                {
-                    throw new IllegalStateException("Unknown type: " + action.getClass());
-                }
-            }
+                pks.add(action.pk());
             return pks;
         }
 
@@ -477,23 +496,8 @@ public class HistoryValidatorTest
         {
             StringBuilder sb = new StringBuilder();
             sb.append("Witness(start=").append(start).append(", end=").append(end).append(")\n");
-            for (Object a : actions)
-            {
-                if (a instanceof Read)
-                {
-                    Read read = (Read) a;
-                    sb.append("\tread(pk=").append(read.pk).append(", id=").append(read.id).append(", count=").append(read.count).append(", seq=").append(Arrays.toString(read.seq)).append(")\n");
-                }
-                else if (a instanceof Write)
-                {
-                    Write write = (Write) a;
-                    sb.append("\twrite(pk=").append(write.pk).append(", id=").append(write.id).append(", success=").append(write.success).append(")\n");
-                }
-                else
-                {
-                    throw new AssertionError("Unexpected type: " + a.getClass());
-                }
-            }
+            for (Operation a : actions)
+                a.toString(sb.append('\t'));
             return sb.toString();
         }
     }
