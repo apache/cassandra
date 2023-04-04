@@ -191,7 +191,7 @@ public class ClusterMetadataService
         ClusterMetadata emptyFromSystemTables = emptyWithSchemaFromSystemTables();
         emptyFromSystemTables.schema.initializeKeyspaceInstances(DistributedSchema.empty(), loadSSTables);
         emptyFromSystemTables = emptyFromSystemTables.forceEpoch(Epoch.EMPTY);
-        LocalLog log = LocalLog.sync(emptyFromSystemTables, new AtomicLongBackedProcessor.InMemoryStorage(), true);
+        LocalLog log = LocalLog.sync(emptyFromSystemTables, new AtomicLongBackedProcessor.InMemoryStorage(), false);
         ClusterMetadataService cms = new ClusterMetadataService(new UniformRangePlacement(),
                                                                 MetadataSnapshots.NO_OP,
                                                                 log,
