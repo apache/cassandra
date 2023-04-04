@@ -30,7 +30,7 @@ import static java.lang.String.format;
 
 public class SSTableCompressionOptions
 {
-    public String chunk_length="";
+    public String chunk_length = "";
     public Double min_compress_ratio;
     public boolean enabled = true;
     public CompressorType type;
@@ -41,15 +41,13 @@ public class SSTableCompressionOptions
        // for use by yamlsnake
     }
 
-
     public CompressionParams getCompressionParams()
     {
         CompressorType myType = type == null ? CompressorType.lz4 : type;
-        if (!enabled) {
+        if (!enabled)
             myType = CompressorType.none;
-        }
 
-        int chunk_length_in_kb = chunk_length.isBlank()
+        int chunk_length_in_kb = (chunk_length == null || chunk_length.isEmpty())
                                  ? CompressionParams.DEFAULT_CHUNK_LENGTH
                                  : new DataStorageSpec.IntKibibytesBound(this.chunk_length).toKibibytes();
 
@@ -65,37 +63,32 @@ public class SSTableCompressionOptions
                        : CompressionParams.lz4(chunk_length_in_kb, CompressionParams.calcMaxCompressedLength(chunk_length_in_kb, this.min_compress_ratio));
             case snappy:
                return CompressionParams.snappy(chunk_length_in_kb,
-                        this.min_compress_ratio == null || this.min_compress_ratio < 0.0
-                               ? CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
-                               : this.min_compress_ratio);
+                                               this.min_compress_ratio == null || this.min_compress_ratio < 0.0
+                                               ? CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
+                                               : this.min_compress_ratio);
             case deflate:
                 return CompressionParams.deflate(chunk_length_in_kb);
             case zstd:
                 return CompressionParams.zstd(chunk_length_in_kb);
             case custom:
                 if (compressor == null)
-                {
                     throw new ConfigurationException("Missing sub-option 'compressor' for the 'sstable_compressor' option with 'custom' type.");
-                }
+
                 if (compressor.class_name == null || compressor.class_name.isEmpty())
-                {
                     throw new ConfigurationException("Missing or empty sub-option 'class' for the 'sstable_compressor.compressor' option.");
-                }
+
                 CompressionParams cp = new CompressionParams(compressor.class_name,
-                                             compressor.parameters == null ? Collections.emptyMap() : compressor.parameters,
-                                             chunk_length_in_kb,
-                                             this.min_compress_ratio == null || this.min_compress_ratio < 0.0
-                                                     ? CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
-                                                     : this.min_compress_ratio);
+                                                             compressor.parameters == null ? Collections.emptyMap() : compressor.parameters,
+                                                             chunk_length_in_kb,
+                                                             this.min_compress_ratio == null || this.min_compress_ratio < 0.0
+                                                             ? CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
+                                                             : this.min_compress_ratio);
                 if (cp.getSstableCompressor() == null)
-                {
                     throw new ConfigurationException(format("Missing '%s' is not a valid compressor class name.", compressor.class_name));
-                }
+
                 return cp;
             case noop:
                 return CompressionParams.noop();
-
-
         }
     }
 
@@ -107,7 +100,7 @@ public class SSTableCompressionOptions
 
     public boolean equals(SSTableCompressionOptions other)
     {
-        return Objects.equal(type, other.type) &&
+        return type == other.type &&
                Objects.equal(enabled, other.enabled) &&
                Objects.equal(min_compress_ratio, other.min_compress_ratio) &&
                Objects.equal(chunk_length, other.chunk_length) &&

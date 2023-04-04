@@ -74,11 +74,11 @@ public final class CompressionParams
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        Collections.emptyMap());
 
-    private static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.<String, String>emptyMap()),
-                                                                       DEFAULT_CHUNK_LENGTH,
-                                                                       calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
-                                                                       DEFAULT_MIN_COMPRESS_RATIO,
-                                                                       Collections.emptyMap());
+    public static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.emptyMap()),
+                                                                          DEFAULT_CHUNK_LENGTH,
+                                                                          calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
+                                                                          DEFAULT_MIN_COMPRESS_RATIO,
+                                                                          Collections.emptyMap());
 
     private static final String CRC_CHECK_CHANCE_WARNING = "The option crc_check_chance was deprecated as a compression option. " +
                                                            "You should specify it as a top-level table option instead";
@@ -97,14 +97,12 @@ public final class CompressionParams
     private volatile double crcCheckChance = 1.0;
 
     public static CompressionParams fromOptions(SSTableCompressionOptions options) {
-        if  (options == null)
-        {
+        if (options == null)
             return !CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.getBoolean()
                    ? noCompression()
                    : DEFAULT;
-        } else {
+        else
             return options.getCompressionParams();
-        }
     }
 
     public static CompressionParams fromMap(Map<String, String> opts)

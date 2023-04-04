@@ -137,6 +137,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.GuardrailsOptions$TableProperties",
     "org.apache.cassandra.config.ParameterizedClass",
     "org.apache.cassandra.config.ReplicaFilteringProtectionOptions",
+    "org.apache.cassandra.config.SSTableCompressionOptions",
     "org.apache.cassandra.config.StartupChecksOptions",
     "org.apache.cassandra.config.SubnetGroups",
     "org.apache.cassandra.config.TrackWarnings",
