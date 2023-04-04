@@ -42,8 +42,8 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
 import accord.impl.SafeCommandsForKey;
+import accord.local.CheckedCommands;
 import accord.local.Command;
-import accord.local.Commands;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
 import accord.local.SafeCommandStore;
@@ -194,14 +194,9 @@ public class AsyncOperationTest
         try
         {
             return getUninterruptibly(commandStore.submit(PreLoadContext.contextFor(Collections.singleton(txnId), partialTxn.keys()), safe -> {
-                Commands.AcceptOutcome result = Commands.preaccept(safe, txnId, partialTxn, route, null);
-                if (result != Commands.AcceptOutcome.Success) throw new IllegalStateException("Command mutation rejected: " + result);
-
-                result = Commands.accept(safe, txnId, Ballot.ZERO, partialRoute, partialTxn.keys(), null, executeAt, deps);
-                if (result != Commands.AcceptOutcome.Success) throw new IllegalStateException("Command mutation rejected: " + result);
-
-                Commands.CommitOutcome commit = Commands.commit(safe, txnId, route, null, partialTxn, executeAt, deps);
-                if (commit != Commands.CommitOutcome.Success) throw new IllegalStateException("Command mutation rejected: " + result);
+                CheckedCommands.preaccept(safe, txnId, partialTxn, route, null);
+                CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, partialTxn.keys(), null, executeAt, deps);
+                CheckedCommands.commit(safe, txnId, route, null, partialTxn, executeAt, deps);
 
                 // clear cache
                 long cacheSize = commandStore.getCacheSize();
