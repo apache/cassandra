@@ -47,14 +47,9 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.NoPayload;
-import org.apache.cassandra.net.RequestCallback;
-import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
@@ -132,16 +127,6 @@ public class SchemaKeyspaceTest
         }
 
         pool.shutdownNow();
-    }
-
-    private Collection<Mutation> getSchemaMutations()
-    {
-        AsyncPromise<Collection<Mutation>> p = new AsyncPromise<>();
-        MessagingService.instance().sendWithCallback(Message.out(Verb.SCHEMA_PULL_REQ, NoPayload.noPayload),
-                                                     FBUtilities.getBroadcastAddressAndPort(),
-                                                     (RequestCallback<Collection<Mutation>>) msg -> p.setSuccess(msg.payload));
-        p.syncUninterruptibly();
-        return p.getNow();
     }
 
     @Test

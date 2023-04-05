@@ -35,6 +35,7 @@ import org.apache.cassandra.net.Message;
  * (which is going to act as coordinator) and that node sends (pushes) it's updated schema state
  * (in form of mutations) to all the alive nodes in the cluster.
  */
+@Deprecated
 public final class SchemaPushVerbHandler implements IVerbHandler<Collection<Mutation>>
 {
     public static final SchemaPushVerbHandler instance = new SchemaPushVerbHandler();

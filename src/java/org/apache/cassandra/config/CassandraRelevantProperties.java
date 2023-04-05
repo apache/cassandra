@@ -348,7 +348,7 @@ public enum CassandraRelevantProperties
     MEMTABLE_OVERHEAD_SIZE("cassandra.memtable.row_overhead_size", "-1"),
     MEMTABLE_SHARD_COUNT("cassandra.memtable.shard.count"),
     MEMTABLE_TRIE_SIZE_LIMIT("cassandra.trie_size_limit_mb"),
-    MIGRATION_DELAY("cassandra.migration_delay_ms", "60000"),
+    METRICS_REPORTER_CONFIG_FILE("cassandra.metricsReporterConfigFile"),
     /** Defines the maximum number of unique timed out queries that will be reported in the logs. Use a negative number to remove any limit. */
     MONITORING_MAX_OPERATIONS("cassandra.monitoring_max_operations", "50"),
     /** Defines the interval for reporting any operations that have timed out. */
@@ -450,7 +450,6 @@ public enum CassandraRelevantProperties
     SAI_TEST_BALANCED_TREE_DEBUG_ENABLED("cassandra.sai.test.balanced_tree_debug_enabled", "false"),
     SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.disable.timeout", "false"),
 
-    SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),
     SEARCH_CONCURRENCY_FACTOR("cassandra.search_concurrency_factor", "1"),
 

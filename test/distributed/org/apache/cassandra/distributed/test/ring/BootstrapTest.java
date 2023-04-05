@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.test.ring;
 
-import java.lang.management.ManagementFactory;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -27,10 +26,8 @@ import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
@@ -49,15 +46,12 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
-import org.apache.cassandra.distributed.shared.WithProperties;
-import org.apache.cassandra.distributed.test.DecommissionTest;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
-import static org.apache.cassandra.config.CassandraRelevantProperties.MIGRATION_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -69,28 +63,6 @@ import static org.junit.Assert.assertTrue;
 
 public class BootstrapTest extends TestBaseImpl
 {
-    private long savedMigrationDelay;
-
-    static WithProperties properties;
-
-    @Before
-    public void beforeTest()
-    {
-        // MigrationCoordinator schedules schema pull requests immediatelly when the node is just starting up, otherwise
-        // the first pull request is sent in 60 seconds. Whether we are starting up or not is detected by examining
-        // the node up-time and if it is lower than MIGRATION_DELAY, we consider the server is starting up.
-        // When we are running multiple test cases in the class, where each starts a node but in the same JVM, the
-        // up-time will be more or less relevant only for the first test. In order to enforce the startup-like behaviour
-        // for each test case, the MIGRATION_DELAY time is adjusted accordingly
-        properties = new WithProperties().set(MIGRATION_DELAY, ManagementFactory.getRuntimeMXBean().getUptime() + savedMigrationDelay);
-    }
-
-    @After
-    public void afterTest()
-    {
-        properties.close();
-    }
-
     @Test
     public void bootstrapWithResumeTest() throws Throwable
     {

@@ -58,7 +58,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 
-public class MigrationManagerTest
+public class SchemaChangesTest
 {
     private static final String KEYSPACE1 = "keyspace1";
     private static final String KEYSPACE3 = "keyspace3";
@@ -481,6 +481,8 @@ public class MigrationManagerTest
     {
         TableMetadata.Builder builder = TableMetadata.builder(null, TABLE1).addPartitionKeyColumn("partitionKey", BytesType.instance);
 
+        // TODO this will fail while we enforce deterministic table ids. Restore non-determinism by generating when
+        //      creating the SchemaTransformation and including in the serialisation
         TableMetadata table1 = builder.build();
         thrown.expect(ConfigurationException.class);
         thrown.expectMessage(null + "." + TABLE1 + ": Keyspace name must not be empty");

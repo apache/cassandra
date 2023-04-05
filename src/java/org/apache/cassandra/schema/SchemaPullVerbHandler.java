@@ -32,6 +32,7 @@ import org.apache.cassandra.net.NoPayload;
  * Sends it's current schema state in form of mutations in response to the remote node's request.
  * Such a request is made when one of the nodes, by means of Gossip, detects schema disagreement in the ring.
  */
+@Deprecated
 public final class SchemaPullVerbHandler implements IVerbHandler<NoPayload>
 {
     public static final SchemaPullVerbHandler instance = new SchemaPullVerbHandler();

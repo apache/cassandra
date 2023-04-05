@@ -22,7 +22,6 @@ import java.util.concurrent.Callable;
 
 import org.junit.Test;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
@@ -199,8 +198,6 @@ public class SchemaTest extends TestBaseImpl
     @Test
     public void schemaPropagationToDownNode() throws Throwable
     {
-        CassandraRelevantProperties.MIGRATION_DELAY.setLong(10000);
-        CassandraRelevantProperties.SCHEMA_PULL_INTERVAL_MS.setLong(10000);
         try (Cluster cluster = init(Cluster.build(2).withConfig(cfg -> cfg.with(Feature.GOSSIP, Feature.NETWORK)).start()))
         {
             // create TABLE_ONE and make sure it is propagated

@@ -36,7 +36,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-public class MigrationManagerDropKSTest
+public class DropKSTest
 {
     private static final String KEYSPACE1 = "keyspace1";
     private static final String TABLE1 = "standard1";
