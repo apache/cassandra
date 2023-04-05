@@ -461,11 +461,6 @@ coordinator_read_latency   local_read_latency   sstable_tasks
 coordinator_scan_latency   local_scan_latency   system_properties
 coordinator_write_latency  local_write_latency  thread_pools 
 disk_usage                 max_partition_size   tombstones_per_read 
-              
-    
-     
-              
-
 ----
 
 [arabic, start=4]
@@ -476,7 +471,8 @@ disk_usage                 max_partition_size   tombstones_per_read
 cqlsh> USE system_views;
 cqlsh> SELECT * FROM clients LIMIT 2;
 ----
- results in:
+
+results in:
 
 [source, cql]
 ----
