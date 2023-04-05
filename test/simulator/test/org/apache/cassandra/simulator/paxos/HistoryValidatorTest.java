@@ -387,7 +387,7 @@ public class HistoryValidatorTest
     {
         int pk();
         void check(HistoryValidator.Checker check);
-        void toString(StringBuilder sb);
+        void appendString(StringBuilder sb);
     }
 
     private static class Read implements Operation
@@ -416,7 +416,7 @@ public class HistoryValidatorTest
         }
 
         @Override
-        public void toString(StringBuilder sb)
+        public void appendString(StringBuilder sb)
         {
             sb.append("read(pk=").append(pk).append(", id=").append(id).append(", count=").append(count).append(", seq=").append(Arrays.toString(seq)).append(")\n");
         }
@@ -447,7 +447,7 @@ public class HistoryValidatorTest
         }
 
         @Override
-        public void toString(StringBuilder sb)
+        public void appendString(StringBuilder sb)
         {
             sb.append("write(pk=").append(pk).append(", id=").append(id).append(", success=").append(success).append(")\n");
         }
@@ -497,7 +497,7 @@ public class HistoryValidatorTest
             StringBuilder sb = new StringBuilder();
             sb.append("Witness(start=").append(start).append(", end=").append(end).append(")\n");
             for (Operation a : actions)
-                a.toString(sb.append('\t'));
+                a.appendString(sb.append('\t'));
             return sb.toString();
         }
     }
