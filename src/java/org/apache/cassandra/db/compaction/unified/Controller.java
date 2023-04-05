@@ -235,14 +235,28 @@ public abstract class Controller
      */
     public abstract int getScalingParameter(int index);
 
+    public abstract int getPreviousScalingParameter(int index);
+
+    public abstract int getMaxAdaptiveCompactions();
+
     public int getFanout(int index) {
-        int W = getScalingParameter(index);
-        return W < 0 ? 2 - W : 2 + W; // see formula in design doc
+        int scalingParameter = getScalingParameter(index);
+        return scalingParameter < 0 ? 2 - scalingParameter : 2 + scalingParameter; // see formula in design doc
+    }
+
+    public int getPreviousFanout(int index) {
+        int scalingParameter = getPreviousScalingParameter(index);
+        return scalingParameter < 0 ? 2 - scalingParameter : 2 + scalingParameter; // see formula in design doc
     }
 
     public int getThreshold(int index) {
-        int W = getScalingParameter(index);
-        return W < 0 ? 2 : getFanout(index); // see formula in design doc
+        int scalingParameter = getScalingParameter(index);
+        return scalingParameter < 0 ? 2 : getFanout(index); // see formula in design doc
+    }
+
+    public int getPreviousThreshold(int index) {
+        int scalingParameter = getPreviousScalingParameter(index);
+        return scalingParameter < 0 ? 2 : getPreviousFanout(index); // see formula in design doc
     }
 
     /**
@@ -385,7 +399,7 @@ public abstract class Controller
         if (calculator != null)
             throw new IllegalStateException("Already started");
 
-        startup(strategy, new CostsCalculator(env, strategy, executorService, survivalFactors[0]));
+        startup(strategy, new CostsCalculator(env, strategy, executorService));
     }
 
     @VisibleForTesting
@@ -523,9 +537,9 @@ public abstract class Controller
         if (calculator == null)
             return 0;
 
-        int W = getScalingParameter(0);
+        int scalingParameter = getScalingParameter(0);
         long length = (long) Math.ceil(calculator.spaceUsed());
-        return calculator.getReadCostForQueries(readAmplification(length, W));
+        return calculator.getReadCostForQueries(readAmplification(length, scalingParameter));
     }
 
     private double getWriteIOCost()
@@ -533,9 +547,9 @@ public abstract class Controller
         if (calculator == null)
             return 0;
 
-        int W = getScalingParameter(0);
+        int scalingParameter = getScalingParameter(0);
         long length = (long) Math.ceil(calculator.spaceUsed());
-        return calculator.getWriteCostForQueries(writeAmplification(length, W));
+        return calculator.getWriteCostForQueries(writeAmplification(length, scalingParameter));
     }
 
     public static Controller fromOptions(CompactionRealm realm, Map<String, String> options)

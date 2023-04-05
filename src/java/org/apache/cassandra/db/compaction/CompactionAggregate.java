@@ -183,7 +183,8 @@ public abstract class CompactionAggregate
         double hotness = trackHotness ? 0.0 : Double.NaN;
         long read = 0;
         long written = 0;
-        long durationNanos = 0;
+        double readThroughput = 0;
+        double writeThroughput = 0;
 
         for (CompactionPick compaction : compactions)
         {
@@ -206,9 +207,11 @@ public abstract class CompactionAggregate
 
             if (compaction.inProgress())
             {
-                read += compaction.progress().uncompressedBytesRead();
-                written += compaction.progress().uncompressedBytesWritten();
-                durationNanos += compaction.progress().durationInNanos();
+                final CompactionProgress progress = compaction.progress();
+                read += progress.uncompressedBytesRead();
+                written += progress.uncompressedBytesWritten();
+                readThroughput += progress.readThroughput();
+                writeThroughput += progress.writeThroughput();
             }
         }
 
@@ -223,7 +226,8 @@ public abstract class CompactionAggregate
                                                  expiredTot,
                                                  read,
                                                  written,
-                                                 durationNanos,
+                                                 readThroughput,
+                                                 writeThroughput,
                                                  hotness);
     }
 

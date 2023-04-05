@@ -1187,6 +1187,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(controller.maybeSort(anyList())).thenAnswer(answ -> answ.getArgument(0));
         when(controller.maybeRandomize(any(IntArrayList.class))).thenAnswer(answ -> answ.getArgument(0));
         when(controller.random()).thenCallRealMethod();
+        when(controller.getMaxAdaptiveCompactions()).thenReturn(-1);
 
         UnifiedCompactionStrategy strategy = new UnifiedCompactionStrategy(strategyFactory, controller);
 
@@ -1195,6 +1196,7 @@ public class UnifiedCompactionStrategyTest extends BaseCompactionStrategyTest
         when(compaction.hasExpiredOnly()).thenReturn(false);
         List<SSTableReader> nonExpiredSSTables = createSStables(realm.getPartitioner());
         when(compaction.sstables()).thenReturn(ImmutableSet.copyOf(nonExpiredSSTables));
+        when(compaction.isAdaptive(anyInt(), anyInt())).thenReturn(true);
 
         CompactionAggregate.UnifiedAggregate aggregate = Mockito.mock(CompactionAggregate.UnifiedAggregate.class);
         when(aggregate.getSelected()).thenReturn(compaction);

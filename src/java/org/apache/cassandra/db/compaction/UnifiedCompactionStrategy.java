@@ -475,6 +475,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         int levelCount = 1; // Start at 1 to avoid division by zero if the aggregates list is empty.
         int runningCompactions = 0;
         long spaceAvailable = spaceOverheadLimit;
+        int runningAdaptiveCompactions = 0;
+        int maxAdaptiveCompactions = controller.getMaxAdaptiveCompactions(); //limit for number of compactions triggered by new W value
         for (CompactionPick compaction : backgroundCompactions.getCompactionsInProgress())
         {
             final int level = levelOf(compaction);
@@ -482,6 +484,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             ++runningCompactions;
             levelCount = Math.max(levelCount, level + 1);
             spaceAvailable -= controller.getOverheadSizeInBytes(compaction);
+            if (compaction.isAdaptive(controller.getThreshold(level), controller.getPreviousThreshold(level)))
+                runningAdaptiveCompactions++;
         }
 
         CompactionLimits limits = new CompactionLimits(runningCompactions, 
@@ -490,7 +494,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                        perLevel,
                                                        levelCount,
                                                        spaceAvailable,
-                                                       rateLimitLog);
+                                                       rateLimitLog,
+                                                       runningAdaptiveCompactions,
+                                                       maxAdaptiveCompactions);
         logger.debug("Selecting up to {} new compactions of up to {}, concurrency limit {}{}",
                      Math.max(0, limits.maxCompactions - limits.runningCompactions),
                      FBUtilities.prettyPrintMemory(limits.spaceAvailable),
@@ -515,7 +521,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                                                  limits.maxCompactions,
                                                                  limits.levelCount,
                                                                  limits.perLevel,
-                                                                 limits.spaceAvailable);
+                                                                 limits.spaceAvailable,
+                                                                 limits.runningAdaptiveCompactions,
+                                                                 limits.maxAdaptiveCompactions);
         logger.debug("Starting {} compactions (out of {})", selection.size(), pending.stream().filter(agg -> !agg.getSelected().isEmpty()).count());
         return selection;
     }
@@ -680,7 +688,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                            int totalCount,
                                            int levelCount,
                                            int[] perLevel,
-                                           long spaceAvailable)
+                                           long spaceAvailable,
+                                           int runningAdaptiveCompactions,
+                                           int maxAdaptiveCompactions)
     {
         pending = controller.maybeSort(pending);
 
@@ -705,6 +715,16 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                 continue;
             if (perLevel[levelOf(pick)] > perLevelCount)
                 continue;  // this level is already using up all its share + one, we can ignore candidate altogether
+            int currentLevel = levelOf(pick);
+            if (maxAdaptiveCompactions == -1)
+                maxAdaptiveCompactions = Integer.MAX_VALUE;
+            if (pick.isAdaptive(controller.getThreshold(currentLevel), controller.getPreviousThreshold(currentLevel)))
+            {
+                if (runningAdaptiveCompactions >= maxAdaptiveCompactions)
+                    continue; //do not allow more than maxAdaptiveCompactions to limit latency spikes upon changing W
+                runningAdaptiveCompactions++;
+            }
+
 
             int shardsSpanned = shardsSpanned(pick);
             for (int i = 0; i < shardsSpanned; ++i)  // put an entry for each spanned shard
@@ -1306,6 +1326,8 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
         int levelCount;
         final long spaceAvailable;
         final String rateLimitLog;
+        final int runningAdaptiveCompactions;
+        final int maxAdaptiveCompactions;
 
         public CompactionLimits(int runningCompactions,
                                 int maxCompactions,
@@ -1313,7 +1335,9 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                 int[] perLevel,
                                 int levelCount,
                                 long spaceAvailable,
-                                String rateLimitLog)
+                                String rateLimitLog,
+                                int runningAdaptiveCompactions,
+                                int maxAdaptiveCompactions)
         {
             this.runningCompactions = runningCompactions;
             this.maxCompactions = maxCompactions;
@@ -1322,14 +1346,16 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
             this.levelCount = levelCount;
             this.spaceAvailable = spaceAvailable;
             this.rateLimitLog = rateLimitLog;
+            this.runningAdaptiveCompactions = runningAdaptiveCompactions;
+            this.maxAdaptiveCompactions = maxAdaptiveCompactions;
         }
 
         @Override
         public String toString()
         {
-            return String.format("Current limits: running=%d, max=%d, maxConcurrent=%d, perLevel=%s, levelCount=%d, spaceAvailable=%s, rateLimitLog=%s",
+            return String.format("Current limits: running=%d, max=%d, maxConcurrent=%d, perLevel=%s, levelCount=%d, spaceAvailable=%s, rateLimitLog=%s, runningAdaptiveCompactions=%d, maxAdaptiveCompactions=%d",
                                  runningCompactions, maxCompactions, maxConcurrentCompactions, Arrays.toString(perLevel), levelCount,
-                                 FBUtilities.prettyPrintMemory(spaceAvailable), rateLimitLog);
+                                 FBUtilities.prettyPrintMemory(spaceAvailable), rateLimitLog, runningAdaptiveCompactions, maxAdaptiveCompactions);
         }
     }
 }
