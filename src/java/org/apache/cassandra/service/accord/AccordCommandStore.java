@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -42,6 +43,7 @@ import accord.primitives.RoutableKey;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
+import accord.utils.async.AsyncChains;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -185,6 +187,12 @@ public class AccordCommandStore implements CommandStore
     public <T> AsyncChain<T> submit(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
         return AsyncOperation.create(this, loadCtx, function);
+    }
+
+    @Override
+    public <T> AsyncChain<T> submit(Callable<T> task)
+    {
+        return AsyncChains.ofCallable(executor, task);
     }
 
     public DataStore dataStore()
