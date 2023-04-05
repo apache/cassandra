@@ -2141,6 +2141,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         addLocalApplicationStates(Arrays.asList(Pair.create(applicationState, value)));
     }
 
+    public void addLocalApplicationState(ApplicationState state1, VersionedValue value1, ApplicationState state2, VersionedValue value2)
+    {
+        addLocalApplicationStates(Arrays.asList(Pair.create(state1, value1), Pair.create(state2, value2)));
+    }
+
     public void addLocalApplicationStates(List<Pair<ApplicationState, VersionedValue>> states)
     {
         taskLock.lock();
@@ -2164,8 +2169,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (mystate != null && !isSilentShutdownState(mystate) && StorageService.instance.isJoined())
         {
             logger.info("Announcing shutdown");
-            addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
-            addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
+            addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true),
+                                     ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
             Message message = Message.out(Verb.GOSSIP_SHUTDOWN, noPayload);
             for (InetAddressAndPort ep : liveEndpoints)
                 MessagingService.instance().send(message, ep);

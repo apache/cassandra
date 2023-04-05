@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -4694,5 +4695,12 @@ public class DatabaseDescriptor
             logger.info("Setting dynamic_data_masking_enabled to {}", enabled);
             conf.dynamic_data_masking_enabled = enabled;
         }
+    }
+
+    public static OptionalDouble getSeverityDuringDecommission()
+    {
+        return conf.severity_during_decommission > 0 ?
+               OptionalDouble.of(conf.severity_during_decommission) :
+               OptionalDouble.empty();
     }
 }
