@@ -94,6 +94,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
@@ -192,7 +193,7 @@ public class DatabaseDescriptor
     private static Map<String, Supplier<SSTableFormat<?, ?>>> sstableFormatFactories;
 
     /** The SSTable compression options */
-    private static SSTableCompressionOptions sstableCompression;
+    private static CompressionParams sstableCompression;
 
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                        ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
@@ -934,7 +935,7 @@ public class DatabaseDescriptor
         if (conf.paxos_state_purging == null)
             conf.paxos_state_purging = PaxosStatePurging.legacy;
 
-        sstableCompression = conf.sstable_compressor;
+        sstableCompression = CompressionParams.fromOptions(conf.sstable_compressor);
 
         logInitializationOutcome(logger);
 
@@ -4701,8 +4702,8 @@ public class DatabaseDescriptor
         }
     }
 
-    public static SSTableCompressionOptions getSSTableCompressionOptions()
+    public static CompressionParams getSSTableCompressionParams()
     {
-        return sstableCompression;
+        return sstableCompression == null ? CompressionParams.fromOptions(null) : sstableCompression;
     }
 }

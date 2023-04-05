@@ -446,7 +446,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     {
         try
         {
-            CompressionParams params = CompressionParams.fromMap(opts);
+            CompressionParams params = CompressionParams.fromOptions(opts);
             params.validate();
             metadata.setLocalOverrides(metadata().unbuild().compression(params).build());
         }
