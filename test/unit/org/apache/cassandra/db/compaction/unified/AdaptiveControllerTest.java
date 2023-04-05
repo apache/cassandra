@@ -42,9 +42,11 @@ public class AdaptiveControllerTest extends ControllerTest
 
     private final int minW = -10;
     private final int maxW = 64;
-    private final int W = 0;
+    private final int[] Ws = {0};
+    private final int[] previousWs = {0};
     private final int interval = 60;
     private final int minCost = 5;
+    private final int maxAdaptiveCompactions = 2;
     private final double baseCost = minCost * 5;
     private final double threshold = 0.15;
 
@@ -64,7 +66,8 @@ public class AdaptiveControllerTest extends ControllerTest
     {
         return new AdaptiveController(clock,
                                       env,
-                                      W,
+                                      Ws,
+                                      previousWs,
                                       Controller.DEFAULT_SURVIVAL_FACTORS,
                                       dataSizeGB << 10,
                                       numShards,
@@ -79,7 +82,8 @@ public class AdaptiveControllerTest extends ControllerTest
                                       minW,
                                       maxW,
                                       threshold,
-                                      minCost);
+                                      minCost,
+                                      maxAdaptiveCompactions);
     }
 
     @Test
@@ -92,12 +96,16 @@ public class AdaptiveControllerTest extends ControllerTest
         options.put(AdaptiveController.INTERVAL_SEC, "120");
         options.put(AdaptiveController.THRESHOLD, "0.15");
         options.put(AdaptiveController.MIN_COST, "5");
+        options.put(AdaptiveController.MAX_ADAPTIVE_COMPACTIONS, "-1");
 
         Controller controller = testFromOptions(true, options);
         assertTrue(controller instanceof AdaptiveController);
 
         for (int i = 0; i < 10; i++)
+        {
             assertEquals(0, controller.getScalingParameter(i));
+            assertEquals(0, controller.getPreviousScalingParameter(i));
+        }
     }
 
     @Test
@@ -110,6 +118,7 @@ public class AdaptiveControllerTest extends ControllerTest
         options.put(AdaptiveController.INTERVAL_SEC, "120");
         options.put(AdaptiveController.THRESHOLD, "0.15");
         options.put(AdaptiveController.MIN_COST, "5");
+        options.put(AdaptiveController.MAX_ADAPTIVE_COMPACTIONS, "-1");
 
         super.testValidateOptions(options, true);
     }
@@ -185,7 +194,7 @@ public class AdaptiveControllerTest extends ControllerTest
 
         // no update, not enough time elapsed
         controller.onStrategyBackgroundTaskRequest();
-        assertEquals(W, controller.getScalingParameter(0));
+        assertEquals(Ws[0], controller.getScalingParameter(0));
     }
 
     @Test
@@ -201,7 +210,7 @@ public class AdaptiveControllerTest extends ControllerTest
 
         clock.setNowInNanos(clock.now() + TimeUnit.SECONDS.toNanos(interval + 1));
         controller.onStrategyBackgroundTaskRequest();
-        assertEquals(W, controller.getScalingParameter(0));
+        assertEquals(Ws[0], controller.getScalingParameter(0));
     }
 
     @Test

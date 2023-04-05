@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
@@ -128,4 +129,16 @@ public interface CompactionProgress extends TableOperation.Progress
      * @return the ratio of bytes before and after compaction, using the adjusted input and output disk sizes (uncompressed values).
      */
     double sizeRatio();
+
+    default double readThroughput()
+    {
+        long durationNanos = durationInNanos();
+        return durationNanos == 0 ? 0 : ((double) uncompressedBytesRead() / durationNanos) * TimeUnit.SECONDS.toNanos(1);
+    }
+
+    default double writeThroughput()
+    {
+        long durationNanos = durationInNanos();
+        return durationNanos == 0 ? 0 : ((double) uncompressedBytesWritten() / durationNanos) * TimeUnit.SECONDS.toNanos(1);
+    }
 }

@@ -94,7 +94,7 @@ abstract class AbstractCompactionStrategy implements CompactionStrategy
         this.backgroundCompactions = backgroundCompactions;
     }
 
-    CompactionStrategyOptions getOptions()
+    public CompactionStrategyOptions getOptions()
     {
         return options;
     }

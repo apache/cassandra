@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.compaction.BackgroundCompactions;
 import org.apache.cassandra.db.compaction.CompactionSSTable;
+import org.apache.cassandra.db.compaction.CompactionStrategyOptions;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableMetadata;
@@ -47,13 +48,15 @@ public class CostsCalculatorTest
 {
     private static final double epsilon = 0.00000001;
     private static final Random random = new Random(0L);
-    private static final double survivalFactor = 1;
 
     @Mock
     private Environment environment;
 
     @Mock
     private UnifiedCompactionStrategy strategy;
+
+    @Mock
+    private CompactionStrategyOptions options;
 
     @Mock
     private TableMetadata metadata;
@@ -91,7 +94,7 @@ public class CostsCalculatorTest
     @Test
     public void testCreateAndClose()
     {
-        CostsCalculator cost = new CostsCalculator(environment, strategy, executorService, survivalFactor);
+        CostsCalculator cost = new CostsCalculator(environment, strategy, executorService);
         assertNotNull(cost);
         assertNotNull(cost.toString());
 
@@ -104,59 +107,50 @@ public class CostsCalculatorTest
     @Test
     public void testUpdate() throws InterruptedException
     {
-        testCosts(100, 100, PageAware.PAGE_SIZE, 1, 1, 1, 0.01, survivalFactor);
+        testCosts(100, 100, PageAware.PAGE_SIZE, 1, 1);
     }
 
     @Test
     public void testDoubleReadTime() throws InterruptedException
     {
-        testCosts(200, 100, PageAware.PAGE_SIZE, 1, 1, 1, 0.01, survivalFactor);
+        testCosts(200, 100, PageAware.PAGE_SIZE, 1, 1);
     }
 
     @Test
     public void testDoubleWriteTime() throws InterruptedException
     {
-        testCosts(100, 200, PageAware.PAGE_SIZE, 1, 1, 1, 0.01, survivalFactor);
+        testCosts(100, 200, PageAware.PAGE_SIZE, 1, 1);
     }
 
     @Test
     public void testLargerChunkSize() throws InterruptedException
     {
-        testCosts(100, 100, 64 << 10, 1, 1, 1, 0.01, survivalFactor);
+        testCosts(100, 100, 64 << 10, 1, 1);
     }
 
     @Test
     public void testHalfCacheMissRatio() throws InterruptedException
     {
-        testCosts(100, 100, PageAware.PAGE_SIZE, 0.5, 1, 1, 0.01, survivalFactor);
+        testCosts(100, 100, PageAware.PAGE_SIZE, 1, 1);
     }
 
     @Test
     public void testReadMultiplier() throws InterruptedException
     {
-        testCosts(1000, 100, PageAware.PAGE_SIZE, 1, 0.1, 1, 0.01, survivalFactor);
+        testCosts(1000, 100, PageAware.PAGE_SIZE, 0.1, 1);
     }
 
     @Test
     public void testWriteMultiplier() throws InterruptedException
     {
-        testCosts(100, 100, PageAware.PAGE_SIZE, 1, 1, 10, 0.01, survivalFactor);
-    }
-
-    @Test
-    public void testSurvivalRatio() throws InterruptedException
-    {
-        testCosts(100, 100, PageAware.PAGE_SIZE, 1, 1, 1, 0.01, 0.5);
+        testCosts(100, 100, PageAware.PAGE_SIZE, 1, 10);
     }
 
     private void testCosts(long readTimeMicros,
                            long writeTimeMicros,
                            int chunkSize,
-                           double cacheMissRatio,
                            double readMultiplier,
-                           double writeMultiplier,
-                           double bfprRatio,
-                           double survivalFactor) throws InterruptedException
+                           double writeMultiplier) throws InterruptedException
     {
         int blockSize = PageAware.PAGE_SIZE;
         long totPartitionsRead = 1 + random.nextInt(32);
@@ -165,13 +159,14 @@ public class CostsCalculatorTest
         when(environment.partitionsRead()).thenReturn(totPartitionsRead);
         when(environment.bytesInserted()).thenReturn(totBytesInserted);
         when(environment.chunkSize()).thenReturn(chunkSize);
-        when(environment.cacheMissRatio()).thenReturn(cacheMissRatio);
-        when(environment.bloomFilterFpRatio()).thenReturn(bfprRatio);
         when(environment.sstablePartitionReadLatencyNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(readTimeMicros));
         when(environment.flushTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(writeTimeMicros));
         when(environment.compactionTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(writeTimeMicros));
+        when(strategy.getOptions()).thenReturn(options);
+        when(options.getReadMultiplier()).thenReturn(readMultiplier);
+        when(options.getWriteMultiplier()).thenReturn(writeMultiplier);
 
-        CostsCalculator cost = new CostsCalculator(environment, strategy, executorService, survivalFactor, readMultiplier, writeMultiplier);
+        CostsCalculator cost = new CostsCalculator(environment, strategy, executorService);
         assertNotNull(cost);
         assertNotNull(cost.toString());
 
@@ -196,7 +191,7 @@ public class CostsCalculatorTest
             assertEquals((writeCost + writeCost * 2) * writeMultiplier, cost.getWriteCostForQueries(2), epsilon);
 
             // the RA is 2, the delta partitions read is i + 1
-            assertEquals((((i + 1) * readTimeMicros) / (double) TimeUnit.MILLISECONDS.toMicros(1)) * Math.min(1 + bfprRatio * 2 / survivalFactor, 2) * readMultiplier, cost.getReadCostForQueries(2), epsilon);
+            assertEquals((((i + 1) * readTimeMicros) / (double) TimeUnit.MILLISECONDS.toMicros(1)) * 2 * readMultiplier, cost.getReadCostForQueries(2), epsilon);
         }
     }
 
@@ -215,8 +210,10 @@ public class CostsCalculatorTest
         when(environment.sstablePartitionReadLatencyNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
         when(environment.flushTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
         when(environment.compactionTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
+        when(strategy.getOptions()).thenReturn(options);
+        when(options.getWriteMultiplier()).thenReturn(1.0);
 
-        CostsCalculator cost = new CostsCalculator(environment, strategy, executorService, survivalFactor, 1, 1);
+        CostsCalculator cost = new CostsCalculator(environment, strategy, executorService);
         assertNotNull(cost);
         assertNotNull(cost.toString());
 
@@ -243,8 +240,10 @@ public class CostsCalculatorTest
         when(environment.sstablePartitionReadLatencyNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
         when(environment.flushTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
         when(environment.compactionTimePerKbInNanos()).thenReturn((double) TimeUnit.MICROSECONDS.toNanos(20));
+        when(strategy.getOptions()).thenReturn(options);
+        when(options.getReadMultiplier()).thenReturn(0.5);
 
-        CostsCalculator cost = new CostsCalculator(environment, strategy, executorService, survivalFactor, 1, 1);
+        CostsCalculator cost = new CostsCalculator(environment, strategy, executorService);
         assertNotNull(cost);
         assertNotNull(cost.toString());
 

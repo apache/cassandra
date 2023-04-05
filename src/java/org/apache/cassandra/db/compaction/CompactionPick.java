@@ -305,6 +305,19 @@ public class CompactionPick
         return Objects.hash(id, parent, sstables, expired);
     }
 
+    /**
+     * Checks to see if the chosen compaction is Adaptive or not.
+     * An adaptive compaction is a compaction triggered by changing the scaling parameter W
+     * @param currentThreshold is the threshold for the chosen level
+     * @param previousThreshold is the previous threshold before changing the scaling paremeter
+     * @return true if it is Adaptive and false otherwise
+     */
+    public boolean isAdaptive(int currentThreshold, int previousThreshold)
+    {
+        int numTables = sstables.size();
+        return (numTables >= currentThreshold && numTables < previousThreshold);
+    }
+
     @Override
     public boolean equals(Object obj)
     {

@@ -126,6 +126,19 @@ public class StaticController extends Controller
     }
 
     @Override
+    public int getPreviousScalingParameter(int index)
+    {
+        //scalingParameters is not updated in StaticController so previous scalingParameters = scalingParameters
+        return getScalingParameter(index);
+    }
+
+    @Override
+    public int getMaxAdaptiveCompactions()
+    {
+        return Integer.MAX_VALUE;
+    }
+
+    @Override
     public String toString()
     {
         return String.format("Static controller, m: %d, o: %s, Ws: %s, cost: %s", minSstableSizeMB, Arrays.toString(survivalFactors), Arrays.toString(scalingParameters), calculator);
