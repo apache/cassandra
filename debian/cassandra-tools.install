@@ -1,0 +1,8 @@
+tools/bin/generatetokens usr/bin
+tools/bin/sstabledump usr/bin
+tools/bin/sstableexpiredblockers usr/bin
+tools/bin/sstablelevelreset usr/bin
+tools/bin/sstablemetadata usr/bin
+tools/bin/sstableofflinerelevel usr/bin
+tools/bin/sstablerepairedset usr/bin
+tools/bin/sstablesplit usr/bin

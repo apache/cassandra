@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,60 +15,97 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db;
 
-import java.io.*;
-import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.List;
-import java.util.LinkedList;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.function.Supplier;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.google.common.base.Function;
+import com.google.common.base.Objects;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.PeekingIterator;
+import com.google.common.util.concurrent.Striped;
 
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.context.CounterContext;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.HeapAllocator;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.thrift.ConsistencyLevel;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.btree.BTreeSet;
+
+import static java.util.concurrent.TimeUnit.*;
+import static org.apache.cassandra.net.MessagingService.VERSION_30;
+import static org.apache.cassandra.net.MessagingService.VERSION_3014;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class CounterMutation implements IMutation
 {
-    private static final Logger logger = LoggerFactory.getLogger(CounterMutation.class);
-    private static final CounterMutationSerializer serializer = new CounterMutationSerializer();
+    public static final CounterMutationSerializer serializer = new CounterMutationSerializer();
 
-    private final RowMutation rowMutation;
+    private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentCounterWriters() * 1024);
+
+    private final Mutation mutation;
     private final ConsistencyLevel consistency;
 
-    public CounterMutation(RowMutation rowMutation, ConsistencyLevel consistency)
+    public CounterMutation(Mutation mutation, ConsistencyLevel consistency)
     {
-        this.rowMutation = rowMutation;
+        this.mutation = mutation;
         this.consistency = consistency;
     }
 
-    public String getTable()
+    public String getKeyspaceName()
     {
-        return rowMutation.getTable();
+        return mutation.getKeyspaceName();
     }
 
-    public Collection<Integer> getColumnFamilyIds()
+    public Collection<TableId> getTableIds()
     {
-        return rowMutation.getColumnFamilyIds();
+        return mutation.getTableIds();
     }
 
-    public ByteBuffer key()
+    public Collection<PartitionUpdate> getPartitionUpdates()
     {
-        return rowMutation.key();
+        return mutation.getPartitionUpdates();
     }
 
-    public RowMutation rowMutation()
+    @Override
+    public Supplier<Mutation> hintOnFailure()
     {
-        return rowMutation;
+        return null;
+    }
+
+    public void validateSize(int version, int overhead)
+    {
+        long totalSize = serializedSize(version) + overhead;
+        if(totalSize > MAX_MUTATION_SIZE)
+        {
+            throw new MutationExceededMaxSizeException(this, version, totalSize);
+        }
+    }
+
+    public Mutation getMutation()
+    {
+        return mutation;
+    }
+
+    public DecoratedKey key()
+    {
+        return mutation.key();
     }
 
     public ConsistencyLevel consistency()
@@ -76,75 +113,247 @@ public class CounterMutation implements IMutation
         return consistency;
     }
 
-    public static CounterMutationSerializer serializer()
+    /**
+     * Applies the counter mutation, returns the result Mutation (for replication to other nodes).
+     *
+     * 1. Grabs the striped cell-level locks in the proper order
+     * 2. Gets the current values of the counters-to-be-modified from the counter cache
+     * 3. Reads the rest of the current values (cache misses) from the CF
+     * 4. Writes the updated counter values
+     * 5. Updates the counter cache
+     * 6. Releases the lock(s)
+     *
+     * See CASSANDRA-4775 and CASSANDRA-6504 for further details.
+     *
+     * @return the applied resulting Mutation
+     */
+    public Mutation applyCounterMutation() throws WriteTimeoutException
     {
-        return serializer;
-    }
+        Mutation.PartitionUpdateCollector resultBuilder = new Mutation.PartitionUpdateCollector(getKeyspaceName(), key());
+        Keyspace keyspace = Keyspace.open(getKeyspaceName());
 
-    public RowMutation makeReplicationMutation() throws IOException
-    {
-        List<ReadCommand> readCommands = new LinkedList<ReadCommand>();
-        for (ColumnFamily columnFamily : rowMutation.getColumnFamilies())
+        List<Lock> locks = new ArrayList<>();
+        Tracing.trace("Acquiring counter locks");
+        try
         {
-            if (!columnFamily.metadata().getReplicateOnWrite())
-                continue;
-            addReadCommandFromColumnFamily(rowMutation.getTable(), rowMutation.key(), columnFamily, readCommands);
+            grabCounterLocks(keyspace, locks);
+            for (PartitionUpdate upd : getPartitionUpdates())
+                resultBuilder.add(processModifications(upd));
+
+            Mutation result = resultBuilder.build();
+            result.apply();
+            return result;
         }
-
-        // create a replication RowMutation
-        RowMutation replicationMutation = new RowMutation(rowMutation.getTable(), rowMutation.key());
-        for (ReadCommand readCommand : readCommands)
+        finally
         {
-            Table table = Table.open(readCommand.table);
-            Row row = readCommand.getRow(table);
-            if (row == null || row.cf == null)
-                continue;
-
-            ColumnFamily cf = row.cf;
-            if (cf.isSuper())
-                cf.retainAll(rowMutation.getColumnFamily(cf.metadata().cfId));
-            replicationMutation.add(cf);
+            for (Lock lock : locks)
+                lock.unlock();
         }
-        return replicationMutation;
     }
 
-    private void addReadCommandFromColumnFamily(String table, ByteBuffer key, ColumnFamily columnFamily, List<ReadCommand> commands)
+    public void apply()
     {
-        QueryPath queryPath = new QueryPath(columnFamily.metadata().cfName);
-        commands.add(new SliceByNamesReadCommand(table, key, queryPath, columnFamily.getColumnNames()));
+        applyCounterMutation();
     }
 
-    public Message makeMutationMessage(int version) throws IOException
+    private void grabCounterLocks(Keyspace keyspace, List<Lock> locks) throws WriteTimeoutException
     {
-        byte[] bytes = FBUtilities.serialize(this, serializer, version);
-        return new Message(FBUtilities.getBroadcastAddress(), StorageService.Verb.COUNTER_MUTATION, bytes, version);
-    }
+        long startTime = nanoTime();
 
-    public boolean shouldReplicateOnWrite()
-    {
-        for (ColumnFamily cf : rowMutation.getColumnFamilies())
-            if (cf.metadata().getReplicateOnWrite())
-                return true;
-        return false;
-    }
-
-    public void apply() throws IOException
-    {
-        // transform all CounterUpdateColumn to CounterColumn: accomplished by localCopy
-        RowMutation rm = new RowMutation(rowMutation.getTable(), ByteBufferUtil.clone(rowMutation.key()));
-        Table table = Table.open(rm.getTable());
-
-        for (ColumnFamily cf_ : rowMutation.getColumnFamilies())
+        AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
+        for (Lock lock : LOCKS.bulkGet(getCounterLockKeys()))
         {
-            ColumnFamily cf = cf_.cloneMeShallow();
-            ColumnFamilyStore cfs = table.getColumnFamilyStore(cf.id());
-            for (IColumn column : cf_)
+            long timeout = getTimeout(NANOSECONDS) - (nanoTime() - startTime);
+            try
             {
-                cf.addColumn(column.localCopy(cfs), HeapAllocator.instance);
+                if (!lock.tryLock(timeout, NANOSECONDS))
+                    throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(replicationStrategy));
+                locks.add(lock);
             }
-            rm.add(cf);
+            catch (InterruptedException e)
+            {
+                throw new WriteTimeoutException(WriteType.COUNTER, consistency(), 0, consistency().blockFor(replicationStrategy));
+            }
         }
-        rm.apply();
+    }
+
+    /**
+     * Returns a wrapper for the Striped#bulkGet() call (via Keyspace#counterLocksFor())
+     * Striped#bulkGet() depends on Object#hashCode(), so here we make sure that the cf id and the partition key
+     * all get to be part of the hashCode() calculation.
+     */
+    private Iterable<Object> getCounterLockKeys()
+    {
+        return Iterables.concat(Iterables.transform(getPartitionUpdates(), new Function<PartitionUpdate, Iterable<Object>>()
+        {
+            public Iterable<Object> apply(final PartitionUpdate update)
+            {
+                return Iterables.concat(Iterables.transform(update, new Function<Row, Iterable<Object>>()
+                {
+                    public Iterable<Object> apply(final Row row)
+                    {
+                        return Iterables.concat(Iterables.transform(row, new Function<ColumnData, Object>()
+                        {
+                            public Object apply(final ColumnData data)
+                            {
+                                return Objects.hashCode(update.metadata().id, key(), row.clustering(), data.column());
+                            }
+                        }));
+                    }
+                }));
+            }
+        }));
+    }
+
+    private PartitionUpdate processModifications(PartitionUpdate changes)
+    {
+        ColumnFamilyStore cfs = Keyspace.open(getKeyspaceName()).getColumnFamilyStore(changes.metadata().id);
+
+        List<PartitionUpdate.CounterMark> marks = changes.collectCounterMarks();
+
+        if (CacheService.instance.counterCache.getCapacity() != 0)
+        {
+            Tracing.trace("Fetching {} counter values from cache", marks.size());
+            updateWithCurrentValuesFromCache(marks, cfs);
+            if (marks.isEmpty())
+                return changes;
+        }
+
+        Tracing.trace("Reading {} counter values from the CF", marks.size());
+        updateWithCurrentValuesFromCFS(marks, cfs);
+
+        // What's remain is new counters
+        for (PartitionUpdate.CounterMark mark : marks)
+            updateWithCurrentValue(mark, ClockAndCount.BLANK, cfs);
+
+        return changes;
+    }
+
+    private void updateWithCurrentValue(PartitionUpdate.CounterMark mark, ClockAndCount currentValue, ColumnFamilyStore cfs)
+    {
+        long clock = Math.max(FBUtilities.timestampMicros(), currentValue.clock + 1L);
+        long count = currentValue.count + CounterContext.instance().total(mark.value(), ByteBufferAccessor.instance);
+
+        mark.setValue(CounterContext.instance().createGlobal(CounterId.getLocalId(), clock, count));
+
+        // Cache the newly updated value
+        cfs.putCachedCounter(key().getKey(), mark.clustering(), mark.column(), mark.path(), ClockAndCount.create(clock, count));
+    }
+
+    // Returns the count of cache misses.
+    private void updateWithCurrentValuesFromCache(List<PartitionUpdate.CounterMark> marks, ColumnFamilyStore cfs)
+    {
+        Iterator<PartitionUpdate.CounterMark> iter = marks.iterator();
+        while (iter.hasNext())
+        {
+            PartitionUpdate.CounterMark mark = iter.next();
+            ClockAndCount cached = cfs.getCachedCounter(key().getKey(), mark.clustering(), mark.column(), mark.path());
+            if (cached != null)
+            {
+                updateWithCurrentValue(mark, cached, cfs);
+                iter.remove();
+            }
+        }
+    }
+
+    // Reads the missing current values from the CFS.
+    private void updateWithCurrentValuesFromCFS(List<PartitionUpdate.CounterMark> marks, ColumnFamilyStore cfs)
+    {
+        ColumnFilter.Builder builder = ColumnFilter.selectionBuilder();
+        BTreeSet.Builder<Clustering<?>> names = BTreeSet.builder(cfs.metadata().comparator);
+        for (PartitionUpdate.CounterMark mark : marks)
+        {
+            if (mark.clustering() != Clustering.STATIC_CLUSTERING)
+                names.add(mark.clustering());
+            if (mark.path() == null)
+                builder.add(mark.column());
+            else
+                builder.select(mark.column(), mark.path());
+        }
+
+        int nowInSec = FBUtilities.nowInSeconds();
+        ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(names.build(), false);
+        SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(cfs.metadata(), nowInSec, key(), builder.build(), filter);
+        PeekingIterator<PartitionUpdate.CounterMark> markIter = Iterators.peekingIterator(marks.iterator());
+        try (ReadExecutionController controller = cmd.executionController();
+             RowIterator partition = UnfilteredRowIterators.filter(cmd.queryMemtableAndDisk(cfs, controller), nowInSec))
+        {
+            updateForRow(markIter, partition.staticRow(), cfs);
+
+            while (partition.hasNext())
+            {
+                if (!markIter.hasNext())
+                    return;
+
+                updateForRow(markIter, partition.next(), cfs);
+            }
+        }
+    }
+
+    private int compare(Clustering<?> c1, Clustering<?> c2, ColumnFamilyStore cfs)
+    {
+        if (c1 == Clustering.STATIC_CLUSTERING)
+            return c2 == Clustering.STATIC_CLUSTERING ? 0 : -1;
+        if (c2 == Clustering.STATIC_CLUSTERING)
+            return 1;
+
+        return cfs.getComparator().compare(c1, c2);
+    }
+
+    private void updateForRow(PeekingIterator<PartitionUpdate.CounterMark> markIter, Row row, ColumnFamilyStore cfs)
+    {
+        int cmp = 0;
+        // If the mark is before the row, we have no value for this mark, just consume it
+        while (markIter.hasNext() && (cmp = compare(markIter.peek().clustering(), row.clustering(), cfs)) < 0)
+            markIter.next();
+
+        if (!markIter.hasNext())
+            return;
+
+        while (cmp == 0)
+        {
+            PartitionUpdate.CounterMark mark = markIter.next();
+            Cell<?> cell = mark.path() == null ? row.getCell(mark.column()) : row.getCell(mark.column(), mark.path());
+            if (cell != null)
+            {
+                updateWithCurrentValue(mark, CounterContext.instance().getLocalClockAndCount(cell.buffer()), cfs);
+                markIter.remove();
+            }
+            if (!markIter.hasNext())
+                return;
+
+            cmp = compare(markIter.peek().clustering(), row.clustering(), cfs);
+        }
+    }
+
+    public long getTimeout(TimeUnit unit)
+    {
+        return DatabaseDescriptor.getCounterWriteRpcTimeout(unit);
+    }
+
+    private int serializedSize30;
+    private int serializedSize3014;
+    private int serializedSize40;
+
+    public int serializedSize(int version)
+    {
+        switch (version)
+        {
+            case VERSION_30:
+                if (serializedSize30 == 0)
+                    serializedSize30 = (int) serializer.serializedSize(this, VERSION_30);
+                return serializedSize30;
+            case VERSION_3014:
+                if (serializedSize3014 == 0)
+                    serializedSize3014 = (int) serializer.serializedSize(this, VERSION_3014);
+                return serializedSize3014;
+            case VERSION_40:
+                if (serializedSize40 == 0)
+                    serializedSize40 = (int) serializer.serializedSize(this, VERSION_40);
+                return serializedSize40;
+            default:
+                throw new IllegalStateException("Unknown serialization version: " + version);
+        }
     }
 
     @Override
@@ -155,31 +364,28 @@ public class CounterMutation implements IMutation
 
     public String toString(boolean shallow)
     {
-        StringBuilder buff = new StringBuilder("CounterMutation(");
-        buff.append(rowMutation.toString(shallow));
-        buff.append(", ").append(consistency.toString());
-        return buff.append(")").toString();
-    }
-}
-
-class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
-{
-    public void serialize(CounterMutation cm, DataOutput dos, int version) throws IOException
-    {
-        RowMutation.serializer().serialize(cm.rowMutation(), dos, version);
-        dos.writeUTF(cm.consistency().name());
+        return String.format("CounterMutation(%s, %s)", mutation.toString(shallow), consistency);
     }
 
-    public CounterMutation deserialize(DataInput dis, int version) throws IOException
+    public static class CounterMutationSerializer implements IVersionedSerializer<CounterMutation>
     {
-        RowMutation rm = RowMutation.serializer().deserialize(dis, version);
-        ConsistencyLevel consistency = Enum.valueOf(ConsistencyLevel.class, dis.readUTF());
-        return new CounterMutation(rm, consistency);
-    }
+        public void serialize(CounterMutation cm, DataOutputPlus out, int version) throws IOException
+        {
+            Mutation.serializer.serialize(cm.mutation, out, version);
+            out.writeUTF(cm.consistency.name());
+        }
 
-    public long serializedSize(CounterMutation cm, int version)
-    {
-        return RowMutation.serializer().serializedSize(cm.rowMutation(), version)
-               + DBConstants.shortSize + FBUtilities.encodedUTF8Length(cm.consistency().name());
+        public CounterMutation deserialize(DataInputPlus in, int version) throws IOException
+        {
+            Mutation m = Mutation.serializer.deserialize(in, version);
+            ConsistencyLevel consistency = Enum.valueOf(ConsistencyLevel.class, in.readUTF());
+            return new CounterMutation(m, consistency);
+        }
+
+        public long serializedSize(CounterMutation cm, int version)
+        {
+            return cm.mutation.serializedSize(version)
+                 + TypeSizes.sizeof(cm.consistency.name());
+        }
     }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,160 +7,117 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
-import java.io.FilenameFilter;
+
 import java.io.IOException;
+import java.io.Closeable;
 import java.nio.ByteBuffer;
-import java.util.HashSet;
-import java.util.Set;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.NodeId;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.service.ActiveRepairService;
 
-public abstract class AbstractSSTableSimpleWriter
+/**
+ * Base class for the sstable writers used by CQLSSTableWriter.
+ */
+abstract class AbstractSSTableSimpleWriter implements Closeable
 {
     protected final File directory;
-    protected final CFMetaData metadata;
-    protected DecoratedKey currentKey;
-    protected ColumnFamily columnFamily;
-    protected SuperColumn currentSuperColumn;
-    protected final NodeId nodeid = NodeId.generate();
+    protected final TableMetadataRef metadata;
+    protected final RegularAndStaticColumns columns;
+    protected SSTableFormat.Type formatType = SSTableFormat.Type.current();
+    protected static final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
+    protected boolean makeRangeAware = false;
 
-    public AbstractSSTableSimpleWriter(File directory, CFMetaData metadata)
+    protected AbstractSSTableSimpleWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns)
     {
         this.metadata = metadata;
         this.directory = directory;
+        this.columns = columns;
     }
 
-    protected SSTableWriter getWriter() throws IOException
+    protected void setSSTableFormatType(SSTableFormat.Type type)
     {
-        return new SSTableWriter(
-            makeFilename(directory, metadata.ksName, metadata.cfName),
-            0, // We don't care about the bloom filter
-            metadata,
-            StorageService.getPartitioner(),
-            SSTableMetadata.createCollector());
+        this.formatType = type;
     }
 
-    // find available generation and pick up filename from that
-    private static String makeFilename(File directory, final String keyspace, final String columnFamily)
+    protected void setRangeAwareWriting(boolean makeRangeAware)
     {
-        final Set<Descriptor> existing = new HashSet<Descriptor>();
-        directory.list(new FilenameFilter()
+        this.makeRangeAware = makeRangeAware;
+    }
+
+    protected SSTableTxnWriter createWriter() throws IOException
+    {
+        SerializationHeader header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
+
+        if (makeRangeAware)
+            return SSTableTxnWriter.createRangeAware(metadata, 0,  ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, formatType, 0, header);
+
+        return SSTableTxnWriter.create(metadata,
+                                       createDescriptor(directory, metadata.keyspace, metadata.name, formatType),
+                                       0,
+                                       ActiveRepairService.UNREPAIRED_SSTABLE,
+                                       ActiveRepairService.NO_PENDING_REPAIR,
+                                       false,
+                                       0,
+                                       header,
+                                       Collections.emptySet());
+    }
+
+    private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt) throws IOException
+    {
+        SSTableId nextGen = getNextId(directory, columnFamily);
+        return new Descriptor(directory, keyspace, columnFamily, nextGen, fmt);
+    }
+
+    private static SSTableId getNextId(File directory, final String columnFamily) throws IOException
+    {
+        while (true)
         {
-            public boolean accept(File dir, String name)
+            try (Stream<Path> existingPaths = Files.list(directory.toPath()))
             {
-                Pair<Descriptor, Component> p = SSTable.tryComponentFromFilename(dir, name);
-                Descriptor desc = p == null ? null : p.left;
-                if (desc == null)
-                    return false;
+                Stream<SSTableId> existingIds = existingPaths.map(File::new)
+                                                             .map(SSTable::tryDescriptorFromFilename)
+                                                             .filter(d -> d != null && d.cfname.equals(columnFamily))
+                                                             .map(d -> d.id);
 
-                if (desc.cfname.equals(columnFamily))
-                    existing.add(desc);
-
-                return false;
+                SSTableId lastId = id.get();
+                SSTableId newId = SSTableIdFactory.instance.defaultBuilder().generator(Stream.concat(existingIds, Stream.of(lastId))).get();
+                if (id.compareAndSet(lastId, newId))
+                    return newId;
             }
-        });
-        int maxGen = 0;
-        for (Descriptor desc : existing)
-            maxGen = Math.max(maxGen, desc.generation);
-        return new Descriptor(directory, keyspace, columnFamily, maxGen + 1, true).filenameFor(Component.DATA);
+        }
+    }
+
+    PartitionUpdate.Builder getUpdateFor(ByteBuffer key) throws IOException
+    {
+        return getUpdateFor(metadata.get().partitioner.decorateKey(key));
     }
 
     /**
-     * Start a new row whose key is {@code key}.
-     * @param key the row key
+     * Returns a PartitionUpdate suitable to write on this writer for the provided key.
+     *
+     * @param key they partition key for which the returned update will be.
+     * @return an update on partition {@code key} that is tied to this writer.
      */
-    public void newRow(ByteBuffer key) throws IOException
-    {
-        if (currentKey != null && !columnFamily.isEmpty())
-            writeRow(currentKey, columnFamily);
-
-        currentKey = StorageService.getPartitioner().decorateKey(key);
-        columnFamily = getColumnFamily();
-    }
-
-    /**
-     * Start a new super column with name {@code name}.
-     * @param name the name for the super column
-     */
-    public void newSuperColumn(ByteBuffer name)
-    {
-        if (!columnFamily.isSuper())
-            throw new IllegalStateException("Cannot add a super column to a standard column family");
-
-        currentSuperColumn = new SuperColumn(name, metadata.subcolumnComparator);
-        columnFamily.addColumn(currentSuperColumn);
-    }
-
-    private void addColumn(IColumn column)
-    {
-        if (columnFamily.isSuper() && currentSuperColumn == null)
-            throw new IllegalStateException("Trying to add a column to a super column family, but no super column has been started.");
-
-        IColumnContainer container = columnFamily.isSuper() ? currentSuperColumn : columnFamily;
-        container.addColumn(column);
-    }
-
-    /**
-     * Insert a new "regular" column to the current row (and super column if applicable).
-     * @param name the column name
-     * @param value the column value
-     * @param timestamp the column timestamp
-     */
-    public void addColumn(ByteBuffer name, ByteBuffer value, long timestamp)
-    {
-        addColumn(new Column(name, value, timestamp));
-    }
-
-    /**
-     * Insert a new expiring column to the current row (and super column if applicable).
-     * @param name the column name
-     * @param value the column value
-     * @param timestamp the column timestamp
-     * @param ttl the column time to live in seconds
-     * @param expirationTimestampMS the local expiration timestamp in milliseconds. This is the server time timestamp used for actually
-     * expiring the column, and as a consequence should be synchronized with the cassandra servers time. If {@code timestamp} represents
-     * the insertion time in microseconds (which is not required), this should be {@code (timestamp / 1000) + (ttl * 1000)}.
-     */
-    public void addExpiringColumn(ByteBuffer name, ByteBuffer value, long timestamp, int ttl, long expirationTimestampMS)
-    {
-        addColumn(new ExpiringColumn(name, value, timestamp, ttl, (int)(expirationTimestampMS / 1000)));
-    }
-
-    /**
-     * Insert a new counter column to the current row (and super column if applicable).
-     * @param name the column name
-     * @param value the value of the counter
-     */
-    public void addCounterColumn(ByteBuffer name, long value)
-    {
-        addColumn(new CounterColumn(name, CounterContext.instance().create(nodeid, 1L, value, false), System.currentTimeMillis()));
-    }
-
-    /**
-     * Close this writer.
-     * This method should be called, otherwise the produced sstables are not
-     * guaranteed to be complete (and won't be in practice).
-     */
-    public abstract void close() throws IOException;
-
-    protected abstract void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException;
-
-    protected abstract ColumnFamily getColumnFamily();
+    abstract PartitionUpdate.Builder getUpdateFor(DecoratedKey key) throws IOException;
 }
+

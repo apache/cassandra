@@ -1,237 +1,444 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.apache.cassandra.streaming;
 
-/*
-* Licensed to the Apache Software Foundation (ASF) under one
-* or more contributor license agreements.  See the NOTICE file
-* distributed with this work for additional information
-* regarding copyright ownership.  The ASF licenses this file
-* to you under the Apache License, Version 2.0 (the
-* "License"); you may not use this file except in compliance
-* with the License.  You may obtain a copy of the License at
-*
-*    http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing,
-* software distributed under the License is distributed on an
-* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-* KIND, either express or implied.  See the License for the
-* specific language governing permissions and limitations
-* under the License.
-*/
-
-import static junit.framework.Assert.assertEquals;
-import org.apache.cassandra.Util;
-import static org.apache.cassandra.Util.column;
-import static org.apache.cassandra.Util.addMutation;
-
-import java.net.InetAddress;
+import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.CleanupHelper;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
-import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.filter.IFilter;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.io.sstable.SSTableUtils;
-import org.apache.cassandra.io.sstable.SSTableReader;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.IndexClause;
-import org.apache.cassandra.thrift.IndexExpression;
-import org.apache.cassandra.thrift.IndexOperator;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.NodeId;
+import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.MoreExecutors;
 
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.junit.Assert;
 
-public class StreamingTransferTest extends CleanupHelper
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.db.streaming.CassandraOutgoingFile;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.concurrent.Refs;
+
+import static org.apache.cassandra.SchemaLoader.compositeIndexCFMD;
+import static org.apache.cassandra.SchemaLoader.createKeyspace;
+import static org.apache.cassandra.SchemaLoader.standardCFMD;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
+public class StreamingTransferTest
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingTransferTest.class);
 
-    public static final InetAddress LOCAL = FBUtilities.getBroadcastAddress();
+    static
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
+    public static final InetAddressAndPort LOCAL = FBUtilities.getBroadcastAddressAndPort();
+    public static final String KEYSPACE1 = "StreamingTransferTest1";
+    public static final String CF_STANDARD = "Standard1";
+    public static final String CF_COUNTER = "Counter1";
+    public static final String CF_STANDARDINT = "StandardInteger1";
+    public static final String CF_INDEX = "Indexed1";
+    public static final String KEYSPACE_CACHEKEY = "KeyStreamingTransferTestSpace";
+    public static final String CF_STANDARD2 = "Standard2";
+    public static final String CF_STANDARD3 = "Standard3";
+    public static final String KEYSPACE2 = "StreamingTransferTest2";
 
     @BeforeClass
-    public static void setup() throws Exception
+    public static void defineSchema() throws Exception
     {
+        SchemaLoader.prepareServer();
         StorageService.instance.initServer();
+
+        createKeyspace(KEYSPACE1,
+                       KeyspaceParams.simple(1),
+                       standardCFMD(KEYSPACE1, CF_STANDARD),
+                       TableMetadata.builder(KEYSPACE1, CF_COUNTER)
+                                    .isCounter(true)
+                                    .addPartitionKeyColumn("key", BytesType.instance),
+                       TableMetadata.builder(KEYSPACE1, CF_STANDARDINT)
+                                    .addPartitionKeyColumn("key", AsciiType.instance)
+                                    .addClusteringColumn("cols", Int32Type.instance)
+                                    .addRegularColumn("val", BytesType.instance),
+                       compositeIndexCFMD(KEYSPACE1, CF_INDEX, true));
+
+        createKeyspace(KEYSPACE2, KeyspaceParams.simple(1));
+
+        createKeyspace(KEYSPACE_CACHEKEY,
+                       KeyspaceParams.simple(1),
+                       standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD),
+                       standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD2),
+                       standardCFMD(KEYSPACE_CACHEKEY, CF_STANDARD3));
+    }
+
+    /**
+     * Test if empty {@link StreamPlan} returns success with empty result.
+     */
+    @Test
+    public void testEmptyStreamPlan() throws Exception
+    {
+        StreamResultFuture futureResult = new StreamPlan(StreamOperation.OTHER).execute();
+        final TimeUUID planId = futureResult.planId;
+        Futures.addCallback(futureResult, new FutureCallback<StreamState>()
+        {
+            public void onSuccess(StreamState result)
+            {
+                assert planId.equals(result.planId);
+                assert result.streamOperation == StreamOperation.OTHER;
+                assert result.sessions.isEmpty();
+            }
+
+            public void onFailure(Throwable t)
+            {
+                fail();
+            }
+        }, MoreExecutors.directExecutor());
+        // should be complete immediately
+        futureResult.get(100, TimeUnit.MILLISECONDS);
+    }
+
+    @Test
+    public void testRequestEmpty() throws Exception
+    {
+        // requesting empty data should succeed
+        IPartitioner p = Util.testPartitioner();
+        List<Range<Token>> ranges = new ArrayList<>();
+        ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
+        ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
+
+        StreamResultFuture futureResult = new StreamPlan(StreamOperation.OTHER)
+                                                  .requestRanges(LOCAL, KEYSPACE2, RangesAtEndpoint.toDummyList(ranges), RangesAtEndpoint.toDummyList(Collections.emptyList()))
+                                                  .execute();
+
+        TimeUUID planId = futureResult.planId;
+        StreamState result = futureResult.get();
+        assert planId.equals(result.planId);
+        assert result.streamOperation == StreamOperation.OTHER;
+
+        // we should have completed session with empty transfer
+        assert result.sessions.size() == 1;
+        SessionInfo session = Iterables.get(result.sessions, 0);
+        assert session.peer.equals(LOCAL);
+        assert session.getTotalFilesReceived() == 0;
+        assert session.getTotalFilesSent() == 0;
+        assert session.getTotalSizeReceived() == 0;
+        assert session.getTotalSizeSent() == 0;
     }
 
     /**
      * Create and transfer a single sstable, and return the keys that should have been transferred.
      * The Mutator must create the given column, but it may also create any other columns it pleases.
      */
-    private List<String> createAndTransfer(Table table, ColumnFamilyStore cfs, Mutator mutator) throws Exception
+    private List<String> createAndTransfer(ColumnFamilyStore cfs, Mutator mutator, boolean transferSSTables) throws Exception
     {
         // write a temporary SSTable, and unregister it
-        logger.debug("Mutating " + cfs.columnFamily);
+        logger.debug("Mutating {}", cfs.name);
         long timestamp = 1234;
         for (int i = 1; i <= 3; i++)
             mutator.mutate("key" + i, "col" + i, timestamp);
-        cfs.forceBlockingFlush();
-        Util.compactAll(cfs).get();
-        assertEquals(1, cfs.getSSTables().size());
-        SSTableReader sstable = cfs.getSSTables().iterator().next();
-        cfs.clearUnsafe();
+        Util.flush(cfs);
+        Util.compactAll(cfs, Integer.MAX_VALUE).get();
+        assertEquals(1, cfs.getLiveSSTables().size());
 
         // transfer the first and last key
-        logger.debug("Transferring " + cfs.columnFamily);
-        transfer(table, sstable);
+        logger.debug("Transferring {}", cfs.name);
+        int[] offs;
+        if (transferSSTables)
+        {
+            SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+            cfs.clearUnsafe();
+            transferSSTables(sstable);
+            offs = new int[]{1, 3};
+        }
+        else
+        {
+            long beforeStreaming = System.currentTimeMillis();
+            transferRanges(cfs);
+            cfs.discardSSTables(beforeStreaming);
+            offs = new int[]{2, 3};
+        }
 
         // confirm that a single SSTable was transferred and registered
-        assertEquals(1, cfs.getSSTables().size());
+        assertEquals(1, cfs.getLiveSSTables().size());
 
         // and that the index and filter were properly recovered
-        int[] offs = new int[]{1, 3};
-        List<Row> rows = Util.getRangeSlice(cfs);
-        assertEquals(offs.length, rows.size());
+        List<ImmutableBTreePartition> partitions = Util.getAllUnfiltered(Util.cmd(cfs).build());
+        assertEquals(offs.length, partitions.size());
         for (int i = 0; i < offs.length; i++)
         {
             String key = "key" + offs[i];
             String col = "col" + offs[i];
-            assert null != cfs.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk(key),
-                                               new QueryPath(cfs.columnFamily)));
-            assert rows.get(i).key.key.equals(ByteBufferUtil.bytes(key));
-            assert rows.get(i).cf.getColumn(ByteBufferUtil.bytes(col)) != null;
+
+            assert !Util.getAll(Util.cmd(cfs, key).build()).isEmpty();
+            ImmutableBTreePartition partition = partitions.get(i);
+            assert ByteBufferUtil.compareUnsigned(partition.partitionKey().getKey(), ByteBufferUtil.bytes(key)) == 0;
+            assert ByteBufferUtil.compareUnsigned(partition.iterator().next().clustering().bufferAt(0), ByteBufferUtil.bytes(col)) == 0;
         }
 
         // and that the max timestamp for the file was rediscovered
-        assertEquals(timestamp, cfs.getSSTables().iterator().next().getMaxTimestamp());
-        
-        List<String> keys = new ArrayList<String>();
+        assertEquals(timestamp, cfs.getLiveSSTables().iterator().next().getMaxTimestamp());
+
+        List<String> keys = new ArrayList<>();
         for (int off : offs)
             keys.add("key" + off);
 
-        logger.debug("... everything looks good for " + cfs.columnFamily);
+        logger.debug("... everything looks good for {}", cfs.name);
         return keys;
     }
 
-    private void transfer(Table table, SSTableReader sstable) throws Exception
+    private void transferSSTables(SSTableReader sstable) throws Exception
     {
-        IPartitioner p = StorageService.getPartitioner();
-        List<Range> ranges = new ArrayList<Range>();
-        ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
-        ranges.add(new Range(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
-        StreamOutSession session = StreamOutSession.create(table.name, LOCAL, null);
-        StreamOut.transferSSTables(session, Arrays.asList(sstable), ranges, OperationType.BOOTSTRAP);
-        session.await();
+        IPartitioner p = sstable.getPartitioner();
+        List<Range<Token>> ranges = new ArrayList<>();
+        ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
+        ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
+        transfer(sstable, ranges);
     }
 
-    @Test
-    public void testTransferTable() throws Exception
+    private void transferRanges(ColumnFamilyStore cfs) throws Exception
     {
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfs = table.getColumnFamilyStore("Indexed1");
-        
-        List<String> keys = createAndTransfer(table, cfs, new Mutator()
+        IPartitioner p = cfs.getPartitioner();
+        List<Range<Token>> ranges = new ArrayList<>();
+        // wrapped range
+        ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key0"))));
+        StreamPlan streamPlan = new StreamPlan(StreamOperation.OTHER).transferRanges(LOCAL, cfs.keyspace.getName(), RangesAtEndpoint.toDummyList(ranges), cfs.getTableName());
+        streamPlan.execute().get();
+
+        //cannot add ranges after stream session is finished
+        try
+        {
+            streamPlan.transferRanges(LOCAL, cfs.keyspace.getName(), RangesAtEndpoint.toDummyList(ranges), cfs.getTableName());
+            fail("Should have thrown exception");
+        }
+        catch (RuntimeException e)
+        {
+            //do nothing
+        }
+    }
+
+    private void transfer(SSTableReader sstable, List<Range<Token>> ranges) throws Exception
+    {
+        StreamPlan streamPlan = new StreamPlan(StreamOperation.OTHER).transferStreams(LOCAL, makeOutgoingStreams(ranges, Refs.tryRef(Arrays.asList(sstable))));
+        streamPlan.execute().get();
+
+        //cannot add files after stream session is finished
+        try
+        {
+            streamPlan.transferStreams(LOCAL, makeOutgoingStreams(ranges, Refs.tryRef(Arrays.asList(sstable))));
+            fail("Should have thrown exception");
+        }
+        catch (RuntimeException e)
+        {
+            //do nothing
+        }
+    }
+
+    private Collection<OutgoingStream> makeOutgoingStreams(StreamOperation operation, List<Range<Token>> ranges, Refs<SSTableReader> sstables)
+    {
+        ArrayList<OutgoingStream> streams = new ArrayList<>();
+        for (SSTableReader sstable : sstables)
+        {
+            streams.add(new CassandraOutgoingFile(operation,
+                                                  sstables.get(sstable),
+                                                  sstable.getPositionsForRanges(ranges),
+                                                  ranges,
+                                                  sstable.estimatedKeysForRanges(ranges)));
+        }
+        return streams;
+    }
+
+    private Collection<OutgoingStream> makeOutgoingStreams(List<Range<Token>> ranges, Refs<SSTableReader> sstables)
+    {
+        return makeOutgoingStreams(StreamOperation.OTHER, ranges, sstables);
+    }
+
+    private void doTransferTable(boolean transferSSTables) throws Exception
+    {
+        final Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_INDEX);
+        cfs.disableAutoCompaction();
+        List<String> keys = createAndTransfer(cfs, new Mutator()
         {
             public void mutate(String key, String col, long timestamp) throws Exception
             {
                 long val = key.hashCode();
-                RowMutation rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes(key));
-                ColumnFamily cf = ColumnFamily.create(table.name, cfs.columnFamily);
-                cf.addColumn(column(col, "v", timestamp));
-                cf.addColumn(new Column(ByteBufferUtil.bytes("birthdate"), ByteBufferUtil.bytes(val), timestamp));
-                rm.add(cf);
-                logger.debug("Applying row to transfer " + rm);
-                rm.apply();
+
+                RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata(), timestamp, key);
+                builder.clustering(col).add("birthdate", ByteBufferUtil.bytes(val));
+                builder.build().applyUnsafe();
             }
-        });
+        }, transferSSTables);
 
         // confirm that the secondary index was recovered
         for (String key : keys)
         {
             long val = key.hashCode();
-            IPartitioner p = StorageService.getPartitioner();
-            IndexExpression expr = new IndexExpression(ByteBufferUtil.bytes("birthdate"),
-                                                       IndexOperator.EQ,
-                                                       ByteBufferUtil.bytes(val));
-            IndexClause clause = new IndexClause(Arrays.asList(expr), ByteBufferUtil.EMPTY_BYTE_BUFFER, 100);
-            IFilter filter = new IdentityQueryFilter();
-            Range range = new Range(p.getMinimumToken(), p.getMinimumToken());
-            List<Row> rows = cfs.search(clause, range, filter);
-            assertEquals(1, rows.size());
-            assert rows.get(0).key.key.equals(ByteBufferUtil.bytes(key));
+
+            // test we can search:
+            UntypedResultSet result = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".\"%s\" WHERE birthdate = %d",
+                                                                                   cfs.metadata.keyspace, cfs.metadata.name, val));
+            assertEquals(1, result.size());
+
+            assert result.iterator().next().getBytes("key").equals(ByteBufferUtil.bytes(key));
         }
     }
 
+    /**
+     * Test to make sure RangeTombstones at column index boundary transferred correctly.
+     */
     @Test
-    public void testTransferTableSuper() throws Exception
+    public void testTransferRangeTombstones() throws Exception
     {
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfs = table.getColumnFamilyStore("Super1");
-        
-        createAndTransfer(table, cfs, new Mutator()
-        {
-            public void mutate(String key, String col, long timestamp) throws Exception
-            {
-                RowMutation rm = new RowMutation(table.name, ByteBufferUtil.bytes(key));
-                addMutation(rm, cfs.columnFamily, col, 1, "val1", timestamp);
-                rm.apply();
-            }
-        });
+        String ks = KEYSPACE1;
+        String cfname = "StandardInteger1";
+        Keyspace keyspace = Keyspace.open(ks);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+        ClusteringComparator comparator = cfs.getComparator();
+
+        String key = "key1";
+
+
+        RowUpdateBuilder updates = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros(), key);
+
+        // add columns of size slightly less than column_index_size to force insert column index
+        updates.clustering(1)
+                .add("val", ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize() - 64]))
+                .build()
+                .apply();
+
+        updates = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros(), key);
+        updates.clustering(6)
+                .add("val", ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize()]))
+                .build()
+                .apply();
+
+        // add RangeTombstones
+        //updates = new RowUpdateBuilder(cfs.metadata, FBUtilities.timestampMicros() + 1 , key);
+        //updates.addRangeTombstone(Slice.make(comparator, comparator.make(2), comparator.make(4)))
+        //        .build()
+        //        .apply();
+
+
+        updates = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros() + 1, key);
+        updates.addRangeTombstone(5, 7)
+                .build()
+                .apply();
+
+        Util.flush(cfs);
+
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        cfs.clearUnsafe();
+        transferSSTables(sstable);
+
+        // confirm that a single SSTable was transferred and registered
+        assertEquals(1, cfs.getLiveSSTables().size());
+
+        Row r = Util.getOnlyRow(Util.cmd(cfs).build());
+        Assert.assertFalse(r.isEmpty());
+        Assert.assertTrue(1 == Int32Type.instance.compose(r.clustering().bufferAt(0)));
     }
 
     @Test
+    public void testTransferTableViaRanges() throws Exception
+    {
+        doTransferTable(false);
+    }
+
+    @Test
+    public void testTransferTableViaSSTables() throws Exception
+    {
+        doTransferTable(true);
+    }
+
+    /*
+    @Test
     public void testTransferTableCounter() throws Exception
     {
-        final Table table = Table.open("Keyspace1");
-        final ColumnFamilyStore cfs = table.getColumnFamilyStore("Counter1");
+        final Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Counter1");
         final CounterContext cc = new CounterContext();
-        
-        final Map<String, ColumnFamily> cleanedEntries = new HashMap<String, ColumnFamily>();
 
-        List<String> keys = createAndTransfer(table, cfs, new Mutator()
+        final Map<String, ColumnFamily> cleanedEntries = new HashMap<>();
+
+        List<String> keys = createAndTransfer(cfs, new Mutator()
         {
-            /** Creates a new SSTable per key: all will be merged before streaming. */
+            // Creates a new SSTable per key: all will be merged before streaming.
             public void mutate(String key, String col, long timestamp) throws Exception
             {
-                Map<String, ColumnFamily> entries = new HashMap<String, ColumnFamily>();
-                ColumnFamily cf = ColumnFamily.create(cfs.metadata);
-                ColumnFamily cfCleaned = ColumnFamily.create(cfs.metadata);
-                CounterContext.ContextState state = CounterContext.ContextState.allocate(4, 1);
-                state.writeElement(NodeId.fromInt(2), 9L, 3L, true);
-                state.writeElement(NodeId.fromInt(4), 4L, 2L);
-                state.writeElement(NodeId.fromInt(6), 3L, 3L);
-                state.writeElement(NodeId.fromInt(8), 2L, 4L);
-                cf.addColumn(new CounterColumn(ByteBufferUtil.bytes(col),
-                                               state.context,
-                                               timestamp));
-                cfCleaned.addColumn(new CounterColumn(ByteBufferUtil.bytes(col),
-                                                      cc.clearAllDelta(state.context),
-                                                      timestamp));
+                Map<String, ColumnFamily> entries = new HashMap<>();
+                ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cfs.metadata);
+                ColumnFamily cfCleaned = ArrayBackedSortedColumns.factory.create(cfs.metadata);
+                CounterContext.ContextState state = CounterContext.ContextState.allocate(0, 1, 3);
+                state.writeLocal(CounterId.fromInt(2), 9L, 3L);
+                state.writeRemote(CounterId.fromInt(4), 4L, 2L);
+                state.writeRemote(CounterId.fromInt(6), 3L, 3L);
+                state.writeRemote(CounterId.fromInt(8), 2L, 4L);
+                cf.addColumn(new BufferCounterCell(cellname(col), state.context, timestamp));
+                cfCleaned.addColumn(new BufferCounterCell(cellname(col), cc.clearAllLocal(state.context), timestamp));
 
                 entries.put(key, cf);
                 cleanedEntries.put(key, cfCleaned);
                 cfs.addSSTable(SSTableUtils.prepare()
-                    .ks(table.name)
-                    .cf(cfs.columnFamily)
+                    .ks(keyspace.getName())
+                    .cf(cfs.name)
                     .generation(0)
                     .write(entries));
             }
-        });
+        }, true);
 
         // filter pre-cleaned entries locally, and ensure that the end result is equal
         cleanedEntries.keySet().retainAll(keys);
         SSTableReader cleaned = SSTableUtils.prepare()
-            .ks(table.name)
-            .cf(cfs.columnFamily)
+            .ks(keyspace.getName())
+            .cf(cfs.name)
             .generation(0)
             .write(cleanedEntries);
-        SSTableReader streamed = cfs.getSSTables().iterator().next();
+        SSTableReader streamed = cfs.getLiveSSTables().iterator().next();
         SSTableUtils.assertContentEquals(cleaned, streamed);
 
         // Retransfer the file, making sure it is now idempotent (see CASSANDRA-3481)
         cfs.clearUnsafe();
-        transfer(table, streamed);
-        SSTableReader restreamed = cfs.getSSTables().iterator().next();
+        transferSSTables(streamed);
+        SSTableReader restreamed = cfs.getLiveSSTables().iterator().next();
         SSTableUtils.assertContentEquals(streamed, restreamed);
     }
 
@@ -239,60 +446,58 @@ public class StreamingTransferTest extends CleanupHelper
     public void testTransferTableMultiple() throws Exception
     {
         // write temporary SSTables, but don't register them
-        Set<String> content = new HashSet<String>();
+        Set<String> content = new HashSet<>();
         content.add("test");
         content.add("test2");
         content.add("test3");
-        SSTableReader sstable = SSTableUtils.prepare().write(content);
-        String tablename = sstable.getTableName();
+        SSTableReader sstable = new SSTableUtils(KEYSPACE1, CF_STANDARD).prepare().write(content);
+        String keyspaceName = sstable.getKeyspaceName();
         String cfname = sstable.getColumnFamilyName();
 
-        content = new HashSet<String>();
+        content = new HashSet<>();
         content.add("transfer1");
         content.add("transfer2");
         content.add("transfer3");
         SSTableReader sstable2 = SSTableUtils.prepare().write(content);
 
         // transfer the first and last key
-        IPartitioner p = StorageService.getPartitioner();
-        List<Range> ranges = new ArrayList<Range>();
-        ranges.add(new Range(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("test"))));
-        ranges.add(new Range(p.getToken(ByteBufferUtil.bytes("transfer2")), p.getMinimumToken()));
+        IPartitioner p = Util.testPartitioner();
+        List<Range<Token>> ranges = new ArrayList<>();
+        ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("test"))));
+        ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("transfer2")), p.getMinimumToken()));
         // Acquiring references, transferSSTables needs it
-        sstable.acquireReference();
-        sstable2.acquireReference();
-        StreamOutSession session = StreamOutSession.create(tablename, LOCAL, null);
-        StreamOut.transferSSTables(session, Arrays.asList(sstable, sstable2), ranges, OperationType.BOOTSTRAP);
-        session.await();
+        Refs<SSTableReader> refs = Refs.tryRef(Arrays.asList(sstable, sstable2));
+        assert refs != null;
+        new StreamPlan("StreamingTransferTest").transferStreams(LOCAL, makeOutgoingStreams(ranges, refs)).execute().get();
 
         // confirm that the sstables were transferred and registered and that 2 keys arrived
-        ColumnFamilyStore cfstore = Table.open(tablename).getColumnFamilyStore(cfname);
+        ColumnFamilyStore cfstore = Keyspace.open(keyspaceName).getColumnFamilyStore(cfname);
         List<Row> rows = Util.getRangeSlice(cfstore);
         assertEquals(2, rows.size());
-        assert rows.get(0).key.key.equals(ByteBufferUtil.bytes("test"));
-        assert rows.get(1).key.key.equals(ByteBufferUtil.bytes("transfer3"));
+        assert rows.get(0).key.getKey().equals(ByteBufferUtil.bytes("test"));
+        assert rows.get(1).key.getKey().equals(ByteBufferUtil.bytes("transfer3"));
         assert rows.get(0).cf.getColumnCount() == 1;
         assert rows.get(1).cf.getColumnCount() == 1;
 
         // these keys fall outside of the ranges and should not be transferred
-        assert null == cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer1"), new QueryPath("Standard1")));
-        assert null == cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer2"), new QueryPath("Standard1")));
-        assert null == cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("test2"), new QueryPath("Standard1")));
-        assert null == cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("test3"), new QueryPath("Standard1")));
+        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer1"), "Standard1", System.currentTimeMillis())) == null;
+        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("transfer2"), "Standard1", System.currentTimeMillis())) == null;
+        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("test2"), "Standard1", System.currentTimeMillis())) == null;
+        assert cfstore.getColumnFamily(QueryFilter.getIdentityFilter(Util.dk("test3"), "Standard1", System.currentTimeMillis())) == null;
     }
 
     @Test
     public void testTransferOfMultipleColumnFamilies() throws Exception
     {
-        String keyspace = "KeyCacheSpace";
-        IPartitioner p = StorageService.getPartitioner();
+        String keyspace = KEYSPACE_CACHEKEY;
+        IPartitioner p = Util.testPartitioner();
         String[] columnFamilies = new String[] { "Standard1", "Standard2", "Standard3" };
-        List<SSTableReader> ssTableReaders = new ArrayList<SSTableReader>();
+        List<SSTableReader> ssTableReaders = new ArrayList<>();
 
-        NavigableMap<DecoratedKey,String> keys = new TreeMap<DecoratedKey,String>();
+        NavigableMap<DecoratedKey,String> keys = new TreeMap<>();
         for (String cf : columnFamilies)
         {
-            Set<String> content = new HashSet<String>();
+            Set<String> content = new HashSet<>();
             content.add("data-" + cf + "-1");
             content.add("data-" + cf + "-2");
             content.add("data-" + cf + "-3");
@@ -308,30 +513,63 @@ public class StreamingTransferTest extends CleanupHelper
         Map.Entry<DecoratedKey,String> first = keys.firstEntry();
         Map.Entry<DecoratedKey,String> last = keys.lastEntry();
         Map.Entry<DecoratedKey,String> secondtolast = keys.lowerEntry(last.getKey());
-        List<Range> ranges = new ArrayList<Range>();
-        ranges.add(new Range(p.getMinimumToken(), first.getKey().token));
+        List<Range<Token>> ranges = new ArrayList<>();
+        ranges.add(new Range<>(p.getMinimumToken(), first.getKey().getToken()));
         // the left hand side of the range is exclusive, so we transfer from the second-to-last token
-        ranges.add(new Range(secondtolast.getKey().token, p.getMinimumToken()));
+        ranges.add(new Range<>(secondtolast.getKey().getToken(), p.getMinimumToken()));
 
         // Acquiring references, transferSSTables needs it
-        if (!SSTableReader.acquireReferences(ssTableReaders))
+        Refs<SSTableReader> refs = Refs.tryRef(ssTableReaders);
+        if (refs == null)
             throw new AssertionError();
 
-        StreamOutSession session = StreamOutSession.create(keyspace, LOCAL, null);
-        StreamOut.transferSSTables(session, ssTableReaders, ranges, OperationType.BOOTSTRAP);
-
-        session.await();
+        new StreamPlan("StreamingTransferTest").transferStreams(LOCAL, makeOutgoingStreams(ranges, refs)).execute().get();
 
         // check that only two keys were transferred
         for (Map.Entry<DecoratedKey,String> entry : Arrays.asList(first, last))
         {
-            ColumnFamilyStore store = Table.open(keyspace).getColumnFamilyStore(entry.getValue());
+            ColumnFamilyStore store = Keyspace.open(keyspace).getColumnFamilyStore(entry.getValue());
             List<Row> rows = Util.getRangeSlice(store);
             assertEquals(rows.toString(), 1, rows.size());
             assertEquals(entry.getKey(), rows.get(0).key);
         }
     }
 
+    @Test
+    public void testRandomSSTableTransfer() throws Exception
+    {
+        final Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
+        Mutator mutator = new Mutator()
+        {
+            public void mutate(String key, String colName, long timestamp) throws Exception
+            {
+                ColumnFamily cf = ArrayBackedSortedColumns.factory.create(keyspace.getName(), cfs.name);
+                cf.addColumn(column(colName, "value", timestamp));
+                cf.addColumn(new BufferCell(cellname("birthdate"), ByteBufferUtil.bytes(new Date(timestamp).toString()), timestamp));
+                Mutation rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes(key), cf);
+                logger.debug("Applying row to transfer {}", rm);
+                rm.applyUnsafe();
+            }
+        };
+        // write a lot more data so the data is spread in more than 1 chunk.
+        for (int i = 1; i <= 6000; i++)
+            mutator.mutate("key" + i, "col" + i, System.currentTimeMillis());
+        Util.flush(cfs);
+        Util.compactAll(cfs, Integer.MAX_VALUE).get();
+        SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
+        cfs.clearUnsafe();
+
+        IPartitioner p = Util.testPartitioner();
+        List<Range<Token>> ranges = new ArrayList<>();
+        ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key1000"))));
+        ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key5")), p.getToken(ByteBufferUtil.bytes("key500"))));
+        ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key9")), p.getToken(ByteBufferUtil.bytes("key900"))));
+        transfer(sstable, ranges);
+        assertEquals(1, cfs.getLiveSSTables().size());
+        assertEquals(7, Util.getRangeSlice(cfs).size());
+    }
+    */
     public interface Mutator
     {
         public void mutate(String key, String col, long timestamp) throws Exception;

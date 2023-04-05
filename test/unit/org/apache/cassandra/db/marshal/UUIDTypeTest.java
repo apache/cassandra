@@ -1,7 +1,7 @@
 package org.apache.cassandra.db.marshal;
 
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -9,45 +9,55 @@ package org.apache.cassandra.db.marshal;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Random;
 import java.util.UUID;
 
+import org.junit.Test;
+
+import org.junit.Assert;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
-import org.apache.log4j.Logger;
-import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class UUIDTypeTest
 {
 
-    private static final Logger logger = Logger.getLogger(UUIDTypeTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(UUIDTypeTest.class);
 
     UUIDType uuidType = new UUIDType();
 
+    @Test //CASSANDRA-15896
+    public void testToJsonEmptyValue()
+    {
+        String res = uuidType.toJSONString(uuidType.fromJSONObject("").bindAndGet(null), ProtocolVersion.CURRENT);
+        assertEquals("\"\"", res);
+    }
+
     @Test
-    public void testCompare()
+    public void testRandomCompare()
     {
 
-        UUID t1 = newTimeBasedUUID();
-        UUID t2 = newTimeBasedUUID();
+        UUID t1 = nextTimeUUID().asUUID();
+        UUID t2 = nextTimeUUID().asUUID();
 
         testCompare(null, t2, -1);
         testCompare(t1, null, 1);
@@ -73,17 +83,6 @@ public class UUIDTypeTest
 
             testCompare(t1, r1, -1);
             testCompare(r2, t2, 1);
-        }
-    }
-
-    public UUID newTimeBasedUUID()
-    {
-        try
-        {
-            return UUIDGen.makeType1UUIDFromHost(InetAddress.getLocalHost());
-        } catch (UnknownHostException e)
-        {
-            throw new RuntimeException(e);
         }
     }
 
@@ -181,7 +180,7 @@ public class UUIDTypeTest
     @Test
     public void testTimeEquality()
     {
-        UUID a = newTimeBasedUUID();
+        UUID a = nextTimeUUID().asUUID();
         UUID b = new UUID(a.getMostSignificantBits(),
                 a.getLeastSignificantBits());
 
@@ -191,9 +190,9 @@ public class UUIDTypeTest
     @Test
     public void testTimeSmaller()
     {
-        UUID a = newTimeBasedUUID();
-        UUID b = newTimeBasedUUID();
-        UUID c = newTimeBasedUUID();
+        UUID a = nextTimeUUID().asUUID();
+        UUID b = nextTimeUUID().asUUID();
+        UUID c = nextTimeUUID().asUUID();
 
         assert uuidType.compare(bytebuffer(a), bytebuffer(b)) < 0;
         assert uuidType.compare(bytebuffer(b), bytebuffer(c)) < 0;
@@ -203,9 +202,9 @@ public class UUIDTypeTest
     @Test
     public void testTimeBigger()
     {
-        UUID a = newTimeBasedUUID();
-        UUID b = newTimeBasedUUID();
-        UUID c = newTimeBasedUUID();
+        UUID a = nextTimeUUID().asUUID();
+        UUID b = nextTimeUUID().asUUID();
+        UUID c = nextTimeUUID().asUUID();
 
         assert uuidType.compare(bytebuffer(c), bytebuffer(b)) > 0;
         assert uuidType.compare(bytebuffer(b), bytebuffer(a)) > 0;
@@ -213,24 +212,255 @@ public class UUIDTypeTest
     }
 
     @Test
-    public void testTimestampComparison()
+    public void testPermutations()
     {
-        Random rng = new Random();
-        ByteBuffer[] uuids = new ByteBuffer[100];
-        for (int i = 0; i < uuids.length; i++)
+        compareAll(random(1000, (byte) 0x00, (byte) 0x10, (byte) 0x20));
+        for (ByteBuffer[] permutations : permutations(10,  (byte) 0x00, (byte) 0x10, (byte) 0x20))
+            compareAll(permutations);
+    }
+
+    private void compareAll(ByteBuffer[] uuids)
+    {
+        for (int i = 0 ; i < uuids.length ; i++)
         {
-            uuids[i] = ByteBuffer.allocate(16);
-            rng.nextBytes(uuids[i].array());
-            // set version to 1
-            uuids[i].array()[6] &= 0x0F;
-            uuids[i].array()[6] |= 0x10;
+            for (int j = i + 1 ; j < uuids.length ; j++)
+            {
+                ByteBuffer bi = uuids[i];
+                ByteBuffer bj = uuids[j];
+                UUID ui = UUIDGen.getUUID(bi);
+                UUID uj = UUIDGen.getUUID(bj);
+                int c = uuidType.compare(bi, bj);
+                if (ui.version() != uj.version())
+                {
+                    Assert.assertTrue(isComparisonEquivalent(ui.version() - uj.version(), c));
+                }
+                else if (ui.version() == 1)
+                {
+                    long i0 = ui.timestamp();
+                    long i1 = uj.timestamp();
+                    if (i0 == i1) Assert.assertTrue(isComparisonEquivalent(ByteBufferUtil.compareUnsigned(bi, bj), c));
+                    else Assert.assertTrue(isComparisonEquivalent(Long.compare(i0, i1), c));
+                }
+                else
+                {
+                    Assert.assertTrue(isComparisonEquivalent(ByteBufferUtil.compareUnsigned(bi, bj), c));
+                }
+                Assert.assertTrue(isComparisonEquivalent(compareV1(bi, bj), c));
+            }
         }
-        Arrays.sort(uuids, uuidType);
-        for (int i = 1; i < uuids.length; i++)
+    }
+
+    private static boolean isComparisonEquivalent(int c1, int c2)
+    {
+        c1 = c1 < -1 ? -1 : c1 > 1 ? 1 : c1;
+        c2 = c2 < -1 ? -1 : c2 > 1 ? 1 : c2;
+        return c1 == c2;
+    }
+
+    // produce randomCount random byte strings, and permute every possible byte within each
+    // for all provided types, using permute()
+    static Iterable<ByteBuffer[]> permutations(final int randomCount, final byte ... types)
+    {
+        final Random random = new Random();
+        long seed = random.nextLong();
+        random.setSeed(seed);
+        System.out.println("UUIDTypeTest.permutations.seed=" + seed);
+        return new Iterable<ByteBuffer[]>()
         {
-            long i0 = UUIDGen.getUUID(uuids[i - 1]).timestamp();
-            long i1 = UUIDGen.getUUID(uuids[i]).timestamp();
-            assert i0 <= i1;
+            public Iterator<ByteBuffer[]> iterator()
+            {
+                return new Iterator<ByteBuffer[]>()
+                {
+                    byte[] bytes = new byte[16];
+                    int c = -1, i = 16;
+                    public boolean hasNext()
+                    {
+                        return i < 16 || c < randomCount - 1;
+                    }
+
+                    public ByteBuffer[] next()
+                    {
+                        if (i == 16)
+                        {
+                            random.nextBytes(bytes);
+                            i = 0;
+                            c++;
+                        }
+                        return permute(bytes, i++, types);
+                    }
+                    public void remove()
+                    {
+                    }
+                };
+            }
+        };
+    }
+
+    // for each of the given UUID types provided, produce every possible
+    // permutation of the provided byte[] for the given index
+    static ByteBuffer[] permute(byte[] src, int byteIndex, byte ... types)
+    {
+        assert src.length == 16;
+        assert byteIndex < 16;
+        byte[] bytes = src.clone();
+        ByteBuffer[] permute;
+        if (byteIndex == 6)
+        {
+            permute = new ByteBuffer[16 * types.length];
+            for (int i = 0 ; i < types.length ; i++)
+            {
+                for (int j = 0 ; j < 16 ; j++)
+                {
+                    int k = i * 16 + j;
+                    bytes[6] = (byte)(types[i] | j);
+                    permute[k] = ByteBuffer.wrap(bytes.clone());
+                }
+            }
         }
+        else
+        {
+            permute = new ByteBuffer[256 * types.length];
+            for (int i = 0 ; i < types.length ; i++)
+            {
+                bytes[6] = types[i];
+                for (int j = 0 ; j < 256 ; j++)
+                {
+                    int k = i * 256 + j;
+                    bytes[byteIndex] = (byte) ((bytes[byteIndex] & 0x0F) | i);
+                    permute[k] = ByteBuffer.wrap(bytes.clone());
+                }
+            }
+        }
+        return permute;
+    }
+
+    static ByteBuffer[] random(int count, byte ... types)
+    {
+        Random random = new Random();
+        long seed = random.nextLong();
+        random.setSeed(seed);
+        System.out.println("UUIDTypeTest.random.seed=" + seed);
+        ByteBuffer[] uuids = new ByteBuffer[count * types.length];
+        for (int i = 0 ; i < types.length ; i++)
+        {
+            for (int j = 0; j < count; j++)
+            {
+                int k = (i * count) + j;
+                uuids[k] = ByteBuffer.allocate(16);
+                random.nextBytes(uuids[k].array());
+                // set version to 1
+                uuids[k].array()[6] &= 0x0F;
+                uuids[k].array()[6] |= types[i];
+            }
+        }
+        return uuids;
+    }
+
+    private static int compareV1(ByteBuffer b1, ByteBuffer b2)
+    {
+
+        // Compare for length
+
+        if ((b1 == null) || (b1.remaining() < 16))
+        {
+            return ((b2 == null) || (b2.remaining() < 16)) ? 0 : -1;
+        }
+        if ((b2 == null) || (b2.remaining() < 16))
+        {
+            return 1;
+        }
+
+        int s1 = b1.position();
+        int s2 = b2.position();
+
+        // Compare versions
+
+        int v1 = (b1.get(s1 + 6) >> 4) & 0x0f;
+        int v2 = (b2.get(s2 + 6) >> 4) & 0x0f;
+
+        if (v1 != v2)
+        {
+            return v1 - v2;
+        }
+
+        // Compare timestamps for version 1
+
+        if (v1 == 1)
+        {
+            // if both time-based, compare as timestamps
+            int c = compareTimestampBytes(b1, b2);
+            if (c != 0)
+            {
+                return c;
+            }
+        }
+
+        // Compare the two byte arrays starting from the first
+        // byte in the sequence until an inequality is
+        // found. This should provide equivalent results
+        // to the comparison performed by the RFC 4122
+        // Appendix A - Sample Implementation.
+        // Note: java.util.UUID.compareTo is not a lexical
+        // comparison
+        for (int i = 0; i < 16; i++)
+        {
+            int c = ((b1.get(s1 + i)) & 0xFF) - ((b2.get(s2 + i)) & 0xFF);
+            if (c != 0)
+            {
+                return c;
+            }
+        }
+
+        return 0;
+    }
+
+    private static int compareTimestampBytes(ByteBuffer o1, ByteBuffer o2)
+    {
+        int o1Pos = o1.position();
+        int o2Pos = o2.position();
+
+        int d = (o1.get(o1Pos + 6) & 0xF) - (o2.get(o2Pos + 6) & 0xF);
+        if (d != 0)
+        {
+            return d;
+        }
+
+        d = (o1.get(o1Pos + 7) & 0xFF) - (o2.get(o2Pos + 7) & 0xFF);
+        if (d != 0)
+        {
+            return d;
+        }
+
+        d = (o1.get(o1Pos + 4) & 0xFF) - (o2.get(o2Pos + 4) & 0xFF);
+        if (d != 0)
+        {
+            return d;
+        }
+
+        d = (o1.get(o1Pos + 5) & 0xFF) - (o2.get(o2Pos + 5) & 0xFF);
+        if (d != 0)
+        {
+            return d;
+        }
+
+        d = (o1.get(o1Pos) & 0xFF) - (o2.get(o2Pos) & 0xFF);
+        if (d != 0)
+        {
+            return d;
+        }
+
+        d = (o1.get(o1Pos + 1) & 0xFF) - (o2.get(o2Pos + 1) & 0xFF);
+        if (d != 0)
+        {
+            return d;
+        }
+
+        d = (o1.get(o1Pos + 2) & 0xFF) - (o2.get(o2Pos + 2) & 0xFF);
+        if (d != 0)
+        {
+            return d;
+        }
+
+        return (o1.get(o1Pos + 3) & 0xFF) - (o2.get(o2Pos + 3) & 0xFF);
     }
 }

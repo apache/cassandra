@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,16 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.net;
+
+import java.io.IOException;
 
 /**
  * IVerbHandler provides the method that all verb handlers need to implement.
  * The concrete implementation of this interface would provide the functionality
  * for a given verb.
  */
-
-public interface IVerbHandler
+public interface IVerbHandler<T>
 {
     /**
      * This method delivers a message to the implementing class (if the implementing
@@ -33,7 +33,6 @@ public interface IVerbHandler
      * because the implementation may be synchronized.
      *
      * @param message - incoming message that needs handling.
-     * @param id
      */
-    public void doVerb(Message message, String id);
+    void doVerb(Message<T> message) throws IOException;
 }

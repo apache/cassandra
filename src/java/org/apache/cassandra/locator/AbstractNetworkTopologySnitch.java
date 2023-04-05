@@ -1,5 +1,4 @@
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,22 +7,15 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
 package org.apache.cassandra.locator;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.*;
 
 /**
  * An endpoint snitch tells Cassandra information about network topology that it can use to route
@@ -35,20 +27,21 @@ public abstract class AbstractNetworkTopologySnitch extends AbstractEndpointSnit
      * Return the rack for which an endpoint resides in
      * @param endpoint a specified endpoint
      * @return string of rack
-     * @throws UnknownHostException
      */
-    abstract public String getRack(InetAddress endpoint);
+    abstract public String getRack(InetAddressAndPort endpoint);
 
     /**
      * Return the data center for which an endpoint resides in
      * @param endpoint a specified endpoint
      * @return string of data center
-     * @throws UnknownHostException
      */
-    abstract public String getDatacenter(InetAddress endpoint);
+    abstract public String getDatacenter(InetAddressAndPort endpoint);
 
-    public int compareEndpoints(InetAddress address, InetAddress a1, InetAddress a2)
+    @Override
+    public int compareEndpoints(InetAddressAndPort address, Replica r1, Replica r2)
     {
+        InetAddressAndPort a1 = r1.endpoint();
+        InetAddressAndPort a2 = r2.endpoint();
         if (address.equals(a1) && !address.equals(a2))
             return -1;
         if (address.equals(a2) && !address.equals(a1))

@@ -1,6 +1,4 @@
-package org.apache.cassandra.io.sstable;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,27 +6,27 @@ package org.apache.cassandra.io.sstable;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
+package org.apache.cassandra.io.sstable;
 
 import java.util.concurrent.atomic.AtomicLong;
 
 public class BloomFilterTracker
 {
-    private AtomicLong falsePositiveCount = new AtomicLong(0);
-    private AtomicLong truePositiveCount = new AtomicLong(0);
+    private final AtomicLong falsePositiveCount = new AtomicLong(0);
+    private final AtomicLong truePositiveCount = new AtomicLong(0);
+    private final AtomicLong trueNegativeCount = new AtomicLong(0);
     private long lastFalsePositiveCount = 0L;
     private long lastTruePositiveCount = 0L;
+    private long lastTrueNegativeCount = 0L;
 
     public void addFalsePositive()
     {
@@ -38,6 +36,11 @@ public class BloomFilterTracker
     public void addTruePositive()
     {
         truePositiveCount.incrementAndGet();
+    }
+
+    public void addTrueNegative()
+    {
+        trueNegativeCount.incrementAndGet();
     }
 
     public long getFalsePositiveCount()
@@ -73,6 +76,24 @@ public class BloomFilterTracker
         finally
         {
             lastTruePositiveCount = tpc;
+        }
+    }
+
+    public long getTrueNegativeCount()
+    {
+        return trueNegativeCount.get();
+    }
+
+    public long getRecentTrueNegativeCount()
+    {
+        long tnc = getTrueNegativeCount();
+        try
+        {
+            return (tnc - lastTrueNegativeCount);
+        }
+        finally
+        {
+            lastTrueNegativeCount = tnc;
         }
     }
 }

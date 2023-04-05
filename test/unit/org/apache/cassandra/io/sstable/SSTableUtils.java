@@ -19,102 +19,104 @@
 
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
+import org.apache.cassandra.io.util.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Stream;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.db.Column;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.IColumn;
-import org.apache.cassandra.db.columniterator.IColumnIterator;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 import org.apache.cassandra.Util;
+
+import static org.apache.cassandra.service.ActiveRepairService.*;
 import static org.junit.Assert.assertEquals;
 
 public class SSTableUtils
 {
-    private static Logger logger = LoggerFactory.getLogger(SSTableUtils.class);
-
-    // first configured table and cf
-    public static String TABLENAME = "Keyspace1";
+    // first configured keyspace and cf
+    public static String KEYSPACENAME = "Keyspace1";
     public static String CFNAME = "Standard1";
 
-    public static ColumnFamily createCF(long mfda, int ldt, IColumn... cols)
+    public SSTableUtils(String ksname, String cfname)
     {
-        ColumnFamily cf = ColumnFamily.create(TABLENAME, CFNAME);
-        cf.delete(ldt, mfda);
-        for (IColumn col : cols)
+        KEYSPACENAME = ksname;
+        CFNAME = cfname;
+    }
+
+    /*
+    public static ColumnFamily createCF(long mfda, int ldt, Cell... cols)
+    {
+        return createCF(KEYSPACENAME, CFNAME, mfda, ldt, cols);
+    }
+
+    public static ColumnFamily createCF(String ksname, String cfname, long mfda, int ldt, Cell... cols)
+    {
+        ColumnFamily cf = ArrayBackedSortedColumns.factory.create(ksname, cfname);
+        cf.delete(new DeletionInfo(mfda, ldt));
+        for (Cell col : cols)
             cf.addColumn(col);
         return cf;
     }
 
-    public static File tempSSTableFile(String tablename, String cfname) throws IOException
+    public static File tempSSTableFile(String keyspaceName, String cfname) throws IOException
     {
-        return tempSSTableFile(tablename, cfname, 0);
+        return tempSSTableFile(keyspaceName, cfname, 0);
     }
+    */
 
-    public static File tempSSTableFile(String tablename, String cfname, int generation) throws IOException
+    public static File tempSSTableFile(String keyspaceName, String cfname, SSTableId id) throws IOException
     {
-        File tempdir = File.createTempFile(tablename, cfname);
-        if(!tempdir.delete() || !tempdir.mkdir())
+        File tempdir = FileUtils.createTempFile(keyspaceName, cfname);
+        if(!tempdir.tryDelete() || !tempdir.tryCreateDirectory())
             throw new IOException("Temporary directory creation failed.");
         tempdir.deleteOnExit();
-        File tabledir = new File(tempdir, tablename);
-        tabledir.mkdir();
-        tabledir.deleteOnExit();
-        File datafile = new File(new Descriptor(tabledir, tablename, cfname, generation, false).filenameFor("Data.db"));
-        if (!datafile.createNewFile())
+        File cfDir = new File(tempdir, keyspaceName + File.pathSeparator() + cfname);
+        cfDir.tryCreateDirectories();
+        cfDir.deleteOnExit();
+        File datafile = new File(new Descriptor(cfDir, keyspaceName, cfname, id, SSTableFormat.Type.BIG).filenameFor(Component.DATA));
+        if (!datafile.createFileIfNotExists())
             throw new IOException("unable to create file " + datafile);
         datafile.deleteOnExit();
         return datafile;
     }
 
-    public static void assertContentEquals(SSTableReader lhs, SSTableReader rhs) throws IOException
+    public static void assertContentEquals(SSTableReader lhs, SSTableReader rhs) throws Exception
     {
-        SSTableScanner slhs = lhs.getDirectScanner();
-        SSTableScanner srhs = rhs.getDirectScanner();
-        while (slhs.hasNext())
+        try (ISSTableScanner slhs = lhs.getScanner();
+             ISSTableScanner srhs = rhs.getScanner())
         {
-            IColumnIterator ilhs = slhs.next();
-            assert srhs.hasNext() : "LHS contained more rows than RHS";
-            IColumnIterator irhs = srhs.next();
-            assertContentEquals(ilhs, irhs);
+            while (slhs.hasNext())
+            {
+                UnfilteredRowIterator ilhs = slhs.next();
+                assert srhs.hasNext() : "LHS contained more rows than RHS";
+                UnfilteredRowIterator irhs = srhs.next();
+                assertContentEquals(ilhs, irhs);
+            }
+            assert !srhs.hasNext() : "RHS contained more rows than LHS";
         }
-        assert !srhs.hasNext() : "RHS contained more rows than LHS";
     }
 
-    public static void assertContentEquals(IColumnIterator lhs, IColumnIterator rhs) throws IOException
+    public static void assertContentEquals(UnfilteredRowIterator lhs, UnfilteredRowIterator rhs)
     {
-        assertEquals(lhs.getKey(), rhs.getKey());
-        // check metadata
-        ColumnFamily lcf = lhs.getColumnFamily();
-        ColumnFamily rcf = rhs.getColumnFamily();
-        if (lcf == null)
-        {
-            if (rcf == null)
-                return;
-            throw new AssertionError("LHS had no content for " + rhs.getKey());
-        }
-        else if (rcf == null)
-            throw new AssertionError("RHS had no content for " + lhs.getKey());
-        assertEquals(lcf.getMarkedForDeleteAt(), rcf.getMarkedForDeleteAt());
-        assertEquals(lcf.getLocalDeletionTime(), rcf.getLocalDeletionTime());
+        assertEquals(lhs.partitionKey(), rhs.partitionKey());
+        assertEquals(lhs.partitionLevelDeletion(), rhs.partitionLevelDeletion());
         // iterate columns
         while (lhs.hasNext())
         {
-            IColumn clhs = lhs.next();
-            assert rhs.hasNext() : "LHS contained more columns than RHS for " + lhs.getKey();
-            IColumn crhs = rhs.next();
+            Unfiltered clhs = lhs.next();
+            assert rhs.hasNext() : "LHS contained more columns than RHS for " + lhs.partitionKey();
+            Unfiltered crhs = rhs.next();
 
-            assertEquals("Mismatched columns for " + lhs.getKey(), clhs, crhs);
+            assertEquals("Mismatched row/tombstone for " + lhs.partitionKey(), clhs, crhs);
         }
-        assert !rhs.hasNext() : "RHS contained more columns than LHS for " + lhs.getKey();
+        assert !rhs.hasNext() : "RHS contained more columns than LHS for " + lhs.partitionKey();
     }
 
     /**
@@ -127,11 +129,11 @@ public class SSTableUtils
 
     public static class Context
     {
-        private String ksname = TABLENAME;
+        private String ksname = KEYSPACENAME;
         private String cfname = CFNAME;
         private Descriptor dest = null;
         private boolean cleanup = true;
-        private int generation = 0;
+        private SSTableId id = SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get();
 
         Context() {}
 
@@ -159,91 +161,82 @@ public class SSTableUtils
         }
 
         /**
-         * Sets the generation number for the generated SSTable. Ignored if "dest()" is set.
+         * Sets the identifier for the generated SSTable. Ignored if "dest()" is set.
          */
-        public Context generation(int generation)
+        public Context id(SSTableId id)
         {
-            this.generation = generation;
+            this.id = id;
             return this;
         }
 
-        public SSTableReader write(Set<String> keys) throws IOException
+        public Collection<SSTableReader> write(Set<String> keys) throws IOException
         {
-            Map<String, ColumnFamily> map = new HashMap<String, ColumnFamily>();
+            Map<String, PartitionUpdate> map = new HashMap<>();
             for (String key : keys)
             {
-                ColumnFamily cf = ColumnFamily.create(ksname, cfname);
-                cf.addColumn(new Column(ByteBufferUtil.bytes(key), ByteBufferUtil.bytes(key), 0));
-                map.put(key, cf);
+                RowUpdateBuilder builder = new RowUpdateBuilder(Schema.instance.getTableMetadata(ksname, cfname), 0, key);
+                builder.clustering(key).add("val", key);
+                map.put(key, builder.buildUpdate());
             }
             return write(map);
         }
 
-        public SSTableReader write(Map<String, ColumnFamily> entries) throws IOException
+        public Collection<SSTableReader> write(SortedMap<DecoratedKey, PartitionUpdate> sorted) throws IOException
         {
-            SortedMap<DecoratedKey, ColumnFamily> sorted = new TreeMap<DecoratedKey, ColumnFamily>();
-            for (Map.Entry<String, ColumnFamily> entry : entries.entrySet())
+            RegularAndStaticColumns.Builder builder = RegularAndStaticColumns.builder();
+            for (PartitionUpdate update : sorted.values())
+                builder.addAll(update.columns());
+            final Iterator<Map.Entry<DecoratedKey, PartitionUpdate>> iter = sorted.entrySet().iterator();
+            return write(sorted.size(), new Appender()
+            {
+                public SerializationHeader header()
+                {
+                    return new SerializationHeader(true, Schema.instance.getTableMetadata(ksname, cfname), builder.build(), EncodingStats.NO_STATS);
+                }
+
+                @Override
+                public boolean append(SSTableTxnWriter writer) throws IOException
+                {
+                    if (!iter.hasNext())
+                        return false;
+                    writer.append(iter.next().getValue().unfilteredIterator());
+                    return true;
+                }
+            });
+        }
+
+        public Collection<SSTableReader> write(Map<String, PartitionUpdate> entries) throws IOException
+        {
+            SortedMap<DecoratedKey, PartitionUpdate> sorted = new TreeMap<>();
+            for (Map.Entry<String, PartitionUpdate> entry : entries.entrySet())
                 sorted.put(Util.dk(entry.getKey()), entry.getValue());
 
-            final Iterator<Map.Entry<DecoratedKey, ColumnFamily>> iter = sorted.entrySet().iterator();
-            return write(sorted.size(), new Appender()
-            {
-                @Override
-                public boolean append(SSTableWriter writer) throws IOException
-                {
-                    if (!iter.hasNext())
-                        return false;
-                    Map.Entry<DecoratedKey, ColumnFamily> entry = iter.next();
-                    writer.append(entry.getKey(), entry.getValue());
-                    return true;
-                }
-            });
+            return write(sorted);
         }
 
-        /**
-         * @Deprecated: Writes the binary content of a row, which should be encapsulated.
-         */
-        @Deprecated
-        public SSTableReader writeRaw(Map<ByteBuffer, ByteBuffer> entries) throws IOException
+        public Collection<SSTableReader> write(int expectedSize, Appender appender) throws IOException
         {
-            File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, generation) : new File(dest.filenameFor(Component.DATA));
-            SSTableWriter writer = new SSTableWriter(datafile.getAbsolutePath(), entries.size());
-            SortedMap<DecoratedKey, ByteBuffer> sorted = new TreeMap<DecoratedKey, ByteBuffer>();
-            for (Map.Entry<ByteBuffer, ByteBuffer> entry : entries.entrySet())
-                sorted.put(writer.partitioner.decorateKey(entry.getKey()), entry.getValue());
-            final Iterator<Map.Entry<DecoratedKey, ByteBuffer>> iter = sorted.entrySet().iterator();
-            return write(sorted.size(), new Appender()
-            {
-                @Override
-                public boolean append(SSTableWriter writer) throws IOException
-                {
-                    if (!iter.hasNext())
-                        return false;
-                    Map.Entry<DecoratedKey, ByteBuffer> entry = iter.next();
-                    writer.append(entry.getKey(), entry.getValue());
-                    return true;
-                }
-            });
-        }
-
-        public SSTableReader write(int expectedSize, Appender appender) throws IOException
-        {
-            File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, generation) : new File(dest.filenameFor(Component.DATA));
-            SSTableWriter writer = new SSTableWriter(datafile.getAbsolutePath(), expectedSize);
-            long start = System.currentTimeMillis();
+            File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, id) : new File(dest.filenameFor(Component.DATA));
+            TableMetadata metadata = Schema.instance.getTableMetadata(ksname, cfname);
+            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
+            SerializationHeader header = appender.header();
+            SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, Descriptor.fromFilename(datafile.absolutePath()), expectedSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false, 0, header);
             while (appender.append(writer)) { /* pass */ }
-            SSTableReader reader = writer.closeAndOpenReader();
+            Collection<SSTableReader> readers = writer.finish(true);
+
             // mark all components for removal
             if (cleanup)
-                for (Component component : reader.components)
-                    new File(reader.descriptor.filenameFor(component)).deleteOnExit();
-            return reader;
+                for (SSTableReader reader: readers)
+                    for (Component component : reader.components)
+                        new File(reader.descriptor.filenameFor(component)).deleteOnExit();
+            return readers;
         }
     }
 
     public static abstract class Appender
     {
+        public abstract SerializationHeader header();
         /** Called with an open writer until it returns false. */
-        public abstract boolean append(SSTableWriter writer) throws IOException;
+        public abstract boolean append(SSTableTxnWriter writer) throws IOException;
     }
 }

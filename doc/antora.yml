@@ -1,0 +1,9 @@
+name: Cassandra
+version: 'trunk'
+display_version: 'trunk'
+asciidoc:
+  attributes:
+    cass_url: 'http://cassandra.apache.org/'
+nav:
+- modules/ROOT/nav.adoc
+- modules/cassandra/nav.adoc

@@ -1,0 +1,61 @@
+#
+# Warning!
+# Consider the effects on 'o.a.c.i.s.LegacySSTableTest' before changing schemas in this file.
+#
+cluster_name: Test Cluster
+# memtable_allocation_type: heap_buffers
+memtable_allocation_type: offheap_objects
+commitlog_sync: batch
+commitlog_sync_batch_window_in_ms: 1.0
+commitlog_segment_size: 5MiB
+commitlog_directory: build/test/cassandra/commitlog
+# commitlog_compression:
+# - class_name: LZ4Compressor
+cdc_raw_directory: build/test/cassandra/cdc_raw
+cdc_enabled: false
+hints_directory: build/test/cassandra/hints
+partitioner: org.apache.cassandra.dht.ByteOrderedPartitioner
+listen_address: 127.0.0.1
+storage_port: 7010
+ssl_storage_port: 7011
+start_native_transport: true
+native_transport_port_ssl: 9142
+column_index_size: 4KiB
+saved_caches_directory: build/test/cassandra/saved_caches
+data_file_directories:
+- build/test/cassandra/data
+disk_access_mode: mmap
+seed_provider:
+- class_name: org.apache.cassandra.locator.SimpleSeedProvider
+  parameters:
+  - seeds: "127.0.0.1:7010"
+endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
+dynamic_snitch: true
+server_encryption_options:
+  internode_encryption: none
+  keystore: conf/.keystore
+  keystore_password: cassandra
+  truststore: conf/.truststore
+  truststore_password: cassandra
+incremental_backups: true
+concurrent_compactors: 4
+compaction_throughput: 0MiB/s
+row_cache_class_name: org.apache.cassandra.cache.OHCProvider
+row_cache_size: 16MiB
+user_defined_functions_enabled: true
+scripted_user_defined_functions_enabled: true
+prepared_statements_cache_size: 1MiB
+corrupted_tombstone_strategy: exception
+stream_entire_sstables: true
+stream_throughput_outbound: 23841858MiB/s
+
+client_encryption_options:
+  enabled: true
+  # If enabled and optional is set to true encrypted and unencrypted connections are handled.
+  optional: false
+  keystore: conf/cassandra_ssl_test.keystore
+  keystore_password: cassandra
+  # require_client_auth: false
+  # Set trustore and truststore_password if require_client_auth is true
+  truststore: conf/cassandra_ssl_test.truststore
+  truststore_password: cassandra

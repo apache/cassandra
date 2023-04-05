@@ -1,0 +1,24 @@
+= The Cassandra Query Language (CQL)
+
+This document describes the Cassandra Query Language
+(CQL) version 3.
+Note that this document describes the last version of the language.
+However, the xref:cql/changes.adoc[changes] section provides the differences between the versions of CQL since version 3.0.
+
+CQL offers a model similar to SQL.
+The data is stored in *tables* containing *rows* of *columns*.
+For that reason, when used in this document, these terms (tables, rows and columns) have the same definition that they have in SQL.
+
+* xref:cql/definitions.adoc[Definitions]
+* xref:cql/types.adoc[Data types]
+* xref:cql/ddl.adoc[Data definition language]
+* xref:cql/dml.adoc[Data manipulation language]
+* xref:cql/operators.adoc[Operators]
+* xref:cql/indexes.adoc[Secondary indexes]
+* xref:cql/mvs.adoc[Materialized views]
+* xref:cql/functions.adoc[Functions]
+* xref:cql/json.adoc[JSON]
+* xref:cql/security.adoc[CQL security]
+* xref:cql/triggers.adoc[Triggers]
+* xref:cql/appendices.adoc[Appendices]
+* xref:cql/changes.adoc[Changes]

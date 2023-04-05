@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,10 +15,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.gms;
 
-import java.net.InetAddress;
+import org.apache.cassandra.locator.InetAddressAndPort;
 
 /**
  * Implemented by the Gossiper to convict an endpoint
@@ -27,11 +26,12 @@ import java.net.InetAddress;
  */
 
 public interface IFailureDetectionEventListener
-{  
+{
     /**
      * Convict the specified endpoint.
-     * @param ep endpoint to be convicted
+     *
+     * @param ep  endpoint to be convicted
      * @param phi the value of phi with with ep was convicted
      */
-    public void convict(InetAddress ep, double phi);
+    public void convict(InetAddressAndPort ep, double phi);
 }

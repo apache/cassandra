@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,109 +15,57 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service;
 
-import java.net.InetAddress;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.function.Supplier;
 
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.Table;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.thrift.ConsistencyLevel;
-import org.apache.cassandra.thrift.UnavailableException;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.db.WriteType;
 
 /**
  * Handles blocking writes for ONE, ANY, TWO, THREE, QUORUM, and ALL consistency levels.
  */
-public class WriteResponseHandler extends AbstractWriteResponseHandler
+public class WriteResponseHandler<T> extends AbstractWriteResponseHandler<T>
 {
     protected static final Logger logger = LoggerFactory.getLogger(WriteResponseHandler.class);
 
-    protected final AtomicInteger responses;
+    protected volatile int responses;
+    private static final AtomicIntegerFieldUpdater<WriteResponseHandler> responsesUpdater
+            = AtomicIntegerFieldUpdater.newUpdater(WriteResponseHandler.class, "responses");
 
-    protected WriteResponseHandler(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
+    public WriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
+                                Runnable callback,
+                                WriteType writeType,
+                                Supplier<Mutation> hintOnFailure,
+                                long queryStartNanoTime)
     {
-        super(writeEndpoints, consistencyLevel);
-        responses = new AtomicInteger(determineBlockFor(table));
+        super(replicaPlan, callback, writeType, hintOnFailure, queryStartNanoTime);
+        responses = blockFor();
     }
 
-    protected WriteResponseHandler(InetAddress endpoint)
+    public WriteResponseHandler(ReplicaPlan.ForWrite replicaPlan, WriteType writeType, Supplier<Mutation> hintOnFailure, long queryStartNanoTime)
     {
-        super(Arrays.asList(endpoint), ConsistencyLevel.ALL);
-        responses = new AtomicInteger(1);
+        this(replicaPlan, null, writeType, hintOnFailure, queryStartNanoTime);
     }
 
-    public static IWriteResponseHandler create(Collection<InetAddress> writeEndpoints, ConsistencyLevel consistencyLevel, String table)
+    public void onResponse(Message<T> m)
     {
-        return new WriteResponseHandler(writeEndpoints, consistencyLevel, table);
-    }
-
-    public static IWriteResponseHandler create(InetAddress endpoint)
-    {
-        return new WriteResponseHandler(endpoint);
-    }
-
-    public void response(Message m)
-    {
-        if (responses.decrementAndGet() == 0)
+        if (responsesUpdater.decrementAndGet(this) == 0)
             signal();
+        //Must be last after all subclass processing
+        //The two current subclasses both assume logResponseToIdealCLDelegate is called
+        //here.
+        logResponseToIdealCLDelegate(m);
     }
 
-    protected int determineBlockFor(String table)
+    protected int ackCount()
     {
-        switch (consistencyLevel)
-        {
-            case ONE:
-                return 1;
-            case ANY:
-                return 1;
-            case TWO:
-                return 2;
-            case THREE:
-                return 3;
-            case QUORUM:
-                return (Table.open(table).getReplicationStrategy().getReplicationFactor() / 2) + 1;
-            case ALL:
-                return Table.open(table).getReplicationStrategy().getReplicationFactor();
-            default:
-                throw new UnsupportedOperationException("invalid consistency level: " + consistencyLevel.toString());
-        }
-    }
-
-    public void assureSufficientLiveNodes() throws UnavailableException
-    {
-        if (consistencyLevel == ConsistencyLevel.ANY)
-        {
-            // Ensure there are blockFor distinct living nodes (hints (local) are ok).
-            // Thus we include the local node (coordinator) as a valid replica if it is there already.
-            int effectiveEndpoints = writeEndpoints.contains(FBUtilities.getBroadcastAddress()) ? writeEndpoints.size() : writeEndpoints.size() + 1;
-            if (effectiveEndpoints < responses.get())
-                throw new UnavailableException();
-            return;
-        }
-
-        // count destinations that are part of the desired target set
-        int liveNodes = 0;
-        for (InetAddress destination : writeEndpoints)
-        {
-            if (FailureDetector.instance.isAlive(destination))
-                liveNodes++;
-        }
-        if (liveNodes < responses.get())
-        {
-            throw new UnavailableException();
-        }
-    }
-
-    public boolean isLatencyForSnitch()
-    {
-        return false;
+        return blockFor() - responses;
     }
 }

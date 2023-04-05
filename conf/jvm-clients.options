@@ -1,0 +1,10 @@
+###########################################################################
+#                         jvm-clients.options                             #
+#                                                                         #
+# See jvm8-clients.options and jvm11-clients.options for Java version     #
+# specific options.                                                       #
+###########################################################################
+
+# intentionally left empty
+
+# The newline in the end of file is intentional

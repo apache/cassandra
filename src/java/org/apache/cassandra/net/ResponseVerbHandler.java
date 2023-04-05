@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,40 +15,47 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.net;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ResponseVerbHandler implements IVerbHandler
-{
-    private static final Logger logger_ = LoggerFactory.getLogger( ResponseVerbHandler.class );
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.tracing.Tracing;
 
-    public void doVerb(Message message, String id)
-    {     
-        double age = System.currentTimeMillis() - MessagingService.instance().getRegisteredCallbackAge(id);
-        CallbackInfo callbackInfo = MessagingService.instance().removeRegisteredCallback(id);
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
+
+class ResponseVerbHandler implements IVerbHandler
+{
+    public static final ResponseVerbHandler instance = new ResponseVerbHandler();
+
+    private static final Logger logger = LoggerFactory.getLogger(ResponseVerbHandler.class);
+
+    @Override
+    public void doVerb(Message message)
+    {
+        RequestCallbacks.CallbackInfo callbackInfo = MessagingService.instance().callbacks.remove(message.id(), message.from());
         if (callbackInfo == null)
         {
-            logger_.debug("Callback already removed for {}", id);
+            String msg = "Callback already removed for {} (from {})";
+            logger.trace(msg, message.id(), message.from());
+            Tracing.trace(msg, message.id(), message.from());
             return;
         }
 
-        IMessageCallback cb = callbackInfo.callback;
-        MessagingService.instance().maybeAddLatency(cb, message.getFrom(), age);
+        long latencyNanos = approxTime.now() - callbackInfo.createdAtNanos;
+        Tracing.trace("Processing response from {}", message.from());
 
-        if (cb instanceof IAsyncCallback)
+        RequestCallback cb = callbackInfo.callback;
+        if (message.isFailureResponse())
         {
-            if (logger_.isDebugEnabled())
-                logger_.debug("Processing response on a callback from " + id + "@" + message.getFrom());
-            ((IAsyncCallback) cb).response(message);
+            cb.onFailure(message.from(), (RequestFailureReason) message.payload);
         }
         else
         {
-            if (logger_.isDebugEnabled())
-                logger_.debug("Processing response on an async result from " + id + "@" + message.getFrom());
-            ((IAsyncResult) cb).result(message);
+            MessagingService.instance().latencySubscribers.maybeAdd(cb, message.from(), latencyNanos, NANOSECONDS);
+            cb.onResponse(message);
         }
     }
 }

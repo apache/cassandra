@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.utils;
 
 /**
@@ -27,21 +26,22 @@ package org.apache.cassandra.utils;
  * Filter class by helping to choose correct values of 'bits per element' and
  * 'number of hash functions, k'.
  */
-class BloomCalculations {
-
+public class BloomCalculations
+{
     private static final int minBuckets = 2;
     private static final int minK = 1;
 
     private static final int EXCESS = 20;
 
     /**
-     * In the following table, the row 'i' shows false positive rates if i buckets
-     * per element are used.  Column 'j' shows false positive rates if j hash
+     * In the following keyspaceName, the row 'i' shows false positive rates if i buckets
+     * per element are used.  Cell 'j' shows false positive rates if j hash
      * functions are used.  The first row is 'i=0', the first column is 'j=0'.
      * Each cell (i,j) the false positive rate determined by using i buckets per
      * element and j hash functions.
      */
-    static final double[][] probs = new double[][]{
+    static final double[][] probs = new double[][]
+    {
         {1.0}, // dummy row representing 0 buckets per element
         {1.0, 1.0}, // dummy row representing 1 buckets per element
         {1.0, 0.393,  0.400},
@@ -58,18 +58,18 @@ class BloomCalculations {
         {1.0, 0.074,  0.0203,  0.00875, 0.00492, 0.00332,  0.00255,  0.00217,  0.00199,  0.00194},
         {1.0, 0.0689, 0.0177,  0.00718, 0.00381, 0.00244,  0.00179,  0.00146,  0.00129,  0.00121,  0.0012},
         {1.0, 0.0645, 0.0156,  0.00596, 0.003,   0.00183,  0.00128,  0.001,    0.000852, 0.000775, 0.000744}, // 15
-		{1.0, 0.0606, 0.0138,  0.005,   0.00239, 0.00139,  0.000935, 0.000702, 0.000574, 0.000505, 0.00047,  0.000459},
-		{1.0, 0.0571, 0.0123,  0.00423, 0.00193, 0.00107,  0.000692, 0.000499, 0.000394, 0.000335, 0.000302, 0.000287, 0.000284},
-		{1.0, 0.054,  0.0111,  0.00362, 0.00158, 0.000839, 0.000519, 0.00036,  0.000275, 0.000226, 0.000198, 0.000183, 0.000176},
-		{1.0, 0.0513, 0.00998, 0.00312, 0.0013,  0.000663, 0.000394, 0.000264, 0.000194, 0.000155, 0.000132, 0.000118, 0.000111, 0.000109},
-		{1.0, 0.0488, 0.00906, 0.0027,  0.00108, 0.00053,  0.000303, 0.000196, 0.00014,  0.000108, 8.89e-05, 7.77e-05, 7.12e-05, 6.79e-05, 6.71e-05} // 20
+        {1.0, 0.0606, 0.0138,  0.005,   0.00239, 0.00139,  0.000935, 0.000702, 0.000574, 0.000505, 0.00047,  0.000459},
+        {1.0, 0.0571, 0.0123,  0.00423, 0.00193, 0.00107,  0.000692, 0.000499, 0.000394, 0.000335, 0.000302, 0.000287, 0.000284},
+        {1.0, 0.054,  0.0111,  0.00362, 0.00158, 0.000839, 0.000519, 0.00036,  0.000275, 0.000226, 0.000198, 0.000183, 0.000176},
+        {1.0, 0.0513, 0.00998, 0.00312, 0.0013,  0.000663, 0.000394, 0.000264, 0.000194, 0.000155, 0.000132, 0.000118, 0.000111, 0.000109},
+        {1.0, 0.0488, 0.00906, 0.0027,  0.00108, 0.00053,  0.000303, 0.000196, 0.00014,  0.000108, 8.89e-05, 7.77e-05, 7.12e-05, 6.79e-05, 6.71e-05} // 20
     };  // the first column is a dummy column representing K=0.
 
-	/**
-	 * The optimal number of hashes for a given number of bits per element.
-	 * These values are automatically calculated from the data above.
-	 */
-	private static final int[] optKPerBuckets = new int[probs.length];
+    /**
+     * The optimal number of hashes for a given number of bits per element.
+     * These values are automatically calculated from the data above.
+     */
+    private static final int[] optKPerBuckets = new int[probs.length];
 
     static
     {
@@ -144,10 +144,12 @@ class BloomCalculations {
         int maxK = probs[maxBucketsPerElement].length - 1;
 
         // Handle the trivial cases
-        if(maxFalsePosProb >= probs[minBuckets][minK]) {
+        if(maxFalsePosProb >= probs[minBuckets][minK])
+        {
             return new BloomSpecification(2, optKPerBuckets[2]);
         }
-        if (maxFalsePosProb < probs[maxBucketsPerElement][maxK]) {
+        if (maxFalsePosProb < probs[maxBucketsPerElement][maxK])
+        {
             throw new UnsupportedOperationException(String.format("Unable to satisfy %s with %s buckets per element",
                                                                   maxFalsePosProb, maxBucketsPerElement));
         }
@@ -155,13 +157,15 @@ class BloomCalculations {
         // First find the minimal required number of buckets:
         int bucketsPerElement = 2;
         int K = optKPerBuckets[2];
-        while(probs[bucketsPerElement][K] > maxFalsePosProb){
+        while(probs[bucketsPerElement][K] > maxFalsePosProb)
+        {
             bucketsPerElement++;
             K = optKPerBuckets[bucketsPerElement];
         }
         // Now that the number of buckets is sufficient, see if we can relax K
         // without losing too much precision.
-        while(probs[bucketsPerElement][K - 1] <= maxFalsePosProb){
+        while(probs[bucketsPerElement][K - 1] <= maxFalsePosProb)
+        {
             K--;
         }
 
@@ -182,5 +186,16 @@ class BloomCalculations {
             throw new UnsupportedOperationException("Cannot compute probabilities for " + numElements + " elements.");
         }
         return Math.min(BloomCalculations.probs.length - 1, (int)v);
+    }
+
+    /**
+     * Retrieves the minimum supported BloomFilterFpChance value
+     * @return Minimum supported value for BloomFilterFpChance
+     */
+    public static double minSupportedBloomFilterFpChance()
+    {
+        int maxBuckets = probs.length - 1;
+        int maxK = probs[maxBuckets].length - 1;
+        return probs[maxBuckets][maxK];
     }
 }

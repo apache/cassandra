@@ -2,17 +2,29 @@ Source: cassandra
 Section: misc
 Priority: extra
 Maintainer: Eric Evans <eevans@apache.org>
-Build-Depends: debhelper (>= 5), openjdk-6-jdk (>= 6b11) | java6-sdk, ant (>= 1.7), ant-optional (>= 1.7), subversion
+Uploaders: Sylvain Lebresne <slebresne@apache.org>
+Build-Depends: debhelper (>= 11), openjdk-8-jdk | java8-jdk, ant (>= 1.9), ant-optional (>= 1.9), dh-python, python3-dev (>= 3.6), quilt, bash-completion
 Homepage: http://cassandra.apache.org
-Vcs-Svn: https://svn.apache.org/repos/asf/cassandra/trunk
-Vcs-Browser: http://svn.apache.org/viewvc/cassandra/trunk
+Vcs-Git: https://gitbox.apache.org/repos/asf/cassandra.git
+Vcs-Browser: https://gitbox.apache.org/repos/asf?p=cassandra.git
 Standards-Version: 3.8.3
 
 Package: cassandra
 Architecture: all
-Depends: openjdk-6-jre-headless (>= 6b11) | java6-runtime, jsvc (>= 1.0), libcommons-daemon-java (>= 1.0), adduser, libjna-java
+Depends: openjdk-8-jre-headless | java8-runtime, adduser, python3 (>= 3.6), procps, ${misc:Depends}
+Recommends: ntp | time-daemon
+Suggests: cassandra-tools
 Conflicts: apache-cassandra1
 Replaces: apache-cassandra1
 Description: distributed storage system for structured data
  Cassandra is a distributed (peer-to-peer) system for the management
  and storage of structured data.
+
+Package: cassandra-tools
+Architecture: all
+Depends: cassandra (= ${binary:Version}), ${misc:Depends}
+Description: distributed storage system for structured data
+ Cassandra is a distributed (peer-to-peer) system for the management
+ and storage of structured data.
+ .
+ This package contains extra tools for working with Cassandra clusters.

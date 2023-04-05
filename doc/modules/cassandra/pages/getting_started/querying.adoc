@@ -1,0 +1,31 @@
+= Inserting and querying
+
+The API for Cassandra is xref:cql/ddl.adoc[`CQL`, the Cassandra Query Language]. To
+use CQL, you will need to connect to the cluster, using either:
+
+* `cqlsh`, a shell for CQL
+* a client driver for Cassandra
+* for the adventurous, check out https://zeppelin.apache.org/docs/0.7.0/interpreter/cassandra.html[Apache Zeppelin], a notebook-style tool
+
+== CQLSH
+
+`cqlsh` is a command-line shell for interacting with Cassandra using
+CQL. It is shipped with every Cassandra package, and can be found in the
+`bin` directory alongside the `cassandra` executable. It connects to the
+single node specified on the command line. For example:
+
+[source, shell]
+----
+include::example$BASH/cqlsh_localhost.sh[]
+----
+[source, cql]
+----
+include::example$RESULTS/cqlsh_localhost.result[]
+----
+If the command is used without specifying a node, `localhost` is the default. See the xref:tools/cqlsh.adoc[`cqlsh` section] for full documentation.
+
+== Client drivers
+
+A lot of xref:getting_started/drivers.adoc[client drivers] are provided by the Community and a list of
+known drivers is provided. You should refer to the documentation of each driver
+for more information.

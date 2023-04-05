@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,19 +15,27 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.gms;
 
 import java.net.UnknownHostException;
+import java.util.List;
+import java.util.Map;
 
 public interface GossiperMBean
 {
-    public int getVersion(String address) throws UnknownHostException;
-
     public long getEndpointDowntime(String address) throws UnknownHostException;
 
     public int getCurrentGenerationNumber(String address) throws UnknownHostException;
 
     public void unsafeAssassinateEndpoint(String address) throws UnknownHostException;
+
+    public void assassinateEndpoint(String address) throws UnknownHostException;
+
+    public List<String> reloadSeeds();
+
+    public List<String> getSeeds();
+
+    /** Returns each node's database release version */
+    public Map<String, List<String>> getReleaseVersionsWithPort();
 
 }

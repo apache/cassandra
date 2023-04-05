@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,41 +15,61 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.gms;
 
 import java.io.*;
 import java.net.InetAddress;
+import java.util.Collection;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.sstable.format.VersionAndType;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.commons.lang3.StringUtils;
 
 
 /**
  * This abstraction represents the state associated with a particular node which an
- * application wants to make available to the rest of the nodes in the cluster. 
+ * application wants to make available to the rest of the nodes in the cluster.
  * Whenever a piece of state needs to be disseminated to the rest of cluster wrap
  * the state in an instance of <i>ApplicationState</i> and add it to the Gossiper.
- *  
+ * <p>
  * e.g. if we want to disseminate load information for node A do the following:
- * 
- *      ApplicationState loadState = new ApplicationState(<string representation of load>);
- *      Gossiper.instance.addApplicationState("LOAD STATE", loadState);
+ * </p>
+ * <pre>
+ * {@code
+ * ApplicationState loadState = new ApplicationState(<string representation of load>);
+ * Gossiper.instance.addApplicationState("LOAD STATE", loadState);
+ * }
+ * </pre>
  */
 
 public class VersionedValue implements Comparable<VersionedValue>
 {
+
     public static final IVersionedSerializer<VersionedValue> serializer = new VersionedValueSerializer();
 
     // this must be a char that cannot be present in any token
     public final static char DELIMITER = ',';
-    public final static String DELIMITER_STR = new String(new char[] { DELIMITER });
+    public final static String DELIMITER_STR = new String(new char[]{ DELIMITER });
 
     // values for ApplicationState.STATUS
     public final static String STATUS_BOOTSTRAPPING = "BOOT";
+    public final static String STATUS_BOOTSTRAPPING_REPLACE = "BOOT_REPLACE";
     public final static String STATUS_NORMAL = "NORMAL";
     public final static String STATUS_LEAVING = "LEAVING";
     public final static String STATUS_LEFT = "LEFT";
@@ -59,6 +79,7 @@ public class VersionedValue implements Comparable<VersionedValue>
     public final static String REMOVED_TOKEN = "removed";
 
     public final static String HIBERNATE = "hibernate";
+    public final static String SHUTDOWN = "shutdown";
 
     // values for ApplicationState.REMOVAL_COORDINATOR
     public final static String REMOVAL_COORDINATOR = "REMOVER";
@@ -78,6 +99,11 @@ public class VersionedValue implements Comparable<VersionedValue>
         this(value, VersionGenerator.getNextVersion());
     }
 
+    public static VersionedValue unsafeMakeVersionedValue(String value, int version)
+    {
+        return new VersionedValue(value, version);
+    }
+
     public int compareTo(VersionedValue value)
     {
         return this.version - value.version;
@@ -86,26 +112,59 @@ public class VersionedValue implements Comparable<VersionedValue>
     @Override
     public String toString()
     {
-        return "Value(" + value + "," + version + ")";
+        return "Value(" + value + ',' + version + ')';
+    }
+
+    public byte[] toBytes()
+    {
+        return value.getBytes(ISO_8859_1);
+    }
+
+    private static String versionString(String... args)
+    {
+        return StringUtils.join(args, VersionedValue.DELIMITER);
     }
 
     public static class VersionedValueFactory
     {
-        IPartitioner partitioner;
+        final IPartitioner partitioner;
 
         public VersionedValueFactory(IPartitioner partitioner)
         {
             this.partitioner = partitioner;
         }
-
-        public VersionedValue bootstrapping(Token token)
+        
+        public VersionedValue cloneWithHigherVersion(VersionedValue value)
         {
-            return new VersionedValue(VersionedValue.STATUS_BOOTSTRAPPING + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(value.value);
         }
 
-        public VersionedValue normal(Token token)
+        @Deprecated
+        public VersionedValue bootReplacing(InetAddress oldNode)
         {
-            return new VersionedValue(VersionedValue.STATUS_NORMAL + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.getHostAddress()));
+        }
+
+        public VersionedValue bootReplacingWithPort(InetAddressAndPort oldNode)
+        {
+            return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.getHostAddressAndPort()));
+        }
+
+        public VersionedValue bootstrapping(Collection<Token> tokens)
+        {
+            return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING,
+                                                    makeTokenString(tokens)));
+        }
+
+        public VersionedValue normal(Collection<Token> tokens)
+        {
+            return new VersionedValue(versionString(VersionedValue.STATUS_NORMAL,
+                                                    makeTokenString(tokens)));
+        }
+
+        private String makeTokenString(Collection<Token> tokens)
+        {
+            return partitioner.getTokenFactory().toString(Iterables.get(tokens, 0));
         }
 
         public VersionedValue load(double load)
@@ -113,20 +172,35 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(String.valueOf(load));
         }
 
-        public VersionedValue migration(UUID newVersion)
+        public VersionedValue diskUsage(String state)
+        {
+            return new VersionedValue(state);
+        }
+
+        public VersionedValue schema(UUID newVersion)
         {
             return new VersionedValue(newVersion.toString());
         }
 
-        public VersionedValue leaving(Token token)
+        public VersionedValue leaving(Collection<Token> tokens)
         {
-            return new VersionedValue(VersionedValue.STATUS_LEAVING + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(versionString(VersionedValue.STATUS_LEAVING,
+                                                    makeTokenString(tokens)));
         }
 
-        public VersionedValue left(Token token, long expireTime)
+        public VersionedValue left(Collection<Token> tokens, long expireTime)
         {
-            return new VersionedValue(VersionedValue.STATUS_LEFT + VersionedValue.DELIMITER
-                    + partitioner.getTokenFactory().toString(token) + VersionedValue.DELIMITER + expireTime);
+            return new VersionedValue(versionString(VersionedValue.STATUS_LEFT,
+                                                    makeTokenString(tokens),
+                                                    Long.toString(expireTime)));
+        }
+
+        @VisibleForTesting
+        public VersionedValue left(Collection<Token> tokens, long expireTime, int generation)
+        {
+            return new VersionedValue(versionString(VersionedValue.STATUS_LEFT,
+                                                    makeTokenString(tokens),
+                                                    Long.toString(expireTime)), generation);
         }
 
         public VersionedValue moving(Token token)
@@ -134,25 +208,54 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(VersionedValue.STATUS_MOVING + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
         }
 
-        public VersionedValue removingNonlocal(Token token)
+        public VersionedValue hostId(UUID hostId)
         {
-            return new VersionedValue(VersionedValue.REMOVING_TOKEN + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(hostId.toString());
         }
 
-        public VersionedValue removedNonlocal(Token token, long expireTime)
+        public VersionedValue tokens(Collection<Token> tokens)
         {
-			return new VersionedValue(VersionedValue.REMOVED_TOKEN + VersionedValue.DELIMITER
-					+ partitioner.getTokenFactory().toString(token) + VersionedValue.DELIMITER + expireTime);
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            DataOutputStream out = new DataOutputStream(bos);
+            try
+            {
+                TokenSerializer.serialize(partitioner, tokens, out);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+            return new VersionedValue(new String(bos.toByteArray(), ISO_8859_1));
         }
 
-        public VersionedValue removalCoordinator(Token token)
+        public VersionedValue removingNonlocal(UUID hostId)
         {
-            return new VersionedValue(VersionedValue.REMOVAL_COORDINATOR + VersionedValue.DELIMITER + partitioner.getTokenFactory().toString(token));
+            return new VersionedValue(versionString(VersionedValue.REMOVING_TOKEN, hostId.toString()));
+        }
+
+        public VersionedValue removedNonlocal(UUID hostId, long expireTime)
+        {
+            return new VersionedValue(versionString(VersionedValue.REMOVED_TOKEN, hostId.toString(), Long.toString(expireTime)));
+        }
+
+        public VersionedValue removalCoordinator(UUID hostId)
+        {
+            return new VersionedValue(versionString(VersionedValue.REMOVAL_COORDINATOR, hostId.toString()));
         }
 
         public VersionedValue hibernate(boolean value)
         {
             return new VersionedValue(VersionedValue.HIBERNATE + VersionedValue.DELIMITER + value);
+        }
+
+        public VersionedValue rpcReady(boolean value)
+        {
+            return new VersionedValue(String.valueOf(value));
+        }
+
+        public VersionedValue shutdown(boolean value)
+        {
+            return new VersionedValue(VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + value);
         }
 
         public VersionedValue datacenter(String dcId)
@@ -170,35 +273,79 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(endpoint.getHostAddress());
         }
 
+        public VersionedValue nativeaddressAndPort(InetAddressAndPort address)
+        {
+            return new VersionedValue(address.getHostAddressAndPort());
+        }
+
         public VersionedValue releaseVersion()
         {
             return new VersionedValue(FBUtilities.getReleaseVersionString());
         }
 
-        public VersionedValue internalIP(String private_ip)
+        @VisibleForTesting
+        public VersionedValue releaseVersion(String version)
         {
-            return new VersionedValue(private_ip);
+            return new VersionedValue(version);
+        }
+
+        @VisibleForTesting
+        public VersionedValue networkVersion(int version)
+        {
+            return new VersionedValue(String.valueOf(version));
+        }
+
+        public VersionedValue networkVersion()
+        {
+            return new VersionedValue(String.valueOf(MessagingService.current_version));
+        }
+
+        public VersionedValue internalIP(InetAddress private_ip)
+        {
+            return new VersionedValue(private_ip.getHostAddress());
+        }
+
+        public VersionedValue internalAddressAndPort(InetAddressAndPort private_ip_and_port)
+        {
+            return new VersionedValue(private_ip_and_port.getHostAddressAndPort());
+        }
+
+        public VersionedValue severity(double value)
+        {
+            return new VersionedValue(String.valueOf(value));
+        }
+
+        public VersionedValue sstableVersions(Set<VersionAndType> versions)
+        {
+            return new VersionedValue(versions.stream()
+                                              .map(VersionAndType::toString)
+                                              .collect(Collectors.joining(",")));
         }
     }
 
     private static class VersionedValueSerializer implements IVersionedSerializer<VersionedValue>
     {
-        public void serialize(VersionedValue value, DataOutput dos, int version) throws IOException
+        public void serialize(VersionedValue value, DataOutputPlus out, int version) throws IOException
         {
-            dos.writeUTF(value.value);
-            dos.writeInt(value.version);
+            out.writeUTF(outValue(value, version));
+            out.writeInt(value.version);
         }
 
-        public VersionedValue deserialize(DataInput dis, int version) throws IOException
+        private String outValue(VersionedValue value, int version)
         {
-            String value = dis.readUTF();
-            int valVersion = dis.readInt();
+            return value.value;
+        }
+
+        public VersionedValue deserialize(DataInputPlus in, int version) throws IOException
+        {
+            String value = in.readUTF();
+            int valVersion = in.readInt();
             return new VersionedValue(value, valVersion);
         }
 
         public long serializedSize(VersionedValue value, int version)
         {
-            throw new UnsupportedOperationException();
+            return TypeSizes.sizeof(outValue(value, version)) + TypeSizes.sizeof(value.version);
         }
     }
 }

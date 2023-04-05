@@ -1,6 +1,4 @@
-package org.apache.cassandra.db.marshal;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,79 +6,97 @@ package org.apache.cassandra.db.marshal;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.cql.jdbc.JdbcBoolean;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.BooleanSerializer;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.transport.ProtocolVersion;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class BooleanType extends AbstractType<Boolean>
 {
-  public static final BooleanType instance = new BooleanType();
+    private static final Logger logger = LoggerFactory.getLogger(BooleanType.class);
 
-  BooleanType() {} // singleton
+    public static final BooleanType instance = new BooleanType();
 
-  public Boolean compose(ByteBuffer bytes)
-  {
-      return JdbcBoolean.instance.compose(bytes);
-  }
+    BooleanType() {super(ComparisonType.CUSTOM);} // singleton
 
-  public ByteBuffer decompose(Boolean value)
-  {
-    return (value==null) ? ByteBufferUtil.EMPTY_BYTE_BUFFER
-                         : value ? ByteBuffer.wrap(new byte[]{1})  // true
-                                 : ByteBuffer.wrap(new byte[]{0}); // false
-  }
-  
-  public int compare(ByteBuffer o1, ByteBuffer o2)
-  {
-      if ((o1 == null) || (o1.remaining() != 1))
-        return ((o2 == null) || (o2.remaining() != 1)) ? 0 : -1;
-      if ((o2 == null) || (o2.remaining() != 1))
+    public boolean isEmptyValueMeaningless()
+    {
+        return true;
+    }
+
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
+    {
+        if (accessorL.isEmpty(left) || accessorR.isEmpty(right))
+            return Boolean.compare(accessorR.isEmpty(right), accessorL.isEmpty(left));
+
+        // False is 0, True is anything else, makes False sort before True.
+        int v1 = accessorL.getByte(left, 0) == 0 ? 0 : 1;
+        int v2 = accessorR.getByte(right, 0) == 0 ? 0 : 1;
+        return v1 - v2;
+    }
+
+    public ByteBuffer fromString(String source) throws MarshalException
+    {
+
+        if (source.isEmpty()|| source.equalsIgnoreCase(Boolean.FALSE.toString()))
+            return decompose(false);
+
+        if (source.equalsIgnoreCase(Boolean.TRUE.toString()))
+            return decompose(true);
+
+        throw new MarshalException(String.format("Unable to make boolean from '%s'", source));
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        if (parsed instanceof String)
+            return new Constants.Value(fromString((String) parsed));
+        else if (!(parsed instanceof Boolean))
+            throw new MarshalException(String.format(
+                    "Expected a boolean value, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+
+        return new Constants.Value(getSerializer().serialize((Boolean) parsed));
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
+    {
+        return getSerializer().deserialize(buffer).toString();
+    }
+
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.BOOLEAN;
+    }
+
+    public TypeSerializer<Boolean> getSerializer()
+    {
+        return BooleanSerializer.instance;
+    }
+
+    @Override
+    public int valueLengthIfFixed()
+    {
         return 1;
-
-      return o1.compareTo(o2);
-  }
-
-  public String getString(ByteBuffer bytes)
-  {
-      try
-      {
-          return JdbcBoolean.instance.getString(bytes);
-      }
-      catch (org.apache.cassandra.cql.jdbc.MarshalException e)
-      {
-          throw new MarshalException(e.getMessage());
-      }
-  }
-
-  public ByteBuffer fromString(String source) throws MarshalException
-  {
-    
-      if (source.isEmpty()|| source.equalsIgnoreCase(Boolean.FALSE.toString()))
-          return decompose(false);
-      
-      if (source.equalsIgnoreCase(Boolean.TRUE.toString()))
-          return decompose(true);
-      
-      throw new MarshalException(String.format("unable to make boolean from '%s'", source));
-      
- }
-
-  public void validate(ByteBuffer bytes) throws MarshalException
-  {
-      if (bytes.remaining() != 1 && bytes.remaining() != 0)
-          throw new MarshalException(String.format("Expected 1 or 0 byte value (%d)", bytes.remaining()));
-  }
+    }
 }

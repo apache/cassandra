@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,10 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.locator;
-
-import java.net.InetAddress;
 
 /**
  * A simple endpoint snitch implementation that assumes datacenter and rack information is encoded
@@ -26,13 +23,13 @@ import java.net.InetAddress;
  */
 public class RackInferringSnitch extends AbstractNetworkTopologySnitch
 {
-    public String getRack(InetAddress endpoint)
+    public String getRack(InetAddressAndPort endpoint)
     {
-        return Integer.toString(endpoint.getAddress()[2] & 0xFF, 10);
+        return Integer.toString(endpoint.getAddress().getAddress()[2] & 0xFF, 10);
     }
 
-    public String getDatacenter(InetAddress endpoint)
+    public String getDatacenter(InetAddressAndPort endpoint)
     {
-        return Integer.toString(endpoint.getAddress()[1] & 0xFF, 10);
+        return Integer.toString(endpoint.getAddress().getAddress()[1] & 0xFF, 10);
     }
 }

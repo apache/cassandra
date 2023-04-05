@@ -1,6 +1,4 @@
-package org.apache.cassandra.io.sstable;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,73 +6,153 @@ package org.apache.cassandra.io.sstable;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+package org.apache.cassandra.io.sstable;
 
+import java.io.IOException;
+import java.util.UUID;
 
-import java.io.File;
-
+import org.apache.cassandra.io.util.File;
+import org.apache.commons.lang3.StringUtils;
+import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.db.Table;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
+
+import static org.junit.Assert.*;
 
 public class DescriptorTest
 {
-    @Test
-    public void testLegacy()
+    private final String ksname = "ks";
+    private final String cfname = "cf";
+    private final String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(UUID.randomUUID()));
+    private final File tempDataDir;
+
+    public DescriptorTest() throws IOException
     {
-        Descriptor descriptor = Descriptor.fromFilename(new File("Keyspace1"), "userActionUtilsKey-9-Data.db").left;
-        assert descriptor.version.equals(Descriptor.LEGACY_VERSION);
-        assert descriptor.usesOldBloomFilter;
+        // create CF directories, one without CFID and one with it
+        tempDataDir = FileUtils.createTempFile("DescriptorTest", null).parent();
     }
 
-    @Test
-    public void testExtractKeyspace()
+    @BeforeClass
+    public static void setup()
     {
-        // Test a path representing a SNAPSHOT directory
-        String dirPath = "Keyspace10" + File.separator + Table.SNAPSHOT_SUBDIR_NAME + File.separator + System.currentTimeMillis();
-        assertKeyspace("Keyspace10", dirPath);
-
-        // Test a path representing a regular SSTables directory
-        dirPath = "Keyspace11";
-        assertKeyspace("Keyspace11", dirPath);
+        DatabaseDescriptor.daemonInitialization();
     }
 
     @Test
-    public void testVersion()
+    public void testFromFilename() throws Exception
     {
-        // letter only
-        Descriptor desc = Descriptor.fromFilename(new File("Keyspace1"), "Standard1-h-1-Data.db").left;
-        assert "h".equals(desc.version);
-
-        // multiple letters
-        desc = Descriptor.fromFilename(new File("Keyspace1"), "Standard1-ha-1-Data.db").left;
-        assert "ha".equals(desc.version);
-
-        // hypothetical two-letter g version
-        desc = Descriptor.fromFilename(new File("Keyspace1"), "Standard1-gz-1-Data.db").left;
-        assert "gz".equals(desc.version);
-        assert !desc.tracksMaxTimestamp;
+        File cfIdDir = new File(tempDataDir.absolutePath() + File.pathSeparator() + ksname + File.pathSeparator() + cfname + '-' + cfId);
+        testFromFilenameFor(cfIdDir);
     }
 
-    private void assertKeyspace(String expectedKsName, String dirPath) {
-        File dir = new File(dirPath);
-        dir.deleteOnExit();
-
-        // Create and check.
-        if (!dir.mkdirs())
-            throw new RuntimeException("Unable to create directories:" + dirPath);
-
-        String currentKsName = Descriptor.extractKeyspaceName(dir);
-        assert expectedKsName.equals(currentKsName);
+    @Test
+    public void testFromFilenameInBackup() throws Exception
+    {
+        File backupDir = new File(StringUtils.join(new String[]{ tempDataDir.absolutePath(), ksname, cfname + '-' + cfId, Directories.BACKUPS_SUBDIR}, File.pathSeparator()));
+        testFromFilenameFor(backupDir);
     }
+
+    @Test
+    public void testFromFilenameInSnapshot() throws Exception
+    {
+        File snapshotDir = new File(StringUtils.join(new String[]{ tempDataDir.absolutePath(), ksname, cfname + '-' + cfId, Directories.SNAPSHOT_SUBDIR, "snapshot_name"}, File.pathSeparator()));
+        testFromFilenameFor(snapshotDir);
+    }
+
+    @Test
+    public void testFromFilenameInLegacyDirectory() throws Exception
+    {
+        File cfDir = new File(tempDataDir.absolutePath() + File.pathSeparator() + ksname + File.pathSeparator() + cfname);
+        testFromFilenameFor(cfDir);
+    }
+
+    private void testFromFilenameFor(File dir)
+    {
+        checkFromFilename(new Descriptor(dir, ksname, cfname, new SequenceBasedSSTableId(1), SSTableFormat.Type.BIG));
+
+        // secondary index
+        String idxName = "myidx";
+        File idxDir = new File(dir.absolutePath() + File.pathSeparator() + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName);
+        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, new SequenceBasedSSTableId(4), SSTableFormat.Type.BIG));
+    }
+
+    private void checkFromFilename(Descriptor original)
+    {
+        File file = new File(original.filenameFor(Component.DATA));
+
+        Pair<Descriptor, Component> pair = Descriptor.fromFilenameWithComponent(file);
+        Descriptor desc = pair.left;
+
+        assertEquals(original.directory, desc.directory);
+        assertEquals(original.ksname, desc.ksname);
+        assertEquals(original.cfname, desc.cfname);
+        assertEquals(original.version, desc.version);
+        assertEquals(original.id, desc.id);
+        assertEquals(Component.DATA, pair.right);
+    }
+
+    @Test
+    public void testEquality()
+    {
+        // Descriptor should be equal when parent directory points to the same directory
+        File dir = new File(".");
+        Descriptor desc1 = new Descriptor(dir, "ks", "cf", new SequenceBasedSSTableId(1), SSTableFormat.Type.BIG);
+        Descriptor desc2 = new Descriptor(dir.toAbsolute(), "ks", "cf", new SequenceBasedSSTableId(1), SSTableFormat.Type.BIG);
+        assertEquals(desc1, desc2);
+        assertEquals(desc1.hashCode(), desc2.hashCode());
+    }
+
+    @Test
+    public void validateNames()
+    {
+        String[] names = {
+             "ma-1-big-Data.db",
+             // 2ndary index
+             ".idx1" + File.pathSeparator() + "ma-1-big-Data.db",
+        };
+
+        for (String name : names)
+        {
+            assertNotNull(Descriptor.fromFilename(name));
+        }
+    }
+
+    @Test
+    public void badNames()
+    {
+        String names[] = {
+                "system-schema_keyspaces-k234a-1-CompressionInfo.db",  "system-schema_keyspaces-ka-aa-Summary.db",
+                "system-schema_keyspaces-XXX-ka-1-Data.db",             "system-schema_keyspaces-k",
+                "system-schema_keyspace-ka-1-AAA-Data.db",  "system-schema-keyspace-ka-1-AAA-Data.db"
+        };
+
+        for (String name : names)
+        {
+            try
+            {
+                Descriptor d = Descriptor.fromFilename(name);
+                Assert.fail(name);
+            } catch (Throwable e) {
+                //good
+            }
+        }
+    }
+
+
 }

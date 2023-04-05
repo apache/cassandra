@@ -37,43 +37,43 @@ public class DecimalTypeTest
     private static BigDecimal minus = new BigDecimal("-1.000001");
     private static BigDecimal low = new BigDecimal(LOW);
     private static BigDecimal high = new BigDecimal(HIGH);
-    
+
     @Test
     public void test1Decompose_compose()
     {
         ByteBuffer bb = DecimalType.instance.decompose(low);
-                
+
         String string = DecimalType.instance.compose(bb).toPlainString();
-        
+
         // check that the decomposed buffer when re-composed is equal to the initial string.
         assertEquals(LOW, string);
-        
+
         // check that a null argument yields an empty byte buffer
         bb = DecimalType.instance.decompose(null);
         assertEquals(bb, ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
-    
+
     @Test
     public void test2Compare()
     {
         ByteBuffer lowBB = DecimalType.instance.decompose(low);
         ByteBuffer low2BB = DecimalType.instance.decompose(low);
-        ByteBuffer highBB = DecimalType.instance.decompose(high);        
+        ByteBuffer highBB = DecimalType.instance.decompose(high);
         assertEquals(-1, DecimalType.instance.compare(lowBB, highBB));
-        
+
         lowBB = DecimalType.instance.decompose(low);
         highBB = DecimalType.instance.decompose(high);
         assertEquals(1, DecimalType.instance.compare(highBB, lowBB));
-        
+
         lowBB = DecimalType.instance.decompose(low);
         assertEquals(0, DecimalType.instance.compare(low2BB, lowBB));
-        
+
         lowBB = DecimalType.instance.decompose(low);
         assertEquals(-1, DecimalType.instance.compare(ByteBufferUtil.EMPTY_BYTE_BUFFER, lowBB));
-        
+
         lowBB = DecimalType.instance.decompose(low);
         assertEquals(1, DecimalType.instance.compare(lowBB,ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        
+
         assertEquals(0, DecimalType.instance.compare(ByteBufferUtil.EMPTY_BYTE_BUFFER,ByteBufferUtil.EMPTY_BYTE_BUFFER));
     }
 
@@ -83,13 +83,13 @@ public class DecimalTypeTest
         ByteBuffer zeroBB = DecimalType.instance.decompose(zero);
         ByteBuffer minusBB = DecimalType.instance.decompose(minus);
         ByteBuffer lowBB = DecimalType.instance.decompose(low);
-        ByteBuffer highBB = DecimalType.instance.decompose(high);        
+        ByteBuffer highBB = DecimalType.instance.decompose(high);
 
         ByteBuffer[] array = {highBB,minusBB,lowBB,lowBB,zeroBB,minusBB};
-                
+
         // Sort the array of ByteBuffer using a DecimalType comparator
         Arrays.sort(array, DecimalType.instance);
-        
+
         // Check that the array is in order
         for (int i = 1; i < array.length; i++)
         {

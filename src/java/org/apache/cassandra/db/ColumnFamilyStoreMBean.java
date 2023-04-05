@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,14 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import org.apache.cassandra.config.ConfigurationException;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.OpenDataException;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.BreaksJMX;
 
 /**
  * The MBean interface for ColumnFamilyStore
@@ -32,159 +39,29 @@ public interface ColumnFamilyStoreMBean
     /**
      * @return the name of the column family
      */
+    @Deprecated
     public String getColumnFamilyName();
-    
-    /**
-     * Returns the total amount of data stored in the memtable, including
-     * column related overhead.
-     * 
-     * @return The size in bytes.
-     */
-    public long getMemtableDataSize();
-    
-    /**
-     * Returns the total number of columns present in the memtable.
-     * 
-     * @return The number of columns.
-     */
-    public long getMemtableColumnsCount();
-    
-    /**
-     * Returns the number of times that a flush has resulted in the
-     * memtable being switched out.
-     *
-     * @return the number of memtable switches
-     */
-    public int getMemtableSwitchCount();
 
-    /**
-     * Triggers an immediate memtable flush.
-     */
-    public Object forceFlush() throws IOException;
-
-    /**
-     * @return a histogram of the number of sstable data files accessed per read: reading this property resets it
-     */
-    public long[] getRecentSSTablesPerReadHistogram();
-
-    /**
-     * @return a histogram of the number of sstable data files accessed per read
-     */
-    public long[] getSSTablesPerReadHistogram();
-
-    /**
-     * @return the number of read operations on this column family
-     */
-    public long getReadCount();
-
-    /**
-     * @return total read latency (divide by getReadCount() for average)
-     */
-    public long getTotalReadLatencyMicros();
-
-    /**
-     * @return an array representing the latency histogram
-     */
-    public long[] getLifetimeReadLatencyHistogramMicros();
-
-    /**
-     * @return an array representing the latency histogram
-     */
-    public long[] getRecentReadLatencyHistogramMicros();
-
-    /**
-     * @return average latency per read operation since the last call
-     */
-    public double getRecentReadLatencyMicros();
-
-    /**
-     * @return the number of write operations on this column family
-     */
-    public long getWriteCount();
-    
-    /**
-     * @return total write latency (divide by getReadCount() for average)
-     */
-    public long getTotalWriteLatencyMicros();
-
-    /**
-     * @return an array representing the latency histogram
-     */
-    public long[] getLifetimeWriteLatencyHistogramMicros();
-
-    /**
-     * @return an array representing the latency histogram
-     */
-    public long[] getRecentWriteLatencyHistogramMicros();
-
-    /**
-     * @return average latency per write operation since the last call
-     */
-    public double getRecentWriteLatencyMicros();
-
-    /**
-     * @return the estimated number of tasks pending for this column family
-     */
-    public int getPendingTasks();
-
-    /**
-     * @return the number of SSTables on disk for this CF
-     */
-    public int getLiveSSTableCount();
-
-    /**
-     * @return disk space used by SSTables belonging to this CF
-     */
-    public long getLiveDiskSpaceUsed();
-
-    /**
-     * @return total disk space used by SSTables belonging to this CF, including obsolete ones waiting to be GC'd
-     */
-    public long getTotalDiskSpaceUsed();
+    public String getTableName();
 
     /**
      * force a major compaction of this column family
+     *
+     * @param splitOutput true if the output of the major compaction should be split in several sstables
      */
-    public void forceMajorCompaction() throws ExecutionException, InterruptedException;
+    public void forceMajorCompaction(boolean splitOutput) throws ExecutionException, InterruptedException;
 
     /**
-     * invalidate the key cache; for use after invalidating row cache
+     * force a major compaction of specified key range in this column family
      */
-    public void invalidateKeyCache();
+    @BreaksJMX("This API was released in 3.10 using a parameter that takes Range of Token, which can only be done IFF client has Cassandra binaries in the classpath")
+    @Deprecated
+    public void forceCompactionForTokenRange(Collection<Range<Token>> tokenRanges) throws ExecutionException, InterruptedException;
 
     /**
-     * invalidate the row cache; for use after bulk loading via BinaryMemtable
+     * force a major compaction of specified key range in this column family
      */
-    public void invalidateRowCache();
-
-
-    /**
-     * return the size of the smallest compacted row
-     * @return
-     */
-    public long getMinRowSize();
-
-    /**
-     * return the size of the largest compacted row
-     * @return
-     */
-    public long getMaxRowSize();
-
-    /**
-     * return the mean size of the rows compacted
-     * @return
-     */
-    public long getMeanRowSize();
-
-    public long getBloomFilterFalsePositives();
-
-    public long getRecentBloomFilterFalsePositives();
-
-    public double getBloomFilterFalseRatio();
-
-    public double getRecentBloomFilterFalseRatio();
-
-    public long getBloomFilterDiskSpaceUsed();
+    public void forceCompactionForTokenRanges(String... tokenRanges);
 
     /**
      * Gets the minimum number of sstables in queue before compaction kicks off
@@ -202,31 +79,58 @@ public interface ColumnFamilyStoreMBean
     public int getMaximumCompactionThreshold();
 
     /**
+     * Sets the maximum and maximum number of SSTables in queue before compaction kicks off
+     */
+    public void setCompactionThresholds(int minThreshold, int maxThreshold);
+
+    /**
      * Sets the maximum number of sstables in queue before compaction kicks off
      */
     public void setMaximumCompactionThreshold(int threshold);
 
     /**
-     * Sets the compaction strategy by class name
-     * @param className the name of the compaction strategy class
+     * Sets the compaction parameters locally for this node
+     *
+     * Note that this will be set until an ALTER with compaction = {..} is executed or the node is restarted
+     *
+     * @param options compaction options with the same syntax as when doing ALTER ... WITH compaction = {..}
      */
-    public void setCompactionStrategyClass(String className) throws ConfigurationException;
+    public void setCompactionParametersJson(String options);
+    public String getCompactionParametersJson();
 
     /**
-     * Gets the compaction strategy class name
+     * Sets the compaction parameters locally for this node
+     *
+     * Note that this will be set until an ALTER with compaction = {..} is executed or the node is restarted
+     *
+     * @param options compaction options map
      */
-    public String getCompactionStrategyClass();
+    public void setCompactionParameters(Map<String, String> options);
+    public Map<String, String> getCompactionParameters();
 
     /**
-     * Disable automatic compaction.
+     * Get the compression parameters
      */
-    public void disableAutoCompaction();
+    public Map<String,String> getCompressionParameters();
+
+    public String getCompressionParametersJson();
+
+    /**
+     * Set the compression parameters locally for this node
+     * @param opts map of string names to values
+     */
+    public void setCompressionParameters(Map<String,String> opts);
+    public void setCompressionParametersJson(String options);
+
+    /**
+     * Set new crc check chance
+     */
+    public void setCrcCheckChance(double crcCheckChance);
+
+    public boolean isAutoCompactionDisabled();
 
     public long estimateKeys();
 
-    public long[] getEstimatedRowSizeHistogram();
-    public long[] getEstimatedColumnCountHistogram();
-    public double getCompressionRatio();
 
     /**
      * Returns a list of the names of the built column indexes for current store
@@ -234,23 +138,137 @@ public interface ColumnFamilyStoreMBean
      */
     public List<String> getBuiltIndexes();
 
-    public int getRowCacheSavePeriodInSeconds();
-    public void setRowCacheSavePeriodInSeconds(int rcspis);
-
-    public int getKeyCacheSavePeriodInSeconds();
-    public void setKeyCacheSavePeriodInSeconds(int kcspis);
-
-    public int getRowCacheKeysToSave();
-    public void setRowCacheKeysToSave(int keysToSave);
+    /**
+     * Returns a list of filenames that contain the given key on this node
+     * @param key
+     * @return list of filenames containing the key
+     */
+    public List<String> getSSTablesForKey(String key);
 
     /**
-     * Scan through Keyspace/ColumnFamily's data directory
-     * determine which SSTables should be loaded and load them
+     * Returns a list of filenames that contain the given key on this node
+     * @param key
+     * @param hexFormat if key is in hex string format
+     * @return list of filenames containing the key
      */
-    public void loadNewSSTables();
+    public List<String> getSSTablesForKey(String key, boolean hexFormat);
 
+    /**
+     * Load new sstables from the given directory
+     *
+     * @param srcPaths the path to the new sstables - if it is an empty set, the data directories will be scanned
+     * @param resetLevel if the level should be reset to 0 on the new sstables
+     * @param clearRepaired if repaired info should be wiped from the new sstables
+     * @param verifySSTables if the new sstables should be verified that they are not corrupt
+     * @param verifyTokens if the tokens in the new sstables should be verified that they are owned by the current node
+     * @param invalidateCaches if row cache should be invalidated for the keys in the new sstables
+     * @param extendedVerify if we should run an extended verify checking all values in the new sstables
+     *
+     * @return list of failed import directories
+     */
+    @Deprecated
+    public List<String> importNewSSTables(Set<String> srcPaths,
+                                           boolean resetLevel,
+                                           boolean clearRepaired,
+                                           boolean verifySSTables,
+                                           boolean verifyTokens,
+                                           boolean invalidateCaches,
+                                           boolean extendedVerify);
+
+    /**
+     * Load new sstables from the given directory
+     *
+     * @param srcPaths the path to the new sstables - if it is an empty set, the data directories will be scanned
+     * @param resetLevel if the level should be reset to 0 on the new sstables
+     * @param clearRepaired if repaired info should be wiped from the new sstables
+     * @param verifySSTables if the new sstables should be verified that they are not corrupt
+     * @param verifyTokens if the tokens in the new sstables should be verified that they are owned by the current node
+     * @param invalidateCaches if row cache should be invalidated for the keys in the new sstables
+     * @param extendedVerify if we should run an extended verify checking all values in the new sstables
+     * @param copyData if we should copy data from source paths instead of moving them
+     *
+     * @return list of failed import directories
+     */
+    public List<String> importNewSSTables(Set<String> srcPaths,
+                                          boolean resetLevel,
+                                          boolean clearRepaired,
+                                          boolean verifySSTables,
+                                          boolean verifyTokens,
+                                          boolean invalidateCaches,
+                                          boolean extendedVerify,
+                                          boolean copyData);
+
+    @Deprecated
+    public void loadNewSSTables();
     /**
      * @return the number of SSTables in L0.  Always return 0 if Leveled compaction is not enabled.
      */
     public int getUnleveledSSTables();
+
+    /**
+     * @return sstable count for each level. null unless leveled compaction is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public int[] getSSTableCountPerLevel();
+
+    /**
+     * @return total size on disk for each level. null unless leveled compaction is used.
+     *         array index corresponds to level(int[0] is for level 0, ...).
+     */
+    public long[] getPerLevelSizeBytes();
+
+    /**
+     * @return sstable fanout size for level compaction strategy.
+     */
+    public int getLevelFanoutSize();
+
+    /**
+     * Get the ratio of droppable tombstones to real columns (and non-droppable tombstones)
+     * @return ratio
+     */
+    public double getDroppableTombstoneRatio();
+
+    /**
+     * @return the size of SSTables in "snapshots" subdirectory which aren't live anymore
+     */
+    public long trueSnapshotsSize();
+
+    /**
+     * begin sampling for a specific sampler with a given capacity.  The cardinality may
+     * be larger than the capacity, but depending on the use case it may affect its accuracy
+     */
+    public void beginLocalSampling(String sampler, int capacity, int durationMillis);
+
+    /**
+     * @return top <i>count</i> items for the sampler since beginLocalSampling was called
+     */
+    public List<CompositeData> finishLocalSampling(String sampler, int count) throws OpenDataException;
+
+    /*
+        Is Compaction space check enabled
+     */
+    public boolean isCompactionDiskSpaceCheckEnabled();
+
+    /*
+       Enable/Disable compaction space check
+     */
+    public void compactionDiskSpaceCheck(boolean enable);
+
+    public void setNeverPurgeTombstones(boolean value);
+
+    public boolean getNeverPurgeTombstones();
+
+    /**
+     * Check SSTables whether or not they are misplaced.
+     * @return true if any of the SSTables is misplaced.
+     *         If all SSTables are correctly placed or the partitioner does not support splitting, it returns false.
+     */
+    public boolean hasMisplacedSSTables();
+
+    public List<String> getDataPaths() throws IOException;
+
+    public Map<String, Long> getTopSizePartitions();
+    public Long getTopSizePartitionsLastUpdate();
+    public Map<String, Long> getTopTombstonePartitions();
+    public Long getTopTombstonePartitionsLastUpdate();
 }

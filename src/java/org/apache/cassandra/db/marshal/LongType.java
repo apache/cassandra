@@ -1,6 +1,4 @@
-package org.apache.cassandra.db.marshal;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,69 +6,55 @@ package org.apache.cassandra.db.marshal;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
+package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.util.Objects;
 
-import org.apache.cassandra.cql.jdbc.JdbcLong;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.LongSerializer;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class LongType extends AbstractType<Long>
+public class LongType extends NumberType<Long>
 {
     public static final LongType instance = new LongType();
 
-    LongType() {} // singleton
+    LongType() {super(ComparisonType.CUSTOM);} // singleton
 
-    public Long compose(ByteBuffer bytes)
+    public boolean isEmptyValueMeaningless()
     {
-        return ByteBufferUtil.toLong(bytes);
+        return true;
     }
 
-    public ByteBuffer decompose(Long value)
+    public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
-        return ByteBufferUtil.bytes(value);
+        return compareLongs(left, accessorL, right, accessorR);
     }
 
-    public int compare(ByteBuffer o1, ByteBuffer o2)
+    public static <VL, VR> int compareLongs(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
-        if (o1.remaining() == 0)
-        {
-            return o2.remaining() == 0 ? 0 : -1;
-        }
-        if (o2.remaining() == 0)
-        {
-            return 1;
-        }
+        if (accessorL.isEmpty(left)|| accessorR.isEmpty(right))
+            return Boolean.compare(accessorR.isEmpty(right), accessorL.isEmpty(left));
 
-        int diff = o1.get(o1.position()) - o2.get(o2.position());
+        int diff = accessorL.getByte(left, 0) - accessorR.getByte(right, 0);
         if (diff != 0)
             return diff;
-        
-       
-        return ByteBufferUtil.compareUnsigned(o1, o2);
-    }
 
-    public String getString(ByteBuffer bytes)
-    {
-        try
-        {
-            return JdbcLong.instance.getString(bytes);
-        }
-        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
-        {
-            throw new MarshalException(e.getMessage());
-        }
+        return ValueAccessor.compare(left, accessorL, right, accessorR);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -87,15 +71,106 @@ public class LongType extends AbstractType<Long>
         }
         catch (Exception e)
         {
-            throw new MarshalException(String.format("unable to make long from '%s'", source), e);
+            throw new MarshalException(String.format("Unable to make long from '%s'", source), e);
         }
 
         return decompose(longType);
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
     {
-        if (bytes.remaining() != 8 && bytes.remaining() != 0)
-            throw new MarshalException(String.format("Expected 8 or 0 byte long (%d)", bytes.remaining()));
+        try
+        {
+            if (parsed instanceof String)
+                return new Constants.Value(fromString((String) parsed));
+
+            Number parsedNumber = (Number) parsed;
+            if (!(parsedNumber instanceof Integer || parsedNumber instanceof Long))
+                throw new MarshalException(String.format("Expected a bigint value, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+
+            return new Constants.Value(getSerializer().serialize(parsedNumber.longValue()));
+        }
+        catch (ClassCastException exc)
+        {
+            throw new MarshalException(String.format(
+                    "Expected a bigint value, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+        }
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
+    {
+        return Objects.toString(getSerializer().deserialize(buffer), "\"\"");
+    }
+
+    @Override
+    public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
+    {
+        return this == otherType || otherType == DateType.instance || otherType == TimestampType.instance;
+    }
+
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.BIGINT;
+    }
+
+    public TypeSerializer<Long> getSerializer()
+    {
+        return LongSerializer.instance;
+    }
+
+    @Override
+    public int valueLengthIfFixed()
+    {
+        return 8;
+    }
+
+    @Override
+    protected int toInt(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected float toFloat(ByteBuffer value)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    protected long toLong(ByteBuffer value)
+    {
+        return ByteBufferUtil.toLong(value);
+    }
+
+    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) + rightType.toLong(right));
+    }
+
+    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) - rightType.toLong(right));
+    }
+
+    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) * rightType.toLong(right));
+    }
+
+    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) / rightType.toLong(right));
+    }
+
+    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    {
+        return ByteBufferUtil.bytes(leftType.toLong(left) % rightType.toLong(right));
+    }
+
+    public ByteBuffer negate(ByteBuffer input)
+    {
+        return ByteBufferUtil.bytes(-toLong(input));
     }
 }

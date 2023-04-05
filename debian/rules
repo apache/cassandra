@@ -3,14 +3,17 @@
 # Uncomment to enable verbose mode.
 #export DH_VERBOSE=1
 
+include /usr/share/quilt/quilt.make
+
 ANT = /usr/bin/ant
-VERSION = $(shell dpkg-parsechangelog | sed -ne 's/^Version: \(.*\)/\1/p')
+VERSION = $(shell dpkg-parsechangelog | sed -ne 's/^Version: \([^-|~|+]*\).*/\1/p')
 
 test:
 	dh_testdir
 	$(ANT) test
 
-clean:
+clean: unpatch
+	dh_clean build-stamp
 	dh_testdir
 	dh_testroot
 	$(ANT) realclean
@@ -18,14 +21,18 @@ clean:
 	rm -rf bin/java
 	find -name "*.pyc" -exec rm '{}' ';'
 	find -name "*py.class" -exec rm '{}' ';'
+	$(RM) -r pylib/build
 	dh_clean
 
 build: build-stamp
-build-stamp:
+build-stamp: $(QUILT_STAMPFN)
 	dh_testdir
 	printf "version=%s" $(VERSION) > build.properties
 
+	$(ANT) generate-cql-html
 	$(ANT) jar
+	cd pylib && python3 setup.py install --no-compile --install-layout deb \
+		--root $(CURDIR)/debian/cassandra
 
 	touch build-stamp
 
@@ -34,11 +41,18 @@ install: build
 	dh_testroot
 	dh_installdirs
 	dh_install
+	dh_python3
 
 	# Copy in the jar and symlink to something stable
 	dh_install build/apache-cassandra-$(VERSION).jar \
 		usr/share/cassandra
-	dh_install build/apache-cassandra-thrift-$(VERSION).jar \
+
+	# Copy stress jars
+	dh_install build/tools/lib/stress.jar \
+		usr/share/cassandra
+
+	# Copy fqltool jars
+	dh_install build/tools/lib/fqltool.jar \
 		usr/share/cassandra
 
 	dh_link usr/share/cassandra/apache-cassandra-$(VERSION).jar \
@@ -52,7 +66,9 @@ binary-indep: build install
 	dh_testroot
 	dh_installchangelogs
 	dh_installinit -u'start 50 2 3 4 5 . stop 50 0 1 6 .'
-	dh_installdocs README.txt CHANGES.txt NEWS.txt
+	dh_installdocs README.asc CHANGES.txt NEWS.txt doc/cql3/CQL.css doc/cql3/CQL.html CASSANDRA-14092.txt
+	dh_installexamples tools/*.yaml
+	dh_bash-completion
 	dh_compress
 	dh_fixperms
 	dh_installdeb

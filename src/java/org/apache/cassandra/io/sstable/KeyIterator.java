@@ -1,6 +1,4 @@
-package org.apache.cassandra.io.sstable;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,84 +6,162 @@ package org.apache.cassandra.io.sstable;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+package org.apache.cassandra.io.sstable;
 
-
-import java.io.File;
-import java.io.IOError;
 import java.io.IOException;
-
-import com.google.common.collect.AbstractIterator;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RowIndexEntry;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CloseableIterator;
 
 public class KeyIterator extends AbstractIterator<DecoratedKey> implements CloseableIterator<DecoratedKey>
 {
-    private final RandomAccessReader in;
-    private final Descriptor desc;
-
-    public KeyIterator(Descriptor desc)
+    private final static class In
     {
-        this.desc = desc;
-        try
+        private final File path;
+        private volatile RandomAccessReader in;
+
+        public In(File path)
         {
-            in = RandomAccessReader.open(new File(desc.filenameFor(SSTable.COMPONENT_INDEX)), true);
+            this.path = path;
         }
-        catch (IOException e)
+
+        private void maybeInit()
         {
-            throw new IOError(e);
+            if (in != null)
+                return;
+
+            synchronized (this)
+            {
+                if (in == null)
+                {
+                    in = RandomAccessReader.open(path);
+                }
+            }
+        }
+
+        public DataInputPlus get()
+        {
+            maybeInit();
+            return in;
+        }
+
+        public boolean isEOF()
+        {
+            maybeInit();
+            return in.isEOF();
+        }
+
+        public void close()
+        {
+            if (in != null)
+                in.close();
+        }
+
+        public long getFilePointer()
+        {
+            maybeInit();
+            return in.getFilePointer();
+        }
+
+        public long length()
+        {
+            maybeInit();
+            return in.length();
         }
     }
 
-    protected DecoratedKey<?> computeNext()
+    private final Descriptor desc;
+    private final In in;
+    private final IPartitioner partitioner;
+    private final ReadWriteLock fileAccessLock;
+
+    private long keyPosition;
+
+    public KeyIterator(Descriptor desc, TableMetadata metadata)
     {
+        this.desc = desc;
+        in = new In(new File(desc.filenameFor(Component.PRIMARY_INDEX)));
+        partitioner = metadata.partitioner;
+        fileAccessLock = new ReentrantReadWriteLock();
+    }
+
+    protected DecoratedKey computeNext()
+    {
+        fileAccessLock.readLock().lock();
         try
         {
             if (in.isEOF())
                 return endOfData();
-            DecoratedKey<?> key = SSTableReader.decodeKey(StorageService.getPartitioner(), desc, ByteBufferUtil.readWithShortLength(in));
-            in.readLong(); // skip data position
+
+            keyPosition = in.getFilePointer();
+            DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in.get()));
+            RowIndexEntry.Serializer.skip(in.get(), desc.version); // skip remainder of the entry
             return key;
         }
         catch (IOException e)
         {
-            throw new IOError(e);
+            throw new RuntimeException(e);
+        }
+        finally
+        {
+            fileAccessLock.readLock().unlock();
         }
     }
 
-    public void close() throws IOException
+    public void close()
     {
-        in.close();
+        fileAccessLock.writeLock().lock();
+        try
+        {
+            in.close();
+        }
+        finally
+        {
+            fileAccessLock.writeLock().unlock();
+        }
     }
 
     public long getBytesRead()
     {
-        return in.getFilePointer();
+        fileAccessLock.readLock().lock();
+        try
+        {
+            return in.getFilePointer();
+        }
+        finally
+        {
+            fileAccessLock.readLock().unlock();
+        }
     }
 
     public long getTotalBytes()
     {
-        try
-        {
-            return in.length();
-        }
-        catch (IOException e)
-        {
-            throw new IOError(e);
-        }
+        // length is final in the referenced object.
+        // no need to acquire the lock
+        return in.length();
+    }
+
+    public long getKeyPosition()
+    {
+        return keyPosition;
     }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,139 +7,341 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.cassandra.db.compaction;
 
 import java.util.*;
+import java.util.function.LongPredicate;
 
+import com.google.common.base.Predicates;
+import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.ColumnFamily;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.EchoedRow;
-import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
-import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
+import org.apache.cassandra.utils.OverlapIterator;
+import org.apache.cassandra.utils.concurrent.Refs;
+
+import static org.apache.cassandra.db.lifecycle.SSTableIntervalTree.buildIntervals;
 
 /**
  * Manage compaction options.
  */
-public class CompactionController
+public class CompactionController extends AbstractCompactionController
 {
-    private static Logger logger = LoggerFactory.getLogger(CompactionController.class);
+    private static final Logger logger = LoggerFactory.getLogger(CompactionController.class);
+    private static final String NEVER_PURGE_TOMBSTONES_PROPERTY = Config.PROPERTY_PREFIX + "never_purge_tombstones";
+    static final boolean NEVER_PURGE_TOMBSTONES = Boolean.getBoolean(NEVER_PURGE_TOMBSTONES_PROPERTY);
 
-    private final ColumnFamilyStore cfs;
-    private final Set<SSTableReader> sstables;
-    private final boolean forceDeserialize;
+    private final boolean compactingRepaired;
+    // note that overlapIterator and overlappingSSTables will be null if NEVER_PURGE_TOMBSTONES is set - this is a
+    // good thing so that noone starts using them and thinks that if overlappingSSTables is empty, there
+    // is no overlap.
+    private Refs<SSTableReader> overlappingSSTables;
+    private OverlapIterator<PartitionPosition, SSTableReader> overlapIterator;
+    private final Iterable<SSTableReader> compacting;
+    private final RateLimiter limiter;
+    private final long minTimestamp;
+    final Map<SSTableReader, FileDataInput> openDataFiles = new HashMap<>();
 
-    public final int gcBefore;
-    public boolean keyExistenceIsExpensive;
-    public final int mergeShardBefore;
-
-    public CompactionController(ColumnFamilyStore cfs, Collection<SSTableReader> sstables, int gcBefore, boolean forceDeserialize)
+    protected CompactionController(ColumnFamilyStore cfs, int maxValue)
     {
-        assert cfs != null;
-        this.cfs = cfs;
-        this.sstables = new HashSet<SSTableReader>(sstables);
-        this.gcBefore = gcBefore;
-        // If we merge an old NodeId id, we must make sure that no further increment for that id are in an active memtable.
-        // For that, we must make sure that this id was renewed before the creation of the oldest unflushed memtable. We
-        // add 5 minutes to be sure we're on the safe side in terms of thread safety (though we should be fine in our
-        // current 'stop all write during memtable switch' situation).
-        this.mergeShardBefore = (int) ((cfs.oldestUnflushedMemtable() + 5 * 3600) / 1000);
-        this.forceDeserialize = forceDeserialize;
-        keyExistenceIsExpensive = cfs.getCompactionStrategy().isKeyExistenceExpensive(this.sstables);
+        this(cfs, null, maxValue);
     }
 
-    public String getKeyspace()
+    public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore)
     {
-        return cfs.table.name;
+        this(cfs, compacting, gcBefore, null,
+             cfs.getCompactionStrategyManager().getCompactionParams().tombstoneOption());
     }
 
-    public String getColumnFamily()
+    public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore, RateLimiter limiter, TombstoneOption tombstoneOption)
     {
-        return cfs.columnFamily;
+        super(cfs, gcBefore, tombstoneOption);
+        this.compacting = compacting;
+        this.limiter = limiter;
+        compactingRepaired = compacting != null && compacting.stream().allMatch(SSTableReader::isRepaired);
+        this.minTimestamp = compacting != null && !compacting.isEmpty()       // check needed for test
+                          ? compacting.stream().mapToLong(SSTableReader::getMinTimestamp).min().getAsLong()
+                          : 0;
+        refreshOverlaps();
+        if (NEVER_PURGE_TOMBSTONES)
+            logger.warn("You are running with -Dcassandra.never_purge_tombstones=true, this is dangerous!");
+    }
+
+    public void maybeRefreshOverlaps()
+    {
+        if (NEVER_PURGE_TOMBSTONES)
+        {
+            logger.debug("not refreshing overlaps - running with -D{}=true",
+                    NEVER_PURGE_TOMBSTONES_PROPERTY);
+            return;
+        }
+
+        if (ignoreOverlaps())
+        {
+            logger.debug("not refreshing overlaps - running with ignoreOverlaps activated");
+            return;
+        }
+
+        if (cfs.getNeverPurgeTombstones())
+        {
+            logger.debug("not refreshing overlaps for {}.{} - neverPurgeTombstones is enabled", cfs.keyspace.getName(), cfs.getTableName());
+            return;
+        }
+
+        for (SSTableReader reader : overlappingSSTables)
+        {
+            if (reader.isMarkedCompacted())
+            {
+                refreshOverlaps();
+                return;
+            }
+        }
+    }
+
+    private void refreshOverlaps()
+    {
+        if (NEVER_PURGE_TOMBSTONES || cfs.getNeverPurgeTombstones())
+            return;
+
+        if (this.overlappingSSTables != null)
+            close();
+
+        if (compacting == null || ignoreOverlaps())
+            overlappingSSTables = Refs.tryRef(Collections.<SSTableReader>emptyList());
+        else
+            overlappingSSTables = cfs.getAndReferenceOverlappingLiveSSTables(compacting);
+        this.overlapIterator = new OverlapIterator<>(buildIntervals(overlappingSSTables));
+    }
+
+    public Set<SSTableReader> getFullyExpiredSSTables()
+    {
+        return getFullyExpiredSSTables(cfs, compacting, overlappingSSTables, gcBefore, ignoreOverlaps());
     }
 
     /**
-     * @return true if it's okay to drop tombstones for the given row, i.e., if we know all the verisons of the row
-     * are included in the compaction set
+     * Finds expired sstables
+     *
+     * works something like this;
+     * 1. find "global" minTimestamp of overlapping sstables, compacting sstables and memtables containing any non-expired data
+     * 2. build a list of fully expired candidates
+     * 3. check if the candidates to be dropped actually can be dropped {@code (maxTimestamp < global minTimestamp)}
+     *    - if not droppable, remove from candidates
+     * 4. return candidates.
+     *
+     * @param cfStore
+     * @param compacting we take the drop-candidates from this set, it is usually the sstables included in the compaction
+     * @param overlapping the sstables that overlap the ones in compacting.
+     * @param gcBefore
+     * @param ignoreOverlaps don't check if data shadows/overlaps any data in other sstables
+     * @return
      */
-    public boolean shouldPurge(DecoratedKey key)
+    public static Set<SSTableReader> getFullyExpiredSSTables(ColumnFamilyStore cfStore,
+                                                             Iterable<SSTableReader> compacting,
+                                                             Iterable<SSTableReader> overlapping,
+                                                             int gcBefore,
+                                                             boolean ignoreOverlaps)
     {
-        return !cfs.isKeyInRemainingSSTables(key, sstables);
+        logger.trace("Checking droppable sstables in {}", cfStore);
+
+        if (NEVER_PURGE_TOMBSTONES || compacting == null || cfStore.getNeverPurgeTombstones())
+            return Collections.<SSTableReader>emptySet();
+
+        if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones() && !Iterables.all(compacting, SSTableReader::isRepaired))
+            return Collections.emptySet();
+
+        if (ignoreOverlaps)
+        {
+            Set<SSTableReader> fullyExpired = new HashSet<>();
+            for (SSTableReader candidate : compacting)
+            {
+                if (candidate.getSSTableMetadata().maxLocalDeletionTime < gcBefore)
+                {
+                    fullyExpired.add(candidate);
+                    logger.trace("Dropping overlap ignored expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
+                                 candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
+                }
+            }
+            return fullyExpired;
+        }
+
+        List<SSTableReader> candidates = new ArrayList<>();
+        long minTimestamp = Long.MAX_VALUE;
+
+        for (SSTableReader sstable : overlapping)
+        {
+            // Overlapping might include fully expired sstables. What we care about here is
+            // the min timestamp of the overlapping sstables that actually contain live data.
+            if (sstable.getSSTableMetadata().maxLocalDeletionTime >= gcBefore)
+                minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
+        }
+
+        for (SSTableReader candidate : compacting)
+        {
+            if (candidate.getSSTableMetadata().maxLocalDeletionTime < gcBefore)
+                candidates.add(candidate);
+            else
+                minTimestamp = Math.min(minTimestamp, candidate.getMinTimestamp());
+        }
+
+        for (Memtable memtable : cfStore.getTracker().getView().getAllMemtables())
+            minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
+
+        // At this point, minTimestamp denotes the lowest timestamp of any relevant
+        // SSTable or Memtable that contains a constructive value. candidates contains all the
+        // candidates with no constructive values. The ones out of these that have
+        // (getMaxTimestamp() < minTimestamp) serve no purpose anymore.
+
+        Iterator<SSTableReader> iterator = candidates.iterator();
+        while (iterator.hasNext())
+        {
+            SSTableReader candidate = iterator.next();
+            if (candidate.getMaxTimestamp() >= minTimestamp)
+            {
+                iterator.remove();
+            }
+            else
+            {
+               logger.trace("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
+                        candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
+            }
+        }
+        return new HashSet<>(candidates);
     }
 
-    public boolean needDeserialize()
+    public static Set<SSTableReader> getFullyExpiredSSTables(ColumnFamilyStore cfStore,
+                                                             Iterable<SSTableReader> compacting,
+                                                             Iterable<SSTableReader> overlapping,
+                                                             int gcBefore)
     {
-        if (forceDeserialize)
-            return true;
+        return getFullyExpiredSSTables(cfStore, compacting, overlapping, gcBefore, false);
+    }
 
-        for (SSTableReader sstable : sstables)
-            if (!sstable.descriptor.isLatestVersion)
-                return true;
+    /**
+     * @param key
+     * @return a predicate for whether tombstones marked for deletion at the given time for the given partition are
+     * purgeable; we calculate this by checking whether the deletion time is less than the min timestamp of all SSTables
+     * containing his partition and not participating in the compaction. This means there isn't any data in those
+     * sstables that might still need to be suppressed by a tombstone at this timestamp.
+     */
+    @Override
+    public LongPredicate getPurgeEvaluator(DecoratedKey key)
+    {
+        if (NEVER_PURGE_TOMBSTONES || !compactingRepaired() || cfs.getNeverPurgeTombstones())
+            return time -> false;
 
+        overlapIterator.update(key);
+        Set<SSTableReader> filteredSSTables = overlapIterator.overlaps();
+        Iterable<Memtable> memtables = cfs.getTracker().getView().getAllMemtables();
+        long minTimestampSeen = Long.MAX_VALUE;
+        boolean hasTimestamp = false;
+
+        for (SSTableReader sstable: filteredSSTables)
+        {
+            if (sstable.maybePresent(key))
+            {
+                minTimestampSeen = Math.min(minTimestampSeen, sstable.getMinTimestamp());
+                hasTimestamp = true;
+            }
+        }
+
+        for (Memtable memtable : memtables)
+        {
+            if (memtable.rowIterator(key) != null)
+            {
+                minTimestampSeen = Math.min(minTimestampSeen, memtable.getMinTimestamp());
+                hasTimestamp = true;
+            }
+        }
+
+        if (!hasTimestamp)
+            return time -> true;
+        else
+        {
+            final long finalTimestamp = minTimestampSeen;
+            return time -> time < finalTimestamp;
+        }
+    }
+
+    public void close()
+    {
+        if (overlappingSSTables != null)
+            overlappingSSTables.release();
+
+        FileUtils.closeQuietly(openDataFiles.values());
+        openDataFiles.clear();
+    }
+
+    public boolean compactingRepaired()
+    {
+        return !cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones() || compactingRepaired;
+    }
+
+    boolean provideTombstoneSources()
+    {
+        return tombstoneOption != TombstoneOption.NONE;
+    }
+
+    // caller must close iterators
+    public Iterable<UnfilteredRowIterator> shadowSources(DecoratedKey key, boolean tombstoneOnly)
+    {
+        if (!provideTombstoneSources() || !compactingRepaired() || NEVER_PURGE_TOMBSTONES || cfs.getNeverPurgeTombstones())
+            return null;
+        overlapIterator.update(key);
+        return Iterables.filter(Iterables.transform(overlapIterator.overlaps(),
+                                                    reader -> getShadowIterator(reader, key, tombstoneOnly)),
+                                Predicates.notNull());
+    }
+
+    @SuppressWarnings("resource") // caller to close
+    private UnfilteredRowIterator getShadowIterator(SSTableReader reader, DecoratedKey key, boolean tombstoneOnly)
+    {
+        if (reader.isMarkedSuspect() ||
+            reader.getMaxTimestamp() <= minTimestamp ||
+            tombstoneOnly && !reader.mayHaveTombstones())
+            return null;
+        RowIndexEntry<?> position = reader.getPosition(key, SSTableReader.Operator.EQ);
+        if (position == null)
+            return null;
+        FileDataInput dfile = openDataFiles.computeIfAbsent(reader, this::openDataFile);
+        return reader.simpleIterator(dfile, key, position, tombstoneOnly);
+    }
+
+    /**
+     * Is overlapped sstables ignored
+     *
+     * Control whether or not we are taking into account overlapping sstables when looking for fully expired sstables.
+     * In order to reduce the amount of work needed, we look for sstables that can be dropped instead of compacted.
+     * As a safeguard mechanism, for each time range of data in a sstable, we are checking globally to see if all data
+     * of this time range is fully expired before considering to drop the sstable.
+     * This strategy can retain for a long time a lot of sstables on disk (see CASSANDRA-13418) so this option
+     * control whether or not this check should be ignored.
+     *
+     * @return false by default
+     */
+    protected boolean ignoreOverlaps()
+    {
         return false;
     }
 
-    public void invalidateCachedRow(DecoratedKey key)
+    private FileDataInput openDataFile(SSTableReader reader)
     {
-        cfs.invalidateCachedRow(key);
-    }
-
-    public void removeDeletedInCache(DecoratedKey key)
-    {
-        ColumnFamily cachedRow = cfs.getRawCachedRow(key);
-        if (cachedRow != null)
-            ColumnFamilyStore.removeDeleted(cachedRow, gcBefore);
-    }
-
-    /**
-     * @return an AbstractCompactedRow implementation to write the merged rows in question.
-     *
-     * If there is a single source row, the data is from a current-version sstable, we don't
-     * need to purge and we aren't forcing deserialization for scrub, write it unchanged.
-     * Otherwise, we deserialize, purge tombstones, and reserialize in the latest version.
-     */
-    public AbstractCompactedRow getCompactedRow(List<SSTableIdentityIterator> rows)
-    {
-        long rowSize = 0;
-        for (SSTableIdentityIterator row : rows)
-            rowSize += row.dataSize;
-
-        // in-memory echoedrow is only enabled if we think checking for the key's existence in the other sstables,
-        // is going to be less expensive than simply de/serializing the row again
-        if (rows.size() == 1 && !needDeserialize()
-            && (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit() || !keyExistenceIsExpensive)
-            && !shouldPurge(rows.get(0).getKey()))
-        {
-            return new EchoedRow(rows.get(0));
-        }
-
-        if (rowSize > DatabaseDescriptor.getInMemoryCompactionLimit())
-        {
-            String keyString = cfs.metadata.getKeyValidator().getString(rows.get(0).getKey().key);
-            logger.info(String.format("Compacting large row %s/%s:%s (%d bytes) incrementally",
-                                      cfs.table.name, cfs.columnFamily, keyString, rowSize));
-            return new LazilyCompactedRow(this, rows);
-        }
-        return new PrecompactedRow(this, rows);
-    }
-
-    /** convenience method for single-sstable compactions */
-    public AbstractCompactedRow getCompactedRow(SSTableIdentityIterator row)
-    {
-        return getCompactedRow(Collections.singletonList(row));
+        return limiter != null ? reader.openDataReader(limiter) : reader.openDataReader();
     }
 }

@@ -1,0 +1,3 @@
+alter_type_statement::= ALTER TYPE [ IF EXISTS ] udt_name alter_type_modification
+alter_type_modification::= ADD [ IF NOT EXISTS ] field_definition
+        | RENAME [ IF EXISTS ] identifier TO identifier (AND identifier TO identifier )*

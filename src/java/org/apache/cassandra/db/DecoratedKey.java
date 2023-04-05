@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,16 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
+import java.util.List;
+import java.util.StringJoiner;
 
+import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.dht.Token.KeyBound;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.MurmurHash;
+import org.apache.cassandra.utils.IFilter.FilterKey;
 
 /**
  * Represents a decorated key, handy for certain operations
@@ -35,10 +41,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * if this matters, you can subclass RP to use a stronger hash, or use a non-lossy tokenization scheme (as in the
  * OrderPreservingPartitioner classes).
  */
-public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
+public abstract class DecoratedKey implements PartitionPosition, FilterKey
 {
-    private static IPartitioner partitioner = StorageService.getPartitioner();
-
     public static final Comparator<DecoratedKey> comparator = new Comparator<DecoratedKey>()
     {
         public int compare(DecoratedKey o1, DecoratedKey o2)
@@ -47,21 +51,18 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
         }
     };
 
-    public final T token;
-    public final ByteBuffer key;
+    private final Token token;
 
-    public DecoratedKey(T token, ByteBuffer key)
+    public DecoratedKey(Token token)
     {
-        super();
         assert token != null;
         this.token = token;
-        this.key = key;
     }
 
     @Override
     public int hashCode()
     {
-        return token.hashCode();
+        return getKey().hashCode(); // hash of key is enough
     }
 
     @Override
@@ -69,29 +70,103 @@ public class DecoratedKey<T extends Token> implements Comparable<DecoratedKey>
     {
         if (this == obj)
             return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
+        if (obj == null || !(obj instanceof DecoratedKey))
             return false;
 
-        DecoratedKey other = (DecoratedKey) obj;
-        return token.equals(other.token);
+        DecoratedKey other = (DecoratedKey)obj;
+        return ByteBufferUtil.compareUnsigned(getKey(), other.getKey()) == 0; // we compare faster than BB.equals for array backed BB
     }
 
-    public int compareTo(DecoratedKey other)
+    public int compareTo(PartitionPosition pos)
     {
-        return token.compareTo(other.token);
+        if (this == pos)
+            return 0;
+
+        // delegate to Token.KeyBound if needed
+        if (!(pos instanceof DecoratedKey))
+            return -pos.compareTo(this);
+
+        DecoratedKey otherKey = (DecoratedKey) pos;
+        int cmp = getToken().compareTo(otherKey.getToken());
+        return cmp == 0 ? ByteBufferUtil.compareUnsigned(getKey(), otherKey.getKey()) : cmp;
     }
 
-    public boolean isEmpty()
+    public static int compareTo(IPartitioner partitioner, ByteBuffer key, PartitionPosition position)
     {
-        return token.equals(partitioner.getMinimumToken());
+        // delegate to Token.KeyBound if needed
+        if (!(position instanceof DecoratedKey))
+            return -position.compareTo(partitioner.decorateKey(key));
+
+        DecoratedKey otherKey = (DecoratedKey) position;
+        int cmp = partitioner.getToken(key).compareTo(otherKey.getToken());
+        return cmp == 0 ? ByteBufferUtil.compareUnsigned(key, otherKey.getKey()) : cmp;
+    }
+
+    public IPartitioner getPartitioner()
+    {
+        return getToken().getPartitioner();
+    }
+
+    public KeyBound minValue()
+    {
+        return getPartitioner().getMinimumToken().minKeyBound();
+    }
+
+    public boolean isMinimum()
+    {
+        // A DecoratedKey can never be the minimum position on the ring
+        return false;
+    }
+
+    public PartitionPosition.Kind kind()
+    {
+        return PartitionPosition.Kind.ROW_KEY;
     }
 
     @Override
     public String toString()
     {
-        String keystring = key == null ? "null" : ByteBufferUtil.bytesToHex(key);
-        return "DecoratedKey(" + token + ", " + keystring + ")";
+        String keystring = getKey() == null ? "null" : ByteBufferUtil.bytesToHex(getKey());
+        return "DecoratedKey(" + getToken() + ", " + keystring + ")";
+    }
+
+    /**
+     * Returns a CQL representation of this key.
+     *
+     * @param metadata the metadata of the table that this key belogs to
+     * @return a CQL representation of this key
+     */
+    public String toCQLString(TableMetadata metadata)
+    {
+        List<ColumnMetadata> columns = metadata.partitionKeyColumns();
+
+        if (columns.size() == 1)
+            return toCQLString(columns.get(0), getKey());
+
+        ByteBuffer[] values = ((CompositeType) metadata.partitionKeyType).split(getKey());
+        StringJoiner joiner = new StringJoiner(" AND ");
+
+        for (int i = 0; i < columns.size(); i++)
+            joiner.add(toCQLString(columns.get(i), values[i]));
+
+        return joiner.toString();
+    }
+
+    private static String toCQLString(ColumnMetadata metadata, ByteBuffer key)
+    {
+        return String.format("%s = %s", metadata.name.toCQLString(), metadata.type.toCQLString(key));
+    }
+
+    public Token getToken()
+    {
+        return token;
+    }
+
+    public abstract ByteBuffer getKey();
+
+    public void filterHash(long[] dest)
+    {
+        ByteBuffer key = getKey();
+        MurmurHash.hash3_x64_128(key, key.position(), key.remaining(), 0, dest);
     }
 }

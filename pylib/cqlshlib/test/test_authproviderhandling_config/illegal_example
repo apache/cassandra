@@ -1,0 +1,5 @@
+; Example that shouldn't work
+
+[auth_provider]
+module = nowhere.illegal.wrong
+classname = badclass

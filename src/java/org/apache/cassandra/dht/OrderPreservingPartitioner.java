@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,36 +15,43 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.dht;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
-import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.CachedHashDecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
-public class OrderPreservingPartitioner implements IPartitioner<StringToken>
+public class OrderPreservingPartitioner implements IPartitioner
 {
+    private static final String rndchars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
     public static final StringToken MINIMUM = new StringToken("");
 
     public static final BigInteger CHAR_MASK = new BigInteger("65535");
 
-    public DecoratedKey<StringToken> decorateKey(ByteBuffer key)
+    private static final long EMPTY_SIZE = ObjectSizes.measure(MINIMUM);
+
+    public static final OrderPreservingPartitioner instance = new OrderPreservingPartitioner();
+
+    public DecoratedKey decorateKey(ByteBuffer key)
     {
-        return new DecoratedKey<StringToken>(getToken(key), key);
-    }
-    
-    public DecoratedKey<StringToken> convertFromDiskFormat(ByteBuffer key)
-    {
-        return new DecoratedKey<StringToken>(getToken(key), key);
+        return new CachedHashDecoratedKey(getToken(key), key);
     }
 
     public StringToken midpoint(Token ltoken, Token rtoken)
@@ -55,6 +62,11 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 
         Pair<BigInteger,Boolean> midpair = FBUtilities.midpoint(left, right, 16*sigchars);
         return new StringToken(stringForBig(midpair.left, sigchars, midpair.right));
+    }
+
+    public Token split(Token left, Token right, double ratioToLeft)
+    {
+        throw new UnsupportedOperationException();
     }
 
     /**
@@ -103,23 +115,26 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
 
     public StringToken getRandomToken()
     {
-        String chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        Random r = new Random();
+        return getRandomToken(ThreadLocalRandom.current());
+    }
+
+    public StringToken getRandomToken(Random random)
+    {
         StringBuilder buffer = new StringBuilder();
-        for (int j = 0; j < 16; j++) {
-            buffer.append(chars.charAt(r.nextInt(chars.length())));
-        }
+        for (int j = 0; j < 16; j++)
+            buffer.append(rndchars.charAt(random.nextInt(rndchars.length())));
         return new StringToken(buffer.toString());
     }
 
-    private final Token.TokenFactory<String> tokenFactory = new Token.TokenFactory<String>()
+    private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
     {
-        public ByteBuffer toByteArray(Token<String> stringToken)
+        public ByteBuffer toByteArray(Token token)
         {
+            StringToken stringToken = (StringToken) token;
             return ByteBufferUtil.bytes(stringToken.token);
         }
 
-        public Token<String> fromByteArray(ByteBuffer bytes)
+        public Token fromByteArray(ByteBuffer bytes)
         {
             try
             {
@@ -131,8 +146,9 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
             }
         }
 
-        public String toString(Token<String> stringToken)
+        public String toString(Token token)
         {
+            StringToken stringToken = (StringToken) token;
             return stringToken.token;
         }
 
@@ -142,13 +158,13 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
                 throw new ConfigurationException("Tokens may not contain the character " + VersionedValue.DELIMITER_STR);
         }
 
-        public Token<String> fromString(String string)
+        public Token fromString(String string)
         {
             return new StringToken(string);
         }
     };
 
-    public Token.TokenFactory<String> getTokenFactory()
+    public Token.TokenFactory getTokenFactory()
     {
         return tokenFactory;
     }
@@ -156,6 +172,28 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
     public boolean preservesOrder()
     {
         return true;
+    }
+
+    public static class StringToken extends ComparableObjectToken<String>
+    {
+        static final long serialVersionUID = 5464084395277974963L;
+
+        public StringToken(String token)
+        {
+            super(token);
+        }
+
+        @Override
+        public IPartitioner getPartitioner()
+        {
+            return instance;
+        }
+
+        @Override
+        public long getHeapSize()
+        {
+            return EMPTY_SIZE + ObjectSizes.sizeOf(token);
+        }
     }
 
     public StringToken getToken(ByteBuffer key)
@@ -167,7 +205,7 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
         }
         catch (CharacterCodingException e)
         {
-            throw new RuntimeException("The provided key was not UTF8 encoded.", e);
+            skey = ByteBufferUtil.bytesToHex(key);
         }
         return new StringToken(skey);
     }
@@ -176,25 +214,25 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
     {
         // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
         Map<Token, Float> allTokens = new HashMap<Token, Float>();
-        List<Range> sortedRanges = new ArrayList<Range>();
+        List<Range<Token>> sortedRanges = new ArrayList<Range<Token>>(sortedTokens.size());
 
         // this initializes the counts to 0 and calcs the ranges in order.
         Token lastToken = sortedTokens.get(sortedTokens.size() - 1);
         for (Token node : sortedTokens)
         {
             allTokens.put(node, new Float(0.0));
-            sortedRanges.add(new Range(lastToken, node));
+            sortedRanges.add(new Range<Token>(lastToken, node));
             lastToken = node;
         }
 
-        for (String ks : Schema.instance.getTables())
+        for (String ks : Schema.instance.getKeyspaces())
         {
-            for (CFMetaData cfmd : Schema.instance.getKSMetaData(ks).cfMetaData().values())
+            for (TableMetadata cfmd : Schema.instance.getTablesAndViews(ks))
             {
-                for (Range r : sortedRanges)
+                for (Range<Token> r : sortedRanges)
                 {
                     // Looping over every KS:CF:Range, get the splits size and add it to the count
-                    allTokens.put(r.right, allTokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.cfName, r, DatabaseDescriptor.getIndexInterval()).size());
+                    allTokens.put(r.right, allTokens.get(r.right) + StorageService.instance.getSplits(ks, cfmd.name, r, cfmd.params.minIndexInterval).size());
                 }
             }
         }
@@ -207,5 +245,15 @@ public class OrderPreservingPartitioner implements IPartitioner<StringToken>
             allTokens.put(row.getKey(), row.getValue() / total);
 
         return allTokens;
+    }
+
+    public AbstractType<?> getTokenValidator()
+    {
+        return UTF8Type.instance;
+    }
+
+    public AbstractType<?> partitionOrdering()
+    {
+        return UTF8Type.instance;
     }
 }

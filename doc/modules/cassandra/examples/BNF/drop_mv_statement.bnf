@@ -1,0 +1,1 @@
+drop_materialized_view_statement::= DROP MATERIALIZED VIEW [ IF EXISTS ] view_name;

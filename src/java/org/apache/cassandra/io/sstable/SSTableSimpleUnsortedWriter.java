@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,121 +7,225 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.cassandra.io.sstable;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.HeapAllocator;
+import com.google.common.base.Throwables;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
+import io.netty.util.concurrent.FastThreadLocalThread;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.SerializationHelper;
+import org.apache.cassandra.db.rows.UnfilteredSerializer;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
  * A SSTable writer that doesn't assume rows are in sorted order.
+ * <p>
  * This writer buffers rows in memory and then write them all in sorted order.
  * To avoid loading the entire data set in memory, the amount of rows buffered
  * is configurable. Each time the threshold is met, one SSTable will be
  * created (and the buffer be reseted).
  *
- * @see AbstractSSTableSimpleWriter
+ * @see SSTableSimpleWriter
  */
-public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
+class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 {
-    private final Map<DecoratedKey, ColumnFamily> keys = new TreeMap<DecoratedKey, ColumnFamily>();
+    private static final Buffer SENTINEL = new Buffer();
+
+    private Buffer buffer = new Buffer();
     private final long bufferSize;
     private long currentSize;
 
-    /**
-     * Create a new buffering writer.
-     * @param directory the directory where to write the sstables
-     * @param keyspace the keyspace name
-     * @param columnFamily the column family name
-     * @param comparator the column family comparator
-     * @param subComparator the column family subComparator or null if not a Super column family.
-     * @param bufferSizeInMB the data size in MB before which a sstable is written and the buffer reseted. This correspond roughly to the written
-     * data size (i.e. the size of the create sstable). The actual size used in memory will be higher (by how much depends on the size of the
-     * columns you add). For 1GB of heap, a 128 bufferSizeInMB is probably a reasonable choice. If you experience OOM, this value should be lowered.
-     */
-    public SSTableSimpleUnsortedWriter(File directory,
-                                       String keyspace,
-                                       String columnFamily,
-                                       AbstractType comparator,
-                                       AbstractType subComparator,
-                                       int bufferSizeInMB) throws IOException
+    // Used to compute the row serialized size
+    private final SerializationHeader header;
+    private final SerializationHelper helper;
+
+    private final BlockingQueue<Buffer> writeQueue = newBlockingQueue(0);
+    private final DiskWriter diskWriter = new DiskWriter();
+
+    SSTableSimpleUnsortedWriter(File directory, TableMetadataRef metadata, RegularAndStaticColumns columns, long bufferSizeInMB)
     {
-        super(directory, new CFMetaData(keyspace, columnFamily, subComparator == null ? ColumnFamilyType.Standard : ColumnFamilyType.Super, comparator, subComparator));
+        super(directory, metadata, columns);
         this.bufferSize = bufferSizeInMB * 1024L * 1024L;
+        this.header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
+        this.helper = new SerializationHelper(this.header);
+        diskWriter.start();
     }
 
-    protected void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException
+    PartitionUpdate.Builder getUpdateFor(DecoratedKey key)
     {
-        currentSize += key.key.remaining() + columnFamily.serializedSize() * 1.2;
-
-        if (currentSize > bufferSize)
-            sync();
-    }
-
-    protected ColumnFamily getColumnFamily()
-    {
-        ColumnFamily previous = keys.get(currentKey);
-        // If the CF already exist in memory, we'll just continue adding to it
+        assert key != null;
+        PartitionUpdate.Builder previous = buffer.get(key);
         if (previous == null)
         {
-            previous = ColumnFamily.create(metadata, TreeMapBackedSortedColumns.factory());
-            keys.put(currentKey, previous);
-        }
-        else
-        {
-            // We will reuse a CF that we have counted already. But because it will be easier to add the full size
-            // of the CF in the next writeRow call than to find out the delta, we just remove the size until that next call
-            currentSize -= currentKey.key.remaining() + previous.serializedSize() * 1.2;
+            // todo: inefficient - we create and serialize a PU just to get its size, then recreate it
+            // todo: either allow PartitionUpdateBuilder to have .build() called several times or pre-calculate the size
+            currentSize += PartitionUpdate.serializer.serializedSize(createPartitionUpdateBuilder(key).build(), formatType.info.getLatestVersion().correspondingMessagingVersion());
+            previous = createPartitionUpdateBuilder(key);
+            buffer.put(key, previous);
         }
         return previous;
     }
 
-    public void close() throws IOException
+    private void countRow(Row row)
     {
-        sync();
+        // Note that the accounting of a row is a bit inaccurate (it doesn't take some of the file format optimization into account)
+        // and the maintaining of the bufferSize is in general not perfect. This has always been the case for this class but we should
+        // improve that. In particular, what we count is closer to the serialized value, but it's debatable that it's the right thing
+        // to count since it will take a lot more space in memory and the bufferSize if first and foremost used to avoid OOM when
+        // using this writer.
+        currentSize += UnfilteredSerializer.serializer.serializedSize(row, helper, 0, formatType.info.getLatestVersion().correspondingMessagingVersion());
     }
 
-    private void sync() throws IOException
+    private void maybeSync() throws SyncException
     {
-        if (keys.isEmpty())
-            return;
-
-        SSTableWriter writer = null;
         try
         {
-            writer = getWriter();
-            for (Map.Entry<DecoratedKey, ColumnFamily> entry : keys.entrySet())
-            {
-                writer.append(entry.getKey(), entry.getValue());
-            }
-            writer.closeAndOpenReader();
+            if (currentSize > bufferSize)
+                sync();
         }
         catch (IOException e)
         {
-            if (writer != null)
-                writer.abort();
-            throw e;
+            // addColumn does not throw IOException but we want to report this to the user,
+            // so wrap it in a temporary RuntimeException that we'll catch in rawAddRow above.
+            throw new SyncException(e);
         }
+    }
+
+    private PartitionUpdate.Builder createPartitionUpdateBuilder(DecoratedKey key)
+    {
+        return new PartitionUpdate.Builder(metadata.get(), key, columns, 4)
+        {
+            @Override
+            public void add(Row row)
+            {
+                super.add(row);
+                countRow(row);
+                maybeSync();
+            }
+        };
+    }
+
+    @Override
+    public void close() throws IOException
+    {
+        sync();
+        put(SENTINEL);
+        try
+        {
+            diskWriter.join();
+            checkForWriterException();
+        }
+        catch (Throwable e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        checkForWriterException();
+    }
+
+    protected void sync() throws IOException
+    {
+        if (buffer.isEmpty())
+            return;
+
+        put(buffer);
+        buffer = new Buffer();
         currentSize = 0;
-        keys.clear();
+    }
+
+    private void put(Buffer buffer) throws IOException
+    {
+        while (true)
+        {
+            checkForWriterException();
+            try
+            {
+                if (writeQueue.offer(buffer, 1, TimeUnit.SECONDS))
+                    break;
+            }
+            catch (InterruptedException e)
+            {
+                throw new UncheckedInterruptedException(e);
+            }
+        }
+    }
+
+    private void checkForWriterException() throws IOException
+    {
+        // slightly lame way to report exception from the writer, but that should be good enough
+        if (diskWriter.exception != null)
+        {
+            if (diskWriter.exception instanceof IOException)
+                throw (IOException) diskWriter.exception;
+            else
+                throw Throwables.propagate(diskWriter.exception);
+        }
+    }
+
+    static class SyncException extends RuntimeException
+    {
+        SyncException(IOException ioe)
+        {
+            super(ioe);
+        }
+    }
+
+    //// typedef
+    static class Buffer extends TreeMap<DecoratedKey, PartitionUpdate.Builder> {}
+
+    private class DiskWriter extends FastThreadLocalThread
+    {
+        volatile Throwable exception = null;
+
+        public void run()
+        {
+            while (true)
+            {
+                try
+                {
+                    Buffer b = writeQueue.take();
+                    if (b == SENTINEL)
+                        return;
+
+                        try (SSTableTxnWriter writer = createWriter())
+                    {
+                        for (Map.Entry<DecoratedKey, PartitionUpdate.Builder> entry : b.entrySet())
+                            writer.append(entry.getValue().build().unfilteredIterator());
+                        writer.finish(false);
+                    }
+                }
+                catch (Throwable e)
+                {
+                    JVMStabilityInspector.inspectThrowable(e);
+                    // Keep only the first exception
+                    if (exception == null)
+                        exception = e;
+                }
+            }
+        }
     }
 }

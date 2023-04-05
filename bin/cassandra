@@ -27,12 +27,15 @@
 # behavior, those variables are:
 #
 #   CLASSPATH -- A Java classpath containing everything necessary to run.
+#   EXTRA_CLASSPATH -- A Java classpath with anything to be appended to CLASSPATH
 #   JVM_OPTS -- Additional arguments to the JVM for heap size, etc
+#   JVM_ON_OUT_OF_MEMORY_ERROR_OPT -- The OnOutOfMemoryError JVM option if specified
 #   CASSANDRA_CONF -- Directory containing Cassandra configuration files.
+#   CASSANDRA_LOG_DIR -- Directory containing logs(default: $CASSANDRA_HOME/logs).
 #
 # As a convenience, a fragment of shell is sourced in order to set one or
 # more of these variables. This so-called `include' can be placed in a 
-# number of locations and will be searched for in order. The lowest 
+# number of locations and will be searched for in order. The highest 
 # priority search path is the same directory as the startup script, and
 # since this is the location of the sample in the project tree, it should
 # almost work Out Of The Box.
@@ -64,14 +67,23 @@
 # NB: Developers should be aware that this script should remain compatible with
 # POSIX sh and Solaris sh. This means, in particular, no $(( )) and no $( ).
 
+# Unset any grep options that may include `--color=always` per say.
+# Using `unset GREP_OPTIONS` will also work on the non-deprecated use case
+# of setting a new grep alias.
+# See CASSANDRA-14487 for more details.
+unset GREP_OPTIONS
+
 # If an include wasn't specified in the environment, then search for one...
+
+jvmoptions_variant="-server"
+
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     # Locations (in order) to use when searching for an include file.
-    for include in /usr/share/cassandra/cassandra.in.sh \
-                   /usr/local/share/cassandra/cassandra.in.sh \
-                   /opt/cassandra/cassandra.in.sh \
+    for include in "`dirname "$0"`/cassandra.in.sh" \
                    "$HOME/.cassandra.in.sh" \
-                   "`dirname $0`/cassandra.in.sh"; do
+                   /usr/share/cassandra/cassandra.in.sh \
+                   /usr/local/share/cassandra/cassandra.in.sh \
+                   /opt/cassandra/cassandra.in.sh; do
         if [ -r "$include" ]; then
             . "$include"
             break
@@ -82,18 +94,11 @@ elif [ -r "$CASSANDRA_INCLUDE" ]; then
     . "$CASSANDRA_INCLUDE"
 fi
 
-# Use JAVA_HOME if set, otherwise look for java in PATH
-if [ -n "$JAVA_HOME" ]; then
-    JAVA="$JAVA_HOME/bin/java"
-else
-    JAVA=java
-fi
-
 # If numactl is available, use it. For Cassandra, the priority is to
 # avoid disk I/O. Even for the purpose of CPU efficiency, we don't
 # really have CPU<->data affinity anyway. Also, empirically test that numactl
 # works before trying to use it (CASSANDRA-3245).
-NUMACTL_ARGS="--interleave=all"
+NUMACTL_ARGS=${NUMACTL_ARGS:-"--interleave=all"}
 if which numactl >/dev/null 2>/dev/null && numactl $NUMACTL_ARGS ls / >/dev/null 2>/dev/null
 then
     NUMACTL="numactl $NUMACTL_ARGS"
@@ -110,45 +115,103 @@ if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
     . "$CASSANDRA_CONF/cassandra-env.sh"
 fi
 
-# Special-case path variables.
-case "`uname`" in
-    CYGWIN*) 
-        CLASSPATH=`cygpath -p -w "$CLASSPATH"`
-        CASSANDRA_CONF=`cygpath -p -w "$CASSANDRA_CONF"`
+if [ -z "$CASSANDRA_LOG_DIR" ]; then
+  CASSANDRA_LOG_DIR=$CASSANDRA_HOME/logs
+fi
+
+# Cassandra uses an installed jemalloc via LD_PRELOAD / DYLD_INSERT_LIBRARIES by default to improve off-heap
+# memory allocation performance. The following code searches for an installed libjemalloc.dylib/.so/.1.so using
+# Linux and OS-X specific approaches.
+# To specify your own libjemalloc in a different path, configure the fully qualified path in CASSANDRA_LIBJEMALLOC.
+# To disable jemalloc preload at all, set CASSANDRA_LIBJEMALLOC=-
+#
+#CASSANDRA_LIBJEMALLOC=
+#
+find_library()
+{
+    pattern=$1
+    path=$(echo ${2} | tr ":" " ")
+
+    find $path -regex "$pattern" -print 2>/dev/null | head -n 1
+}
+case "`uname -s`" in
+    Linux)
+        if [ -z $CASSANDRA_LIBJEMALLOC ] ; then
+            which ldconfig > /dev/null 2>&1
+            if [ $? = 0 ] ; then
+                # e.g. for CentOS
+                dirs="/lib64 /lib /usr/lib64 /usr/lib `ldconfig -v 2>/dev/null | grep -v '^\s' | sed 's/^\([^:]*\):.*$/\1/'`"
+            else
+                # e.g. for Debian, OpenSUSE
+                dirs="/lib64 /lib /usr/lib64 /usr/lib `cat /etc/ld.so.conf /etc/ld.so.conf.d/*.conf | grep '^/'`"
+            fi
+            dirs=`echo $dirs | tr " " ":"`
+            CASSANDRA_LIBJEMALLOC=$(find_library '.*/libjemalloc\.so\(\.1\)*' $dirs)
+        fi
+        if [ ! -z $CASSANDRA_LIBJEMALLOC ] ; then
+            export JVM_OPTS="$JVM_OPTS -Dcassandra.libjemalloc=$CASSANDRA_LIBJEMALLOC"
+            if [ "-" != "$CASSANDRA_LIBJEMALLOC" ] ; then
+                export LD_PRELOAD=$CASSANDRA_LIBJEMALLOC
+            fi
+        fi
+    ;;
+    Darwin)
+        if [ -z $CASSANDRA_LIBJEMALLOC ] ; then
+            CASSANDRA_LIBJEMALLOC=$(find_library '.*/libjemalloc\.dylib' $DYLD_LIBRARY_PATH:${DYLD_FALLBACK_LIBRARY_PATH-$HOME/lib:/usr/local/lib:/lib:/usr/lib})
+        fi
+        if [ ! -z $CASSANDRA_LIBJEMALLOC ] ; then
+            export JVM_OPTS="$JVM_OPTS -Dcassandra.libjemalloc=$CASSANDRA_LIBJEMALLOC"
+            if [ "-" != "$CASSANDRA_LIBJEMALLOC" ] ; then
+                export DYLD_INSERT_LIBRARIES=$CASSANDRA_LIBJEMALLOC
+            fi
+        fi
     ;;
 esac
 
 launch_service()
 {
-    pidpath=$1
-    foreground=$2
-    props=$3
-    class=$4
-    cassandra_parms="-Dlog4j.configuration=log4j-server.properties -Dlog4j.defaultInitOverride=true"
+    pidpath="$1"
+    foreground="$2"
+    props="$3"
+    class="$4"
+    cassandra_parms="-Dlogback.configurationFile=logback.xml"
+    cassandra_parms="$cassandra_parms -Dcassandra.logdir=$CASSANDRA_LOG_DIR"
+    cassandra_parms="$cassandra_parms -Dcassandra.storagedir=$cassandra_storagedir"
 
     if [ "x$pidpath" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-pidfile=$pidpath"
     fi
-    
+
     # The cassandra-foreground option will tell CassandraDaemon not
     # to close stdout/stderr, but it's up to us not to background.
     if [ "x$foreground" != "x" ]; then
         cassandra_parms="$cassandra_parms -Dcassandra-foreground=yes"
-        exec $NUMACTL "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class"
+        if [ "x$JVM_ON_OUT_OF_MEMORY_ERROR_OPT" != "x" ]; then
+            exec $NUMACTL "$JAVA" $JVM_OPTS "$JVM_ON_OUT_OF_MEMORY_ERROR_OPT" $cassandra_parms -cp "$CLASSPATH" $props "$class"
+        else
+            exec $NUMACTL "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class"
+        fi
     # Startup CassandraDaemon, background it, and write the pid.
     else
-        exec $NUMACTL "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class" <&- &
-        [ ! -z "$pidpath" ] && printf "%d" $! > "$pidpath"
+        if [ "x$JVM_ON_OUT_OF_MEMORY_ERROR_OPT" != "x" ]; then
+            exec $NUMACTL "$JAVA" $JVM_OPTS "$JVM_ON_OUT_OF_MEMORY_ERROR_OPT" $cassandra_parms -cp "$CLASSPATH" $props "$class" <&- &
+            [ ! -z "$pidpath" ] && printf "%d" $! > "$pidpath"
+            true
+        else
+            exec $NUMACTL "$JAVA" $JVM_OPTS $cassandra_parms -cp "$CLASSPATH" $props "$class" <&- &
+            [ ! -z "$pidpath" ] && printf "%d" $! > "$pidpath"
+            true
+        fi
     fi
 
     return $?
 }
 
 # Parse any command line options.
-args=`getopt vfhp:bD: "$@"`
+args=`getopt vRfhp:bD:H:E: "$@"`
 eval set -- "$args"
 
-classname="org.apache.cassandra.thrift.CassandraDaemon"
+classname="org.apache.cassandra.service.CassandraDaemon"
 
 while true; do
     case "$1" in
@@ -161,27 +224,51 @@ while true; do
             shift
         ;;
         -h)
-            echo "Usage: $0 [-f] [-h] [-p pidfile]"
+            echo "Usage: $0 [-f] [-h] [-p pidfile] [-H dumpfile] [-E errorfile]"
             exit 0
         ;;
         -v)
-            "$JAVA" -cp "$CLASSPATH" org.apache.cassandra.tools.GetVersion
+            "$JAVA" -cp "$CLASSPATH" "-Dlogback.configurationFile=logback-tools.xml" org.apache.cassandra.tools.GetVersion
             exit 0
+        ;;
+        -R)
+            allow_root="yes"
+            shift
         ;;
         -D)
             properties="$properties -D$2"
             shift 2
         ;;
+        -H)
+            properties="$properties -XX:HeapDumpPath=$2"
+            shift 2
+        ;;
+        -E)
+            properties="$properties -XX:ErrorFile=$2"
+            shift 2
+        ;;
         --)
             shift
+            if [ "x$*" != "x" ] ; then
+                echo "Error parsing arguments! Unknown argument \"$*\"" >&2
+                exit 1
+            fi
             break
         ;;
         *)
-            echo "Error parsing arguments!" >&2
+            echo "Error parsing arguments! Unknown argument \"$1\"" >&2
             exit 1
         ;;
     esac
 done
+
+if [ "x$allow_root" != "xyes" ] ; then
+    if [ "`id -u`" = "0" ] || [ "`id -g`" = "0" ] ; then
+        echo "Running Cassandra as root user or group is not recommended - please start Cassandra using a different system user."
+        echo "If you really want to force running Cassandra as root, use -R command line option."
+        exit 1
+    fi
+fi
 
 # Start up the service
 launch_service "$pidfile" "$foreground" "$properties" "$classname"

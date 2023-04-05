@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,127 +15,138 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.utils;
 
-import java.nio.ByteBuffer;
+import com.google.common.annotations.VisibleForTesting;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import io.netty.util.concurrent.FastThreadLocal;
+import net.nicoulaj.compilecommand.annotations.Inline;
+import org.apache.cassandra.utils.concurrent.Ref;
+import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
+import org.apache.cassandra.utils.obs.IBitSet;
 
-import org.apache.cassandra.utils.obs.OpenBitSet;
-
-public class BloomFilter extends Filter
+public class BloomFilter extends WrappedSharedCloseable implements IFilter
 {
-    private static final Logger logger = LoggerFactory.getLogger(BloomFilter.class);
-    private static final int EXCESS = 20;
-    static BloomFilterSerializer serializer_ = new BloomFilterSerializer();
-
-    public OpenBitSet bitset;
-
-    BloomFilter(int hashes, OpenBitSet bs)
+    private final static FastThreadLocal<long[]> reusableIndexes = new FastThreadLocal<long[]>()
     {
-        hashCount = hashes;
-        bitset = bs;
-    }
-
-    public static BloomFilter emptyFilter()
-    {
-        return new BloomFilter(0, bucketsFor(0, 0));
-    }
-
-    public static BloomFilterSerializer serializer()
-    {
-        return serializer_;
-    }
-
-    private static OpenBitSet bucketsFor(long numElements, int bucketsPer)
-    {
-        return new OpenBitSet(numElements * bucketsPer + EXCESS);
-    }
-
-    /**
-    * @return A BloomFilter with the lowest practical false positive probability
-    * for the given number of elements.
-    */
-    public static BloomFilter getFilter(long numElements, int targetBucketsPerElem)
-    {
-        int maxBucketsPerElement = Math.max(1, BloomCalculations.maxBucketsPerElement(numElements));
-        int bucketsPerElement = Math.min(targetBucketsPerElem, maxBucketsPerElement);
-        if (bucketsPerElement < targetBucketsPerElem)
+        protected long[] initialValue()
         {
-            logger.warn(String.format("Cannot provide an optimal BloomFilter for %d elements (%d/%d buckets per element).",
-                                      numElements, bucketsPerElement, targetBucketsPerElem));
+            return new long[21];
         }
-        BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement);
-        if (logger.isTraceEnabled())
-            logger.trace("Creating bloom filter for {} elements and spec {}", numElements, spec);
-        return new BloomFilter(spec.K, bucketsFor(numElements, spec.bucketsPerElement));
+    };
+
+    public final IBitSet bitset;
+    public final int hashCount;
+
+    BloomFilter(int hashCount, IBitSet bitset)
+    {
+        super(bitset);
+        this.hashCount = hashCount;
+        this.bitset = bitset;
     }
 
-    /**
-    * @return The smallest BloomFilter that can provide the given false positive
-    * probability rate for the given number of elements.
-    *
-    * Asserts that the given probability can be satisfied using this filter.
-    */
-    public static BloomFilter getFilter(long numElements, double maxFalsePosProbability)
+    private BloomFilter(BloomFilter copy)
     {
-        assert maxFalsePosProbability <= 1.0 : "Invalid probability";
-        int bucketsPerElement = BloomCalculations.maxBucketsPerElement(numElements);
-        BloomCalculations.BloomSpecification spec = BloomCalculations.computeBloomSpec(bucketsPerElement, maxFalsePosProbability);
-        return new BloomFilter(spec.K, bucketsFor(numElements, spec.bucketsPerElement));
-    }
-
-    private long[] getHashBuckets(ByteBuffer key)
-    {
-        return BloomFilter.getHashBuckets(key, hashCount, bitset.size());
-    }
-
-    // Murmur is faster than an SHA-based approach and provides as-good collision
-    // resistance.  The combinatorial generation approach described in
-    // http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/esa06.pdf
-    // does prove to work in actual tests, and is obviously faster
-    // than performing further iterations of murmur.
-    static long[] getHashBuckets(ByteBuffer b, int hashCount, long max)
-    {
-        long[] result = new long[hashCount];
-        long hash1 = MurmurHash.hash64(b, b.position(), b.remaining(), 0L);
-        long hash2 = MurmurHash.hash64(b, b.position(), b.remaining(), hash1);
-        for (int i = 0; i < hashCount; ++i)
-        {
-            result[i] = Math.abs((hash1 + (long)i * hash2) % max);
-        }
-        return result;
-    }
-
-    public void add(ByteBuffer key)
-    {
-        for (long bucketIndex : getHashBuckets(key))
-        {
-            bitset.fastSet(bucketIndex);
-        }
-    }
-
-    public boolean isPresent(ByteBuffer key)
-    {
-      for (long bucketIndex : getHashBuckets(key))
-      {
-          if (!bitset.fastGet(bucketIndex))
-          {
-              return false;
-          }
-      }
-      return true;
-    }
-
-    public void clear()
-    {
-        bitset.clear(0, bitset.size());
+        super(copy);
+        this.hashCount = copy.hashCount;
+        this.bitset = copy.bitset;
     }
 
     public long serializedSize()
     {
-        return serializer_.serializedSize(this);
+        return BloomFilterSerializer.serializedSize(this);
+    }
+
+    // Murmur is faster than an SHA-based approach and provides as-good collision
+    // resistance.  The combinatorial generation approach described in
+    // https://www.eecs.harvard.edu/~michaelm/postscripts/tr-02-05.pdf
+    // does prove to work in actual tests, and is obviously faster
+    // than performing further iterations of murmur.
+
+    // tests ask for ridiculous numbers of hashes so here is a special case for them
+    // rather than using the threadLocal like we do in production
+    @VisibleForTesting
+    public long[] getHashBuckets(FilterKey key, int hashCount, long max)
+    {
+        long[] hash = new long[2];
+        key.filterHash(hash);
+        long[] indexes = new long[hashCount];
+        setIndexes(hash[1], hash[0], hashCount, max, indexes);
+        return indexes;
+    }
+
+    // note that this method uses the threadLocal that may be longer than hashCount
+    // to avoid generating a lot of garbage since stack allocation currently does not support stores
+    // (CASSANDRA-6609).  it returns the array so that the caller does not need to perform
+    // a second threadlocal lookup.
+    @Inline
+    private long[] indexes(FilterKey key)
+    {
+        // we use the same array both for storing the hash result, and for storing the indexes we return,
+        // so that we do not need to allocate two arrays.
+        long[] indexes = reusableIndexes.get();
+
+        key.filterHash(indexes);
+        setIndexes(indexes[1], indexes[0], hashCount, bitset.capacity(), indexes);
+        return indexes;
+    }
+
+    @Inline
+    private void setIndexes(long base, long inc, int count, long max, long[] results)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            results[i] = FBUtilities.abs(base % max);
+            base += inc;
+        }
+    }
+
+    public void add(FilterKey key)
+    {
+        long[] indexes = indexes(key);
+        for (int i = 0; i < hashCount; i++)
+        {
+            bitset.set(indexes[i]);
+        }
+    }
+
+    public final boolean isPresent(FilterKey key)
+    {
+        long[] indexes = indexes(key);
+        for (int i = 0; i < hashCount; i++)
+        {
+            if (!bitset.get(indexes[i]))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public void clear()
+    {
+        bitset.clear();
+    }
+
+    public IFilter sharedCopy()
+    {
+        return new BloomFilter(this);
+    }
+
+    @Override
+    public long offHeapSize()
+    {
+        return bitset.offHeapSize();
+    }
+
+    public String toString()
+    {
+        return "BloomFilter[hashCount=" + hashCount + ";capacity=" + bitset.capacity() + ']';
+    }
+
+    public void addTo(Ref.IdentityCollection identities)
+    {
+        super.addTo(identities);
+        bitset.addTo(identities);
     }
 }

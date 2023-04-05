@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,28 +15,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.service;
 
-import java.util.concurrent.TimeUnit;
+import java.net.InetAddress;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.IAsyncCallback;
+import org.apache.cassandra.db.TruncateResponse;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.TruncateException;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.utils.SimpleCondition;
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-public class TruncateResponseHandler implements IAsyncCallback
+
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.DatabaseDescriptor.getTruncateRpcTimeout;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
+
+public class TruncateResponseHandler implements RequestCallback<TruncateResponse>
 {
     protected static final Logger logger = LoggerFactory.getLogger(TruncateResponseHandler.class);
-    protected final SimpleCondition condition = new SimpleCondition();
+    protected final Condition condition = newOneTimeCondition();
     private final int responseCount;
-    protected AtomicInteger responses = new AtomicInteger(0);
-    private final long startTime;
+    protected final AtomicInteger responses = new AtomicInteger(0);
+    private final long start;
+    private volatile InetAddress truncateFailingReplica;
 
     public TruncateResponseHandler(int responseCount)
     {
@@ -45,37 +55,52 @@ public class TruncateResponseHandler implements IAsyncCallback
         assert 1 <= responseCount: "invalid response count " + responseCount;
 
         this.responseCount = responseCount;
-        startTime = System.currentTimeMillis();
+        start = nanoTime();
     }
 
     public void get() throws TimeoutException
     {
-        long timeout = DatabaseDescriptor.getRpcTimeout() - (System.currentTimeMillis() - startTime);
-        boolean success;
+        long timeoutNanos = getTruncateRpcTimeout(NANOSECONDS) - (nanoTime() - start);
+        boolean completedInTime;
         try
         {
-            success = condition.await(timeout, TimeUnit.MILLISECONDS); // TODO truncate needs a much longer timeout
+            completedInTime = condition.await(timeoutNanos, NANOSECONDS); // TODO truncate needs a much longer timeout
         }
-        catch (InterruptedException ex)
+        catch (InterruptedException e)
         {
-            throw new AssertionError(ex);
+            throw new UncheckedInterruptedException(e);
         }
 
-        if (!success)
+        if (!completedInTime)
         {
             throw new TimeoutException("Truncate timed out - received only " + responses.get() + " responses");
         }
+
+        if (truncateFailingReplica != null)
+        {
+            throw new TruncateException("Truncate failed on replica " + truncateFailingReplica);
+        }
     }
 
-    public void response(Message message)
+    @Override
+    public void onResponse(Message<TruncateResponse> message)
     {
         responses.incrementAndGet();
         if (responses.get() >= responseCount)
-            condition.signal();
+            condition.signalAll();
     }
 
-    public boolean isLatencyForSnitch()
+    @Override
+    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
-        return false;
+        // If the truncation hasn't succeeded on some replica, abort and indicate this back to the client.
+        truncateFailingReplica = from.getAddress();
+        condition.signalAll();
+    }
+
+    @Override
+    public boolean invokeOnFailure()
+    {
+        return true;
     }
 }

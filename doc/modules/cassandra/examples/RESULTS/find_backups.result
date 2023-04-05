@@ -1,0 +1,4 @@
+./cassandra/data/data/cqlkeyspace/t-d132e240c21711e9bbee19821dcea330/backups
+./cassandra/data/data/cqlkeyspace/t2-d993a390c22911e9b1350d927649052c/backups
+./cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/backups
+./cassandra/data/data/catalogkeyspace/magazine-446eae30c22a11e9b1350d927649052c/backups

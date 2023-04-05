@@ -1,0 +1,153 @@
+<!--
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.apache.cassandra</groupId>
+    <artifactId>cassandra-dtest-shaded</artifactId>
+    <version>4.0.1-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>Cassandra in-jvm dtests shaded jar</name>
+
+    <properties>
+        <project.type>library</project.type>
+        <java.version>1.8</java.version>
+        <test.source.directory>src/test/unit/java</test.source.directory>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <junit.version>4.12</junit.version>
+        <maven.compiler.source>${java.version}</maven.compiler.source>
+        <maven.compiler.target>${java.version}</maven.compiler.target>
+        <dtest-local.version>4.0.0-SNAPSHOT</dtest-local.version>
+    </properties>
+
+    <dependencies>
+
+        <dependency>
+            <groupId>org.apache.cassandra</groupId>
+            <artifactId>cassandra-dtest-local</artifactId>
+            <version>${dtest-local.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <testSourceDirectory>${test.source.directory}</testSourceDirectory>
+
+        <plugins>
+            <!-- generate a shaded JAR -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.2.1</version>
+
+                <configuration>
+                    <createSourcesJar>false</createSourcesJar>
+
+                    <artifactSet>
+                        <includes>
+                            <include>org.apache.cassandra:cassandra-dtest-local</include>
+                        </includes>
+                    </artifactSet>
+
+                    <relocations>
+                        <relocation>
+                            <pattern>io.netty</pattern>
+                            <shadedPattern>relocated.shaded.io.netty</shadedPattern>
+                        </relocation>
+
+                        <relocation>
+                            <pattern>com.google</pattern>
+                            <shadedPattern>relocated.shaded.com.google</shadedPattern>
+                        </relocation>
+
+                        <relocation>
+                            <pattern>com.datastax</pattern>
+                            <shadedPattern>relocated.shaded.com.datastax</shadedPattern>
+                        </relocation>
+                    </relocations>
+
+                    <filters>
+                        <filter>
+                            <artifact>*:*</artifact>
+                            <excludes>
+                                <exclude>**/Log4j2Plugins.dat</exclude>
+                            </excludes>
+                        </filter>
+
+                        <filter>
+                            <artifact>io.netty:netty-*</artifact>
+                            <excludes>
+                                <exclude>META-INF/maven/</exclude>
+                                <exclude>META-INF/io.netty.versions.properties</exclude>
+                            </excludes>
+                        </filter>
+
+                        <filter>
+                            <artifact>com.google.guava:guava</artifact>
+                            <excludes>
+                                <exclude>META-INF/maven/</exclude>
+                            </excludes>
+                        </filter>
+
+                        <filter>
+                            <artifact>com.google.guava:failureaccess</artifact>
+                            <excludes>
+                                <exclude>META-INF/maven/</exclude>
+                            </excludes>
+                        </filter>
+
+                        <filter>
+                            <artifact>com.datastax.cassandra:cassandra-driver-core</artifact>
+                            <excludes>
+                                <exclude>META-INF/maven/</exclude>
+                            </excludes>
+                        </filter>
+
+                    </filters>
+                </configuration>
+
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+
+                        </configuration>
+                    </execution>
+                </executions>
+
+            </plugin>
+        </plugins>
+    </build>
+</project>

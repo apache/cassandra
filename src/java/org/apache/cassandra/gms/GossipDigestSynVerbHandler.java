@@ -1,6 +1,4 @@
-package org.apache.cassandra.gms;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,134 +6,126 @@ package org.apache.cassandra.gms;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+package org.apache.cassandra.gms;
 
-
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 
-public class GossipDigestSynVerbHandler implements IVerbHandler
-{
-    private static Logger logger_ = LoggerFactory.getLogger( GossipDigestSynVerbHandler.class);
+import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_ACK;
 
-    public void doVerb(Message message, String id)
+public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSyn>
+{
+    public static final GossipDigestSynVerbHandler instance = new GossipDigestSynVerbHandler();
+
+    private static final Logger logger = LoggerFactory.getLogger(GossipDigestSynVerbHandler.class);
+
+    public void doVerb(Message<GossipDigestSyn> message)
     {
-        InetAddress from = message.getFrom();
-        if (logger_.isTraceEnabled())
-            logger_.trace("Received a GossipDigestSynMessage from {}", from);
-        if (!Gossiper.instance.isEnabled())
+        InetAddressAndPort from = message.from();
+        if (logger.isTraceEnabled())
+            logger.trace("Received a GossipDigestSynMessage from {}", from);
+        if (!Gossiper.instance.isEnabled() && !Gossiper.instance.isInShadowRound())
         {
-            if (logger_.isTraceEnabled())
-                logger_.trace("Ignoring GossipDigestSynMessage because gossip is disabled");
+            if (logger.isTraceEnabled())
+                logger.trace("Ignoring GossipDigestSynMessage because gossip is disabled");
             return;
         }
 
-        byte[] bytes = message.getMessageBody();
-        DataInputStream dis = new DataInputStream( new FastByteArrayInputStream(bytes) );
-
-        try
+        GossipDigestSyn gDigestMessage = message.payload;
+        /* If the message is from a different cluster throw it away. */
+        if (!gDigestMessage.clusterId.equals(DatabaseDescriptor.getClusterName()))
         {
-            GossipDigestSynMessage gDigestMessage = GossipDigestSynMessage.serializer().deserialize(dis, message.getVersion());
-            /* If the message is from a different cluster throw it away. */
-            if ( !gDigestMessage.clusterId_.equals(DatabaseDescriptor.getClusterName()) )
+            logger.warn("ClusterName mismatch from {} {}!={}", from, gDigestMessage.clusterId, DatabaseDescriptor.getClusterName());
+            return;
+        }
+
+        if (gDigestMessage.partioner != null && !gDigestMessage.partioner.equals(DatabaseDescriptor.getPartitionerName()))
+        {
+            logger.warn("Partitioner mismatch from {} {}!={}", from, gDigestMessage.partioner, DatabaseDescriptor.getPartitionerName());
+            return;
+        }
+
+        List<GossipDigest> gDigestList = gDigestMessage.getGossipDigests();
+
+        // if the syn comes from a peer performing a shadow round and this node is
+        // also currently in a shadow round, send back a minimal ack. This node must
+        // be in the sender's seed list and doing this allows the sender to
+        // differentiate between seeds from which it is partitioned and those which
+        // are in their shadow round
+        if (!Gossiper.instance.isEnabled() && Gossiper.instance.isInShadowRound())
+        {
+            // a genuine syn (as opposed to one from a node currently
+            // doing a shadow round) will always contain > 0 digests
+            if (gDigestList.size() > 0)
             {
-                logger_.warn("ClusterName mismatch from " + from + " " + gDigestMessage.clusterId_  + "!=" + DatabaseDescriptor.getClusterName());
+                logger.debug("Ignoring non-empty GossipDigestSynMessage because currently in gossip shadow round");
                 return;
             }
 
-            List<GossipDigest> gDigestList = gDigestMessage.getGossipDigests();
-            if (logger_.isTraceEnabled())
-            {
-                StringBuilder sb = new StringBuilder();
-                for ( GossipDigest gDigest : gDigestList )
-                {
-                    sb.append(gDigest);
-                    sb.append(" ");
-                }
-                logger_.trace("Gossip syn digests are : " + sb.toString());
-            }
-            /* Notify the Failure Detector */
-            Gossiper.instance.notifyFailureDetector(gDigestList);
-
-            doSort(gDigestList);
-
-            List<GossipDigest> deltaGossipDigestList = new ArrayList<GossipDigest>();
-            Map<InetAddress, EndpointState> deltaEpStateMap = new HashMap<InetAddress, EndpointState>();
-            Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
-
-            GossipDigestAckMessage gDigestAck = new GossipDigestAckMessage(deltaGossipDigestList, deltaEpStateMap);
-            Message gDigestAckMessage = Gossiper.instance.makeGossipDigestAckMessage(gDigestAck, message.getVersion());
-            if (logger_.isTraceEnabled())
-                logger_.trace("Sending a GossipDigestAckMessage to {}", from);
-            MessagingService.instance().sendOneWay(gDigestAckMessage, from);
+            logger.debug("Received a shadow round syn from {}. Gossip is disabled but " +
+                         "currently also in shadow round, responding with a minimal ack", from);
+            MessagingService.instance()
+                            .send(Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(Collections.emptyList(), Collections.emptyMap())),
+                                  from);
+            return;
         }
-        catch (IOException e)
+
+        if (logger.isTraceEnabled())
         {
-            throw new RuntimeException(e);
+            StringBuilder sb = new StringBuilder();
+            for (GossipDigest gDigest : gDigestList)
+            {
+                sb.append(gDigest);
+                sb.append(" ");
+            }
+            logger.trace("Gossip syn digests are : {}", sb);
         }
+
+        Message<GossipDigestAck> gDigestAckMessage = gDigestList.isEmpty() ?
+                                                     createShadowReply() :
+                                                     createNormalReply(gDigestList);
+
+        if (logger.isTraceEnabled())
+            logger.trace("Sending a GossipDigestAckMessage to {}", from);
+        MessagingService.instance().send(gDigestAckMessage, from);
+
+        super.doVerb(message);
     }
 
-    /*
-     * First construct a map whose key is the endpoint in the GossipDigest and the value is the
-     * GossipDigest itself. Then build a list of version differences i.e difference between the
-     * version in the GossipDigest and the version in the local state for a given InetAddress.
-     * Sort this list. Now loop through the sorted list and retrieve the GossipDigest corresponding
-     * to the endpoint from the map that was initially constructed.
-    */
-    private void doSort(List<GossipDigest> gDigestList)
+    private static Message<GossipDigestAck> createNormalReply(List<GossipDigest> gDigestList)
     {
-        /* Construct a map of endpoint to GossipDigest. */
-        Map<InetAddress, GossipDigest> epToDigestMap = new HashMap<InetAddress, GossipDigest>();
-        for ( GossipDigest gDigest : gDigestList )
-        {
-            epToDigestMap.put(gDigest.getEndpoint(), gDigest);
-        }
+        List<GossipDigest> deltaGossipDigestList = new ArrayList<>();
+        Map<InetAddressAndPort, EndpointState> deltaEpStateMap = new HashMap<>();
+        Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
+        logger.trace("sending {} digests and {} deltas", deltaGossipDigestList.size(), deltaEpStateMap.size());
 
-        /*
-         * These digests have their maxVersion set to the difference of the version
-         * of the local EndpointState and the version found in the GossipDigest.
-        */
-        List<GossipDigest> diffDigests = new ArrayList<GossipDigest>();
-        for ( GossipDigest gDigest : gDigestList )
-        {
-            InetAddress ep = gDigest.getEndpoint();
-            EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(ep);
-            int version = (epState != null) ? Gossiper.instance.getMaxEndpointStateVersion( epState ) : 0;
-            int diffVersion = Math.abs(version - gDigest.getMaxVersion() );
-            diffDigests.add( new GossipDigest(ep, gDigest.getGeneration(), diffVersion) );
-        }
+        return Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(deltaGossipDigestList, deltaEpStateMap));
+    }
 
-        gDigestList.clear();
-        Collections.sort(diffDigests);
-        int size = diffDigests.size();
-        /*
-         * Report the digests in descending order. This takes care of the endpoints
-         * that are far behind w.r.t this local endpoint
-        */
-        for ( int i = size - 1; i >= 0; --i )
-        {
-            gDigestList.add( epToDigestMap.get(diffDigests.get(i).getEndpoint()) );
-        }
+    private static Message<GossipDigestAck> createShadowReply()
+    {
+        Map<InetAddressAndPort, EndpointState> stateMap = Gossiper.instance.examineShadowState();
+        logger.trace("sending 0 digests and {} deltas", stateMap.size());
+        return Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(Collections.emptyList(), stateMap));
     }
 }

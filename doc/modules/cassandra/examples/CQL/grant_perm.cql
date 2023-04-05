@@ -1,0 +1,1 @@
+GRANT SELECT ON ALL KEYSPACES TO data_reader;

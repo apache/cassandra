@@ -1,6 +1,4 @@
-package org.apache.cassandra.db.marshal;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,72 +6,100 @@ package org.apache.cassandra.db.marshal;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-
+package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.StandardCharsets;
 
-import com.google.common.base.Charsets;
+import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Json;
 
-import org.apache.cassandra.cql.jdbc.JdbcAscii;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.serializers.AsciiSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class AsciiType extends AbstractType<String>
+public class AsciiType extends StringType
 {
     public static final AsciiType instance = new AsciiType();
 
-    AsciiType() {} // singleton
+    AsciiType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
-    public String getString(ByteBuffer bytes)
+    private final FastThreadLocal<CharsetEncoder> encoder = new FastThreadLocal<CharsetEncoder>()
     {
-        try
+        @Override
+        protected CharsetEncoder initialValue()
         {
-            return JdbcAscii.instance.getString(bytes);
+            return StandardCharsets.US_ASCII.newEncoder();
         }
-        catch (org.apache.cassandra.cql.jdbc.MarshalException e)
-        {
-            throw new MarshalException(e.getMessage());
-        }
-    }
-
-    public int compare(ByteBuffer o1, ByteBuffer o2)
-    {
-        return BytesType.bytesCompare(o1, o2);
-    }
-
-    public String compose(ByteBuffer bytes)
-    {
-        return JdbcAscii.instance.getString(bytes);
-    }
-
-    public ByteBuffer decompose(String value)
-    {
-        return ByteBufferUtil.bytes(value, Charsets.US_ASCII);
-    }
+    };
 
     public ByteBuffer fromString(String source)
     {
-        return decompose(source);
+        // the encoder must be reset each time it's used, hence the thread-local storage
+        CharsetEncoder theEncoder = encoder.get();
+        theEncoder.reset();
+
+        try
+        {
+            return theEncoder.encode(CharBuffer.wrap(source));
+        }
+        catch (CharacterCodingException exc)
+        {
+            throw new MarshalException(String.format("Invalid ASCII character in string literal: %s", exc));
+        }
     }
 
-    public void validate(ByteBuffer bytes) throws MarshalException
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
     {
-        // 0-127
-        for (int i = bytes.position(); i < bytes.limit(); i++)
+        try
         {
-            byte b = bytes.get(i);
-            if (b < 0 || b > 127)
-                throw new MarshalException("Invalid byte for ascii: " + Byte.toString(b));
+            return new Constants.Value(fromString((String) parsed));
         }
+        catch (ClassCastException exc)
+        {
+            throw new MarshalException(String.format(
+                    "Expected an ascii string, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+        }
+    }
+
+    @Override
+    public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
+    {
+        try
+        {
+            return '"' + Json.quoteAsJsonString(ByteBufferUtil.string(buffer, StandardCharsets.US_ASCII)) + '"';
+        }
+        catch (CharacterCodingException exc)
+        {
+            throw new AssertionError("ascii value contained non-ascii characters: ", exc);
+        }
+    }
+
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.ASCII;
+    }
+
+    public TypeSerializer<String> getSerializer()
+    {
+        return AsciiSerializer.instance;
     }
 }

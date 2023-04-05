@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,31 +7,35 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.cassandra.db.marshal;
 
-import java.nio.charset.CharacterCodingException;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.nio.charset.CharacterCodingException;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.cassandra.config.ConfigurationException;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-
+import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static com.google.common.collect.Iterables.any;
 
 /*
  * The encoding of a DynamicCompositeType column name should be:
@@ -56,40 +60,62 @@ public class DynamicCompositeType extends AbstractCompositeType
 {
     private static final Logger logger = LoggerFactory.getLogger(DynamicCompositeType.class);
 
-    private final Map<Byte, AbstractType> aliases;
+    private final Map<Byte, AbstractType<?>> aliases;
 
     // interning instances
-    private static final Map<Map<Byte, AbstractType>, DynamicCompositeType> instances = new HashMap<Map<Byte, AbstractType>, DynamicCompositeType>();
+    private static final ConcurrentHashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new ConcurrentHashMap<>();
 
-    public static synchronized DynamicCompositeType getInstance(TypeParser parser) throws ConfigurationException
+    public static DynamicCompositeType getInstance(TypeParser parser)
     {
         return getInstance(parser.getAliasParameters());
     }
 
-    public static synchronized DynamicCompositeType getInstance(Map<Byte, AbstractType> aliases)
+    public static DynamicCompositeType getInstance(Map<Byte, AbstractType<?>> aliases)
     {
         DynamicCompositeType dct = instances.get(aliases);
-        if (dct == null)
-        {
-            dct = new DynamicCompositeType(aliases);
-            instances.put(aliases, dct);
-        }
-        return dct;
+        return null == dct
+             ? instances.computeIfAbsent(aliases, DynamicCompositeType::new)
+             : dct;
     }
 
-    private DynamicCompositeType(Map<Byte, AbstractType> aliases)
+    private DynamicCompositeType(Map<Byte, AbstractType<?>> aliases)
     {
         this.aliases = aliases;
     }
 
-    private AbstractType getComparator(ByteBuffer bb)
+    protected <V> boolean readIsStatic(V value, ValueAccessor<V> accessor)
+    {
+        // We don't have the static nothing for DCT
+        return false;
+    }
+
+    protected int startingOffset(boolean isStatic)
+    {
+        return 0;
+    }
+
+    protected <V> int getComparatorSize(int i, V value, ValueAccessor<V> accessor, int offset)
+    {
+        int header = accessor.getShort(value, offset);
+        if ((header & 0x8000) == 0)
+        {
+            return 2 + header;
+        }
+        else
+        {
+            return 2;
+        }
+    }
+
+    private <V> AbstractType<?> getComparator(V value, ValueAccessor<V> accessor, int offset)
     {
         try
         {
-            int header = getShortLength(bb);
+            int header = accessor.getShort(value, offset);
             if ((header & 0x8000) == 0)
             {
-                String name = ByteBufferUtil.string(getBytes(bb, header));
+
+                String name = accessor.toString(accessor.slice(value, offset + 2, header));
                 return TypeParser.parse(name);
             }
             else
@@ -101,21 +127,28 @@ public class DynamicCompositeType extends AbstractCompositeType
         {
             throw new RuntimeException(e);
         }
-        catch (ConfigurationException e)
+    }
+
+    protected <V> AbstractType<?> getComparator(int i, V value, ValueAccessor<V> accessor, int offset)
+    {
+        return getComparator(value, accessor, offset);
+    }
+
+    protected <VL, VR> AbstractType<?> getComparator(int i, VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR, int offsetL, int offsetR)
+    {
+        AbstractType<?> comp1 = getComparator(left, accessorL, offsetL);
+        AbstractType<?> comp2 = getComparator(right, accessorR, offsetR);
+        AbstractType<?> rawComp = comp1;
+
+        /*
+         * If both types are ReversedType(Type), we need to compare on the wrapped type (which may differ between the two types) to avoid
+         * incompatible comparisons being made.
+         */
+        if ((comp1 instanceof ReversedType) && (comp2 instanceof ReversedType))
         {
-            throw new RuntimeException(e);
+            comp1 = ((ReversedType<?>) comp1).baseType;
+            comp2 = ((ReversedType<?>) comp2).baseType;
         }
-    }
-
-    protected AbstractType getNextComparator(int i, ByteBuffer bb)
-    {
-        return getComparator(bb);
-    }
-
-    protected AbstractType getNextComparator(int i, ByteBuffer bb1, ByteBuffer bb2)
-    {
-        AbstractType comp1 = getComparator(bb1);
-        AbstractType comp2 = getComparator(bb2);
 
         // Fast test if the comparator uses singleton instances
         if (comp1 != comp2)
@@ -124,30 +157,31 @@ public class DynamicCompositeType extends AbstractCompositeType
              * We compare component of different types by comparing the
              * comparator class names. We start with the simple classname
              * first because that will be faster in almost all cases, but
-             * allback on the full name if necessary
-            */
+             * fallback on the full name if necessary
+             */
             int cmp = comp1.getClass().getSimpleName().compareTo(comp2.getClass().getSimpleName());
             if (cmp != 0)
-                return cmp < 0 ? FixedValueComparator.instance : ReversedType.getInstance(FixedValueComparator.instance);
+                return cmp < 0 ? FixedValueComparator.alwaysLesserThan : FixedValueComparator.alwaysGreaterThan;
 
             cmp = comp1.getClass().getName().compareTo(comp2.getClass().getName());
             if (cmp != 0)
-                return cmp < 0 ? FixedValueComparator.instance : ReversedType.getInstance(FixedValueComparator.instance);
+                return cmp < 0 ? FixedValueComparator.alwaysLesserThan : FixedValueComparator.alwaysGreaterThan;
 
             // if cmp == 0, we're actually having the same type, but one that
             // did not have a singleton instance. It's ok (though inefficient).
         }
-        return comp1;
+        // Use the raw comparator (prior to ReversedType unwrapping)
+        return rawComp;
     }
 
-    protected AbstractType getAndAppendNextComparator(int i, ByteBuffer bb, StringBuilder sb)
+    protected <V> AbstractType<?> getAndAppendComparator(int i, V value, ValueAccessor<V> accessor, StringBuilder sb, int offset)
     {
         try
         {
-            int header = getShortLength(bb);
+            int header = accessor.getShort(value, offset);
             if ((header & 0x8000) == 0)
             {
-                String name = ByteBufferUtil.string(getBytes(bb, header));
+                String name = accessor.toString(accessor.slice(value, offset + 2, header));
                 sb.append(name).append("@");
                 return TypeParser.parse(name);
             }
@@ -161,36 +195,43 @@ public class DynamicCompositeType extends AbstractCompositeType
         {
             throw new RuntimeException(e);
         }
-        catch (ConfigurationException e)
-        {
-            throw new RuntimeException(e);
-        }
     }
 
-    protected ParsedComparator parseNextComparator(int i, String part)
+    protected ParsedComparator parseComparator(int i, String part)
     {
         return new DynamicParsedComparator(part);
     }
 
-    protected AbstractType validateNextComparator(int i, ByteBuffer bb) throws MarshalException
+    protected <V> AbstractType<?> validateComparator(int i, V input, ValueAccessor<V> accessor, int offset) throws MarshalException
     {
-        AbstractType comparator = null;
-        if (bb.remaining() < 2)
+        AbstractType<?> comparator = null;
+        if (accessor.sizeFromOffset(input, offset) < 2)
             throw new MarshalException("Not enough bytes to header of the comparator part of component " + i);
-        int header = getShortLength(bb);
+        int header = accessor.getShort(input, offset);
+        offset += TypeSizes.SHORT_SIZE;
         if ((header & 0x8000) == 0)
         {
-            if (bb.remaining() < header)
+            if (accessor.sizeFromOffset(input, offset) < header)
                 throw new MarshalException("Not enough bytes to read comparator name of component " + i);
 
-            ByteBuffer value = getBytes(bb, header);
+            V value = accessor.slice(input, offset, header);
+            String valueStr = null;
             try
             {
-                comparator = TypeParser.parse(ByteBufferUtil.string(value));
+                valueStr = accessor.toString(value);
+                comparator = TypeParser.parse(valueStr);
+            }
+            catch (CharacterCodingException ce)
+            {
+                // ByteBufferUtil.string failed.
+                // Log it here and we'll further throw an exception below since comparator == null
+                logger.error("Failed when decoding the byte buffer in ByteBufferUtil.string()", ce);
             }
             catch (Exception e)
             {
-                // we'll deal with this below since comparator == null
+                // parse failed.
+                // Log it here and we'll further throw an exception below since comparator == null
+                logger.error("Failed to parse value string \"{}\" with exception:", valueStr, e);
             }
         }
         else
@@ -204,9 +245,64 @@ public class DynamicCompositeType extends AbstractCompositeType
             return comparator;
     }
 
+    public ByteBuffer decompose(Object... objects)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isCompatibleWith(AbstractType<?> previous)
+    {
+        if (this == previous)
+            return true;
+
+        if (!(previous instanceof DynamicCompositeType))
+            return false;
+
+        // Adding new aliases is fine (but removing is not)
+        // Note that modifying the type for an alias to a compatible type is
+        // *not* fine since this would deal correctly with mixed aliased/not
+        // aliased component.
+        DynamicCompositeType cp = (DynamicCompositeType)previous;
+        if (aliases.size() < cp.aliases.size())
+            return false;
+
+        for (Map.Entry<Byte, AbstractType<?>> entry : cp.aliases.entrySet())
+        {
+            AbstractType<?> tprev = entry.getValue();
+            AbstractType<?> tnew = aliases.get(entry.getKey());
+            if (tnew == null || tnew != tprev)
+                return false;
+        }
+        return true;
+    }
+
+    @Override
+    public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
+    {
+        return any(aliases.values(), t -> t.referencesUserType(name, accessor));
+    }
+
+    @Override
+    public DynamicCompositeType withUpdatedUserType(UserType udt)
+    {
+        if (!referencesUserType(udt.name))
+            return this;
+
+        instances.remove(aliases);
+
+        return getInstance(Maps.transformValues(aliases, v -> v.withUpdatedUserType(udt)));
+    }
+
+    @Override
+    public AbstractType<?> expandUserTypes()
+    {
+        return getInstance(Maps.transformValues(aliases, v -> v.expandUserTypes()));
+    }
+
     private class DynamicParsedComparator implements ParsedComparator
     {
-        final AbstractType type;
+        final AbstractType<?> type;
         final boolean isAlias;
         final String comparatorName;
         final String remainingPart;
@@ -222,7 +318,7 @@ public class DynamicCompositeType extends AbstractCompositeType
 
             try
             {
-                AbstractType t = null;
+                AbstractType<?> t = null;
                 if (comparatorName.length() == 1)
                 {
                     // try for an alias
@@ -237,13 +333,13 @@ public class DynamicCompositeType extends AbstractCompositeType
                 }
                 type = t;
             }
-            catch (ConfigurationException e)
+            catch (SyntaxException | ConfigurationException e)
             {
                 throw new IllegalArgumentException(e);
             }
         }
 
-        public AbstractType getAbstractType()
+        public AbstractType<?> getAbstractType()
         {
             return type;
         }
@@ -262,10 +358,10 @@ public class DynamicCompositeType extends AbstractCompositeType
         {
             int header = 0;
             if (isAlias)
-                header = 0x8000 | ((byte)comparatorName.charAt(0));
+                header = 0x8000 | (((byte)comparatorName.charAt(0)) & 0xFF);
             else
                 header = comparatorName.length();
-            putShortLength(bb, header);
+            ByteBufferUtil.writeShortLength(bb, header);
 
             if (!isAlias)
                 bb.put(ByteBufferUtil.bytes(comparatorName));
@@ -284,14 +380,24 @@ public class DynamicCompositeType extends AbstractCompositeType
      */
     private static class FixedValueComparator extends AbstractType<Void>
     {
-        public static final FixedValueComparator instance = new FixedValueComparator();
+        public static final FixedValueComparator alwaysLesserThan = new FixedValueComparator(-1);
+        public static final FixedValueComparator alwaysGreaterThan = new FixedValueComparator(1);
 
-        public int compare(ByteBuffer v1, ByteBuffer v2)
+        private final int cmp;
+
+        public FixedValueComparator(int cmp)
         {
-            return -1;
+            super(ComparisonType.CUSTOM);
+            this.cmp = cmp;
         }
 
-        public Void compose(ByteBuffer bytes)
+        public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
+        {
+            return cmp;
+        }
+
+        @Override
+        public <V> Void compose(V value, ValueAccessor<V> accessor)
         {
             throw new UnsupportedOperationException();
         }
@@ -301,12 +407,35 @@ public class DynamicCompositeType extends AbstractCompositeType
             throw new UnsupportedOperationException();
         }
 
-        public String getString(ByteBuffer bytes)
+        public <V> String getString(V value, ValueAccessor<V> accessor)
         {
             throw new UnsupportedOperationException();
         }
 
+        public ByteBuffer fromString(String str)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Term fromJSONObject(Object parsed)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void validate(ByteBuffer bytes)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        public TypeSerializer<Void> getSerializer()
         {
             throw new UnsupportedOperationException();
         }

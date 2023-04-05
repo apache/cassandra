@@ -1,0 +1,248 @@
+; Licensed to the Apache Software Foundation (ASF) under one
+; or more contributor license agreements.  See the NOTICE file
+; distributed with this work for additional information
+; regarding copyright ownership.  The ASF licenses this file
+; to you under the Apache License, Version 2.0 (the
+; "License"); you may not use this file except in compliance
+; with the License.  You may obtain a copy of the License at
+;
+;   http://www.apache.org/licenses/LICENSE-2.0
+;
+; Unless required by applicable law or agreed to in writing,
+; software distributed under the License is distributed on an
+; "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+; KIND, either express or implied.  See the License for the
+; specific language governing permissions and limitations
+; under the License.
+;
+; Sample ~/.cqlshrc file.
+
+[authentication]
+;; If Cassandra has auth enabled, fill out these options
+;; Path to the credentials file, an initial ~ or ~user is expanded to that user's home directory
+; credentials = ~/.cassandra/credentials
+; keyspace = ks1
+
+
+[auth_provider]
+;; you can specify any auth provider found in your python environment
+;; module and class will be used to dynamically load the class
+;; all other properties found here and in the credentials file under the class name
+;; will be passed to the constructor
+; module = cassandra.auth
+; classname = PlainTextAuthProvider
+; username = user1
+
+[ui]
+;; Whether or not to display query results with colors
+; color = on
+
+;; Used for displaying timestamps (and reading them with COPY)
+; time_format = %Y-%m-%d %H:%M:%S%z
+
+;; Display timezone
+;timezone = Etc/UTC
+
+;; The number of digits displayed after the decimal point for single and double precision numbers
+;; (note that increasing this to large numbers can result in unusual values)
+;float_precision = 5
+;double_precision = 12
+
+;; Used for automatic completion and suggestions
+; completekey = tab
+
+;; The encoding used for characters
+; encoding = utf8
+
+; To use another than the system default browser for cqlsh HELP to open
+; the CQL doc HTML, use the 'browser' preference.
+; If the field value is empty or not specified, cqlsh will use the
+; default browser (specifying 'browser = default' does not work).
+;
+; Supported browsers are those supported by the Python webbrowser module.
+; (https://docs.python.org/3/library/webbrowser.html).
+;
+; Hint: to use Google Chome, use
+; 'browser = open -a /Applications/Google\ Chrome.app %s' on Mac OS X and
+; 'browser = /usr/bin/google-chrome-stable %s' on Linux and
+; 'browser = C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s' on Windows.
+;
+; This setting can be overridden with the --browser command line option.
+;
+;browser =
+
+[cql]
+;; A version of CQL to use (this should almost never be set)
+; version = 3.2.1
+
+
+
+[connection]
+
+;; The host to connect to
+hostname = 127.0.0.1
+
+;; The port to connect to (9042 is the native protocol default)
+port = 9042
+
+;; Always connect using SSL - false by default
+; ssl = true
+
+;; A timeout in seconds for opening new connections
+; timeout = 10
+
+;; A timeout in seconds for executing queries
+; request_timeout = 10
+
+
+
+[csv]
+;; The size limit for parsed fields
+; field_size_limit = 131072
+
+
+
+[tracing]
+;; The max number of seconds to wait for a trace to complete
+; max_trace_wait = 10.0
+
+
+
+;[ssl]
+; certfile = ~/keys/cassandra.cert
+
+;; Optional - true by default.
+;validate = true
+
+;; To be provided when require_client_auth=true
+;userkey = ~/key.pem
+
+;; To be provided when require_client_auth=true
+;usercert = ~/cert.pem
+
+; this is effectively ignored from 4.1 included as TLS protocol is auto-negotiated and will
+; be removed in the next major version of Cassandra, possible values were TLSv1, TLSv1_1 or TLSv1_2
+;version =
+
+;; Optional section, overrides default certfile in [ssl] section, if present
+; [certfiles]
+; 192.168.1.3 = ~/keys/cassandra01.cert
+; 192.168.1.4 = ~/keys/cassandra02.cert
+
+
+
+;; Options that are common to both COPY TO and COPY FROM
+; [copy]
+
+;; The string placeholder for null values
+; nullval = null
+
+;; For COPY TO, controls whether the first line in the CSV output file will
+;; contain the column names.  For COPY FROM, specifies whether the first
+;; line in the CSV file contains column names.
+; header = false
+
+;; The character that is used as the decimal point separator
+; decimalsep = .
+
+;; The character that is used to separate thousands
+;; (defaults to the empty string)
+; thousandssep =
+
+;; The string literal format for boolean values
+; boolstyle = True,False
+
+;; The number of child worker processes to create for
+;; COPY tasks.  Defaults to a max of 4 for COPY FROM and 16
+;; for COPY TO.  However, at most (num_cores - 1) processes
+;; will be created.
+; numprocesses =
+
+;; The maximum number of failed attempts to fetch a range of data (when using
+;; COPY TO) or insert a chunk of data (when using COPY FROM) before giving up
+; maxattempts = 5
+
+;; How often status updates are refreshed, in seconds
+; reportfrequency = 0.25
+
+;; An optional file to output rate statistics to
+; ratefile =
+
+
+
+;; Options specific to COPY TO
+; [copy-to]
+
+;; The maximum number token ranges to fetch simultaneously
+; maxrequests = 6
+
+;; The number of rows to fetch in a single page
+; pagesize = 1000
+
+;; By default the page timeout is 10 seconds per 1000 entries
+;; in the page size or 10 seconds if pagesize is smaller
+; pagetimeout = 10
+
+;; Token range to export.  Defaults to exporting the full ring.
+; begintoken =
+; endtoken =
+
+; The maximum size of the output file measured in number of lines;
+; beyond this maximum the output file will be split into segments.
+; -1 means unlimited.
+; maxoutputsize = -1
+
+;; The encoding used for characters
+; encoding = utf8
+
+
+
+;; Options specific to COPY FROM
+; [copy-from]
+
+;; The maximum number of rows to process per second
+; ingestrate = 100000
+
+;; The maximum number of rows to import (-1 means unlimited)
+; maxrows = -1
+
+;; A number of initial rows to skip
+; skiprows = 0
+
+;; A comma-separated list of column names to ignore
+; skipcols =
+
+;; The maximum global number of parsing errors to ignore, -1 means unlimited
+; maxparseerrors = -1
+
+;; The maximum global number of insert errors to ignore, -1 means unlimited
+; maxinserterrors = 1000
+
+;; A file to store all rows that could not be imported, by default this is
+;; import_<ks>_<table>.err where <ks> is your keyspace and <table> is your table name.
+; errfile =
+
+;; The min and max number of rows inserted in a single batch
+; maxbatchsize = 20
+; minbatchsize = 2
+
+;; The number of rows that are passed to child worker processes from
+;; the main process at a time
+; chunksize =  1000
+
+
+
+;; The options for COPY can also be specified per-table.  The following
+;; three sections demonstrate this.
+
+;; Optional table-specific options for COPY
+; [copy:mykeyspace.mytable]
+; chunksize = 1000
+
+;; Optional table-specific options for COPY FROM
+; [copy-from:mykeyspace.mytable]
+; ingestrate = 20000
+
+;; Optional table-specific options for COPY TO
+; [copy-to:mykeyspace.mytable]
+; pagetimeout = 30

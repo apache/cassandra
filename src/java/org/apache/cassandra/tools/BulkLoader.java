@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,382 +7,306 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.cassandra.tools;
 
-import java.io.File;
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.*;
+import java.net.InetSocketAddress;
+import java.util.Set;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
 
-import org.apache.cassandra.config.CFMetaData;
+import com.datastax.driver.core.AuthProvider;
+import com.datastax.driver.core.RemoteEndpointAwareJdkSSLOptions;
+import com.datastax.driver.core.SSLOptions;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+
+import com.datastax.shaded.netty.channel.socket.SocketChannel;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.sstable.SSTableLoader;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.streaming.PendingFile;
-import org.apache.cassandra.thrift.*;
+import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.streaming.*;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.NativeSSTableLoaderClient;
+import org.apache.cassandra.utils.OutputHandler;
 
-import org.apache.commons.cli.*;
-import org.apache.thrift.TException;
-import org.apache.thrift.protocol.TBinaryProtocol;
-import org.apache.thrift.protocol.TProtocol;
-import org.apache.thrift.transport.TFramedTransport;
-import org.apache.thrift.transport.TSocket;
-import org.apache.thrift.transport.TTransport;
-import org.apache.thrift.transport.TTransportException;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class BulkLoader
 {
-    private static final String TOOL_NAME = "sstableloader";
-    private static final String VERBOSE_OPTION  = "verbose";
-    private static final String DEBUG_OPTION  = "debug";
-    private static final String HELP_OPTION  = "help";
-    private static final String NOPROGRESS_OPTION  = "no-progress";
-    private static final String IGNORE_NODES_OPTION  = "ignore";
-
-    public static void main(String args[]) throws IOException
+    public static void main(String args[]) throws BulkLoadException
     {
-        LoaderOptions options = LoaderOptions.parseArgs(args);
+        LoaderOptions options = LoaderOptions.builder().parseArgs(args).build();
+        load(options);
+    }
+
+    public static void load(LoaderOptions options) throws BulkLoadException
+    {
+        DatabaseDescriptor.toolInitialization();
+        OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
+        SSTableLoader loader = new SSTableLoader(
+                options.directory.toAbsolute(),
+                new ExternalClient(
+                        options.hosts,
+                        options.storagePort,
+                        options.authProvider,
+                        options.sslStoragePort,
+                        options.serverEncOptions,
+                        buildSSLOptions(options.clientEncOptions)),
+                        handler,
+                        options.connectionsPerHost,
+                        options.targetKeyspace);
+        DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
+        DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(options.interDcThrottle);
+        StreamResultFuture future = null;
+
+        ProgressIndicator indicator = new ProgressIndicator();
         try
         {
-            SSTableLoader loader = new SSTableLoader(options.directory, new ExternalClient(options), options);
-            SSTableLoader.LoaderFuture future = loader.stream(options.ignores);
-
             if (options.noProgress)
             {
-                future.get();
+                future = loader.stream(options.ignores);
             }
             else
             {
-                ProgressIndicator indicator = new ProgressIndicator(future.getPendingFiles());
-                indicator.start();
-                System.out.println("");
-                boolean printEnd = false;
-                while (!future.isDone())
-                {
-                    if (indicator.printProgress())
-                    {
-                        // We're done with streaming
-                        System.out.println("\nWaiting for targets to rebuild indexes ...");
-                        printEnd = true;
-                        future.get();
-                        assert future.isDone();
-                    }
-                    else
-                    {
-                        try { Thread.sleep(1000L); } catch (Exception e) {}
-                    }
-                }
-                if (!printEnd)
-                    indicator.printProgress();
+                future = loader.stream(options.ignores, indicator);
             }
 
-            System.exit(0); // We need that to stop non daemonized threads
         }
         catch (Exception e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             System.err.println(e.getMessage());
-            if (options.debug)
-                e.printStackTrace(System.err);
-            System.exit(1);
+            if (e.getCause() != null)
+            {
+                System.err.println(e.getCause());
+            }
+            e.printStackTrace(System.err);
+            throw new BulkLoadException(e);
+        }
+
+        try
+        {
+            future.get();
+
+            if (!options.noProgress)
+            {
+                indicator.printSummary(options.connectionsPerHost);
+            }
+
+            // Give sockets time to gracefully close
+            Thread.sleep(1000);
+        }
+        catch (Exception e)
+        {
+            System.err.println("Streaming to the following hosts failed:");
+            System.err.println(loader.getFailedHosts());
+            e.printStackTrace(System.err);
+            throw new BulkLoadException(e);
         }
     }
 
     // Return true when everything is at 100%
-    static class ProgressIndicator
+    static class ProgressIndicator implements StreamEventHandler
     {
-        private final Map<InetAddress, Collection<PendingFile>> filesByHost;
-        private long startTime;
+        private long start;
         private long lastProgress;
         private long lastTime;
 
-        public ProgressIndicator(Map<InetAddress, Collection<PendingFile>> filesByHost)
+        private long peak = 0;
+        private int totalFiles = 0;
+
+        private final Multimap<InetSocketAddress, SessionInfo> sessionsByHost = HashMultimap.create();
+
+        public ProgressIndicator()
         {
-            this.filesByHost = new HashMap<InetAddress, Collection<PendingFile>>(filesByHost);
+            start = lastTime = nanoTime();
         }
 
-        public void start()
+        public void onSuccess(StreamState finalState)
         {
-            startTime = System.currentTimeMillis();
         }
 
-        public boolean printProgress()
+        public void onFailure(Throwable t)
         {
-            boolean done = true;
-            StringBuilder sb = new StringBuilder();
-            sb.append("\rprogress: ");
-            long totalProgress = 0;
-            long totalSize = 0;
-            for (Map.Entry<InetAddress, Collection<PendingFile>> entry : filesByHost.entrySet())
+        }
+
+        public synchronized void handleStreamEvent(StreamEvent event)
+        {
+            if (event.eventType == StreamEvent.Type.STREAM_PREPARED)
             {
-                long progress = 0;
-                long size = 0;
-                int completed = 0;
-                Collection<PendingFile> pendings = entry.getValue();
-                for (PendingFile f : pendings)
-                {
-                    progress += f.progress;
-                    size += f.size;
-                    if (f.progress == f.size)
-                        completed++;
-                }
-                totalProgress += progress;
-                totalSize += size;
-                if (completed != pendings.size())
-                    done = false;
-                sb.append("[").append(entry.getKey());
-                sb.append(" ").append(completed).append("/").append(pendings.size());
-                sb.append(" (").append(size == 0 ? 100L : progress * 100L / size).append(")] ");
+                SessionInfo session = ((StreamEvent.SessionPreparedEvent) event).session;
+                sessionsByHost.put(session.peer, session);
             }
-            long time = System.currentTimeMillis();
-            long deltaTime = time - lastTime;
-            lastTime = time;
-            long deltaProgress = totalProgress - lastProgress;
-            lastProgress = totalProgress;
-
-            sb.append("[total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append(" - ");
-            sb.append(mbPerSec(deltaProgress, deltaTime)).append("MB/s");
-            sb.append(" (avg: ").append(mbPerSec(totalProgress, time - startTime)).append("MB/s)]");;
-            System.out.print(sb.toString());
-            return done;
-        }
-
-        private int mbPerSec(long bytes, long timeInMs)
-        {
-            double bytesPerMs = ((double)bytes) / timeInMs;
-            return (int)((bytesPerMs * 1000) / (1024 * 2024));
-        }
-    }
-
-    static class ExternalClient extends SSTableLoader.Client
-    {
-        private final Map<String, Set<String>> knownCfs = new HashMap<String, Set<String>>();
-        private final SSTableLoader.OutputHandler outputHandler;
-
-        public ExternalClient(SSTableLoader.OutputHandler outputHandler)
-        {
-            super();
-            this.outputHandler = outputHandler;
-        }
-
-        public void init(String keyspace)
-        {
-            outputHandler.output(String.format("Starting client (and waiting %d seconds for gossip) ...", StorageService.RING_DELAY / 1000));
-            try
+            else if (event.eventType == StreamEvent.Type.FILE_PROGRESS || event.eventType == StreamEvent.Type.STREAM_COMPLETE)
             {
-                // Init gossip
-                StorageService.instance.initClient();
-
-                Set<InetAddress> hosts = Gossiper.instance.getLiveMembers();
-                hosts.remove(FBUtilities.getBroadcastAddress());
-                if (hosts.isEmpty())
-                    throw new IllegalStateException("Cannot load any sstable, no live member found in the cluster");
-
-                // Query endpoint to ranges map and schemas from thrift
-                String host = hosts.iterator().next().toString().substring(1);
-                int port = DatabaseDescriptor.getRpcPort();
-
-                Cassandra.Client client = createThriftClient(host, port);
-                List<TokenRange> tokenRanges = client.describe_ring(keyspace);
-                List<KsDef> ksDefs = client.describe_keyspaces();
-
-                Token.TokenFactory tkFactory = StorageService.getPartitioner().getTokenFactory();
-
-                try
+                ProgressInfo progressInfo = null;
+                if (event.eventType == StreamEvent.Type.FILE_PROGRESS)
                 {
-                    for (TokenRange tr : tokenRanges)
+                    progressInfo = ((StreamEvent.ProgressEvent) event).progress;
+                }
+
+                long time = nanoTime();
+                long deltaTime = time - lastTime;
+
+                StringBuilder sb = new StringBuilder();
+                sb.append("\rprogress: ");
+
+                long totalProgress = 0;
+                long totalSize = 0;
+
+                boolean updateTotalFiles = totalFiles == 0;
+                // recalculate progress across all sessions in all hosts and display
+                for (InetSocketAddress peer : sessionsByHost.keySet())
+                {
+                    sb.append("[").append(peer).append("]");
+
+                    for (SessionInfo session : sessionsByHost.get(peer))
                     {
-                        Range range = new Range(tkFactory.fromString(tr.start_token), tkFactory.fromString(tr.end_token));
-                        for (String ep : tr.endpoints)
+                        long size = session.getTotalSizeToSend();
+                        long current = 0;
+                        int completed = 0;
+
+                        if (progressInfo != null && session.peer.equals(progressInfo.peer) && session.sessionIndex == progressInfo.sessionIndex)
                         {
-                            addRangeForEndpoint(range, InetAddress.getByName(ep));
+                            session.updateProgress(progressInfo);
+                        }
+                        for (ProgressInfo progress : session.getSendingFiles())
+                        {
+                            if (progress.isCompleted())
+                            {
+                                completed++;
+                            }
+                            current += progress.currentBytes;
+                        }
+                        totalProgress += current;
+
+                        totalSize += size;
+
+                        sb.append(session.sessionIndex).append(":");
+                        sb.append(completed).append("/").append(session.getTotalFilesToSend());
+                        sb.append(" ").append(String.format("%-3d", size == 0 ? 100L : current * 100L / size)).append("% ");
+
+                        if (updateTotalFiles)
+                        {
+                            totalFiles += session.getTotalFilesToSend();
                         }
                     }
                 }
-                catch (UnknownHostException e)
-                {
-                    throw new RuntimeException("Got an unknow host from describe_ring()", e);
-                }
 
-                for (KsDef ksDef : ksDefs)
+                lastTime = time;
+                long deltaProgress = totalProgress - lastProgress;
+                lastProgress = totalProgress;
+
+                sb.append("total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append("% ");
+                sb.append(FBUtilities.prettyPrintMemoryPerSecond(deltaProgress, deltaTime));
+                long average = bytesPerSecond(totalProgress, time - start);
+
+                if (average > peak)
                 {
-                    Set<String> cfs = new HashSet<String>();
-                    for (CfDef cfDef : ksDef.cf_defs)
-                        cfs.add(cfDef.name);
-                    knownCfs.put(ksDef.name, cfs);
+                    peak = average;
                 }
+                sb.append(" (avg: ").append(FBUtilities.prettyPrintMemoryPerSecond(totalProgress, time - start)).append(")");
+
+                System.out.println(sb.toString());
             }
-            catch (Exception e)
+        }
+
+        private long bytesPerSecond(long bytes, long timeInNano)
+        {
+            return timeInNano != 0 ? (long) (((double) bytes / timeInNano) * 1000 * 1000 * 1000) : 0;
+        }
+
+        private void printSummary(int connectionsPerHost)
+        {
+            long end = nanoTime();
+            long durationMS = ((end - start) / (1000000));
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("\nSummary statistics: \n");
+            sb.append(String.format("   %-24s: %-10d%n", "Connections per host ", connectionsPerHost));
+            sb.append(String.format("   %-24s: %-10d%n", "Total files transferred ", totalFiles));
+            sb.append(String.format("   %-24s: %-10s%n", "Total bytes transferred ", FBUtilities.prettyPrintMemory(lastProgress)));
+            sb.append(String.format("   %-24s: %-10s%n", "Total duration ", durationMS + " ms"));
+            sb.append(String.format("   %-24s: %-10s%n", "Average transfer rate ", FBUtilities.prettyPrintMemoryPerSecond(lastProgress, end - start)));
+            sb.append(String.format("   %-24s: %-10s%n", "Peak transfer rate ",  FBUtilities.prettyPrintMemoryPerSecond(peak)));
+            System.out.println(sb.toString());
+        }
+    }
+
+    private static SSLOptions buildSSLOptions(EncryptionOptions clientEncryptionOptions)
+    {
+
+        if (!clientEncryptionOptions.getEnabled())
+        {
+            return null;
+        }
+
+        SSLContext sslContext;
+        try
+        {
+            sslContext = SSLFactory.createSSLContext(clientEncryptionOptions, true);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Could not create SSL Context.", e);
+        }
+
+        // Temporarily override newSSLEngine to set accepted protocols until it is added to
+        // RemoteEndpointAwareJdkSSLOptions.  See CASSANDRA-13325 and CASSANDRA-16362.
+        RemoteEndpointAwareJdkSSLOptions sslOptions = new RemoteEndpointAwareJdkSSLOptions(sslContext, null)
+        {
+            protected SSLEngine newSSLEngine(SocketChannel channel, InetSocketAddress remoteEndpoint)
             {
-                throw new RuntimeException(e);
+                SSLEngine engine = super.newSSLEngine(channel, remoteEndpoint);
+
+                String[] acceptedProtocols = clientEncryptionOptions.acceptedProtocolsArray();
+                if (acceptedProtocols != null && acceptedProtocols.length > 0)
+                    engine.setEnabledProtocols(acceptedProtocols);
+
+                return engine;
             }
+        };
+        return sslOptions;
+    }
+
+    static class ExternalClient extends NativeSSTableLoaderClient
+    {
+        private final int sslStoragePort;
+        private final EncryptionOptions.ServerEncryptionOptions serverEncOptions;
+
+        public ExternalClient(Set<InetSocketAddress> hosts,
+                              int storagePort,
+                              AuthProvider authProvider,
+                              int sslStoragePort,
+                              EncryptionOptions.ServerEncryptionOptions serverEncryptionOptions,
+                              SSLOptions sslOptions)
+        {
+            super(hosts, storagePort, authProvider, sslOptions);
+            this.sslStoragePort = sslStoragePort;
+            serverEncOptions = serverEncryptionOptions;
         }
 
         @Override
-        public void stop()
+        public StreamingChannel.Factory getConnectionFactory()
         {
-            StorageService.instance.stopClient();
-        }
-
-        public boolean validateColumnFamily(String keyspace, String cfName)
-        {
-            Set<String> cfs = knownCfs.get(keyspace);
-            return cfs != null && cfs.contains(cfName);
-        }
-
-        private static Cassandra.Client createThriftClient(String host, int port) throws TTransportException
-        {
-            TSocket socket = new TSocket(host, port);
-            TTransport trans = new TFramedTransport(socket);
-            trans.open();
-            TProtocol protocol = new TBinaryProtocol(trans);
-            return new Cassandra.Client(protocol);
+            return new BulkLoadConnectionFactory(sslStoragePort, serverEncOptions, false);
         }
     }
 
-    static class LoaderOptions implements SSTableLoader.OutputHandler
-    {
-        public final File directory;
-
-        public boolean debug;
-        public boolean verbose;
-        public boolean noProgress;
-
-        public Set<InetAddress> ignores = new HashSet<InetAddress>();
-
-        LoaderOptions(File directory)
-        {
-            this.directory = directory;
-        }
-
-        public static LoaderOptions parseArgs(String cmdArgs[])
-        {
-            CommandLineParser parser = new GnuParser();
-            CmdLineOptions options = getCmdLineOptions();
-            try
-            {
-                CommandLine cmd = parser.parse(options, cmdArgs, false);
-
-                if (cmd.hasOption(HELP_OPTION))
-                {
-                    printUsage(options);
-                    System.exit(0);
-                }
-
-                String[] args = cmd.getArgs();
-                if (args.length == 0)
-                {
-                    System.err.println("Missing sstable directory argument");
-                    printUsage(options);
-                    System.exit(1);
-                }
-
-                if (args.length > 1)
-                {
-                    System.err.println("Too many arguments");
-                    printUsage(options);
-                    System.exit(1);
-                }
-
-                String dirname = args[0];
-                File dir = new File(dirname);
-
-                if (!dir.exists())
-                    errorMsg("Unknown directory: " + dirname, options);
-
-                if (!dir.isDirectory())
-                    errorMsg(dirname + " is not a directory", options);
-
-                LoaderOptions opts = new LoaderOptions(dir);
-
-                opts.debug = cmd.hasOption(DEBUG_OPTION);
-                opts.verbose = cmd.hasOption(VERBOSE_OPTION);
-                opts.noProgress = cmd.hasOption(NOPROGRESS_OPTION);
-
-                if (cmd.hasOption(IGNORE_NODES_OPTION))
-                {
-                    String[] nodes = cmd.getOptionValue(IGNORE_NODES_OPTION).split(",");
-                    try
-                    {
-                        for (String node : nodes)
-                        {
-                            opts.ignores.add(InetAddress.getByName(node.trim()));
-                        }
-                    }
-                    catch (UnknownHostException e)
-                    {
-                        errorMsg("Unknown host: " + e.getMessage(), options);
-                    }
-                }
-
-                return opts;
-            }
-            catch (ParseException e)
-            {
-                errorMsg(e.getMessage(), options);
-                return null;
-            }
-        }
-
-        private static void errorMsg(String msg, CmdLineOptions options)
-        {
-            System.err.println(msg);
-            printUsage(options);
-            System.exit(1);
-        }
-
-        public void output(String msg)
-        {
-            System.out.println(msg);
-        }
-
-        public void debug(String msg)
-        {
-            if (verbose)
-                System.out.println(msg);
-        }
-
-        private static CmdLineOptions getCmdLineOptions()
-        {
-            CmdLineOptions options = new CmdLineOptions();
-            options.addOption(null, DEBUG_OPTION,        "display stack traces");
-            options.addOption("v",  VERBOSE_OPTION,      "verbose output");
-            options.addOption("h",  HELP_OPTION,         "display this help message");
-            options.addOption(null, NOPROGRESS_OPTION,   "don't display progress");
-            options.addOption("i",  IGNORE_NODES_OPTION, "NODES", "don't stream to this (comma separated) list of nodes");
-            return options;
-        }
-
-        public static void printUsage(Options options)
-        {
-            String usage = String.format("%s [options] <dir_path>", TOOL_NAME);
-            StringBuilder header = new StringBuilder();
-            header.append("--\n");
-            header.append("Bulk load the sstables find in the directory <dir_path> to the configured cluster." );
-            header.append("The last directory of <dir_path> is used as the keyspace name. ");
-            header.append("So for instance, to load a sstable named Standard1-g-1-Data.db into keyspace Keyspace1, ");
-            header.append("you will need to have the files Standard1-g-1-Data.db and Standard1-g-1-Index.db in a ");
-            header.append("directory Keyspace1/ in the current directory and call: sstableloader Keyspace1");
-            header.append("\n--\n");
-            header.append("Options are:");
-            new HelpFormatter().printHelp(usage, header.toString(), options, "");
-        }
-    }
-
-    private static class CmdLineOptions extends Options
+    public static class CmdLineOptions extends Options
     {
         /**
          * Add option with argument and argument name
@@ -396,6 +320,23 @@ public class BulkLoader
         {
             Option option = new Option(opt, longOpt, true, description);
             option.setArgName(argName);
+
+            return addOption(option);
+        }
+
+        /**
+         * Add option with argument and argument name that accepts being defined multiple times as a list
+         * @param opt shortcut for option name
+         * @param longOpt complete option name
+         * @param argName argument name
+         * @param description description of the option
+         * @return updated Options object
+         */
+        public Options addOptionList(String opt, String longOpt, String argName, String description)
+        {
+            Option option = new Option(opt, longOpt, true, description);
+            option.setArgName(argName);
+            option.setArgs(Option.UNLIMITED_VALUES);
 
             return addOption(option);
         }

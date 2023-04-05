@@ -1,8 +1,0 @@
-Java utilities for cassandra clients
-
-BUILD and test:
-
-1. ant the top-level cassandra project
-2. cd here
-3. ant test
-

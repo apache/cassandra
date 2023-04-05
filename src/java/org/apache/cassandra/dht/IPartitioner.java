@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,33 +15,47 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.service.StorageService;
 
-public interface IPartitioner<T extends Token>
+public interface IPartitioner
 {
-    /**
-     * @deprecated Used by SSTables before version 'e'.
-     *
-     * Convert the on disk representation to a DecoratedKey object
-     * @param key On disk representation 
-     * @return DecoratedKey object
-     */
-    public DecoratedKey<T> convertFromDiskFormat(ByteBuffer key);
-    
+    static IPartitioner global()
+    {
+        return StorageService.instance.getTokenMetadata().partitioner;
+    }
+
+    static void validate(Collection<? extends AbstractBounds<?>> allBounds)
+    {
+        for (AbstractBounds<?> bounds : allBounds)
+            validate(bounds);
+    }
+
+    static void validate(AbstractBounds<?> bounds)
+    {
+        if (global() != bounds.left.getPartitioner())
+            throw new AssertionError(String.format("Partitioner in bounds serialization. Expected %s, was %s.",
+                                                   global().getClass().getName(),
+                                                   bounds.left.getPartitioner().getClass().getName()));
+    }
+
     /**
      * Transform key to object representation of the on-disk format.
      *
      * @param key the raw, client-facing key
      * @return decorated version of key
      */
-    public DecoratedKey<T> decorateKey(ByteBuffer key);
+    public DecoratedKey decorateKey(ByteBuffer key);
 
     /**
      * Calculate a Token representing the approximate "middle" of the given
@@ -51,25 +65,49 @@ public interface IPartitioner<T extends Token>
      */
     public Token midpoint(Token left, Token right);
 
-	/**
-	 * @return The minimum possible Token in the range that is being partitioned.
-	 */
-	public T getMinimumToken();
+    /**
+     * Calculate a Token which take {@code approximate 0 <= ratioToLeft <= 1} ownership of the given range.
+     */
+    public Token split(Token left, Token right, double ratioToLeft);
+
+    /**
+     * @return A Token smaller than all others in the range that is being partitioned.
+     * Not legal to assign to a node or key.  (But legal to use in range scans.)
+     */
+    public Token getMinimumToken();
+
+    /**
+     * The biggest token for this partitioner, unlike getMinimumToken, this token is actually used and users wanting to
+     * include all tokens need to do getMaximumToken().maxKeyBound()
+     *
+     * Not implemented for the ordered partitioners
+     */
+    default Token getMaximumToken()
+    {
+        throw new UnsupportedOperationException("If you are using a splitting partitioner, getMaximumToken has to be implemented");
+    }
 
     /**
      * @return a Token that can be used to route a given key
      * (This is NOT a method to create a Token from its string representation;
      * for that, use TokenFactory.fromString.)
      */
-    public T getToken(ByteBuffer key);
+    public Token getToken(ByteBuffer key);
 
     /**
      * @return a randomly generated token
      */
-    public T getRandomToken();
+    public Token getRandomToken();
+
+    /**
+     * @param random instance of Random to use when generating the token
+     *
+     * @return a randomly generated token
+     */
+    public Token getRandomToken(Random random);
 
     public Token.TokenFactory getTokenFactory();
-    
+
     /**
      * @return True if the implementing class preserves key order in the Tokens
      * it generates.
@@ -84,4 +122,22 @@ public interface IPartitioner<T extends Token>
      * @return the mapping from 'token' to 'percentage of the ring owned by that token'.
      */
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens);
+
+    public AbstractType<?> getTokenValidator();
+
+    /**
+     * Abstract type that orders the same way as DecoratedKeys provided by this partitioner.
+     * Used by secondary indices.
+     */
+    public AbstractType<?> partitionOrdering();
+
+    default Optional<Splitter> splitter()
+    {
+        return Optional.empty();
+    }
+
+    default public int getMaxTokenSize()
+    {
+        return Integer.MIN_VALUE;
+    }
 }

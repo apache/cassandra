@@ -1,6 +1,4 @@
-package org.apache.cassandra.io.util;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,57 +6,71 @@ package org.apache.cassandra.io.util;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+package org.apache.cassandra.io.util;
 
-
+import java.io.DataInput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
-import org.apache.cassandra.cache.FreeableMemory;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.primitives.Ints;
 
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
-public class MemoryInputStream extends AbstractDataInput
+public class MemoryInputStream extends RebufferingInputStream implements DataInput
 {
-    private final FreeableMemory mem;
-    private int position = 0;
-    
-    public MemoryInputStream(FreeableMemory mem)
+    private final Memory mem;
+    private final int bufferSize;
+    private long offset;
+
+
+    public MemoryInputStream(Memory mem)
     {
+        this(mem, Ints.saturatedCast(mem.size));
+    }
+
+    @VisibleForTesting
+    public MemoryInputStream(Memory mem, int bufferSize)
+    {
+        super(getByteBuffer(mem.peer, bufferSize));
         this.mem = mem;
+        this.bufferSize = bufferSize;
+        this.offset = mem.peer + bufferSize;
     }
-    
-    public int read() throws IOException
-    {       
-        return mem.getValidByte(position++) & 0xFF;
-    }
-    
-    protected void seekInternal(int pos)
+
+    @Override
+    protected void reBuffer() throws IOException
     {
-        position = pos;
+        if (offset - mem.peer >= mem.size())
+            return;
+
+        buffer = getByteBuffer(offset, Math.min(bufferSize, Ints.saturatedCast(memRemaining())));
+        offset += buffer.capacity();
     }
-    
-    protected int getPosition()
+
+    @Override
+    public int available()
     {
-        return position;
+        return Ints.saturatedCast(buffer.remaining() + memRemaining());
     }
-    
-    public int skipBytes(int n) throws IOException
+
+    private long memRemaining()
     {
-        seekInternal(getPosition() + n);
-        return position;
+        return mem.size + mem.peer - offset;
     }
-    
-    public void close()
+
+    private static ByteBuffer getByteBuffer(long offset, int length)
     {
-        // do nothing.
+        return MemoryUtil.getByteBuffer(offset, length, ByteOrder.BIG_ENDIAN);
     }
 }

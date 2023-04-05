@@ -18,118 +18,91 @@
  */
 package org.apache.cassandra.db;
 
-import static junit.framework.Assert.assertEquals;
-import static org.apache.cassandra.Util.addMutation;
-import static org.apache.cassandra.Util.column;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.concurrent.ExecutionException;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.junit.Assert.assertEquals;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
-public class NameSortTest extends CleanupHelper
+public class NameSortTest
 {
+    private static final String KEYSPACE1 = "NameSortTest";
+    private static final String CF = "Standard1";
+
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF, 1000, AsciiType.instance));
+    }
+
     @Test
-    public void testNameSort1() throws IOException, ExecutionException, InterruptedException
+    public void testNameSort1() throws IOException
     {
         // single key
         testNameSort(1);
     }
 
     @Test
-    public void testNameSort10() throws IOException, ExecutionException, InterruptedException
+    public void testNameSort10() throws IOException
     {
         // multiple keys, flushing concurrently w/ inserts
         testNameSort(10);
     }
 
     @Test
-    public void testNameSort100() throws IOException, ExecutionException, InterruptedException
+    public void testNameSort100() throws IOException
     {
         // enough keys to force compaction concurrently w/ inserts
         testNameSort(100);
     }
 
-    private void testNameSort(int N) throws IOException, ExecutionException, InterruptedException
+    private void testNameSort(int N) throws IOException
     {
-        Table table = Table.open("Keyspace1");
-
-        for (int i = 0; i < N; ++i)
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        for (int i = 0; i < N; i++)
         {
             ByteBuffer key = ByteBufferUtil.bytes(Integer.toString(i));
-            RowMutation rm;
-
-            // standard
-            for (int j = 0; j < 8; ++j)
-            {
-                ByteBuffer bytes = j % 2 == 0 ? ByteBufferUtil.bytes("a") : ByteBufferUtil.bytes("b");
-                rm = new RowMutation("Keyspace1", key);
-                rm.add(new QueryPath("Standard1", null, ByteBufferUtil.bytes(("Column-" + j))), bytes, j);
-                rm.applyUnsafe();
-            }
-
-            // super
-            for (int j = 0; j < 8; ++j)
-            {
-                rm = new RowMutation("Keyspace1", key);
-                for (int k = 0; k < 4; ++k)
-                {
-                    String value = (j + k) % 2 == 0 ? "a" : "b";
-                    addMutation(rm, "Super1", "SuperColumn-" + j, k, value, k);
-                }
-                rm.applyUnsafe();
-            }
+            RowUpdateBuilder rub = new RowUpdateBuilder(cfs.metadata(), 0, key);
+            rub.clustering("cc");
+            for (int j = 0; j < 8; j++)
+                rub.add("val" + j, j % 2 == 0 ? "a" : "b");
+            rub.build().applyUnsafe();
         }
-
-        validateNameSort(table, N);
-
-        table.getColumnFamilyStore("Standard1").forceBlockingFlush();
-        table.getColumnFamilyStore("Super1").forceBlockingFlush();
-        validateNameSort(table, N);
+        validateNameSort(cfs);
+        keyspace.getColumnFamilyStore("Standard1").forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        validateNameSort(cfs);
     }
 
-    private void validateNameSort(Table table, int N) throws IOException
+    private void validateNameSort(ColumnFamilyStore cfs) throws IOException
     {
-        for (int i = 0; i < N; ++i)
+        for (FilteredPartition partition : Util.getAll(Util.cmd(cfs).build()))
         {
-            DecoratedKey key = Util.dk(Integer.toString(i));
-            ColumnFamily cf;
-
-            cf = Util.getColumnFamily(table, key, "Standard1");
-            Collection<IColumn> columns = cf.getSortedColumns();
-            for (IColumn column : columns)
+            for (Row r : partition)
             {
-                String name = ByteBufferUtil.string(column.name());
-                int j = Integer.valueOf(name.substring(name.length() - 1));
-                byte[] bytes = j % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                assertEquals(new String(bytes), ByteBufferUtil.string(column.value()));
-            }
-
-            cf = Util.getColumnFamily(table, key, "Super1");
-            assert cf != null : "key " + key + " is missing!";
-            Collection<IColumn> superColumns = cf.getSortedColumns();
-            assert superColumns.size() == 8 : cf;
-            for (IColumn superColumn : superColumns)
-            {
-                int j = Integer.valueOf(ByteBufferUtil.string(superColumn.name()).split("-")[1]);
-                Collection<IColumn> subColumns = superColumn.getSubColumns();
-                assert subColumns.size() == 4;
-                for (IColumn subColumn : subColumns)
+                for (ColumnMetadata cd : r.columns())
                 {
-                    long k = subColumn.name().getLong(subColumn.name().position());
-                    byte[] bytes = (j + k) % 2 == 0 ? "a".getBytes() : "b".getBytes();
-                    assertEquals(new String(bytes), ByteBufferUtil.string(subColumn.value()));
+                    if (r.getCell(cd) == null)
+                        continue;
+                    int cellVal = Integer.valueOf(cd.name.toString().substring(cd.name.toString().length() - 1));
+                    String expected = cellVal % 2 == 0 ? "a" : "b";
+                    assertEquals(expected, ByteBufferUtil.string(r.getCell(cd).buffer()));
                 }
             }
         }
     }
-
 }

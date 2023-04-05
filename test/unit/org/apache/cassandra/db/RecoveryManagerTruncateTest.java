@@ -18,69 +18,97 @@
 */
 package org.apache.cassandra.db;
 
-import static org.apache.cassandra.Util.column;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutionException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
-import org.apache.cassandra.CleanupHelper;
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.filter.QueryFilter;
-import org.apache.cassandra.db.filter.QueryPath;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.compress.DeflateCompressor;
+import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.compress.SnappyCompressor;
+import org.apache.cassandra.io.compress.ZstdCompressor;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.EncryptionContextGenerator;
+
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
-import org.apache.cassandra.utils.ByteBufferUtil;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
+
+import static org.junit.Assert.*;
 
 /**
  * Test for the truncate operation.
  */
-public class RecoveryManagerTruncateTest extends CleanupHelper
+@RunWith(Parameterized.class)
+public class RecoveryManagerTruncateTest
 {
-	@Test
-	public void testTruncate() throws IOException, ExecutionException, InterruptedException
-	{
-		Table table = Table.open("Keyspace1");
-		ColumnFamilyStore cfs = table.getColumnFamilyStore("Standard1");
+    private static final String KEYSPACE1 = "RecoveryManagerTruncateTest";
+    private static final String CF_STANDARD1 = "Standard1";
 
-		RowMutation rm;
-		ColumnFamily cf;
+    public RecoveryManagerTruncateTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext)
+    {
+        DatabaseDescriptor.setCommitLogCompression(commitLogCompression);
+        DatabaseDescriptor.setEncryptionContext(encryptionContext);
+    }
 
-		// add a single cell
-		rm = new RowMutation("Keyspace1", ByteBufferUtil.bytes("keymulti"));
-		cf = ColumnFamily.create("Keyspace1", "Standard1");
-		cf.addColumn(column("col1", "val1", 1L));
-		rm.add(cf);
-		rm.apply();
+    @Parameters()
+    public static Collection<Object[]> generateData()
+    {
+        return Arrays.asList(new Object[][]{
+            {null, EncryptionContextGenerator.createDisabledContext()}, // No compression, no encryption
+            {null, EncryptionContextGenerator.createContext(true)}, // Encryption
+            {new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+            {new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+            {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+            {new ParameterizedClass(ZstdCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
+    }
 
-		// Make sure data was written
-		assertNotNull(getFromTable(table, "Standard1", "keymulti", "col1"));
+    @Before
+    public void setUp() throws IOException
+    {
+        CommitLog.instance.resetUnsafe(true);
+    }
 
-		// and now truncate it
-		cfs.truncate().get();
-        CommitLog.instance.resetUnsafe();
-		CommitLog.recover();
+    @BeforeClass
+    public static void defineSchema() throws ConfigurationException
+    {
+        SchemaLoader.prepareServer();
+        SchemaLoader.createKeyspace(KEYSPACE1,
+                                    KeyspaceParams.simple(1),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
+    }
 
-		// and validate truncation.
-		assertNull(getFromTable(table, "Standard1", "keymulti", "col1"));
-	}
+    @Test
+    public void testTruncate() throws IOException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
 
-	private IColumn getFromTable(Table table, String cfName, String keyName, String columnName)
-	{
-		ColumnFamily cf;
-		ColumnFamilyStore cfStore = table.getColumnFamilyStore(cfName);
-		if (cfStore == null)
-		{
-			return null;
-		}
-		cf = cfStore.getColumnFamily(QueryFilter.getNamesFilter(
-		        Util.dk(keyName), new QueryPath(cfName), ByteBufferUtil.bytes(columnName)));
-		if (cf == null)
-		{
-			return null;
-		}
-		return cf.getColumn(ByteBufferUtil.bytes(columnName));
-	}
+        // add a single cell
+        new RowUpdateBuilder(cfs.metadata(), 0, "key1")
+            .clustering("cc")
+            .add("val", "val1")
+            .build()
+            .applyUnsafe();
+
+        // Make sure data was written
+        assertTrue(Util.getAll(Util.cmd(cfs).build()).size() > 0);
+
+        // and now truncate it
+        cfs.truncateBlocking();
+        assert 0 != CommitLog.instance.resetUnsafe(false);
+
+        // and validate truncation.
+        Util.assertEmptyUnfiltered(Util.cmd(cfs).build());
+    }
 }

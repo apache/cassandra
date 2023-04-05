@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,23 +15,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.gms;
 
 import java.net.UnknownHostException;
 import java.util.Map;
 
+import javax.management.openmbean.OpenDataException;
+import javax.management.openmbean.TabularData;
+
 public interface FailureDetectorMBean
 {
     public void dumpInterArrivalTimes();
 
-    public void setPhiConvictThreshold(int phi);
+    public void setPhiConvictThreshold(double phi);
 
-    public int getPhiConvictThreshold();
+    public double getPhiConvictThreshold();
 
-    public String getAllEndpointStates();
+    @Deprecated public String getAllEndpointStates();
+    public String getAllEndpointStatesWithPort();
 
     public String getEndpointState(String address) throws UnknownHostException;
 
-    public Map<String, String> getSimpleStates();
+    @Deprecated public Map<String, String> getSimpleStates();
+    public Map<String, String> getSimpleStatesWithPort();
+
+    public int getDownEndpointCount();
+
+    public int getUpEndpointCount();
+
+    @Deprecated public TabularData getPhiValues() throws OpenDataException;
+    public TabularData getPhiValuesWithPort() throws OpenDataException;
 }

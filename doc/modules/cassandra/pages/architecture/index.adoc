@@ -1,0 +1,9 @@
+= Architecture
+
+This section describes the general architecture of Apache Cassandra.
+
+* xref:architecture/overview.adoc[Overview]
+* xref:architecture/dynamo.adoc[Dynamo]
+* xref:architecture/storage_engine.adoc[Storage Engine]
+* xref:architecture/guarantees.adoc[Guarantees]
+* xref:architecture/snitch.adoc[Snitches]

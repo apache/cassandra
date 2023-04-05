@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,16 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.IOException;
 
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.FastByteArrayOutputStream;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.utils.FBUtilities;
-
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * This message is sent back the truncate operation and basically specifies if
@@ -32,53 +29,41 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class TruncateResponse
 {
-    private static TruncateResponseSerializer serializer_ = new TruncateResponseSerializer();
-
-    public static TruncateResponseSerializer serializer()
-    {
-        return serializer_;
-    }
+    public static final TruncateResponseSerializer serializer = new TruncateResponseSerializer();
 
     public final String keyspace;
     public final String columnFamily;
     public final boolean success;
 
-
-    public static Message makeTruncateResponseMessage(Message original, TruncateResponse truncateResponseMessage)
-            throws IOException
+    public TruncateResponse(String keyspace, String columnFamily, boolean success)
     {
-    	FastByteArrayOutputStream bos = new FastByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(bos);
-        TruncateResponse.serializer().serialize(truncateResponseMessage, dos, original.getVersion());
-        return original.getReply(FBUtilities.getBroadcastAddress(), bos.toByteArray(), original.getVersion());
+        this.keyspace = keyspace;
+        this.columnFamily = columnFamily;
+        this.success = success;
     }
-
-    public TruncateResponse(String keyspace, String columnFamily, boolean success) {
-		this.keyspace = keyspace;
-		this.columnFamily = columnFamily;
-		this.success = success;
-	}
 
     public static class TruncateResponseSerializer implements IVersionedSerializer<TruncateResponse>
     {
-        public void serialize(TruncateResponse tr, DataOutput dos, int version) throws IOException
+        public void serialize(TruncateResponse tr, DataOutputPlus out, int version) throws IOException
         {
-            dos.writeUTF(tr.keyspace);
-            dos.writeUTF(tr.columnFamily);
-            dos.writeBoolean(tr.success);
+            out.writeUTF(tr.keyspace);
+            out.writeUTF(tr.columnFamily);
+            out.writeBoolean(tr.success);
         }
 
-        public TruncateResponse deserialize(DataInput dis, int version) throws IOException
+        public TruncateResponse deserialize(DataInputPlus in, int version) throws IOException
         {
-            String keyspace = dis.readUTF();
-            String columnFamily = dis.readUTF();
-            boolean success = dis.readBoolean();
+            String keyspace = in.readUTF();
+            String columnFamily = in.readUTF();
+            boolean success = in.readBoolean();
             return new TruncateResponse(keyspace, columnFamily, success);
         }
 
-        public long serializedSize(TruncateResponse truncateResponse, int version)
+        public long serializedSize(TruncateResponse tr, int version)
         {
-            throw new UnsupportedOperationException();
+            return TypeSizes.sizeof(tr.keyspace)
+                 + TypeSizes.sizeof(tr.columnFamily)
+                 + TypeSizes.sizeof(tr.success);
         }
     }
 }

@@ -18,20 +18,24 @@
 
 package org.apache.cassandra.utils;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-
-import java.io.IOException;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.IOException;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.util.Arrays;
+import java.util.concurrent.ThreadLocalRandom;
 
-import com.google.common.base.Charsets;
+import org.junit.Assert;
 import org.junit.Test;
+
+import org.apache.cassandra.io.util.DataOutputBuffer;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.fail;
 
 public class ByteBufferUtilTest
 {
@@ -102,11 +106,11 @@ public class ByteBufferUtilTest
 
     private void checkLastIndexOf(ByteBuffer bb)
     {
-        assert bb.position() + 8 == ByteBufferUtil.lastIndexOf(bb, (byte)'a', bb.position() + 8);
-        assert bb.position() + 4 == ByteBufferUtil.lastIndexOf(bb, (byte)'a', bb.position() + 7);
-        assert bb.position() + 3 == ByteBufferUtil.lastIndexOf(bb, (byte)'s', bb.position() + 8);
-        assert -1 == ByteBufferUtil.lastIndexOf(bb, (byte)'o', bb.position() + 8);
-        assert -1 == ByteBufferUtil.lastIndexOf(bb, (byte)'d', bb.position() + 5);
+        assert bb.position() + 8 == ByteBufferUtil.lastIndexOf(bb, (byte) 'a', bb.position() + 8);
+        assert bb.position() + 4 == ByteBufferUtil.lastIndexOf(bb, (byte) 'a', bb.position() + 7);
+        assert bb.position() + 3 == ByteBufferUtil.lastIndexOf(bb, (byte) 's', bb.position() + 8);
+        assert -1 == ByteBufferUtil.lastIndexOf(bb, (byte) 'o', bb.position() + 8);
+        assert -1 == ByteBufferUtil.lastIndexOf(bb, (byte) 'd', bb.position() + 5);
     }
 
     @Test
@@ -149,11 +153,11 @@ public class ByteBufferUtilTest
     {
 
         byte[] bytes = new byte[s.length()];
-        ByteBufferUtil.arrayCopy(bb, bb.position(), bytes, 0, s.length());
+        ByteBufferUtil.copyBytes(bb, bb.position(), bytes, 0, s.length());
         assertArrayEquals(s.getBytes(), bytes);
 
         bytes = new byte[5];
-        ByteBufferUtil.arrayCopy(bb, bb.position() + 3, bytes, 1, 4);
+        ByteBufferUtil.copyBytes(bb, bb.position() + 3, bytes, 1, 4);
         assertArrayEquals(Arrays.copyOfRange(s.getBytes(), 3, 7), Arrays.copyOfRange(bytes, 1, 5));
     }
 
@@ -172,12 +176,11 @@ public class ByteBufferUtilTest
 
     private void checkReadWrite(ByteBuffer bb) throws IOException
     {
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        DataOutputStream out = new DataOutputStream(bos);
+        DataOutputBuffer out = new DataOutputBuffer();
         ByteBufferUtil.writeWithLength(bb, out);
         ByteBufferUtil.writeWithShortLength(bb, out);
 
-        DataInputStream in = new DataInputStream(new ByteArrayInputStream(bos.toByteArray()));
+        DataInputStream in = new DataInputStream(new ByteArrayInputStream(out.toByteArray()));
         assert bb.equals(ByteBufferUtil.readWithLength(in));
         assert bb.equals(ByteBufferUtil.readWithShortLength(in));
     }
@@ -248,5 +251,109 @@ public class ByteBufferUtilTest
         ByteBuffer bb2 = ByteBufferUtil.hexToBytes(s);
         assertEquals(bb, bb2);
         assertEquals("0102", s);
+    }
+
+    @Test
+    public void testStartsAndEndsWith()
+    {
+        byte[] bytes = new byte[512];
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+
+        random.nextBytes(bytes);
+
+        ByteBuffer a = ByteBuffer.wrap(bytes);
+        ByteBuffer b = a.duplicate();
+
+        // let's take random slices of a and match
+        for (int i = 0; i < 512; i++)
+        {
+            // prefix from the original offset
+            b.position(0).limit(a.remaining() - random.nextInt(0, a.remaining() - 1));
+            Assert.assertTrue(ByteBufferUtil.startsWith(a, b));
+            Assert.assertTrue(ByteBufferUtil.startsWith(a, b.slice()));
+
+            // prefix from random position inside of array
+            int pos = random.nextInt(1, a.remaining() - 5);
+            a.position(pos);
+            b.limit(bytes.length - 1).position(pos);
+
+            Assert.assertTrue(ByteBufferUtil.startsWith(a, b));
+
+            a.position(0);
+
+            // endsWith at random position
+            b.limit(a.remaining()).position(random.nextInt(0, a.remaining() - 1));
+            Assert.assertTrue(ByteBufferUtil.endsWith(a, b));
+            Assert.assertTrue(ByteBufferUtil.endsWith(a, b.slice()));
+
+        }
+
+        a.limit(bytes.length - 1).position(0);
+        b.limit(bytes.length - 1).position(1);
+
+        assertFalse(ByteBufferUtil.startsWith(a, b));
+        assertFalse(ByteBufferUtil.startsWith(a, b.slice()));
+
+        Assert.assertTrue(ByteBufferUtil.endsWith(a, b));
+        Assert.assertTrue(ByteBufferUtil.endsWith(a, b.slice()));
+
+
+        a.position(5);
+
+        assertFalse(ByteBufferUtil.startsWith(a, b));
+        assertFalse(ByteBufferUtil.endsWith(a, b));
+    }
+
+    @Test
+    public void testWriteZeroes()
+    {
+        byte[] initial = new byte[1024];
+        Arrays.fill(initial, (byte) 1);
+        for (ByteBuffer b : new ByteBuffer[] { ByteBuffer.allocate(1024), ByteBuffer.allocateDirect(1024) })
+        {
+            for (int i = 0; i <= 32; ++i)
+                for (int j = 1024; j >= 1024 - 32; --j)
+                {
+                    b.clear();
+                    b.put(initial);
+                    b.flip();
+                    b.position(i);
+                    ByteBufferUtil.writeZeroes(b, j-i);
+                    assertEquals(j, b.position());
+                    int ii = 0;
+                    for (; ii < i; ++ii)
+                        assertEquals(initial[ii], b.get(ii));
+                    for (; ii < j; ++ii)
+                        assertEquals(0, b.get(ii));
+                    for (; ii < 1024; ++ii)
+                        assertEquals(initial[ii], b.get(ii));
+
+                    b.clear();
+                    b.put(initial);
+                    b.limit(j).position(i);
+                    ByteBuffer slice = b.slice();
+                    ByteBufferUtil.writeZeroes(slice, slice.capacity());
+                    assertFalse(slice.hasRemaining());
+                    b.clear();  // reset position and limit for check
+                    ii = 0;
+                    for (; ii < i; ++ii)
+                        assertEquals(initial[ii], b.get(ii));
+                    for (; ii < j; ++ii)
+                        assertEquals(0, b.get(ii));
+                    for (; ii < 1024; ++ii)
+                        assertEquals(initial[ii], b.get(ii));
+
+                    slice.clear();
+                    try
+                    {
+                        ByteBufferUtil.writeZeroes(slice, slice.capacity() + 1);
+                        fail("Line above should throw.");
+                    }
+                    catch (BufferOverflowException | IndexOutOfBoundsException e)
+                    {
+                        // correct path
+                    }
+                }
+        }
     }
 }

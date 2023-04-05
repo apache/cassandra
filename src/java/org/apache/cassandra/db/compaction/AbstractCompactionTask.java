@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,78 +15,119 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.db.compaction;
 
-import java.util.Collection;
+import java.util.Iterator;
 import java.util.Set;
-import java.io.IOException;
 
-import org.apache.cassandra.io.sstable.SSTableReader;
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
+import org.apache.cassandra.io.FSDiskFullWriteError;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.TimeUUID;
+import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 
-public abstract class AbstractCompactionTask
+public abstract class AbstractCompactionTask extends WrappedRunnable
 {
-    protected ColumnFamilyStore cfs;
-    protected Collection<SSTableReader> sstables;
+    protected final ColumnFamilyStore cfs;
+    protected LifecycleTransaction transaction;
+    protected boolean isUserDefined;
+    protected OperationType compactionType;
 
-    public AbstractCompactionTask(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
+    /**
+     * @param cfs
+     * @param transaction the modifying managing the status of the sstables we're replacing
+     */
+    public AbstractCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction)
     {
         this.cfs = cfs;
-        this.sstables = sstables;
-    }
+        this.transaction = transaction;
+        this.isUserDefined = false;
+        this.compactionType = OperationType.COMPACTION;
+        // enforce contract that caller should mark sstables compacting
+        Set<SSTableReader> compacting = transaction.tracker.getCompacting();
+        for (SSTableReader sstable : transaction.originals())
+            assert compacting.contains(sstable) : sstable.getFilename() + " is not correctly marked compacting";
 
-    public abstract int execute(CompactionExecutorStatsCollector collector) throws IOException;
-
-    public ColumnFamilyStore getColumnFamilyStore()
-    {
-        return cfs;
-    }
-
-    public Collection<SSTableReader> getSSTables()
-    {
-        return sstables;
+        validateSSTables(transaction.originals());
     }
 
     /**
-     * Try to mark the sstable to compact as compacting.
-     * It returns true if some sstables have been marked for compaction, false
-     * otherwise.
-     * This *must* be called before calling execute(). Moreover,
-     * unmarkSSTables *must* always be called after execute() if this
-     * method returns true.
+     * Confirm that we're not attempting to compact repaired/unrepaired/pending repair sstables together
      */
-    public boolean markSSTablesForCompaction()
+    private void validateSSTables(Set<SSTableReader> sstables)
     {
-        return markSSTablesForCompaction(cfs.getMinimumCompactionThreshold(), cfs.getMaximumCompactionThreshold());
-    }
-
-    public boolean markSSTablesForCompaction(int min, int max)
-    {
-        Set<SSTableReader> marked = cfs.getDataTracker().markCompacting(sstables, min, max);
-
-        if (marked == null || marked.isEmpty())
+        // do not allow  to be compacted together
+        if (!sstables.isEmpty())
         {
-            cancel();
-            return false;
+            Iterator<SSTableReader> iter = sstables.iterator();
+            SSTableReader first = iter.next();
+            boolean isRepaired = first.isRepaired();
+            TimeUUID pendingRepair = first.getPendingRepair();
+            while (iter.hasNext())
+            {
+                SSTableReader next = iter.next();
+                Preconditions.checkArgument(isRepaired == next.isRepaired(),
+                                            "Cannot compact repaired and unrepaired sstables");
+
+                if (pendingRepair == null)
+                {
+                    Preconditions.checkArgument(!next.isPendingRepair(),
+                                                "Cannot compact pending repair and non-pending repair sstables");
+                }
+                else
+                {
+                    Preconditions.checkArgument(next.isPendingRepair(),
+                                                "Cannot compact pending repair and non-pending repair sstables");
+                    Preconditions.checkArgument(pendingRepair.equals(next.getPendingRepair()),
+                                                "Cannot compact sstables from different pending repairs");
+                }
+            }
         }
-
-        this.sstables = marked;
-        return true;
     }
 
-    public void unmarkSSTables()
+    /**
+     * executes the task and unmarks sstables compacting
+     */
+    public int execute(ActiveCompactionsTracker activeCompactions)
     {
-        cfs.getDataTracker().unmarkCompacting(sstables);
+        try
+        {
+            return executeInternal(activeCompactions);
+        }
+        catch(FSDiskFullWriteError e)
+        {
+            RuntimeException cause = new RuntimeException("Converted from FSDiskFullWriteError: " + e.getMessage());
+            cause.setStackTrace(e.getStackTrace());
+            throw new RuntimeException("Throwing new Runtime to bypass exception handler when disk is full", cause);
+        }
+        finally
+        {
+            transaction.close();
+        }
+    }
+    public abstract CompactionAwareWriter getCompactionAwareWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables);
+
+    protected abstract int executeInternal(ActiveCompactionsTracker activeCompactions);
+
+    public AbstractCompactionTask setUserDefined(boolean isUserDefined)
+    {
+        this.isUserDefined = isUserDefined;
+        return this;
     }
 
-    // Can be overriden for action that need to be performed if the task won't
-    // execute (if sstable can't be marked successfully)
-    protected void cancel() {}
+    public AbstractCompactionTask setCompactionType(OperationType compactionType)
+    {
+        this.compactionType = compactionType;
+        return this;
+    }
 
     public String toString()
     {
-        return "CompactionTask(" + sstables + ")";
+        return "CompactionTask(" + transaction + ")";
     }
 }

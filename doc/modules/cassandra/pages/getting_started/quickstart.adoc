@@ -1,0 +1,116 @@
+= Apache Cassandra Quickstart
+:tabs:
+
+_Interested in getting started with Cassandra? Follow these instructions._
+
+*STEP 1: GET CASSANDRA USING DOCKER*
+
+You'll need to have Docker Desktop for Mac, Docker Desktop for Windows, or
+similar software installed on your computer.
+
+[source, plaintext]
+----
+docker pull cassandra:latest
+----
+
+Apache Cassandra is also available as a https://cassandra.apache.org/download/[tarball or package download].
+
+*STEP 2: START CASSANDRA*
+
+[source, plaintext]
+----
+docker run --name cassandra cassandra
+----
+
+*STEP 3: CREATE FILES*
+
+In the directory where you plan to run the next step, create these two files
+so that some data can be automatically inserted in the next step.
+
+A _cqlshrc_ file will log into the Cassandra database with the default superuser:
+
+[source, plaintext]
+----
+[authentication]
+	username = cassandra
+	password = cassandra
+----
+
+Create a _scripts_ directory and change to that directory.
+The following _data.cql_ file will create a keyspace, the layer at which Cassandra
+replicates its data, a table to hold the data, and insert some data:
+
+[source, plaintext]
+----
+# Create a keyspace
+CREATE KEYSPACE IF NOT EXISTS store WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : '1' };
+
+# Create a table
+CREATE TABLE IF NOT EXISTS store.shopping_cart  (
+	userid text PRIMARY KEY,
+	item_count int,
+	last_update_timestamp timestamp
+);
+
+# Insert some data
+INSERT INTO store.shopping_cart
+(userid, item_count, last_update_timestamp)
+VALUES ('9876', 2, toTimeStamp(toDate(now))));
+INSERT INTO store.shopping_cart
+(userid, item_count, last_update_timestamp)
+VALUES (1234, 5, toTimeStamp(toDate(now))));
+----
+
+You should now have a _cqlshrc_ file and _<currentdir>/scripts/data.cql_ file.
+
+*STEP 4: RUN CQLSH TO INTERACT*
+
+Cassandra is a distributed database that can read and write data across multiple
+nodes with  peer-to-peer replication. The Cassandra Query Language (CQL) is
+similar to SQL but suited for the JOINless structure of Cassandra. The CQL
+shell, or `cqlsh`, is one tool to use in interacting with the database.
+
+[source, plaintext]
+----
+docker run --rm -it -v /<currentdir>/scripts:/scripts  \
+-v /<currentdir/cqlshrc:/.cassandra/cqlshrc  \
+--env CQLSH_HOST=host.docker.internal --env CQLSH_PORT=9042  nuvo/docker-cqlsh
+----
+
+For this quickstart, this cqlsh docker image also loads some data automatically,
+so you can start running queries.
+
+*STEP 5: READ SOME DATA*
+
+[source, plaintext]
+----
+SELECT * FROM store.shopping_cart;
+----
+
+*STEP 6: WRITE SOME MORE DATA*
+
+[source, plaintext]
+----
+INSERT (userid, item_count) VALUES (4567, 20) INTO store.shopping_cart;
+----
+
+*STEP 7: TERMINATE CASSANDRA*
+
+[source, plaintext]
+----
+docker rm cassandra
+----
+
+*CONGRATULATIONS!*
+
+Hey, that wasn't so hard, was it?
+
+To learn more, we suggest the following next steps:
+
+* Read through the *need link*[Overview] to learn main concepts and how Cassandra works at a
+high level.
+* To understand Cassandra in more detail, head over to the
+https://cassandra.apache.org/doc/latest/[Docs].
+* Browse through the https://cassandra.apache.org/case-studies/[Case Studies] to
+learn how other users in our worldwide community are getting value out of
+Cassandra.

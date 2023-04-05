@@ -1,0 +1,103 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!--
+ ~ Licensed to the Apache Software Foundation (ASF) under one
+ ~ or more contributor license agreements.  See the NOTICE file
+ ~ distributed with this work for additional information
+ ~ regarding copyright ownership.  The ASF licenses this file
+ ~ to you under the Apache License, Version 2.0 (the
+ ~ "License"); you may not use this file except in compliance
+ ~ with the License.  You may obtain a copy of the License at
+ ~
+ ~   http://www.apache.org/licenses/LICENSE-2.0
+ ~
+ ~ Unless required by applicable law or agreed to in writing,
+ ~ software distributed under the License is distributed on an
+ ~ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ ~ KIND, either express or implied.  See the License for the
+ ~ specific language governing permissions and limitations
+ ~ under the License.
+-->
+
+<project default="jar" name="ssl-factory-example">
+	<property name="cassandra.dir" value="../.." />
+	<property name="cassandra.dir.lib" value="${cassandra.dir}/lib" />
+	<property name="cassandra.classes" value="${cassandra.dir}/build/classes/main" />
+	<property name="cassandra.test.lib" value="${cassandra.dir}/build/test/lib" />
+	<property name="build.src" value="${basedir}/src" />
+	<property name="build.dir" value="${basedir}/build" />
+	<property name="conf.dir" value="${basedir}/conf" />
+	<property name="build.classes" value="${build.dir}/classes" />
+	<property name="test.src" value="${basedir}/test/unit" />
+	<property name="test.build.dir" value="${build.dir}/test" />
+	<property name="test.conf.dir" value="${test.src}/conf" />
+	<property name="test.build.classes" value="${test.build.dir}/classes" />
+	<property name="test.build.conf" value="${test.build.dir}/conf" />
+	<property name="final.name" value="ssl-factory-example" />
+
+	<path id="build.classpath">
+		<fileset dir="${cassandra.dir.lib}">
+			<include name="**/*.jar" />
+		</fileset>
+		<fileset dir="${cassandra.dir}/build/lib/jars">
+			<include name="**/*.jar" />
+		</fileset>
+		<pathelement location="${cassandra.classes}" />
+	</path>
+
+	<path id="test.classpath">
+		<fileset dir="${cassandra.test.lib}/jars">
+			<include name="**/*.jar" />
+			<exclude name="**/ant-*.jar"/>
+		</fileset>
+		<path refid="build.classpath"/>
+		<path location="${build.dir}/${final.name}.jar"/>
+		<pathelement location="${build.classes}"/>
+		<pathelement location="${test.build.classes}"/>
+		<pathelement location="${test.build.conf}"/>
+	</path>
+
+	<target name="init">
+		<mkdir dir="${build.classes}" />
+		<mkdir dir="${test.build.classes}" />
+	</target>
+
+	<target name="build" depends="init">
+		<javac destdir="${build.classes}" debug="true" includeantruntime="false">
+			<src path="${build.src}" />
+			<classpath refid="build.classpath" />
+		</javac>
+	</target>
+
+	<target name="jar" depends="build">
+		<jar jarfile="${build.dir}/${final.name}.jar">
+			<fileset dir="${build.classes}" />
+		</jar>
+	</target>
+
+	<target name="buildTests" depends="build">
+		<delete dir="${test.build.dir}/conf"/>
+		<copy todir="${test.build.dir}/conf">
+			<fileset dir="test/conf" includes="**"/>
+		</copy>
+		<javac destdir="${test.build.classes}" debug="true" includeantruntime="false">
+			<src path="${test.src}" />
+			<src path="${test.build.dir}/conf" />
+			<classpath refid="test.classpath"/>
+		</javac>
+	</target>
+
+	<target name="test" depends="jar, buildTests">
+		<junit printsummary="on" haltonfailure="yes" fork="true">
+			<classpath refid="test.classpath"/>
+			<formatter type="brief" usefile="false" />
+			<batchtest>
+				<fileset dir="${test.src}" includes="**/*Test.java" />
+			</batchtest>
+		</junit>
+	</target>
+
+	<target name="clean">
+		<delete dir="${build.dir}" />
+		<delete dir="${test.build.classes}" />
+	</target>
+</project>

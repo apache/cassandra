@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectCodeStyleSettingsManager">
+    <option name="PER_PROJECT_SETTINGS">
+      <value>
+        <option name="INSERT_OVERRIDE_ANNOTATION" value="true" />
+        <option name="CLASS_COUNT_TO_USE_IMPORT_ON_DEMAND" value="100" />
+        <option name="NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND" value="100" />
+        <option name="IMPORT_LAYOUT_TABLE">
+          <value>
+            <package name="java" withSubpackages="true" static="false" />
+            <package name="javax" withSubpackages="true" static="false" />
+            <emptyLine />
+            <package name="com.google.common" withSubpackages="true" static="false" />
+            <package name="org.apache.log4j" withSubpackages="true" static="false" />
+            <package name="org.apache.commons" withSubpackages="true" static="false" />
+            <package name="org.cliffc.high_scale_lib" withSubpackages="true" static="false" />
+            <package name="org.junit" withSubpackages="true" static="false" />
+            <package name="org.slf4j" withSubpackages="true" static="false" />
+            <emptyLine />
+            <package name="" withSubpackages="true" static="false" />
+            <emptyLine />
+            <package name="" withSubpackages="true" static="true" />
+          </value>
+        </option>
+        <option name="BRACE_STYLE" value="2" />
+        <option name="CLASS_BRACE_STYLE" value="2" />
+        <option name="METHOD_BRACE_STYLE" value="2" />
+        <option name="ELSE_ON_NEW_LINE" value="true" />
+        <option name="CATCH_ON_NEW_LINE" value="true" />
+        <option name="FINALLY_ON_NEW_LINE" value="true" />
+        <option name="ALIGN_MULTILINE_PARAMETERS_IN_CALLS" value="true" />
+        <option name="ALIGN_MULTILINE_BINARY_OPERATION" value="true" />
+        <option name="ALIGN_MULTILINE_ASSIGNMENT" value="true" />
+        <option name="ALIGN_MULTILINE_TERNARY_OPERATION" value="true" />
+        <option name="ALIGN_MULTILINE_THROWS_LIST" value="true" />
+        <option name="ALIGN_MULTILINE_EXTENDS_LIST" value="true" />
+        <option name="ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION" value="true" />
+        <option name="ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION" value="true" />
+        <option name="SPACE_WITHIN_ARRAY_INITIALIZER_BRACES" value="true" />
+        <option name="DOWHILE_BRACE_FORCE" value="3" />
+        <XML>
+          <option name="XML_LEGACY_SETTINGS_IMPORTED" value="true" />
+        </XML>
+        <codeStyleSettings language="JAVA">
+          <option name="KEEP_BLANK_LINES_BEFORE_RBRACE" value="0" />
+          <option name="BRACE_STYLE" value="2" />
+          <option name="CLASS_BRACE_STYLE" value="2" />
+          <option name="METHOD_BRACE_STYLE" value="2" />
+          <option name="ELSE_ON_NEW_LINE" value="true" />
+          <option name="CATCH_ON_NEW_LINE" value="true" />
+          <option name="FINALLY_ON_NEW_LINE" value="true" />
+          <option name="ALIGN_MULTILINE_CHAINED_METHODS" value="true" />
+          <option name="ALIGN_MULTILINE_PARAMETERS_IN_CALLS" value="true" />
+          <option name="ALIGN_MULTILINE_BINARY_OPERATION" value="true" />
+          <option name="ALIGN_MULTILINE_ASSIGNMENT" value="true" />
+          <option name="ALIGN_MULTILINE_TERNARY_OPERATION" value="true" />
+          <option name="ALIGN_MULTILINE_THROWS_LIST" value="true" />
+          <option name="ALIGN_THROWS_KEYWORD" value="true" />
+          <option name="ALIGN_MULTILINE_EXTENDS_LIST" value="true" />
+          <option name="ALIGN_MULTILINE_PARENTHESIZED_EXPRESSION" value="true" />
+          <option name="ALIGN_MULTILINE_ARRAY_INITIALIZER_EXPRESSION" value="true" />
+          <option name="SPACE_WITHIN_ARRAY_INITIALIZER_BRACES" value="true" />
+          <option name="DOWHILE_BRACE_FORCE" value="3" />
+          <option name="PARENT_SETTINGS_INSTALLED" value="true" />
+          <indentOptions>
+            <option name="CONTINUATION_INDENT_SIZE" value="0" />
+            <option name="USE_RELATIVE_INDENTS" value="true" />
+          </indentOptions>
+          <arrangement>
+            <groups>
+              <group>
+                <type>GETTERS_AND_SETTERS</type>
+                <order>KEEP</order>
+              </group>
+            </groups>
+            <rules>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <FINAL />
+                    <PUBLIC />
+                    <STATIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <FINAL />
+                    <PROTECTED />
+                    <STATIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <FINAL />
+                    <PACKAGE_PRIVATE />
+                    <STATIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <FINAL />
+                    <PRIVATE />
+                    <STATIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <PUBLIC />
+                    <STATIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <PROTECTED />
+                    <STATIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <PACKAGE_PRIVATE />
+                    <STATIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <PRIVATE />
+                    <STATIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <FINAL />
+                    <PUBLIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <FINAL />
+                    <PROTECTED />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <FINAL />
+                    <PACKAGE_PRIVATE />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <FINAL />
+                    <PRIVATE />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <PUBLIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <PROTECTED />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <PACKAGE_PRIVATE />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <FIELD />
+                    <PRIVATE />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <FIELD />
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <CONSTRUCTOR />
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <METHOD />
+                    <STATIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <METHOD />
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <ENUM />
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <INTERFACE />
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <AND>
+                    <CLASS />
+                    <STATIC />
+                  </AND>
+                </match>
+              </rule>
+              <rule>
+                <match>
+                  <CLASS />
+                </match>
+              </rule>
+            </rules>
+          </arrangement>
+        </codeStyleSettings>
+      </value>
+    </option>
+    <option name="USE_PER_PROJECT_SETTINGS" value="true" />
+  </component>
+</project>

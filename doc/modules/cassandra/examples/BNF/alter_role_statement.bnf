@@ -1,0 +1,1 @@
+alter_role_statement ::= ALTER ROLE [ IF EXISTS ] role_name WITH role_options

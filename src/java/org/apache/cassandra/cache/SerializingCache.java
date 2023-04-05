@@ -1,6 +1,4 @@
-package org.apache.cassandra.cache;
 /*
- * 
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,33 +6,34 @@ package org.apache.cassandra.cache;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
- *   http://www.apache.org/licenses/LICENSE-2.0
- * 
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- * 
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+package org.apache.cassandra.cache;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Weigher;
 
-import java.io.DataOutputStream;
-import java.io.IOError;
-import java.io.IOException;
-import java.util.Set;
-
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
-import com.googlecode.concurrentlinkedhashmap.EvictionListener;
-import com.googlecode.concurrentlinkedhashmap.Weighers;
-
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.MemoryInputStream;
 import org.apache.cassandra.io.util.MemoryOutputStream;
+import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.util.Iterator;
+
+import com.google.common.util.concurrent.MoreExecutors;
 
 /**
  * Serializes cache values off-heap.
@@ -42,32 +41,44 @@ import org.slf4j.LoggerFactory;
 public class SerializingCache<K, V> implements ICache<K, V>
 {
     private static final Logger logger = LoggerFactory.getLogger(SerializingCache.class);
-    private static final int DEFAULT_CONCURENCY_LEVEL = 64;
-    
-    private final ConcurrentLinkedHashMap<K, FreeableMemory> map;
+
+    private final Cache<K, RefCountedMemory> cache;
     private final ISerializer<V> serializer;
 
-    public SerializingCache(int capacity, ISerializer<V> serializer, String tableName, String cfName)
+    private SerializingCache(long capacity, Weigher<K, RefCountedMemory> weigher, ISerializer<V> serializer)
     {
         this.serializer = serializer;
 
-        EvictionListener<K,FreeableMemory> listener = new EvictionListener<K, FreeableMemory>()
-        {
-            public void onEviction(K k, FreeableMemory mem)
-            {
-                mem.unreference();
-            }
-        };
-        this.map = new ConcurrentLinkedHashMap.Builder<K, FreeableMemory>()
-                   .weigher(Weighers.<FreeableMemory>singleton())
-                   .initialCapacity(capacity)
-                   .maximumWeightedCapacity(capacity)
-                   .concurrencyLevel(DEFAULT_CONCURENCY_LEVEL)
-                   .listener(listener)
+        this.cache = Caffeine.newBuilder()
+                   .weigher(weigher)
+                   .maximumWeight(capacity)
+                   .executor(ImmediateExecutor.INSTANCE)
+                   .removalListener((key, mem, cause) -> {
+                       if (cause.wasEvicted()) {
+                           mem.unreference();
+                       }
+                   })
                    .build();
     }
 
-	private V deserialize(FreeableMemory mem)
+    public static <K, V> SerializingCache<K, V> create(long weightedCapacity, Weigher<K, RefCountedMemory> weigher, ISerializer<V> serializer)
+    {
+        return new SerializingCache<>(weightedCapacity, weigher, serializer);
+    }
+
+    public static <K, V> SerializingCache<K, V> create(long weightedCapacity, ISerializer<V> serializer)
+    {
+        return create(weightedCapacity, (key, value) -> {
+            long size = value.size();
+            if (size > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException("Serialized size must not be more than 2GiB");
+            }
+            return (int) size;
+        }, serializer);
+    }
+
+    @SuppressWarnings("resource")
+    private V deserialize(RefCountedMemory mem)
     {
         try
         {
@@ -75,21 +86,22 @@ public class SerializingCache<K, V> implements ICache<K, V>
         }
         catch (IOException e)
         {
-            logger.debug("Cannot fetch in memory data, we will failback to read from disk ", e);
+            logger.trace("Cannot fetch in memory data, we will fallback to read from disk ", e);
             return null;
         }
     }
 
-    private FreeableMemory serialize(V value)
+    @SuppressWarnings("resource")
+    private RefCountedMemory serialize(V value)
     {
         long serializedSize = serializer.serializedSize(value);
         if (serializedSize > Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Unable to allocate " + serializedSize + " bytes");
+            throw new IllegalArgumentException(String.format("Unable to allocate %s", FBUtilities.prettyPrintMemory(serializedSize)));
 
-        FreeableMemory freeableMemory;
+        RefCountedMemory freeableMemory;
         try
         {
-            freeableMemory = new FreeableMemory(serializedSize);
+            freeableMemory = new RefCountedMemory(serializedSize);
         }
         catch (OutOfMemoryError e)
         {
@@ -98,43 +110,50 @@ public class SerializingCache<K, V> implements ICache<K, V>
 
         try
         {
-            serializer.serialize(value, new DataOutputStream(new MemoryOutputStream(freeableMemory)));
+            serializer.serialize(value, new WrappedDataOutputStreamPlus(new MemoryOutputStream(freeableMemory)));
         }
         catch (IOException e)
         {
-            throw new IOError(e);
+            freeableMemory.unreference();
+            throw new RuntimeException(e);
         }
         return freeableMemory;
     }
 
-    public int capacity()
+    public long capacity()
     {
-        return map.capacity();
+        return cache.policy().eviction().get().getMaximum();
     }
 
-    public void setCapacity(int capacity)
+    public void setCapacity(long capacity)
     {
-        map.setCapacity(capacity);
+        cache.policy().eviction().get().setMaximum(capacity);
     }
 
     public boolean isEmpty()
     {
-        return map.isEmpty();
+        return cache.asMap().isEmpty();
     }
 
     public int size()
     {
-        return map.size();
+        return cache.asMap().size();
+    }
+
+    public long weightedSize()
+    {
+        return cache.policy().eviction().get().weightedSize().getAsLong();
     }
 
     public void clear()
     {
-        map.clear();
+        cache.invalidateAll();
     }
 
-    public V get(Object key)
+    @SuppressWarnings("resource")
+    public V get(K key)
     {
-        FreeableMemory mem = map.get(key);
+        RefCountedMemory mem = cache.getIfPresent(key);
         if (mem == null)
             return null;
         if (!mem.reference())
@@ -149,36 +168,114 @@ public class SerializingCache<K, V> implements ICache<K, V>
         }
     }
 
+    @SuppressWarnings("resource")
     public void put(K key, V value)
     {
-        FreeableMemory mem = serialize(value);
+        RefCountedMemory mem = serialize(value);
         if (mem == null)
             return; // out of memory.  never mind.
 
-        FreeableMemory old = map.put(key, mem);
+        RefCountedMemory old;
+        try
+        {
+            old = cache.asMap().put(key, mem);
+        }
+        catch (Throwable t)
+        {
+            mem.unreference();
+            throw t;
+        }
+
         if (old != null)
             old.unreference();
     }
 
+    @SuppressWarnings("resource")
+    public boolean putIfAbsent(K key, V value)
+    {
+        RefCountedMemory mem = serialize(value);
+        if (mem == null)
+            return false; // out of memory.  never mind.
+
+        RefCountedMemory old;
+        try
+        {
+            old = cache.asMap().putIfAbsent(key, mem);
+        }
+        catch (Throwable t)
+        {
+            mem.unreference();
+            throw t;
+        }
+
+        if (old != null)
+            // the new value was not put, we've uselessly allocated some memory, free it
+            mem.unreference();
+        return old == null;
+    }
+
+    @SuppressWarnings("resource")
+    public boolean replace(K key, V oldToReplace, V value)
+    {
+        // if there is no old value in our cache, we fail
+        RefCountedMemory old = cache.getIfPresent(key);
+        if (old == null)
+            return false;
+
+        V oldValue;
+        // reference old guy before de-serializing
+        if (!old.reference())
+            return false; // we have already freed hence noop.
+
+        oldValue = deserialize(old);
+        old.unreference();
+
+        if (!oldValue.equals(oldToReplace))
+            return false;
+
+        // see if the old value matches the one we want to replace
+        RefCountedMemory mem = serialize(value);
+        if (mem == null)
+            return false; // out of memory.  never mind.
+
+        boolean success;
+        try
+        {
+            success = cache.asMap().replace(key, old, mem);
+        }
+        catch (Throwable t)
+        {
+            mem.unreference();
+            throw t;
+        }
+
+        if (success)
+            old.unreference(); // so it will be eventually be cleaned
+        else
+            mem.unreference();
+        return success;
+    }
+
     public void remove(K key)
     {
-        FreeableMemory mem = map.remove(key);
+        @SuppressWarnings("resource")
+        RefCountedMemory mem = cache.asMap().remove(key);
         if (mem != null)
             mem.unreference();
     }
 
-    public Set<K> keySet()
+    public Iterator<K> keyIterator()
     {
-        return map.keySet();
+        return cache.asMap().keySet().iterator();
     }
 
-    public Set<K> hotKeySet(int n)
+    public Iterator<K> hotKeyIterator(int n)
     {
-        return map.descendingKeySetWithLimit(n);
+        return cache.policy().eviction().get().hottest(n).keySet().iterator();
     }
 
-    public boolean isPutCopying()
+    public boolean containsKey(K key)
     {
-        return true;
+        return cache.asMap().containsKey(key);
     }
 }

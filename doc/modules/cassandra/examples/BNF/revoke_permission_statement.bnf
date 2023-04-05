@@ -1,0 +1,1 @@
+revoke_permission_statement ::= REVOKE permissions ON resource FROM role_name

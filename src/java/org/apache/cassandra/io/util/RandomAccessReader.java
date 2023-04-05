@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,346 +7,339 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.apache.cassandra.io.util;
 
-import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
-import java.nio.channels.FileChannel;
+import java.nio.ByteOrder;
 
-import org.apache.cassandra.utils.CLibrary;
+import javax.annotation.concurrent.NotThreadSafe;
 
-public class RandomAccessReader extends RandomAccessFile implements FileDataInput
+import com.google.common.primitives.Ints;
+
+import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
+
+@NotThreadSafe
+public class RandomAccessReader extends RebufferingInputStream implements FileDataInput
 {
-    public static final long MAX_BYTES_IN_PAGE_CACHE = (long) Math.pow(2, 27); // 128mb
+    // The default buffer size when the client doesn't specify it
+    public static final int DEFAULT_BUFFER_SIZE = 4096;
 
-    // default buffer size, 64Kb
-    public static final int DEFAULT_BUFFER_SIZE = 65536;
+    // offset of the last file mark
+    private long markedPointer;
 
-    // absolute filesystem path to the file
-    private final String filePath;
+    final Rebufferer rebufferer;
+    private BufferHolder bufferHolder = Rebufferer.EMPTY;
 
-    // buffer which will cache file blocks
-    protected byte[] buffer;
-
-    // `current` as current position in file
-    // `bufferOffset` is the offset of the beginning of the buffer
-    // `markedPointer` folds the offset of the last file mark
-    protected long bufferOffset, current = 0, markedPointer;
-    // `validBufferBytes` is the number of bytes in the buffer that are actually valid;
-    //  this will be LESS than buffer capacity if buffer is not full!
-    protected int validBufferBytes = 0;
-
-    // channel liked with the file, used to retrieve data and force updates.
-    protected final FileChannel channel;
-
-    private final boolean skipIOCache;
-
-    // file descriptor
-    private final int fd;
-
-    // used if skip I/O cache was enabled
-    private long bytesSinceCacheFlush = 0;
-
-    private final long fileLength;
-
-    public RandomAccessReader(File file, int bufferSize, boolean skipIOCache) throws IOException
+    /**
+     * Only created through Builder
+     *
+     * @param rebufferer Rebufferer to use
+     */
+    RandomAccessReader(Rebufferer rebufferer)
     {
-        super(file, "r");
-
-        channel = super.getChannel();
-        filePath = file.getAbsolutePath();
-
-        // allocating required size of the buffer
-        if (bufferSize <= 0)
-            throw new IllegalArgumentException("bufferSize must be positive");
-        buffer = new byte[bufferSize];
-
-        this.skipIOCache = skipIOCache;
-        fd = CLibrary.getfd(getFD());
-
-        // we can cache file length in read-only mode
-        fileLength = channel.size();
-        validBufferBytes = -1; // that will trigger reBuffer() on demand by read/seek operations
-    }
-
-    public static RandomAccessReader open(File file, boolean skipIOCache) throws IOException
-    {
-        return open(file, DEFAULT_BUFFER_SIZE, skipIOCache);
-    }
-
-    public static RandomAccessReader open(File file) throws IOException
-    {
-        return open(file, DEFAULT_BUFFER_SIZE, false);
-    }
-
-    public static RandomAccessReader open(File file, int bufferSize) throws IOException
-    {
-        return open(file, bufferSize, false);
-    }
-
-    public static RandomAccessReader open(File file, int bufferSize, boolean skipIOCache) throws IOException
-    {
-        return new RandomAccessReader(file, bufferSize, skipIOCache);
-    }
-
-    // convert open into open
-    public static RandomAccessReader open(SequentialWriter writer) throws IOException
-    {
-        return open(new File(writer.getPath()), DEFAULT_BUFFER_SIZE);
+        super(Rebufferer.EMPTY.buffer());
+        this.rebufferer = rebufferer;
     }
 
     /**
      * Read data from file starting from current currentOffset to populate buffer.
-     * @throws IOException on any I/O error.
      */
-    protected void reBuffer() throws IOException
+    public void reBuffer()
     {
-        resetBuffer();
-
-        if (bufferOffset >= channel.size())
+        if (isEOF())
             return;
 
-        channel.position(bufferOffset); // setting channel position
+        reBufferAt(current());
+    }
 
-        int read = 0;
+    private void reBufferAt(long position)
+    {
+        bufferHolder.release();
+        bufferHolder = rebufferer.rebuffer(position);
+        buffer = bufferHolder.buffer();
+        buffer.position(Ints.checkedCast(position - bufferHolder.offset()));
 
-        while (read < buffer.length)
-        {
-            int n = super.read(buffer, read, buffer.length - read);
-            if (n < 0)
-                break;
-            read += n;
-        }
-
-        validBufferBytes = read;
-
-        bytesSinceCacheFlush += read;
-
-        if (skipIOCache && bytesSinceCacheFlush >= MAX_BYTES_IN_PAGE_CACHE)
-        {
-            // with random I/O we can't control what we are skipping so
-            // it will be more appropriate to just skip a whole file after
-            // we reach threshold
-            CLibrary.trySkipCache(this.fd, 0, 0);
-            bytesSinceCacheFlush = 0;
-        }
+        assert buffer.order() == ByteOrder.BIG_ENDIAN : "Buffer must have BIG ENDIAN byte ordering";
     }
 
     @Override
     public long getFilePointer()
     {
-        return current;
+        if (buffer == null)     // closed already
+            return rebufferer.fileLength();
+        return current();
+    }
+
+    protected long current()
+    {
+        return bufferHolder.offset() + buffer.position();
     }
 
     public String getPath()
     {
-        return filePath;
+        return getChannel().filePath();
     }
 
+    public ChannelProxy getChannel()
+    {
+        return rebufferer.channel();
+    }
+
+    @Override
     public void reset() throws IOException
     {
         seek(markedPointer);
     }
 
+    @Override
+    public boolean markSupported()
+    {
+        return true;
+    }
+
     public long bytesPastMark()
     {
-        long bytes = current - markedPointer;
+        long bytes = current() - markedPointer;
         assert bytes >= 0;
         return bytes;
     }
 
-    public FileMark mark()
+    public DataPosition mark()
     {
-        markedPointer = current;
+        markedPointer = current();
         return new BufferedRandomAccessFileMark(markedPointer);
     }
 
-    public void reset(FileMark mark) throws IOException
+    public void reset(DataPosition mark)
     {
         assert mark instanceof BufferedRandomAccessFileMark;
         seek(((BufferedRandomAccessFileMark) mark).pointer);
     }
 
-    public long bytesPastMark(FileMark mark)
+    public long bytesPastMark(DataPosition mark)
     {
         assert mark instanceof BufferedRandomAccessFileMark;
-        long bytes = current - ((BufferedRandomAccessFileMark) mark).pointer;
+        long bytes = current() - ((BufferedRandomAccessFileMark) mark).pointer;
         assert bytes >= 0;
         return bytes;
     }
 
     /**
      * @return true if there is no more data to read
-     * @throws IOException on any I/O error.
      */
-    public boolean isEOF() throws IOException
+    public boolean isEOF()
     {
-        return getFilePointer() == length();
+        return current() == length();
     }
 
-    public long bytesRemaining() throws IOException
+    public long bytesRemaining()
     {
         return length() - getFilePointer();
     }
 
-    protected int bufferCursor()
+    @Override
+    public int available() throws IOException
     {
-        return (int) (current - bufferOffset);
-    }
-
-    protected void resetBuffer()
-    {
-        bufferOffset = current;
-        validBufferBytes = 0;
+        return Ints.saturatedCast(bytesRemaining());
     }
 
     @Override
-    public void close() throws IOException
+    public void close()
     {
+        // close needs to be idempotent.
+        if (buffer == null)
+            return;
+
+        bufferHolder.release();
+        rebufferer.closeReader();
         buffer = null;
+        bufferHolder = null;
 
-        if (skipIOCache && bytesSinceCacheFlush > 0)
-            CLibrary.trySkipCache(fd, 0, 0);
-
-        super.close();
+        //For performance reasons we don't keep a reference to the file
+        //channel so we don't close it
     }
 
     @Override
     public String toString()
     {
-        return getClass().getSimpleName() + "(" + "filePath='" + filePath + "'" + ", skipIOCache=" + skipIOCache + ")";
+        return getClass().getSimpleName() + ':' + rebufferer;
     }
 
     /**
      * Class to hold a mark to the position of the file
      */
-    protected static class BufferedRandomAccessFileMark implements FileMark
+    private static class BufferedRandomAccessFileMark implements DataPosition
     {
-        long pointer;
+        final long pointer;
 
-        public BufferedRandomAccessFileMark(long pointer)
+        private BufferedRandomAccessFileMark(long pointer)
         {
             this.pointer = pointer;
         }
     }
 
     @Override
-    public void seek(long newPosition) throws IOException
+    public void seek(long newPosition)
     {
         if (newPosition < 0)
             throw new IllegalArgumentException("new position should not be negative");
 
-        if (newPosition > length()) // it is save to call length() in read-only mode
-            throw new EOFException(String.format("unable to seek to position %d in %s (%d bytes) in read-only mode",
-                                                 newPosition, getPath(), length()));
-
-        current = newPosition;
-
-        if (newPosition > (bufferOffset + validBufferBytes) || newPosition < bufferOffset)
-            reBuffer();
-    }
-
-    @Override
-    // -1 will be returned if there is nothing to read; higher-level methods like readInt
-    // or readFully (from RandomAccessFile) will throw EOFException but this should not
-    public int read() throws IOException
-    {
         if (buffer == null)
-            throw new ClosedChannelException();
+            throw new IllegalStateException("Attempted to seek in a closed RAR");
 
-        if (isEOF())
-            return -1; // required by RandomAccessFile
+        long bufferOffset = bufferHolder.offset();
+        if (newPosition >= bufferOffset && newPosition < bufferOffset + buffer.limit())
+        {
+            buffer.position((int) (newPosition - bufferOffset));
+            return;
+        }
 
-        if (current >= bufferOffset + buffer.length || validBufferBytes == -1)
-            reBuffer();
-
-        assert current >= bufferOffset && current < bufferOffset + validBufferBytes;
-
-        return ((int) buffer[(int) (current++ - bufferOffset)]) & 0xff;
+        if (newPosition > length())
+            throw new IllegalArgumentException(String.format("Unable to seek to position %d in %s (%d bytes) in read-only mode",
+                                                         newPosition, getPath(), length()));
+        reBufferAt(newPosition);
     }
 
     @Override
-    public int read(byte[] buffer) throws IOException
+    public int skipBytes(int n) throws IOException
     {
-        return read(buffer, 0, buffer.length);
-    }
-
-    @Override
-    // -1 will be returned if there is nothing to read; higher-level methods like readInt
-    // or readFully (from RandomAccessFile) will throw EOFException but this should not
-    public int read(byte[] buff, int offset, int length) throws IOException
-    {
-        if (buffer == null)
-            throw new ClosedChannelException();
-
-        if (length == 0)
+        if (n <= 0)
             return 0;
-
-        if (isEOF())
-            return -1;
-
-        if (current >= bufferOffset + buffer.length || validBufferBytes == -1)
-            reBuffer();
-
-        assert current >= bufferOffset && current < bufferOffset + validBufferBytes
-                : String.format("File (%s), current offset %d, buffer offset %d, buffer limit %d",
-                                getPath(),
-                                current,
-                                bufferOffset,
-                                validBufferBytes);
-
-        int toCopy = Math.min(length, validBufferBytes - bufferCursor());
-
-        System.arraycopy(buffer, bufferCursor(), buff, offset, toCopy);
-        current += toCopy;
-
-        return toCopy;
+        if (buffer == null)
+            throw new IOException("Attempted skipBytes() on a closed RAR");
+        long current = current();
+        long newPosition = Math.min(current + n, length());
+        n = (int)(newPosition - current);
+        seek(newPosition);
+        return n;
     }
 
-    public ByteBuffer readBytes(int length) throws IOException
+    /**
+     * Reads a line of text form the current position in this file. A line is
+     * represented by zero or more characters followed by {@code '\n'}, {@code
+     * '\r'}, {@code "\r\n"} or the end of file marker. The string does not
+     * include the line terminating sequence.
+     * <p>
+     * Blocks until a line terminating sequence has been read, the end of the
+     * file is reached or an exception is thrown.
+     * </p>
+     * @return the contents of the line or {@code null} if no characters have
+     * been read before the end of the file has been reached.
+     * @throws IOException if this file is closed or another I/O error occurs.
+     */
+    public final String readLine() throws IOException
     {
-        assert length >= 0 : "buffer length should not be negative: " + length;
-
-        byte[] buff = new byte[length];
-        readFully(buff); // reading data buffer
-
-        return ByteBuffer.wrap(buff);
+        StringBuilder line = new StringBuilder(80); // Typical line length
+        boolean foundTerminator = false;
+        long unreadPosition = -1;
+        while (true)
+        {
+            int nextByte = read();
+            switch (nextByte)
+            {
+                case -1:
+                    return line.length() != 0 ? line.toString() : null;
+                case (byte) '\r':
+                    if (foundTerminator)
+                    {
+                        seek(unreadPosition);
+                        return line.toString();
+                    }
+                    foundTerminator = true;
+                    /* Have to be able to peek ahead one byte */
+                    unreadPosition = getPosition();
+                    break;
+                case (byte) '\n':
+                    return line.toString();
+                default:
+                    if (foundTerminator)
+                    {
+                        seek(unreadPosition);
+                        return line.toString();
+                    }
+                    line.append((char) nextByte);
+            }
+        }
     }
 
-    @Override
-    public long length() throws IOException
+    public long length()
     {
-        return fileLength;
+        return rebufferer.fileLength();
     }
 
-    @Override
-    public void write(int value) throws IOException
+    public long getPosition()
     {
-        throw new UnsupportedOperationException();
+        return current();
     }
 
-    @Override
-    public void write(byte[] buffer) throws IOException
+    public double getCrcCheckChance()
     {
-        throw new UnsupportedOperationException();
+        return rebufferer.getCrcCheckChance();
     }
 
-    @Override
-    public void write(byte[] buffer, int offset, int length) throws IOException
+    // A wrapper of the RandomAccessReader that closes the channel when done.
+    // For performance reasons RAR does not increase the reference count of
+    // a channel but assumes the owner will keep it open and close it,
+    // see CASSANDRA-9379, this thin class is just for those cases where we do
+    // not have a shared channel.
+    static class RandomAccessReaderWithOwnChannel extends RandomAccessReader
     {
-        throw new UnsupportedOperationException();
+        RandomAccessReaderWithOwnChannel(Rebufferer rebufferer)
+        {
+            super(rebufferer);
+        }
+
+        @Override
+        public void close()
+        {
+            try
+            {
+                super.close();
+            }
+            finally
+            {
+                try
+                {
+                    rebufferer.close();
+                }
+                finally
+                {
+                    getChannel().close();
+                }
+            }
+        }
+    }
+
+    /**
+     * Open a RandomAccessReader (not compressed, not mmapped, no read throttling) that will own its channel.
+     *
+     * @param file File to open for reading
+     * @return new RandomAccessReader that owns the channel opened in this method.
+     */
+    @SuppressWarnings("resource")
+    public static RandomAccessReader open(File file)
+    {
+        ChannelProxy channel = new ChannelProxy(file);
+        try
+        {
+            ChunkReader reader = new SimpleChunkReader(channel, -1, BufferType.OFF_HEAP, DEFAULT_BUFFER_SIZE);
+            Rebufferer rebufferer = reader.instantiateRebufferer();
+            return new RandomAccessReaderWithOwnChannel(rebufferer);
+        }
+        catch (Throwable t)
+        {
+            channel.close();
+            throw t;
+        }
     }
 }

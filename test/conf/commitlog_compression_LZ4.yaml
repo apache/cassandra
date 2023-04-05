@@ -1,0 +1,2 @@
+commitlog_compression:
+    - class_name: LZ4Compressor
