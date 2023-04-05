@@ -103,13 +103,13 @@ public class SSTableImporter
                         {
                             if (dir != null)
                             {
-                                logger.error("[{}] Failed verifying sstable {} in directory {}", importID, descriptor, dir, t);
+                                logger.error("[{}] Failed verifying SSTable {} in directory {}", importID, descriptor, dir, t);
                                 failedDirectories.add(dir);
                             }
                             else
                             {
-                                logger.error("[{}] Failed verifying sstable {}", importID, descriptor, t);
-                                throw new RuntimeException("Failed verifying sstable " + descriptor, t);
+                                logger.error("[{}] Failed verifying SSTable {}", importID, descriptor, t);
+                                throw new RuntimeException("Failed verifying SSTable " + descriptor, t);
                             }
                             break;
                         }
@@ -165,8 +165,8 @@ public class SSTableImporter
                     }
                     else
                     {
-                        logger.error("[{}] Failed importing sstables from data directory - renamed sstables are: {}", importID, movedSSTables, t);
-                        throw new RuntimeException("Failed importing sstables", t);
+                        logger.error("[{}] Failed importing sstables from data directory - renamed SSTables are: {}", importID, movedSSTables, t);
+                        throw new RuntimeException("Failed importing SSTables", t);
                     }
                 }
             }
@@ -195,8 +195,8 @@ public class SSTableImporter
         }
         catch (Throwable t)
         {
-            logger.error("[{}] FaiFailed adding sstables", importID, t);
-            throw new RuntimeException("Failed adding sstables", t);
+            logger.error("[{}] Failed adding SSTables", importID, t);
+            throw new RuntimeException("Failed adding SSTables", t);
         }
 
         logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.keyspace.getName(), cfs.getTableName());
