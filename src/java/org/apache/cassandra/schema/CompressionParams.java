@@ -36,7 +36,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.config.SSTableCompressionOptions;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -96,13 +95,13 @@ public final class CompressionParams
     // TODO: deprecated, should now be carefully removed. Doesn't affect schema code as it isn't included in equals() and hashCode()
     private volatile double crcCheckChance = 1.0;
 
-    public static CompressionParams fromOptions(SSTableCompressionOptions options) {
+    public static CompressionParams fromOptions(Map<String, String> options) {
         if (options == null)
             return !CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.getBoolean()
                    ? noCompression()
                    : DEFAULT;
         else
-            return options.getCompressionParams();
+            return CompressionParams.fromMap(options);
     }
 
     public static CompressionParams fromMap(Map<String, String> opts)
@@ -219,7 +218,7 @@ public final class CompressionParams
         this(createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, otherOptions);
     }
 
-    public static int calcMaxCompressedLength(int chunkLength, double minCompressRatio)
+    static int calcMaxCompressedLength(int chunkLength, double minCompressRatio)
     {
         return (int) Math.ceil(Math.min(chunkLength / minCompressRatio, Integer.MAX_VALUE));
     }

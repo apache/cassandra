@@ -32,7 +32,9 @@ import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.CompressionParams;
 import org.yaml.snakeyaml.error.YAMLException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
@@ -181,11 +183,11 @@ public class YamlConfigurationLoaderTest
         c = load("test/conf/cassandra_with_sstable_compressor.yaml");
 
         assertNotNull(c.sstable_compressor);
-        assertThat(c.sstable_compressor.type).isEqualTo(SSTableCompressionOptions.CompressorType.lz4);
-        assertThat(c.sstable_compressor.chunk_length).isEqualTo("32MiB");
-        assertThat(c.sstable_compressor.min_compress_ratio).isEqualTo(0.5D);
-        assertThat(c.sstable_compressor.compressor).isNull();
-        assertThat(c.sstable_compressor.enabled).isTrue();
+        CompressionParams p = CompressionParams.fromOptions(c.sstable_compressor);
+        assertThat(p.klass()).isEqualTo(LZ4Compressor.class);
+        assertThat(p.chunkLength()).isEqualTo(32768);
+        assertThat(p.getSstableCompressor()).isNotNull();
+        assertThat(p.isEnabled()).isTrue();
     }
 
     @Test

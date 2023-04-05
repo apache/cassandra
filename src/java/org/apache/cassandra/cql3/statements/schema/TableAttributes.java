@@ -122,7 +122,7 @@ public final class TableAttributes extends PropertyDefinitions
                 double crcCheckChance = getDeprecatedCrcCheckChance(compressionOpts);
                 builder.crcCheckChance(crcCheckChance);
             }
-            builder.compression(CompressionParams.fromMap(getMap(COMPRESSION)));
+            builder.compression(CompressionParams.fromOptions(getMap(COMPRESSION)));
         }
 
         if (hasOption(Option.MEMTABLE))
