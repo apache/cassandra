@@ -1360,9 +1360,13 @@ server_encryption_options:
   # during upgrade to 4.0; otherwise, set to false.
   legacy_ssl_storage_port_enabled: false
   # Set to a valid keystore if internode_encryption is dc, rack or all
-  # For configurating PEM based key material, refer to https://cassandra.apache.org/doc/latest/cassandra/operating/security.html#using-pem-based-key-material
   keystore: conf/.keystore
   keystore_password: cassandra
+  # Configure the way Cassandra creates SSL contexts.
+  # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
+  # ssl_context_factory:
+  #     # Must be an instance of org.apache.cassandra.security.ISslContextFactory
+  #     class_name: org.apache.cassandra.security.DefaultSslContextFactory
   # During internode mTLS authentication, inbound connections (acting as servers) use keystore, keystore_password
   # containing server certificate to create SSLContext and
   # outbound connections (acting as clients) use outbound_keystore & outbound_keystore_password with client certificates
@@ -1406,9 +1410,13 @@ client_encryption_options:
   # optional defaults to true when enabled is false, and false when enabled is true.
   # optional: true
   # Set keystore and keystore_password to valid keystores if enabled is true
-  # For configurating PEM based key material, refer to https://cassandra.apache.org/doc/latest/cassandra/operating/security.html#using-pem-based-key-material
   keystore: conf/.keystore
   keystore_password: cassandra
+  # Configure the way Cassandra creates SSL contexts.
+  # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
+  # ssl_context_factory:
+  #     # Must be an instance of org.apache.cassandra.security.ISslContextFactory
+  #     class_name: org.apache.cassandra.security.DefaultSslContextFactory
   # Verify client certificates
   require_client_auth: false
   # require_endpoint_verification: false
