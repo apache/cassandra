@@ -63,5 +63,7 @@
 --add-opens jdk.compiler/com.sun.tools.javac=ALL-UNNAMED
 --add-opens java.base/java.lang=ALL-UNNAMED
 --add-opens java.base/java.lang.reflect=ALL-UNNAMED
+#jamm post CASSANDRA-17199
+--add-opens java.base/java.net=ALL-UNNAMED
 
 # The newline in the end of file is intentional
