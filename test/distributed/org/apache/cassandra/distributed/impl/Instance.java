@@ -509,7 +509,14 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             }
             else
             {
-                header.verb.stage.executor().execute(ExecutorLocals.create(state), () -> MessagingService.instance().inboundSink.accept(messageIn));
+                ExecutorPlus executor = header.verb.stage.executor();
+                if (executor.isShutdown())
+                {
+                    MessagingService.instance().metrics.recordDroppedMessage(messageIn, messageIn.elapsedSinceCreated(TimeUnit.NANOSECONDS), TimeUnit.NANOSECONDS);
+                    inInstancelogger.warn("Dropping message {} due to stage {} being shutdown", messageIn, header.verb.stage);
+                    return;
+                }
+                executor.execute(ExecutorLocals.create(state), () -> MessagingService.instance().inboundSink.accept(messageIn));
             }
         };
     }
