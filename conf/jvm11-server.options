@@ -4,6 +4,15 @@
 # See jvm-server.options. This file is specific for Java 11 and newer.    #
 ###########################################################################
 
+
+########################
+# GENERAL JVM SETTINGS #
+########################
+
+# Disable biased locking as it does not benefit Cassandra.
+-XX:-UseBiasedLocking
+
+
 #################
 #  GC SETTINGS  #
 #################
