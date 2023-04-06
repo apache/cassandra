@@ -133,6 +133,7 @@
  * Fix COPY ... TO STDOUT behavior in cqlsh (CASSANDRA-18353)
  * Remove six and Py2SaferScanner merge cruft (CASSANDRA-18354)
 Merged from 4.0:
+ * Update zstd-jni library to version 1.5.5 (CASSANDRA-18429)
 Merged from 3.11:
  * Suppress CVE-2022-45688 (CASSANDRA-18389)
 Merged from 3.0:
