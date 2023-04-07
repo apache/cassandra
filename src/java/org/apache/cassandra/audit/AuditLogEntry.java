@@ -116,7 +116,6 @@ public class AuditLogEntry {
 
 
             if (type.toString().equals("UPDATE") && EsUtil.isSyncKeyspace(syncKeyspace, keyspace) && EsUtil.isSyncTable(syncEsTable, scope)) {
-                String json = "";
                 if (s.toLowerCase(Locale.ROOT).contains("update")) {
                     Map sqlMaps = SqlToJson.sqlUpdateToJson(s);
 
@@ -130,10 +129,9 @@ public class AuditLogEntry {
                     });
 
                 } else {
-                    json = SqlToJson.sqlInsertToJosn(s);
-                    System.out.println("LEI TEST [INFO][INSERT] 需要发送ES的数据:" + json);
-                    String id = SqlToJson.getFirstId(s);
-                    HttpUtil.createIndex(esNodeList, keyspace + "-" + scope, json, id);
+                    Map<String, Object> maps = SqlToJson.sqlInsertToJosn(s);
+                    System.out.println("LEI TEST [INFO][INSERT] 需要发送ES的数据:" + JSON.toJSONString(maps));
+                    HttpUtil.bulkIndex(esNodeList,keyspace+"-"+scope,maps);
                 }
             }
 

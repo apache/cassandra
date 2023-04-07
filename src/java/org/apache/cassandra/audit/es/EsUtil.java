@@ -100,6 +100,25 @@ public class EsUtil {
     }
 
 
+
+    public static String getBulkApiJson(Map<String,Object> maps){
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"index\":{}}\n");
+        sb.append("{");
+        int i=0;
+        for (String key:maps.keySet()){
+            String value=maps.get(key).toString();
+            if (i > 0){
+                sb.append(",");
+            }
+            sb.append("\""+key+"\":\""+value+"\"");
+            i++;
+        }
+        sb.append("}");
+        return sb+"\n";
+    }
+
+
     public static Map<String, Object> getUpdateSqlWhere(String sql) {
         String dbRecord = sql.replace("\"", " ").replace(";", "");
         String[] insertArr = dbRecord.split("where");

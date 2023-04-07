@@ -41,7 +41,7 @@ public class HttpUtil {
                     .asString();
 
 
-            System.out.println("Insert 数据返回：code:"+response.getStatus()+"; 返回内容:"+response.getBody());
+            System.out.println("Insert 数据返回：code:" + response.getStatus() + "; 返回内容:" + response.getBody());
 
             if (response.getStatus() != ErrorEnum.SUCCESS.code) {
                 return DataRsp.builder()
@@ -56,6 +56,27 @@ public class HttpUtil {
         return DataRsp.getError200();
     }
 
+
+    public static DataRsp bulkIndex(String url, String indexName, Map<String, Object> maps) {
+        String nodeUrl = getRandomNode(url);
+        System.out.println("LEI TEST INFO: 节点地址:" + nodeUrl);
+        if (StringUtils.isBlank(nodeUrl)) {
+            // es_node_list 配置为空 返回 406
+            return DataRsp.getError406();
+        }
+        Unirest.setTimeouts(0, 0);
+        try {
+            String bulkApiJson = EsUtil.getBulkApiJson(maps);
+            HttpResponse<String> response = Unirest.post(nodeUrl+"/"+indexName+"/_bulk")
+                    .header("Content-Type", "application/x-ndjson")
+                    .body(bulkApiJson)
+                    .asString();
+            System.out.println("Bulk 数据返回：code:" + response.getStatus() + "; 返回内容:" + response.getBody());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return DataRsp.getError200();
+    }
 
     /**
      * 查询方法,match  keyword
@@ -141,6 +162,7 @@ public class HttpUtil {
 
     /**
      * 删除数据
+     *
      * @param url
      * @param indexName
      * @param maps
@@ -155,11 +177,11 @@ public class HttpUtil {
         try {
             String requestJson = EsUtil.getDslQueryJson(maps);
             System.out.println("删除 DSL：" + requestJson);
-            HttpResponse<String> response = Unirest.post(nodeUrl+"/"+indexName+"/_delete_by_query?slices=auto&conflicts=proceed&wait_for_completion=false")
+            HttpResponse<String> response = Unirest.post(nodeUrl + "/" + indexName + "/_delete_by_query?slices=auto&conflicts=proceed&wait_for_completion=false")
                     .header("Content-Type", "application/json")
                     .body(requestJson)
                     .asString();
-            System.out.println("删除返回：code:"+response.getStatus()+"; 返回内容:"+response.getBody());
+            System.out.println("删除返回：code:" + response.getStatus() + "; 返回内容:" + response.getBody());
             if (ErrorEnum.SUCCESS.code != response.getStatus()) {
                 return DataRsp.builder()
                         .code(response.getStatus())
@@ -186,6 +208,7 @@ public class HttpUtil {
 
     /**
      * 删除索引
+     *
      * @param url
      * @param indexName
      * @return
@@ -197,12 +220,12 @@ public class HttpUtil {
             return DataRsp.getError406();
         }
         Unirest.setTimeouts(0, 0);
-        try{
+        try {
 
-            HttpResponse<String> response = Unirest.delete(nodeUrl+"/"+indexName)
+            HttpResponse<String> response = Unirest.delete(nodeUrl + "/" + indexName)
                     .asString();
 
-            System.out.println("删除索引返回：code:"+response.getStatus()+"; 返回内容:"+response.getBody());
+            System.out.println("删除索引返回：code:" + response.getStatus() + "; 返回内容:" + response.getBody());
             if (ErrorEnum.SUCCESS.code != response.getStatus()) {
                 return DataRsp.builder()
                         .code(response.getStatus())
@@ -210,7 +233,7 @@ public class HttpUtil {
                         .build();
             }
 
-        }catch (Exception e){
+        } catch (Exception e) {
             System.out.print("LEI TEST ERROR:");
             throw new RuntimeException(e);
         }

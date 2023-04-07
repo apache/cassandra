@@ -23,11 +23,41 @@ import java.util.*;
 public class SqlToJson {
 
 
-    public static String sqlInsertToJosn(String sql){
-        String dbRecord = sql+"\n";
-        String[] insertArr = dbRecord.split("INSERT");
-        List<String> stringList = Arrays.asList(insertArr);
-        return EsUtil.allTrim(dbRecordToJsonStr(stringList));
+//    public static String sqlInsertToJosn(String sql){
+//        String dbRecord = sql+"\n";
+//        String[] insertArr = dbRecord.split("INSERT");
+//        List<String> stringList = Arrays.asList(insertArr);
+//        return EsUtil.allTrim(dbRecordToJsonStr(stringList));
+//    }
+
+    public static Map<String,Object> sqlInsertToJosn(String sql) {
+        String dbRecordSql = sql+"\n";
+        String[] insertArr = dbRecordSql.split("INSERT");
+        List<String> dbRecordList = Arrays.asList(insertArr);
+        if (null == dbRecordList || dbRecordList.size() == 0) {
+            return null;
+        }
+
+        Map<String,Object> maps=new HashMap<>();
+
+        for (int i = 0; i < dbRecordList.size(); i++) {
+
+            String dbRecord = dbRecordList.get(i);
+            if (!dbRecord.contains("(")) {
+                continue;
+            }
+
+            String fields = dbRecord.substring(dbRecord.indexOf("(") + 1, dbRecord.indexOf(")"));
+            String values = dbRecord.substring(dbRecord.lastIndexOf("(") + 1, dbRecord.lastIndexOf(")"));
+            String replacedFields = fields.replace("`", "").trim();
+            String replacedValues = values.replace("'", "").trim();
+            String[] fieldsArr = replacedFields.split(",");
+            String[] valuesArr = replacedValues.split(",");
+            for (int j = 0; j < fieldsArr.length; j++) {
+                maps.put(fieldsArr[j].trim(),valuesArr[j].trim());
+            }
+        }
+        return maps;
     }
 
     public static Map sqlUpdateToJson(String sql){
