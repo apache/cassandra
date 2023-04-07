@@ -8,6 +8,7 @@ Merged from 4.0:
  * Update zstd-jni library to version 1.5.5 (CASSANDRA-18429)
 Merged from 3.11:
  * Suppress CVE-2022-45688 (CASSANDRA-18389)
+ * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
 Merged from 3.0:
  * Save host id to system.local and flush immediately after startup (CASSANDRA-18153)
 
