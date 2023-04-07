@@ -19,11 +19,15 @@ package org.apache.cassandra.audit;
 
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.UUID;
+import java.util.*;
 import javax.annotation.Nullable;
 
+import com.alibaba.fastjson2.JSON;
+import org.apache.cassandra.audit.es.EsUtil;
 import org.apache.cassandra.audit.es.HttpUtil;
 import org.apache.cassandra.audit.es.SqlToJson;
+import org.apache.cassandra.audit.es.dto.Hites;
+import org.apache.cassandra.audit.es.res.DataRsp;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.commons.lang3.StringUtils;
 
@@ -37,11 +41,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
-public class AuditLogEntry
-{
-
-    private static String es_host = "http://192.168.184.31:9200/";
-
+public class AuditLogEntry {
     private final InetAddressAndPort host = FBUtilities.getBroadcastAddressAndPort();
     private final InetAddressAndPort source;
     private final String user;
@@ -63,8 +63,7 @@ public class AuditLogEntry
                           String scope,
                           String operation,
                           QueryOptions options,
-                          QueryState state)
-    {
+                          QueryState state) {
         this.type = type;
         this.source = source;
         this.user = user;
@@ -77,51 +76,70 @@ public class AuditLogEntry
         this.state = state;
     }
 
-    String getLogString()
-    {
+    String getLogString() {
         StringBuilder builder = new StringBuilder(100);
         builder.append("user:").append(user)
-               .append("|host:").append(host)
-               .append("|source:").append(source.getAddress());
-        if (source.getPort() > 0)
-        {
+                .append("|host:").append(host)
+                .append("|source:").append(source.getAddress());
+        if (source.getPort() > 0) {
             builder.append("|port:").append(source.getPort());
         }
 
         builder.append("|timestamp:").append(timestamp)
-               .append("|type:").append(type)
-               .append("|category:").append(type.getCategory());
+                .append("|type:").append(type)
+                .append("|category:").append(type.getCategory());
 
-        if (batch != null)
-        {
+        if (batch != null) {
             builder.append("|batch:").append(batch);
         }
-        if (StringUtils.isNotBlank(keyspace))
-        {
+        if (StringUtils.isNotBlank(keyspace)) {
             builder.append("|ks:").append(keyspace);
         }
-        if (StringUtils.isNotBlank(scope))
-        {
+        if (StringUtils.isNotBlank(scope)) {
             builder.append("|scope:").append(scope);
         }
-        if (StringUtils.isNotBlank(operation))
-        {
+        if (StringUtils.isNotBlank(operation)) {
             String s = operation.replace('\r', ' ').replace('\n', ' ').replaceAll(" {2,}+", " ");
             builder.append("|operation:").append(s);
 
-            System.out.println("LEI TEST [INFO] 打印 sql :"+s);
-            System.out.println("LEI TEST [INFO] 操作类型:"+type.toString());
+            System.out.println("LEI TEST [INFO] 打印 sql :" + s);
+            System.out.println("LEI TEST [INFO] 操作类型:" + type.toString());
 
             String esNodeList = DatabaseDescriptor.getEsNodeList();
 
 
-            System.out.println("LEI TEST [INFO] 打印节点列表："+esNodeList);
+            System.out.println("LEI TEST [INFO] 打印节点列表：" + esNodeList);
 
             if (type.toString().equals("UPDATE")) {
-                String json = SqlToJson.sqlToJosn(s);
-                System.out.println("LEI TEST [INFO] 需要发送ES的数据:" + json);
-                String id = SqlToJson.getFirstId(s);
-                HttpUtil.createIndex(esNodeList,scope,json,id);
+                String json = "";
+                if (s.toLowerCase(Locale.ROOT).contains("update")) {
+                    Map sqlMaps = SqlToJson.sqlUpdateToJson(s);
+
+                    Map<String, Object> updateSqlWhere = EsUtil.getUpdateSqlWhere(s);
+                    DataRsp<Object> dataRsp = HttpUtil.getSearch(esNodeList, scope, updateSqlWhere);
+                    List<Hites> hitesList = EsUtil.castList(dataRsp.getData(), Hites.class);
+                    hitesList.stream().forEach(hites -> {
+                        Map<String, Object> source = hites.get_source();
+                        Map updateJson = EsUtil.mergeTwoMap(sqlMaps, source);
+                        HttpUtil.createIndex(esNodeList, scope, EsUtil.allTrim(JSON.toJSONString(updateJson)), hites.get_id());
+                    });
+
+                } else {
+                    json = SqlToJson.sqlInsertToJosn(s);
+                    System.out.println("LEI TEST [INFO][INSERT] 需要发送ES的数据:" + json);
+                    String id = SqlToJson.getFirstId(s);
+                    HttpUtil.createIndex(esNodeList, scope, json, id);
+                }
+            }
+
+
+            if (type.toString().equals("DELETE")){
+                Map maps = SqlToJson.sqlDeleteToJson(s);
+                HttpUtil.deleteData(esNodeList,scope,maps);
+            }
+
+            if (type.toString().equals("DROP_TABLE")){
+                HttpUtil.dropIndex(esNodeList,scope);
             }
 
         }
@@ -129,73 +147,57 @@ public class AuditLogEntry
     }
 
 
-    public InetAddressAndPort getHost()
-    {
+    public InetAddressAndPort getHost() {
         return host;
     }
 
-    public InetAddressAndPort getSource()
-    {
+    public InetAddressAndPort getSource() {
         return source;
     }
 
-    public String getUser()
-    {
+    public String getUser() {
         return user;
     }
 
-    public long getTimestamp()
-    {
+    public long getTimestamp() {
         return timestamp;
     }
 
-    public AuditLogEntryType getType()
-    {
+    public AuditLogEntryType getType() {
         return type;
     }
 
-    public UUID getBatch()
-    {
+    public UUID getBatch() {
         return batch;
     }
 
-    public String getKeyspace()
-    {
+    public String getKeyspace() {
         return keyspace;
     }
 
-    public String getScope()
-    {
+    public String getScope() {
         return scope;
     }
 
-    public String getOperation()
-    {
+    public String getOperation() {
         return operation;
     }
 
-    public QueryOptions getOptions()
-    {
+    public QueryOptions getOptions() {
         return options;
     }
 
-    public QueryState getState()
-    {
+    public QueryState getState() {
         return state;
     }
 
-    public static class Builder
-    {
+    public static class Builder {
         private static final InetAddressAndPort DEFAULT_SOURCE;
 
-        static
-        {
-            try
-            {
+        static {
+            try {
                 DEFAULT_SOURCE = InetAddressAndPort.getByNameOverrideDefaults("0.0.0.0", 0);
-            }
-            catch (UnknownHostException e)
-            {
+            } catch (UnknownHostException e) {
 
                 throw new RuntimeException("failed to create default source address", e);
             }
@@ -214,28 +216,22 @@ public class AuditLogEntry
         private QueryOptions options;
         private QueryState state;
 
-        public Builder(QueryState queryState)
-        {
+        public Builder(QueryState queryState) {
             state = queryState;
 
             ClientState clientState = queryState.getClientState();
 
-            if (clientState != null)
-            {
-                if (clientState.getRemoteAddress() != null)
-                {
+            if (clientState != null) {
+                if (clientState.getRemoteAddress() != null) {
                     InetSocketAddress addr = clientState.getRemoteAddress();
                     source = InetAddressAndPort.getByAddressOverrideDefaults(addr.getAddress(), addr.getPort());
                 }
 
-                if (clientState.getUser() != null)
-                {
+                if (clientState.getUser() != null) {
                     user = clientState.getUser().getName();
                 }
                 keyspace = clientState.getRawKeyspace();
-            }
-            else
-            {
+            } else {
                 source = DEFAULT_SOURCE;
                 user = AuthenticatedUser.SYSTEM_USER.getName();
             }
@@ -243,8 +239,7 @@ public class AuditLogEntry
             timestamp = currentTimeMillis();
         }
 
-        public Builder(AuditLogEntry entry)
-        {
+        public Builder(AuditLogEntry entry) {
             type = entry.type;
             source = entry.source;
             user = entry.user;
@@ -257,72 +252,60 @@ public class AuditLogEntry
             state = entry.state;
         }
 
-        public Builder setType(AuditLogEntryType type)
-        {
+        public Builder setType(AuditLogEntryType type) {
             this.type = type;
             return this;
         }
 
-        public Builder(AuditLogEntryType type)
-        {
+        public Builder(AuditLogEntryType type) {
             this.type = type;
             operation = DEFAULT_OPERATION;
         }
 
-        public Builder setUser(String user)
-        {
+        public Builder setUser(String user) {
             this.user = user;
             return this;
         }
 
-        public Builder setBatch(UUID batch)
-        {
+        public Builder setBatch(UUID batch) {
             this.batch = batch;
             return this;
         }
 
-        public Builder setTimestamp(long timestampMillis)
-        {
+        public Builder setTimestamp(long timestampMillis) {
             this.timestamp = timestampMillis;
             return this;
         }
 
-        public Builder setKeyspace(QueryState queryState, @Nullable CQLStatement statement)
-        {
+        public Builder setKeyspace(QueryState queryState, @Nullable CQLStatement statement) {
             keyspace = statement != null && statement.getAuditLogContext().keyspace != null
-                       ? statement.getAuditLogContext().keyspace
-                       : queryState.getClientState().getRawKeyspace();
+                    ? statement.getAuditLogContext().keyspace
+                    : queryState.getClientState().getRawKeyspace();
             return this;
         }
 
-        public Builder setKeyspace(String keyspace)
-        {
+        public Builder setKeyspace(String keyspace) {
             this.keyspace = keyspace;
             return this;
         }
 
-        public Builder setKeyspace(CQLStatement statement)
-        {
+        public Builder setKeyspace(CQLStatement statement) {
             this.keyspace = statement.getAuditLogContext().keyspace;
             return this;
         }
 
-        public Builder setScope(CQLStatement statement)
-        {
+        public Builder setScope(CQLStatement statement) {
             this.scope = statement.getAuditLogContext().scope;
             return this;
         }
 
-        public Builder setOperation(String operation)
-        {
+        public Builder setOperation(String operation) {
             this.operation = operation;
             return this;
         }
 
-        public void appendToOperation(String str)
-        {
-            if (StringUtils.isNotBlank(str))
-            {
+        public void appendToOperation(String str) {
+            if (StringUtils.isNotBlank(str)) {
                 if (operation.isEmpty())
                     operation = str;
                 else
@@ -330,14 +313,12 @@ public class AuditLogEntry
             }
         }
 
-        public Builder setOptions(QueryOptions options)
-        {
+        public Builder setOptions(QueryOptions options) {
             this.options = options;
             return this;
         }
 
-        public AuditLogEntry build()
-        {
+        public AuditLogEntry build() {
             timestamp = timestamp > 0 ? timestamp : currentTimeMillis();
             return new AuditLogEntry(type, source, user, timestamp, batch, keyspace, scope, operation, options, state);
         }

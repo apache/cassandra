@@ -18,17 +18,55 @@
 
 package org.apache.cassandra.audit.es;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class SqlToJson {
 
 
-    public static String sqlToJosn(String sql){
+    public static String sqlInsertToJosn(String sql){
         String dbRecord = sql+"\n";
         String[] insertArr = dbRecord.split("INSERT");
         List<String> stringList = Arrays.asList(insertArr);
-        return dbRecordToJsonStr(stringList);
+        return EsUtil.allTrim(dbRecordToJsonStr(stringList));
+    }
+
+    public static Map sqlUpdateToJson(String sql){
+        String dbRecord= sql.replace("\""," ").replace(";","");
+        String[] insertArr = dbRecord.split(" ");
+        List<String> stringList = Arrays.asList(insertArr);
+        Map<String,Object> maps=new HashMap<>();
+        stringList.forEach(s -> {
+            if (s.contains(",")){
+                String[] splitd = s.split(",");
+                for (int i = 0; i < splitd.length; i++) {
+                    if (splitd[i].contains("=")){
+                        String[] split = splitd[i].split("=");
+                        maps.put(split[0].replace("\'"," ").replace("\""," "),split[1].replace("\'"," ").replace("\""," "));
+                    }
+                }
+            }else {
+                if (s.contains("=")) {
+                    String[] split = s.split("=");
+                    maps.put(split[0].replace("\'", " ").replace("\"", " "), split[1].replace("\'", " ").replace("\"", " "));
+                }
+            }
+        });
+        return maps;
+    }
+
+
+    public static Map sqlDeleteToJson(String sql){
+        String dbRecord= sql.replace("\""," ").replace(";","").toLowerCase(Locale.ROOT);
+        String[] insertArr = dbRecord.split(" ");
+        List<String> stringList = Arrays.asList(insertArr);
+        Map<String,Object> maps=new HashMap<>();
+        stringList.forEach(str->{
+            if (str.contains("=")){
+                String[] split = str.split("=");
+                maps.put(split[0].trim(),split[1].replace("'"," ").trim());
+            }
+        });
+        return maps;
     }
 
     public static String getFirstId(String sql){

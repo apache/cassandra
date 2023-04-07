@@ -1,0 +1,30 @@
+= cassandra数据同步elasticsearch
+
+=== 集群模型示意图
+
+image::doc/img/5.png[]
+
+
+=== 数据写入流程
+
+image::doc/img/6.png[]
+
+
+
+=== 总结，还需要做的事情
+
+image::doc/img/8.png[]
+
+
+=== 风险
+
+授权问题：
++
+Unapproved licenses: 未授权的licenses
+
+详情在 build文件夹里的 rat.txt文件夹里。
+
+需要研究一下怎么跟官方申请一个授权分支。
+
+
+

@@ -17,12 +17,14 @@ https://cwiki.apache.org/confluence/display/CASSANDRA2/DataModel[Row store] 的�
 . 修改了FileAuditLogger写入sql带有换行符,导致数据不是一条的问题。
 . 默认分发包配置会自动打开FileAuditLogger
 . v4.1.1.1 分支修改了AuditLogger数据直接发送写入elasticsearch。表对应es的索引。
-. v4.1.1.1 分支在cassandra.yaml 增加 配置 es_node_list 配置交换数据的es集群节点的9200端口服务地址。
+. v4.1.1.1 分支在cassandra.yaml 增加 配置 es_node_listhttps://xxx 配置交换数据的es集群节点的9200端口服务地址。
+. v4.1.1.1 完善了数据写入 elasticsearch 的逻辑 xref:TestData.adoc[测试数据]
 
 
 == 其他的一些内容
 
 . xref:doc/无法下载的包.adoc[无法下载的依赖包]
+. xref:doc/多网络接口配置.adoc[多网络接口，跨数据中心配置]
 
 == 安装要求
 ------------

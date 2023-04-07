@@ -1,0 +1,99 @@
+= 测试数据
+
+== 创建keyspace
+----
+cqlsh> CREATE KEYSPACE schema1
+       WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };
+cqlsh> USE schema1;
+----
+
+== 创建 表
+----
+cqlsh:Schema1> CREATE TABLE users (
+                 user_id varchar,
+                 first varchar,
+                 last varchar,
+                 age int,
+                 PRIMARY KEY (user_id, first)
+               );
+----
+
+== Insert 数据
+----
+cqlsh:Schema1> INSERT INTO users (user_id, first, last, age)
+               VALUES ('jsmith', 'John', 'Smith', 42);
+cqlsh:schema1> INSERT INTO users (user_id, first, last, age) VALUES ('lei', 'fu', 'lei', 35);
+----
+
+== update 单where条件，单set值数据
+----
+cqlsh:schema1> update users set age=30 where user_id='lei';
+----
+
+== update 单where条件，多set值数据
+----
+cqlsh:schema1> update users set age=35,last='yuxuan',first='xiaofu' where user_id='lei';
+----
+
+
+
+
+== update 多条件where and 更新数据
+
+==== 三条件更新
+----
+update users set age=30 where user_id='lei' and first='fu' and last='lei';
+----
+
+==== 两条件更新单个值
+----
+update users set age=30 where user_id='lei' and first='fu';
+----
+
+==== 两条件更新两个值
+----
+update users set age=30,last='yuxuan' where user_id='lei' and first='fu';
+----
+
+==== 创建索引
+----
+cqlsh:schema1> create index first on schema1.users(first);
+cqlsh:schema1> create index last on schema1.users(last);
+----
+==== 多条件查询
+----
+cqlsh:schema1> select * from users where user_id='lei' and first='fu' and last='lei' ALLOW FILTERING;
+----
+
+==== 创建表添加多个主键索引
+----
+cqlsh:Schema1> CREATE TABLE users (
+                 user_id varchar,
+                 first varchar,
+                 last varchar,
+                 age int,
+                 PRIMARY KEY (user_id, first)
+               );
+----
+
+
+== update 多条件where or 更新数据
+
+
+
+== 删除测试数据
+----
+cqlsh:schema1> INSERT INTO users (user_id, first, last, age) VALUES ('1', 'fu1', 'lei1', 35);
+----
+
+== 测试删除数据
+----
+DELETE from users where user_id='1';
+----
+
+
+
+
+
+
+

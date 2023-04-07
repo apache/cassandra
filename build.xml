@@ -747,6 +747,7 @@
                 <dependency groupId="com.github.seancfoley" artifactId="ipaddress" version="5.3.3"/>
                 <dependency groupId="com.alibaba.fastjson2" artifactId="fastjson2" version="2.0.21"/>
                 <dependency groupId="com.mashape.unirest" artifactId="unirest-java" version="1.4.9"/>
+                <dependency groupId="org.projectlombok" artifactId="lombok" version="1.18.22"/>
             </dependencyManagement>
             <developer id="adelapena" name="Andres de la Peña"/>
             <developer id="alakshman" name="Avinash Lakshman"/>
@@ -835,6 +836,7 @@
             <dependency groupId="com.fasterxml.jackson.dataformat" artifactId="jackson-dataformat-yaml"/>
             <dependency groupId="com.alibaba.fastjson2" artifactId="fastjson2" version="${fastjson2.version}"/>
             <dependency groupId="com.mashape.unirest" artifactId="unirest-java" version="${unirest-java.version}"/>
+            <dependency groupId="org.projectlombok" artifactId="lombok" version="1.18.22"/>
         </artifact:pom>
 
         <!-- 现在，pom正在部署到Maven Central-->
@@ -937,6 +939,7 @@
             <dependency groupId="com.github.seancfoley" artifactId="ipaddress"/>
             <dependency groupId="com.alibaba.fastjson2" artifactId="fastjson2" version="2.0.21"/>
             <dependency groupId="com.mashape.unirest" artifactId="unirest-java" version="1.4.9"/>
+            <dependency groupId="org.projectlombok" artifactId="lombok" version="1.18.22"/>
         </artifact:pom>
     </target>
 
