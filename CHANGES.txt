@@ -1,4 +1,5 @@
 5.0
+ * Node Draining Should Abort All Current SSTables Imports (CASSANDRA-18373)
  * Use snake case for the names of CQL native functions (CASSANDRA-18037)
  * Use jdk-dependent checkstyle version to check the source code (CASSANDRA-18262)
  * Provide summary of failed SessionInfo's in StreamResultFuture (CASSANDRA-17199)
