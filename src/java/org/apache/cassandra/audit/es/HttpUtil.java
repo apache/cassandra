@@ -155,7 +155,7 @@ public class HttpUtil {
         try {
             String requestJson = EsUtil.getDslQueryJson(maps);
             System.out.println("删除 DSL：" + requestJson);
-            HttpResponse<String> response = Unirest.post(url+"/"+indexName+"/_delete_by_query?slices=auto&conflicts=proceed&wait_for_completion=false")
+            HttpResponse<String> response = Unirest.post(nodeUrl+"/"+indexName+"/_delete_by_query?slices=auto&conflicts=proceed&wait_for_completion=false")
                     .header("Content-Type", "application/json")
                     .body(requestJson)
                     .asString();
