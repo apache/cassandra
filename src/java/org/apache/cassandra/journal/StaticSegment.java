@@ -90,11 +90,11 @@ final class StaticSegment<K> extends Segment<K>
                                     ? SyncedOffsets.load(descriptor)
                                     : SyncedOffsets.absent();
 
-        Metadata metadata = Component.INDEX.existsFor(descriptor)
+        Metadata metadata = Component.METADATA.existsFor(descriptor)
                           ? Metadata.load(descriptor)
                           : Metadata.rebuildAndPersist(descriptor, keySupport, syncedOffsets.syncedOffset());
 
-        OnDiskIndex<K> index = Component.METADATA.existsFor(descriptor)
+        OnDiskIndex<K> index = Component.INDEX.existsFor(descriptor)
                              ? OnDiskIndex.open(descriptor, keySupport)
                              : OnDiskIndex.rebuildAndPersist(descriptor, keySupport, syncedOffsets.syncedOffset());
 
