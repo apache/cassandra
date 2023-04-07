@@ -8,7 +8,6 @@
  * Split and order IDEA workspace template VM_PARAMETERS (CASSANDRA-18242)
 Merged from 3.11:
  * Suppress CVE-2022-45688 (CASSANDRA-18389)
- * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
 Merged from 3.0:
  * Save host id to system.local and flush immediately after startup (CASSANDRA-18153)
  * Fix the ordering of sstables when running sstableupgrade tool (CASSANDRA-18143)
