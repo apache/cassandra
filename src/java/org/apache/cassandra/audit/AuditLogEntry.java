@@ -107,39 +107,42 @@ public class AuditLogEntry {
 
             String esNodeList = DatabaseDescriptor.getEsNodeList();
 
-
             System.out.println("LEI TEST [INFO] 打印节点列表：" + esNodeList);
 
-            if (type.toString().equals("UPDATE")) {
+
+            String syncEsTable=DatabaseDescriptor.getSyncEsTable();
+
+
+            if (type.toString().equals("UPDATE") && EsUtil.isSyncTable(syncEsTable,scope)) {
                 String json = "";
                 if (s.toLowerCase(Locale.ROOT).contains("update")) {
                     Map sqlMaps = SqlToJson.sqlUpdateToJson(s);
 
                     Map<String, Object> updateSqlWhere = EsUtil.getUpdateSqlWhere(s);
-                    DataRsp<Object> dataRsp = HttpUtil.getSearch(esNodeList, scope, updateSqlWhere);
+                    DataRsp<Object> dataRsp = HttpUtil.getSearch(esNodeList, keyspace+"-"+scope, updateSqlWhere);
                     List<Hites> hitesList = EsUtil.castList(dataRsp.getData(), Hites.class);
                     hitesList.stream().forEach(hites -> {
                         Map<String, Object> source = hites.get_source();
                         Map updateJson = EsUtil.mergeTwoMap(sqlMaps, source);
-                        HttpUtil.createIndex(esNodeList, scope, EsUtil.allTrim(JSON.toJSONString(updateJson)), hites.get_id());
+                        HttpUtil.createIndex(esNodeList, keyspace+"-"+scope, EsUtil.allTrim(JSON.toJSONString(updateJson)), hites.get_id());
                     });
 
                 } else {
                     json = SqlToJson.sqlInsertToJosn(s);
                     System.out.println("LEI TEST [INFO][INSERT] 需要发送ES的数据:" + json);
                     String id = SqlToJson.getFirstId(s);
-                    HttpUtil.createIndex(esNodeList, scope, json, id);
+                    HttpUtil.createIndex(esNodeList, keyspace+"-"+scope, json, id);
                 }
             }
 
 
-            if (type.toString().equals("DELETE")){
+            if (type.toString().equals("DELETE") && EsUtil.isSyncTable(syncEsTable,scope)){
                 Map maps = SqlToJson.sqlDeleteToJson(s);
-                HttpUtil.deleteData(esNodeList,scope,maps);
+                HttpUtil.deleteData(esNodeList,keyspace+"-"+scope,maps);
             }
 
-            if (type.toString().equals("DROP_TABLE")){
-                HttpUtil.dropIndex(esNodeList,scope);
+            if (type.toString().equals("DROP_TABLE") && EsUtil.isSyncTable(syncEsTable,scope)){
+                HttpUtil.dropIndex(esNodeList,keyspace+"-"+scope);
             }
 
         }

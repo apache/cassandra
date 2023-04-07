@@ -1810,3 +1810,10 @@ drop_compact_storage_enabled: false
 # es 节点 列表
 # es_node_list: http://ip1:9200,http://ip2:9200,http://ip3:9200
 es_node_list:
+
+# 同步到es的表
+# 固定表明配置:
+#       sync_es_table: table_name1,table_name2
+# 以 table1 和 table2 开头的通配符配置:
+#       sync_es_table: table1*,table2*
+sync_es_table:

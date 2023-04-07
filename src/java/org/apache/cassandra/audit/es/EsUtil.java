@@ -136,4 +136,22 @@ public class EsUtil {
     }
 
 
+    public static boolean isSyncTable(String tables,String tableName){
+        String[] split = tables.split(",");
+        for (int i = 0; i < split.length; i++) {
+            if (split[i].contains("*")){
+                String replace = split[i].replace("*", " ").trim();
+                if (tableName.startsWith(replace)){
+                    return true;
+                }
+            }else {
+                if (split[i].equals(tableName)){
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+
 }

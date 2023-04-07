@@ -78,6 +78,8 @@ public class Config
 
     public String es_node_list;
 
+    public String sync_es_table;
+
     @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public volatile DurationSpec.IntMillisecondsBound permissions_validity = new DurationSpec.IntMillisecondsBound("2s");
     public volatile int permissions_cache_max_entries = 1000;
