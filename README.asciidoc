@@ -123,6 +123,10 @@ cluster_name: Test Cluster     ## 集群名字，集群内的所有节点要全�
 listen_address: ip1   ## 这个节点绑定的对外IP地址
 
 rpc_address: ip1   ## 传输地址
+
+# es 节点 列表
+# es_node_list: http://ip1:9200,http://ip2:9200,http://ip3:9200
+es_node_list:
 ----
 
 
