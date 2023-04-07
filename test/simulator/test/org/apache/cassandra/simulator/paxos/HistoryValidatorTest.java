@@ -43,6 +43,7 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntSet;
+import com.carrotsearch.hppc.cursors.IntCursor;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.utils.Clock;
 import org.assertj.core.api.AbstractThrowableAssert;
@@ -281,6 +282,32 @@ public class HistoryValidatorTest
         );
     }
 
+    private static String trim(String log, int... keys)
+    {
+        // this is deaad code, but exists to help when new validation errors are detected
+        // the logic will shrink the history to only contain transactions that contain the set of keys
+        IntSet set = new IntHashSet();
+        IntStream.of(keys).forEach(set::add);
+        Parsed parsed = parse(log);
+        StringBuilder sb = new StringBuilder();
+        for (Witness w : parsed.witnesses)
+        {
+            boolean match = false;
+            for (IntCursor pk : w.pks())
+            {
+                if (set.contains(pk.value))
+                {
+                    match = true;
+                    break;
+                }
+            }
+            if (!match) continue;
+            sb.append(w).append("\n");
+        }
+        return sb.toString();
+    }
+
+
     private void requiresMultiKeySupport()
     {
         Assume.assumeTrue("Validator " + factory.getClass() + " does not support multi-key", factory instanceof StrictSerializabilityValidator.Factory);
@@ -356,79 +383,146 @@ public class HistoryValidatorTest
         return new Event(EnumSet.of(Event.Type.WRITE), pk, null);
     }
 
-    private void fromLog(String log)
+    private interface Operation
+    {
+        int pk();
+        void check(HistoryValidator.Checker check);
+        void appendString(StringBuilder sb);
+    }
+
+    private static class Read implements Operation
+    {
+        final int pk, id, count;
+        final int[] seq;
+
+        Read(int pk, int id, int count, int[] seq)
+        {
+            this.pk = pk;
+            this.id = id;
+            this.count = count;
+            this.seq = seq;
+        }
+
+        @Override
+        public int pk()
+        {
+            return pk;
+        }
+
+        @Override
+        public void check(HistoryValidator.Checker check)
+        {
+            check.read(pk, id, count, seq);
+        }
+
+        @Override
+        public void appendString(StringBuilder sb)
+        {
+            sb.append("read(pk=").append(pk).append(", id=").append(id).append(", count=").append(count).append(", seq=").append(Arrays.toString(seq)).append(")\n");
+        }
+    }
+
+    private static class Write implements Operation
+    {
+        final int pk, id;
+        final boolean success;
+
+        Write(int pk, int id, boolean success)
+        {
+            this.pk = pk;
+            this.id = id;
+            this.success = success;
+        }
+
+        @Override
+        public int pk()
+        {
+            return pk;
+        }
+
+        @Override
+        public void check(HistoryValidator.Checker check)
+        {
+            check.write(pk, id, success);
+        }
+
+        @Override
+        public void appendString(StringBuilder sb)
+        {
+            sb.append("write(pk=").append(pk).append(", id=").append(id).append(", success=").append(success).append(")\n");
+        }
+    }
+
+    private static class Witness
+    {
+        final int start, end;
+        final List<Operation> actions = new ArrayList<>();
+
+        Witness(int start, int end)
+        {
+            this.start = start;
+            this.end = end;
+        }
+
+        void read(int pk, int id, int count, int[] seq)
+        {
+            actions.add(new Read(pk, id, count, seq));
+        }
+
+        void write(int pk, int id, boolean success)
+        {
+            actions.add(new Write(pk, id, success));
+        }
+
+        void process(HistoryValidator validator)
+        {
+            try (HistoryValidator.Checker check = validator.witness(start, end))
+            {
+                for (Operation a : actions)
+                    a.check(check);
+            }
+        }
+
+        IntSet pks()
+        {
+            IntSet pks = new IntHashSet();
+            for (Operation action : actions)
+                pks.add(action.pk());
+            return pks;
+        }
+
+        @Override
+        public String toString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Witness(start=").append(start).append(", end=").append(end).append(")\n");
+            for (Operation a : actions)
+                a.appendString(sb.append('\t'));
+            return sb.toString();
+        }
+    }
+
+    private static class Parsed
+    {
+        private final int[] keys;
+        private final List<Witness> witnesses;
+
+        private Parsed(int[] keys, List<Witness> witnesses)
+        {
+            this.keys = keys;
+            this.witnesses = witnesses;
+        }
+    }
+
+    private static Parsed parse(String log)
     {
         IntSet pks = new IntHashSet();
-        class Read
-        {
-            final int pk, id, count;
-            final int[] seq;
-
-            Read(int pk, int id, int count, int[] seq)
-            {
-                this.pk = pk;
-                this.id = id;
-                this.count = count;
-                this.seq = seq;
-            }
-        }
-        class Write
-        {
-            final int pk, id;
-            final boolean success;
-
-            Write(int pk, int id, boolean success)
-            {
-                this.pk = pk;
-                this.id = id;
-                this.success = success;
-            }
-        }
-        class Witness
-        {
-            final int start, end;
-            final List<Object> actions = new ArrayList<>();
-
-            Witness(int start, int end)
-            {
-                this.start = start;
-                this.end = end;
-            }
-
-            void read(int pk, int id, int count, int[] seq)
-            {
-                actions.add(new Read(pk, id, count, seq));
-            }
-
-            void write(int pk, int id, boolean success)
-            {
-                actions.add(new Write(pk, id, success));
-            }
-
-            void process(HistoryValidator validator)
-            {
-                try (HistoryValidator.Checker check = validator.witness(start, end))
-                {
-                    for (Object a : actions)
-                    {
-                        if (a instanceof Read)
-                        {
-                            Read read = (Read) a;
-                            check.read(read.pk, read.id, read.count, read.seq);
-                        }
-                        else
-                        {
-                            Write write = (Write) a;
-                            check.write(write.pk, write.id, write.success);
-                        }
-                    }
-                }
-            }
-        }
         List<Witness> witnesses = new ArrayList<>();
         Witness current = null;
         for (String line : log.split("\n"))
         {
+            if (line.trim().isEmpty())
+                continue;
             if (line.startsWith("Witness"))
             {
                 if (current != null)
@@ -468,9 +562,26 @@ public class HistoryValidatorTest
             witnesses.add(current);
         int[] keys = pks.toArray();
         Arrays.sort(keys);
-        HistoryValidator validator = factory.create(keys);
-        for (Witness w : witnesses)
-            w.process(validator);
+        return new Parsed(keys, witnesses);
+    }
+
+    private void fromLog(String log)
+    {
+        Parsed parsed = parse(log);
+        HistoryValidator validator = factory.create(parsed.keys);
+        for (Witness w : parsed.witnesses)
+        {
+            try
+            {
+                w.process(validator);
+            }
+            catch (HistoryViolation e)
+            {
+                HistoryViolation hv = new HistoryViolation(e.primaryKey, "Violation detected for witnessed action " + w + "; " + e.getMessage() + ";\n" + log);
+                hv.setStackTrace(e.getStackTrace());
+                throw hv;
+            }
+        }
     }
 
     private static class Event
