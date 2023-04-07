@@ -246,7 +246,7 @@ public class Journal<K, V>
     {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
-            valueSerializer.serialize(record, dob, MessagingService.current_version);
+            valueSerializer.serialize(record, dob, params.userVersion());
             ActiveSegment<K>.Allocation alloc = allocate(dob.getLength(), hosts);
             alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
             flusher.waitForFlush(alloc);
