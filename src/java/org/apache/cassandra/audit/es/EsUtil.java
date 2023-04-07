@@ -101,9 +101,9 @@ public class EsUtil {
 
 
 
-    public static String getBulkApiJson(Map<String,Object> maps){
+    public static String getBulkCreateApiJson(Map<String,Object> maps){
         StringBuilder sb = new StringBuilder();
-        sb.append("{\"index\":{}}\n");
+        sb.append("{\"index\":{\"_id\" : \""+maps.hashCode()+"\" }}\n");
         sb.append("{");
         int i=0;
         for (String key:maps.keySet()){
@@ -115,6 +115,24 @@ public class EsUtil {
             i++;
         }
         sb.append("}");
+        return sb+"\n";
+    }
+
+
+    public static String getBulkUpdateApiJson(Map<String,Object> maps,String docId){
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"update\":{\"_id\":\""+docId+"\"}}\n");
+        sb.append("{\"doc\":{");
+        int i=0;
+        for (String key:maps.keySet()){
+            String value=maps.get(key).toString();
+            if (i > 0){
+                sb.append(",");
+            }
+            sb.append("\""+key+"\":\""+value+"\"");
+            i++;
+        }
+        sb.append("}}");
         return sb+"\n";
     }
 

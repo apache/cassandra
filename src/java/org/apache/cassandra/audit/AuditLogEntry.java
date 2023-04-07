@@ -125,7 +125,7 @@ public class AuditLogEntry {
                     hitesList.stream().forEach(hites -> {
                         Map<String, Object> source = hites.get_source();
                         Map updateJson = EsUtil.mergeTwoMap(sqlMaps, source);
-                        HttpUtil.createIndex(esNodeList, keyspace + "-" + scope, EsUtil.allTrim(JSON.toJSONString(updateJson)), hites.get_id());
+                        HttpUtil.bulkUpdate(esNodeList, keyspace + "-" + scope,updateJson, hites.get_id());
                     });
 
                 } else {

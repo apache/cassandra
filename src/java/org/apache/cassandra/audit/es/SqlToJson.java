@@ -22,14 +22,6 @@ import java.util.*;
 
 public class SqlToJson {
 
-
-//    public static String sqlInsertToJosn(String sql){
-//        String dbRecord = sql+"\n";
-//        String[] insertArr = dbRecord.split("INSERT");
-//        List<String> stringList = Arrays.asList(insertArr);
-//        return EsUtil.allTrim(dbRecordToJsonStr(stringList));
-//    }
-
     public static Map<String,Object> sqlInsertToJosn(String sql) {
         String dbRecordSql = sql+"\n";
         String[] insertArr = dbRecordSql.split("INSERT");

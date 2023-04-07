@@ -764,7 +764,6 @@ public class CassandraDaemon
             }
 
             start();
-
             logger.info("Startup complete");
         }
         catch (Throwable e)

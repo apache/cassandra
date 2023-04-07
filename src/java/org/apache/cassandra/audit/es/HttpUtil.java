@@ -66,7 +66,29 @@ public class HttpUtil {
         }
         Unirest.setTimeouts(0, 0);
         try {
-            String bulkApiJson = EsUtil.getBulkApiJson(maps);
+            String bulkApiJson = EsUtil.getBulkCreateApiJson(maps);
+            HttpResponse<String> response = Unirest.post(nodeUrl+"/"+indexName+"/_bulk")
+                    .header("Content-Type", "application/x-ndjson")
+                    .body(bulkApiJson)
+                    .asString();
+            System.out.println("Bulk 数据返回：code:" + response.getStatus() + "; 返回内容:" + response.getBody());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return DataRsp.getError200();
+    }
+
+
+    public static DataRsp bulkUpdate(String url,String indexName,Map<String,Object> maps,String docId){
+        String nodeUrl = getRandomNode(url);
+        System.out.println("LEI TEST INFO: 节点地址:" + nodeUrl);
+        if (StringUtils.isBlank(nodeUrl)) {
+            // es_node_list 配置为空 返回 406
+            return DataRsp.getError406();
+        }
+        Unirest.setTimeouts(0, 0);
+        try {
+            String bulkApiJson = EsUtil.getBulkUpdateApiJson(maps,docId);
             HttpResponse<String> response = Unirest.post(nodeUrl+"/"+indexName+"/_bulk")
                     .header("Content-Type", "application/x-ndjson")
                     .body(bulkApiJson)
@@ -196,7 +218,7 @@ public class HttpUtil {
     }
 
 
-    private static String getRandomNode(String esNodeList) {
+    public static String getRandomNode(String esNodeList) {
         if (StringUtils.isBlank(esNodeList)) {
             System.out.println("LEI TEST WARN :es_node_list 配置为空,");
             return "";
