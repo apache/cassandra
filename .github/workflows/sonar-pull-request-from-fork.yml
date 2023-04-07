@@ -1,0 +1,86 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: Sonar Quality Pull Request Analysis
+
+on: [pull_request_target]
+
+permissions:
+  contents: read
+
+env:
+  MAVEN_OPTS: -Xms2g
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sonar-pull-cassandra:
+    name: Cassandra Sonar Analysis
+    if: github.repository == 'apache/cassandra'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          ref: "refs/pull/${{ github.event.number }}/merge"
+          fetch-depth: 0
+
+      - name: Setup java
+        uses: actions/setup-java@v3
+        with:
+         distribution: 'temurin'
+         java-version: 11
+         cache: 'maven'
+
+      - name: Cache SonarCloud packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: Setup Ant
+        shell: bash
+        run: |
+           ANT_VERSION=1.10.13
+           wget --no-check-certificate --no-cookies http://archive.apache.org/dist/ant/binaries/apache-ant-${ANT_VERSION}-bin.tar.gz \
+           && wget --no-check-certificate --no-cookies http://archive.apache.org/dist/ant/binaries/apache-ant-${ANT_VERSION}-bin.tar.gz.sha512 \
+           && echo "$(cat apache-ant-${ANT_VERSION}-bin.tar.gz.sha512) apache-ant-${ANT_VERSION}-bin.tar.gz" | sha512sum -c \
+           && tar -zvxf apache-ant-${ANT_VERSION}-bin.tar.gz -C /opt/ \
+           && ln -s /opt/apache-ant-${ANT_VERSION} /opt/ant \
+           && rm -f apache-ant-${ANT_VERSION}-bin.tar.gz \
+           && rm -f apache-ant-${ANT_VERSION}-bin.tar.gz.sha512
+           update-alternatives --install "/usr/bin/ant" "ant" "/opt/ant/bin/ant" 1 && \
+           update-alternatives --set "ant" "/opt/ant/bin/ant"
+
+      - name: Build Cassandra with Sonar
+        run: >
+          ant sonar 
+          -Dsonar.pullrequest.branch=${{ github.head_ref }}
+          -Dsonar.pullrequest.base=${{ github.base_ref }}
+          -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
+          -Dsonar.pullrequest.github.repository=apache/cassandra
+          -Dsonar.pullrequest.provider=GitHub 
+          -Dsonar.pullrequest.github.summary_comment=true
+          -Dsonar.projectKey=apache_cassandra
+          -Dsonar.login=${SONARCLOUD_TOKEN}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONARCLOUD_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
