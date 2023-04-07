@@ -57,9 +57,9 @@ public class EsUtil {
     }
 
 
-    public static String getDslQueryJson(Map<String,Object> maps){
+    public static String getDslQueryJson(Map<String, Object> maps) {
         StringBuilder sb = new StringBuilder();
-        String requesJson ="";
+        String requesJson = "";
         if (maps.isEmpty()) {
             requesJson = "";
         } else {
@@ -67,23 +67,23 @@ public class EsUtil {
                 sb.append("{\n  \"query\": {\n    \"match\": {\n      \"");
                 for (String key1 : maps.keySet()) {
                     String value = maps.get(key1).toString();
-                    sb.append(key1 + ".keyword\": \""+value+"\"");
+                    sb.append(key1 + ".keyword\": \"" + value + "\"");
                 }
                 sb.append("\n    }\n  }\n}");
-            }else if (maps.size() > 1){
+            } else if (maps.size() > 1) {
                 sb.append("{\n" +
                         "  \"query\": {\n" +
                         "    \"bool\": {\n" +
                         "      \"must\": [");
-                int i=0;
-                for(String key:maps.keySet()){
-                    if (i > 0){
+                int i = 0;
+                for (String key : maps.keySet()) {
+                    if (i > 0) {
                         sb.append(",");
                     }
-                    String value=maps.get(key).toString();
+                    String value = maps.get(key).toString();
                     sb.append("{\n" +
                             "          \"match_phrase\": {\n" +
-                            "            \""+key+".keyword\": \""+value+"\"\n" +
+                            "            \"" + key + ".keyword\": \"" + value + "\"\n" +
                             "          }\n" +
                             "        }");
                     i++;
@@ -94,7 +94,7 @@ public class EsUtil {
                         "}");
             }
 
-            requesJson=sb.toString().trim();
+            requesJson = sb.toString().trim();
         }
         return allTrim(requesJson);
     }
@@ -136,16 +136,39 @@ public class EsUtil {
     }
 
 
-    public static boolean isSyncTable(String tables,String tableName){
-        String[] split = tables.split(",");
+    public static boolean isSyncKeyspace(String keyspaceConfiguration, String keyspace) {
+        if (StringUtils.isBlank(keyspaceConfiguration)) {
+            return true;
+        }
+        String[] split = keyspaceConfiguration.split(",");
         for (int i = 0; i < split.length; i++) {
-            if (split[i].contains("*")){
+            if (split[i].contains("*")) {
                 String replace = split[i].replace("*", " ").trim();
-                if (tableName.startsWith(replace)){
+                if (keyspace.startsWith(replace)) {
                     return true;
                 }
-            }else {
-                if (split[i].equals(tableName)){
+            } else {
+                if (split[i].equals(keyspace)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public static boolean isSyncTable(String tablesConfiguration, String tableName) {
+        if (StringUtils.isBlank(tablesConfiguration)) {
+            return true;
+        }
+        String[] split = tablesConfiguration.split(",");
+        for (int i = 0; i < split.length; i++) {
+            if (split[i].contains("*")) {
+                String replace = split[i].replace("*", " ").trim();
+                if (tableName.startsWith(replace)) {
+                    return true;
+                }
+            } else {
+                if (split[i].equals(tableName)) {
                     return true;
                 }
             }

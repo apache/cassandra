@@ -14,7 +14,7 @@ cqlsh:Schema1> CREATE TABLE users (
                  first varchar,
                  last varchar,
                  age int,
-                 PRIMARY KEY (user_id, first)
+                 PRIMARY KEY (user_id)
                );
 ----
 
