@@ -52,6 +52,7 @@ import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -111,6 +112,7 @@ public class EntireSSTableStreamConcurrentComponentMutationTest
     @BeforeClass
     public static void defineSchemaAndPrepareSSTable()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),

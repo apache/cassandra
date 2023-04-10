@@ -50,6 +50,7 @@ import static java.lang.String.join;
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
+import org.apache.cassandra.db.memtable.PersistentMemoryMemtable;
 
 public final class CreateViewStatement extends AlterSchemaStatement
 {
@@ -68,6 +69,8 @@ public final class CreateViewStatement extends AlterSchemaStatement
     private final boolean ifNotExists;
 
     private ClientState state;
+
+    private TableMetadata table;
 
     public CreateViewStatement(String keyspaceName,
                                String tableName,
@@ -125,7 +128,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
         if (keyspace.createReplicationStrategy().hasTransientReplicas())
             throw new InvalidRequestException("Materialized views are not supported on transiently replicated keyspaces");
 
-        TableMetadata table = keyspace.tables.getNullable(tableName);
+        table = keyspace.tables.getNullable(tableName);
         if (null == table)
             throw ire("Base table '%s' doesn't exist", tableName);
 
@@ -366,6 +369,9 @@ public final class CreateViewStatement extends AlterSchemaStatement
     @Override
     Set<String> clientWarnings(KeyspacesDiff diff)
     {
+        if (table != null && table.params.memtable.factory() instanceof PersistentMemoryMemtable.Factory)
+            return ImmutableSet.of("Materialized views aren't supported for 'PersistentMemoryMemtable'");
+
         return ImmutableSet.of(View.USAGE_WARNING);
     }
 

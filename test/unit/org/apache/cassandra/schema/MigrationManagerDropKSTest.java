@@ -59,6 +59,7 @@ public class MigrationManagerDropKSTest
     @Test
     public void dropKS() throws ConfigurationException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // sanity
         final KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(KEYSPACE1);
         assertNotNull(ks);

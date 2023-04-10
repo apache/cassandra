@@ -186,6 +186,7 @@ public class MigrationManagerTest
     @Test
     public void dropCf() throws ConfigurationException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // sanity
         final KeyspaceMetadata ks = Schema.instance.getKeyspaceMetadata(KEYSPACE1);
         assertNotNull(ks);
@@ -444,6 +445,7 @@ public class MigrationManagerTest
     @Test
     public void testDropIndex() throws ConfigurationException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // persist keyspace definition in the system keyspace
         SchemaKeyspace.makeCreateKeyspaceMutation(Schema.instance.getKeyspaceMetadata(KEYSPACE6), FBUtilities.timestampMicros()).build().applyUnsafe();
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE6).getColumnFamilyStore(TABLE1i);

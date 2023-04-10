@@ -36,6 +36,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -125,6 +126,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
     @Test
     public void testCorruptStatsFile() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         String keyspaceName = "StandaloneVerifierTestCorruptStatsKs";
         String corruptStatsTable = "corruptStatsTable";
         createAndPopulateTable(keyspaceName, corruptStatsTable, cfs -> {
@@ -145,6 +147,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
     @Test
     public void testCorruptDataFile() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         String keyspaceName = "StandaloneVerifierTestCorruptDataKs";
         String corruptDataTable = "corruptDataTable";
 

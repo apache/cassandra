@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -106,6 +107,11 @@ public abstract class AbstractMemtable implements Memtable
     EncodingStats encodingStats()
     {
         return statsCollector.get();
+    }
+
+    public CompactionManager.AllSSTableOpStatus performGarbageCollect()
+    {
+        return CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
     }
 
     protected static class ColumnsCollector

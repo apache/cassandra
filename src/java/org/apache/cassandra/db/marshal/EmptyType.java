@@ -73,7 +73,7 @@ public class EmptyType extends AbstractType<Void>
     @Override
     public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
     {
-        return null;
+        return ByteSource.fixedLength(ByteBufferUtil.EMPTY_BYTE_BUFFER);
     }
 
     @Override

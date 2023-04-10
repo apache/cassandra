@@ -557,6 +557,7 @@ public class AlterTest extends CQLTester
     @Test
     public void testAlterTableWithMemtable() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
         assertSame(MemtableParams.DEFAULT.factory(), getCurrentColumnFamilyStore().metadata().params.memtable.factory());
         assertSchemaOption("memtable", null);

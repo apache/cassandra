@@ -35,6 +35,7 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.tools.StandaloneScrubber;
 import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -70,6 +71,7 @@ public class ScrubToolTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         loadSchema();
     }
 
@@ -135,6 +137,7 @@ public class ScrubToolTest
     @Test
     public void testNoSkipScrubCorruptedCounterPartitionWithTool() throws IOException, WriteTimeoutException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(COUNTER_CF);
         int numPartitions = 1000;
 

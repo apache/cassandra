@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.schema.MemtableParams;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -461,6 +462,7 @@ public class SecondaryIndexTest
     @Test
     public void testIndexCreate() throws IOException, InterruptedException, ExecutionException
     {
+         org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(COMPOSITE_INDEX_TO_BE_ADDED);
 
@@ -529,6 +531,7 @@ public class SecondaryIndexTest
     @Test
     public void testSelectivityWithMultipleIndexes()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(WITH_MULTIPLE_COMPOSITE_INDEX);
 
         // creates rows such that birthday_index has 1 partition (key = 1L) with 4 rows -- mean row count = 4, and notbirthdate_index has 2 partitions with 2 rows each -- mean row count = 2

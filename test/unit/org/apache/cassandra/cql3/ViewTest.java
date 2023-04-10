@@ -36,6 +36,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.ClientWarn;
@@ -206,6 +207,7 @@ public class ViewTest extends ViewAbstractTest
     @Test
     public void testBuilderWidePartition() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (" +
                     "k int, " +
                     "c int, " +
@@ -294,7 +296,7 @@ public class ViewTest extends ViewAbstractTest
     public void testIgnoreUpdate() throws Throwable
     {
         // regression test for CASSANDRA-10614
-
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (" +
                     "a int, " +
                     "b int, " +
@@ -422,6 +424,7 @@ public class ViewTest extends ViewAbstractTest
 
     private void testViewBuilderResume(int concurrentViewBuilders) throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (" +
                     "k int, " +
                     "c int, " +
@@ -487,6 +490,7 @@ public class ViewTest extends ViewAbstractTest
     @Test
     public void testClientWarningOnCreate()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
 
         ClientWarn.instance.captureWarnings();
@@ -497,6 +501,27 @@ public class ViewTest extends ViewAbstractTest
         Assert.assertNotNull(warnings);
         Assert.assertEquals(1, warnings.size());
         Assert.assertEquals(View.USAGE_WARNING, warnings.get(0));
+    }
+
+    /**
+     * Tests that a client warning is issued on materialized view creation.
+     */
+    @Test
+    public void testPmemClientWarningOnCreate() throws Throwable
+    {
+        org.junit.Assume.assumeTrue(MemtableParams.DEFAULT.factory().writesAreDurable());
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        ClientWarn.instance.captureWarnings();
+        String viewName = keyspace() + ".warning_view";
+        execute("CREATE MATERIALIZED VIEW " + viewName +
+                " AS SELECT * FROM %s WHERE k IS NOT NULL AND v IS NOT NULL PRIMARY KEY (v, k)");
+
+        List<String> warnings = ClientWarn.instance.getWarnings();
+        String expectedClientWarning = "Materialized views aren't supported for 'PersistentMemoryMemtable'";
+        Assert.assertNotNull(warnings);
+        Assert.assertEquals(1, warnings.size());
+        Assert.assertEquals(expectedClientWarning, warnings.get(0));
     }
 
     /**
@@ -657,6 +682,7 @@ public class ViewTest extends ViewAbstractTest
     })
     public void testTruncateWhileBuilding() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k, c))");
         execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 0, 0, 0);
         createViewAsync("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s " +

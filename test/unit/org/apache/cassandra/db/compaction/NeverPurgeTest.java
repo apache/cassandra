@@ -26,6 +26,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
@@ -46,24 +47,28 @@ public class NeverPurgeTest extends CQLTester
     @Test
     public void neverPurgeCellTombstoneTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testHelper("UPDATE %s SET c = null WHERE a=1 AND b=2");
     }
 
     @Test
     public void neverPurgeRowTombstoneTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testHelper("DELETE FROM %s WHERE a=1 AND b=2");
     }
 
     @Test
     public void neverPurgePartitionTombstoneTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testHelper("DELETE FROM %s WHERE a=1");
     }
 
     @Test
     public void minorNeverPurgeTombstonesTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (a int, b int, c text, PRIMARY KEY (a, b)) WITH gc_grace_seconds = 0");
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
         cfs.disableAutoCompaction();

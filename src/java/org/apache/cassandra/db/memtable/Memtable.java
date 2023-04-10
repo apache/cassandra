@@ -26,6 +26,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
@@ -416,6 +417,15 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      * to flush), it should return false on the above with reason SNAPSHOT and implement this method.
      */
     void performSnapshot(String snapshotName);
+
+    /**
+     * Removes deleted data from memtable
+     * This operation iterates through all the partitions to find the deleted data without
+     * locking the entire table, the shard with the current partition will be locked.
+     * Write/read to other shards remain intact.
+     */
+    CompactionManager.AllSSTableOpStatus performGarbageCollect();
+
 
     /**
      * Special commit log position marker used in the upper bound marker setting process

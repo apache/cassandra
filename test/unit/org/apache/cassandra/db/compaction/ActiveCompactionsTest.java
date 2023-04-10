@@ -40,6 +40,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.db.view.ViewBuilderTask;
 import org.apache.cassandra.dht.Range;
@@ -179,6 +180,7 @@ public class ActiveCompactionsTest extends CQLTester
     @Test
     public void testScrubOne() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
         getCurrentColumnFamilyStore().disableAutoCompaction();
         for (int i = 0; i < 5; i++)
@@ -204,6 +206,7 @@ public class ActiveCompactionsTest extends CQLTester
     @Test
     public void testVerifyOne() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (pk int, ck int, a int, b int, PRIMARY KEY (pk, ck))");
         getCurrentColumnFamilyStore().disableAutoCompaction();
         for (int i = 0; i < 5; i++)

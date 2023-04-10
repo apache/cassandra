@@ -32,6 +32,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.security.EncryptionContext;
 
 import static org.junit.Assert.assertEquals;
@@ -51,6 +52,7 @@ public class BatchCommitLogTest extends CommitLogTest
     {
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setCommitLogSync(Config.CommitLogSync.batch);
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         beforeClass();
     }
 

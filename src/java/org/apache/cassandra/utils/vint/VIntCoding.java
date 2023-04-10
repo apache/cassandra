@@ -50,6 +50,7 @@ import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -156,6 +157,38 @@ public class VIntCoding
     {
         // by including the known 0bit in the mask, we can use this for encodeExtraBytesToRead
         return 0xff >> extraBytesToRead;
+    }
+    protected static final FastThreadLocal<byte[]> encodingBuffer = new FastThreadLocal<byte[]>()
+    {
+        @Override
+        public byte[] initialValue()
+        {
+            return new byte[9];
+        }
+    };
+
+    /**
+     * @return a TEMPORARY THREAD LOCAL BUFFER containing the encoded bytes of the value
+     * This byte[] must be discarded by the caller immediately, and synchronously
+     */
+    @Inline
+    public static byte[] encodeUnsignedVInt(long value, int size)
+    {
+        byte[] encodingSpace = encodingBuffer.get();
+        encodeUnsignedVInt(value, size, encodingSpace);
+        return encodingSpace;
+    }
+
+    @Inline
+    private static void encodeUnsignedVInt(long value, int size, byte[] encodeInto)
+    {
+        int extraBytes = size - 1;
+        for (int i = extraBytes ; i >= 0; --i)
+        {
+            encodeInto[i] = (byte) value;
+            value >>= 8;
+        }
+        encodeInto[0] |= VIntCoding.encodeExtraBytesToRead(extraBytes);
     }
 
     public static int encodeExtraBytesToRead(int extraBytesToRead)

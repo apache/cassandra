@@ -27,14 +27,22 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.metrics.ClearableHistogram;
+import org.apache.cassandra.schema.MemtableParams;
 
 import static org.junit.Assert.assertEquals;
+import org.junit.BeforeClass;
 
 /**
  * Tests for checking how many sstables we access during cql queries.
  */
 public class SSTablesIteratedTest extends CQLTester
 {
+     @BeforeClass
+    public static void defineSchema()
+    {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
+    }
+
     private void executeAndCheck(String query, int numSSTables, Object[]... rows) throws Throwable
     {
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore(KEYSPACE_PER_TEST);

@@ -34,6 +34,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -216,6 +217,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
     @Test
     public void testPrepBucket()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
         cfs.disableAutoCompaction();
@@ -252,6 +254,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
     @Test
     public void testFilterOldSSTables()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
         cfs.disableAutoCompaction();
@@ -292,6 +295,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
     @Test
     public void testDropExpiredSSTables() throws InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
         cfs.disableAutoCompaction();
@@ -340,6 +344,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
     @Test
     public void testSTCSBigWindow()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
         cfs.disableAutoCompaction();

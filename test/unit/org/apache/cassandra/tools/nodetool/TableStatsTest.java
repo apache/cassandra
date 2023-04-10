@@ -29,6 +29,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.tools.ToolRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -157,6 +158,7 @@ public class TableStatsTest extends CQLTester
     @Test
     public void testHumanReadableArg()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Arrays.asList("-H", "--human-readable").forEach(arg -> {
             ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", arg);
             tool.assertOnCleanExit();

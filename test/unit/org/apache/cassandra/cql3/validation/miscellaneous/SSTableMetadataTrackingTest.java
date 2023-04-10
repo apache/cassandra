@@ -25,6 +25,8 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import static org.junit.Assert.assertEquals;
+import org.junit.BeforeClass;
+import org.apache.cassandra.schema.MemtableParams;
 
 public class SSTableMetadataTrackingTest extends CQLTester
 {
@@ -34,6 +36,12 @@ public class SSTableMetadataTrackingTest extends CQLTester
      * comparing integer timestamps, otherwise {@link org.junit.Assert#assertEquals(float, float, float)} would be used.
      */
     public static final double DELTA = 5;
+
+    @BeforeClass
+    public static void defineSchema()
+    {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
+    }
 
     @Test
     public void baseCheck() throws Throwable

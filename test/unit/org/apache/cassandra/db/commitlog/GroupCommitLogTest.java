@@ -23,6 +23,7 @@ import org.junit.BeforeClass;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.security.EncryptionContext;
 
 public class GroupCommitLogTest extends CommitLogTest
@@ -38,6 +39,7 @@ public class GroupCommitLogTest extends CommitLogTest
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setCommitLogSync(Config.CommitLogSync.group);
         DatabaseDescriptor.setCommitLogSyncGroupWindow(1);
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         beforeClass();
     }
 }

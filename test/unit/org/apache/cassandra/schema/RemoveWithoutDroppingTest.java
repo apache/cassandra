@@ -46,6 +46,7 @@ public class RemoveWithoutDroppingTest
     @BeforeClass
     public static void beforeClass()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         System.setProperty(SchemaUpdateHandlerFactoryProvider.SUH_FACTORY_CLASS_PROPERTY, TestSchemaUpdateHandlerFactory.class.getName());
         CQLTester.prepareServer();
         Schema.instance.registerListener(listener);

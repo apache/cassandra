@@ -34,6 +34,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -51,6 +52,7 @@ public class CompactionAwareWriterTest extends CQLTester
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // Disabling durable write since we don't care
         schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'} AND durable_writes=false");
         schemaChange(String.format("CREATE TABLE %s.%s (k int, t int, v blob, PRIMARY KEY (k, t))", KEYSPACE, TABLE));

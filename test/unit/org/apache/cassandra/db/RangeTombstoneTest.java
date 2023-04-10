@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -228,6 +229,7 @@ public class RangeTombstoneTest
     @Test
     public void testTrackTimesPartitionTombstone() throws ExecutionException, InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
         cfs.truncateBlocking();
@@ -247,6 +249,7 @@ public class RangeTombstoneTest
     @Test
     public void testTrackTimesPartitionTombstoneWithData() throws ExecutionException, InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
         cfs.truncateBlocking();
@@ -269,6 +272,7 @@ public class RangeTombstoneTest
     @Test
     public void testTrackTimesRangeTombstone() throws ExecutionException, InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
         cfs.truncateBlocking();
@@ -288,6 +292,7 @@ public class RangeTombstoneTest
     @Test
     public void testTrackTimesRangeTombstoneWithData() throws ExecutionException, InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace ks = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(CFNAME);
         cfs.truncateBlocking();
@@ -464,6 +469,7 @@ public class RangeTombstoneTest
     @Test
     public void testRowWithRangeTombstonesUpdatesSecondaryIndex() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace table = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
         ByteBuffer key = ByteBufferUtil.bytes("k5");
@@ -526,6 +532,7 @@ public class RangeTombstoneTest
     @Test
     public void testRangeTombstoneCompaction() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace table = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
         ByteBuffer key = ByteBufferUtil.bytes("k4");
@@ -570,6 +577,7 @@ public class RangeTombstoneTest
     @Test
     public void testOverwritesToDeletedColumns() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace table = Keyspace.open(KSNAME);
         ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
         ByteBuffer key = ByteBufferUtil.bytes("k6");

@@ -856,6 +856,7 @@
         <dependency groupId="javax.inject" artifactId="javax.inject"/>
         <dependency groupId="com.google.j2objc" artifactId="j2objc-annotations"/>
         <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram"/>
+        <!--<dependency groupId="com.intel.pmem" artifactId="llpl" version="1.2.1-release" />-->
 
         <!-- sasi deps -->
         <dependency groupId="de.jflex" artifactId="jflex" />
@@ -1067,7 +1068,7 @@
             <src path="${simulator-asm.build.src}" />
             <classpath>
                 <fileset dir="${test.lib}">
-                     <include name="**/asm-*${asm.version}.jar" /> 
+                     <include name="**/asm-*${asm.version}.jar" />
                 </fileset>
                 <fileset dir="${build.lib}">
                      <include name="**/asm-*${asm.version}.jar" />
@@ -1493,7 +1494,9 @@
         <jvmarg value="-ea"/>
         <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
         <jvmarg value="-Dcassandra.debugrefcount=true"/>
-        <jvmarg value="-Xss256k"/>
+        <jvmarg value="-Xss1024k"/>
+        <jvmarg value="-Dpmem_path=/mnt/mem/persistent_pool" />
+        <jvmarg value="-Dpool_size=132385536" />
         <!-- When we do classloader manipulation SoftReferences can cause memory leaks
              that can OOM our test runs. The next two settings informs our GC
              algorithm to limit the metaspace size and clean up SoftReferences
@@ -1550,6 +1553,7 @@
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/system_data"/>
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/saved_caches"/>
       <delete quiet="true" failonerror="false" dir="${build.test.dir}/cassandra/hints"/>
+      <delete quiet="true" failonerror="false" dir="/mnt/mem/persistent_pool"/>
     </sequential>
   </macrodef>
 
@@ -1795,7 +1799,7 @@
         <jvmarg value="-Djava.awt.headless=true"/>
         <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
-        <jvmarg value="-Xss256k"/>
+        <jvmarg value="-Xss1024k"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />
@@ -1841,7 +1845,7 @@
         <jvmarg value="-Djava.awt.headless=true"/>
         <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
-        <jvmarg value="-Xss256k"/>
+        <jvmarg value="-Xss1024k"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
         <jvmarg value="-Dcassandra.skip_sync=true" />

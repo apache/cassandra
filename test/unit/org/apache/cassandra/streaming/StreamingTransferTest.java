@@ -26,6 +26,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
 
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -328,6 +329,7 @@ public class StreamingTransferTest
     @Test
     public void testTransferRangeTombstones() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         String ks = KEYSPACE1;
         String cfname = "StandardInteger1";
         Keyspace keyspace = Keyspace.open(ks);
@@ -380,12 +382,14 @@ public class StreamingTransferTest
     @Test
     public void testTransferTableViaRanges() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         doTransferTable(false);
     }
 
     @Test
     public void testTransferTableViaSSTables() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         doTransferTable(true);
     }
 

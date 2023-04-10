@@ -32,6 +32,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.QueryValidationException;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -90,6 +91,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void indexControlsIfIncludedInBuildOnNewSSTables() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a))");
         String toInclude = "include";
         String toExclude = "exclude";
@@ -121,6 +123,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void indexReceivesWriteTimeDeletionsCorrectly() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
         String indexName = "test_index";
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(d) USING '%s'",
@@ -583,6 +586,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void notifyIndexersOfExpiredRowsDuringCompaction() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (k int, c int, PRIMARY KEY (k,c))");
         createIndex(String.format("CREATE CUSTOM INDEX row_ttl_test_index ON %%s() USING '%s'", StubIndex.class.getName()));
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
@@ -631,6 +635,7 @@ public class CustomIndexTest extends CQLTester
     @Test
     public void testFailing2iFlush() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, value int)");
         createIndex("CREATE CUSTOM INDEX IF NOT EXISTS ON %s(value) USING 'org.apache.cassandra.index.CustomIndexTest$BrokenCustom2I'");
 

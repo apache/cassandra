@@ -37,6 +37,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.db.repair.PendingAntiCompaction;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -456,6 +457,7 @@ public class CancelCompactionsTest extends CQLTester
     @Test
     public void testStandardCompactionTaskCancellation() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("create table %s (id int primary key, something int)");
         getCurrentColumnFamilyStore().disableAutoCompaction();
 

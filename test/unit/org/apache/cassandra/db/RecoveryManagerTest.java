@@ -54,6 +54,7 @@ import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -130,6 +131,7 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverBlocksOnBytesOutstanding() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         long originalMaxOutstanding = CommitLogReplayer.MAX_OUTSTANDING_REPLAY_BYTES;
         CommitLogReplayer.MAX_OUTSTANDING_REPLAY_BYTES = 1;
         CommitLogReplayer.MutationInitiator originalInitiator = CommitLogReplayer.mutationInitiator;
@@ -248,6 +250,7 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverPIT() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         CommitLog.instance.resetUnsafe(true);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
@@ -276,6 +279,7 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverPITStatic() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         CommitLog.instance.resetUnsafe(true);
         Keyspace keyspace1 = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace1.getColumnFamilyStore(CF_STATIC1);
@@ -304,6 +308,7 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverPITUnordered() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         CommitLog.instance.resetUnsafe(true);
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");

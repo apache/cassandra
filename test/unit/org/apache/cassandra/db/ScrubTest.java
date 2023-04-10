@@ -80,6 +80,7 @@ import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
@@ -168,6 +169,7 @@ public class ScrubTest
     {
         // When compression is enabled, for testing corrupted chunks we need enough partitions to cover
         // at least 3 chunks of size COMPRESSION_CHUNK_LENGTH
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         int numPartitions = 1000;
 
         CompactionManager.instance.disableAutoCompaction();
@@ -226,6 +228,7 @@ public class ScrubTest
     @Test
     public void testScrubCorruptedRowInSmallFile() throws IOException, WriteTimeoutException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // cannot test this with compression
         assumeTrue(!Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")));
 
@@ -268,6 +271,7 @@ public class ScrubTest
     @Test
     public void testScrubOneRowWithCorruptedKey() throws IOException, ExecutionException, InterruptedException, ConfigurationException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // cannot test this with compression
         assumeTrue(!Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")));
 
@@ -290,6 +294,7 @@ public class ScrubTest
     @Test
     public void testScrubCorruptedCounterRowNoEarlyOpen() throws IOException, WriteTimeoutException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         boolean oldDisabledVal = SSTableRewriter.disableEarlyOpeningForTests;
         try
         {
@@ -600,12 +605,14 @@ public class ScrubTest
     @Test /* CASSANDRA-5174 */
     public void testFailScrubKeysIndex() throws IOException, ExecutionException, InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testScrubIndex(CF_INDEX1, COL_INDEX, false, false);
     }
 
     @Test /* CASSANDRA-5174 */
     public void testFailScrubCompositeIndex() throws IOException, ExecutionException, InterruptedException
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testScrubIndex(CF_INDEX2, COL_INDEX, true, false);
     }
 

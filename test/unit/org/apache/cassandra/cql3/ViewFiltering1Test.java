@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.MemtableParams;
 
 /* ViewFilteringTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes
@@ -45,6 +46,7 @@ public class ViewFiltering1Test extends ViewAbstractParameterizedTest
     @BeforeClass
     public static void startup()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         ViewAbstractParameterizedTest.startup();
         System.setProperty("cassandra.mv.allow_filtering_nonkey_columns_unsafe", "true");
     }

@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.locator.SimpleSnitch;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner;
@@ -53,6 +54,7 @@ public class StatusTest extends CQLTester
     @Test
     public void testStatusOutput()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         HostStatWithPort host = new HostStatWithPort(null, FBUtilities.getBroadcastAddressAndPort(), false, null);
         validateStatusOutput(host.ipOrDns(false),
                             "status");
@@ -71,6 +73,7 @@ public class StatusTest extends CQLTester
     @Test
     public void testOutputWhileBootstrapping()
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         // Deleting these tables will simulate we're bootstrapping
         schemaChange("DROP KEYSPACE " + SchemaConstants.TRACE_KEYSPACE_NAME);
         schemaChange("DROP KEYSPACE " + CQLTester.KEYSPACE);

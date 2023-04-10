@@ -22,7 +22,6 @@ import java.io.PrintStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -83,6 +82,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.memtable.pmem.MemtableImporter;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.CompactionStrategyManager;
@@ -92,6 +92,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.memtable.Flushing;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.PersistentMemoryMemtable;
 import org.apache.cassandra.db.memtable.ShardBoundaries;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -862,6 +863,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                                                  .invalidateCaches(invalidateCaches)
                                                                  .extendedVerify(extendedVerify)
                                                                  .copyData(copyData).build();
+
+        if(this.memtableFactory instanceof PersistentMemoryMemtable.Factory) {
+            return new MemtableImporter().importMemtables(srcPaths, metadata, this);
+        }
 
         return sstableImporter.importNewSSTables(options);
     }
@@ -1719,7 +1724,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public CompactionManager.AllSSTableOpStatus garbageCollect(TombstoneOption tombstoneOption, int jobs) throws ExecutionException, InterruptedException
     {
-        return CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
+        CompactionManager.AllSSTableOpStatus status = CompactionManager.instance.performGarbageCollection(this, tombstoneOption, jobs);
+        if (status != CompactionManager.AllSSTableOpStatus.SUCCESSFUL)
+        {
+            return status;
+        }
+        Memtable current = getTracker().getView().getCurrentMemtable();
+        return current.performGarbageCollect();
     }
 
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)

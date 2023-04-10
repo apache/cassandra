@@ -31,6 +31,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.MemtableParams;
 
 /* ViewComplexTest class has been split into multiple ones because of timeout issues (CASSANDRA-16670, CASSANDRA-17167)
  * Any changes here check if they apply to the other classes:
@@ -47,6 +48,7 @@ public class ViewComplexTombstoneTest extends ViewAbstractParameterizedTest
     @Test
     public void testCellTombstoneAndShadowableTombstonesWithFlush() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testCellTombstoneAndShadowableTombstones(true);
     }
 

@@ -121,12 +121,14 @@ public class CorruptedSSTablesCompactionsTest
     @Test
     public void testCorruptedSSTablesWithSizeTieredCompactionStrategy() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testCorruptedSSTables(STANDARD_STCS);
     }
 
     @Test
     public void testCorruptedSSTablesWithLeveledCompactionStrategy() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testCorruptedSSTables(STANDARD_LCS);
     }
 

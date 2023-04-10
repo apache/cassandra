@@ -39,6 +39,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.state.ValidationState;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -162,12 +163,14 @@ public class ValidatorTest
     @Test
     public void simpleValidationTest128() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         simpleValidationTest(128);
     }
 
     @Test
     public void simpleValidationTest1500() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         simpleValidationTest(1500);
     }
 
@@ -233,6 +236,7 @@ public class ValidatorTest
     @Test
     public void testSizeLimiting() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace ks = Keyspace.open(keyspace);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnFamily);
         cfs.clearUnsafe();
@@ -292,6 +296,7 @@ public class ValidatorTest
     @Test
     public void testRangeSplittingTreeSizeLimit() throws Exception
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         Keyspace ks = Keyspace.open(keyspace);
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(columnFamily);
         cfs.clearUnsafe();

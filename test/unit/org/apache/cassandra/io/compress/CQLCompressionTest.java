@@ -28,6 +28,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
@@ -106,6 +107,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void lz4FlushTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'LZ4Compressor'};");
         ColumnFamilyStore store = flushTwice();
 
@@ -130,6 +132,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void lz4hcFlushTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = " +
                     "{'sstable_compression': 'LZ4Compressor', 'lz4_compressor_type': 'high'};");
         ColumnFamilyStore store = flushTwice();
@@ -155,6 +158,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void zstdFlushTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'ZstdCompressor'};");
         ColumnFamilyStore store = flushTwice();
 
@@ -177,6 +181,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void deflateFlushTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'DeflateCompressor'};");
         ColumnFamilyStore store = flushTwice();
 
@@ -199,6 +204,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void useNoCompressorOnFlushTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         DatabaseDescriptor.setFlushCompression(Config.FlushCompression.none);
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'LZ4Compressor'};");
         ColumnFamilyStore store = flushTwice();
@@ -222,6 +228,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void useTableCompressorOnFlushTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         DatabaseDescriptor.setFlushCompression(Config.FlushCompression.table);
 
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'ZstdCompressor'};");
@@ -237,6 +244,7 @@ public class CQLCompressionTest extends CQLTester
     @Test
     public void zstdTableFlushTest() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v text) WITH compression = {'sstable_compression': 'ZstdCompressor'};");
         ColumnFamilyStore store = flushTwice();
 

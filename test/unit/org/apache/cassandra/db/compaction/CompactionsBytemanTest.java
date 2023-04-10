@@ -34,6 +34,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.jboss.byteman.contrib.bmunit.BMRule;
@@ -60,6 +61,7 @@ public class CompactionsBytemanTest extends CQLTester
     action = "flag(\"done\"); return false;") } )
     public void testSSTableNotEnoughDiskSpaceForCompactionGetsDropped() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createLowGCGraceTable();
         final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         for (int i = 0; i < 5; i++)
@@ -84,6 +86,7 @@ public class CompactionsBytemanTest extends CQLTester
     action = "return false;") } )
     public void testExpiredSSTablesStillGetDroppedWithNoDiskSpace() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createLowGCGraceTable();
         final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         createPossiblyExpiredSSTable(cfs, true);
@@ -107,6 +110,7 @@ public class CompactionsBytemanTest extends CQLTester
     action = "return false;") } )
     public void testRuntimeExceptionWhenNoDiskSpaceForCompaction() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         createLowGCGraceTable();
         final ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         createPossiblyExpiredSSTable(cfs, false);
@@ -163,6 +167,7 @@ public class CompactionsBytemanTest extends CQLTester
     action = "$ci.stop()")
     public void testStopUserDefinedCompactionRepaired() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         testStopCompactionRepaired((cfs) -> {
             Collection<Descriptor> files = cfs.getLiveSSTables().stream().map(s -> s.descriptor).collect(Collectors.toList());
             FBUtilities.waitOnFuture(CompactionManager.instance.submitUserDefined(cfs, files, CompactionManager.NO_GC));
@@ -186,6 +191,7 @@ public class CompactionsBytemanTest extends CQLTester
 
     public void testStopCompactionRepaired(Consumer<ColumnFamilyStore> compactionRunner) throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         String table = createTable("CREATE TABLE %s (k INT, c INT, v INT, PRIMARY KEY (k, c))");
         ColumnFamilyStore cfs = Keyspace.open(CQLTester.KEYSPACE).getColumnFamilyStore(table);
         cfs.disableAutoCompaction();

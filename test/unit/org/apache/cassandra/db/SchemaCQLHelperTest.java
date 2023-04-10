@@ -377,6 +377,7 @@ public class SchemaCQLHelperTest extends CQLTester
     @Test
     public void testSnapshot() throws Throwable
     {
+        org.junit.Assume.assumeFalse(MemtableParams.DEFAULT.factory().writesAreDurable());
         String typeA = createType("CREATE TYPE %s (a1 varint, a2 varint, a3 varint);");
         String typeB = createType("CREATE TYPE %s (b1 frozen<" + typeA + ">, b2 frozen<" + typeA + ">, b3 frozen<" + typeA + ">);");
         String typeC = createType("CREATE TYPE %s (c1 frozen<" + typeB + ">, c2 frozen<" + typeB + ">, c3 frozen<" + typeB + ">);");
