@@ -18,11 +18,13 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.concurrent.Executor;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Agent;
 import accord.coordinate.Timeout;
-import accord.local.CommandStore;
 import accord.messages.Callback;
 import accord.messages.SafeCallback;
 import accord.messages.Reply;
@@ -31,21 +33,20 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
 
-class AccordCallback<T extends Reply> implements RequestCallback<T>
+class AccordCallback<T extends Reply> extends SafeCallback<T> implements RequestCallback<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCallback.class);
-    private final SafeCallback<T> callback;
 
-    public AccordCallback(CommandStore commandStore, Callback<T> callback)
+    public AccordCallback(Executor executor, Agent agent, Callback<T> callback)
     {
-        this.callback = new SafeCallback<>(commandStore, callback);
+        super(executor, agent, callback);
     }
 
     @Override
     public void onResponse(Message<T> msg)
     {
         logger.debug("Received response {} from {}", msg.payload, msg.from());
-        callback.success(EndpointMapping.endpointToId(msg.from()), msg.payload);
+        success(EndpointMapping.endpointToId(msg.from()), msg.payload);
     }
 
     private static Throwable convertReason(RequestFailureReason reason)
@@ -58,9 +59,9 @@ class AccordCallback<T extends Reply> implements RequestCallback<T>
     @Override
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
-        logger.debug("Received failure {} from {} for {}", failureReason, from, callback);
+        logger.debug("Received failure {} from {} for {}", failureReason, from, this);
         // TODO (now): we should distinguish timeout failures with some placeholder Exception
-        callback.failure(EndpointMapping.endpointToId(from), convertReason(failureReason));
+        failure(EndpointMapping.endpointToId(from), convertReason(failureReason));
     }
 
     @Override

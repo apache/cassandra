@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import accord.api.Agent;
 import accord.local.Node;
 import accord.messages.InformOfTxnId;
 import accord.messages.SimpleReply;
@@ -48,7 +49,7 @@ public class AccordMessageSinkTest
         SimpleReply reply = SimpleReply.Ok;
 
         Messaging messaging = Mockito.mock(Messaging.class);
-        AccordMessageSink sink = new AccordMessageSink(messaging);
+        AccordMessageSink sink = new AccordMessageSink(Mockito.mock(Agent.class), messaging);
         sink.reply(new Node.Id(1), req, reply);
 
         Mockito.verify(messaging).send(Mockito.any(), Mockito.any());

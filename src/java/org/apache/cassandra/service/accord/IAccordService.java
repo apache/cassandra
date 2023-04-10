@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import accord.api.Agent;
 import accord.messages.Request;
 import accord.primitives.Txn;
 import accord.topology.TopologyManager;
@@ -30,6 +31,7 @@ import java.util.concurrent.TimeoutException;
 
 public interface IAccordService
 {
+    Agent agent();
     IVerbHandler<? extends Request> verbHandler();
 
     void createEpochFromConfigUnsafe();
