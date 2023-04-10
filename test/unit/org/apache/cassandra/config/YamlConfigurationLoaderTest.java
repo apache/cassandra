@@ -368,12 +368,12 @@ public class YamlConfigurationLoaderTest
         for (Type type : Type.values())
         {
             Config c = fromType(type, "available_processors", 4);
-            assertThat(c.available_processors).isEqualTo(new PositiveInt.UndefinedPositiveInt(4));
-            assertThat(c.accord_shard_count).isEqualTo(PositiveInt.UndefinedPositiveInt.UNDEFINED);
+            assertThat(c.available_processors).isEqualTo(new OptionaldPositiveInt(4));
+            assertThat(c.accord_shard_count).isEqualTo(OptionaldPositiveInt.UNDEFINED);
 
             c = fromType(type, "available_processors", 3, "accord_shard_count", 1);
-            assertThat(c.available_processors).isEqualTo(new PositiveInt.UndefinedPositiveInt(3));
-            assertThat(c.accord_shard_count).isEqualTo(new PositiveInt.UndefinedPositiveInt(1));
+            assertThat(c.available_processors).isEqualTo(new OptionaldPositiveInt(3));
+            assertThat(c.accord_shard_count).isEqualTo(new OptionaldPositiveInt(1));
         }
     }
 

@@ -2096,13 +2096,13 @@ public class DatabaseDescriptor
 
     public static int getAvailableProcessors()
     {
-        PositiveInt.UndefinedPositiveInt ap = conf == null ? PositiveInt.UndefinedPositiveInt.UNDEFINED : conf.available_processors;
+        OptionaldPositiveInt ap = conf == null ? OptionaldPositiveInt.UNDEFINED : conf.available_processors;
         return ap.or(Runtime.getRuntime()::availableProcessors);
     }
 
     public static void setAvailableProcessors(int value)
     {
-        conf.available_processors = new PositiveInt.UndefinedPositiveInt(value);
+        conf.available_processors = new OptionaldPositiveInt(value);
     }
 
     public static int getConcurrentCompactors()
