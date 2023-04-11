@@ -176,7 +176,7 @@ public class YamlConfigurationLoaderTest
 
         assertNull(c.sstable_compressor);
 
-        c = load("test/conf/cassandra_with_sstable_compressor.yaml");
+        c = load("test/conf/cassandra-with-sstable-compressor.yaml");
 
         assertNotNull(c.sstable_compressor);
         assertThat(c.sstable_compressor.type).isEqualTo(SSTableCompressionOptions.CompressorType.lz4);

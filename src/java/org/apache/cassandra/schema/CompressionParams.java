@@ -29,12 +29,15 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.SSTableCompressionOptions;
 import org.apache.cassandra.db.TypeSizes;
@@ -96,6 +99,10 @@ public final class CompressionParams
     // TODO: deprecated, should now be carefully removed. Doesn't affect schema code as it isn't included in equals() and hashCode()
     private volatile double crcCheckChance = 1.0;
 
+    public static CompressionParams defaultParams() {
+        return fromOptions(DatabaseDescriptor.getSSTableCompressionOptions());
+    }
+
     public static CompressionParams fromOptions(SSTableCompressionOptions options) {
         if  (options == null)
         {
@@ -103,7 +110,57 @@ public final class CompressionParams
                    ? noCompression()
                    : DEFAULT;
         } else {
-            return options.getCompressionParams();
+            SSTableCompressionOptions.CompressorType myType = options.type == null ? SSTableCompressionOptions.CompressorType.lz4 : options.type;
+            if (!options.enabled) {
+                myType = SSTableCompressionOptions.CompressorType.none;
+            }
+
+            int chunk_length_in_kb = StringUtils.isBlank(options.chunk_length)
+                                     ? CompressionParams.DEFAULT_CHUNK_LENGTH
+                                     : new DataStorageSpec.IntKibibytesBound(options.chunk_length).toKibibytes();
+
+            switch (myType)
+            {
+                case none:
+                    return CompressionParams.noCompression();
+                default:
+                    return CompressionParams.fromOptions(null);
+                case lz4:
+                    return options.min_compress_ratio == null || options.min_compress_ratio < 0.0
+                           ? CompressionParams.lz4(chunk_length_in_kb)
+                           : CompressionParams.lz4(chunk_length_in_kb, CompressionParams.calcMaxCompressedLength(chunk_length_in_kb, options.min_compress_ratio));
+                case snappy:
+                    return CompressionParams.snappy(chunk_length_in_kb,
+                                                    options.min_compress_ratio == null || options.min_compress_ratio < 0.0
+                                                    ? CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
+                                                    : options.min_compress_ratio);
+                case deflate:
+                    return CompressionParams.deflate(chunk_length_in_kb);
+                case zstd:
+                    return CompressionParams.zstd(chunk_length_in_kb);
+                case custom:
+                    if (options.compressor == null)
+                    {
+                        throw new ConfigurationException("Missing sub-option 'compressor' for the 'sstable_compressor' option with 'custom' type.");
+                    }
+                    if (options.compressor.class_name == null || options.compressor.class_name.isEmpty())
+                    {
+                        throw new ConfigurationException("Missing or empty sub-option 'class' for the 'sstable_compressor.compressor' option.");
+                    }
+                    CompressionParams cp = new CompressionParams(options.compressor.class_name,
+                                                                 options.compressor.parameters == null ? Collections.emptyMap() : options.compressor.parameters,
+                                                                 chunk_length_in_kb,
+                                                                 options.min_compress_ratio == null || options.min_compress_ratio < 0.0
+                                                                 ? CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
+                                                                 : options.min_compress_ratio);
+                    if (cp.getSstableCompressor() == null)
+                    {
+                        throw new ConfigurationException(format("Missing '%s' is not a valid compressor class name.", options.compressor.class_name));
+                    }
+                    return cp;
+                case noop:
+                    return CompressionParams.noop();
+            }
         }
     }
 
