@@ -175,7 +175,7 @@ final class StaticSegment<K> extends Segment<K>
     @Override
     boolean read(int offset, EntrySerializer.EntryHolder<K> into)
     {
-        ByteBuffer duplicate = buffer.duplicate().position(offset);
+        ByteBuffer duplicate = (ByteBuffer) buffer.duplicate().position(offset);
         DataInputBuffer in = new DataInputBuffer(duplicate, false);
         try
         {

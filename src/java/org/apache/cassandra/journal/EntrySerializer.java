@@ -178,9 +178,9 @@ final class EntrySerializer
             throw new AssertionError(); // can't happen
         }
 
-        into.value = buffer.duplicate()
-                           .position(buffer.position() - recordSize)
-                           .limit(buffer.position());
+        into.value = (ByteBuffer) buffer.duplicate()
+                                        .position(buffer.position() - recordSize)
+                                        .limit(buffer.position());
 
         in.skipBytesFully(TypeSizes.INT_SIZE);
         return true;

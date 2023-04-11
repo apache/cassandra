@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.journal;
 
-import org.junit.Test;
-
 public class DescriptorTest
 {
 }

@@ -93,7 +93,7 @@ final class ActiveSegment<K> extends Segment<K>
     @Override
     boolean read(int offset, EntrySerializer.EntryHolder<K> into)
     {
-        ByteBuffer duplicate = buffer.duplicate().position(offset).limit(buffer.capacity());
+        ByteBuffer duplicate = (ByteBuffer) buffer.duplicate().position(offset).limit(buffer.capacity());
         try
         {
             EntrySerializer.read(into, keySupport, duplicate, descriptor.userVersion);
@@ -318,8 +318,7 @@ final class ActiveSegment<K> extends Segment<K>
                 opGroup.close();
                 return null;
             }
-
-            return new Allocation(opGroup, buffer.duplicate().position(position).limit(position + totalSize));
+            return new Allocation(opGroup, (ByteBuffer) buffer.duplicate().position(position).limit(position + totalSize));
         }
         catch (Throwable t)
         {

@@ -30,7 +30,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static junit.framework.TestCase.assertEquals;
+import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class JournalTest

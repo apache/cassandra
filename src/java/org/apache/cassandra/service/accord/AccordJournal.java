@@ -145,7 +145,7 @@ class AccordJournal
          * when ordering txn ids. This is done for more precise elimination of candidate
          * segments by min/max record key in segment.
          */
-        static final KeySupport<Key> SUPPORT = new KeySupport<>()
+        static final KeySupport<Key> SUPPORT = new KeySupport<Key>()
         {
             private static final int HLC_OFFSET             = 0;
             private static final int EPOCH_AND_FLAGS_OFFSET = HLC_OFFSET             + LONG_SIZE;
@@ -292,7 +292,7 @@ class AccordJournal
         };
     }
 
-    static final ValueSerializer<Key, TxnRequest<?>> MESSAGE_SERIALIZER = new ValueSerializer<>()
+    static final ValueSerializer<Key, TxnRequest<?>> MESSAGE_SERIALIZER = new ValueSerializer<Key, TxnRequest<?>>()
     {
         @Override
         public int serializedSize(TxnRequest<?> message, int version)
