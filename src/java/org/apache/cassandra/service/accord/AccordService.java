@@ -140,7 +140,8 @@ public class AccordService implements IAccordService, Shutdownable
     {
         Node.Id localId = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
         logger.info("Starting accord with nodeId {}", localId);
-        this.messageSink = new AccordMessageSink();
+        AccordAgent agent = new AccordAgent();
+        this.messageSink = new AccordMessageSink(agent);
         this.configService = new AccordConfigurationService(localId);
         this.scheduler = new AccordScheduler();
         this.node = new Node(localId,
@@ -149,7 +150,7 @@ public class AccordService implements IAccordService, Shutdownable
                              AccordService::uniqueNow,
                              () -> null,
                              new KeyspaceSplitter(new EvenSplit<>(DatabaseDescriptor.getAccordShardCount(), getPartitioner().accordSplitter())),
-                             new AccordAgent(),
+                             agent,
                              new DefaultRandom(),
                              scheduler,
                              SizeOfIntersectionSorter.SUPPLIER,

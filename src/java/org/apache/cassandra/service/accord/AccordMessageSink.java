@@ -103,9 +103,9 @@ public class AccordMessageSink implements MessageSink
         this.messaging = messaging;
     }
 
-    public AccordMessageSink()
+    public AccordMessageSink(Agent agent)
     {
-        this(AccordService.instance().agent(), MessagingService.instance());
+        this(agent, MessagingService.instance());
     }
 
     @Override
