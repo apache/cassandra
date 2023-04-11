@@ -151,11 +151,31 @@ final class Descriptor implements Comparable<Descriptor>
     @Override
     public int compareTo(Descriptor other)
     {
+        assert this.directory.equals(other.directory);
+
                   int cmp = Long.compare(this.timestamp, other.timestamp);
         if (cmp == 0) cmp = Integer.compare(this.generation, other.generation);
         if (cmp == 0) cmp = Integer.compare(this.journalVersion, other.journalVersion);
         if (cmp == 0) cmp = Integer.compare(this.userVersion, other.userVersion);
         return cmp;
+    }
+
+    @Override
+    public boolean equals(Object other)
+    {
+        if (this == other)
+            return true;
+        return (other instanceof Descriptor) && equals((Descriptor) other);
+    }
+
+    boolean equals(Descriptor other)
+    {
+        assert this.directory.equals(other.directory);
+
+        return this.timestamp == other.timestamp
+            && this.generation == other.generation
+            && this.journalVersion == other.journalVersion
+            && this.userVersion == other.userVersion;
     }
 
     @Override
