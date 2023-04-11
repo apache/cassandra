@@ -264,7 +264,6 @@ import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
 import static org.apache.cassandra.tcm.membership.NodeState.LEAVING;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
-import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.now;
 
 /**
@@ -2542,9 +2541,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (isLocalSystemKeyspace(keyspaceName))
             throw new RuntimeException("Cleanup of the system keyspace is neither necessary nor wise");
-
-        if (ClusterMetadata.current().directory.peerState(getBroadcastAddressAndPort()) != JOINED)
-            throw new RuntimeException("Node is involved in cluster membership changes. Not safe to run cleanup.");
 
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
         logger.info("Starting {} on {}.{}", OperationType.CLEANUP, keyspaceName, Arrays.toString(tableNames));

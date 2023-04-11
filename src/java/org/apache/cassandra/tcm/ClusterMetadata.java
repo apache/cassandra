@@ -260,19 +260,19 @@ public class ClusterMetadata
                                      .get(ksm.params.replication);
     }
 
+    // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public boolean hasPendingRangesFor(KeyspaceMetadata ksm, Token token)
     {
-        DataPlacements placement = current().placements;
-        PlacementForRange writes = placement.get(ksm.params.replication).writes;
-        PlacementForRange reads = placement.get(ksm.params.replication).reads;
+        PlacementForRange writes = placements.get(ksm.params.replication).writes;
+        PlacementForRange reads = placements.get(ksm.params.replication).reads;
         return !reads.forToken(token).equals(writes.forToken(token));
     }
 
+    // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public boolean hasPendingRangesFor(KeyspaceMetadata ksm, InetAddressAndPort endpoint)
     {
-        DataPlacements placement = current().placements;
-        PlacementForRange writes = placement.get(ksm.params.replication).writes;
-        PlacementForRange reads = placement.get(ksm.params.replication).reads;
+        PlacementForRange writes = placements.get(ksm.params.replication).writes;
+        PlacementForRange reads = placements.get(ksm.params.replication).reads;
         return !writes.byEndpoint().get(endpoint).equals(reads.byEndpoint().get(endpoint));
     }
 
@@ -281,6 +281,7 @@ public class ClusterMetadata
         return placements.get(metadata.params.replication).writes.byEndpoint().get(FBUtilities.getBroadcastAddressAndPort()).ranges();
     }
 
+    // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
     public Map<Range<Token>, EndpointsForRange> pendingRanges(KeyspaceMetadata metadata)
     {
         Map<Range<Token>, EndpointsForRange> map = new HashMap<>();
@@ -305,6 +306,7 @@ public class ClusterMetadata
         return map;
     }
 
+    // TODO Remove this as it isn't really an equivalent to the previous concept of pending endpoints
     public EndpointsForToken pendingEndpointsFor(KeyspaceMetadata metadata, Token t)
     {
         EndpointsForToken writeEndpoints = placements.get(metadata.params.replication).writes.forToken(t);
