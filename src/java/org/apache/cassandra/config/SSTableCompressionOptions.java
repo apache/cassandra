@@ -16,17 +16,8 @@
  * limitations under the License.
  */
 package org.apache.cassandra.config;
-
-import java.util.Collections;
-
 import com.google.common.base.Objects;
-
 import org.apache.commons.lang3.builder.HashCodeBuilder;
-
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.CompressionParams;
-
-import static java.lang.String.format;
 
 public class SSTableCompressionOptions
 {
