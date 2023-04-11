@@ -2,7 +2,7 @@ cassandra (4.0.9) unstable; urgency=medium
 
   * New release
 
- -- Stefan Miklosovic <smiklosovic@apache.org>  Tue, 04 Apr 2023 09:28:09 +0200
+ -- Stefan Miklosovic <smiklosovic@apache.org>  Tue, 11 Apr 2023 09:31:33 +0200
 
 cassandra (4.0.8) unstable; urgency=medium
 
