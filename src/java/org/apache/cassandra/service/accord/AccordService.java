@@ -28,7 +28,6 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.Agent;
 import accord.api.Result;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
@@ -81,12 +80,6 @@ public class AccordService implements IAccordService, Shutdownable
     
     private static final IAccordService NOOP_SERVICE = new IAccordService()
     {
-        @Override
-        public Agent agent()
-        {
-            return new AccordAgent();
-        }
-
         @Override
         public IVerbHandler<? extends Request> verbHandler()
         {
@@ -158,12 +151,6 @@ public class AccordService implements IAccordService, Shutdownable
                              AccordCommandStores::new);
         this.nodeShutdown = toShutdownable(node);
         this.verbHandler = new AccordVerbHandler<>(this.node);
-    }
-
-    @Override
-    public Agent agent()
-    {
-        return node.agent();
     }
 
     @Override
