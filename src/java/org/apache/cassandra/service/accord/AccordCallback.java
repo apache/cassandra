@@ -65,6 +65,12 @@ class AccordCallback<T extends Reply> extends SafeCallback<T> implements Request
     }
 
     @Override
+    public boolean trackLatencyForSnitch()
+    {
+        return true;
+    }
+
+    @Override
     public boolean invokeOnFailure()
     {
         return true;
