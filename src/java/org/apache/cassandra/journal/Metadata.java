@@ -18,13 +18,12 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.zip.CRC32;
-
-import org.apache.commons.collections.set.UnmodifiableSet;
 
 import org.agrona.collections.Int2IntHashMap;
 import org.agrona.collections.IntHashSet;
@@ -55,12 +54,11 @@ final class Metadata
         return new Metadata(new ConcurrentHashMap<>(), 0);
     }
 
-    @SuppressWarnings("unchecked")
     private Metadata(Map<Integer, Integer> recordsPerHost, int recordsCount)
     {
         this.recordsPerHost = recordsPerHost;
         this.recordsCount = recordsCount;
-        this.unmodifiableHosts = (Set<Integer>) UnmodifiableSet.decorate(recordsPerHost.keySet());
+        this.unmodifiableHosts = Collections.unmodifiableSet(recordsPerHost.keySet());
     }
 
     void update(Set<Integer> hosts)
