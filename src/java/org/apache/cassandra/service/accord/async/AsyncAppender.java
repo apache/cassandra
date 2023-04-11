@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.PreLoadContext;
+import accord.utils.Invariants;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 
 /**
@@ -49,24 +50,22 @@ public class AsyncAppender implements Runnable
 
     public boolean append()
     {
+        commandStore.checkInStoreThread();
+
         if (!commandStore.mustAppendToJournal(preLoadContext))
         {
             logger.trace("Skipping append for {}: {}", callback, preLoadContext);
             return true;
         }
 
-        commandStore.checkInStoreThread();
         logger.trace("Running append for {} with state {}: {}", callback, state, preLoadContext);
-        switch (state)
+        if (state == State.INITIALIZED)
         {
-            case INITIALIZED:
-                commandStore.appendToJournal(preLoadContext, this);
-                state = State.WAITING;
-            case WAITING:
-            case FINISHED:
-                break;
+            commandStore.appendToJournal(preLoadContext, this);
+            state = State.WAITING;
         }
         logger.trace("Exiting append for {} with state {}: {}", callback, state, preLoadContext);
+
         return state == State.FINISHED;
     }
 
@@ -74,8 +73,7 @@ public class AsyncAppender implements Runnable
     public void run()
     {
         commandStore.checkInStoreThread();
-        if (state != State.WAITING)
-            throw new IllegalStateException();
+        Invariants.checkState(state == State.WAITING, "Expected WAITING state but was %s", state);
         state = State.FINISHED;
         callback.accept(null, null);
     }
