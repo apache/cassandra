@@ -627,8 +627,8 @@ public class EncryptionOptions
                                        InternodeEncryption internode_encryption, boolean legacy_ssl_storage_port_enabled)
         {
             super(sslContextFactoryClass, keystore, keystore_password, truststore, truststore_password, cipher_suites,
-            protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
-            null, optional);
+                  protocol, accepted_protocols, algorithm, store_type, require_client_auth, require_endpoint_verification,
+                  null, optional);
             this.internode_encryption = internode_encryption;
             this.legacy_ssl_storage_port_enabled = legacy_ssl_storage_port_enabled;
             this.outbound_keystore = outbound_keystore;
@@ -672,10 +672,10 @@ public class EncryptionOptions
             if (require_client_auth && (internode_encryption == InternodeEncryption.rack || internode_encryption == InternodeEncryption.dc))
             {
                 logger.warn("Setting require_client_auth is incompatible with 'rack' and 'dc' internode_encryption values."
-                          + " It is possible for an internode connection to pretend to be in the same rack/dc by spoofing"
-                          + " its broadcast address in the handshake and bypass authentication. To ensure that mutual TLS"
-                          + " authentication is not bypassed, please set internode_encryption to 'all'. Continuing with"
-                          + " insecure configuration.");
+                            + " It is possible for an internode connection to pretend to be in the same rack/dc by spoofing"
+                            + " its broadcast address in the handshake and bypass authentication. To ensure that mutual TLS"
+                            + " authentication is not bypassed, please set internode_encryption to 'all'. Continuing with"
+                            + " insecure configuration.");
             }
 
             // regardless of the optional flag, if the internode encryption is set to rack or dc
@@ -718,6 +718,43 @@ public class EncryptionOptions
             return optional != null && optional;
         }
 
+        /**
+         * The method is being mainly used to cache SslContexts therefore, we only consider
+         * fields that would make a difference when the TrustStore or KeyStore files are updated
+         */
+        @Override
+        public boolean equals(Object o)
+        {
+            if (o == this)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            if (!super.equals(o)) {
+                return false;
+            }
+
+            ServerEncryptionOptions opt = (ServerEncryptionOptions)o;
+            return internode_encryption == opt.internode_encryption &&
+                   legacy_ssl_storage_port_enabled == opt.legacy_ssl_storage_port_enabled &&
+                   Objects.equals(outbound_keystore, opt.outbound_keystore) &&
+                   Objects.equals(outbound_keystore_password, opt.outbound_keystore_password);
+        }
+
+        /**
+         * The method is being mainly used to cache SslContexts therefore, we only consider
+         * fields that would make a difference when the TrustStore or KeyStore files are updated
+         */
+        @Override
+        public int hashCode()
+        {
+            int result = 0;
+            result += 31 * super.hashCode();
+            result += 31 * (internode_encryption == null ? 0 : internode_encryption.hashCode());
+            result += 31 * Boolean.hashCode(legacy_ssl_storage_port_enabled);
+            result += 31 * (outbound_keystore == null ? 0 : outbound_keystore.hashCode());
+            result += 31 * (outbound_keystore_password == null ? 0 : outbound_keystore_password.hashCode());
+            return result;
+        }
         public ServerEncryptionOptions withSslContextFactory(ParameterizedClass sslContextFactoryClass)
         {
             return new ServerEncryptionOptions(sslContextFactoryClass, keystore, keystore_password,
