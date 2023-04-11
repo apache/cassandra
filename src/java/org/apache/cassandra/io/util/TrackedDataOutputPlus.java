@@ -131,7 +131,7 @@ public class TrackedDataOutputPlus implements DataOutputPlus
     @Override
     public void writeUTF(String s) throws IOException
     {
-        UnbufferedDataOutputStreamPlus.writeUTF(s, out);
+        UnbufferedDataOutputStreamPlus.writeUTF(s, this);
     }
 
     @Override
