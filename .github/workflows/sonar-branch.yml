@@ -24,9 +24,6 @@ on:
       - trunk
       - 'cassandra-[0-9]+.[0-9]+'
 
-env:
-  MAVEN_OPTS: -Xms2g
-
 jobs:
   sonar-cassandra:
     name: Cassandra Sonar Analysis
@@ -73,5 +70,8 @@ jobs:
           -Dsonar.projectKey=apache_cassandra
           -Dsonar.login=${SONARCLOUD_TOKEN}
         env:
-          SONARCLOUD_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
+          MAVEN_OPTS: "-XX:+UseG1GC -XX:InitialHeapSize=2g -XX:MaxHeapSize=6g -XX:+UseStringDeduplication"
+          SONAR_OPTS: "-XX:+UseG1GC -XX:InitialHeapSize=2g -XX:MaxHeapSize=6g -XX:+UseStringDeduplication"
+          JAVA_OPTS: "-XX:+UseG1GC -XX:InitialHeapSize=2g -XX:MaxHeapSize=6g -XX:+UseStringDeduplication"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONARCLOUD_TOKEN: ${{ secrets.SONARCLOUD_TOKEN }}
