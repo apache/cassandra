@@ -151,7 +151,7 @@ Upgrading
    - The deprecated functions `dateOf` and `unixTimestampOf` have been removed. They were deprecated and replaced by
      `toTimestamp` and `toUnixTimestamp` in Cassandra 2.2.
    - Keystore password configuration is nullable now and the code defaults of the keystore passwords to 'cassandra' are
-     removed now. The deployments that depend upon the code default to this password value without explicitly specifying
+     removed. Any deployments that depend upon the code default to this password value without explicitly specifying
      it in the cassandra.yaml would fail. Please specify your keystore passwords in the cassandra.yaml with appropriate
      configuration to prevent such failure.
 
