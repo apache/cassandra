@@ -153,7 +153,7 @@ Upgrading
    - Keystore password configuration is nullable now and the code defaults of the keystore passwords to 'cassandra' are
      removed. Any deployments that depend upon the code default to this password value without explicitly specifying
      it in cassandra.yaml will fail on upgrade. Please specify your keystore_password and truststore_password elements in cassandra.yaml with appropriate
-     configuration to prevent such failure.
+     values to prevent this failure.
 
 Deprecation
 -----------
