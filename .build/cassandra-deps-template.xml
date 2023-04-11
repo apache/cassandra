@@ -244,7 +244,7 @@
       <artifactId>sigar</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.eclipse.jdt.core.compiler</groupId>
+      <groupId>org.eclipse.jdt</groupId>
       <artifactId>ecj</artifactId>
     </dependency>
     <dependency>

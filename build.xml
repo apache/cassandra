@@ -143,7 +143,7 @@
 
     <property name="jflex.version" value="1.8.2"/>
     <property name="jamm.version" value="0.4.0"/>
-    <property name="ecj.version" value="4.6.1"/>
+    <property name="ecj.version" value="3.33.0"/>
     <!-- When updating ASM, please, do consider whether you might need to update also FBUtilities#ASM_BYTECODE_VERSION
       and the simulator InterceptClasses#BYTECODE_VERSION, in particular if we are looking to provide Cassandra support
       for newer JDKs (CASSANDRA-17873). -->
