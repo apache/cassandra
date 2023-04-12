@@ -102,6 +102,7 @@ public class Initialize extends ForceSnapshot
                                                SchemaTransformations.fromCql(String.format(SystemDistributedKeyspace.REPAIR_HISTORY_CQL, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + "." + SystemDistributedKeyspace.REPAIR_HISTORY)),
                                                SchemaTransformations.fromCql(String.format(SystemDistributedKeyspace.PARENT_REPAIR_HISTORY_CQL, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + "." + SystemDistributedKeyspace.PARENT_REPAIR_HISTORY)),
                                                SchemaTransformations.fromCql(String.format(SystemDistributedKeyspace.VIEW_BUILD_STATUS_CQL, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + "." + SystemDistributedKeyspace.VIEW_BUILD_STATUS)),
+                                               SchemaTransformations.fromCql(String.format(SystemDistributedKeyspace.PARTITION_DENYLIST_CQL, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME + "." + SystemDistributedKeyspace.PARTITION_DENYLIST_TABLE)),
                                                SchemaTransformations.fromCql(String.format("CREATE KEYSPACE IF NOT EXISTS %s " +
                                                                                            "  WITH REPLICATION = { \n" +
                                                                                            "   'class' : 'SimpleStrategy', \n" +

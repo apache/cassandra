@@ -56,8 +56,7 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 
     public static DistributedSchema first()
     {
-        return new DistributedSchema(Keyspaces.of(DistributedMetadataLogKeyspace.metadata(),
-                                                  SystemDistributedKeyspace.metadata()), Epoch.FIRST);
+        return new DistributedSchema(Keyspaces.of(DistributedMetadataLogKeyspace.metadata()), Epoch.FIRST);
     }
 
     private final Keyspaces keyspaces;

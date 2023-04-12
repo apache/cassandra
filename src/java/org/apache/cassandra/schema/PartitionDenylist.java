@@ -166,8 +166,15 @@ public class PartitionDenylist
 
     private boolean checkDenylistNodeAvailability()
     {
-        boolean sufficientNodes = RangeCommands.sufficientLiveNodesForSelectStar(SystemDistributedKeyspace.PartitionDenylistTable,
-                                                                                 DatabaseDescriptor.getDenylistConsistencyLevel());
+        TableMetadata denyListTable = ClusterMetadata.current().schema.getKeyspaceMetadata(SystemDistributedKeyspace.NAME)
+                                                              .getTableOrViewNullable(SystemDistributedKeyspace.PARTITION_DENYLIST_TABLE);
+        if (denyListTable == null)
+        {
+            logger.warn("Partition denylist table metadata not found");
+            return false;
+        }
+
+        boolean sufficientNodes = RangeCommands.sufficientLiveNodesForSelectStar(denyListTable, DatabaseDescriptor.getDenylistConsistencyLevel());
         if (!sufficientNodes)
         {
             AVAILABILITY_LOGGER.warn("Attempting to load denylist and not enough nodes are available for a {} refresh. Reload the denylist when unavailable nodes are recovered to ensure your denylist remains in sync.",

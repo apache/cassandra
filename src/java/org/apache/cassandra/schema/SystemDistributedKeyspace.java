@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -148,19 +149,15 @@ public final class SystemDistributedKeyspace
                                                        + "status text,"
                                                        + "PRIMARY KEY ((keyspace_name, view_name), host_id))";
     private static final TableMetadata ViewBuildStatus =
-        parse(VIEW_BUILD_STATUS,
-            "Materialized View build status",
-              VIEW_BUILD_STATUS_CQL).build();
+        parse(VIEW_BUILD_STATUS, "Materialized View build status", VIEW_BUILD_STATUS_CQL).build();
 
-    public static final TableMetadata PartitionDenylistTable =
-    parse(PARTITION_DENYLIST_TABLE,
-          "Partition keys which have been denied access",
-          "CREATE TABLE IF NOT EXISTS %s ("
-          + "ks_name text,"
-          + "table_name text,"
-          + "key blob,"
-          + "PRIMARY KEY ((ks_name, table_name), key))")
-    .build();
+    public static final String PARTITION_DENYLIST_CQL = "CREATE TABLE IF NOT EXISTS %s ("
+                                                        + "ks_name text,"
+                                                        + "table_name text,"
+                                                        + "key blob,"
+                                                        + "PRIMARY KEY ((ks_name, table_name), key))";
+    private static final TableMetadata PartitionDenylistTable =
+        parse(PARTITION_DENYLIST_TABLE, "Partition keys which have been denied access", PARTITION_DENYLIST_CQL).build();
 
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
@@ -169,6 +166,7 @@ public final class SystemDistributedKeyspace
                                    .comment(description);
     }
 
+    @VisibleForTesting
     public static KeyspaceMetadata metadata()
     {
         return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
