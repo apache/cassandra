@@ -1,4 +1,5 @@
 4.0.10
+ * Improve nodetool enable{audit,fullquery}log (CASSANDRA-18550)
  * Report network cache info in nodetool (CASSANDRa-18400)
  * Partial compaction can resurrect deleted data (CASSANDRA-18507)
  * Allow internal address to change with reconnecting snitches (CASSANDRA-16718)
