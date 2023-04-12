@@ -108,6 +108,13 @@
 
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
-  </module>
 
+    <module name="LeftCurly">
+      <property name="option" value="nl"/>
+    </module>
+
+    <module name="RightCurly">
+      <property name="option" value="alone"/>
+    </module>
+  </module>
 </module>

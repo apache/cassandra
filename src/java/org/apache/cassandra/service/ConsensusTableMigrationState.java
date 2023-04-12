@@ -165,7 +165,8 @@ public abstract class ConsensusTableMigrationState
         }
     }
 
-    public enum ConsensusMigrationTarget {
+    public enum ConsensusMigrationTarget
+    {
         paxos(0),
         accord(1);
 
