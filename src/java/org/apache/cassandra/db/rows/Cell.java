@@ -46,6 +46,7 @@ import org.apache.cassandra.utils.memory.Cloner;
  */
 public abstract class Cell<V> extends ColumnData
 {
+    @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(Cell.class);
 
     public static final int NO_TTL = 0;

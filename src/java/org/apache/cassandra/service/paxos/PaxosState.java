@@ -84,6 +84,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
  */
 public class PaxosState implements PaxosOperationLock
 {
+    @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(PaxosState.class.getName());
 
     private static volatile boolean DISABLE_COORDINATOR_LOCKING = Boolean.getBoolean("cassandra.paxos.disable_coordinator_locking");

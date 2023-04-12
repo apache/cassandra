@@ -85,6 +85,7 @@ import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_p
  */
 public class CQL3CasRequest implements CASRequest
 {
+    @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(CQL3CasRequest.class);
 
     public final TableMetadata metadata;

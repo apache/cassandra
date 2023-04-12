@@ -73,6 +73,7 @@ import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
 
 public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Write
 {
+    @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(TxnWrite.class);
 
     public static final TxnWrite EMPTY = new TxnWrite(Collections.emptyList());

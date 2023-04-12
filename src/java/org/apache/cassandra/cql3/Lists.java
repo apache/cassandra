@@ -60,6 +60,7 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
  */
 public abstract class Lists
 {
+    @SuppressWarnings("unused")
     private static final Logger logger = LoggerFactory.getLogger(Lists.class);
 
     /**
