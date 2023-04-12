@@ -114,9 +114,9 @@ import org.apache.cassandra.service.paxos.cleanup.PaxosStartPrepareCleanup;
 import org.apache.cassandra.service.paxos.v1.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.v1.ProposeVerbHandler;
 import org.apache.cassandra.streaming.ReplicationDoneVerbHandler;
-import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.utils.BooleanSerializer;
+import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -288,7 +288,7 @@ public enum Verb
     ACCORD_GET_DEPS_RSP         (148, P2, writeTimeout, REQUEST_RESPONSE, () -> GetDepsSerializers.reply, RESPONSE_HANDLER),
     ACCORD_GET_DEPS_REQ         (147, P2, writeTimeout, ACCORD,               () -> GetDepsSerializers.request,       () -> AccordService.instance().verbHandler(), ACCORD_GET_DEPS_RSP),
 
-    CONSENSUS_KEY_MIGRATION_FINISHED(149, P1, writeTimeout, MUTATION, () -> ConsensusKeyMigrationFinished.serializer, () -> ConsensusKeyMigrationState.consensusKeyMigrationFinishedHandler),
+    CONSENSUS_KEY_MIGRATION         (149, P1, writeTimeout,  MUTATION,            () -> ConsensusKeyMigrationFinished.serializer, () -> ConsensusKeyMigrationState.consensusKeyMigrationFinishedHandler),
 
     UPDATE_CM_RSP(151, P1, writeTimeout, REQUEST_RESPONSE, () -> NoPayload.serializer, () -> ResponseVerbHandler.instance),
     UPDATE_CM(150, P1, writeTimeout, GOSSIP, () -> MigrationStateSnapshot.messagingSerializer, () -> ClusterMetadataService.updateHandler, UPDATE_CM_RSP),
