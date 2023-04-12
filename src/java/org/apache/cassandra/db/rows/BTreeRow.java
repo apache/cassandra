@@ -441,7 +441,7 @@ public class BTreeRow extends AbstractRow
     }
 
     @Override
-    public Row updateAllTimesForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime)
+    public Row updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime)
     {
         LivenessInfo newInfo = primaryKeyLivenessInfo.isEmpty() ? primaryKeyLivenessInfo : primaryKeyLivenessInfo.withUpdatedTimestampAndLocalDeletionTime(newTimestamp, newLocalDeletionTime);
         // If the deletion is shadowable and the row has a timestamp, we'll forced the deletion timestamp to be less than the row one, so we
@@ -449,7 +449,7 @@ public class BTreeRow extends AbstractRow
         Deletion newDeletion = deletion.isLive() || (deletion.isShadowable() && !primaryKeyLivenessInfo.isEmpty())
                                ? Deletion.LIVE
                                : new Deletion(new DeletionTime(newTimestamp - 1, newLocalDeletionTime), deletion.isShadowable());
-        return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateAllTimesForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime));
+        return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime));
     }
 
     public Row withRowDeletion(DeletionTime newDeletion)

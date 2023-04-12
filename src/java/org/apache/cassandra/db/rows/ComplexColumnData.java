@@ -261,7 +261,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
     }
 
     @Override
-    public ColumnData updateAllTimesForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime)
+    public ColumnData updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime)
     {
         DeletionTime newDeletion = complexDeletion.isLive() ? complexDeletion : new DeletionTime(newTimestamp - 1, newLocalDeletionTime);
         Function<Cell, CellPath> maybeNewListPath;

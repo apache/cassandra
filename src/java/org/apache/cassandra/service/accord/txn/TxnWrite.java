@@ -135,7 +135,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
         public AsyncChain<Void> write(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long timestamp, int nowInSeconds)
         {
-            PartitionUpdate update = new PartitionUpdate.Builder(get(), 0).updateAllTimesForAccord(cellToMaybeNewListPath, timestamp, nowInSeconds).build();
+            PartitionUpdate update = new PartitionUpdate.Builder(get(), 0).updateTimesAndPathsForAccord(cellToMaybeNewListPath, timestamp, nowInSeconds).build();
             Mutation mutation = new Mutation(update);
             return AsyncChains.ofRunnable(Stage.MUTATION.executor(), mutation::apply);
         }

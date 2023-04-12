@@ -1060,11 +1060,11 @@ public class PartitionUpdate extends AbstractBTreePartition
             return this;
         }
 
-        public Builder updateAllTimesForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime)
+        public Builder updateTimesAndPathsForAccord(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long newTimestamp, int newLocalDeletionTime)
         {
             deletionInfo.updateAllTimestampAndLocalDeletionTime(newTimestamp - 1, newLocalDeletionTime);
-            tree = BTree.<Row, Row>transformAndFilter(tree, (x) -> x.updateAllTimesForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime));
-            staticRow = this.staticRow.updateAllTimesForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime);
+            tree = BTree.<Row, Row>transformAndFilter(tree, (x) -> x.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime));
+            staticRow = this.staticRow.updateTimesAndPathsForAccord(cellToMaybeNewListPath, newTimestamp, newLocalDeletionTime);
             return this;
         }
 
