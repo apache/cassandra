@@ -70,9 +70,9 @@ class PaxosClusterSimulation extends ClusterSimulation<PaxosSimulation> implemen
             return new PaxosClusterSimulation(random, seed, uniqueNum, this);
         }
 
-        public String legacyPaxosStrategy()
+        public String lwtStrategy()
         {
-            return legacyPaxosStrategy;
+            return lwtStrategy;
         }
     }
 

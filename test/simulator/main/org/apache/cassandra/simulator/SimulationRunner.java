@@ -266,8 +266,8 @@ public class SimulationRunner
         @Option(name = { "--capture" }, title = "wait,wake,now", description = "Capture thread stack traces alongside events, choose from (wait,wake,now)")
         protected String capture;
 
-        @Option(name = { "--legacy-paxos-strategy" }, title = "migration|accord]", description = "What execution strategy to use for CAS and serial read")
-        protected String legacyPaxosStrategy;
+        @Option(name = { "--lwt-strategy" }, title = "migration|accord]", description = "What execution strategy to use for CAS and serial read")
+        protected String lwtStrategy;
 
         protected void propagate(B builder)
         {
@@ -339,7 +339,7 @@ public class SimulationRunner
                 builder.debug(debugLevels, debugPrimaryKeys);
             }
 
-            Optional.ofNullable(legacyPaxosStrategy).ifPresent(builder::legacyPaxosStrategy);
+            Optional.ofNullable(lwtStrategy).ifPresent(builder::lwtStrategy);
         }
 
         public void run(B builder) throws IOException

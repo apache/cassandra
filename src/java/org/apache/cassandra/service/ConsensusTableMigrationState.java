@@ -44,7 +44,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Config.LegacyPaxosStrategy;
+import org.apache.cassandra.config.Config.LWTStrategy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -633,7 +633,7 @@ public abstract class ConsensusTableMigrationState
         checkArgument(!maybeTables.isPresent() || !maybeTables.get().isEmpty(), "Must provide at least 1 table if Optional is not empty");
         ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(targetProtocolName);
 
-        if (DatabaseDescriptor.getLegacyPaxosStrategy() == LegacyPaxosStrategy.accord)
+        if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord)
             throw new IllegalStateException("Mixing a hard coded strategy with migration is unsupported");
 
         if (!Paxos.useV2())
@@ -653,7 +653,7 @@ public abstract class ConsensusTableMigrationState
         checkArgument(!maybeTables.isPresent() || !maybeTables.get().isEmpty(), "Must provide at least 1 table if Optional is not empty");
         ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(targetProtocolName);
 
-        if (DatabaseDescriptor.getLegacyPaxosStrategy() == LegacyPaxosStrategy.accord)
+        if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord)
             throw new IllegalStateException("Mixing a hard coded strategy with migration is unsupported");
 
         if (!Paxos.useV2())

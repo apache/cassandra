@@ -192,7 +192,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         protected SimulatedTime.Listener timeListener = (i1, i2) -> {};
         protected LongConsumer onThreadLocalRandomCheck;
 
-        protected String legacyPaxosStrategy = "migration";
+        protected String lwtStrategy = "migration";
 
         public Debug debug()
         {
@@ -539,9 +539,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return this;
         }
 
-        public Builder<S> legacyPaxosStrategy(String strategy)
+        public Builder<S> lwtStrategy(String strategy)
         {
-            this.legacyPaxosStrategy = strategy;
+            this.lwtStrategy = strategy;
             return this;
         }
 
@@ -720,7 +720,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              .set("disk_access_mode", "standard")
                              .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
                              .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
-                             .set("legacy_paxos_strategy", builder.legacyPaxosStrategy)
+                             .set("lwt_strategy", builder.lwtStrategy)
                          )))
                          .withInstanceInitializer(new IInstanceInitializer()
                          {

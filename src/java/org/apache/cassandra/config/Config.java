@@ -1084,7 +1084,7 @@ public class Config
 
     public volatile boolean client_request_size_metrics_enabled = true;
 
-    public LegacyPaxosStrategy legacy_paxos_strategy = LegacyPaxosStrategy.migration;
+    public LWTStrategy lwt_strategy = LWTStrategy.migration;
 
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
@@ -1186,7 +1186,7 @@ public class Config
      * and serial read operations. Transaction statements
      * will always run on Accord. Legacy in this context includes PaxosV2.
      */
-    public enum LegacyPaxosStrategy
+    public enum LWTStrategy
     {
         /*
          * Allow both Accord and PaxosV1/V2 to run on the same cluster

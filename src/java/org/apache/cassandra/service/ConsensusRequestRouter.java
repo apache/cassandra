@@ -22,7 +22,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.Config.LegacyPaxosStrategy;
+import org.apache.cassandra.config.Config.LWTStrategy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -77,7 +77,7 @@ public class ConsensusRequestRouter
 
     public ConsensusRoutingDecision routeAndMaybeMigrate(@Nonnull DecoratedKey key, @Nonnull String keyspace, @Nonnull String table, ConsistencyLevel consistencyLevel, long queryStartNanoTime, long timeoutNanos, boolean isForWrite)
     {
-        if (DatabaseDescriptor.getLegacyPaxosStrategy() == LegacyPaxosStrategy.accord)
+        if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord)
             return accord;
 
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(keyspace, table);
@@ -93,7 +93,7 @@ public class ConsensusRequestRouter
         // TODO This is based off of file based config, we should really use TrM so the cluster
         // always agrees regardless of file based configuration. For new clusters maybe we use this to set an inital value
         // and rename to initial paxos strategy?
-        if (DatabaseDescriptor.getLegacyPaxosStrategy() == LegacyPaxosStrategy.accord)
+        if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord)
             return accord;
 
         ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(tableId);
