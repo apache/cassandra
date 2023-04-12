@@ -33,6 +33,7 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 
 import com.google.common.annotations.VisibleForTesting;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -119,6 +120,21 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
     }
 
     /**
+     * Validates the given keystore password.
+     *
+     * @param password           value
+     * @throws IllegalArgumentException if the {@code password} is empty as per the definition of {@link StringUtils#isEmpty(CharSequence)}
+     */
+    protected void validatePassword(String password)
+    {
+        boolean keystorePasswordEmpty = StringUtils.isEmpty(password);
+        if (keystorePasswordEmpty)
+        {
+            throw new IllegalArgumentException("'keystore_password' must be specified");
+        }
+    }
+
+    /**
      * Builds required KeyManagerFactory from the file based keystore. It also checks for the PrivateKey's certificate's
      * expiry and logs {@code warning} for each expired PrivateKey's certitificate.
      *
@@ -128,6 +144,11 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
     @Override
     protected KeyManagerFactory buildKeyManagerFactory() throws SSLException
     {
+        /*
+         * Validation of the password is delayed until this point to allow nullable keystore passwords
+         * for other use-cases (CASSANDRA-18124).
+         */
+        validatePassword(keystore_password);
 
         try (InputStream ksf = Files.newInputStream(File.getPath(keystore)))
         {
@@ -163,7 +184,9 @@ abstract public class FileBasedSslContextFactory extends AbstractSslContextFacto
             final String algorithm = this.algorithm == null ? TrustManagerFactory.getDefaultAlgorithm() : this.algorithm;
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
             KeyStore ts = KeyStore.getInstance(store_type);
-            ts.load(tsf, truststore_password.toCharArray());
+
+            final char[] truststorePassword = StringUtils.isEmpty(truststore_password) ? null : truststore_password.toCharArray();
+            ts.load(tsf, truststorePassword);
             tmf.init(ts);
             return tmf;
         }

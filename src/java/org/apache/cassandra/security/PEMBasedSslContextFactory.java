@@ -113,11 +113,6 @@ public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
             throw new IllegalArgumentException("'keystore_password' and 'key_password' both configurations are given and the " +
                                                "values do not match");
         }
-        else
-        {
-            logger.warn("'keystore_password' and 'key_password' both are configured but since the values match it's " +
-                        "okay. Ideally you should only specify one of them.");
-        }
 
         if (!StringUtils.isEmpty(truststore_password))
         {
