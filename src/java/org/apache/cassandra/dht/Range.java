@@ -60,7 +60,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
 {
     public static final long serialVersionUID = 1L;
 
-    public static final boolean EXPENSIVE_CHECKS = Boolean.getBoolean("org.apache.cassandra.dht.Range.expensive_checks") | true;
+    public static final boolean EXPENSIVE_CHECKS = Boolean.getBoolean("org.apache.cassandra.dht.Range.expensive_checks");
 
     public static final IPartitionerDependentSerializer rangeSerializer = new RangeSerializer();
 
