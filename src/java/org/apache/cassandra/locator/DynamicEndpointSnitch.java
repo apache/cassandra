@@ -366,7 +366,13 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         return timings;
     }
 
+    @Override
     public void setSeverity(double severity)
+    {
+        addSeverity(severity);
+    }
+
+    public static void addSeverity(double severity)
     {
         Gossiper.instance.addLocalApplicationState(ApplicationState.SEVERITY, StorageService.instance.valueFactory.severity(severity));
     }
