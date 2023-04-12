@@ -21,7 +21,6 @@ package org.apache.cassandra.service;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.UUID;
-import java.util.function.Function;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -29,8 +28,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import accord.api.BarrierType;
-import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.Weigher;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -65,7 +66,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
 
-import static org.apache.cassandra.net.Verb.CONSENSUS_KEY_MIGRATION_FINISHED;
+import static org.apache.cassandra.net.Verb.CONSENSUS_KEY_MIGRATION;
 import static org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationTarget;
 import static org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationTarget.paxos;
 import static org.apache.cassandra.service.ConsensusTableMigrationState.TableMigrationState;
@@ -183,13 +184,15 @@ public abstract class ConsensusKeyMigrationState
 
     private static final int EMPTY_KEY_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(Pair.create(null, UUID.randomUUID())));
     private static final int VALUE_SIZE = Ints.checkedCast(ObjectSizes.measureDeep(new ConsensusMigratedAt(Epoch.EMPTY, ConsensusMigrationTarget.accord)));
-    private static final Cache<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> MIGRATION_STATE_CACHE =
+
+    private static final CacheLoader<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> LOADING_FUNCTION = k -> SystemKeyspace.loadConsensusKeyMigrationState(k.left, k.right);
+    private static final Weigher<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> WEIGHER_FUNCTION = (k, v) -> EMPTY_KEY_SIZE + Ints.checkedCast(ByteBufferUtil.estimatedSizeOnHeap(k.left)) + VALUE_SIZE;
+    private static final LoadingCache<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> MIGRATION_STATE_CACHE =
         Caffeine.newBuilder()
                 .maximumWeight(DatabaseDescriptor.getConsensusMigrationCacheSizeInMiB() << 20)
-                .<Pair<ByteBuffer, UUID>, ConsensusMigratedAt>weigher((k, v) -> EMPTY_KEY_SIZE + Ints.checkedCast(ByteBufferUtil.estimatedSizeOnHeap(k.left)) + VALUE_SIZE)
+                .weigher(WEIGHER_FUNCTION)
                 .executor(ImmediateExecutor.INSTANCE)
-                .build();
-    private static final Function<Pair<ByteBuffer, UUID>, ConsensusMigratedAt> LOADING_FUNCTION = k -> SystemKeyspace.loadConsensusKeyMigrationState(k.left, k.right);
+                .build(LOADING_FUNCTION);
 
     public static final IVerbHandler<ConsensusKeyMigrationFinished> consensusKeyMigrationFinishedHandler = message -> {
         saveConsensusKeyMigrationLocally(message.payload.partitionKey, message.payload.tableId, message.payload.consensusMigratedAt);
@@ -248,7 +251,7 @@ public abstract class ConsensusKeyMigrationState
 
     public static @Nullable ConsensusMigratedAt getConsensusMigratedAt(TableId tableId, DecoratedKey key)
     {
-        return MIGRATION_STATE_CACHE.get(Pair.create(key.getKey(), tableId.asUUID()), LOADING_FUNCTION);
+        return MIGRATION_STATE_CACHE.get(Pair.create(key.getKey(), tableId.asUUID()));
     }
 
     /*
@@ -337,7 +340,7 @@ public abstract class ConsensusKeyMigrationState
 
     private static void saveConsensusKeyMigration(EndpointsForToken replicas, ConsensusKeyMigrationFinished finished)
     {
-        Message<ConsensusKeyMigrationFinished> out = Message.out(CONSENSUS_KEY_MIGRATION_FINISHED, finished);
+        Message<ConsensusKeyMigrationFinished> out = Message.out(CONSENSUS_KEY_MIGRATION, finished);
         replicas.endpoints();
         for (Replica replica : replicas)
         {
