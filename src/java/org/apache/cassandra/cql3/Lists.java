@@ -38,6 +38,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -60,6 +61,13 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
 public abstract class Lists
 {
     private static final Logger logger = LoggerFactory.getLogger(Lists.class);
+
+    /**
+     * Sentinel value indicating the cell path should be replaced by Accord with one based on the transaction executeAt
+     */
+    private static final TimeUUID ACCORD_CELL_PATH_SENTINEL_UUID = TimeUUID.atUnixMicrosWithLsb(0, 0);
+    public static final CellPath ACCORD_DUMMY_CELL_PATH = CellPath.create(ACCORD_CELL_PATH_SENTINEL_UUID.toBytes());
+    private static final long ACCORD_CELL_PATH_SENTINEL_MSB = ACCORD_CELL_PATH_SENTINEL_UUID.msb();
 
     private Lists() {}
 
@@ -144,6 +152,33 @@ public abstract class Lists
         Set<AbstractType<?>> types = items.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
         AbstractType<?> type = AssignmentTestable.getCompatibleTypeIfKnown(types);
         return type == null ? null : ListType.getInstance(type, false);
+    }
+
+    /**
+     * Return a function that given a cell with an ACCORD_CELL_PATH_SENTINEL_MSB will
+     * return a new CellPath with a TimeUUID that increases monotonically every time it is called or
+     * the existing cell path if path does not contain ACCORD_CELL_PATH_SENTINEL_MSB.
+     *
+     * Only intended to work with list cell paths where list append needs a timestamp based on the executeAt
+     * of the Accord transaction appending the cell.
+     * @param timestampMicros executeAt timestamp to use as the MSB for generated cell paths
+     */
+    public static com.google.common.base.Function<Cell, CellPath> accordListPathSuppler(long timestampMicros)
+    {
+        return new com.google.common.base.Function<Cell, CellPath>()
+        {
+            final long timeUuidMsb = TimeUUID.unixMicrosToMsb(timestampMicros);
+            long cellIndex = 0;
+            @Override
+            public CellPath apply(Cell cell)
+            {
+                CellPath path = cell.path();
+                if (ACCORD_CELL_PATH_SENTINEL_MSB == path.get(0).getLong(0))
+                    return CellPath.create(ByteBuffer.wrap(TimeUUID.toBytes(timeUuidMsb, TimeUUIDType.signedBytesToNativeLong(cellIndex++))));
+                else
+                    return path;
+            }
+        };
     }
 
     public static class Literal extends Term.Raw
@@ -539,7 +574,7 @@ public abstract class Lists
                 {
                     ByteBuffer cellPath;
                     // Accord will need to replace this value later once it knows the executeAt timestamp
-                    // so just put a TimeUUID with MSB centinel for now
+                    // so just put a TimeUUID with MSB sentinel for now
                     if (params.constructingAccordBaseUpdate)
                         cellPath = TimeUUID.atUnixMicrosWithLsb(0, cellIndex++).toBytes();
                     else

@@ -44,6 +44,7 @@ import accord.primitives.Writes;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Columns;
@@ -363,7 +364,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         int nowInSeconds = cfk.current().nowInSecondsFor(executeAt, true);
 
         List<AsyncChain<Void>> results = new ArrayList<>();
-        forEachWithKey((PartitionKey) key, write -> results.add(write.write(CellPath.accordListPathSuppler(timestamp), timestamp, nowInSeconds)));
+        forEachWithKey((PartitionKey) key, write -> results.add(write.write(Lists.accordListPathSuppler(timestamp), timestamp, nowInSeconds)));
 
         if (results.isEmpty())
             return Writes.SUCCESS;
