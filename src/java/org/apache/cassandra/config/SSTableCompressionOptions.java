@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 package org.apache.cassandra.config;
+import java.util.Map;
+
 import com.google.common.base.Objects;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
@@ -25,11 +27,12 @@ public class SSTableCompressionOptions
      * The options necessary to create the default CompressonParams.
      */
     public static final SSTableCompressionOptions DEFAULT = null;
-    public String chunk_length="";
-    public Double min_compress_ratio;
+    public String chunk_length=null;
+    public String max_compressed_length=null;
+    public Double min_compress_ratio = null;
     public boolean enabled = true;
-    public CompressorType type;
-    public ParameterizedClass compressor;
+    public String class_name;
+    public Map<String, String> parameters;
 
     public SSTableCompressionOptions()
     {
@@ -44,21 +47,22 @@ public class SSTableCompressionOptions
 
     public boolean equals(SSTableCompressionOptions other)
     {
-        return Objects.equal(type, other.type) &&
+        return Objects.equal(class_name, other.class_name) &&
                Objects.equal(enabled, other.enabled) &&
                Objects.equal(min_compress_ratio, other.min_compress_ratio) &&
+               Objects.equal(max_compressed_length, other.max_compressed_length) &&
                Objects.equal(chunk_length, other.chunk_length) &&
-               Objects.equal(compressor, other.compressor);
+               Objects.equal(parameters, other.parameters);
     }
 
     @Override
     public int hashCode()
     {
         return new HashCodeBuilder(29, 1597)
-               .append(type.ordinal())
+               .append(class_name)
                .append(chunk_length)
                .append(min_compress_ratio)
-               .append(compressor)
+               .append(parameters)
                .toHashCode();
     }
 
@@ -70,6 +74,5 @@ public class SSTableCompressionOptions
         snappy,
         deflate,
         zstd,
-        custom,
     }
 }

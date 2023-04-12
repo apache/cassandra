@@ -20,13 +20,12 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.SSTableCompressionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.BufferType;
@@ -38,14 +37,99 @@ import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.compress.ZstdCompressor;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
 public class CompressonParamsTest
 {
-    private SSTableCompressionOptions options = new SSTableCompressionOptions();
+    private SSTableCompressionOptions options;
     private CompressionParams params;
+
+    @Before
+    public void resetOptions() {
+        options = new SSTableCompressionOptions();
+    }
+
+    @Test
+    public void chunkLengthTest()
+    {
+        options.chunk_length = "";
+        params = CompressionParams.fromOptions(options);
+        assertEquals(CompressionParams.DEFAULT_CHUNK_LENGTH, params.chunkLength());
+
+        options.chunk_length = "1MiB";
+        params = CompressionParams.fromOptions(options);
+        assertEquals(1024, params.chunkLength());
+
+        options.chunk_length = "badvalue";
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromOptions(options))
+                                                               .withMessage("Invalid 'chunk_length' value for the 'sstable_compressor' option.");
+    }
+
+    @Test
+    public void minCompressRatioTest()
+    {
+        // use snappy because it uses min_compress_ratio
+        options.class_name = "snappy";
+        options.min_compress_ratio = null;
+        params = CompressionParams.fromOptions(options);
+        assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
+        assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
+
+        options.min_compress_ratio = CompressionParams.DEFAULT_MIN_COMPRESS_RATIO;
+        params = CompressionParams.fromOptions(options);
+        assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
+        assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
+
+        options.min_compress_ratio = 0.3;
+        params = CompressionParams.fromOptions(options);
+        assertEquals(0.3, params.minCompressRatio(), Double.MIN_VALUE);
+        assertEquals( (int) Math.ceil(CompressionParams.DEFAULT_CHUNK_LENGTH / 0.3), params.maxCompressedLength());
+
+        options.min_compress_ratio = 1.3;
+        params = CompressionParams.fromOptions(options);
+        assertEquals(1.3, params.minCompressRatio(), Double.MIN_VALUE);
+        assertEquals( (int) Math.ceil(CompressionParams.DEFAULT_CHUNK_LENGTH / 1.3), params.maxCompressedLength());
+
+        options.min_compress_ratio = -1.0;
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromOptions(options))
+                                                               .withMessage("'min_compress_ratio' may not be less than 0.0 for the 'sstable_compressor' option.");
+    }
+
+    @Test
+    public void maxCompressedLengthTest()
+    {
+        // use lze because it uses max_compressed_length
+        options.class_name = "snappy";
+        options.max_compressed_length = null;
+        params = CompressionParams.fromOptions(options);
+        assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
+        assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
+
+        options.max_compressed_length = "";
+        params = CompressionParams.fromOptions(options);
+        assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
+        assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
+
+        options.max_compressed_length = "5GiB";
+        params = CompressionParams.fromOptions(options);
+        assertEquals(5 * 1024 * 1024, params.maxCompressedLength());
+        assertEquals(CompressionParams.DEFAULT_CHUNK_LENGTH / (5.0 * 1024 * 1024), params.minCompressRatio(), Double.MIN_VALUE);
+
+        options.max_compressed_length = "badvalue";
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromOptions(options))
+                                                               .withMessage("Invalid 'max_compressed_length' value for the 'sstable_compressor' option.");
+    }
+
+    @Test
+    public void maxCompressionLengthAndMinCompressRatioTest() {
+        options.class_name = "snappy";
+        options.min_compress_ratio = -1.0;
+        options.max_compressed_length = "5Gib";
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromOptions(options))
+                                                               .withMessage("Can not specify both 'min_compress_ratio' and 'max_compressedlength' for the 'sstable_compressor' option.");
+    }
 
     private void assertParams(boolean enabled, int chunk_length, Class<?> compressor)
     {
@@ -65,11 +149,14 @@ public class CompressonParamsTest
     {
         params = CompressionParams.fromOptions( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, LZ4Compressor.class);
+
+        params = CompressionParams.fromOptions( null );
+        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, LZ4Compressor.class);
     }
 
     @Test
     public void lz4Test() {
-        options.type = SSTableCompressionOptions.CompressorType.lz4;
+        options.class_name = SSTableCompressionOptions.CompressorType.lz4.name();
         params = CompressionParams.fromOptions( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, LZ4Compressor.class);
 
@@ -90,7 +177,7 @@ public class CompressonParamsTest
 
     @Test
     public void noneTest() {
-        options.type = SSTableCompressionOptions.CompressorType.none;
+        options.class_name = SSTableCompressionOptions.CompressorType.none.name();
         params = CompressionParams.fromOptions( options );
         // none is noever enabled.
         assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
@@ -114,7 +201,7 @@ public class CompressonParamsTest
 
     @Test
     public void noopTest() {
-        options.type = SSTableCompressionOptions.CompressorType.noop;
+        options.class_name = SSTableCompressionOptions.CompressorType.noop.name();
         params = CompressionParams.fromOptions( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, NoopCompressor.class);
 
@@ -136,7 +223,7 @@ public class CompressonParamsTest
 
     @Test
     public void snappyTest() {
-        options.type = SSTableCompressionOptions.CompressorType.snappy;
+        options.class_name = SSTableCompressionOptions.CompressorType.snappy.name();
         params = CompressionParams.fromOptions( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, SnappyCompressor.class);
 
@@ -157,7 +244,7 @@ public class CompressonParamsTest
 
     @Test
     public void deflateTest() {
-        options.type = SSTableCompressionOptions.CompressorType.deflate;
+        options.class_name = SSTableCompressionOptions.CompressorType.deflate.name();
         params = CompressionParams.fromOptions( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, DeflateCompressor.class);
 
@@ -178,7 +265,7 @@ public class CompressonParamsTest
 
     @Test
     public void zstdTest() {
-        options.type = SSTableCompressionOptions.CompressorType.zstd;
+        options.class_name = SSTableCompressionOptions.CompressorType.zstd.name();
         params = CompressionParams.fromOptions( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, ZstdCompressor.class);
 
@@ -198,32 +285,24 @@ public class CompressonParamsTest
     }
 
     @Test
-    public void customTest() {
-        options.type = SSTableCompressionOptions.CompressorType.custom;
-        options.compressor = new ParameterizedClass(TestCompressor.class.getName(), Collections.emptyMap());
-        params = CompressionParams.fromOptions( options );
+    public void customTest()
+    {
+        options.class_name = TestCompressor.class.getName();
+        params = CompressionParams.fromOptions(options);
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, TestCompressor.class);
 
         options.chunk_length = "5MiB";
-        params = CompressionParams.fromOptions( options );
+        params = CompressionParams.fromOptions(options);
         assertParams(true, 5 * 1024, TestCompressor.class);
 
         options.enabled = false;
-        params = CompressionParams.fromOptions( options );
+        params = CompressionParams.fromOptions(options);
         assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, null);
         options.enabled = true;
 
-        options.compressor = new ParameterizedClass("", Collections.emptyMap());
-        assertThatThrownBy(() -> CompressionParams.fromOptions( options )).isInstanceOf(ConfigurationException.class)
-          .hasMessageContaining("Missing or empty sub-option 'class'");
-
-        options.compressor = new ParameterizedClass(null, Collections.emptyMap());
-        assertThatThrownBy(() -> CompressionParams.fromOptions( options )).isInstanceOf(ConfigurationException.class)
-                                                                .hasMessageContaining("Missing or empty sub-option 'class'");
-
-        options.compressor = null;
-        assertThatThrownBy(() -> CompressionParams.fromOptions( options )).isInstanceOf(ConfigurationException.class)
-                                                                .hasMessageContaining("Missing sub-option 'compressor'");
+        options.class_name = "foo";
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromOptions(options))
+                                                               .withMessage("Could not create Compression for type org.apache.cassandra.io.compress.foo");
     }
 
     public static class TestCompressor implements ICompressor
