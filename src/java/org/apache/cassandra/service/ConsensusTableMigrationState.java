@@ -110,14 +110,14 @@ public abstract class ConsensusTableMigrationState
 
             // Need to repair both Paxos and base table state
             // Could track them separately, but doesn't seem worth the effort
-            if (migrationResult.consensusMigrationRepairType == ConsensusMigrationRepairType.ineligible)
+            if (migrationResult.type == ConsensusMigrationRepairType.ineligible)
                 return;
 
             RepairJobDesc desc = repairResult.desc;
             ClusterMetadataService.instance.commit(
                 new MaybeFinishConsensusMigrationForTableAndRange(
                     desc.keyspace, desc.columnFamily, ImmutableList.copyOf(desc.ranges),
-                    migrationResult.minEpoch, migrationResult.consensusMigrationRepairType));
+                    migrationResult.minEpoch, migrationResult.type));
         }
 
         @Override
@@ -198,19 +198,19 @@ public abstract class ConsensusTableMigrationState
 
     public static class ConsensusMigrationRepairResult
     {
-        private final ConsensusMigrationRepairType consensusMigrationRepairType;
+        private final ConsensusMigrationRepairType type;
         private final Epoch minEpoch;
 
-        private ConsensusMigrationRepairResult(ConsensusMigrationRepairType consensusMigrationRepairType, Epoch minEpoch)
+        private ConsensusMigrationRepairResult(ConsensusMigrationRepairType type, Epoch minEpoch)
         {
-            this.consensusMigrationRepairType = consensusMigrationRepairType;
+            this.type = type;
             this.minEpoch = minEpoch;
         }
 
-        public static ConsensusMigrationRepairResult fromCassandraRepair(Epoch minEpoch, boolean didPaxosAndRegularRepair)
+        public static ConsensusMigrationRepairResult fromCassandraRepair(Epoch minEpoch, boolean migrationEligibleRepair)
         {
-            checkArgument(!didPaxosAndRegularRepair || minEpoch.isAfter(Epoch.EMPTY), "Epoch should not be empty if Paxos and regular repairs were performed");
-            if (didPaxosAndRegularRepair)
+            checkArgument(!migrationEligibleRepair || minEpoch.isAfter(Epoch.EMPTY), "Epoch should not be empty if Paxos and regular repairs were performed");
+            if (migrationEligibleRepair)
                 return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.paxos, minEpoch);
             else
                 return new ConsensusMigrationRepairResult(ConsensusMigrationRepairType.ineligible, Epoch.EMPTY);

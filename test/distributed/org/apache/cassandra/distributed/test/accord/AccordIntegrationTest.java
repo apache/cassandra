@@ -46,7 +46,7 @@ public class AccordIntegrationTest extends AccordTestBase
     @BeforeClass
     public static void setUp() throws IOException
     {
-        AccordTestBase.setupCluster(Function.identity());
+        AccordTestBase.setupCluster(Function.identity(), 2);
     }
     
     @Test

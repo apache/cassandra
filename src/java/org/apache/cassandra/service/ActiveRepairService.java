@@ -418,6 +418,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      */
     public RepairSession submitRepairSession(TimeUUID parentRepairSession,
                                              CommonRange range,
+                                             boolean excludedDeadNodes,
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
                                              boolean isIncremental,
@@ -439,7 +440,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(parentRepairSession, range, keyspace,
+        final RepairSession session = new RepairSession(parentRepairSession, range, excludedDeadNodes, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
                                                         previewKind, optimiseStreams, repairPaxos, paxosOnly,
                                                         accordRepair, cfnames);

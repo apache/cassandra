@@ -120,6 +120,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public final PreviewKind previewKind;
     public final boolean repairPaxos;
     public final boolean paxosOnly;
+    public final boolean excludedDeadNodes;
 
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
 
@@ -139,6 +140,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      * Create new repair session.
      * @param parentRepairSession the parent sessions id
      * @param commonRange ranges to repair
+     * @param excludedDeadNodes Was the repair started for --force and were dead nodes excluded as a result
      * @param keyspace name of keyspace
      * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
      * @param pullRepair true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
@@ -148,6 +150,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      */
     public RepairSession(TimeUUID parentRepairSession,
                          CommonRange commonRange,
+                         boolean excludedDeadNodes,
                          String keyspace,
                          RepairParallelism parallelismDegree,
                          boolean isIncremental,
@@ -170,6 +173,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.optimiseStreams = optimiseStreams;
         this.accordRepair = accordRepair;
         this.taskExecutor = createExecutor();
+        this.excludedDeadNodes = excludedDeadNodes;
     }
 
     protected ExecutorPlus createExecutor()

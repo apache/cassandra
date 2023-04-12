@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.RepairMetrics;
+import org.apache.cassandra.repair.RepairRunnable.NeighborsAndRanges;
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -41,15 +42,13 @@ import org.apache.cassandra.utils.concurrent.Future;
 public class PreviewRepairTask extends AbstractRepairTask
 {
     private final TimeUUID parentSession;
-    private final List<CommonRange> commonRanges;
     private final String[] cfnames;
     private volatile String successMessage = name() + " completed successfully";
 
-    protected PreviewRepairTask(RepairOption options, String keyspace, RepairNotifier notifier, TimeUUID parentSession, List<CommonRange> commonRanges, String[] cfnames)
+    protected PreviewRepairTask(RepairOption options, String keyspace, RepairNotifier notifier, TimeUUID parentSession, NeighborsAndRanges neighborsAndRanges, List<CommonRange> commonRanges, String[] cfnames)
     {
-        super(options, keyspace, notifier);
+        super(options, keyspace, notifier, neighborsAndRanges, commonRanges);
         this.parentSession = parentSession;
-        this.commonRanges = commonRanges;
         this.cfnames = cfnames;
     }
 
@@ -68,7 +67,7 @@ public class PreviewRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor)
     {
-        Future<CoordinatedRepairResult> f = runRepair(parentSession, false, executor, commonRanges, cfnames);
+        Future<CoordinatedRepairResult> f = runRepair(parentSession, false, executor, commonRanges, neighborsAndRanges.excludedDeadParticipants, cfnames);
         return f.map(result -> {
             if (result.hasFailed())
                 return result;

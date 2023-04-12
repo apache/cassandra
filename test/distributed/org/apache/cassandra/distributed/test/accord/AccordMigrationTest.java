@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config.PaxosVariant;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
@@ -54,6 +55,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ConsensusKeyMigrationState;
@@ -137,9 +141,12 @@ public class AccordMigrationTest extends AccordTestBase
     @BeforeClass
     public static void setupClass() throws IOException
     {
+        // Otherwise repair complains if you don't specify a keyspace
+        CassandraRelevantProperties.SYSTEM_TRACES_DEFAULT_RF.setInt(3);
         AccordTestBase.setupCluster(builder ->
                                         builder.appendConfig(config ->
-                                                             config.set("paxos_variant", PaxosVariant.v2.name())));
+                                                             config.set("paxos_variant", PaxosVariant.v2.name())),
+                                    3);
         partitioner = FBUtilities.newPartitioner(SHARED_CLUSTER.get(1).callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
         originalPartitioner = DatabaseDescriptor.setPartitionerUnsafe(partitioner);
         minToken = partitioner.getMinimumToken();
@@ -362,8 +369,21 @@ public class AccordMigrationTest extends AccordTestBase
               // and runs the query on Accord immediately without key migration
               assertTargetAccordWrite(runCasOnSecondNode, 2, migratingKey, 1, 0, 0, 0, 0, 1);
 
-              // Full repair should complete the migration and update the metadata
-              nodetool(coordinator, "repair");
+              // Forced repair while a node is down shouldn't work
+              InetAddressAndPort secondNodeBroadcastAddress = InetAddressAndPort.getByAddress(cluster.get(2).broadcastAddress());
+              cluster.get(1).runOnInstance(() -> {
+                  EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(secondNodeBroadcastAddress);
+                  Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.markDead(secondNodeBroadcastAddress, endpointState));
+              });
+              nodetool(coordinator, "repair", "--force");
+              assertMigrationState(tableName, ConsensusMigrationTarget.accord, emptyList(), migratingRanges, 1);
+              cluster.get(1).runOnInstance(() -> {
+                  EndpointState endpointState = Gossiper.instance.getEndpointStateForEndpoint(secondNodeBroadcastAddress);
+                  Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.realMarkAlive(secondNodeBroadcastAddress, endpointState));
+              });
+
+              // Full repair should complete the migration and update the metadata, adding --force when nodes are up should be fine
+              nodetool(coordinator, "repair", "--force");
               assertMigrationState(tableName, ConsensusMigrationTarget.accord, migratingRanges, emptyList(), 0);
 
               // Should run on Accord, and not perform key migration nor should it need to perform a migration read in Accord now that it is repaired

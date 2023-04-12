@@ -219,7 +219,7 @@ public class CassandraRepairJob extends AbstractRepairJob
                 cfs.metric.repairsCompleted.inc();
                 Epoch minEpoch = paxosRepair.getNow();
                 checkNotNull(minEpoch, "Future should be completed and return nonnull epoch");
-                trySuccess(new RepairResult(desc, stats, ConsensusMigrationRepairResult.fromCassandraRepair(minEpoch, doPaxosRepair)));
+                trySuccess(new RepairResult(desc, stats, ConsensusMigrationRepairResult.fromCassandraRepair(minEpoch, doPaxosRepair && !session.excludedDeadNodes)));
             }
 
             /**

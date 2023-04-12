@@ -34,7 +34,6 @@ import org.apache.cassandra.utils.concurrent.Future;
 public class IncrementalRepairTask extends AbstractRepairTask
 {
     private final TimeUUID parentSession;
-    private final RepairRunnable.NeighborsAndRanges neighborsAndRanges;
     private final String[] cfnames;
 
     protected IncrementalRepairTask(RepairOption options,
@@ -42,11 +41,11 @@ public class IncrementalRepairTask extends AbstractRepairTask
                                     RepairNotifier notifier,
                                     TimeUUID parentSession,
                                     RepairRunnable.NeighborsAndRanges neighborsAndRanges,
+                                    List<CommonRange> commonRanges,
                                     String[] cfnames)
     {
-        super(options, keyspace, notifier);
+        super(options, keyspace, notifier, neighborsAndRanges, commonRanges);
         this.parentSession = parentSession;
-        this.neighborsAndRanges = neighborsAndRanges;
         this.cfnames = cfnames;
     }
 
@@ -64,12 +63,11 @@ public class IncrementalRepairTask extends AbstractRepairTask
                                                   .addAll(neighborsAndRanges.participants)
                                                   .add(FBUtilities.getBroadcastAddressAndPort())
                                                   .build();
+
+        CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.excludedDeadParticipants);
+
         // Not necessary to include self for filtering. The common ranges only contains neighbhor node endpoints.
-        List<CommonRange> allRanges = neighborsAndRanges.filterCommonRanges(keyspace, cfnames);
-
-        CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.shouldExcludeDeadParticipants);
-
-        return coordinatorSession.execute(() -> runRepair(parentSession, true, executor, allRanges, cfnames));
+        return coordinatorSession.execute(() -> runRepair(parentSession, true, executor, commonRanges, neighborsAndRanges.excludedDeadParticipants, cfnames));
 
     }
 }

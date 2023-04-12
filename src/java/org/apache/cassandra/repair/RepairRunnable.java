@@ -37,9 +37,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,7 +73,9 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifier;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -276,7 +275,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
 
         maybeStoreParentRepairStart(cfnames);
 
-        prepare(columnFamilies, neighborsAndRanges.participants, neighborsAndRanges.shouldExcludeDeadParticipants);
+        prepare(columnFamilies, neighborsAndRanges.participants, neighborsAndRanges.excludedDeadParticipants);
 
         repair(cfnames, neighborsAndRanges);
     }
@@ -357,15 +356,15 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
                                                         state.keyspace));
         }
 
-        boolean shouldExcludeDeadParticipants = state.options.isForcedRepair();
+        boolean excludedDeadParticipants = state.options.isForcedRepair();
 
-        if (shouldExcludeDeadParticipants)
+        if (excludedDeadParticipants)
         {
             Set<InetAddressAndPort> actualNeighbors = Sets.newHashSet(Iterables.filter(allNeighbors, FailureDetector.instance::isAlive));
-            shouldExcludeDeadParticipants = !allNeighbors.equals(actualNeighbors);
+            excludedDeadParticipants = !allNeighbors.equals(actualNeighbors);
             allNeighbors = actualNeighbors;
         }
-        return new NeighborsAndRanges(shouldExcludeDeadParticipants, allNeighbors, commonRanges);
+        return new NeighborsAndRanges(excludedDeadParticipants, allNeighbors, commonRanges);
     }
 
     private void maybeStoreParentRepairStart(String[] cfnames)
@@ -405,17 +404,18 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
     private void repair(String[] cfnames, NeighborsAndRanges neighborsAndRanges)
     {
         RepairTask task;
+        List<CommonRange> commonRanges = neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames);
         if (state.options.isPreview())
         {
-            task = new PreviewRepairTask(state.options, state.keyspace, this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            task = new PreviewRepairTask(state.options, state.keyspace, this, state.id, neighborsAndRanges, commonRanges, cfnames);
         }
         else if (state.options.isIncremental())
         {
-            task = new IncrementalRepairTask(state.options, state.keyspace, this, state.id, neighborsAndRanges, cfnames);
+            task = new IncrementalRepairTask(state.options, state.keyspace, this, state.id, neighborsAndRanges, commonRanges, cfnames);
         }
         else
         {
-            task = new NormalRepairTask(state.options, state.keyspace, this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            task = new NormalRepairTask(state.options, state.keyspace, this, state.id, neighborsAndRanges, commonRanges, cfnames);
         }
 
         ExecutorPlus executor = createExecutor();
@@ -570,13 +570,13 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
 
     public static final class NeighborsAndRanges
     {
-        final boolean shouldExcludeDeadParticipants;
+        final boolean excludedDeadParticipants;
         public final Set<InetAddressAndPort> participants;
         public final List<CommonRange> commonRanges;
 
-        public NeighborsAndRanges(boolean shouldExcludeDeadParticipants, Set<InetAddressAndPort> participants, List<CommonRange> commonRanges)
+        public NeighborsAndRanges(boolean excludedDeadParticipants, Set<InetAddressAndPort> participants, List<CommonRange> commonRanges)
         {
-            this.shouldExcludeDeadParticipants = shouldExcludeDeadParticipants;
+            this.excludedDeadParticipants = excludedDeadParticipants;
             this.participants = participants;
             this.commonRanges = commonRanges;
         }
@@ -588,7 +588,7 @@ public class RepairRunnable implements Runnable, ProgressEventNotifier, RepairNo
          */
         public List<CommonRange> filterCommonRanges(String keyspace, String[] tableNames)
         {
-            if (!shouldExcludeDeadParticipants)
+            if (!excludedDeadParticipants)
             {
                 return commonRanges;
             }

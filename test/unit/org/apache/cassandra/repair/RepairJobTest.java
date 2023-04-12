@@ -122,12 +122,12 @@ public class RepairJobTest
     {
         private final List<Callable<?>> syncCompleteCallbacks = new ArrayList<>();
 
-        public MeasureableRepairSession(TimeUUID parentRepairSession, CommonRange commonRange, String keyspace,
+        public MeasureableRepairSession(TimeUUID parentRepairSession, CommonRange commonRange, boolean excludedDeadNodes, String keyspace,
                                         RepairParallelism parallelismDegree, boolean isIncremental, boolean pullRepair,
                                         PreviewKind previewKind, boolean optimiseStreams, boolean repairPaxos, boolean paxosOnly,
                                         boolean accordRepair, String... cfnames)
         {
-            super(parentRepairSession, commonRange, keyspace, parallelismDegree, isIncremental, pullRepair,
+            super(parentRepairSession, commonRange, excludedDeadNodes, keyspace, parallelismDegree, isIncremental, pullRepair,
                   previewKind, optimiseStreams, repairPaxos, paxosOnly, accordRepair, cfnames);
         }
 
@@ -188,7 +188,7 @@ public class RepairJobTest
                                                                  ActiveRepairService.UNREPAIRED_SSTABLE, false, PreviewKind.NONE);
 
         this.session = new MeasureableRepairSession(parentRepairSession,
-                                                    new CommonRange(neighbors, emptySet(), FULL_RANGE),
+                                                    new CommonRange(neighbors, emptySet(), FULL_RANGE), false,
                                                     KEYSPACE, SEQUENTIAL, false, false,
                                                     NONE, false, true, false, false, CF);
 

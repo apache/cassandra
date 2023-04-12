@@ -83,9 +83,9 @@ public abstract class AccordTestBase extends TestBaseImpl
 
     protected String currentTable;
 
-    public static void setupCluster(Function<Builder, Builder> options) throws IOException
+    public static void setupCluster(Function<Builder, Builder> options, int nodes) throws IOException
     {
-        SHARED_CLUSTER = createCluster(2, options);
+        SHARED_CLUSTER = createCluster(nodes, options);
     }
 
     @AfterClass
