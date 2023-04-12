@@ -290,8 +290,7 @@ public abstract class Cell<V> extends ColumnData
                 }
             }
 
-            Cell cell = accessor.factory().cell(column, timestamp, ttl, localDeletionTime, value, path);
-            return cell;
+            return accessor.factory().cell(column, timestamp, ttl, localDeletionTime, value, path);
         }
 
         public <T> long serializedSize(Cell<T> cell, ColumnMetadata column, LivenessInfo rowLiveness, SerializationHeader header)
