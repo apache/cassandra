@@ -22,7 +22,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.KeyRangeIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 
 public class InMemoryKeyRangeIteratorTest extends AbstractInMemoryKeyRangeIteratorTester
 {

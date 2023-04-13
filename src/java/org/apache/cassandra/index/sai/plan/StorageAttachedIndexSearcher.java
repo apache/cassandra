@@ -50,9 +50,8 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
-import org.apache.cassandra.index.sai.utils.KeyRangeIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.PrimaryKeyFactory;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -62,7 +61,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     private final ReadCommand command;
     private final QueryController queryController;
     private final QueryContext queryContext;
-    private final PrimaryKeyFactory keyFactory;
+    private final PrimaryKey.Factory keyFactory;
 
     public StorageAttachedIndexSearcher(ColumnFamilyStore cfs,
                                         TableQueryMetrics tableQueryMetrics,
@@ -73,7 +72,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         this.command = command;
         this.queryContext = new QueryContext(command, executionQuotaMs);
         this.queryController = new QueryController(cfs, command, filterOperation, queryContext, tableQueryMetrics);
-        this.keyFactory = PrimaryKey.factory(cfs.metadata().comparator);
+        this.keyFactory = new PrimaryKey.Factory(cfs.metadata().comparator);
     }
 
     @Override
@@ -121,13 +120,13 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private final QueryController queryController;
         private final ReadExecutionController executionController;
         private final QueryContext queryContext;
-        private final PrimaryKeyFactory keyFactory;
+        private final PrimaryKey.Factory keyFactory;
         private PrimaryKey lastKey;
 
         private ResultRetriever(QueryController queryController,
                                 ReadExecutionController executionController,
                                 QueryContext queryContext,
-                                PrimaryKeyFactory keyFactory)
+                                PrimaryKey.Factory keyFactory)
         {
             this.keyRanges = queryController.dataRanges().iterator();
             this.currentKeyRange = keyRanges.next().keyRange();

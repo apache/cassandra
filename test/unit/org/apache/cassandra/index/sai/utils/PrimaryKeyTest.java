@@ -29,7 +29,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void singlePartitionTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(simplePartition.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartition.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         for (int index = 0; index < rows; index++)
@@ -44,7 +44,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(compositePartition.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartition.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         for (int index = 0; index < rows; index++)
@@ -59,7 +59,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void simplePartitonSingleClusteringAscTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(simplePartitionSingleClusteringAsc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartitionSingleClusteringAsc.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -84,7 +84,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void simplePartitionMultipleClusteringAscTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(simplePartitionMultipleClusteringAsc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartitionMultipleClusteringAsc.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -115,7 +115,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void simplePartitonSingleClusteringDescTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(simplePartitionSingleClusteringDesc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartitionSingleClusteringDesc.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -140,7 +140,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void simplePartitionMultipleClusteringDescTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(simplePartitionMultipleClusteringDesc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartitionMultipleClusteringDesc.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -171,7 +171,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionSingleClusteringAscTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(compositePartitionSingleClusteringAsc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartitionSingleClusteringAsc.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -196,7 +196,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionMultipleClusteringAscTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(compositePartitionMultipleClusteringAsc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartitionMultipleClusteringAsc.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -227,7 +227,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionSingleClusteringDescTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(compositePartitionSingleClusteringDesc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartitionSingleClusteringDesc.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -252,7 +252,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionMultipleClusteringDescTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(compositePartitionMultipleClusteringDesc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartitionMultipleClusteringDesc.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -283,7 +283,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void simplePartitionMultipleClusteringMixedTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(simplePartitionMultipleClusteringMixed.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartitionMultipleClusteringMixed.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -314,7 +314,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionMultipleClusteringMixedTest()
     {
-        PrimaryKeyFactory factory = new PrimaryKeyFactory(compositePartitionMultipleClusteringMixed.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartitionMultipleClusteringMixed.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -342,7 +342,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
         compareToAndEqualsTests(factory, keys);
     }
 
-    private void compareToAndEqualsTests(PrimaryKeyFactory factory, PrimaryKey... keys)
+    private void compareToAndEqualsTests(PrimaryKey.Factory factory, PrimaryKey... keys)
     {
         for (int index = 0; index < keys.length - 1; index++)
         {
@@ -361,7 +361,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
         }
     }
 
-    private void byteComparisonTests(PrimaryKeyFactory factory, PrimaryKey... keys)
+    private void byteComparisonTests(PrimaryKey.Factory factory, PrimaryKey... keys)
     {
         for (int index = 0; index < keys.length - 1; index++)
         {
