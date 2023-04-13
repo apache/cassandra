@@ -150,7 +150,7 @@ Upgrading
      to TimeWindowCompactionStrategy before upgrading to this version.
    - The deprecated functions `dateOf` and `unixTimestampOf` have been removed. They were deprecated and replaced by
      `toTimestamp` and `toUnixTimestamp` in Cassandra 2.2.
-   - Keystore password configuration is nullable now and the code defaults of the keystore passwords to 'cassandra' are
+   - Keystore/truststore password configurations are nullable now and the code defaults of those passwords to 'cassandra' are
      removed. Any deployments that depend upon the code default to this password value without explicitly specifying
      it in cassandra.yaml will fail on upgrade. Please specify your keystore_password and truststore_password elements in cassandra.yaml with appropriate
      values to prevent this failure.
