@@ -18,19 +18,16 @@
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.file.StandardOpenOption;
+import java.io.UncheckedIOException;
+import java.nio.file.NoSuchFileException;
 import java.util.zip.CRC32;
 
-import com.google.common.primitives.Ints;
-
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.Crc;
-import org.apache.cassandra.utils.SyncUtil;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
@@ -39,8 +36,7 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  * records that are known to have been fsynced to disk differently from those
  * that aren't.
  * <p/>
- * On disk representation is a sequence of 2-int tuples of:
- *      (synced offset, CRC32(tuple position in synced offsets file, synced offset))
+ * On disk representation is a sequence of 2-int tuples of {synced offset, CRC32(synced offset)}
  */
 interface SyncedOffsets extends Closeable
 {
@@ -62,7 +58,7 @@ interface SyncedOffsets extends Closeable
     }
 
     /**
-     * @return a mutable MMAP-backed synced offset tracker for a new {@link ActiveSegment}
+     * @return a disk-backed synced offset tracker for a new {@link ActiveSegment}
      */
     static Active active(Descriptor descriptor, boolean syncOnMark)
     {
@@ -86,18 +82,14 @@ interface SyncedOffsets extends Closeable
     }
 
     /**
-     * Single-threaded, MMAP-backed list of synced offsets.
+     * Single-threaded, file-based list of synced offsets.
      */
     final class Active implements SyncedOffsets
     {
-        private static final int INITIAL_CAPACITY = 4 << 10;
-
         private final Descriptor descriptor;
         private final boolean syncOnMark;
 
-        private final FileChannel channel;
-        private MappedByteBuffer buffer;
-
+        private final FileOutputStreamPlus output;
         private volatile int syncedOffset;
 
         private Active(Descriptor descriptor, boolean syncOnMark)
@@ -111,13 +103,17 @@ interface SyncedOffsets extends Closeable
 
             try
             {
-                channel = FileChannel.open(file.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
+                output = file.newOutputStream(File.WriteMode.OVERWRITE);
             }
-            catch (IOException e)
+            catch (UncheckedIOException | FSWriteError e)
             {
-                throw new JournalWriteError(descriptor, file, e);
+                // extract original cause and throw as JournalWriteError
+                throw new JournalWriteError(descriptor, file, e.getCause());
             }
-            buffer = map(INITIAL_CAPACITY);
+            catch (NoSuchFileException e)
+            {
+                throw new AssertionError(); // unreachable
+            }
         }
 
         @Override
@@ -132,50 +128,30 @@ interface SyncedOffsets extends Closeable
             if (offset < syncedOffset)
                 throw new IllegalArgumentException("offset " + offset + " is smaller than previous mark " + offset);
 
-            if (!buffer.hasRemaining())
-                doubleCapacity();
-
             CRC32 crc = Crc.crc32();
-            updateChecksumInt(crc, buffer.position());
             updateChecksumInt(crc, offset);
-            buffer.putInt(offset);
-            buffer.putInt((int) crc.getValue());
 
-            syncedOffset = offset;
-            if (syncOnMark) sync();
-        }
-
-        private void doubleCapacity()
-        {
-            int position = buffer.position();
-            int capacity = buffer.capacity();
-
-            if (!syncOnMark) sync();
-            FileUtils.clean(buffer);
-
-            buffer = map(capacity * 2);
-            buffer.position(position);
-        }
-
-        private MappedByteBuffer map(int capacity)
-        {
             try
             {
-                return channel.map(FileChannel.MapMode.READ_WRITE, 0, capacity);
+                output.writeInt(offset);
+                output.writeInt((int) crc.getValue());
             }
             catch (IOException e)
             {
                 throw new JournalWriteError(descriptor, Component.SYNCED_OFFSETS, e);
             }
+
+            syncedOffset = offset;
+            if (syncOnMark) sync();
         }
 
         private void sync()
         {
             try
             {
-                SyncUtil.force(buffer);
+                output.sync();
             }
-            catch (Exception e) // MappedByteBuffer.force() does not declare IOException but can actually throw it
+            catch (IOException e)
             {
                 throw new JournalWriteError(descriptor, Component.SYNCED_OFFSETS, e);
             }
@@ -185,8 +161,15 @@ interface SyncedOffsets extends Closeable
         public void close()
         {
             if (!syncOnMark) sync();
-            FileUtils.clean(buffer);
-            FileUtils.closeQuietly(channel);
+
+            try
+            {
+                output.close();
+            }
+            catch (IOException e)
+            {
+                throw new JournalWriteError(descriptor, Component.SYNCED_OFFSETS, e);
+            }
         }
     }
 
@@ -206,7 +189,6 @@ interface SyncedOffsets extends Closeable
                 CRC32 crc = Crc.crc32();
                 while (reader.bytesRemaining() >= 8)
                 {
-                    updateChecksumInt(crc, Ints.checkedCast(reader.getFilePointer()));
                     int offset = reader.readInt();
                     updateChecksumInt(crc, offset);
                     int readCrc = reader.readInt();
