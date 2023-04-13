@@ -50,9 +50,9 @@ public class StateMetricsTest extends AbstractMetricsTest
         createIndex(String.format(CREATE_INDEX_TEMPLATE, index, keyspace, table, "v1"));
         waitForIndexQueryable(keyspace, table);
 
-        execute("INSERT INTO " + keyspace + "." + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
+        execute("INSERT INTO " + keyspace + '.' + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
 
-        ResultSet rows = executeNet("SELECT id1 FROM " + keyspace + "." + table + " WHERE v1 = 0");
+        ResultSet rows = executeNet("SELECT id1 FROM " + keyspace + '.' + table + " WHERE v1 = 0");
         assertEquals(1, rows.all().size());
         assertEquals(1L, getTableStateMetrics(keyspace, table, "TotalIndexCount"));
 
@@ -77,12 +77,12 @@ public class StateMetricsTest extends AbstractMetricsTest
         createIndex(String.format(CREATE_INDEX_TEMPLATE, index+"_v2", keyspace, table, "v2"));
         waitForIndexQueryable(keyspace, table);
 
-        execute("INSERT INTO " + keyspace + "." + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
-        execute("INSERT INTO " + keyspace + "." + table + " (id1, v1, v2) VALUES ('1', 1, '1')");
-        execute("INSERT INTO " + keyspace + "." + table + " (id1, v1, v2) VALUES ('2', 2, '2')");
-        execute("INSERT INTO " + keyspace + "." + table + " (id1, v1, v2) VALUES ('3', 3, '3')");
+        execute("INSERT INTO " + keyspace + '.' + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
+        execute("INSERT INTO " + keyspace + '.' + table + " (id1, v1, v2) VALUES ('1', 1, '1')");
+        execute("INSERT INTO " + keyspace + '.' + table + " (id1, v1, v2) VALUES ('2', 2, '2')");
+        execute("INSERT INTO " + keyspace + '.' + table + " (id1, v1, v2) VALUES ('3', 3, '3')");
 
-        ResultSet rows = executeNet("SELECT id1, v1, v2 FROM " + keyspace + "." + table + " WHERE v1 >= 0");
+        ResultSet rows = executeNet("SELECT id1, v1, v2 FROM " + keyspace + '.' + table + " WHERE v1 >= 0");
 
         int actualRows = rows.all().size();
         assertEquals(4, actualRows);

@@ -411,6 +411,15 @@ public class TypeUtil
     }
 
     /**
+     * Returns <code>true</code> if given {@link AbstractType} is a frozen collection.
+     */
+    public static boolean isFrozenCollection(AbstractType<?> type)
+    {
+        type = baseType(type);
+        return type.isCollection() && !type.isMultiCell();
+    }
+
+    /**
      * Returns <code>true</code> if given {@link AbstractType} is a non-frozen collection.
      */
     public static boolean isNonFrozenCollection(AbstractType<?> type)

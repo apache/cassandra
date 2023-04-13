@@ -37,34 +37,34 @@ import org.apache.cassandra.utils.Pair;
 
 class BaseDataModel
 {
-    public static String KEYSPACE = "sai_query_keyspace";
+    public static final String KEYSPACE = "sai_query_keyspace";
 
-    public static String SIMPLE_SELECT_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? LIMIT ?";
-    public static String SIMPLE_SELECT_WITH_FILTERING_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? LIMIT ? ALLOW FILTERING";
-    public static String TWO_CLAUSE_AND_QUERY_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? LIMIT ? ALLOW FILTERING";
-    public static String TWO_CLAUSE_AND_QUERY_FILTERING_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? LIMIT ? ALLOW FILTERING";
-    public static String THREE_CLAUSE_AND_QUERY_FILTERING_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? AND %s %s ? LIMIT ? ALLOW FILTERING";
+    public static final String SIMPLE_SELECT_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? LIMIT ?";
+    public static final String SIMPLE_SELECT_WITH_FILTERING_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? LIMIT ? ALLOW FILTERING";
+    public static final String TWO_CLAUSE_AND_QUERY_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? LIMIT ? ALLOW FILTERING";
+    public static final String TWO_CLAUSE_AND_QUERY_FILTERING_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? LIMIT ? ALLOW FILTERING";
+    public static final String THREE_CLAUSE_AND_QUERY_FILTERING_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? AND %s %s ? LIMIT ? ALLOW FILTERING";
 
-    public static String ASCII_COLUMN = "abbreviation";
-    public static String BIGINT_COLUMN = "gdp";
-    public static String BOOLEAN_COLUMN = "active";
-    public static String DATE_COLUMN = "visited";
-    public static String DOUBLE_COLUMN = "area_sq_miles";
-    public static String FLOAT_COLUMN = "murder_rate";
-    public static String INET_COLUMN = "ip";
-    public static String INT_COLUMN = "population";
-    public static String SMALLINT_COLUMN = "murders_per_year";
-    public static String TINYINT_COLUMN = "tiny_murders_per_year";
-    public static String TEXT_COLUMN = "name";
-    public static String TIME_COLUMN = "avg_dmv_wait";
-    public static String TIMESTAMP_COLUMN = "visited_timestamp";
-    public static String UUID_COLUMN = "id";
-    public static String TIMEUUID_COLUMN = "temporal_id";
-    public static String NON_INDEXED_COLUMN = "non_indexed";
+    public static final String ASCII_COLUMN = "abbreviation";
+    public static final String BIGINT_COLUMN = "gdp";
+    public static final String BOOLEAN_COLUMN = "active";
+    public static final String DATE_COLUMN = "visited";
+    public static final String DOUBLE_COLUMN = "area_sq_miles";
+    public static final String FLOAT_COLUMN = "murder_rate";
+    public static final String INET_COLUMN = "ip";
+    public static final String INT_COLUMN = "population";
+    public static final String SMALLINT_COLUMN = "murders_per_year";
+    public static final String TINYINT_COLUMN = "tiny_murders_per_year";
+    public static final String TEXT_COLUMN = "name";
+    public static final String TIME_COLUMN = "avg_dmv_wait";
+    public static final String TIMESTAMP_COLUMN = "visited_timestamp";
+    public static final String UUID_COLUMN = "id";
+    public static final String TIMEUUID_COLUMN = "temporal_id";
+    public static final String NON_INDEXED_COLUMN = "non_indexed";
 
-    public static int DEFAULT_TTL_SECONDS = 10;
+    public static final int DEFAULT_TTL_SECONDS = 10;
 
-    public static List<Pair<String, String>> NORMAL_COLUMNS =
+    public static final List<Pair<String, String>> NORMAL_COLUMNS =
             ImmutableList.<Pair<String, String>>builder()
                     .add(Pair.create(ASCII_COLUMN, CQL3Type.Native.ASCII.toString()))
                     .add(Pair.create(BIGINT_COLUMN, CQL3Type.Native.BIGINT.toString()))
@@ -84,7 +84,7 @@ class BaseDataModel
                     .add(Pair.create(NON_INDEXED_COLUMN, CQL3Type.Native.INT.toString()))
                     .build();
 
-    public static List<String> NORMAL_COLUMN_DATA =
+    public static final List<String> NORMAL_COLUMN_DATA =
             ImmutableList.<String>builder()
                     .add("'AK',   500000000,  true, '2009-07-15', 570640.95,  7.7,   '158.145.20.64',   737709,  164,  16,        'Alaska', '00:18:20', '2009-07-15T00:00:00', e37394dc-d17b-11e8-a8d5-f2801f1b9fd1, acfe5ada-d17c-11e8-a8d5-f2801f1b9fd1, 1")
                     .add("'AL',  1000000000,  true, '2011-09-13',  50645.33,  7.0,   '206.16.212.91',  4853875,   57,   5,       'Alabama', '01:04:00', '2011-09-13T00:00:00', b7373af6-d7c1-45ae-b145-5bf4b5cdd00c, c592c37e-d17c-11e8-a8d5-f2801f1b9fd1, 1")
@@ -104,13 +104,13 @@ class BaseDataModel
                     .add("'WY', 10000000000, false, '2015-06-17',  97093.14,  2.7,  '192.146.215.91',   586107,   57,   5,       'Wyoming', '00:15:50', '2015-06-17T00:00:00', e8a3c287-78cf-46b5-b554-42562e7dcfb3, 2576612e-d17d-11e8-a8d5-f2801f1b9fd1, 2")
                     .build();
 
-    public static String STATIC_INT_COLUMN = "entered";
+    public static final String STATIC_INT_COLUMN = "entered";
 
-    public static List<Pair<String, String>> STATIC_COLUMNS =
-            ImmutableList.<Pair<String, String>>builder().add(Pair.create(STATIC_INT_COLUMN, CQL3Type.Native.INT.toString() + " static"))
+    public static final List<Pair<String, String>> STATIC_COLUMNS =
+            ImmutableList.<Pair<String, String>>builder().add(Pair.create(STATIC_INT_COLUMN, CQL3Type.Native.INT + " static"))
                                                          .addAll(NORMAL_COLUMNS).build();
 
-    public static List<String> STATIC_COLUMN_DATA = ImmutableList.of("1819, " + NORMAL_COLUMN_DATA.get(0),
+    public static final List<String> STATIC_COLUMN_DATA = ImmutableList.of("1819, " + NORMAL_COLUMN_DATA.get(0),
                                                        "1819, " + NORMAL_COLUMN_DATA.get(1),
                                                        "1850, " + NORMAL_COLUMN_DATA.get(2),
                                                        "1850, " + NORMAL_COLUMN_DATA.get(3),
@@ -164,8 +164,8 @@ class BaseDataModel
         String normalColumnDefs = columns.stream().map(column -> column.left + ' ' + column.right).collect(Collectors.joining(", "));
 
         String template = "CREATE TABLE %s (%s, %s, PRIMARY KEY (%s))" + tableOptions;
-        tester.createTable(String.format(template, KEYSPACE + "." + indexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
-        tester.createTable(String.format(template, KEYSPACE + "." + nonIndexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
+        tester.createTable(String.format(template, KEYSPACE + '.' + indexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
+        tester.createTable(String.format(template, KEYSPACE + '.' + nonIndexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
     }
 
     public void createIndexes(Executor tester) throws Throwable
@@ -214,12 +214,12 @@ class BaseDataModel
         tester.executeLocal(formatIndexedQuery(query), values);
     }
 
-    public List<Object> executeIndexed(Executor tester, String query, int fetchSize, Object... values) throws Throwable
+    public List<Object> executeIndexed(Executor tester, String query, int fetchSize, Object... values)
     {
         return tester.executeRemote(formatIndexedQuery(query), fetchSize, values);
     }
 
-    public List<Object> executeNonIndexed(Executor tester, String query, int fetchSize, Object... values) throws Throwable
+    public List<Object> executeNonIndexed(Executor tester, String query, int fetchSize, Object... values)
     {
         return tester.executeRemote(formatNonIndexedQuery(query), fetchSize, values);
     }
@@ -231,12 +231,12 @@ class BaseDataModel
 
     private String formatIndexedQuery(String query)
     {
-        return String.format(query, KEYSPACE + "." + indexedTable);
+        return String.format(query, KEYSPACE + '.' + indexedTable);
     }
 
     private String formatNonIndexedQuery(String query)
     {
-        return String.format(query, KEYSPACE + "." + nonIndexedTable);
+        return String.format(query, KEYSPACE + '.' + nonIndexedTable);
     }
 
     @Override
@@ -287,8 +287,8 @@ class BaseDataModel
             String normalColumnDefs = columns.stream().map(column -> column.left + ' ' + column.right).collect(Collectors.joining(", "));
 
             String template = "CREATE TABLE %s (%s, %s, PRIMARY KEY ((%s)))" + tableOptions;
-            tester.createTable(String.format(template, KEYSPACE + "." + indexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
-            tester.createTable(String.format(template, KEYSPACE + "." + nonIndexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
+            tester.createTable(String.format(template, KEYSPACE + '.' + indexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
+            tester.createTable(String.format(template, KEYSPACE + '.' + nonIndexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
         }
 
         @Override
@@ -388,7 +388,7 @@ class BaseDataModel
 
         void executeLocal(String query, Object...values) throws Throwable;
 
-        List<Object> executeRemote(String query, int fetchSize, Object...values) throws Throwable;
+        List<Object> executeRemote(String query, int fetchSize, Object...values);
 
         void counterReset();
 

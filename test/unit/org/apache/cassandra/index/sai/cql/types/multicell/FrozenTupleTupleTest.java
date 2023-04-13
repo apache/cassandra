@@ -30,6 +30,6 @@ public class FrozenTupleTupleTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateParameters(new FrozenTupleDataSet(new FrozenTupleDataSet(new DataSet.AsciiDataSet(), new DataSet.UuidDataSet()), new DataSet.AsciiDataSet()));
+        return generateLiteralParameters(new FrozenTupleDataSet(new FrozenTupleDataSet(new DataSet.AsciiDataSet(), new DataSet.UuidDataSet()), new DataSet.AsciiDataSet()));
     }
 }

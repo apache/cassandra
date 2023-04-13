@@ -52,21 +52,21 @@ public class QueryMetricsTest extends AbstractMetricsTest
         createTable(String.format(CREATE_TABLE_TEMPLATE, keyspace2, table));
         createIndex(String.format(CREATE_INDEX_TEMPLATE, index, keyspace2, table, "v1"));
 
-        execute("INSERT INTO " + keyspace1 + "." + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
+        execute("INSERT INTO " + keyspace1 + '.' + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
 
-        ResultSet rows = executeNet("SELECT id1 FROM " + keyspace1 + "." + table + " WHERE v1 = 0");
+        ResultSet rows = executeNet("SELECT id1 FROM " + keyspace1 + '.' + table + " WHERE v1 = 0");
         assertEquals(1, rows.all().size());
 
         assertEquals(1L, getTableQueryMetrics(keyspace1, table, "TotalQueriesCompleted"));
         assertEquals(0L, getTableQueryMetrics(keyspace2, table, "TotalQueriesCompleted"));
 
-        execute("INSERT INTO " + keyspace2 + "." + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
-        execute("INSERT INTO " + keyspace2 + "." + table + " (id1, v1, v2) VALUES ('1', 1, '1')");
+        execute("INSERT INTO " + keyspace2 + '.' + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
+        execute("INSERT INTO " + keyspace2 + '.' + table + " (id1, v1, v2) VALUES ('1', 1, '1')");
 
-        rows = executeNet("SELECT id1 FROM " + keyspace1 + "." + table + " WHERE v1 = 0");
+        rows = executeNet("SELECT id1 FROM " + keyspace1 + '.' + table + " WHERE v1 = 0");
         assertEquals(1, rows.all().size());
 
-        rows = executeNet("SELECT id1 FROM " + keyspace2 + "." + table + " WHERE v1 = 1");
+        rows = executeNet("SELECT id1 FROM " + keyspace2 + '.' + table + " WHERE v1 = 1");
         assertEquals(1, rows.all().size());
 
         assertEquals(2L, getTableQueryMetrics(keyspace1, table, "TotalQueriesCompleted"));
@@ -85,9 +85,9 @@ public class QueryMetricsTest extends AbstractMetricsTest
         createIndex(String.format(CREATE_INDEX_TEMPLATE, index, keyspace, table, "v1"));
         waitForIndexQueryable(keyspace, table);
 
-        execute("INSERT INTO " + keyspace + "." + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
+        execute("INSERT INTO " + keyspace + '.' + table + " (id1, v1, v2) VALUES ('0', 0, '0')");
 
-        ResultSet rows = executeNet("SELECT id1 FROM " + keyspace + "." + table + " WHERE v1 = 0");
+        ResultSet rows = executeNet("SELECT id1 FROM " + keyspace + '.' + table + " WHERE v1 = 0");
         assertEquals(1, rows.all().size());
 
         assertEquals(1L, getTableQueryMetrics(keyspace, table, "TotalQueriesCompleted"));

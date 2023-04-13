@@ -43,12 +43,15 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.disk.IndexSearchResultIterator;
+import org.apache.cassandra.index.sai.disk.SSTableIndex;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIntersectionIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.KeyRangeIntersectionIterator;
-import org.apache.cassandra.index.sai.utils.KeyRangeIterator;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 public class QueryController
 {
@@ -147,34 +150,42 @@ public class QueryController
     }
 
     /**
-     * Build a {@link KeyRangeIterator.Builder} from the given list of expressions by applying given operation (AND).
-     * Building of such builder involves index search, results of which are persisted in the internal resources list
-     *
-     * @param expressions The expressions to build range iterator from (expressions with not results are ignored).
-     *
-     * @return range iterator builder based on given expressions and operation type.
+     * Build a {@link KeyRangeIterator.Builder} from the given list of {@link Expression}s.
+     * <p>
+     * This is achieved by creating an on-disk view of the query that maps the expressions to
+     * the {@link SSTableIndex}s that will satisfy the expression.
+     * <p>
+     * Each (expression, SSTable indexes) pair is then passed to
+     * {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext)}
+     * to search the in-memory index associated with the expression and the SSTable indexes, the results of
+     * which are unioned and returned.
+     * <p>
+     * The results from each call to {@link IndexSearchResultIterator#build(Expression, Collection, AbstractBounds, QueryContext)}
+     * are added to a {@link KeyRangeIntersectionIterator} and returned.
      */
     public KeyRangeIterator.Builder getIndexQueryResults(Collection<Expression> expressions)
     {
         KeyRangeIterator.Builder builder = KeyRangeIntersectionIterator.builder(expressions.size());
 
+        QueryViewBuilder queryViewBuilder = new QueryViewBuilder(expressions, mergeRange);
+
+        Collection<Pair<Expression, Collection<SSTableIndex>>> queryView = queryViewBuilder.build();
+
         try
         {
-            for (Expression e : expressions)
+            for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView)
             {
-                if (e.context.isIndexed())
-                {
-                    @SuppressWarnings({"resource", "RedundantSuppression"}) // RangeIterators are closed by releaseIndexes
-                    KeyRangeIterator memtableIterator = e.context.searchMemtableIndexes(e, mergeRange);
+                @SuppressWarnings({"resource", "RedundantSuppression"}) // RangeIterators are closed by releaseIndexes
+                KeyRangeIterator index = IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext);
 
-                    builder.add(memtableIterator);
-                }
+                builder.add(index);
             }
         }
         catch (Throwable t)
         {
             // all sstable indexes in view have been referenced, need to clean up when exception is thrown
             builder.cleanup();
+            queryView.forEach(pair -> pair.right.forEach(SSTableIndex::releaseQuietly));
             throw t;
         }
         return builder;
