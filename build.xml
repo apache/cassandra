@@ -156,17 +156,22 @@
         <os family="windows" />
     </condition>
 
-    <!-- Check if all tests are being run or just one. If it's all tests don't spam the console with test output.
+    <!-- Check if all tests are being run or just one (check testclasslist target). If it's all tests don't spam the
+         console with test output.
          If it's an individual test print the output from the test under the assumption someone is debugging the test
          and wants to know what is going on without having to context switch to the log file that is generated.
          Debug level output still needs to be retrieved from the log file.  -->
-    <macrodef name="keepbrief">
+    <macrodef name="set-keepbrief-property">
+        <attribute name="test-name" />
         <sequential>
-                <javac srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" excludes="**/JdkProperties.java" />
-                <taskdef name="KeepBriefBrief" classname="org.apache.cassandra.anttasks.KeepBriefBrief" classpath="${test.classes}"/>
-                <KeepBriefBrief property="cassandra.keepBriefBrief"/>
+            <condition property="cassandra.keepBriefBrief" value="false" else="true">
+                <not>
+                    <equals arg1="@{test-name}" arg2="*Test"/>
+                </not>
+            </condition>
         </sequential>
     </macrodef>
+    <set-keepbrief-property test-name="${test.name}" />
 
     <fail message="Unsupported JDK version used: ${ant.java.version}">
         <condition><not><contains string="${java.supported}" substring="${ant.java.version}"/></not></condition>
