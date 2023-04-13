@@ -115,7 +115,8 @@ public final class CompressionParams
         }
     }
 
-    public static CompressionParams defaultParams() {
+    public static CompressionParams defaultParams()
+    {
         return fromOptions(DatabaseDescriptor.getSSTableCompressionOptions());
     }
 
@@ -125,8 +126,9 @@ public final class CompressionParams
         // min_compress_ratio
         double ratio;
     }
-    private static LenAndRatio calcLenAndRatio(SSTableCompressionOptions options, int chunk_length, double minRatio ) {
 
+    private static LenAndRatio calcLenAndRatio(SSTableCompressionOptions options, int chunk_length, double minRatio )
+    {
         LenAndRatio result = new LenAndRatio();
         if (!StringUtils.isBlank(options.max_compressed_length))
         {
@@ -281,7 +283,7 @@ public final class CompressionParams
     @VisibleForTesting
     public static CompressionParams snappy(int chunkLength)
     {
-        return snappy(chunkLength, 1.1);
+        return snappy(chunkLength,  CompressorType.snappy.minRatio);
     }
 
     @VisibleForTesting
