@@ -596,7 +596,7 @@ commitlog_segment_size: 32MiB
   # that implements ICompressor
 
   #parameters:
-    # - param1 : value
+    # param1 : value
   # The parameters for the class.
 
 # any class that implements the SeedProvider interface and has a
