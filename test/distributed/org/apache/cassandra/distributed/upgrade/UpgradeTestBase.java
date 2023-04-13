@@ -176,7 +176,9 @@ public class UpgradeTestBase extends DistributedTestBase
             return this;
         }
 
-        /** performs all supported upgrade paths that exist in between from and CURRENT (inclusive) **/
+        /** performs all supported upgrade paths that exist in between from and end on CURRENT (inclusive)
+         * {@code upgradesToCurrentFrom(3.0); // produces: 3.0 -> CURRENT, 3.11 -> CURRENT, …}
+         **/
         public TestCase upgradesToCurrentFrom(Semver from)
         {
             return upgradesTo(from, CURRENT);
@@ -192,8 +194,8 @@ public class UpgradeTestBase extends DistributedTestBase
             NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
             for (Semver start : vertices.subSet(from, true, to, false))
             {
-                // only include pairs that are allowed
-                if (SUPPORTED_UPGRADE_PATHS.hasEdge(start, to))
+                // only include pairs that are allowed, and start or end on CURRENT
+                if (SUPPORTED_UPGRADE_PATHS.hasEdge(start, to) && contains(start, to, CURRENT))
                     upgrade.add(new TestVersions(versions.getLatest(start), Collections.singletonList(versions.getLatest(to))));
             }
             logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
@@ -211,8 +213,8 @@ public class UpgradeTestBase extends DistributedTestBase
             NavigableSet<Semver> vertices = sortedVertices(SUPPORTED_UPGRADE_PATHS);
             for (Semver end : vertices.subSet(from, false, to, true))
             {
-                // only include pairs that are allowed
-                if (SUPPORTED_UPGRADE_PATHS.hasEdge(from, end))
+                // only include pairs that are allowed, and start or end on CURRENT
+                if (SUPPORTED_UPGRADE_PATHS.hasEdge(from, end) && contains(from, end, CURRENT))
                     upgrade.add(new TestVersions(versions.getLatest(from), Collections.singletonList(versions.getLatest(end))));
             }
             logger.info("Adding upgrades of\n{}", upgrade.stream().map(TestVersions::toString).collect(Collectors.joining("\n")));
@@ -222,7 +224,7 @@ public class UpgradeTestBase extends DistributedTestBase
 
         /**
          * performs all supported upgrade paths that exist in between from and to that include the current version.
-         * This call is equivilent to calling {@code upgradesTo(from, CURRENT).upgradesFrom(CURRENT, to)}.
+         * This call is equivalent to calling {@code upgradesTo(from, CURRENT).upgradesFrom(CURRENT, to)}.
          **/
         public TestCase upgrades(Semver from, Semver to)
         {
