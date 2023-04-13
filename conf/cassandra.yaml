@@ -1361,7 +1361,7 @@ server_encryption_options:
   legacy_ssl_storage_port_enabled: false
   # Set to a valid keystore if internode_encryption is dc, rack or all
   keystore: conf/.keystore
-  keystore_password: cassandra
+  #keystore_password: cassandra
   # Configure the way Cassandra creates SSL contexts.
   # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
   # ssl_context_factory:
@@ -1377,7 +1377,7 @@ server_encryption_options:
   require_client_auth: false
   # Set to a valid trustore if require_client_auth is true
   truststore: conf/.truststore
-  truststore_password: cassandra
+  #truststore_password: cassandra
   # Verify that the host name in the certificate matches the connected host
   require_endpoint_verification: false
   # More advanced defaults:
@@ -1411,7 +1411,7 @@ client_encryption_options:
   # optional: true
   # Set keystore and keystore_password to valid keystores if enabled is true
   keystore: conf/.keystore
-  keystore_password: cassandra
+  #keystore_password: cassandra
   # Configure the way Cassandra creates SSL contexts.
   # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
   # ssl_context_factory:
