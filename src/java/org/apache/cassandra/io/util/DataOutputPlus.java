@@ -24,6 +24,8 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import com.google.common.primitives.Ints;
+
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 /**
@@ -150,5 +152,44 @@ public interface DataOutputPlus extends DataOutput
     default boolean hasPosition()
     {
         return false;
+    }
+
+    // The methods below support page-aware layout for writing. These would only be implemented if position() is
+    // also supported.
+
+    /**
+     * Returns the number of bytes that a page can take at maximum.
+     */
+    default int maxBytesInPage()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Pad this with zeroes until the next page boundary. If the destination position
+     * is already at a page boundary, do not do anything.
+     */
+    default void padToPageBoundary() throws IOException
+    {
+        long position = position();
+        long bytesLeft = PageAware.padded(position) - position;
+        write(PageAware.EmptyPage.EMPTY_PAGE, 0, Ints.checkedCast(bytesLeft));
+    }
+
+    /**
+     * Returns how many bytes are left in the page.
+     */
+    default int bytesLeftInPage()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the next padded position. This is either the current position (if already padded), or the start of next
+     * page.
+     */
+    default long paddedPosition()
+    {
+        throw new UnsupportedOperationException();
     }
 }

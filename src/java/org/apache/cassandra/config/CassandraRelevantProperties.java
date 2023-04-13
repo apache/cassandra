@@ -334,6 +334,9 @@ public enum CassandraRelevantProperties
     COMMIT_LOG_REPLAY_LIST("cassandra.replayList", null),
 
     // SAI specific properties
+    /** Latest version to be used for SAI index writing */
+    SAI_LATEST_VERSION("cassandra.sai.latest_version", "aa"),
+
     /** Controls the maximum number of index query intersections that will take part in a query */
     SAI_INTERSECTION_CLAUSE_LIMIT("cassandra.sai.intersection.clause.limit", "2"),
 

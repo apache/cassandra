@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.metrics;
 
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.RatioGauge;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -27,13 +28,19 @@ public class TableStateMetrics extends AbstractMetrics
 {
     public static final String TABLE_STATE_METRIC_TYPE = "TableStateMetrics";
 
-    public final Gauge<Integer> totalIndexCount;
-    public final Gauge<Integer> totalQueryableIndexCount;
-
     public TableStateMetrics(TableMetadata table, StorageAttachedIndexGroup group)
     {
         super(table.keyspace, table.name, TABLE_STATE_METRIC_TYPE);
-        totalQueryableIndexCount = Metrics.register(createMetricName("TotalQueryableIndexCount"), group::totalQueryableIndexCount);
-        totalIndexCount = Metrics.register(createMetricName("TotalIndexCount"), group::totalIndexCount);
+        Metrics.register(createMetricName("DiskUsedBytes"), (Gauge<Long>) group::totalDiskUsage);
+        Metrics.register(createMetricName("DiskPercentageOfBaseTable"), (Gauge<Double>) new RatioGauge() {
+            @Override
+            protected Ratio getRatio()
+            {
+                return Ratio.of(group.totalDiskUsage(), group.table().metric.liveDiskSpaceUsed.getCount());
+            }
+        });
+        Metrics.register(createMetricName("TotalIndexCount"), (Gauge<Integer>) group::totalIndexCount);
+        Metrics.register(createMetricName("TotalQueryableIndexCount"), (Gauge<Integer>) group::totalQueryableIndexCount);
+        Metrics.register(createMetricName("TotalIndexBuildsInProgress"), (Gauge<Integer>) group::totalIndexBuildsInProgress);
     }
 }

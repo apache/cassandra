@@ -1482,6 +1482,12 @@ transparent_data_encryption_options:
           store_type: JCEKS
           key_password: cassandra
 
+# Storage Attached Indexing options.
+# sai_options:
+  ## Total permitted memory allowed for writing SAI index segments. This memory
+  ## is split between all SAI indexes being built so more indexes will mean smaller
+  ## segment sizes.
+  # segment_write_buffer_size: 1024MiB
 
 #####################
 # SAFETY THRESHOLDS #

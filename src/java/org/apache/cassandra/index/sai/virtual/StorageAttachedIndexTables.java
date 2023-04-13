@@ -18,8 +18,8 @@
 
 package org.apache.cassandra.index.sai.virtual;
 
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 
 import org.apache.cassandra.db.virtual.VirtualTable;
 
@@ -30,6 +30,8 @@ public class StorageAttachedIndexTables
 
     public static Collection<VirtualTable> getAll(String keyspace)
     {
-        return Collections.singletonList(new IndexesSystemView(keyspace));
+        return Arrays.asList(new ColumnIndexesSystemView(keyspace),
+                             new SegmentsSystemView(keyspace),
+                             new SSTableIndexesSystemView(keyspace));
     }
 }

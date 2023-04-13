@@ -34,6 +34,7 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.index.sai.virtual.ColumnIndexesSystemView;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.assertj.core.util.Streams;
 
@@ -115,7 +116,8 @@ public class SAIUtil
     public static List<String> getIndexes(Cluster cluster, String keyspace)
     {
         waitForSchemaAgreement(cluster);
-        String query = String.format("SELECT index_name FROM system_views.indexes WHERE keyspace_name = '%s' ALLOW FILTERING", keyspace);
+        String query = String.format("SELECT index_name FROM system_views.%s WHERE keyspace_name = '%s' ALLOW FILTERING",
+                                     ColumnIndexesSystemView.NAME, keyspace);
         SimpleQueryResult result = cluster.get(1).executeInternalWithResult(query);
         return Streams.stream(result)
                       .map(row -> (String) row.get("index_name"))

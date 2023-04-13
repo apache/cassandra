@@ -33,6 +33,7 @@ public class TableQueryMetrics extends AbstractMetrics
     public static final String TABLE_QUERY_METRIC_TYPE = "TableQueryMetrics";
 
     private final PerQueryMetrics perQueryMetrics;
+
     private final Counter totalQueryTimeouts;
     private final Counter totalPartitionReads;
     private final Counter totalRowsFiltered;
@@ -52,12 +53,8 @@ public class TableQueryMetrics extends AbstractMetrics
 
     public void record(QueryContext queryContext)
     {
-        if (queryContext.queryTimeouts > 0)
-        {
-            assert queryContext.queryTimeouts == 1;
-
+        if (queryContext.queryTimedOut)
             totalQueryTimeouts.inc();
-        }
 
         perQueryMetrics.record(queryContext);
     }
@@ -73,10 +70,18 @@ public class TableQueryMetrics extends AbstractMetrics
         private final Timer queryLatency;
 
         /**
-         * Global metrics for all indexes hit during the query.
+         * Global metrics for all indices hit during the query.
          */
+        private final Histogram sstablesHit;
+        private final Histogram segmentsHit;
         private final Histogram partitionReads;
         private final Histogram rowsFiltered;
+
+        /**
+         * Trie index posting lists metrics.
+         */
+        private final Histogram postingsSkips;
+        private final Histogram postingsDecodes;
 
         public PerQueryMetrics(TableMetadata table)
         {
@@ -84,8 +89,20 @@ public class TableQueryMetrics extends AbstractMetrics
 
             queryLatency = Metrics.timer(createMetricName("QueryLatency"));
 
+            sstablesHit = Metrics.histogram(createMetricName("SSTableIndexesHit"), false);
+            segmentsHit = Metrics.histogram(createMetricName("IndexSegmentsHit"), false);
+
+            postingsSkips = Metrics.histogram(createMetricName("PostingsSkips"), false);
+            postingsDecodes = Metrics.histogram(createMetricName("PostingsDecodes"), false);
+
             partitionReads = Metrics.histogram(createMetricName("PartitionReads"), false);
             rowsFiltered = Metrics.histogram(createMetricName("RowsFiltered"), false);
+        }
+
+        private void recordStringIndexCacheMetrics(QueryContext events)
+        {
+            postingsSkips.update(events.triePostingsSkips);
+            postingsDecodes.update(events.triePostingsDecodes);
         }
 
         public void record(QueryContext queryContext)
@@ -94,22 +111,34 @@ public class TableQueryMetrics extends AbstractMetrics
             queryLatency.update(totalQueryTimeNs, TimeUnit.NANOSECONDS);
             final long queryLatencyMicros = TimeUnit.NANOSECONDS.toMicros(totalQueryTimeNs);
 
-            final long partitionsRead = queryContext.partitionsRead;
-            final long rowsFiltered = queryContext.rowsFiltered;
+            sstablesHit.update(queryContext.sstablesHit);
+            segmentsHit.update(queryContext.segmentsHit);
 
-            partitionReads.update(partitionsRead);
-            totalPartitionReads.inc(partitionsRead);
+            partitionReads.update(queryContext.partitionsRead);
+            totalPartitionReads.inc(queryContext.partitionsRead);
 
-            this.rowsFiltered.update(rowsFiltered);
-            totalRowsFiltered.inc(rowsFiltered);
+            rowsFiltered.update(queryContext.rowsFiltered);
+            totalRowsFiltered.inc(queryContext.rowsFiltered);
 
             if (Tracing.isTracing())
             {
-                Tracing.trace("Index query accessed memtable indexes and took {} microseconds.",
+                Tracing.trace("Index query accessed memtable indexes, {}, and {}, post-filtered {} in {}, and took {} microseconds.",
+                              pluralize(queryContext.sstablesHit, "SSTable index", "es"), pluralize(queryContext.segmentsHit, "segment", "s"),
+                              pluralize(queryContext.rowsFiltered, "row", "s"), pluralize(queryContext.partitionsRead, "partition", "s"),
                               queryLatencyMicros);
+            }
+
+            if (queryContext.trieSegmentsHit > 0)
+            {
+                recordStringIndexCacheMetrics(queryContext);
             }
 
             totalQueriesCompleted.inc();
         }
+    }
+
+    private String pluralize(long count, String root, String plural)
+    {
+        return count == 1 ? String.format("1 %s", root) : String.format("%d %s%s", count, root, plural);
     }
 }

@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.plan;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -28,14 +29,15 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -59,17 +61,19 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.index.sai.IndexingSchemaLoader;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.marshal.Int32Type.instance;
 
-public class OperationTest extends IndexingSchemaLoader
+public class OperationTest
 {
     private static final String KS_NAME = "sai";
     private static final String CF_NAME = "test_cf";
@@ -89,19 +93,18 @@ public class OperationTest extends IndexingSchemaLoader
     {
         System.setProperty("cassandra.config", "cassandra-murmur.yaml");
 
-        IndexingSchemaLoader.loadSchema();
+        SchemaLoader.loadSchema();
 
-        IndexingSchemaLoader.createKeyspace(KS_NAME,
-                                            KeyspaceParams.simpleTransient(1),
-                                            IndexingSchemaLoader.skinnySAITableMetadata(KS_NAME, CF_NAME),
-                                            IndexingSchemaLoader.clusteringSAITableMetadata(KS_NAME, CLUSTERING_CF_NAME),
-                                            IndexingSchemaLoader.staticSAITableMetadata(KS_NAME, STATIC_CF_NAME));
+        SchemaLoader.createKeyspace(KS_NAME,
+                                    KeyspaceParams.simpleTransient(1),
+                                    skinnySAITableMetadata(KS_NAME, CF_NAME),
+                                    clusteringSAITableMetadata(KS_NAME, CLUSTERING_CF_NAME),
+                                    staticSAITableMetadata(KS_NAME, STATIC_CF_NAME));
 
         BACKEND = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
         CLUSTERING_BACKEND = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME);
         STATIC_BACKEND = Keyspace.open(KS_NAME).getColumnFamilyStore(STATIC_CF_NAME);
     }
-
 
     @Before
     public void beforeTest()
@@ -126,11 +129,6 @@ public class OperationTest extends IndexingSchemaLoader
                                                null,
                                                new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
                                                null);
-    }
-
-    @After
-    public void afterTest()
-    {
     }
 
     @Test
@@ -373,50 +371,79 @@ public class OperationTest extends IndexingSchemaLoader
         Assert.assertFalse(node.buildFilter(controllerStatic).isSatisfiedBy(key, row, staticRow));
     }
 
-    private static class SimpleExpression extends RowFilter.Expression
+    public static TableMetadata.Builder skinnySAITableMetadata(String keyspace, String table)
     {
-        SimpleExpression(ColumnMetadata column, Operator operator, ByteBuffer value)
+        TableMetadata.Builder builder =
+        TableMetadata.builder(keyspace, table)
+                     .addPartitionKeyColumn("id", UTF8Type.instance)
+                     .addRegularColumn("first_name", UTF8Type.instance)
+                     .addRegularColumn("last_name", UTF8Type.instance)
+                     .addRegularColumn("age", Int32Type.instance)
+                     .addRegularColumn("height", Int32Type.instance)
+                     .addRegularColumn("timestamp", LongType.instance)
+                     .addRegularColumn("address", UTF8Type.instance)
+                     .addRegularColumn("score", DoubleType.instance);
+
+        Indexes.Builder indexes = Indexes.builder();
+        addIndex(indexes, table, "first_name");
+        addIndex(indexes, table, "last_name");
+        addIndex(indexes, table, "age");
+        addIndex(indexes, table, "timestamp");
+        addIndex(indexes, table, "address");
+        addIndex(indexes, table, "score");
+
+        return builder.indexes(indexes.build());
+    }
+
+    public static TableMetadata.Builder clusteringSAITableMetadata(String keyspace, String table)
+    {
+        return clusteringSAITableMetadata(keyspace, table, "location", "age", "height", "score");
+    }
+
+    public static TableMetadata.Builder clusteringSAITableMetadata(String keyspace, String table, String...indexedColumns)
+    {
+        Indexes.Builder indexes = Indexes.builder();
+        for (String indexedColumn : indexedColumns)
         {
-            super(column, operator, value);
+            addIndex(indexes, table, indexedColumn);
         }
 
-        @Override
-        public Kind kind()
-        {
-            return Kind.SIMPLE;
-        }
+        return TableMetadata.builder(keyspace, table)
+                            .addPartitionKeyColumn("name", UTF8Type.instance)
+                            .addClusteringColumn("location", UTF8Type.instance)
+                            .addClusteringColumn("age", Int32Type.instance)
+                            .addRegularColumn("height", Int32Type.instance)
+                            .addRegularColumn("score", DoubleType.instance)
+                            .indexes(indexes.build());
+    }
 
-        @Override
-        public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
-        {
-            throw new UnsupportedOperationException();
-        }
+    public static TableMetadata.Builder staticSAITableMetadata(String keyspace, String table)
+    {
+        TableMetadata.Builder builder =
+        TableMetadata.builder(keyspace, table)
+                     .addPartitionKeyColumn("sensor_id", Int32Type.instance)
+                     .addStaticColumn("sensor_type", UTF8Type.instance)
+                     .addClusteringColumn("date", LongType.instance)
+                     .addRegularColumn("value", DoubleType.instance)
+                     .addRegularColumn("variance", Int32Type.instance);
 
-        @Override
-        protected String toString(boolean cql)
-        {
-            AbstractType<?> type = column.type;
-            switch (operator)
-            {
-                case CONTAINS:
-                    assert type instanceof CollectionType;
-                    CollectionType<?> ct = (CollectionType<?>)type;
-                    type = ct.kind == CollectionType.Kind.SET ? ct.nameComparator() : ct.valueComparator();
-                    break;
-                case CONTAINS_KEY:
-                    assert type instanceof MapType;
-                    type = ((MapType<?, ?>)type).nameComparator();
-                    break;
-                case IN:
-                    type = ListType.getInstance(type, false);
-                    break;
-                default:
-                    break;
-            }
-            return cql
-                   ? String.format("%s %s %s", column.name.toCQLString(), operator, type.toCQLString(value) )
-                   : String.format("%s %s %s", column.name.toString(), operator, type.getString(value));
-        }
+        Indexes.Builder indexes = Indexes.builder();
+
+        addIndex(indexes, table, "sensor_type");
+        addIndex(indexes, table, "value");
+        addIndex(indexes, table, "variance");
+
+        return builder.indexes(indexes.build());
+    }
+
+    private static void addIndex(Indexes.Builder indexes, String table, String column)
+    {
+        String indexName = table + '_' + column;
+        indexes.add(IndexMetadata.fromSchemaMetadata(indexName, IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+        {{
+            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, StorageAttachedIndex.class.getName());
+            put(IndexTarget.TARGET_OPTION_NAME, column);
+        }}));
     }
 
     private static DecoratedKey buildKey(Object... key) {
@@ -467,5 +494,51 @@ public class OperationTest extends IndexingSchemaLoader
     private static ColumnMetadata getColumn(ColumnFamilyStore cfs, ByteBuffer name)
     {
         return cfs.metadata().getColumn(name);
+    }
+
+    private static class SimpleExpression extends RowFilter.Expression
+    {
+        SimpleExpression(ColumnMetadata column, Operator operator, ByteBuffer value)
+        {
+            super(column, operator, value);
+        }
+
+        @Override
+        public Kind kind()
+        {
+            return Kind.SIMPLE;
+        }
+
+        @Override
+        public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected String toString(boolean cql)
+        {
+            AbstractType<?> type = column.type;
+            switch (operator)
+            {
+                case CONTAINS:
+                    assert type instanceof CollectionType;
+                    CollectionType<?> ct = (CollectionType<?>)type;
+                    type = ct.kind == CollectionType.Kind.SET ? ct.nameComparator() : ct.valueComparator();
+                    break;
+                case CONTAINS_KEY:
+                    assert type instanceof MapType;
+                    type = ((MapType<?, ?>)type).nameComparator();
+                    break;
+                case IN:
+                    type = ListType.getInstance(type, false);
+                    break;
+                default:
+                    break;
+            }
+            return cql
+                   ? String.format("%s %s %s", column.name.toCQLString(), operator, type.toCQLString(value) )
+                   : String.format("%s %s %s", column.name.toString(), operator, type.getString(value));
+        }
     }
 }

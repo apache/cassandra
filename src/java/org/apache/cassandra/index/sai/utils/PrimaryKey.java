@@ -19,7 +19,11 @@ package org.apache.cassandra.index.sai.utils;
 
 import java.util.Arrays;
 import java.util.Objects;
+
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -33,119 +37,219 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
  * Representation of the primary key for a row consisting of the {@link DecoratedKey} and
  * {@link Clustering} associated with a {@link org.apache.cassandra.db.rows.Row}.
  */
-public class PrimaryKey implements Comparable<PrimaryKey>
+public interface PrimaryKey extends Comparable<PrimaryKey>
 {
-    private final Token token;
-    private final DecoratedKey partitionKey;
-    private final Clustering<?> clustering;
-    private final ClusteringComparator clusteringComparator;
-
-    PrimaryKey(Token token)
+    class Factory
     {
-        this(token, null, null, null);
+        private final ClusteringComparator clusteringComparator;
+
+        public Factory(ClusteringComparator clusteringComparator)
+        {
+            this.clusteringComparator = clusteringComparator;
+        }
+
+        /**
+         * Creates a {@link PrimaryKey} that is represented by a {@link Token}.
+         *
+         * {@link Token} only primary keys are used for defining the partition range
+         * of a query.
+         */
+        public PrimaryKey createTokenOnly(Token token)
+        {
+            assert token != null : "Cannot create a primary key with a null token";
+
+            return new ImmutablePrimaryKey(token, null, null);
+        }
+
+        public PrimaryKey createPartitionKeyOnly(DecoratedKey partitionKey)
+        {
+            assert partitionKey != null : "Cannot create a primary key with a null partition key";
+
+            return new ImmutablePrimaryKey(partitionKey.getToken(), partitionKey, null);
+        }
+
+        /**
+         * Creates a {@link PrimaryKey} that is fully represented by partition key
+         * and clustering.
+         */
+        public PrimaryKey create(DecoratedKey partitionKey, Clustering<?> clustering)
+        {
+            assert partitionKey != null : "Cannot create a primary key with a null partition key";
+            assert clustering != null : "Cannot create a primary key with a null clustering";
+
+            return new ImmutablePrimaryKey(partitionKey.getToken(), partitionKey, clustering);
+        }
+
+        public PrimaryKey createDeferred(Token token, Supplier<PrimaryKey> primaryKeySupplier)
+        {
+            assert token != null : "Cannot create a deferred primary key with a null token";
+            assert primaryKeySupplier != null : "Cannot create a deferred primary key with a null key supplier";
+
+            return new MutablePrimaryKey(token, primaryKeySupplier);
+        }
+
+        abstract class AbstractPrimaryKey implements PrimaryKey
+        {
+            public ByteSource asComparableBytes(ByteComparable.Version version)
+            {
+                ByteSource tokenComparable = token().asComparableBytes(version);
+                if (partitionKey() == null)
+                    return ByteSource.withTerminator(version == ByteComparable.Version.LEGACY ? ByteSource.END_OF_STREAM
+                                                                                              : ByteSource.TERMINATOR,
+                                                     tokenComparable,
+                                                     null,
+                                                     null);
+                ByteSource keyComparable = ByteSource.of(partitionKey().getKey(), version);
+                // It is important that the ClusteringComparator.asBytesComparable method is used
+                // to maintain the correct clustering sort order
+                ByteSource clusteringComparable = clusteringComparator == null ||
+                                                  clusteringComparator.size() == 0 ||
+                                                  clustering() == null ||
+                                                  clustering().isEmpty() ? null
+                                                                         : clusteringComparator.asByteComparable(clustering())
+                                                                                               .asComparableBytes(version);
+                return ByteSource.withTerminator(version == ByteComparable.Version.LEGACY ? ByteSource.END_OF_STREAM
+                                                                                          : ByteSource.TERMINATOR,
+                                                 tokenComparable,
+                                                 keyComparable,
+                                                 clusteringComparable);
+            }
+
+            @Override
+            public int compareTo(PrimaryKey o)
+            {
+                int cmp = token().compareTo(o.token());
+
+                // If the tokens don't match then we don't need to compare any more of the key.
+                // Otherwise, if it's partition key is null or the other partition key is null
+                // then one or both of the keys are token only so we can only compare tokens
+                if ((cmp != 0) || (partitionKey() == null) || o.partitionKey() == null)
+                    return cmp;
+
+                // Next compare the partition keys. If they are not equal or
+                // this is a single row partition key or there are no
+                // clusterings then we can return the result of this without
+                // needing to compare the clusterings
+                cmp = partitionKey().compareTo(o.partitionKey());
+                if (cmp != 0 || hasEmptyClustering() || o.hasEmptyClustering())
+                    return cmp;
+                return clusteringComparator.compare(clustering(), o.clustering());
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return Objects.hash(token(), partitionKey(), clustering(), clusteringComparator);
+            }
+
+            @Override
+            public boolean equals(Object obj)
+            {
+                if (obj instanceof PrimaryKey)
+                    return compareTo((PrimaryKey) obj) == 0;
+                return false;
+            }
+
+            @Override
+            public String toString()
+            {
+                return String.format("PrimaryKey: { token: %s, partition: %s, clustering: %s:%s} ",
+                                     token(),
+                                     partitionKey(),
+                                     clustering() == null ? null : clustering().kind(),
+                                     clustering() == null ? null : Arrays.stream(clustering().getBufferArray())
+                                                                         .map(ByteBufferUtil::bytesToHex)
+                                                                         .collect(Collectors.joining(", ")));
+            }
+        }
+
+        class ImmutablePrimaryKey extends AbstractPrimaryKey
+        {
+            private final Token token;
+            private final DecoratedKey partitionKey;
+            private final Clustering<?> clustering;
+
+            ImmutablePrimaryKey(Token token, DecoratedKey partitionKey, Clustering<?> clustering)
+            {
+                this.token = token;
+                this.partitionKey = partitionKey;
+                this.clustering = clustering;
+            }
+
+            @Override
+            public Token token()
+            {
+                return token;
+            }
+
+            @Override
+            public DecoratedKey partitionKey()
+            {
+                return partitionKey;
+            }
+
+            @Override
+            public Clustering<?> clustering()
+            {
+                return clustering;
+            }
+        }
+
+        class MutablePrimaryKey extends AbstractPrimaryKey
+        {
+            private final Token token;
+            private final Supplier<PrimaryKey> primaryKeySupplier;
+
+            private boolean notLoaded = true;
+            private DecoratedKey partitionKey;
+            private Clustering<?> clustering;
+
+            MutablePrimaryKey(Token token, Supplier<PrimaryKey> primaryKeySupplier)
+            {
+                this.token = token;
+                this.primaryKeySupplier = primaryKeySupplier;
+            }
+
+            @Override
+            public Token token()
+            {
+                return token;
+            }
+
+            @Override
+            public DecoratedKey partitionKey()
+            {
+                loadDeferred();
+                return partitionKey;
+            }
+
+            @Override
+            public Clustering<?> clustering()
+            {
+                loadDeferred();
+                return clustering;
+            }
+
+            private void loadDeferred()
+            {
+                if (notLoaded)
+                {
+                    PrimaryKey deferredPrimaryKey = primaryKeySupplier.get();
+                    this.partitionKey = deferredPrimaryKey.partitionKey();
+                    this.clustering = deferredPrimaryKey.clustering();
+                    notLoaded = false;
+                }
+            }
+        }
     }
 
-    PrimaryKey(Token token,
-               DecoratedKey partitionKey,
-               Clustering<?> clustering,
-               ClusteringComparator clusteringComparator)
-    {
-        this.token = token;
-        this.partitionKey = partitionKey;
-        this.clustering = clustering;
-        this.clusteringComparator = clusteringComparator;
-    }
+    Token token();
 
-    /**
-     * Returns a {@link PrimaryKeyFactory} for creating {@link PrimaryKey} instances.
-     *
-     * @param clusteringComparator the {@link ClusteringComparator} used by the
-     *                             {@link PrimaryKeyFactory} for clustering comparisons
-     * @return a {@link PrimaryKeyFactory} for {@link PrimaryKey} creation
-     */
-    public static PrimaryKeyFactory factory(ClusteringComparator clusteringComparator)
-    {
-        return new PrimaryKeyFactory(clusteringComparator);
-    }
+    @Nullable
+    DecoratedKey partitionKey();
 
-    /**
-     * @return the {@link Token} associated with this primary key.
-     */
-    public Token token()
-    {
-        return token;
-    }
-
-    /**
-     * @return the {@link DecoratedKey} associated with this primary key.
-     */
-    public DecoratedKey partitionKey()
-    {
-        return partitionKey;
-    }
-
-    /**
-     * @return the {@link Clustering} associated with this primary key.
-     */
-    public Clustering<?> clustering()
-    {
-        return clustering;
-    }
-
-    /**
-     * Returns the {@link PrimaryKey} as a {@link ByteSource} byte comparable representation.
-     *
-     * It is important that these representations are only ever used with byte comparables using
-     * the same elements. This means that {@code asComparableBytes} responses can only be used
-     * together from the same {@link PrimaryKey} implementation.
-     *
-     * @param version the {@link ByteComparable.Version} to use for the implementation
-     * @return the {@code ByteSource} byte comparable.
-     */
-    public ByteSource asComparableBytes(ByteComparable.Version version)
-    {
-        ByteSource tokenComparable = token.asComparableBytes(version);
-        if (partitionKey == null)
-            return ByteSource.withTerminator(version == ByteComparable.Version.LEGACY ? ByteSource.END_OF_STREAM
-                                                                                      : ByteSource.TERMINATOR,
-                                             tokenComparable,
-                                             null,
-                                             null);
-        ByteSource keyComparable = ByteSource.of(partitionKey.getKey(), version);
-        // It is important that the ClusteringComparator.asBytesComparable method is used
-        // to maintain the correct clustering sort order
-        ByteSource clusteringComparable = clusteringComparator.size() == 0 ||
-                                          clustering == null ||
-                                          clustering.isEmpty() ? null
-                                                               : clusteringComparator.asByteComparable(clustering)
-                                                                                     .asComparableBytes(version);
-        return ByteSource.withTerminator(version == ByteComparable.Version.LEGACY ? ByteSource.END_OF_STREAM
-                                                                                  : ByteSource.TERMINATOR,
-                                         tokenComparable,
-                                         keyComparable,
-                                         clusteringComparable);
-    }
-
-    @Override
-    public int compareTo(PrimaryKey o)
-    {
-        int cmp = token().compareTo(o.token());
-
-        // If the tokens don't match then we don't need to compare any more of the key.
-        // Otherwise, if it's partition key is null or the other partition key is null
-        // then one or both of the keys are token only so we can only compare tokens
-        if ((cmp != 0) || (partitionKey == null) || o.partitionKey() == null)
-            return cmp;
-
-        // Next compare the partition keys. If they are not equal or
-        // this is a single row partition key or there are no
-        // clusterings then we can return the result of this without
-        // needing to compare the clusterings
-        cmp = partitionKey().compareTo(o.partitionKey());
-        if (cmp != 0 || hasEmptyClustering() || o.hasEmptyClustering())
-            return cmp;
-        return clusteringComparator.compare(clustering(), o.clustering());
-    }
+    @Nullable
+    Clustering<?> clustering();
 
     /**
      * Return whether the primary key has an empty clustering or not.
@@ -154,34 +258,20 @@ public class PrimaryKey implements Comparable<PrimaryKey>
      *
      * @return {@code true} if the clustering is empty, otherwise {@code false}
      */
-    public boolean hasEmptyClustering()
+    default boolean hasEmptyClustering()
     {
         return clustering() == null || clustering().isEmpty();
     }
 
-    @Override
-    public int hashCode()
-    {
-        return Objects.hash(token, partitionKey, clustering, clusteringComparator);
-    }
-
-    @Override
-    public boolean equals(Object obj)
-    {
-        if (obj instanceof PrimaryKey)
-            return compareTo((PrimaryKey)obj) == 0;
-        return false;
-    }
-
-    @Override
-    public String toString()
-    {
-        return String.format("PrimaryKey: { token: %s, partition: %s, clustering: %s:%s} ",
-                             token,
-                             partitionKey,
-                             clustering == null ? null : clustering.kind(),
-                             clustering == null ? null : Arrays.stream(clustering.getBufferArray())
-                                                               .map(ByteBufferUtil::bytesToHex)
-                                                               .collect(Collectors.joining(",")));
-    }
+    /**
+     * Returns the {@link PrimaryKey} as a {@link ByteSource} byte comparable representation.
+     * <p>
+     * It is important that these representations are only ever used with byte comparables using
+     * the same elements. This means that {@code asComparableBytes} responses can only be used
+     * together from the same {@link PrimaryKey} implementation.
+     *
+     * @param version the {@link ByteComparable.Version} to use for the implementation
+     * @return the {@code ByteSource} byte comparable.
+     */
+    ByteSource asComparableBytes(ByteComparable.Version version);
 }

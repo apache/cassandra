@@ -22,6 +22,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 
+import com.google.common.primitives.Ints;
+
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.utils.SyncUtil;
@@ -169,7 +171,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         this.option = option;
     }
 
-    public void skipBytes(int numBytes) throws IOException
+    public void skipBytes(long numBytes) throws IOException
     {
         flush();
         fchannel.position(fchannel.position() + numBytes);
@@ -260,6 +262,28 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     public long position()
     {
         return current();
+    }
+
+    // Page management using on-disk pages
+
+    @Override
+    public int maxBytesInPage()
+    {
+        return PageAware.PAGE_SIZE;
+    }
+
+    @Override
+    public int bytesLeftInPage()
+    {
+        long position = position();
+        long bytesLeft = PageAware.pageLimit(position) - position;
+        return Ints.checkedCast(bytesLeft);
+    }
+
+    @Override
+    public long paddedPosition()
+    {
+        return PageAware.padded(position());
     }
 
     /**

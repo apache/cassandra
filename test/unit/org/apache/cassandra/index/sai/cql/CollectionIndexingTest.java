@@ -37,7 +37,7 @@ public class CollectionIndexingTest extends SAITester
                                                         "execute this query despite the performance unpredictability, " +
                                                         "use ALLOW FILTERING";
     @Before
-    public void setup() throws Throwable
+    public void setup()
     {
         requireNetwork();
     }

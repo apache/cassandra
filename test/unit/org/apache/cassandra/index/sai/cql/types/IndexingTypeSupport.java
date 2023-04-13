@@ -45,10 +45,31 @@ public abstract class IndexingTypeSupport extends SAITester
 
     public enum Scenario
     {
-        MEMTABLE_QUERY
+        MEMTABLE_QUERY,
+        SSTABLE_QUERY,
+        MIXED_QUERY,
+        COMPACTED_QUERY,
+        POST_BUILD_QUERY
     }
 
-    protected static Collection<Object[]> generateParameters(DataSet<?> dataset)
+    protected static Collection<Object[]> generateLiteralParameters(DataSet<?> dataset)
+    {
+        return Arrays.asList(new Object[][]
+        {
+            { dataset, true, Scenario.MEMTABLE_QUERY },
+            { dataset, true, Scenario.SSTABLE_QUERY},
+            { dataset, true, Scenario.COMPACTED_QUERY},
+            { dataset, true, Scenario.MIXED_QUERY},
+            { dataset, true, Scenario.POST_BUILD_QUERY},
+            { dataset, false, Scenario.MEMTABLE_QUERY },
+            { dataset, false, Scenario.SSTABLE_QUERY},
+            { dataset, false, Scenario.COMPACTED_QUERY},
+            { dataset, false, Scenario.MIXED_QUERY},
+            { dataset, false, Scenario.POST_BUILD_QUERY}
+        });
+    }
+
+    protected static Collection<Object[]> generateNumericParameters(DataSet<?> dataset)
     {
         return Arrays.asList(new Object[][]
         {
@@ -72,11 +93,31 @@ public abstract class IndexingTypeSupport extends SAITester
     @Test
     public void runIndexQueryScenarios() throws Throwable
     {
-        for (String index : dataset.decorateIndexColumn("value"))
-            createIndex(String.format("CREATE CUSTOM INDEX ON %%s(%s) USING 'StorageAttachedIndex'", index));
-        waitForIndexQueryable();
+        if (scenario != Scenario.POST_BUILD_QUERY)
+        {
+            for (String index : dataset.decorateIndexColumn("value"))
+                createIndex(String.format("CREATE CUSTOM INDEX ON %%s(%s) USING 'StorageAttachedIndex'", index));
+            waitForIndexQueryable();
+        }
 
         insertData(this, allRows, scenario);
+
+        switch (scenario)
+        {
+            case SSTABLE_QUERY:
+                flush();
+                break;
+            case COMPACTED_QUERY:
+                flush();
+                compact();
+                break;
+            case POST_BUILD_QUERY:
+                flush();
+                for (String index : dataset.decorateIndexColumn("value"))
+                    createIndex(String.format("CREATE CUSTOM INDEX ON %%s(%s) USING 'StorageAttachedIndex'", index));
+                waitForIndexQueryable();
+                break;
+        }
 
         dataset.querySet().runQueries(this, allRows);
     }

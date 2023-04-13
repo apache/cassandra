@@ -938,6 +938,8 @@ public class DatabaseDescriptor
 
         if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
+
+        conf.sai_options.validate();
     }
 
     @VisibleForTesting
@@ -4694,5 +4696,10 @@ public class DatabaseDescriptor
             logger.info("Setting dynamic_data_masking_enabled to {}", enabled);
             conf.dynamic_data_masking_enabled = enabled;
         }
+    }
+
+    public static DataStorageSpec.IntMebibytesBound getSAISegmentWriteBufferSpace()
+    {
+        return conf.sai_options.segment_write_buffer_size;
     }
 }
