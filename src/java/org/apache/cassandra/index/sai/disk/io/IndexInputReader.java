@@ -89,7 +89,7 @@ public class IndexInputReader extends IndexInput
     {
         try
         {
-            return input.readShort();
+            return Short.reverseBytes(input.readShort());
         }
         catch (CorruptBlockException ex)
         {
@@ -106,7 +106,7 @@ public class IndexInputReader extends IndexInput
     {
         try
         {
-            return input.readInt();
+            return Integer.reverseBytes(input.readInt());
         }
         catch (CorruptBlockException ex)
         {
@@ -123,7 +123,7 @@ public class IndexInputReader extends IndexInput
     {
         try
         {
-            return input.readLong();
+            return Long.reverseBytes(input.readLong());
         }
         catch (CorruptBlockException ex)
         {
