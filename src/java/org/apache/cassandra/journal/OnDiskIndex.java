@@ -262,7 +262,7 @@ final class OnDiskIndex<K> implements Index<K>
         while (low <= high)
         {
             mid = (low + high) >> 1;
-            result = -compareWithKeyAt(key, mid);
+            result = compareWithKeyAt(key, mid);
             if (result > 0)
             {
                 low = mid + 1;

@@ -40,39 +40,41 @@ class TimeUUIDKeySupport implements KeySupport<TimeUUID>
     @Override
     public void serialize(TimeUUID key, DataOutputPlus out, int userVersion) throws IOException
     {
-        key.serialize(out);
+        out.writeLong(key.uuidTimestamp());
+        out.writeLong(key.lsb());
     }
 
     @Override
     public TimeUUID deserialize(DataInputPlus in, int userVersion) throws IOException
     {
-        return TimeUUID.deserialize(in);
+        long uuidTimestamp = in.readLong();
+        long lsb = in.readLong();
+        return new TimeUUID(uuidTimestamp, lsb);
     }
 
     @Override
     public TimeUUID deserialize(ByteBuffer buffer, int position, int userVersion)
     {
-        return TimeUUID.deserialize(buffer, position);
+        long uuidTimestamp = buffer.getLong(position);
+        long lsb = buffer.getLong(position + 8);
+        return new TimeUUID(uuidTimestamp, lsb);
     }
 
     @Override
     public void updateChecksum(Checksum crc, TimeUUID key, int userVersion)
     {
-        updateChecksumLong(crc, key.msb());
+        updateChecksumLong(crc, key.uuidTimestamp());
         updateChecksumLong(crc, key.lsb());
     }
 
     @Override
     public int compareWithKeyAt(TimeUUID key, ByteBuffer buffer, int position, int userVersion)
     {
-        long msb = buffer.getLong(position);
-        if (msb < key.msb())
-            return -1;
-        if (msb > key.msb())
-            return 1;
-
+        long uuidTimestamp = buffer.getLong(position);
         long lsb = buffer.getLong(position + 8);
-        return Long.compare(lsb, key.lsb());
+        return key.uuidTimestamp() != uuidTimestamp
+             ? Long.compare(key.uuidTimestamp(), uuidTimestamp)
+             : Long.compare(key.lsb(), lsb);
     }
 
     @Override
