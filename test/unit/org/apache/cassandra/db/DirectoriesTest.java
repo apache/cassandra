@@ -123,6 +123,8 @@ public class DirectoriesTest
     private static Set<TableMetadata> CFM;
     private static Map<String, List<File>> sstablesByTableName;
 
+    private static int diyThreadId=0;
+    private int myDiyId=0;
     private Logger logger;
     ListAppender<ILoggingEvent> listAppender;
 
@@ -913,19 +915,20 @@ public class DirectoriesTest
             DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(oldFreeSpace / FileUtils.ONE_MIB);
         }
     }
-    static private int diyThreadId=0;
-    private int myDiyId=0;
+
     private synchronized int getDiyThreadId()
     {
         diyThreadId++;
         myDiyId = diyThreadId;
         return myDiyId;
     }
+
     private void detachLogger()
     {
         logger.detachAppender(listAppender);
         MDC.remove("Junit-DirectoriesTest-id");
     }
+
     private void tailLogs()
     {
         int diyId = getDiyThreadId();
@@ -939,6 +942,7 @@ public class DirectoriesTest
         // add the appender to the logger
         logger.addAppender(listAppender);
     }
+
     private List<ILoggingEvent> filterLogByDiyId(List<ILoggingEvent> log)
     {
         ArrayList<ILoggingEvent> filteredLog = new ArrayList<>();
@@ -951,6 +955,7 @@ public class DirectoriesTest
         }
         return filteredLog;
     }
+
     private void checkLevel(List<ILoggingEvent> log, Level level, int expectedCount)
     {
         int found=0;
@@ -961,6 +966,7 @@ public class DirectoriesTest
         }
         assertEquals(expectedCount, found);
     }
+
     private void checkFormattedMessage(List<ILoggingEvent> log, String expectedMessage, int expectedCount)
     {
         int found=0;
@@ -972,6 +978,7 @@ public class DirectoriesTest
 
         assertEquals(expectedCount, found);
     }
+
     @Test
     public void testHasAvailableSpace()
     {
@@ -1147,5 +1154,10 @@ public class DirectoriesTest
         public boolean supportsFileAttributeView(String name) {return false;}
         public <V extends FileStoreAttributeView> V getFileStoreAttributeView(Class<V> type) {return null;}
         public Object getAttribute(String attribute) {return null;}
+
+        public String toString()
+        {
+            return "MockFileStore";
+        }
     }
 }
