@@ -19,7 +19,7 @@ package org.apache.cassandra.index.sai.disk.io;
 
 import java.io.IOException;
 
-import org.apache.lucene.store.GrowableByteArrayDataOutput;
+import org.apache.cassandra.oldlucene.GrowableByteArrayDataOutput;
 import org.apache.lucene.store.IndexOutput;
 
 // Use in place of RAMOutputStream (which has monitor locks)

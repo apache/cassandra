@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sai.disk.v1.kdtree;
 
 import java.io.Closeable;
+import java.util.Arrays;
 
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
@@ -30,7 +31,6 @@ import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FutureArrays;
 import org.apache.lucene.util.MathUtil;
 
 /**
@@ -82,7 +82,7 @@ public class TraversingBKDReader implements Closeable
 
             for (int dim = 0; dim < numDims; dim++)
             {
-                if (FutureArrays.compareUnsigned(minPackedValue, dim * bytesPerDim, dim * bytesPerDim + bytesPerDim, maxPackedValue, dim * bytesPerDim, dim * bytesPerDim + bytesPerDim) > 0)
+                if (Arrays.compareUnsigned(minPackedValue, dim * bytesPerDim, dim * bytesPerDim + bytesPerDim, maxPackedValue, dim * bytesPerDim, dim * bytesPerDim + bytesPerDim) > 0)
                 {
                     String message = String.format("Min packed value %s is > max packed value %s for dimension %d.",
                                                    new BytesRef(minPackedValue), new BytesRef(maxPackedValue), dim);

@@ -31,19 +31,18 @@ import org.apache.cassandra.index.sai.disk.io.CryptoUtils;
 import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.io.compress.ICompressor;
-import org.apache.lucene.codecs.MutablePointValues;
+import org.apache.cassandra.oldlucene.MutablePointValues;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.GrowableByteArrayDataOutput;
+import org.apache.cassandra.oldlucene.GrowableByteArrayDataOutput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.RAMOutputStream;
+import org.apache.cassandra.oldlucene.RAMOutputStream;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.FutureArrays;
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.Sorter;
-import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
+import org.apache.cassandra.oldlucene.MutablePointsReaderUtils;
 
 // TODO
 //   - allow variable length byte[] (across docs and dims), but this is quite a bit more hairy
@@ -915,11 +914,11 @@ public class BKDWriter implements Closeable
         for (int i = 1; i < count; ++i)
         {
             BytesRef candidate = packedValues.apply(i);
-            if (FutureArrays.compareUnsigned(min.bytes(), 0, length, candidate.bytes, candidate.offset + offset, candidate.offset + offset + length) > 0)
+            if (Arrays.compareUnsigned(min.bytes(), 0, length, candidate.bytes, candidate.offset + offset, candidate.offset + offset + length) > 0)
             {
                 min.copyBytes(candidate.bytes, candidate.offset + offset, length);
             }
-            else if (FutureArrays.compareUnsigned(max.bytes(), 0, length, candidate.bytes, candidate.offset + offset, candidate.offset + offset + length) < 0)
+            else if (Arrays.compareUnsigned(max.bytes(), 0, length, candidate.bytes, candidate.offset + offset, candidate.offset + offset + length) < 0)
             {
                 max.copyBytes(candidate.bytes, candidate.offset + offset, length);
             }
@@ -981,11 +980,11 @@ public class BKDWriter implements Closeable
         for (int dim = 0; dim < numDims; dim++)
         {
             int offset = bytesPerDim * dim;
-            if (FutureArrays.compareUnsigned(packedValue.bytes, packedValue.offset + offset, packedValue.offset + offset + bytesPerDim, minPackedValue, offset, offset + bytesPerDim) < 0)
+            if (Arrays.compareUnsigned(packedValue.bytes, packedValue.offset + offset, packedValue.offset + offset + bytesPerDim, minPackedValue, offset, offset + bytesPerDim) < 0)
             {
                 return false;
             }
-            if (FutureArrays.compareUnsigned(packedValue.bytes, packedValue.offset + offset, packedValue.offset + offset + bytesPerDim, maxPackedValue, offset, offset + bytesPerDim) > 0)
+            if (Arrays.compareUnsigned(packedValue.bytes, packedValue.offset + offset, packedValue.offset + offset + bytesPerDim, maxPackedValue, offset, offset + bytesPerDim) > 0)
             {
                 return false;
             }
@@ -1021,7 +1020,7 @@ public class BKDWriter implements Closeable
         int dimOffset = sortedDim * bytesPerDim;
         if (ord > 0)
         {
-            int cmp = FutureArrays.compareUnsigned(lastPackedValue, dimOffset, dimOffset + bytesPerDim, packedValue, packedValueOffset + dimOffset, packedValueOffset + dimOffset + bytesPerDim);
+            int cmp = Arrays.compareUnsigned(lastPackedValue, dimOffset, dimOffset + bytesPerDim, packedValue, packedValueOffset + dimOffset, packedValueOffset + dimOffset + bytesPerDim);
             if (cmp > 0)
             {
                 throw new AssertionError("values out of order: last value=" + new BytesRef(lastPackedValue) + " current value=" + new BytesRef(packedValue, packedValueOffset, packedBytesLength) + " ord=" + ord);

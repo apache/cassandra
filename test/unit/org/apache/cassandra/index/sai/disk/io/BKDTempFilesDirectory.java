@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.index.sai.disk.io;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
@@ -109,6 +111,12 @@ public class BKDTempFilesDirectory extends Directory
     public void close()
     {
         // noop
+    }
+
+    @Override
+    public Set<String> getPendingDeletions() throws IOException
+    {
+        throw new UnsupportedOperationException();
     }
 
     @Override

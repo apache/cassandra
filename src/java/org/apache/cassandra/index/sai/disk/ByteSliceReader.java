@@ -18,10 +18,10 @@
 
 package org.apache.cassandra.index.sai.disk;
 
+import java.io.DataOutput;
 import java.io.IOException;
 
 import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.ByteBlockPool;
 
 /* IndexInput that knows how to read the byte slices written
@@ -92,13 +92,13 @@ final class ByteSliceReader extends DataInput
             if (limit + bufferOffset == endIndex)
             {
                 assert endIndex - bufferOffset >= upto;
-                out.writeBytes(buffer, upto, limit - upto);
+                out.write(buffer, upto, limit - upto);
                 size += limit - upto;
                 break;
             }
             else
             {
-                out.writeBytes(buffer, upto, limit - upto);
+                out.write(buffer, upto, limit - upto);
                 size += limit - upto;
                 nextSlice();
             }
@@ -155,6 +155,27 @@ final class ByteSliceReader extends DataInput
                 // This slice is the last one
                 System.arraycopy(buffer, upto, b, offset, len);
                 upto += len;
+                break;
+            }
+        }
+    }
+
+    @Override
+    public void skipBytes(long l) throws IOException
+    {
+        while (l > 0)
+        {
+            final int numLeft = limit - upto;
+            if (numLeft < l)
+            {
+                // Skip entire slice
+                l -= numLeft;
+                nextSlice();
+            }
+            else
+            {
+                // This slice is the last one
+                upto += l;
                 break;
             }
         }

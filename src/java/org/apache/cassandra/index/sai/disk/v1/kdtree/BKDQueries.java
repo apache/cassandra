@@ -18,12 +18,12 @@
 package org.apache.cassandra.index.sai.disk.v1.kdtree;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.lucene.index.PointValues.Relation;
-import org.apache.lucene.util.FutureArrays;
 
 import static org.apache.lucene.index.PointValues.Relation.CELL_INSIDE_QUERY;
 
@@ -90,7 +90,7 @@ public class BKDQueries
         int compareUnsigned(byte[] packedValue, int dim, Bound bound)
         {
             final int offset = dim * bytesPerDim;
-            return FutureArrays.compareUnsigned(packedValue, offset, offset + bytesPerDim, bound.bound, offset, offset + bytesPerDim);
+            return Arrays.compareUnsigned(packedValue, offset, offset + bytesPerDim, bound.bound, offset, offset + bytesPerDim);
         }
     }
 
