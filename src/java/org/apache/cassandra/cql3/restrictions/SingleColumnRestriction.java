@@ -424,28 +424,51 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
     }
 
-    // This holds CONTAINS, CONTAINS_KEY, and map[key] = value restrictions because we might want to have any combination of them.
+
+    // This holds CONTAINS, CONTAINS_KEY, NOT CONTAINS, NOT CONTAINS KEY and map[key] = value restrictions because we might want to have any combination of them.
     public static final class ContainsRestriction extends SingleColumnRestriction
     {
         private final List<Term> values = new ArrayList<>(); // for CONTAINS
-        private final List<Term> keys = new ArrayList<>(); // for CONTAINS_KEY
-        private final List<Term> entryKeys = new ArrayList<>(); // for map[key] = value
+        private final List<Term> negativeValues = new ArrayList<>(); // for NOT_CONTAINS
+        private List<Term> keys = new ArrayList<>(); // for CONTAINS_KEY
+        private final List<Term> negativeKeys = new ArrayList<>(); // for NOT_CONTAINS_KEY
+        private List<Term> entryKeys = new ArrayList<>(); // for map[key] = value
         private final List<Term> entryValues = new ArrayList<>(); // for map[key] = value
+        private List<Term> negativeEntryKeys = new ArrayList<>(); // for map[key] != value
+        private List<Term> negativeEntryValues = new ArrayList<>(); // for map[key] != value
 
-        public ContainsRestriction(ColumnMetadata columnDef, Term t, boolean isKey)
+        public ContainsRestriction(ColumnMetadata columnDef, Term t, boolean isKey, boolean isNot)
         {
             super(columnDef);
-            if (isKey)
-                keys.add(t);
+            if (isNot)
+            {
+                if (isKey)
+                    negativeKeys.add(t);
+                else
+                    negativeValues.add(t);
+            }
             else
-                values.add(t);
+            {
+                if (isKey)
+                    keys.add(t);
+                else
+                    values.add(t);
+            }
         }
 
-        public ContainsRestriction(ColumnMetadata columnDef, Term mapKey, Term mapValue)
+        public ContainsRestriction(ColumnMetadata columnDef, Term mapKey, Term mapValue, boolean isNot)
         {
             super(columnDef);
-            entryKeys.add(mapKey);
-            entryValues.add(mapValue);
+            if (isNot)
+            {
+                negativeEntryKeys.add(mapKey);
+                negativeEntryValues.add(mapValue);
+            }
+            else
+            {
+                entryKeys.add(mapKey);
+                entryValues.add(mapValue);
+            }
         }
 
         @Override
@@ -480,7 +503,6 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                       columnDef.name);
 
             SingleColumnRestriction.ContainsRestriction newContains = new ContainsRestriction(columnDef);
-
             copyKeysAndValues(this, newContains);
             copyKeysAndValues((ContainsRestriction) otherRestriction, newContains);
 
@@ -494,12 +516,23 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                 filter.add(columnDef, Operator.CONTAINS, value);
             for (ByteBuffer key : bindAndGet(keys, options))
                 filter.add(columnDef, Operator.CONTAINS_KEY, key);
+            for (ByteBuffer value : bindAndGet(negativeValues, options))
+                filter.add(columnDef, Operator.NOT_CONTAINS, value);
+            for (ByteBuffer key : bindAndGet(negativeKeys, options))
+                filter.add(columnDef, Operator.NOT_CONTAINS_KEY, key);
 
             List<ByteBuffer> eks = bindAndGet(entryKeys, options);
             List<ByteBuffer> evs = bindAndGet(entryValues, options);
             assert eks.size() == evs.size();
             for (int i = 0; i < eks.size(); i++)
                 filter.addMapEquality(columnDef, eks.get(i), Operator.EQ, evs.get(i));
+
+            List<ByteBuffer> neks = bindAndGet(negativeEntryKeys, options);
+            List<ByteBuffer> nevs = bindAndGet(negativeEntryValues, options);
+            assert neks.size() == nevs.size();
+            for (int i = 0; i < neks.size(); i++)
+                filter.addMapEquality(columnDef, neks.get(i), Operator.NEQ, nevs.get(i));
+
         }
 
         @Override
@@ -513,8 +546,17 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             if (numberOfKeys() > 0)
                 supported |= index.supportsExpression(columnDef, Operator.CONTAINS_KEY);
 
+            if (numberOfNegativeValues() > 0)
+                supported |= index.supportsExpression(columnDef, Operator.NOT_CONTAINS);
+
+            if (numberOfNegativeKeys() > 0)
+                supported |= index.supportsExpression(columnDef, Operator.NOT_CONTAINS_KEY);
+
             if (numberOfEntries() > 0)
                 supported |= index.supportsExpression(columnDef, Operator.EQ);
+
+            if (numberOfNegativeEntries() > 0)
+                supported |= index.supportsExpression(columnDef, Operator.NEQ);
 
             return supported;
         }
@@ -539,14 +581,29 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             return values.size();
         }
 
+        public int numberOfNegativeValues()
+        {
+            return negativeValues.size();
+        }
+
         public int numberOfKeys()
         {
             return keys.size();
         }
 
+        public int numberOfNegativeKeys()
+        {
+            return negativeKeys.size();
+        }
+
         public int numberOfEntries()
         {
             return entryKeys.size();
+        }
+
+        public int numberOfNegativeEntries()
+        {
+            return negativeEntryKeys.size();
         }
 
         @Override
@@ -556,12 +613,18 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             Terms.addFunctions(keys, functions);
             Terms.addFunctions(entryKeys, functions);
             Terms.addFunctions(entryValues, functions);
+
+            Terms.addFunctions(negativeValues, functions);
+            Terms.addFunctions(negativeKeys, functions);
+            Terms.addFunctions(negativeEntryKeys, functions);
+            Terms.addFunctions(negativeEntryValues, functions);
         }
 
         @Override
         public String toString()
         {
-            return String.format("CONTAINS(values=%s, keys=%s, entryKeys=%s, entryValues=%s)", values, keys, entryKeys, entryValues);
+            return String.format("CONTAINS(values=%s, keys=%s, entryKeys=%s, entryValues=%s)",
+                                 values, keys, entryKeys, entryValues);
         }
 
         @Override
@@ -606,9 +669,14 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         private static void copyKeysAndValues(ContainsRestriction from, ContainsRestriction to)
         {
             to.values.addAll(from.values);
+            to.negativeValues.addAll(from.negativeValues);
             to.keys.addAll(from.keys);
+            to.negativeKeys.addAll(from.negativeKeys);
             to.entryKeys.addAll(from.entryKeys);
             to.entryValues.addAll(from.entryValues);
+            to.negativeEntryKeys.addAll(from.negativeEntryKeys);
+            to.negativeEntryValues.addAll(from.negativeEntryValues);
+
         }
 
         private ContainsRestriction(ColumnMetadata columnDef)
@@ -616,6 +684,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             super(columnDef);
         }
     }
+
 
     public static final class IsNotNullRestriction extends SingleColumnRestriction
     {

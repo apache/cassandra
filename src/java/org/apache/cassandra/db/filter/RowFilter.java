@@ -705,63 +705,77 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         return foundValue != null && operator.isSatisfiedBy(column.type, foundValue, value);
                     }
                 case CONTAINS:
-                    assert column.type.isCollection();
-                    CollectionType<?> type = (CollectionType<?>)column.type;
-                    if (column.isComplex())
-                    {
-                        ComplexColumnData complexData = row.getComplexColumnData(column);
-                        if (complexData != null)
-                        {
-                            for (Cell<?> cell : complexData)
-                            {
-                                if (type.kind == CollectionType.Kind.SET)
-                                {
-                                    if (type.nameComparator().compare(cell.path().get(0), value) == 0)
-                                        return true;
-                                }
-                                else
-                                {
-                                    if (type.valueComparator().compare(cell.buffer(), value) == 0)
-                                        return true;
-                                }
-                            }
-                        }
-                        return false;
-                    }
-                    else
-                    {
-                        ByteBuffer foundValue = getValue(metadata, partitionKey, row);
-                        if (foundValue == null)
-                            return false;
-
-                        switch (type.kind)
-                        {
-                            case LIST:
-                                ListType<?> listType = (ListType<?>)type;
-                                return listType.compose(foundValue).contains(listType.getElementsType().compose(value));
-                            case SET:
-                                SetType<?> setType = (SetType<?>)type;
-                                return setType.compose(foundValue).contains(setType.getElementsType().compose(value));
-                            case MAP:
-                                MapType<?,?> mapType = (MapType<?, ?>)type;
-                                return mapType.compose(foundValue).containsValue(mapType.getValuesType().compose(value));
-                        }
-                        throw new AssertionError();
-                    }
+                    return contains(metadata, partitionKey, row);
                 case CONTAINS_KEY:
-                    assert column.type.isCollection() && column.type instanceof MapType;
-                    MapType<?, ?> mapType = (MapType<?, ?>)column.type;
-                    if (column.isComplex())
-                    {
-                         return row.getCell(column, CellPath.create(value)) != null;
-                    }
-                    else
-                    {
-                        ByteBuffer foundValue = getValue(metadata, partitionKey, row);
-                        return foundValue != null && mapType.getSerializer().getSerializedValue(foundValue, value, mapType.getKeysType()) != null;
-                    }
+                    return containsKey(metadata, partitionKey, row);
+                case NOT_CONTAINS:
+                    return !contains(metadata, partitionKey, row);
+                case NOT_CONTAINS_KEY:
+                    return !containsKey(metadata, partitionKey, row);
             }
             throw new AssertionError();
+        }
+
+        private boolean contains(TableMetadata metadata, DecoratedKey partitionKey, Row row)
+        {
+            assert column.type.isCollection();
+            CollectionType<?> type = (CollectionType<?>)column.type;
+            if (column.isComplex())
+            {
+                ComplexColumnData complexData = row.getComplexColumnData(column);
+                if (complexData != null)
+                {
+                    for (Cell<?> cell : complexData)
+                    {
+                        if (type.kind == CollectionType.Kind.SET)
+                        {
+                            if (type.nameComparator().compare(cell.path().get(0), value) == 0)
+                                return true;
+                        }
+                        else
+                        {
+                            if (type.valueComparator().compare(cell.buffer(), value) == 0)
+                                return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            else
+            {
+                ByteBuffer foundValue = getValue(metadata, partitionKey, row);
+                if (foundValue == null)
+                    return false;
+
+                switch (type.kind)
+                {
+                    case LIST:
+                        ListType<?> listType = (ListType<?>)type;
+                        return listType.compose(foundValue).contains(listType.getElementsType().compose(value));
+                    case SET:
+                        SetType<?> setType = (SetType<?>)type;
+                        return setType.compose(foundValue).contains(setType.getElementsType().compose(value));
+                    case MAP:
+                        MapType<?,?> mapType = (MapType<?, ?>)type;
+                        return mapType.compose(foundValue).containsValue(mapType.getValuesType().compose(value));
+                }
+                throw new AssertionError();
+            }
+        }
+
+        private boolean containsKey(TableMetadata metadata, DecoratedKey partitionKey, Row row)
+        {
+            assert column.type.isCollection() && column.type instanceof MapType;
+            MapType<?, ?> mapType = (MapType<?, ?>)column.type;
+            if (column.isComplex())
+            {
+                return row.getCell(column, CellPath.create(value)) != null;
+            }
+            else
+            {
+                ByteBuffer foundValue = getValue(metadata, partitionKey, row);
+                return foundValue != null && mapType.getSerializer().getSerializedValue(foundValue, value, mapType.getKeysType()) != null;
+            }
         }
 
         @Override
@@ -808,7 +822,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         public MapEqualityExpression(ColumnMetadata column, ByteBuffer key, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
-            assert column.type instanceof MapType && operator == Operator.EQ;
+            assert column.type instanceof MapType && (operator == Operator.EQ || operator == Operator.NEQ);
             this.key = key;
         }
 
@@ -828,6 +842,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         }
 
         public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
+        {
+            return isSatisfiedByEq(metadata, partitionKey, row) ^ (operator == Operator.NEQ);
+        }
+
+        private boolean isSatisfiedByEq(TableMetadata metadata, DecoratedKey partitionKey, Row row)
         {
             assert key != null;
             // We support null conditions for LWT (in ColumnCondition) but not for RowFilter.
@@ -861,8 +880,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             AbstractType<?> nt = mt.nameComparator();
             AbstractType<?> vt = mt.valueComparator();
             return cql
-                 ? String.format("%s[%s] = %s", column.name.toCQLString(), nt.toCQLString(key), vt.toCQLString(value))
-                 : String.format("%s[%s] = %s", column.name.toString(), nt.getString(key), vt.getString(value));
+                 ? String.format("%s[%s] %s %s", column.name.toCQLString(), operator, nt.toCQLString(key), vt.toCQLString(value))
+                 : String.format("%s[%s] %s %s", column.name.toString(), operator, nt.getString(key), vt.getString(value));
         }
 
         @Override

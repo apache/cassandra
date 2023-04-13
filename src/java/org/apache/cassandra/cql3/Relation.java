@@ -87,6 +87,27 @@ public abstract class Relation
     }
 
     /**
+     * Checks if the operator of this relation is a <code>NOT_CONTAINS</code>.
+     * @return <code>true</code>  if the operator of this relation is a <code>NOT_CONTAINS</code>, <code>false</code>
+     * otherwise.
+     */
+    public final boolean isNotContains()
+    {
+        return relationType == Operator.NOT_CONTAINS;
+    }
+
+    /**
+     * Checks if the operator of this relation is a <code>CONTAINS_KEY</code>.
+     * @return <code>true</code>  if the operator of this relation is a <code>NOT_CONTAINS_KEY</code>, <code>false</code>
+     * otherwise.
+     */
+    public final boolean isNotContainsKey()
+    {
+        return relationType == Operator.NOT_CONTAINS_KEY;
+    }
+
+
+    /**
      * Checks if the operator of this relation is a <code>IN</code>.
      * @return <code>true</code>  if the operator of this relation is a <code>IN</code>, <code>false</code>
      * otherwise.
@@ -106,6 +127,16 @@ public abstract class Relation
         return relationType == Operator.EQ;
     }
 
+    /**
+     * Checks if the operator of this relation is a <code>NEQ</code>.
+     * @return <code>true</code>  if the operator of this relation is a <code>NEQ</code>, <code>false</code>
+     * otherwise.
+     */
+    public final boolean isNEQ()
+    {
+        return relationType == Operator.NEQ;
+    }
+
     public final boolean isLIKE()
     {
         return relationType == Operator.LIKE_PREFIX
@@ -114,6 +145,16 @@ public abstract class Relation
                 || relationType == Operator.LIKE_MATCHES
                 || relationType == Operator.LIKE;
     }
+
+    public final boolean isNotLIKE()
+    {
+        return relationType == Operator.NOT_LIKE_PREFIX
+               || relationType == Operator.NOT_LIKE_SUFFIX
+               || relationType == Operator.NOT_LIKE_CONTAINS
+               || relationType == Operator.NOT_LIKE_MATCHES
+               || relationType == Operator.NOT_LIKE;
+    }
+
 
     /**
      * Checks if the operator of this relation is a <code>Slice</code> (GT, GTE, LTE, LT).
@@ -141,13 +182,16 @@ public abstract class Relation
         switch (relationType)
         {
             case EQ: return newEQRestriction(table, boundNames);
+            case NEQ: return newNEQRestriction(table, boundNames);
             case LT: return newSliceRestriction(table, boundNames, Bound.END, false);
             case LTE: return newSliceRestriction(table, boundNames, Bound.END, true);
             case GTE: return newSliceRestriction(table, boundNames, Bound.START, true);
             case GT: return newSliceRestriction(table, boundNames, Bound.START, false);
             case IN: return newINRestriction(table, boundNames);
-            case CONTAINS: return newContainsRestriction(table, boundNames, false);
-            case CONTAINS_KEY: return newContainsRestriction(table, boundNames, true);
+            case CONTAINS: return newContainsRestriction(table, boundNames, false, false);
+            case CONTAINS_KEY: return newContainsRestriction(table, boundNames, true, false);
+            case NOT_CONTAINS: return newContainsRestriction(table, boundNames, false, true);
+            case NOT_CONTAINS_KEY: return newContainsRestriction(table, boundNames, true, true);
             case IS_NOT: return newIsNotRestriction(table, boundNames);
             case LIKE_PREFIX:
             case LIKE_SUFFIX:
@@ -168,6 +212,17 @@ public abstract class Relation
      * @throws InvalidRequestException if the relation cannot be converted into an EQ restriction.
      */
     protected abstract Restriction newEQRestriction(TableMetadata table, VariableSpecifications boundNames);
+
+    /**
+     * Creates a new NEQ restriction instance.
+     *
+     * @param table the table meta data
+     * @param boundNames the variables specification where to collect the bind variables
+     * @return a new EQ restriction instance.
+     * @throws InvalidRequestException if the relation cannot be converted into an NEQ restriction.
+     */
+    protected abstract Restriction newNEQRestriction(TableMetadata table, VariableSpecifications boundNames);
+
 
     /**
      * Creates a new IN restriction instance.
@@ -203,7 +258,7 @@ public abstract class Relation
      * @return a new Contains <code>Restriction</code> instance
      * @throws InvalidRequestException if the <code>Relation</code> is not valid
      */
-    protected abstract Restriction newContainsRestriction(TableMetadata table, VariableSpecifications boundNames, boolean isKey);
+    protected abstract Restriction newContainsRestriction(TableMetadata table, VariableSpecifications boundNames, boolean isKey, boolean isNot);
 
     protected abstract Restriction newIsNotRestriction(TableMetadata table, VariableSpecifications boundNames);
 
