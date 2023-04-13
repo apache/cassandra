@@ -295,7 +295,9 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
             if (restriction.isContains())
             {
                 ContainsRestriction contains = (ContainsRestriction) restriction;
-                numberOfContains += (contains.numberOfValues() + contains.numberOfKeys() + contains.numberOfEntries());
+                numberOfContains += (contains.numberOfValues() + contains.numberOfNegativeValues() +
+                                     contains.numberOfKeys() + contains.numberOfNegativeKeys() +
+                                     contains.numberOfEntries() + contains.numberOfNegativeEntries());
             }
         }
         return numberOfContains > 1;

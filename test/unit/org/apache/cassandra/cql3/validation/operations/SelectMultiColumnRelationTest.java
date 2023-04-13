@@ -368,7 +368,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
     public void testNonEqualsRelation() throws Throwable
     {
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int)");
-        assertInvalidMessage("Unsupported \"!=\" relation: (b) != (0)",
+        assertInvalidMessage("!= cannot be used for multi-column relations",
                              "SELECT * FROM %s WHERE a = 0 AND (b) != (0)");
     }
 

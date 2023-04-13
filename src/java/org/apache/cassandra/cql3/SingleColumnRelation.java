@@ -190,7 +190,20 @@ public final class SingleColumnRelation extends Relation
         List<? extends ColumnSpecification> receivers = toReceivers(columnDef);
         Term entryKey = toTerm(Collections.singletonList(receivers.get(0)), mapKey, table.keyspace, boundNames);
         Term entryValue = toTerm(Collections.singletonList(receivers.get(1)), value, table.keyspace, boundNames);
-        return new SingleColumnRestriction.ContainsRestriction(columnDef, entryKey, entryValue);
+        return new SingleColumnRestriction.ContainsRestriction(columnDef, entryKey, entryValue, false);
+    }
+
+    @Override
+    protected Restriction newNEQRestriction(TableMetadata table, VariableSpecifications boundNames)
+    {
+        ColumnMetadata columnDef = table.getExistingColumn(entity);
+        if (mapKey == null)
+            throw invalidRequest("NEQ restrictions are supported only on map columns");
+
+        List<? extends ColumnSpecification> receivers = toReceivers(columnDef);
+        Term entryKey = toTerm(Collections.singletonList(receivers.get(0)), mapKey, table.keyspace, boundNames);
+        Term entryValue = toTerm(Collections.singletonList(receivers.get(1)), value, table.keyspace, boundNames);
+        return new SingleColumnRestriction.ContainsRestriction(columnDef, entryKey, entryValue, true);
     }
 
     @Override
@@ -235,11 +248,12 @@ public final class SingleColumnRelation extends Relation
     @Override
     protected Restriction newContainsRestriction(TableMetadata table,
                                                  VariableSpecifications boundNames,
-                                                 boolean isKey) throws InvalidRequestException
+                                                 boolean isKey,
+                                                 boolean isNot) throws InvalidRequestException
     {
         ColumnMetadata columnDef = table.getExistingColumn(entity);
         Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
-        return new SingleColumnRestriction.ContainsRestriction(columnDef, term, isKey);
+        return new SingleColumnRestriction.ContainsRestriction(columnDef, term, isKey, isNot);
     }
 
     @Override
@@ -276,13 +290,15 @@ public final class SingleColumnRelation extends Relation
 
         checkFalse(isContainsKey() && !(receiver.type instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", receiver.name);
         checkFalse(isContains() && !(receiver.type.isCollection()), "Cannot use CONTAINS on non-collection column %s", receiver.name);
+        checkFalse(isNotContainsKey() && !(receiver.type instanceof MapType), "Cannot use NOT CONTAINS KEY on non-map column %s", receiver.name);
+        checkFalse(isNotContains() && !(receiver.type.isCollection()), "Cannot use NOT CONTAINS on non-collection column %s", receiver.name);
 
         if (mapKey != null)
         {
             checkFalse(receiver.type instanceof ListType, "Indexes on list entries (%s[index] = value) are not currently supported.", receiver.name);
             checkTrue(receiver.type instanceof MapType, "Column %s cannot be used as a map", receiver.name);
             checkTrue(receiver.type.isMultiCell(), "Map-entry equality predicates on frozen map column %s are not supported", receiver.name);
-            checkTrue(isEQ(), "Only EQ relations are supported on map entries");
+            checkTrue(isEQ() || isNEQ(), "Only EQ and NEQ relations are supported on map entries");
         }
 
         // Non-frozen UDTs don't support any operator
@@ -300,11 +316,11 @@ public final class SingleColumnRelation extends Relation
                        receiver.type.asCQL3Type(),
                        operator());
 
-            if (isContainsKey() || isContains())
+            if (isContainsKey() || isContains() || isNotContains() || isNotContainsKey())
             {
-                receiver = makeCollectionReceiver(receiver, isContainsKey());
+                receiver = makeCollectionReceiver(receiver, isContainsKey() || isNotContainsKey());
             }
-            else if (receiver.type.isMultiCell() && mapKey != null && isEQ())
+            else if (receiver.type.isMultiCell() && mapKey != null && (isEQ() || isNEQ()))
             {
                 List<ColumnSpecification> receivers = new ArrayList<>(2);
                 receivers.add(makeCollectionReceiver(receiver, true));
@@ -323,12 +339,12 @@ public final class SingleColumnRelation extends Relation
 
     private boolean isLegalRelationForNonFrozenCollection()
     {
-        return isContainsKey() || isContains() || isMapEntryEquality();
+        return isContainsKey() || isContains() || isNotContains() || isNotContainsKey() || isMapEntryEquality();
     }
 
     private boolean isMapEntryEquality()
     {
-        return mapKey != null && isEQ();
+        return mapKey != null && (isEQ() || isNEQ());
     }
 
     private boolean canHaveOnlyOneValue()
