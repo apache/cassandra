@@ -103,44 +103,41 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
 
             List<String> failures = new ArrayList<>();
             String query = getQuery(table);
-            for (int ignore = 0; ignore < 10; ignore++)
+            for (Murmur3Partitioner.LongToken token : tokens)
             {
-                for (Murmur3Partitioner.LongToken token : tokens)
-                {
-                    ByteBuffer key = Murmur3Partitioner.LongToken.keyForToken(token);
+                ByteBuffer key = Murmur3Partitioner.LongToken.keyForToken(token);
 
-                    for (IInvokableInstance i : dc1)
+                for (IInvokableInstance i : dc1)
+                {
+                    for (ConsistencyLevel cl : levels())
                     {
-                        for (ConsistencyLevel cl : levels())
+                        try
                         {
-                            try
+                            Coordinators.withTracing(i.coordinator(), query, cl, key);
+                        }
+                        catch (Coordinators.WithTraceException e)
+                        {
+                            Throwable cause = e.getCause();
+                            if (AssertionUtils.isInstanceof(WriteTimeoutException.class).matches(cause) || AssertionUtils.isInstanceof(ReadTimeoutException.class).matches(cause))
                             {
-                                Coordinators.withTracing(i.coordinator(), query, cl, key);
+                                List<String> traceMesssages = Arrays.asList("Sending mutation to remote replica",
+                                                                            "reading data from",
+                                                                            "reading digest from");
+                                SimpleQueryResult filtered = QueryResultUtil.query(e.trace)
+                                                                            .select("activity")
+                                                                            .filter(row -> traceMesssages.stream().anyMatch(row.getString("activity")::startsWith))
+                                                                            .build();
+                                InetAddressAndPort decomeNode = BB.address((byte) DECOM_NODE);
+                                while (filtered.hasNext())
+                                {
+                                    String log = filtered.next().getString("activity");
+                                    if (log.contains(decomeNode.toString()))
+                                        failures.add("Failure with node" + i.config().num() + ", cl=" + cl + ";\n\t" + cause.getMessage() + ";\n\tTrace activity=" + log);
+                                }
                             }
-                            catch (Coordinators.WithTraceException e)
+                            else
                             {
-                                Throwable cause = e.getCause();
-                                if (AssertionUtils.isInstanceof(WriteTimeoutException.class).matches(cause) || AssertionUtils.isInstanceof(ReadTimeoutException.class).matches(cause))
-                                {
-                                    List<String> traceMesssages = Arrays.asList("Sending mutation to remote replica",
-                                                                                "reading data from",
-                                                                                "reading digest from");
-                                    SimpleQueryResult filtered = QueryResultUtil.query(e.trace)
-                                                   .select("activity")
-                                                   .filter(row -> traceMesssages.stream().anyMatch(row.getString("activity")::startsWith))
-                                                   .build();
-                                    InetAddressAndPort decomeNode = BB.address((byte) DECOM_NODE);
-                                    while (filtered.hasNext())
-                                    {
-                                        String log = filtered.next().getString("activity");
-                                        if (log.contains(decomeNode.toString()))
-                                            failures.add("Failure with node" + i.config().num() + ", cl=" + cl + ";\n\t" + cause.getMessage() + ";\n\tTrace activity=" + log);
-                                    }
-                                }
-                                else
-                                {
-                                    throw e;
-                                }
+                                throw e;
                             }
                         }
                     }
