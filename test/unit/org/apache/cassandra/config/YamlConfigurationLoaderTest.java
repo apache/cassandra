@@ -183,6 +183,8 @@ public class YamlConfigurationLoaderTest
         assertThat(c.sstable_compressor.chunk_length).isEqualTo("32MiB");
         assertThat(c.sstable_compressor.min_compress_ratio).isEqualTo(0.5D);
         assertThat(c.sstable_compressor.enabled).isTrue();
+        assertThat(c.sstable_compressor.parameters).isNotNull();
+        assertThat(c.sstable_compressor.parameters.size()).isEqualTo(1);
     }
 
     @Test

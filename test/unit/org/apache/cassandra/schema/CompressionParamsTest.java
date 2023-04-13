@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -48,6 +49,25 @@ public class CompressionParamsTest
     @Before
     public void resetOptions() {
         options = new SSTableCompressionOptions();
+    }
+
+    @Test
+    public void additionalParamsTest() {
+        assertThat( options.parameters).isNull();
+        params = CompressionParams.fromOptions(options);
+        assertThat( params.getOtherOptions()).isNotNull();
+        assertThat( params.getOtherOptions().isEmpty()).isTrue();
+
+        options.parameters = new HashMap<>();
+        params = CompressionParams.fromOptions(options);
+        assertThat( params.getOtherOptions()).isNotNull();
+        assertThat( params.getOtherOptions().isEmpty()).isTrue();
+
+        options.parameters.put( "foo", "bar");
+        params = CompressionParams.fromOptions(options);
+        params = CompressionParams.fromOptions(options);
+        assertThat( params.getOtherOptions()).isNotNull();
+        assertThat( params.getOtherOptions().get("foo")).isEqualTo("bar");
     }
 
     @Test

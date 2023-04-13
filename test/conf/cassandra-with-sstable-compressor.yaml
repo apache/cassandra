@@ -106,4 +106,4 @@ sstable_compressor:
     min_compress_ratio: 0.5
     class_name: lz4
     parameters:
-        - lz4_compressor_type: high
+        lz4_compressor_type: high
