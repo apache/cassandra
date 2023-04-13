@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v1.sortedterms;
 
 import java.io.IOException;
 
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 
@@ -39,7 +40,7 @@ public class SortedTermsMeta
         this.maxTermLength = input.readInt();
     }
 
-    public static void write(IndexOutput output, long trieFilePointer, long termCount, int maxTermLength) throws IOException
+    public static void write(DataOutput output, long trieFilePointer, long termCount, int maxTermLength) throws IOException
     {
         output.writeLong(trieFilePointer);
         output.writeLong(termCount);

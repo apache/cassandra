@@ -26,6 +26,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
 
 @NotThreadSafe
@@ -79,8 +80,9 @@ public class NumericValuesWriter implements Closeable
     @Override
     public void close() throws IOException
     {
-        try (IndexOutput o = metadataWriter.builder(componentName))
+        try
         {
+            DataOutput o = metadataWriter.builder(componentName);
             long fp = writer.finish();
             SAICodecUtils.writeFooter(output);
 

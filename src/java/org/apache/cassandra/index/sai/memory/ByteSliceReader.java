@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.memory;
 
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.IOException;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.util.ByteBlockPool;
@@ -120,5 +121,26 @@ final class ByteSliceReader extends DataInput
     public void readBytes(byte[] b, int offset, int len)
     {
         throw new UnsupportedOperationException("readBytes is not supported by ByteSliceReader");
+    }
+
+    @Override
+    public void skipBytes(long l) throws IOException
+    {
+        while (l > 0)
+        {
+            final int numLeft = limit - upto;
+            if (numLeft < l)
+            {
+                // Skip entire slice
+                l -= numLeft;
+                nextSlice();
+            }
+            else
+            {
+                // This slice is the last one
+                upto += l;
+                break;
+            }
+        }
     }
 }

@@ -23,7 +23,8 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 
@@ -31,41 +32,31 @@ import org.apache.lucene.util.BytesRef;
 public class MetadataWriter implements Closeable
 {
     private final IndexOutput output;
-    private final Map<String, BytesRef> map = new HashMap<>();
+    private final Map<String, ByteBuffersDataOutput> map = new HashMap<>();
 
     public MetadataWriter(IndexOutput output)
     {
         this.output = output;
     }
 
-    public Builder builder(String name)
+    public DataOutput builder(String name)
     {
-        return new Builder(name);
-    }
+        ByteBuffersDataOutput output = new ByteBuffersDataOutput(1024);
+        map.put(name, output);
 
-    public class Builder extends RAMIndexOutput implements Closeable
-    {
-        private Builder(String name)
-        {
-            super(name);
-        }
 
-        @Override
-        public void close()
-        {
-            map.put(getName(), getBytes());
-        }
+        return output;
     }
 
     private void finish() throws IOException
     {
         SAICodecUtils.writeHeader(output);
         output.writeInt(map.size());
-        for (Map.Entry<String, BytesRef> entry : map.entrySet())
+        for (Map.Entry<String, ByteBuffersDataOutput> entry : map.entrySet())
         {
             output.writeString(entry.getKey());
-            output.writeInt(entry.getValue().length);
-            output.writeBytes(entry.getValue().bytes, entry.getValue().offset, entry.getValue().length);
+            output.writeInt((int)entry.getValue().size());
+            entry.getValue().copyTo(output);
         }
         SAICodecUtils.writeFooter(output);
     }

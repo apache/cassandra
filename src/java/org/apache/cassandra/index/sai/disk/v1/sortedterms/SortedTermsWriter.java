@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
+import javax.xml.crypto.Data;
 
 import com.google.common.base.Preconditions;
 
@@ -34,6 +35,7 @@ import org.apache.cassandra.io.tries.IncrementalDeepTrieWriterPageAware;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -177,8 +179,9 @@ public class SortedTermsWriter implements Closeable
     @Override
     public void close() throws IOException
     {
-        try (IndexOutput output = metadataWriter.builder(componentName))
+        try
         {
+            DataOutput output = metadataWriter.builder(componentName);
             long trieFilePointer = this.trieWriter.complete();
             SAICodecUtils.writeFooter(trieOutput);
             SAICodecUtils.writeFooter(termsOutput);

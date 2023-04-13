@@ -36,6 +36,7 @@ import org.apache.cassandra.index.sai.disk.v1.MetadataSource;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 
@@ -147,23 +148,21 @@ public class SegmentMetadata
      */
     public static void write(MetadataWriter writer, List<SegmentMetadata> segments) throws IOException
     {
-        try (IndexOutput output = writer.builder(NAME))
+        DataOutput output = writer.builder(NAME);
+        output.writeVInt(segments.size());
+
+        for (SegmentMetadata metadata : segments)
         {
-            output.writeVInt(segments.size());
+            output.writeLong(metadata.rowIdOffset);
+            output.writeLong(metadata.numRows);
+            output.writeLong(metadata.minSSTableRowId);
+            output.writeLong(metadata.maxSSTableRowId);
 
-            for (SegmentMetadata metadata : segments)
-            {
-                output.writeLong(metadata.rowIdOffset);
-                output.writeLong(metadata.numRows);
-                output.writeLong(metadata.minSSTableRowId);
-                output.writeLong(metadata.maxSSTableRowId);
+            Stream.of(metadata.minKey.partitionKey().getKey(),
+                      metadata.maxKey.partitionKey().getKey(),
+                      metadata.minTerm, metadata.maxTerm).forEach(bb -> writeBytes(bb, output));
 
-                Stream.of(metadata.minKey.partitionKey().getKey(),
-                          metadata.maxKey.partitionKey().getKey(),
-                          metadata.minTerm, metadata.maxTerm).forEach(bb -> writeBytes(bb, output));
-
-                metadata.componentMetadatas.write(output);
-            }
+            metadata.componentMetadatas.write(output);
         }
     }
 
@@ -187,7 +186,7 @@ public class SegmentMetadata
         return ByteBuffer.wrap(bytes);
     }
 
-    private static void writeBytes(ByteBuffer buf, IndexOutput out)
+    private static void writeBytes(ByteBuffer buf, DataOutput out)
     {
         try
         {
@@ -234,7 +233,7 @@ public class SegmentMetadata
             metas.put(indexComponent, new ComponentMetadata(root, offset, length, additionalMap));
         }
 
-        private void write(IndexOutput output) throws IOException
+        private void write(DataOutput output) throws IOException
         {
             output.writeInt(metas.size());
 
@@ -329,7 +328,7 @@ public class SegmentMetadata
             }
         }
 
-        public void write(IndexOutput output) throws IOException
+        public void write(DataOutput output) throws IOException
         {
             output.writeLong(root);
             output.writeLong(offset);

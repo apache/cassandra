@@ -19,7 +19,8 @@ package org.apache.cassandra.index.sai.disk.v1.bitpack;
 
 import java.io.IOException;
 
-import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
+import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.DirectWriter;
 
@@ -39,7 +40,7 @@ public abstract class AbstractBlockPackedWriter
     // This collects metadata specific to the block packed writer being used during the
     // writing of the block packed data. This cached metadata is then written to the end
     // of the data file when the block packed writer is finished.
-    protected final RAMIndexOutput blockMetaWriter;
+    protected final ByteBuffersDataOutput blockMetaWriter;
 
     protected int blockIndex;
     protected boolean finished;
@@ -48,7 +49,7 @@ public abstract class AbstractBlockPackedWriter
     {
         checkBlockSize(blockSize, MIN_BLOCK_SIZE, MAX_BLOCK_SIZE);
         this.indexOutput = indexOutput;
-        this.blockMetaWriter = new RAMIndexOutput("BlockPackedMeta");
+        this.blockMetaWriter = new ByteBuffersDataOutput(1024);
         blockValues = new long[blockSize];
     }
 
@@ -80,7 +81,7 @@ public abstract class AbstractBlockPackedWriter
             flush();
         }
         final long fp = indexOutput.getFilePointer();
-        blockMetaWriter.writeTo(indexOutput);
+        blockMetaWriter.copyTo(indexOutput);
         finished = true;
         return fp;
     }
@@ -97,7 +98,7 @@ public abstract class AbstractBlockPackedWriter
         writer.finish();
     }
 
-    void writeVLong(IndexOutput out, long i) throws IOException
+    void writeVLong(DataOutput out, long i) throws IOException
     {
         int k = 0;
         while ((i & ~0x7FL) != 0L && k++ < 8)

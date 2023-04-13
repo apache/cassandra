@@ -39,6 +39,7 @@ import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.util.File;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
 
 import static org.junit.Assert.assertArrayEquals;
@@ -77,10 +78,8 @@ public class MetadataTest extends SAIRandomizedTester
                 String name = UUID.randomUUID().toString();
 
                 data.put(name, bytes);
-                try (MetadataWriter.Builder builder = writer.builder(name))
-                {
-                    builder.writeBytes(bytes, 0, bytes.length);
-                }
+                DataOutput builder = writer.builder(name);
+                builder.writeBytes(bytes, 0, bytes.length);
             }
         }
         MetadataSource reader = MetadataSource.loadColumnMetadata(indexDescriptor, indexContext);
@@ -179,10 +178,8 @@ public class MetadataTest extends SAIRandomizedTester
         {
             byte[] bytes = nextBytes(11, 1024);
 
-            try (MetadataWriter.Builder builder = writer.builder("name"))
-            {
-                builder.writeBytes(bytes, 0, bytes.length);
-            }
+            DataOutput builder = writer.builder("name");
+            builder.writeBytes(bytes, 0, bytes.length);
         }
         return output;
     }
