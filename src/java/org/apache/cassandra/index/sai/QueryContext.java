@@ -40,10 +40,17 @@ public class QueryContext
 
     public final long executionQuotaNano;
 
+    public long sstablesHit = 0;
+    public long segmentsHit = 0;
     public long partitionsRead = 0;
     public long rowsFiltered = 0;
 
-    public long queryTimeouts = 0;
+    public long trieSegmentsHit = 0;
+
+    public long triePostingsSkips = 0;
+    public long triePostingsDecodes = 0;
+
+    public boolean queryTimedOut = false;
 
     public QueryContext(ReadCommand readCommand, long executionQuotaMs)
     {
@@ -61,7 +68,7 @@ public class QueryContext
     {
         if (totalQueryTimeNs() >= executionQuotaNano && !DISABLE_TIMEOUT)
         {
-            queryTimeouts++;
+            queryTimedOut = true;
             throw new QueryCancelledException(readCommand);
         }
     }

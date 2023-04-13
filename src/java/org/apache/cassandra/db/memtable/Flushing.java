@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -58,6 +59,12 @@ public class Flushing
                                                      Memtable memtable,
                                                      LifecycleTransaction txn)
     {
+        LifecycleTransaction ongoingFlushTransaction = memtable.setFlushTransaction(txn);
+        Preconditions.checkState(ongoingFlushTransaction == null,
+                                 "Attempted to flush Memtable more than once on %s.%s",
+                                 cfs.keyspace.getName(),
+                                 cfs.name);
+
         DiskBoundaries diskBoundaries = cfs.getDiskBoundaries();
         List<PartitionPosition> boundaries = diskBoundaries.positions;
         List<Directories.DataDirectory> locations = diskBoundaries.directories;

@@ -30,6 +30,6 @@ public class MultiMapVarintTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateParameters(new CollectionDataSet.MultiMapDataSet<>(new DataSet.VarintDataSet()));
+        return generateNumericParameters(new CollectionDataSet.MultiMapDataSet<>(new DataSet.VarintDataSet()));
     }
 }

@@ -21,7 +21,7 @@ import java.util.PriorityQueue;
 import java.util.SortedSet;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.cassandra.index.sai.utils.KeyRangeIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 @NotThreadSafe

@@ -37,7 +37,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalDouble;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.UUID;
@@ -966,6 +965,8 @@ public class DatabaseDescriptor
 
         if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
+
+        conf.sai_options.validate();
     }
 
     @VisibleForTesting
@@ -4774,5 +4775,10 @@ public class DatabaseDescriptor
         return conf.severity_during_decommission > 0 ?
                OptionalDouble.of(conf.severity_during_decommission) :
                OptionalDouble.empty();
+    }
+
+    public static DataStorageSpec.IntMebibytesBound getSAISegmentWriteBufferSpace()
+    {
+        return conf.sai_options.segment_write_buffer_size;
     }
 }

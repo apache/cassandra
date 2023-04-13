@@ -152,7 +152,8 @@ public class StubIndex implements Index
         return indexMetadata;
     }
 
-    public void register(IndexRegistry registry){
+    public void register(IndexRegistry registry)
+    {
         registry.registerIndex(this);
     }
 

@@ -61,27 +61,27 @@ import static org.junit.Assert.assertThat;
  */
 public class IndexQuerySupport
 {
-    public static List<BaseQuerySet> BASE_QUERY_SETS = ImmutableList.of(new BaseQuerySet(10, 5),
-                                                                        new BaseQuerySet(10, 9),
-                                                                        new BaseQuerySet(10, 10),
-                                                                        new BaseQuerySet(10, Integer.MAX_VALUE),
-                                                                        new BaseQuerySet(24, 10),
-                                                                        new BaseQuerySet(24, 100),
-                                                                        new BaseQuerySet(24, Integer.MAX_VALUE));
+    public static final List<BaseQuerySet> BASE_QUERY_SETS = ImmutableList.of(new BaseQuerySet(10, 5),
+                                                                              new BaseQuerySet(10, 9),
+                                                                              new BaseQuerySet(10, 10),
+                                                                              new BaseQuerySet(10, Integer.MAX_VALUE),
+                                                                              new BaseQuerySet(24, 10),
+                                                                              new BaseQuerySet(24, 100),
+                                                                              new BaseQuerySet(24, Integer.MAX_VALUE));
 
-    public static List<BaseQuerySet> COMPOSITE_PARTITION_QUERY_SETS = ImmutableList.of(new CompositePartitionQuerySet(10, 5),
-                                                                                       new CompositePartitionQuerySet(10, 10),
-                                                                                       new CompositePartitionQuerySet(10, Integer.MAX_VALUE),
-                                                                                       new CompositePartitionQuerySet(24, 10),
-                                                                                       new CompositePartitionQuerySet(24, 100),
-                                                                                       new CompositePartitionQuerySet(24, Integer.MAX_VALUE));
+    public static final List<BaseQuerySet> COMPOSITE_PARTITION_QUERY_SETS = ImmutableList.of(new CompositePartitionQuerySet(10, 5),
+                                                                                             new CompositePartitionQuerySet(10, 10),
+                                                                                             new CompositePartitionQuerySet(10, Integer.MAX_VALUE),
+                                                                                             new CompositePartitionQuerySet(24, 10),
+                                                                                             new CompositePartitionQuerySet(24, 100),
+                                                                                             new CompositePartitionQuerySet(24, Integer.MAX_VALUE));
 
-    public static List<BaseQuerySet> STATIC_QUERY_SETS = ImmutableList.of(new StaticColumnQuerySet(10, 5),
-                                                                          new StaticColumnQuerySet(10, 10),
-                                                                          new StaticColumnQuerySet(10, Integer.MAX_VALUE),
-                                                                          new StaticColumnQuerySet(24, 10),
-                                                                          new StaticColumnQuerySet(24, 100),
-                                                                          new StaticColumnQuerySet(24, Integer.MAX_VALUE));
+    public static final List<BaseQuerySet> STATIC_QUERY_SETS = ImmutableList.of(new StaticColumnQuerySet(10, 5),
+                                                                                new StaticColumnQuerySet(10, 10),
+                                                                                new StaticColumnQuerySet(10, Integer.MAX_VALUE),
+                                                                                new StaticColumnQuerySet(24, 10),
+                                                                                new StaticColumnQuerySet(24, 100),
+                                                                                new StaticColumnQuerySet(24, Integer.MAX_VALUE));
 
     public static void writeLifecycle(BaseDataModel.Executor executor, BaseDataModel dataModel, List<BaseQuerySet> sets) throws Throwable
     {
@@ -404,7 +404,7 @@ public class IndexQuerySupport
             }
         }
 
-        void query(BaseDataModel.Executor tester, BaseDataModel model, String column, Operator operator, Object value) throws Throwable
+        void query(BaseDataModel.Executor tester, BaseDataModel model, String column, Operator operator, Object value)
         {
             String query = String.format(BaseDataModel.SIMPLE_SELECT_TEMPLATE, BaseDataModel.ASCII_COLUMN, column, operator);
             String queryValidator = String.format(BaseDataModel.SIMPLE_SELECT_WITH_FILTERING_TEMPLATE, BaseDataModel.ASCII_COLUMN, column, operator);
@@ -414,7 +414,7 @@ public class IndexQuerySupport
         void andQuery(BaseDataModel.Executor tester, BaseDataModel model,
                       String column1, Operator operator1, Object value1,
                       String column2, Operator operator2, Object value2,
-                      boolean filtering) throws Throwable
+                      boolean filtering)
         {
             String query = String.format(filtering ? BaseDataModel.TWO_CLAUSE_AND_QUERY_FILTERING_TEMPLATE : BaseDataModel.TWO_CLAUSE_AND_QUERY_TEMPLATE,
                                          BaseDataModel.ASCII_COLUMN, column1, operator1, column2, operator2);
@@ -428,7 +428,7 @@ public class IndexQuerySupport
         void andQuery(BaseDataModel.Executor tester, BaseDataModel model,
                       String column1, Operator operator1, Object value1,
                       String column2, Operator operator2, Object value2,
-                      String column3, Operator operator3, Object value3) throws Throwable
+                      String column3, Operator operator3, Object value3)
         {
             // TODO: If we support indexes in all columns, ALLOW FILTERING might go away here...
             String query = String.format(BaseDataModel.THREE_CLAUSE_AND_QUERY_FILTERING_TEMPLATE,
@@ -440,7 +440,7 @@ public class IndexQuerySupport
             validate(tester, model, query, queryValidator, value1, value2, value3, limit);
         }
 
-        void rangeQuery(BaseDataModel.Executor tester, BaseDataModel model, String column, Object value1, Object value2) throws Throwable
+        void rangeQuery(BaseDataModel.Executor tester, BaseDataModel model, String column, Object value1, Object value2)
         {
             String template = "SELECT %s FROM %%s WHERE %s > ? AND %s < ? LIMIT ? ALLOW FILTERING";
             String templateWithFiltering = "SELECT %s FROM %%s WHERE %s > ? AND %s < ? LIMIT ? ALLOW FILTERING";
@@ -450,7 +450,7 @@ public class IndexQuerySupport
             validate(tester, model, query, queryValidator, value1, value2, limit);
         }
 
-        private void validate(BaseDataModel.Executor tester, BaseDataModel model, String query, String validator, Object... values) throws Throwable
+        private void validate(BaseDataModel.Executor tester, BaseDataModel model, String query, String validator, Object... values)
         {
             try
             {

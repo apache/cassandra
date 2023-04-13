@@ -57,7 +57,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     @Nullable
     public static StorageAttachedIndexQueryPlan create(ColumnFamilyStore cfs,
                                                        TableQueryMetrics queryMetrics,
-                                                       Set<Index> indexes,
+                                                       Set<StorageAttachedIndex> indexes,
                                                        RowFilter rowFilter)
     {
         ImmutableSet.Builder<Index> selectedIndexesBuilder = ImmutableSet.builder();
@@ -69,7 +69,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
             if (expression.isUserDefined())
                 continue;
 
-            for (Index index : indexes)
+            for (StorageAttachedIndex index : indexes)
             {
                 if (index.supportsExpression(expression.column(), expression.operator()))
                 {

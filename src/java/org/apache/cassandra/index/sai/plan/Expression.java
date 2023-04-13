@@ -63,6 +63,11 @@ public class Expression
                     return null;
             }
         }
+
+        public boolean isEquality()
+        {
+            return this == EQ || this == CONTAINS_KEY || this == CONTAINS_VALUE;
+        }
     }
 
     public final AbstractAnalyzer.AnalyzerFactory analyzerFactory;

@@ -25,14 +25,14 @@ import java.util.Arrays;
 
 import org.junit.Test;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.apache.cassandra.db.marshal.DecimalType;
 import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
-public class NumericTypeSortingTest extends RandomizedTest
+import static org.junit.Assert.assertTrue;
+
+public class NumericTypeSortingTest extends SAIRandomizedTester
 {
     @Test
     public void testBigDecimalEncoding()
@@ -40,9 +40,9 @@ public class NumericTypeSortingTest extends RandomizedTest
         BigDecimal[] data = new BigDecimal[10000];
         for (int i = 0; i < data.length; i++)
         {
-            BigDecimal divider = new BigDecimal(new BigInteger(randomInt(1000), getRandom()).add(BigInteger.ONE));
-            BigDecimal randomNumber = new BigDecimal(new BigInteger(randomInt(1000), getRandom())).divide(divider, RoundingMode.HALF_DOWN);
-            if (randomBoolean())
+            BigDecimal divider = new BigDecimal(getRandom().nextBigInteger(1000).add(BigInteger.ONE));
+            BigDecimal randomNumber = new BigDecimal(getRandom().nextBigInteger(1000)).divide(divider, RoundingMode.HALF_DOWN);
+            if (getRandom().nextBoolean())
                 randomNumber = randomNumber.negate();
 
             data[i] = randomNumber;
@@ -70,9 +70,9 @@ public class NumericTypeSortingTest extends RandomizedTest
         BigInteger[] data = new BigInteger[10000];
         for (int i = 0; i < data.length; i++)
         {
-            BigInteger divider = new BigInteger(randomInt(1000), getRandom()).add(BigInteger.ONE);
-            BigInteger randomNumber = new BigInteger(randomInt(1000), getRandom()).divide(divider);
-            if (randomBoolean())
+            BigInteger divider = getRandom().nextBigInteger(1000).add(BigInteger.ONE);
+            BigInteger randomNumber = getRandom().nextBigInteger(1000).divide(divider);
+            if (getRandom().nextBoolean())
                 randomNumber = randomNumber.negate();
 
             data[i] = randomNumber;

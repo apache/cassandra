@@ -30,6 +30,6 @@ public class MapUuidTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateParameters(new CollectionDataSet.MapDataSet<>(new DataSet.UuidDataSet()));
+        return generateNumericParameters(new CollectionDataSet.MapDataSet<>(new DataSet.UuidDataSet()));
     }
 }

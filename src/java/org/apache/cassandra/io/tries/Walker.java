@@ -19,8 +19,11 @@ package org.apache.cassandra.io.tries;
 
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 import javax.annotation.concurrent.NotThreadSafe;
+
+import org.apache.lucene.util.ArrayUtil;
 
 import org.apache.cassandra.io.util.PageAware;
 import org.apache.cassandra.io.util.Rebufferer;
@@ -106,6 +109,11 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
     protected final int payloadFlags()
     {
         return nodeType.payloadFlags(buf, offset);
+    }
+
+    protected final boolean hasPayload()
+    {
+        return payloadFlags() != 0;
     }
 
     protected final int payloadPosition()
@@ -339,6 +347,38 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
         }
     }
 
+    public ByteComparable getMaxTerm()
+    {
+        TransitionBytesCollector collector = new TransitionBytesCollector();
+        go(root);
+        while (true)
+        {
+            int lastIdx = transitionRange() - 1;
+            long lastChild = transition(lastIdx);
+            if (lastIdx < 0)
+            {
+                return collector.toByteComparable();
+            }
+            collector.add(transitionByte(lastIdx));
+            go(lastChild);
+        }
+    }
+
+    public ByteComparable getMinTerm()
+    {
+        TransitionBytesCollector collector = new TransitionBytesCollector();
+        go(root);
+        while (true)
+        {
+            if (hasPayload())
+            {
+                return collector.toByteComparable();
+            }
+            collector.add(transitionByte(0));
+            go(transition(0));
+        }
+    }
+
     /**
      * To be used only in analysis.
      */
@@ -388,5 +428,41 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
     {
         return String.format("[Trie Walker - NodeType: %s, source: %s, buffer: %s, buffer file offset: %d, Node buffer offset: %d, Node file position: %d]",
                              nodeType, source, buf, bh.offset(), offset, position);
+    }
+
+    public static class TransitionBytesCollector
+    {
+        protected byte[] bytes = new byte[32];
+        protected int pos = 0;
+
+        public void add(int b)
+        {
+            if (pos == bytes.length)
+            {
+                bytes = ArrayUtil.grow(bytes, pos + 1);
+            }
+            bytes[pos++] = (byte) b;
+        }
+
+        public void pop()
+        {
+            assert pos >= 0;
+            pos--;
+        }
+
+        public ByteComparable toByteComparable()
+        {
+            if (pos <= 0)
+                return null;
+            byte[] value = new byte[pos];
+            System.arraycopy(bytes, 0, value, 0, pos);
+            return v -> ByteSource.fixedLength(value, 0, value.length);
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("[Bytes %s, pos %d]", Arrays.toString(bytes), pos);
+        }
     }
 }

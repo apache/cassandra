@@ -39,7 +39,7 @@ public class AbstractQueryTester extends SAITester
                                                                               .add(newInvokePoint().onClass(StorageAttachedIndexSearcher.class).onMethod("search"))
                                                                               .build();
 
-    @Parameterized.Parameter(0)
+    @Parameterized.Parameter
     public BaseDataModel dataModel;
     @Parameterized.Parameter(1)
     public List<IndexQuerySupport.BaseQuerySet> sets;
@@ -60,7 +60,7 @@ public class AbstractQueryTester extends SAITester
 
     @SuppressWarnings("unused")
     @Parameterized.Parameters(name = "{0}")
-    public static List<Object[]> params() throws Throwable
+    public static List<Object[]> params()
     {
         List<Object[]> scenarios = new LinkedList<>();
 

@@ -35,6 +35,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Walker<CONCRETE>
 {
     private final ByteSource limit;
+    private final TransitionBytesCollector collector;
     private IterationPosition stack;
     private long next;
 
@@ -63,9 +64,20 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
 
     protected ValueIterator(Rebufferer source, long root)
     {
+        this(source, root, false);
+    }
+    
+    protected ValueIterator(Rebufferer source, long root, boolean collecting)
+    {
         super(source, root);
         limit = null;
+        collector = collecting ? new TransitionBytesCollector() : null;
         initializeNoLeftBound(root, 256);
+    }
+
+    protected ValueIterator(Rebufferer source, long root, ByteComparable start, ByteComparable end, boolean admitPrefix)
+    {
+        this(source, root, start, end, admitPrefix, false);
     }
 
     /**
@@ -79,10 +91,11 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
      * </ul>
      * This behaviour is shared with the reverse counterpart {@link ReverseValueIterator}.
      */
-    protected ValueIterator(Rebufferer source, long root, ByteComparable start, ByteComparable end, boolean admitPrefix)
+    protected ValueIterator(Rebufferer source, long root, ByteComparable start, ByteComparable end, boolean admitPrefix, boolean collecting)
     {
         super(source, root);
         limit = end != null ? end.asComparableBytes(BYTE_COMPARABLE_VERSION) : null;
+        collector = collecting ? new TransitionBytesCollector() : null;
 
         if (start != null)
             initializeWithLeftBound(root, start.asComparableBytes(BYTE_COMPARABLE_VERSION), admitPrefix, limit != null);
@@ -111,7 +124,7 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
                 {
                     if (childIndex == 0 || childIndex == -1)
                     {
-                        if (payloadFlags() != 0)
+                        if (hasPayload())
                             payloadedNode = position;
                     }
                     else
@@ -157,7 +170,7 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
         try
         {
             go(root);
-            if (payloadFlags() != 0)
+            if (hasPayload())
                 next = root;
             else
                 next = advanceNode();
@@ -170,6 +183,14 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
     }
 
     /**
+     * Returns the payload node position without advancing.
+     */
+    protected long peekNode()
+    {
+        return next;
+    }
+
+    /**
      * Returns the position of the next node with payload contained in the iterated span.
      */
     protected long nextPayloadedNode()
@@ -178,6 +199,12 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
         if (next != -1)
             next = advanceNode();
         return toReturn;
+    }
+
+    protected ByteComparable nextCollectedValue()
+    {
+        assert collector != null : "Cannot get a collected value from a non-collecting iterator";
+        return collector.toByteComparable();
     }
 
     private long advanceNode()
@@ -195,6 +222,8 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
             {
                 // ascend
                 stack = stack.prev;
+                if (collector != null)
+                    collector.pop();
                 if (stack == null)        // exhausted whole trie
                     return -1;
                 go(stack.node);
@@ -216,6 +245,8 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
 
                 stack.childIndex = childIndex;
                 stack = new IterationPosition(child, -1, l, stack);
+                if (collector != null)
+                    collector.add(transitionByte);
 
                 if (payloadFlags() != 0)
                     return child;
@@ -225,6 +256,5 @@ public class ValueIterator<CONCRETE extends ValueIterator<CONCRETE>> extends Wal
                 stack.childIndex = childIndex;
             }
         }
-
     }
 }
