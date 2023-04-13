@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -56,15 +57,14 @@ import org.junit.runners.Parameterized;
 
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-
+// Our version of Sfl4j seems to be missing the ListAppender class.
+// Future sfl4j versions have one. At that time the below imports can be
+// replaced with `org.slf4j.*` equivalents.
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.PatternLayout;
-import ch.qos.logback.classic.encoder.PatternLayoutEncoder;
 import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.FileAppender;
-import ch.qos.logback.core.Layout;
 import ch.qos.logback.core.read.ListAppender;
+
 import org.apache.cassandra.Util;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
@@ -117,16 +117,19 @@ public class DirectoriesTest
     public static final String SNAPSHOT3 = "snapshot3";
 
     public static final String LEGACY_SNAPSHOT_NAME = "42";
+
+
     private static File tempDataDir;
     private static final String KS = "ks";
     private static String[] TABLES;
     private static Set<TableMetadata> CFM;
     private static Map<String, List<File>> sstablesByTableName;
 
-    private static int diyThreadId=0;
-    private int myDiyId=0;
-    private Logger logger;
-    ListAppender<ILoggingEvent> listAppender;
+    private static final String MDCID = "test-DirectoriesTest-id";
+    private static AtomicInteger diyThreadId = new AtomicInteger(1);
+    private int myDiyId=-1;
+    private static Logger logger;
+    private ListAppender<ILoggingEvent> listAppender;
 
     @Parameterized.Parameter
     public SSTableId.Builder<? extends SSTableId> idBuilder;
@@ -916,23 +919,21 @@ public class DirectoriesTest
         }
     }
 
-    private synchronized int getDiyThreadId()
+    private int getDiyThreadId()
     {
-        diyThreadId++;
-        myDiyId = diyThreadId;
-        return myDiyId;
+        return myDiyId = diyThreadId.getAndIncrement();
     }
 
     private void detachLogger()
     {
         logger.detachAppender(listAppender);
-        MDC.remove("Junit-DirectoriesTest-id");
+        MDC.remove(this.MDCID);
     }
 
     private void tailLogs()
     {
         int diyId = getDiyThreadId();
-        MDC.put("Junit-DirectoriesTest-id", String.valueOf(diyId));
+        MDC.put(this.MDCID, String.valueOf(diyId));
         logger = (Logger) LoggerFactory.getLogger(Directories.class);
 
         // create and start a ListAppender
@@ -948,7 +949,7 @@ public class DirectoriesTest
         ArrayList<ILoggingEvent> filteredLog = new ArrayList<>();
         for(ILoggingEvent event : log)
         {
-            int mdcId = Integer.parseInt(event.getMDCPropertyMap().get("Junit-DirectoriesTest-id"));
+            int mdcId = Integer.parseInt(event.getMDCPropertyMap().get(this.MDCID));
             if(mdcId == myDiyId){
                 filteredLog.add(event);
             }
@@ -956,24 +957,14 @@ public class DirectoriesTest
         return filteredLog;
     }
 
-    private void checkLevel(List<ILoggingEvent> log, Level level, int expectedCount)
-    {
-        int found=0;
-        for(ILoggingEvent e: log)
-        {
-            if (e.getLevel() == level)
-                found++;
-        }
-        assertEquals(expectedCount, found);
-    }
-
-    private void checkFormattedMessage(List<ILoggingEvent> log, String expectedMessage, int expectedCount)
+    private void checkFormattedMessage(List<ILoggingEvent> log, Level expectedLevel, String expectedMessage, int expectedCount)
     {
         int found=0;
         for(ILoggingEvent e: log)
         {
             if(e.getFormattedMessage().endsWith(expectedMessage))
-                found++;
+                if (e.getLevel() == expectedLevel)
+                    found++;
         }
 
         assertEquals(expectedCount, found);
@@ -1026,21 +1017,19 @@ public class DirectoriesTest
             assertEquals(17, filteredLog.size());
 
             String logMsg = "30 bytes available, checking if we can write 20 bytes";
-            checkLevel(filteredLog, Level.DEBUG, 12);
-            checkFormattedMessage(filteredLog, logMsg, 7);
+            checkFormattedMessage(filteredLog, Level.DEBUG, logMsg, 7);
             logMsg = "19 bytes available, checking if we can write 20 bytes";
-            checkFormattedMessage(filteredLog, logMsg, 2);
+            checkFormattedMessage(filteredLog, Level.DEBUG, logMsg, 2);
 
 
             logMsg = "19 bytes available, but 20 bytes is needed";
-            checkLevel(filteredLog, Level.WARN, 5);
-            checkFormattedMessage(filteredLog, logMsg, 2);
+            checkFormattedMessage(filteredLog, Level.WARN, logMsg, 2);
             logMsg = "has only 20.1 KiB available, but 25 MiB is needed";
-            checkFormattedMessage(filteredLog, logMsg, 1);
+            checkFormattedMessage(filteredLog, Level.WARN, logMsg, 1);
             logMsg = "has only 30 bytes available, but 999 GiB is needed";
-            checkFormattedMessage(filteredLog, logMsg, 1);
+            checkFormattedMessage(filteredLog, Level.WARN, logMsg, 1);
             logMsg = "has only 30 TiB available, but 30 TiB is needed";
-            checkFormattedMessage(filteredLog, logMsg, 1);
+            checkFormattedMessage(filteredLog, Level.WARN, logMsg, 1);
         }
         finally
         {
