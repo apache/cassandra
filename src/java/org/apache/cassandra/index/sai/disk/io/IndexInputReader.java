@@ -79,7 +79,7 @@ public class IndexInputReader extends IndexInput
     @Override
     public short readShort() throws IOException
     {
-        return input.readShort();
+        return Short.reverseBytes(input.readShort());
     }
 
     /**
@@ -89,7 +89,7 @@ public class IndexInputReader extends IndexInput
     @Override
     public int readInt() throws IOException
     {
-        return input.readInt();
+        return Integer.reverseBytes(input.readInt());
     }
 
     /**
@@ -99,7 +99,7 @@ public class IndexInputReader extends IndexInput
     @Override
     public long readLong() throws IOException
     {
-        return input.readLong();
+        return Long.reverseBytes(input.readLong());
     }
 
     @Override
