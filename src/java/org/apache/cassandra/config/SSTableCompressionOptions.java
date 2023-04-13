@@ -65,14 +65,4 @@ public class SSTableCompressionOptions
                .append(parameters)
                .toHashCode();
     }
-
-    public enum CompressorType
-    {
-        lz4,
-        none,
-        noop,
-        snappy,
-        deflate,
-        zstd,
-    }
 }

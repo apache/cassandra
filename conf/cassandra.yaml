@@ -577,18 +577,27 @@ commitlog_segment_size: 32MiB
 #
   #chunk_length: 16KiB : defaults to 16KiB
 #
-  # min_compress_ratio is only used in snappy, lz4, and custom implementations.
-  #min_compress_ratio: 0.0 : defaults to 0.0 see CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
+  # min_compress_ratio: 0.0
+  # max_compressed_length:
+
+  # only one of the above options can be specified.  The mathematically related in that
+  # chunk_length / max_compressed_length = min_compress_ratio
+  # if neither option is specified a min_compress_ratio of 0.0 is the default.
+  # A min_compress_ratio <= 0 implies max_compressed_length of Integer.MAX_VALUE KiB
+
 #
   # type should be one of the `CompressorType` values:
   #    lz4,  none,  noop,  snappy,  deflate,  zstd, or custom
   #type: custom
 #
-  # if custom type is specified compressor class and parameters must be provided
-  #compressor:
-    #class_name: org.apache.cassandra.io.compress.LZ4Compressor # the compressor class
-    #parameters:
+  #class_name:
+  # The compressor class name may be one of:
+  # lz4,  none,  noop,  snappy,  deflate,  or zstd; or it may be the fully qualified  name of a class
+  # that implements ICompressor
+
+  #parameters:
     # - param1 : value
+  # The parameters for the class.
 
 # any class that implements the SeedProvider interface and has a
 # constructor that takes a Map<String, String> of parameters will do.
