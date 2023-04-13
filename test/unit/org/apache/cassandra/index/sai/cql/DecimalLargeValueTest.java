@@ -37,6 +37,8 @@ public class DecimalLargeValueTest extends SAITester
 
         createIndex("CREATE CUSTOM INDEX ON %s(dec) USING 'StorageAttachedIndex'");
 
+        waitForIndexQueryable();
+
         disableCompaction();
     }
 
@@ -54,7 +56,7 @@ public class DecimalLargeValueTest extends SAITester
     {
         final int significandSizeInDecimalDigits = 512;
         // String.repeat(int) exists in JDK 11 and later, but this line was introduced on JDK 8
-        String wideDecimalString = "1." + StringUtils.repeat('0', significandSizeInDecimalDigits - 2) + "1";
+        String wideDecimalString = "1." + StringUtils.repeat('0', significandSizeInDecimalDigits - 2) + '1';
         BigDecimal wideDecimal = new BigDecimal(wideDecimalString);
         // Sanity checks that this value was actually constructed as intended
         Preconditions.checkState(wideDecimal.precision() == significandSizeInDecimalDigits,
@@ -64,7 +66,7 @@ public class DecimalLargeValueTest extends SAITester
                                  "expected: %s; actual: %s", wideDecimalString, wideDecimal.toPlainString());
 
         execute("INSERT INTO %s (pk, ck, dec) VALUES (0, 1, 1.0)");
-        execute("INSERT INTO %s (pk, ck, dec) VALUES (2, 0, " + wideDecimalString + ")");
+        execute("INSERT INTO %s (pk, ck, dec) VALUES (2, 0, " + wideDecimalString + ')');
 
         // EQ queries
         assertRows(execute("SELECT * FROM %s WHERE dec = 1.0"),
