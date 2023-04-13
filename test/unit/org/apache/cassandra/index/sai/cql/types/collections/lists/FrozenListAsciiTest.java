@@ -30,6 +30,6 @@ public class FrozenListAsciiTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateParameters(new CollectionDataSet.FrozenListDataSet<>(new DataSet.AsciiDataSet()));
+        return generateLiteralParameters(new CollectionDataSet.FrozenListDataSet<>(new DataSet.AsciiDataSet()));
     }
 }

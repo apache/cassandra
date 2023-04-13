@@ -59,15 +59,15 @@ public class FrozenUDTDataSet extends DataSet<Object>
             if (i != 0)
                 fields.append(", ");
 
-            fields.append("v_").append(i).append(" ").append(elementDataSets[i]);
+            fields.append("v_").append(i).append(' ').append(elementDataSets[i]);
         }
-        udt = createType(String.format("CREATE TYPE %%s(%s)", fields.toString()));
+        udt = createType(String.format("CREATE TYPE %%s(%s)", fields));
     }
 
     @Override
     public QuerySet querySet()
     {
-        return new QuerySet.FrozenTuple(this);
+        return new QuerySet.FrozenTuple();
     }
 
     @Override

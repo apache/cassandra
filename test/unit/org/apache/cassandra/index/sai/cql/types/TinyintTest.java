@@ -26,6 +26,6 @@ public class TinyintTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateParameters(new DataSet.TinyintDataSet());
+        return generateNumericParameters(new DataSet.TinyintDataSet());
     }
 }

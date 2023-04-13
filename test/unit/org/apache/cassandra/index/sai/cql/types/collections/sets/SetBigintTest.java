@@ -30,6 +30,6 @@ public class SetBigintTest extends IndexingTypeSupport
     @Parameterized.Parameters(name = "dataset={0},wide={1},scenario={2}")
     public static Collection<Object[]> generateParameters()
     {
-        return generateParameters(new CollectionDataSet.SetDataSet<>(new DataSet.BigintDataSet()));
+        return generateNumericParameters(new CollectionDataSet.SetDataSet<>(new DataSet.BigintDataSet()));
     }
 }

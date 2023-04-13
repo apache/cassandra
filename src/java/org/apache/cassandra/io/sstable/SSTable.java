@@ -21,6 +21,7 @@ import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -37,6 +38,7 @@ import com.google.common.collect.Sets;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -309,6 +311,44 @@ public abstract class SSTable
         Collection<Component> componentsToAdd = Collections2.filter(newComponents, Predicates.not(Predicates.in(components)));
         TOCComponent.appendTOC(descriptor, componentsToAdd);
         components.addAll(componentsToAdd);
+    }
+
+    /**
+     * Registers new custom components into sstable and update size tracking
+     * @param newComponents collection of components to be added
+     * @param tracker used to update on-disk size metrics
+     */
+    public synchronized void registerComponents(Collection<Component> newComponents, Tracker tracker)
+    {
+        Collection<Component> componentsToAdd = new HashSet<>(Collections2.filter(newComponents, x -> !components.contains(x)));
+        TOCComponent.appendTOC(descriptor, componentsToAdd);
+        components.addAll(componentsToAdd);
+
+        for (Component component : componentsToAdd)
+        {
+            File file = descriptor.fileFor(component);
+            if (file.exists())
+                tracker.updateLiveDiskSpaceUsed(file.length());
+        }
+    }
+
+    /**
+     * Unregisters custom components from sstable and update size tracking
+     * @param removeComponents collection of components to be remove
+     * @param tracker used to update on-disk size metrics
+     */
+    public synchronized void unregisterComponents(Collection<Component> removeComponents, Tracker tracker)
+    {
+        Collection<Component> componentsToRemove = new HashSet<>(Collections2.filter(removeComponents, components::contains));
+        components.removeAll(componentsToRemove);
+        TOCComponent.rewriteTOC(descriptor, components);
+
+        for (Component component : componentsToRemove)
+        {
+            File file = descriptor.fileFor(component);
+            if (file.exists())
+                tracker.updateLiveDiskSpaceUsed(-file.length());
+        }
     }
 
     public interface Owner

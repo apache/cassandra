@@ -91,7 +91,7 @@ public abstract class DataSet<T> extends SAITester
 
         public QuerySet querySet()
         {
-            return new QuerySet.NumericQuerySet(this);
+            return new QuerySet.NumericQuerySet();
         }
     }
 
@@ -421,7 +421,7 @@ public abstract class DataSet<T> extends SAITester
         @Override
         public QuerySet querySet()
         {
-            return new QuerySet.LiteralQuerySet(this);
+            return new QuerySet.LiteralQuerySet();
         }
 
         public String toString()
@@ -444,7 +444,7 @@ public abstract class DataSet<T> extends SAITester
         @Override
         public QuerySet querySet()
         {
-            return new QuerySet.BooleanQuerySet(this);
+            return new QuerySet.BooleanQuerySet();
         }
 
         public String toString()
@@ -474,7 +474,7 @@ public abstract class DataSet<T> extends SAITester
         @Override
         public QuerySet querySet()
         {
-            return new QuerySet.LiteralQuerySet(this);
+            return new QuerySet.LiteralQuerySet();
         }
 
         public String toString()
@@ -508,7 +508,7 @@ public abstract class DataSet<T> extends SAITester
         @Override
         public QuerySet querySet()
         {
-            return new QuerySet.LiteralQuerySet(this);
+            return new QuerySet.LiteralQuerySet();
         }
 
         public String toString()
@@ -543,7 +543,7 @@ public abstract class DataSet<T> extends SAITester
         @Override
         public QuerySet querySet()
         {
-            return new QuerySet.NumericQuerySet(this);
+            return new QuerySet.NumericQuerySet();
         }
 
         public String toString()
@@ -577,7 +577,7 @@ public abstract class DataSet<T> extends SAITester
         @Override
         public QuerySet querySet()
         {
-            return new QuerySet.LiteralQuerySet(this);
+            return new QuerySet.LiteralQuerySet();
         }
 
         public String toString()
@@ -608,7 +608,7 @@ public abstract class DataSet<T> extends SAITester
         @Override
         public QuerySet querySet()
         {
-            return new QuerySet.LiteralQuerySet(this);
+            return new QuerySet.LiteralQuerySet();
         }
 
         public String toString()
@@ -639,7 +639,7 @@ public abstract class DataSet<T> extends SAITester
         @Override
         public QuerySet querySet()
         {
-            return new QuerySet.LiteralQuerySet(this);
+            return new QuerySet.LiteralQuerySet();
         }
 
         public String toString()
@@ -686,7 +686,7 @@ public abstract class DataSet<T> extends SAITester
         @Override
         public QuerySet querySet()
         {
-            return new QuerySet.NumericQuerySet(this);
+            return new QuerySet.NumericQuerySet();
         }
 
         public String toString()

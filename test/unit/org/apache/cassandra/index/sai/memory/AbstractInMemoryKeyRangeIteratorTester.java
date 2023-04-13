@@ -22,21 +22,20 @@ import org.junit.Test;
 
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.utils.KeyRangeIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.PrimaryKeyFactory;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
 public abstract class AbstractInMemoryKeyRangeIteratorTester
 {
-    protected PrimaryKeyFactory primaryKeyFactory;
+    protected PrimaryKey.Factory primaryKeyFactory;
 
     @Before
     public void setup()
     {
-        primaryKeyFactory = PrimaryKey.factory(SAITester.EMPTY_COMPARATOR);
+        primaryKeyFactory = new PrimaryKey.Factory(SAITester.EMPTY_COMPARATOR);
     }
 
     @Test

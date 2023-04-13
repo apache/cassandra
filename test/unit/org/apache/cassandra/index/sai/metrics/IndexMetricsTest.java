@@ -43,13 +43,13 @@ public class IndexMetricsTest extends AbstractMetricsTest
         createTable(String.format(CREATE_TABLE_TEMPLATE, keyspace2));
         createIndex(String.format(CREATE_INDEX_TEMPLATE, keyspace2, "v1"));
 
-        execute("INSERT INTO " + keyspace1 + "." + TABLE + " (id1, v1, v2) VALUES ('0', 0, '0')");
+        execute("INSERT INTO " + keyspace1 + '.' + TABLE + " (id1, v1, v2) VALUES ('0', 0, '0')");
 
         assertEquals(1L, getMetricValue(objectName("LiveMemtableIndexWriteCount", keyspace1, TABLE, INDEX, "IndexMetrics")));
         assertEquals(0L, getMetricValue(objectName("LiveMemtableIndexWriteCount", keyspace2, TABLE, INDEX, "IndexMetrics")));
 
-        execute("INSERT INTO " + keyspace2 + "." + TABLE + " (id1, v1, v2) VALUES ('0', 0, '0')");
-        execute("INSERT INTO " + keyspace2 + "." + TABLE + " (id1, v1, v2) VALUES ('1', 1, '1')");
+        execute("INSERT INTO " + keyspace2 + '.' + TABLE + " (id1, v1, v2) VALUES ('0', 0, '0')");
+        execute("INSERT INTO " + keyspace2 + '.' + TABLE + " (id1, v1, v2) VALUES ('1', 1, '1')");
 
         assertEquals(1L, getMetricValue(objectName("LiveMemtableIndexWriteCount", keyspace1, TABLE, INDEX, "IndexMetrics")));
         assertEquals(2L, getMetricValue(objectName("LiveMemtableIndexWriteCount", keyspace2, TABLE, INDEX, "IndexMetrics")));
@@ -63,7 +63,7 @@ public class IndexMetricsTest extends AbstractMetricsTest
         createTable(String.format(CREATE_TABLE_TEMPLATE, keyspace));
         createIndex(String.format(CREATE_INDEX_TEMPLATE, keyspace, "v1"));
 
-        execute("INSERT INTO " + keyspace + "." + TABLE + " (id1, v1, v2) VALUES ('0', 0, '0')");
+        execute("INSERT INTO " + keyspace + '.' + TABLE + " (id1, v1, v2) VALUES ('0', 0, '0')");
         assertEquals(1L, getMetricValue(objectName("LiveMemtableIndexWriteCount", keyspace, TABLE, INDEX, "IndexMetrics")));
 
         dropIndex(String.format("DROP INDEX %s." + INDEX, keyspace));

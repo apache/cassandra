@@ -419,6 +419,8 @@ public enum CassandraRelevantProperties
     // SAI specific properties
     /** Controls the maximum number of index query intersections that will take part in a query */
     SAI_INTERSECTION_CLAUSE_LIMIT("cassandra.sai.intersection.clause.limit", "2"),
+    /** Latest version to be used for SAI index writing */
+    SAI_LATEST_VERSION("cassandra.sai.latest_version", "aa"),
 
     /** Defines how often schema definitions are pulled from the other nodes */
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),

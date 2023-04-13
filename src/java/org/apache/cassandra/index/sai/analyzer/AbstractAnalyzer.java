@@ -28,7 +28,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 {
     protected ByteBuffer next = null;
-    String nextLiteral = null;
 
     /**
      * @return true if index value is transformed, e.g. normalized or lower-cased or tokenized.
@@ -66,7 +65,6 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
     public void reset(ByteBuffer input)
     {
         this.next = null;
-        this.nextLiteral = null;
 
         resetInternal(input);
     }

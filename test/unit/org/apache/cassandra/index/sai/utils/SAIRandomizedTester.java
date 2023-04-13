@@ -17,6 +17,9 @@
  */
 package org.apache.cassandra.index.sai.utils;
 
+import java.io.IOException;
+
+import com.google.common.base.Preconditions;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -24,7 +27,19 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.SequentialWriterOption;
+import org.apache.cassandra.schema.TableMetadata;
+
+import static org.junit.Assert.assertEquals;
 
 public class SAIRandomizedTester extends SAITester
 {
@@ -35,10 +50,40 @@ public class SAIRandomizedTester extends SAITester
         DatabaseDescriptor.daemonInitialization();
     }
 
-    protected static TemporaryFolder temporaryFolder;
+    private static final IndexInputLeakDetector indexInputLeakDetector;
+
+    protected static final TemporaryFolder temporaryFolder;
 
     @ClassRule
-    public static TestRule classRules = RuleChain.outerRule(temporaryFolder = new TemporaryFolder());
+    public static TestRule classRules = RuleChain.outerRule(indexInputLeakDetector = new IndexInputLeakDetector())
+                                                 .around(temporaryFolder = new TemporaryFolder());
+
+    public static IndexDescriptor newIndexDescriptor() throws IOException
+    {
+        String keyspace = randomSimpleString(5, 13);
+        String table = randomSimpleString(3, 17);
+        TableMetadata metadata = TableMetadata.builder(keyspace, table)
+                                              .addPartitionKeyColumn(randomSimpleString(3, 15), Int32Type.instance)
+                                              .partitioner(Murmur3Partitioner.instance)
+                                              .build();
+        return indexInputLeakDetector.newIndexDescriptor(new Descriptor(new File(temporaryFolder.newFolder()),
+                                                                        randomSimpleString(5, 13),
+                                                                        randomSimpleString(3, 17),
+                                                                        new SequenceBasedSSTableId(getRandom().nextIntBetween(0, 128))),
+                                                         metadata,
+                                                         SequentialWriterOption.newBuilder()
+                                                                               .bufferSize(getRandom().nextIntBetween(17, 1 << 13))
+                                                                               .bufferType(getRandom().nextBoolean() ? BufferType.ON_HEAP : BufferType.OFF_HEAP)
+                                                                               .trickleFsync(getRandom().nextBoolean())
+                                                                               .trickleFsyncByteInterval(nextInt(1 << 10, 1 << 16))
+                                                                               .finishOnClose(true)
+                                                                               .build());
+    }
+
+    public String newIndex()
+    {
+        return randomSimpleString(2, 29);
+    }
 
     /**
      * Load a byte array with random bytes. Shortcut for getRandom() method
@@ -94,5 +139,45 @@ public class SAIRandomizedTester extends SAITester
         if (min > max) throw new IllegalArgumentException("max must be >= min: " + min + ", " + max);
 
         return min == max ? min : min + (max - min) * getRandom().nextDouble();
+    }
+
+    public static String randomSimpleString(int minLength, int maxLength)
+    {
+        Preconditions.checkArgument(minLength >= 0);
+        Preconditions.checkArgument(maxLength >= 0);
+        final int end = nextInt(minLength, maxLength);
+        if (end == 0)
+        {
+            // allow 0 length
+            return "";
+        }
+        final char[] buffer = new char[end];
+        for (int i = 0; i < end; i++)
+        {
+            buffer[i] = (char) nextInt('a', 'z');
+        }
+        return new String(buffer, 0, end);
+    }
+
+    public static void assertPostingListEquals(PostingList expected, PostingList actual) throws IOException
+    {
+        long actualRowID, rowCounter = 0;
+        while ((actualRowID = actual.nextPosting()) != PostingList.END_OF_STREAM)
+        {
+            assertEquals("Mismatch at pos: " + rowCounter, expected.nextPosting(), actualRowID);
+            rowCounter++;
+        }
+        assertEquals(PostingList.END_OF_STREAM, expected.nextPosting());
+    }
+
+    public static void shuffle(int[] array)
+    {
+        for (int i=0; i< array.length; i++)
+        {
+            int randomPosition = getRandom().nextIntBetween(0, array.length - 1);
+            int temp = array[i];
+            array[i] = array[randomPosition];
+            array[randomPosition] = temp;
+        }
     }
 }
