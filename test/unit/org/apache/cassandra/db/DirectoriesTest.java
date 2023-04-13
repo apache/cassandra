@@ -186,6 +186,7 @@ public class DirectoriesTest
     {
         detachLogger();
     }
+    
     private static DataDirectory[] toDataDirectories(File location)
     {
         return new DataDirectory[] { new DataDirectory(location) };
