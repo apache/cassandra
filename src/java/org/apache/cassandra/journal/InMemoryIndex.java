@@ -32,12 +32,15 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
 /**
  * An index for a segment that's still being updated by journal writers concurrently.
  */
-final class InMemoryIndex<K> implements Index<K>
+final class InMemoryIndex<K> extends Index<K>
 {
     private static final int[] EMPTY = new int[0];
 
-    private final KeySupport<K> keySupport;
     private final NavigableMap<K, int[]> index;
+
+    // CSLM#lastKey() can be costly, so track lastId separately;
+    // TODO: this could easily be premature and misguided;
+    //       benchmark to ensure it's not acitevly harmful
     private final AtomicReference<K> lastId;
 
     static <K> InMemoryIndex<K> create(KeySupport<K> keySupport)
@@ -47,7 +50,7 @@ final class InMemoryIndex<K> implements Index<K>
 
     private InMemoryIndex(KeySupport<K> keySupport, NavigableMap<K, int[]> index)
     {
-        this.keySupport = keySupport;
+        super(keySupport);
         this.index = index;
         this.lastId = new AtomicReference<>();
     }
@@ -90,7 +93,7 @@ final class InMemoryIndex<K> implements Index<K>
     @Override
     public int[] lookUp(K id)
     {
-        return mayContainId(id, keySupport) ? index.getOrDefault(id, EMPTY) : EMPTY;
+        return mayContainId(id) ? index.getOrDefault(id, EMPTY) : EMPTY;
     }
 
     @Override

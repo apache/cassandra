@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.journal;
 
 import java.io.IOException;
@@ -43,7 +42,7 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  * <p/>
  * TODO (expected): block-level CRC
  */
-final class OnDiskIndex<K> implements Index<K>
+final class OnDiskIndex<K> extends Index<K>
 {
     private static final int[] EMPTY = new int[0];
 
@@ -54,7 +53,6 @@ final class OnDiskIndex<K> implements Index<K>
     private final int ENTRY_SIZE;
 
     private final Descriptor descriptor;
-    private final KeySupport<K> keySupport;
 
     private final FileChannel channel;
     private volatile MappedByteBuffer buffer;
@@ -65,8 +63,9 @@ final class OnDiskIndex<K> implements Index<K>
     private OnDiskIndex(
         Descriptor descriptor, KeySupport<K> keySupport, FileChannel channel, MappedByteBuffer buffer, int entryCount)
     {
+        super(keySupport);
+
         this.descriptor = descriptor;
-        this.keySupport = keySupport;
         this.channel = channel;
         this.buffer = buffer;
         this.entryCount = entryCount;
@@ -192,7 +191,7 @@ final class OnDiskIndex<K> implements Index<K>
     @Override
     public int[] lookUp(K id)
     {
-        if (!mayContainId(id, keySupport))
+        if (!mayContainId(id))
             return EMPTY;
 
         int keyIndex = binarySearch(id);
@@ -227,7 +226,7 @@ final class OnDiskIndex<K> implements Index<K>
     @Override
     public int lookUpFirst(K id)
     {
-        if (!mayContainId(id, keySupport))
+        if (!mayContainId(id))
             return -1;
 
         int keyIndex = binarySearch(id);

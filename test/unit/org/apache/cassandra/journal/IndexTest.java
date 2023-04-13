@@ -46,11 +46,11 @@ public class IndexTest
         TimeUUID key3 = nextTimeUUID();
         TimeUUID key4 = nextTimeUUID();
 
-        assertEquals(0, index.lookUp(key0).length);
-        assertEquals(0, index.lookUp(key1).length);
-        assertEquals(0, index.lookUp(key2).length);
-        assertEquals(0, index.lookUp(key3).length);
-        assertEquals(0, index.lookUp(key4).length);
+        assertArrayEquals(EMPTY, index.lookUp(key0));
+        assertArrayEquals(EMPTY, index.lookUp(key1));
+        assertArrayEquals(EMPTY, index.lookUp(key2));
+        assertArrayEquals(EMPTY, index.lookUp(key3));
+        assertArrayEquals(EMPTY, index.lookUp(key4));
 
         int val11 = 1100;
         int val21 = 2100;
@@ -75,11 +75,11 @@ public class IndexTest
         assertEquals(key1, index.firstId());
         assertEquals(key3, index.lastId());
 
-        assertFalse(index.mayContainId(key0, TimeUUIDKeySupport.INSTANCE));
-         assertTrue(index.mayContainId(key1, TimeUUIDKeySupport.INSTANCE));
-         assertTrue(index.mayContainId(key2, TimeUUIDKeySupport.INSTANCE));
-         assertTrue(index.mayContainId(key3, TimeUUIDKeySupport.INSTANCE));
-        assertFalse(index.mayContainId(key4, TimeUUIDKeySupport.INSTANCE));
+        assertFalse(index.mayContainId(key0));
+         assertTrue(index.mayContainId(key1));
+         assertTrue(index.mayContainId(key2));
+         assertTrue(index.mayContainId(key3));
+        assertFalse(index.mayContainId(key4));
     }
 
     @Test
@@ -123,11 +123,11 @@ public class IndexTest
             assertEquals(key1, onDisk.firstId());
             assertEquals(key3, onDisk.lastId());
 
-            assertFalse(onDisk.mayContainId(key0, TimeUUIDKeySupport.INSTANCE));
-             assertTrue(onDisk.mayContainId(key1, TimeUUIDKeySupport.INSTANCE));
-             assertTrue(onDisk.mayContainId(key2, TimeUUIDKeySupport.INSTANCE));
-             assertTrue(onDisk.mayContainId(key3, TimeUUIDKeySupport.INSTANCE));
-            assertFalse(onDisk.mayContainId(key4, TimeUUIDKeySupport.INSTANCE));
+            assertFalse(onDisk.mayContainId(key0));
+             assertTrue(onDisk.mayContainId(key1));
+             assertTrue(onDisk.mayContainId(key2));
+             assertTrue(onDisk.mayContainId(key3));
+            assertFalse(onDisk.mayContainId(key4));
         }
     }
 }

@@ -24,12 +24,19 @@ import org.apache.cassandra.utils.Closeable;
 /**
  * Mapping of client supplied ids to in-segment offsets
  */
-interface Index<K> extends Closeable
+abstract class Index<K> implements Closeable
 {
+    final KeySupport<K> keySupport;
+
+    Index(KeySupport<K> keySupport)
+    {
+        this.keySupport = keySupport;
+    }
+
     /**
      * Update the index with a new entry with id and offset
      */
-    void update(K id, int offset);
+    abstract void update(K id, int offset);
 
     /**
      * Look up offsets by id. It's possible, due to retries, for a segment
@@ -38,7 +45,7 @@ interface Index<K> extends Closeable
      *
      * @return the found offsets into the segment, if any; can be empty
      */
-    int[] lookUp(K id);
+    abstract int[] lookUp(K id);
 
     /**
      * Look up offsets by id. It's possible, due to retries, for a segment
@@ -47,29 +54,29 @@ interface Index<K> extends Closeable
      *
      * @return the first offset into the segment, or -1 is none were found
      */
-    int lookUpFirst(K id);
+    abstract int lookUpFirst(K id);
 
     /**
      * @return the first (smallest) id in the index
      */
     @Nullable
-    K firstId();
+    abstract K firstId();
 
     /**
      * @return the last (largest) id in the index
      */
     @Nullable
-    K lastId();
+    abstract K lastId();
 
     /**
      * Persist the index on disk to the file matching the desrcriptor.
      */
-    void persist(Descriptor descriptor);
+    abstract void persist(Descriptor descriptor);
 
     /**
      * @return whether the id falls within lower/upper bounds of the index
      */
-    default boolean mayContainId(K id, KeySupport<K> keySupport)
+    boolean mayContainId(K id)
     {
         K firstId = firstId();
         K lastId = lastId();

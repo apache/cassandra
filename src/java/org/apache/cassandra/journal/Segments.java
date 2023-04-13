@@ -141,7 +141,7 @@ class Segments<K>
         List<ActiveSegment<K>> selectedActive = null;
         for (ActiveSegment<K> segment : onlyActive())
         {
-            if (segment.index.mayContainId(id, segment.keySupport))
+            if (segment.index.mayContainId(id))
             {
                 if (null == selectedActive)
                     selectedActive = new ArrayList<>();
@@ -153,7 +153,7 @@ class Segments<K>
         Map<Descriptor, StaticSegment<K>> selectedStatic = null;
         for (StaticSegment<K> segment : onlyStatic())
         {
-            if (segment.index.mayContainId(id, segment.keySupport))
+            if (segment.index.mayContainId(id))
             {
                 if (null == selectedStatic)
                     selectedStatic = new HashMap<>();
