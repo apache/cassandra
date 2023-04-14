@@ -24,8 +24,12 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -86,6 +90,8 @@ import static java.lang.Math.max;
 @NotThreadSafe
 public class PostingsWriter implements Closeable
 {
+    protected static final Logger logger = LoggerFactory.getLogger(PostingsWriter.class);
+
     // import static org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZE;
     private final static int BLOCK_SIZE = 128;
 
@@ -119,6 +125,8 @@ public class PostingsWriter implements Closeable
 
     private PostingsWriter(IndexOutput dataOutput, int blockSize) throws IOException
     {
+        assert dataOutput instanceof IndexOutputWriter;
+        logger.debug("Creating postings writer for output {}", dataOutput);
         this.blockSize = blockSize;
         this.dataOutput = dataOutput;
         startOffset = dataOutput.getFilePointer();
