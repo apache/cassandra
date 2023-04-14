@@ -69,10 +69,6 @@ Upgrading
      upgrades involving 3.x and 4.x nodes. The fix for that issue makes it can now appear during rolling upgrades from
      4.1.0 or 4.0.0-4.0.7. If that is your case, please use protocol v4 or higher in your driver. See CASSANDRA-17507
      for further details.
-    - Keystore password configuration is nullable now and the code defaults of the keystore passwords to 'cassandra' are
-     removed. Any deployments that depend upon the code default to this password value without explicitly specifying
-     it in cassandra.yaml will fail on upgrade. Please specify your keystore_password and truststore_password elements in cassandra.yaml with appropriate
-     values to prevent this failure.
 
 Deprecation
 -----------
