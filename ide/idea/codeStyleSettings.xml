@@ -8,6 +8,8 @@
         <option name="NAMES_COUNT_TO_USE_IMPORT_ON_DEMAND" value="100" />
         <option name="IMPORT_LAYOUT_TABLE">
           <value>
+            <package name="accord" withSubpackages="true" static="false" />
+            <emptyLine />
             <package name="java" withSubpackages="true" static="false" />
             <package name="javax" withSubpackages="true" static="false" />
             <emptyLine />

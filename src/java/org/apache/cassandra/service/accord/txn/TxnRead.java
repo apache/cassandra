@@ -128,7 +128,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     @Override
     public Read merge(Read read)
     {
-        List<TxnNamedRead> reads = new ArrayList<>(items.length);
+        List<TxnNamedRead> reads = new ArrayList<>(items.length); // TODO - create array of size this.size + read.size
         Collections.addAll(reads, items);
 
         for (TxnNamedRead namedRead : (TxnRead) read)
