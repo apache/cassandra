@@ -23,7 +23,11 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.index.sai.disk.PostingList;
+import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
@@ -42,6 +46,8 @@ import org.apache.lucene.store.RandomAccessInput;
 @NotThreadSafe
 public class PostingsReader implements OrdinalPostingList
 {
+    private static final Logger logger = LoggerFactory.getLogger(PostingsReader.class);
+
     protected final IndexInput input;
     private final int blockSize;
     private final long numPostings;
@@ -70,6 +76,8 @@ public class PostingsReader implements OrdinalPostingList
 
     public PostingsReader(IndexInput input, BlocksSummary summary, QueryEventListener.PostingListEventListener listener) throws IOException
     {
+        assert input instanceof IndexInputReader;
+        logger.debug("Opening postings reader for {}", input);
         this.input = input;
         this.seekingInput = new SeekingRandomAccessInput(input);
         this.blockOffsets = summary.offsets;
@@ -361,6 +369,10 @@ public class PostingsReader implements OrdinalPostingList
     private void reBuffer() throws IOException
     {
         final long pointer = blockOffsets.get(postingsBlockIdx);
+        if (pointer < 4) {
+            // the first 4 bytes must be CODEC_MAGIC
+            throw new CorruptIndexException(String.format("Invalid block offset %d for postings block idx %d", pointer, postingsBlockIdx), input);
+        }
 
         input.seek(pointer);
 
