@@ -23,13 +23,14 @@ import java.util.Random;
 
 import org.junit.Test;
 
+import org.apache.cassandra.index.sai.utils.SaiRandomizedTest;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.DirectWriter;
 
 import static junit.framework.Assert.assertEquals;
 
-public class DirectReadersTest
+public class DirectReadersTest extends SaiRandomizedTest
 {
     @Test
     public void testDirectReader() throws IOException
@@ -54,13 +55,12 @@ public class DirectReadersTest
 
     private void testDirectReader(byte bitsPerValue) throws IOException
     {
-        var originals = new long[1000];
+        var n = 10000;
+        var originals = new long[n];
         var out = new ByteBuffersDataOutput();
-        var n = 1000;
         var writer = DirectWriter.getInstance(out, n, bitsPerValue);
-        var random = new Random(0);
         for (int i = 0; i < n; i++) {
-            var L = randomValueWithBits(random, bitsPerValue);
+            var L = randomValueWithBits(bitsPerValue);
             originals[i] = L;
             writer.add(L);
         }
@@ -74,8 +74,8 @@ public class DirectReadersTest
         }
     }
 
-    private long randomValueWithBits(Random random, int bitsPerValue)
+    private long randomValueWithBits(int bitsPerValue)
     {
-        return random.nextLong() >>> (64 - bitsPerValue);
+        return randomLong() >>> (64 - bitsPerValue);
     }
 }
