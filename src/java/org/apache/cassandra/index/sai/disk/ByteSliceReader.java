@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.disk;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.util.ByteBlockPool;
 
@@ -111,7 +112,7 @@ final class ByteSliceReader extends DataInput
     {
 
         // Skip to our next slice
-        final int nextIndex = ((buffer[limit] & 0xff) << 24) + ((buffer[1 + limit] & 0xff) << 16) + ((buffer[2 + limit] & 0xff) << 8) + (buffer[3 + limit] & 0xff);
+        final int nextIndex = (int) BitUtil.VH_LE_INT.get(buffer, limit);
 
         level = ByteBlockPool.NEXT_LEVEL_ARRAY[level];
         final int newSize = ByteBlockPool.LEVEL_SIZE_ARRAY[level];
