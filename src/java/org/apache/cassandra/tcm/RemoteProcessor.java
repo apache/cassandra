@@ -118,7 +118,6 @@ public final class RemoteProcessor implements Processor
     }
 
     @Override
-    @SuppressWarnings("resource")
     public ClusterMetadata replayAndWait()
     {
         try
@@ -136,6 +135,7 @@ public final class RemoteProcessor implements Processor
         }
     }
 
+    @SuppressWarnings("resource")
     private ClusterMetadata replayAndWaitInternal()
     {
         Epoch lastConsecutive = log.replayPersisted();
