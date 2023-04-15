@@ -29,12 +29,12 @@ import com.google.common.base.MoreObjects;
 
 import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.cassandra.index.sai.disk.io.CryptoUtils;
-import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.oldlucene.MutablePointValues;
+import org.apache.cassandra.oldlucene.MutablePointsReaderUtils;
+import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.cassandra.oldlucene.GrowableByteArrayDataOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -42,7 +42,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.Sorter;
-import org.apache.cassandra.oldlucene.MutablePointsReaderUtils;
 
 // TODO
 //   - allow variable length byte[] (across docs and dims), but this is quite a bit more hairy
@@ -262,9 +261,9 @@ public class BKDWriter implements Closeable
     }
 
     // reused when writing leaf blocks
-    private final GrowableByteArrayDataOutput scratchOut = new GrowableByteArrayDataOutput(32 * 1024);
+    private final ByteBuffersDataOutput scratchOut = new ByteBuffersDataOutput(32 * 1024);
 
-    private final GrowableByteArrayDataOutput scratchOut2 = new GrowableByteArrayDataOutput(2 * 1024);
+    private final ByteBuffersDataOutput scratchOut2 = new ByteBuffersDataOutput(2 * 1024);
 
     interface OneDimensionBKDWriterCallback
     {
@@ -419,7 +418,7 @@ public class BKDWriter implements Closeable
 
             commonPrefixLengths[0] = prefix;
 
-            assert scratchOut.getPosition() == 0;
+            assert scratchOut.size() == 0;
 
             out.writeVInt(leafCount);
 
@@ -469,8 +468,9 @@ public class BKDWriter implements Closeable
 
             LeafOrderMap.write(orderIndex, leafCount, maxPointsInLeafNode - 1, scratchOut2);
 
-            out.writeVInt(scratchOut2.getPosition());
-            out.writeBytes(scratchOut2.getBytes(), 0, scratchOut2.getPosition());
+            int scratchSize = Math.toIntExact(scratchOut2.size());
+            out.writeVInt(scratchSize);
+            out.writeBytes(scratchOut2.toArrayCopy(), 0, scratchSize);
 
             if (callback != null) callback.writeLeafDocs(leafBlockFPs.size() - 1, rowIDAndIndexes, 0, leafCount);
 
@@ -491,11 +491,11 @@ public class BKDWriter implements Closeable
 
             if (compressor == null)
             {
-                out.writeBytes(scratchOut.getBytes(), 0, scratchOut.getPosition());
+                out.writeBytes(scratchOut.toArrayCopy(), 0, Math.toIntExact(scratchOut.size()));
             }
             else
             {
-                CryptoUtils.compress(new BytesRef(scratchOut.getBytes(), 0, scratchOut.getPosition()), scratchBytesRef, out, compressor);
+                CryptoUtils.compress(new BytesRef(scratchOut.toArrayCopy(), 0, Math.toIntExact(scratchOut.size())), scratchBytesRef, out, compressor);
             }
             scratchOut.reset();
         }
@@ -836,11 +836,11 @@ public class BKDWriter implements Closeable
 
         if (compressor != null)
         {
-            RAMIndexOutput ramOut = new RAMIndexOutput("");
+            var ramOut = new ResettableByteBuffersIndexOutput(1024, "");
             ramOut.writeBytes(minPackedValue, 0, packedBytesLength);
             ramOut.writeBytes(maxPackedValue, 0, packedBytesLength);
 
-            CryptoUtils.compress(new BytesRef(ramOut.getBytes(), 0, (int)ramOut.getFilePointer()), out, compressor);
+            CryptoUtils.compress(new BytesRef(ramOut.toArrayCopy(), 0, (int)ramOut.getFilePointer()), out, compressor);
         }
         else
         {

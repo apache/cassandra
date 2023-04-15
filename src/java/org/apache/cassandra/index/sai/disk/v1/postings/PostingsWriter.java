@@ -31,11 +31,10 @@ import org.agrona.collections.IntArrayList;
 import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.PostingList;
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
-import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
-import org.apache.cassandra.index.sai.disk.v1.SSTableComponentsWriter;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
@@ -101,7 +100,7 @@ public class PostingsWriter implements Closeable
     private final long[] deltaBuffer;
     private final LongArrayList blockOffsets = new LongArrayList();
     private final LongArrayList blockMaxIDs = new LongArrayList();
-    private final RAMIndexOutput inMemoryOutput = new RAMIndexOutput("blockOffsets");
+    private final ResettableByteBuffersIndexOutput inMemoryOutput = new ResettableByteBuffersIndexOutput(1024, "blockOffsets");
 
     private final long startOffset;
 
@@ -266,7 +265,7 @@ public class PostingsWriter implements Closeable
 
         writeSortedFoRBlock(blockOffsets, inMemoryOutput);
         dataOutput.writeVLong(inMemoryOutput.getFilePointer());
-        inMemoryOutput.writeTo(dataOutput);
+        inMemoryOutput.copyTo(dataOutput);
         writeSortedFoRBlock(blockMaxIDs, dataOutput);
     }
 

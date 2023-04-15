@@ -27,6 +27,9 @@ import org.apache.lucene.store.RandomAccessInput;
 /**
  * A {@link IndexInput} backed by a byte array.
  *
+ * ByteBufferIndexInput is nominally the blessed replacement for this, but
+ * it's a pretty different API.
+ *
  * @lucene.experimental
  */
 public final class ByteArrayIndexInput extends IndexInput implements RandomAccessInput

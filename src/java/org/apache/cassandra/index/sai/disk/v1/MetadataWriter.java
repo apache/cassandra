@@ -23,7 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
@@ -44,17 +44,17 @@ public class MetadataWriter implements Closeable
         return new Builder(name);
     }
 
-    public class Builder extends RAMIndexOutput implements Closeable
+    public class Builder extends ResettableByteBuffersIndexOutput
     {
         private Builder(String name)
         {
-            super(name);
+            super(1024, name);
         }
 
         @Override
         public void close()
         {
-            map.put(getName(), new BytesRef(out.getBytes(), 0, out.getPosition()));
+            map.put(getName(), new BytesRef(toArrayCopy(), 0, intSize()));
         }
     }
 
