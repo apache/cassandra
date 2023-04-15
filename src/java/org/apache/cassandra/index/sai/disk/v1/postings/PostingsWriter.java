@@ -23,19 +23,17 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
-import org.apache.cassandra.index.sai.disk.v1.bitpack.AbstractBlockPackedReader;
-import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
-import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.DirectWriter;
@@ -104,7 +102,7 @@ public class PostingsWriter implements Closeable
     private final long[] deltaBuffer;
     private final LongArrayList blockOffsets = new LongArrayList();
     private final LongArrayList blockMaximumPostings = new LongArrayList();
-    private final ByteBuffersDataOutput inMemoryOutput = new ByteBuffersDataOutput(1024);
+    private final ResettableByteBuffersIndexOutput inMemoryOutput = new ResettableByteBuffersIndexOutput(1024, "blockOffsets");
 
     private final long startOffset;
 
@@ -271,7 +269,7 @@ public class PostingsWriter implements Closeable
         inMemoryOutput.reset();
 
         writeSortedFoRBlock(blockOffsets, inMemoryOutput);
-        dataOutput.writeVLong(inMemoryOutput.size());
+        dataOutput.writeVLong(inMemoryOutput.getFilePointer());
         inMemoryOutput.copyTo(dataOutput);
         writeSortedFoRBlock(blockMaximumPostings, dataOutput);
     }

@@ -26,7 +26,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.BytesRef;
 
 @NotThreadSafe
 public class MetadataWriter implements Closeable
