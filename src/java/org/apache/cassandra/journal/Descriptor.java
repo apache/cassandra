@@ -94,7 +94,7 @@ final class Descriptor implements Comparable<Descriptor>
     {
         Matcher matcher = DATA_FILE_PATTERN.matcher(name);
         if (!matcher.matches())
-            throw new IllegalArgumentException("Provided filename is not valid for a data segment file");
+            throw new IllegalArgumentException("Provided filename " + new File(directory, name) + " is not valid for a data segment file");
 
         long timestamp = Long.parseLong(matcher.group(1));
         int generation = Integer.parseInt(matcher.group(2));
@@ -151,7 +151,8 @@ final class Descriptor implements Comparable<Descriptor>
     @Override
     public int compareTo(Descriptor other)
     {
-        assert this.directory.equals(other.directory);
+        assert this.directory.equals(other.directory)
+             : format("Descriptors have mismatching directories: %s and %s", this.directory, other.directory);
 
                   int cmp = Long.compare(this.timestamp, other.timestamp);
         if (cmp == 0) cmp = Integer.compare(this.generation, other.generation);
@@ -168,9 +169,22 @@ final class Descriptor implements Comparable<Descriptor>
         return (other instanceof Descriptor) && equals((Descriptor) other);
     }
 
+    @Override
+    public int hashCode()
+    {
+        int result = directory.hashCode();
+        result = 31 * result + Long.hashCode(timestamp);
+        result = 31 * result + generation;
+        result = 31 * result + journalVersion;
+        result = 31 * result + userVersion;
+        return result;
+    }
+
     boolean equals(Descriptor other)
     {
-        assert this.directory.equals(other.directory);
+        assert this.directory.equals(other.directory)
+             : format("Descriptors have mismatching directories: %s and %s", this.directory, other.directory);
+
 
         return this.timestamp == other.timestamp
             && this.generation == other.generation

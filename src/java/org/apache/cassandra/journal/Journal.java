@@ -35,8 +35,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Timer.Context;
-import org.apache.cassandra.concurrent.Interruptible.TerminateException;
 import org.apache.cassandra.concurrent.Interruptible;
+import org.apache.cassandra.concurrent.Interruptible.TerminateException;
 import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
