@@ -64,6 +64,7 @@ public class TableStatsHolder implements StatsHolder
             {
                 Map<String, Object> mpTable = new HashMap<>();
 
+                mpTable.put("sstable_count", table.sstableCount);
                 mpTable.put("sstables_in_each_level", table.sstablesInEachLevel);
                 mpTable.put("space_used_live", table.spaceUsedLive);
                 mpTable.put("space_used_total", table.spaceUsedTotal);
