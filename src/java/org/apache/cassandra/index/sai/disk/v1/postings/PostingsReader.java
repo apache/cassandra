@@ -29,7 +29,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.index.sai.postings.OrdinalPostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
@@ -37,6 +36,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.DirectReader;
 
 
 /**
@@ -62,7 +63,7 @@ public class PostingsReader implements OrdinalPostingList
     private long actualPosting;
 
     private long currentPosition;
-    private DirectReaders.Reader currentFoRValues;
+    private LongValues currentFoRValues;
     private long postingsDecoded = 0;
 
     @VisibleForTesting
@@ -117,7 +118,7 @@ public class PostingsReader implements OrdinalPostingList
                         String.format("Postings list header is corrupted: Bits per value for block offsets is %s. Supported values are %s.",
                                       offsetBitsPerValue, DirectReaders.SUPPORTED_BITS_PER_VALUE_STRING), input);
             }
-            this.offsets = new LongArrayReader(randomAccessInput, DirectReaders.getReaderForBitsPerValue(offsetBitsPerValue), input.getFilePointer(), numBlocks);
+            this.offsets = new LongArrayReader(randomAccessInput, DirectReader.getInstance(randomAccessInput, offsetBitsPerValue, input.getFilePointer()), numBlocks);
 
             input.seek(maxBlockValuesOffset);
             byte valuesBitsPerValue = input.readByte();
@@ -127,7 +128,7 @@ public class PostingsReader implements OrdinalPostingList
                 String.format("Postings list header is corrupted: Bits per value for value samples is %s. Supported values are %s.",
                               valuesBitsPerValue, DirectReaders.SUPPORTED_BITS_PER_VALUE_STRING), input);
             }
-            this.maxValues = new LongArrayReader(randomAccessInput, DirectReaders.getReaderForBitsPerValue(valuesBitsPerValue), input.getFilePointer(), numBlocks);
+            this.maxValues = new LongArrayReader(randomAccessInput, DirectReader.getInstance(randomAccessInput, valuesBitsPerValue, input.getFilePointer()), numBlocks);
         }
 
         void close()
@@ -138,22 +139,20 @@ public class PostingsReader implements OrdinalPostingList
         private static class LongArrayReader implements LongArray
         {
             private final RandomAccessInput input;
-            private final DirectReaders.Reader reader;
-            private final long offset;
+            private final LongValues reader;
             private final int length;
 
-            private LongArrayReader(RandomAccessInput input, DirectReaders.Reader reader, long offset, int length)
+            private LongArrayReader(RandomAccessInput input, LongValues reader, int length)
             {
                 this.input = input;
                 this.reader = reader;
-                this.offset = offset;
                 this.length = length;
             }
 
             @Override
             public long get(long idx)
             {
-                return reader.get(input, offset, idx);
+                return reader.get(idx);
             }
 
             @Override
@@ -325,7 +324,7 @@ public class PostingsReader implements OrdinalPostingList
         }
         else
         {
-            long id = currentFoRValues.get(seekingInput, currentPosition, postingIndex);
+            final long id = currentFoRValues.get(postingIndex);
             postingsDecoded++;
             return Math.toIntExact(id);
         }
@@ -368,6 +367,6 @@ public class PostingsReader implements OrdinalPostingList
             currentFoRValues = null;
             return;
         }
-        currentFoRValues = DirectReaders.getReaderForBitsPerValue(bitsPerValue);
+        currentFoRValues = DirectReader.getInstance(seekingInput, bitsPerValue, currentPosition);
     }
 }

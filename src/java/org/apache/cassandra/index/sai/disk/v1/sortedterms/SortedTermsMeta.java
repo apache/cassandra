@@ -22,7 +22,6 @@ import java.io.IOException;
 
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 
 /**
  * Metadata produced by {@link SortedTermsWriter}, needed by {@link SortedTermsReader}.
