@@ -176,6 +176,9 @@ import static org.apache.cassandra.net.Verb.SCHEMA_VERSION_REQ;
 import static org.apache.cassandra.net.Verb.TRUNCATE_REQ;
 import static org.apache.cassandra.service.BatchlogResponseHandler.BatchlogCleanup;
 import static org.apache.cassandra.service.ConsensusRequestRouter.ConsensusRoutingDecision;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.RETRY_NEW_PROTOCOL;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.casResult;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.serialReadResult;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.LOCAL;
@@ -433,14 +436,14 @@ public class StorageProxy implements StorageProxyMBean
                 return Pair.create(updates, null);
             };
 
-            return new ConsensusAttemptResult(doPaxos(metadata,
-                                                      key,
-                                                      consistencyForPaxos,
-                                                      consistencyForCommit,
-                                                      consistencyForCommit,
-                                                      queryStartNanoTime,
-                                                      casWriteMetrics,
-                                                      updateProposer));
+            return casResult(doPaxos(metadata,
+                                          key,
+                                          consistencyForPaxos,
+                                          consistencyForCommit,
+                                          consistencyForCommit,
+                                          queryStartNanoTime,
+                                          casWriteMetrics,
+                                          updateProposer));
         }
         catch (CasWriteUnknownResultException e)
         {
@@ -1963,13 +1966,13 @@ public class StorageProxy implements StorageProxyMBean
         Txn txn = new Txn.InMemory(read.keys(), read, TxnQuery.ALL);
         TxnResult txnResult = AccordService.instance().coordinate(txn, consistencyLevel, queryStartNanoTime);
         if (txnResult.kind() == retry_new_protocol)
-            return new ConsensusAttemptResult();
+            return RETRY_NEW_PROTOCOL;
         TxnData data = (TxnData)txnResult;
         FilteredPartition partition = data.get(TxnRead.SERIAL_READ);
         if (partition != null)
-            return new ConsensusAttemptResult(PartitionIterators.singletonIterator(partition.rowIterator()));
+            return serialReadResult(PartitionIterators.singletonIterator(partition.rowIterator()));
         else
-            return new ConsensusAttemptResult(EmptyIterators.partition());
+            return serialReadResult(EmptyIterators.partition());
     }
 
     private static ConsensusAttemptResult legacyReadWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
@@ -2021,7 +2024,7 @@ public class StorageProxy implements StorageProxyMBean
                 throw new ReadFailureException(consistencyLevel, e.received, e.blockFor, false, e.failureReasonByEndpoint);
             }
 
-            return new ConsensusAttemptResult(fetchRows(group.queries, consistencyForReplayCommitsOrFetch, queryStartNanoTime));
+            return serialReadResult(fetchRows(group.queries, consistencyForReplayCommitsOrFetch, queryStartNanoTime));
         }
         catch (UnavailableException e)
         {
@@ -3050,6 +3053,8 @@ public class StorageProxy implements StorageProxyMBean
 
     public static class ConsensusAttemptResult
     {
+        public static final ConsensusAttemptResult RETRY_NEW_PROTOCOL = new ConsensusAttemptResult(null, null, true);
+
         @Nullable
         RowIterator casResult;
 
@@ -3058,26 +3063,22 @@ public class StorageProxy implements StorageProxyMBean
 
         boolean shouldRetryOnNewConsensusProtocol;
 
-        public ConsensusAttemptResult(@Nullable RowIterator casResult)
+        private ConsensusAttemptResult(@Nullable RowIterator casResult, @Nullable PartitionIterator serialReadResult, boolean shouldRetryOnNewConsensusProtocol)
         {
             this.casResult = casResult;
-            this.serialReadResult = null;
-            this.shouldRetryOnNewConsensusProtocol = false;
+            this.serialReadResult = serialReadResult;
+            this.shouldRetryOnNewConsensusProtocol = shouldRetryOnNewConsensusProtocol;
         }
 
-        public ConsensusAttemptResult(@Nonnull PartitionIterator serialReadResult)
+        public static ConsensusAttemptResult serialReadResult(@Nonnull PartitionIterator serialReadResult)
         {
             checkNotNull(serialReadResult, "serialReadResult should not be null");
-            this.casResult = null;
-            this.serialReadResult = serialReadResult;
-            this.shouldRetryOnNewConsensusProtocol = false;
+            return new ConsensusAttemptResult(null, serialReadResult, false);
         }
 
-        public ConsensusAttemptResult()
+        public static ConsensusAttemptResult casResult(@Nullable RowIterator casResult)
         {
-            this.casResult = null;
-            this.serialReadResult = null;
-            this.shouldRetryOnNewConsensusProtocol = true;
+            return new ConsensusAttemptResult(casResult, null, false);
         }
     }
 

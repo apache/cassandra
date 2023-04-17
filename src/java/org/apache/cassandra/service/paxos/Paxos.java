@@ -118,6 +118,9 @@ import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetri
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetricsMap;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetricsMap;
 import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.RETRY_NEW_PROTOCOL;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.casResult;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.serialReadResult;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.LOCAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.nextBallot;
@@ -649,7 +652,7 @@ public class Paxos
                 if (begin.retryWithNewConsenusProtocol)
                 {
                     casWriteMetrics.beginMigrationRejects.mark();
-                    return new ConsensusAttemptResult();
+                    return RETRY_NEW_PROTOCOL;
                 }
 
                 Ballot ballot = begin.ballot;
@@ -670,7 +673,7 @@ public class Paxos
                     {
                         Tracing.trace("CAS precondition rejected", current);
                         casWriteMetrics.conditionNotMet.inc();
-                        return new ConsensusAttemptResult(current.rowIterator());
+                        return casResult(current.rowIterator());
                     }
 
                     // If we failed to meet our condition, it does not mean we can do nothing: if we do not propose
@@ -686,7 +689,7 @@ public class Paxos
                     if (begin.isLinearizableRead)
                     {
                         Tracing.trace("CAS precondition does not match current values {}; read is already linearizable; aborting", current);
-                        return new ConsensusAttemptResult(conditionNotMet(current));
+                        return casResult(conditionNotMet(current));
                     }
 
                     Tracing.trace("CAS precondition does not match current values {}; proposing empty update", current);
@@ -731,7 +734,7 @@ public class Paxos
                     case SUCCESS:
                     {
                         if (!conditionMet)
-                            return new ConsensusAttemptResult(conditionNotMet(current));
+                            return casResult(conditionNotMet(current));
 
                         // no need to commit a no-op; either it
                         //   1) reached a majority, in which case it was agreed, had no effect and we can do nothing; or
@@ -761,7 +764,7 @@ public class Paxos
                                 if (superseded.needsConsensusMigration)
                                 {
                                     casWriteMetrics.acceptMigrationRejects.mark();
-                                    return new ConsensusAttemptResult();
+                                    return RETRY_NEW_PROTOCOL;
                                 }
                                 // We have been superseded without our proposal being accepted by anyone, so we can safely retry
                                 Tracing.trace("Paxos proposal not accepted (pre-empted by a higher ballot)");
@@ -780,7 +783,7 @@ public class Paxos
                     throw result.maybeFailure().markAndThrowAsTimeoutOrFailure(true, consistencyForCommit, failedAttemptsDueToContention);
             }
             Tracing.trace("CAS successful");
-            return new ConsensusAttemptResult((RowIterator)null);
+            return casResult((RowIterator)null);
 
         }
         finally
@@ -827,7 +830,7 @@ public class Paxos
                 if (begin.retryWithNewConsenusProtocol)
                 {
                     casReadMetrics.beginMigrationRejects.mark();
-                    return new ConsensusAttemptResult();
+                    return RETRY_NEW_PROTOCOL;
                 }
 
                 switch (PAXOS_VARIANT)
@@ -836,12 +839,12 @@ public class Paxos
 
                     case v2_without_linearizable_reads_or_rejected_writes:
                     case v2_without_linearizable_reads:
-                        return new ConsensusAttemptResult(begin.readResponse);
+                        return serialReadResult(begin.readResponse);
 
                     case v2:
                         // no need to submit an empty proposal, as the promise will be treated as complete for future optimistic reads
                         if (begin.isLinearizableRead)
-                            return new ConsensusAttemptResult(begin.readResponse);
+                            return serialReadResult(begin.readResponse);
                 }
 
                 Proposal proposal = Proposal.empty(begin.ballot, read.partitionKey(), read.metadata());
@@ -854,7 +857,7 @@ public class Paxos
                         throw propose.maybeFailure().markAndThrowAsTimeoutOrFailure(false, consistencyForConsensus, failedAttemptsDueToContention);
 
                     case SUCCESS:
-                        return new ConsensusAttemptResult(begin.readResponse);
+                        return serialReadResult(begin.readResponse);
 
                     case SUPERSEDED:
                         Superseded superseded = propose.superseded();
@@ -865,7 +868,7 @@ public class Paxos
                         if (superseded.needsConsensusMigration)
                         {
                             casReadMetrics.acceptMigrationRejects.mark();
-                            return new ConsensusAttemptResult();
+                            return RETRY_NEW_PROTOCOL;
                         }
                         // TODO https://issues.apache.org/jira/browse/CASSANDRA-18276 side effects shouldn't matter for reads
                         switch (superseded.hadSideEffects)

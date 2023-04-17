@@ -76,6 +76,8 @@ import org.apache.cassandra.utils.TimeUUID;
 
 import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.RETRY_NEW_PROTOCOL;
+import static org.apache.cassandra.service.StorageProxy.ConsensusAttemptResult.casResult;
 import static org.apache.cassandra.service.accord.txn.TxnDataName.Kind.CAS_READ;
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.retry_new_protocol;
 
@@ -530,9 +532,9 @@ public class CQL3CasRequest implements CASRequest
     public ConsensusAttemptResult toCasResult(TxnResult txnResult)
     {
         if (txnResult.kind() == retry_new_protocol)
-            return new ConsensusAttemptResult();
+            return RETRY_NEW_PROTOCOL;
         TxnData txnData = (TxnData)txnResult;
         FilteredPartition partition = txnData.get(TxnRead.CAS_READ);
-        return new ConsensusAttemptResult(partition != null ? partition.rowIterator() : null);
+        return casResult(partition != null ? partition.rowIterator() : null);
     }
 }
