@@ -645,14 +645,18 @@ public abstract class ConsensusTableMigrationState
     }
 
     public static void startMigrationToConsensusProtocol(@Nonnull String targetProtocolName,
-                                                         @Nonnull List<String> keyspaceNames,
+                                                         @Nullable List<String> keyspaceNames,
                                                          @Nonnull Optional<List<String>> maybeTables,
                                                          @Nonnull Optional<String> maybeRangesStr)
     {
-        checkArgument(!keyspaceNames.isEmpty(), "At least one keyspace must be specified");
-        checkArgument(keyspaceNames.size() == 1 || !maybeTables.isPresent(), "Can't specify tables with multiple keyspaces");
         checkArgument(!maybeTables.isPresent() || !maybeTables.get().isEmpty(), "Must provide at least 1 table if Optional is not empty");
         ConsensusMigrationTarget targetProtocol = ConsensusMigrationTarget.fromString(targetProtocolName);
+
+        if (keyspaceNames == null || keyspaceNames.isEmpty())
+        {
+            keyspaceNames = ImmutableList.copyOf(StorageService.instance.getNonLocalStrategyKeyspaces());
+        }
+        checkState(keyspaceNames.size() == 1 || !maybeTables.isPresent(), "Can't specify tables with multiple keyspaces");
 
         if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord)
             throw new IllegalStateException("Mixing a hard coded strategy with migration is unsupported");

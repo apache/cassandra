@@ -1006,7 +1006,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean resumeBootstrap();
 
     void migrateConsensusProtocol(@Nonnull String targetProtocol,
-                                  @Nonnull List<String> keyspaceNames,
+                                  @Nullable List<String> keyspaceNames,
                                   @Nullable List<String> maybeTableNames,
                                   @Nullable String maybeRangesStr);
 

@@ -79,10 +79,9 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
         {
             checkNotNull(startToken, "Start token must be specified");
             checkNotNull(endToken, "End token must be specified");
-            checkArgument(schemaArgs.size() >= 2, "Must specify a keyspace and at least one table");
             checkArgument((endToken != null && startToken != null) || (endToken == null && startToken == null), "Must specify start and end token together");
             String maybeRangesStr = startToken != null ? startToken + ":" + endToken : null;
-            List<String> keyspaceNames = schemaArgs.size() > 0 ? singletonList(schemaArgs.get(0)) : emptyList();
+            List<String> keyspaceNames = schemaArgs.size() > 0 ? singletonList(schemaArgs.get(0)) : null;
             List<String> maybeTableNames = schemaArgs.size() > 1 ? schemaArgs.subList(1, schemaArgs.size()) : null;
             probe.getStorageService().migrateConsensusProtocol(targetProtocol, keyspaceNames, maybeTableNames, maybeRangesStr);
         }

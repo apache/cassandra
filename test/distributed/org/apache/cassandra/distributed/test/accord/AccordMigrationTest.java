@@ -496,7 +496,8 @@ public class AccordMigrationTest extends AccordTestBase
 
                  // Mark a subrange as migrating and finish migrating half of it
                  nodetool(coordinator, "consensus_admin", "begin-migration", "-st", midToken.toString(), "-et", maxToken.toString(), "-tp", "accord", KEYSPACE, tableName);
-                 nodetool(coordinator, "repair", "-st", midToken.toString(), "-et", upperMidToken.toString());
+                 nodetool(coordinator, "repair", "-st", midToken.toString(), "-et", "3074457345618258601");
+                 nodetool(coordinator, "repair", "-st", "3074457345618258601", "-et", upperMidToken.toString());
                  Range<Token> accordMigratedRange = new Range(midToken, upperMidToken);
                  Range<Token> accordMigratingRange = new Range(upperMidToken, maxToken);
                  assertMigrationState(tableName, ConsensusMigrationTarget.accord, ImmutableList.of(accordMigratedRange), ImmutableList.of(accordMigratingRange), 1);
