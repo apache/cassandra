@@ -118,7 +118,7 @@ public class PostingsReader implements OrdinalPostingList
                         String.format("Postings list header is corrupted: Bits per value for block offsets is %s. Supported values are %s.",
                                       offsetBitsPerValue, DirectReaders.SUPPORTED_BITS_PER_VALUE_STRING), input);
             }
-            this.offsets = new LongArrayReader(randomAccessInput, DirectReader.getInstance(randomAccessInput, offsetBitsPerValue, input.getFilePointer()), numBlocks);
+            this.offsets = new LongArrayReader(randomAccessInput, offsetBitsPerValue == 0 ? LongValues.ZEROES : DirectReader.getInstance(randomAccessInput, offsetBitsPerValue, input.getFilePointer()), numBlocks);
 
             input.seek(maxBlockValuesOffset);
             byte valuesBitsPerValue = input.readByte();
@@ -128,7 +128,7 @@ public class PostingsReader implements OrdinalPostingList
                 String.format("Postings list header is corrupted: Bits per value for value samples is %s. Supported values are %s.",
                               valuesBitsPerValue, DirectReaders.SUPPORTED_BITS_PER_VALUE_STRING), input);
             }
-            this.maxValues = new LongArrayReader(randomAccessInput, DirectReader.getInstance(randomAccessInput, valuesBitsPerValue, input.getFilePointer()), numBlocks);
+            this.maxValues = new LongArrayReader(randomAccessInput, valuesBitsPerValue == 0 ? LongValues.ZEROES : DirectReader.getInstance(randomAccessInput, valuesBitsPerValue, input.getFilePointer()), numBlocks);
         }
 
         void close()
