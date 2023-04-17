@@ -364,11 +364,14 @@ public abstract class ConsensusTableMigrationState
             Collection<Range<Token>> migratingRanges = normalize(migratingRangesByEpoch.values().stream().flatMap(Collection::stream).collect(Collectors.toList()));
             checkArgument(target == targetProtocol, "Requested migration to target protocol " + target + " conflicts with in progress migration to protocol " + targetProtocol);
             List<Range<Token>> normalizedRanges = normalize(ranges);
-            checkArgument(!subtract(normalizedRanges, migratingRanges).isEmpty(), "Range " + ranges + " is already being migrated");
+            if (subtract(normalizedRanges, migratingRanges).isEmpty())
+                logger.warn("Range " + ranges + " is already being migrated");
             Set<Range<Token>> withoutAlreadyMigrated = subtract(normalizedRanges, migratedRanges);
-            checkArgument(!withoutAlreadyMigrated.isEmpty(), "Range " + ranges + " is already migrated");
+            if (withoutAlreadyMigrated.isEmpty())
+                logger.warn("Range " + ranges + " is already migrated");
             Set<Range<Token>> withoutBoth = subtract(withoutAlreadyMigrated, migratingRanges);
-            checkArgument(!withoutBoth.isEmpty(), "Range " + ranges + " is already migrating/migrated");
+            if (withoutBoth.isEmpty())
+                logger.warn("Range " + ranges + " is already migrating/migrated");
 
             if (!Range.equals(normalizedRanges, withoutBoth))
                 logger.warn("Ranges " + normalizedRanges + " to start migrating is already partially migrating/migrated " + withoutBoth);
