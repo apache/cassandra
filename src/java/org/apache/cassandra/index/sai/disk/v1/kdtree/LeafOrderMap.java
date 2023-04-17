@@ -19,16 +19,15 @@ package org.apache.cassandra.index.sai.disk.v1.kdtree;
 
 import java.io.IOException;
 
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectWriter;
 
 public class LeafOrderMap
 {
-    public static int getValue(RandomAccessInput in, long offset, int index, DirectReaders.Reader reader)
+    public static int getValue(int index, LongValues reader)
     {
-        return Math.toIntExact(reader.get(in, offset, index));
+        return Math.toIntExact(reader.get(index));
     }
 
     public static void write(final int[] array, int length, int maxValue, final DataOutput out) throws IOException

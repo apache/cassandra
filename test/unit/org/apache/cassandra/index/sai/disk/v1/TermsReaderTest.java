@@ -22,9 +22,7 @@ import java.util.List;
 
 import org.junit.Test;
 
-import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
@@ -46,7 +44,6 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import static org.apache.cassandra.index.sai.disk.v1.InvertedIndexBuilder.buildStringTermsEnum;
 import static org.apache.cassandra.index.sai.metrics.QueryEventListeners.NO_OP_TRIE_LISTENER;
 
-@Seed("BB069FF867101737:52CB053DD038FD86")
 public class TermsReaderTest extends SaiRandomizedTest
 {
     @Test

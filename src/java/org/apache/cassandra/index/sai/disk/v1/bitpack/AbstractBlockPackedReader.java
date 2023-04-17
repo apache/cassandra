@@ -17,10 +17,11 @@
  */
 package org.apache.cassandra.index.sai.disk.v1.bitpack;
 
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.utils.SeekingRandomAccessInput;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.DirectReader;
 
 public abstract class AbstractBlockPackedReader implements LongArray
 {
@@ -58,8 +59,9 @@ public abstract class AbstractBlockPackedReader implements LongArray
 
         final int block = (int) (index >>> blockShift);
         final int idx = (int) (index & blockMask);
-        final DirectReaders.Reader subReader = DirectReaders.getReaderForBitsPerValue(blockBitsPerValue[block]);
-        return delta(block, idx) + subReader.get(input, blockOffsetAt(block), idx);
+        final LongValues subReader = blockBitsPerValue[block] == 0 ? LongValues.ZEROES
+                                                                   : DirectReader.getInstance(input, blockBitsPerValue[block], blockOffsetAt(block));
+        return delta(block, idx) + subReader.get(idx);
     }
 
     @Override
