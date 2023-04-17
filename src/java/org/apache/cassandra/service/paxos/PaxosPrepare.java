@@ -908,9 +908,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         final boolean isForWrite;
         final DecoratedKey partitionKey;
         final TableMetadata table;
-
-        final boolean isForRepair;
-
+        
         AbstractRequest(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isForWrite, boolean isForRepair)
         {
             this.ballot = ballot;
