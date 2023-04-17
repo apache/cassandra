@@ -161,6 +161,10 @@ Upgrading
      `toTimestamp` and `toUnixTimestamp` in Cassandra 2.2.
    - Hadoop integration is no longer available (CASSANDRA-18323). If you want to process Cassandra data by big data frameworks, 
      please upgrade your infrastructure to use Cassandra Spark connector.
+   - Keystore/truststore password configurations are nullable now and the code defaults of those passwords to 'cassandra' are
+     removed. Any deployments that depend upon the code default to this password value without explicitly specifying
+     it in cassandra.yaml will fail on upgrade. Please specify your keystore_password and truststore_password elements in cassandra.yaml with appropriate
+     values to prevent this failure.
 
 Deprecation
 -----------

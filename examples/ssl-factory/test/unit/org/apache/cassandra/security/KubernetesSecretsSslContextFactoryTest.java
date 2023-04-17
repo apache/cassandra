@@ -20,8 +20,8 @@ package org.apache.cassandra.security;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.File;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -38,7 +38,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.io.util.PathUtils;
 
 import static org.apache.cassandra.security.KubernetesSecretsSslContextFactory.ConfigKeys.KEYSTORE_PASSWORD_ENV_VAR;
 import static org.apache.cassandra.security.KubernetesSecretsSslContextFactory.ConfigKeys.KEYSTORE_UPDATED_TIMESTAMP_PATH;
@@ -63,11 +62,10 @@ public class KubernetesSecretsSslContextFactoryTest
 
     private static void deleteFileIfExists(String file)
     {
-        Path filePath = Paths.get(file);
-        boolean deleted = PathUtils.tryDelete(filePath);
+        boolean deleted = new File(file).delete();
         if (!deleted)
         {
-            logger.warn("File {} could not be deleted.", filePath);
+            logger.warn("File {} could not be deleted.", file);
         }
     }
 
@@ -106,7 +104,7 @@ public class KubernetesSecretsSslContextFactoryTest
         config.put(TRUSTSTORE_PATH, "/this/is/probably/not/a/file/on/your/test/machine");
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory = new KubernetesSecretsSslContextFactoryForTestOnly(config);
-        kubernetesSecretsSslContextFactory.checkedExpiry = false;
+        kubernetesSecretsSslContextFactory.trustStoreContext.checkedExpiry = false;
         kubernetesSecretsSslContextFactory.buildTrustManagerFactory();
     }
 
@@ -119,7 +117,7 @@ public class KubernetesSecretsSslContextFactoryTest
         config.put(KubernetesSecretsSslContextFactory.DEFAULT_TRUSTSTORE_PASSWORD_ENV_VAR_NAME, "HomeOfBadPasswords");
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory = new KubernetesSecretsSslContextFactoryForTestOnly(config);
-        kubernetesSecretsSslContextFactory.checkedExpiry = false;
+        kubernetesSecretsSslContextFactory.trustStoreContext.checkedExpiry = false;
         kubernetesSecretsSslContextFactory.buildTrustManagerFactory();
     }
 
@@ -133,7 +131,7 @@ public class KubernetesSecretsSslContextFactoryTest
         config.put(KubernetesSecretsSslContextFactory.DEFAULT_TRUSTSTORE_PASSWORD_ENV_VAR_NAME, "");
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory = new KubernetesSecretsSslContextFactoryForTestOnly(config);
-        kubernetesSecretsSslContextFactory.checkedExpiry = false;
+        kubernetesSecretsSslContextFactory.trustStoreContext.checkedExpiry = false;
         kubernetesSecretsSslContextFactory.buildTrustManagerFactory();
     }
 
@@ -144,7 +142,7 @@ public class KubernetesSecretsSslContextFactoryTest
         config.putAll(commonConfig);
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory = new KubernetesSecretsSslContextFactoryForTestOnly(config);
-        kubernetesSecretsSslContextFactory.checkedExpiry = false;
+        kubernetesSecretsSslContextFactory.trustStoreContext.checkedExpiry = false;
         TrustManagerFactory trustManagerFactory = kubernetesSecretsSslContextFactory.buildTrustManagerFactory();
         Assert.assertNotNull(trustManagerFactory);
     }
@@ -155,9 +153,11 @@ public class KubernetesSecretsSslContextFactoryTest
         Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.put(KEYSTORE_PATH, "/this/is/probably/not/a/file/on/your/test/machine");
+        config.put(KEYSTORE_PASSWORD_ENV_VAR, "MY_KEYSTORE_PASSWORD");
+        config.put("MY_KEYSTORE_PASSWORD","ThisWontMatter");
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory = new KubernetesSecretsSslContextFactoryForTestOnly(config);
-        kubernetesSecretsSslContextFactory.checkedExpiry = false;
+        kubernetesSecretsSslContextFactory.keystoreContext.checkedExpiry = false;
         kubernetesSecretsSslContextFactory.buildKeyManagerFactory();
     }
 
@@ -181,20 +181,20 @@ public class KubernetesSecretsSslContextFactoryTest
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory1 = new KubernetesSecretsSslContextFactoryForTestOnly(config);
         // Make sure the exiry check didn't happen so far for the private key
-        Assert.assertFalse(kubernetesSecretsSslContextFactory1.checkedExpiry);
+        Assert.assertFalse(kubernetesSecretsSslContextFactory1.keystoreContext.checkedExpiry);
 
         addKeystoreOptions(config);
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory2 = new KubernetesSecretsSslContextFactoryForTestOnly(config);
         // Trigger the private key loading. That will also check for expired private key
         kubernetesSecretsSslContextFactory2.buildKeyManagerFactory();
         // Now we should have checked the private key's expiry
-        Assert.assertTrue(kubernetesSecretsSslContextFactory2.checkedExpiry);
+        Assert.assertTrue(kubernetesSecretsSslContextFactory2.keystoreContext.checkedExpiry);
 
         // Make sure that new factory object preforms the fresh private key expiry check
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory3 = new KubernetesSecretsSslContextFactoryForTestOnly(config);
-        Assert.assertFalse(kubernetesSecretsSslContextFactory3.checkedExpiry);
+        Assert.assertFalse(kubernetesSecretsSslContextFactory3.keystoreContext.checkedExpiry);
         kubernetesSecretsSslContextFactory3.buildKeyManagerFactory();
-        Assert.assertTrue(kubernetesSecretsSslContextFactory3.checkedExpiry);
+        Assert.assertTrue(kubernetesSecretsSslContextFactory3.keystoreContext.checkedExpiry);
     }
 
     @Test
@@ -205,7 +205,7 @@ public class KubernetesSecretsSslContextFactoryTest
         addKeystoreOptions(config);
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory = new KubernetesSecretsSslContextFactoryForTestOnly(config);
-        kubernetesSecretsSslContextFactory.checkedExpiry = false;
+        kubernetesSecretsSslContextFactory.trustStoreContext.checkedExpiry = false;
         TrustManagerFactory trustManagerFactory = kubernetesSecretsSslContextFactory.buildTrustManagerFactory();
         Assert.assertNotNull(trustManagerFactory);
         Assert.assertFalse(kubernetesSecretsSslContextFactory.shouldReload());
@@ -225,7 +225,7 @@ public class KubernetesSecretsSslContextFactoryTest
         addKeystoreOptions(config);
 
         KubernetesSecretsSslContextFactory kubernetesSecretsSslContextFactory = new KubernetesSecretsSslContextFactoryForTestOnly(config);
-        kubernetesSecretsSslContextFactory.checkedExpiry = false;
+        kubernetesSecretsSslContextFactory.keystoreContext.checkedExpiry = false;
         KeyManagerFactory keyManagerFactory = kubernetesSecretsSslContextFactory.buildKeyManagerFactory();
         Assert.assertNotNull(keyManagerFactory);
         Assert.assertFalse(kubernetesSecretsSslContextFactory.shouldReload());
