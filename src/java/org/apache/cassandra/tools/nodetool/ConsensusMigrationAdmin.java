@@ -97,7 +97,7 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
         @Option(title = "target_protocol", name = {"-tp", "--target-protocol"}, description = "Use -tp to specify what consensus protocol should be migrated to", required=true)
         private String targetProtocol = null;
 
-        @Option(title = "force_completion", name = {"-f", "--force-completion"}, description = "Nuclear option to force the migration state for all ranges in the table regardless")
+        @Option(title = "force_completion", name = {"-f", "--force-completion"}, description = "Forces migration state for all ranges of the specified table regardless of whether migration completed successfully or not. Should only be used if table is empty or has had no writes since last repair.")
         private boolean forceCompletion = false;
 
         protected void execute(NodeProbe probe)
