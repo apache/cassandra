@@ -41,6 +41,8 @@ import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.service.StorageService;
 
+import static junit.framework.TestCase.assertTrue;
+
 /*
  * Many tests declare their own test base and duplicate functionality
  * Hopefully this can serve as a place to put common initialization patterns and annotations
@@ -86,31 +88,38 @@ public class CassandraTestBase
         else
             DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
 
+        int partitionerAnnotationCount = 0;
         if (hasClassAnnotation(UseMurmur3Partitioner.class))
         {
+            partitionerAnnotationCount++;
             classResetStorageServicePartitioner = true;
             StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         }
         if (hasClassAnnotation(UseRandomPartitioner.class))
         {
+            partitionerAnnotationCount++;
             classResetStorageServicePartitioner = true;
             StorageService.instance.setPartitionerUnsafe(RandomPartitioner.instance);
         }
         if (hasClassAnnotation(UseOrderPreservingPartitioner.class))
         {
+            partitionerAnnotationCount++;
             classResetStorageServicePartitioner = true;
             StorageService.instance.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
         }
         if (hasClassAnnotation(UseLengthPartitioner.class))
         {
+            partitionerAnnotationCount++;
             classResetStorageServicePartitioner = true;
             StorageService.instance.setPartitionerUnsafe(LengthPartitioner.instance);
         }
         if (hasClassAnnotation(UseByteOrderedPartitioner.class))
         {
+            partitionerAnnotationCount++;
             classResetStorageServicePartitioner = true;
             StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
         }
+        assertTrue("At most one partitioner should be annotated", partitionerAnnotationCount <= 1);
     }
 
     @AfterClass
@@ -159,31 +168,38 @@ public class CassandraTestBase
     public void cassandraTestBaseSetUp() throws Exception
     {
         testMethod = testClass.getMethod(testMethodName.getMethodName());
+        int partitionerAnnotationCount = 0;
         if (hasMethodAnnotation(UseMurmur3Partitioner.class))
         {
+            partitionerAnnotationCount++;
             testResetStorageServicePartitioner = true;
             StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         }
         if (hasMethodAnnotation(UseRandomPartitioner.class))
         {
+            partitionerAnnotationCount++;
             testResetStorageServicePartitioner = true;
             StorageService.instance.setPartitionerUnsafe(RandomPartitioner.instance);
         }
         if (hasMethodAnnotation(UseOrderPreservingPartitioner.class))
         {
+            partitionerAnnotationCount++;
             testResetStorageServicePartitioner = true;
             StorageService.instance.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
         }
         if (hasMethodAnnotation(UseLengthPartitioner.class))
         {
+            partitionerAnnotationCount++;
             testResetStorageServicePartitioner = true;
             StorageService.instance.setPartitionerUnsafe(LengthPartitioner.instance);
         }
         if (hasMethodAnnotation(UseByteOrderedPartitioner.class))
         {
+            partitionerAnnotationCount++;
             testResetStorageServicePartitioner = true;
             StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
         }
+        assertTrue("At most one partitioner should be annotated", partitionerAnnotationCount <= 1);
     }
 
     private boolean hasMethodAnnotation(Class<? extends Annotation> annotation)
