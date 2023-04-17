@@ -10,6 +10,7 @@
  * Update zstd-jni to version 1.5.4-1 (CASSANDRA-18259)
  * Split and order IDEA workspace template VM_PARAMETERS (CASSANDRA-18242)
 Merged from 3.11:
+ * Fix sstable_count metric missing from tablestats json/yaml output (CASSANDRA-18448)
  * Suppress CVE-2022-45688 (CASSANDRA-18389)
  * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
 Merged from 3.0:
