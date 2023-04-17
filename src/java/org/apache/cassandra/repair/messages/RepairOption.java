@@ -211,6 +211,7 @@ public class RepairOption
         {
             Preconditions.checkArgument(!paxosOnly, "paxosOnly must be set to false for Accord repairs");
             Preconditions.checkArgument(previewKind == PreviewKind.NONE, "Can't perform preview repair with an Accord repair");
+            Preconditions.checkArgument(!force, "Accord repair only requires a quorum to work so force is not supported");
             incremental = false;
         }
 
