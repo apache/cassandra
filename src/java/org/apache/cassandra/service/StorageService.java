@@ -2177,6 +2177,24 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             subscriber.onDown(endpoint);
     }
 
+    public void notifyJoined(InetAddressAndPort endpoint)
+    {
+        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+            subscriber.onJoinCluster(endpoint);
+    }
+
+    public void notifyMoved(InetAddressAndPort endpoint)
+    {
+        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+            subscriber.onMove(endpoint);
+    }
+
+    public void notifyLeft(InetAddressAndPort endpoint)
+    {
+        for (IEndpointLifecycleSubscriber subscriber : lifecycleSubscribers)
+            subscriber.onLeaveCluster(endpoint);
+    }
+
     public boolean isRpcReady(InetAddressAndPort endpoint)
     {
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);

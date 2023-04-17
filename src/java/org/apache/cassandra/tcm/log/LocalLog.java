@@ -44,6 +44,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
+import org.apache.cassandra.tcm.listeners.ClientNotificationListener;
 import org.apache.cassandra.tcm.listeners.InitializationListener;
 import org.apache.cassandra.tcm.listeners.LegacyStateListener;
 import org.apache.cassandra.tcm.listeners.LogListener;
@@ -572,6 +573,7 @@ public abstract class LocalLog implements Closeable
         addListener(new PlacementsChangeListener());
         addListener(new MetadataSnapshotListener());
         addListener(new PaxosRepairListener());
+        addListener(new ClientNotificationListener());
     }
 
     private LogListener snapshotListener()
