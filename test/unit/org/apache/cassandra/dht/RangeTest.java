@@ -827,7 +827,6 @@ public class RangeTest extends CassandraTestBase
     public void testExpensiveChecksBurn()
     {
         long seed = System.nanoTime();
-//        seed = 88435571424041L;
         System.out.println(seed);
         Random r = new java.util.Random(seed);
 
@@ -847,11 +846,6 @@ public class RangeTest extends CassandraTestBase
                 b.add(new Range<>(new LongToken(r.nextLong()), new LongToken(r.nextLong())));
             }
             b = ImmutableList.copyOf(normalize(b));
-
-//            List<Range<Token>> a = ImmutableList.of(fromString("(-9223372036854775808,-868105389193617348]"), fromString(("(647608745828733177,-9223372036854775808]")));
-//            List<Range<Token>> a = ImmutableList.of(new Range<>(new LongToken(-9223372036854775808L), new LongToken(-9223372036854775808L)));
-//            List<Range<Token>> b = ImmutableList.of(fromString("(-9223372036854775808,918437373136905464]"), fromString("(2012172029300276096,-9223372036854775808]"));
-//            List<Range<Token>> b = ImmutableList.of(new Range<>(new LongToken(-9223372036854775808L), new LongToken(-8236902150162777104L)), new Range<>(new LongToken(40772772925507270L), new LongToken(959100132617257188L)), new Range<>(new LongToken(1579374374987539055L), new LongToken( -9223372036854775808L)));
 
             for (int ii = 0; ii < 1000; ii++)
             {
