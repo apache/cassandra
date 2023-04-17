@@ -84,6 +84,7 @@ public abstract class ConsensusMigrationAdmin extends NodeTool.NodeToolCmd
             List<String> keyspaceNames = schemaArgs.size() > 0 ? singletonList(schemaArgs.get(0)) : null;
             List<String> maybeTableNames = schemaArgs.size() > 1 ? schemaArgs.subList(1, schemaArgs.size()) : null;
             probe.getStorageService().migrateConsensusProtocol(targetProtocol, keyspaceNames, maybeTableNames, maybeRangesStr);
+            probe.output().out.println("Marked requested ranges as migrating. Repair needs to be run in order to complete the migration");
         }
     }
 
