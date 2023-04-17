@@ -134,19 +134,19 @@ public class PostingsReader implements OrdinalPostingList
             final byte offsetBitsPerValue = input.readByte();
             if (offsetBitsPerValue > 64)
             {
-                throw new CorruptIndexException(
-                        String.format("Postings list header is corrupted: Bits per value for block offsets must be no more than 64 and is %d.", offsetBitsPerValue), input);
+                String message = String.format("Postings list header is corrupted: Bits per value for block offsets must be no more than 64 and is %d.", offsetBitsPerValue);
+                throw new CorruptIndexException(message, input);
             }
-            this.offsets = new LongArrayReader(randomAccessInput, DirectReader.getInstance(randomAccessInput, offsetBitsPerValue, input.getFilePointer()), numBlocks);
+            this.offsets = new LongArrayReader(randomAccessInput, offsetBitsPerValue == 0 ? LongValues.ZEROES : DirectReader.getInstance(randomAccessInput, offsetBitsPerValue, input.getFilePointer()), numBlocks);
 
             input.seek(maxBlockValuesOffset);
             final byte valuesBitsPerValue = input.readByte();
             if (valuesBitsPerValue > 64)
             {
-                throw new CorruptIndexException(
-                        String.format("Postings list header is corrupted: Bits per value for values samples must be no more than 64 and is %d.", valuesBitsPerValue), input);
+                String message = String.format("Postings list header is corrupted: Bits per value for values samples must be no more than 64 and is %d.", valuesBitsPerValue);
+                throw new CorruptIndexException(message, input);
             }
-            this.maxValues = new LongArrayReader(randomAccessInput, DirectReader.getInstance(randomAccessInput, valuesBitsPerValue, input.getFilePointer()), numBlocks);
+            this.maxValues = new LongArrayReader(randomAccessInput, valuesBitsPerValue == 0 ? LongValues.ZEROES : DirectReader.getInstance(randomAccessInput, valuesBitsPerValue, input.getFilePointer()), numBlocks);
         }
 
         void close() throws IOException
