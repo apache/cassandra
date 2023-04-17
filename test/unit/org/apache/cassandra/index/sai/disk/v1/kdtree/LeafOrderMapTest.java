@@ -20,10 +20,11 @@ package org.apache.cassandra.index.sai.disk.v1.kdtree;
 import org.junit.Test;
 
 import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.utils.SaiRandomizedTest;
 import org.apache.cassandra.index.sai.utils.SeekingRandomAccessInput;
 import org.apache.cassandra.oldlucene.ByteArrayIndexInput;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
 
 public class LeafOrderMapTest extends SaiRandomizedTest
@@ -45,11 +46,11 @@ public class LeafOrderMapTest extends SaiRandomizedTest
         ByteArrayIndexInput input = new ByteArrayIndexInput("", out.getBytes(), 0, (int)out.getFilePointer());
 
         final byte bits = (byte) DirectWriter.unsignedBitsRequired(array.length - 1);
-        DirectReaders.Reader reader = DirectReaders.getReaderForBitsPerValue(bits);
+        LongValues reader = DirectReader.getInstance(new SeekingRandomAccessInput(input), bits);
 
         for (int x=0; x < array.length; x++)
         {
-            int value = LeafOrderMap.getValue(new SeekingRandomAccessInput(input), 0, x, reader);
+            int value = LeafOrderMap.getValue(x, reader);
 
             assertEquals(array[x], value);
         }

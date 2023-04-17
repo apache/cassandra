@@ -39,7 +39,6 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.io.CryptoUtils;
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.disk.v1.postings.FilteringPostingList;
 import org.apache.cassandra.index.sai.disk.v1.postings.MergePostingList;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
@@ -57,6 +56,8 @@ import org.apache.lucene.index.PointValues.Relation;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
 
 /**
@@ -74,7 +75,6 @@ public class BKDReader extends TraversingBKDReader implements Closeable
     private final FileHandle kdtreeFile;
     private final BKDPostingsIndex postingsIndex;
     private final ICompressor compressor;
-    private final DirectReaders.Reader leafOrderMapReader;
 
     /**
      * Performs a blocking read.
@@ -91,8 +91,6 @@ public class BKDReader extends TraversingBKDReader implements Closeable
         this.kdtreeFile = kdtreeFile;
         this.postingsIndex = new BKDPostingsIndex(postingsFile, bkdPostingsRoot);
         this.compressor = null;
-        final byte bits = (byte) DirectWriter.unsignedBitsRequired(maxPointsInLeafNode - 1);
-        leafOrderMapReader = DirectReaders.getReaderForBitsPerValue(bits);
     }
 
     public interface DocMapper
@@ -251,7 +249,8 @@ public class BKDReader extends TraversingBKDReader implements Closeable
         final SeekingRandomAccessInput randoInput = new SeekingRandomAccessInput(bkdInput);
         for (int x = 0; x < count; x++)
         {
-            final short idx = (short) LeafOrderMap.getValue(randoInput, orderMapPointer, x, leafOrderMapReader);
+            LongValues orderMapReader = DirectReader.getInstance(randoInput, DirectWriter.unsignedBitsRequired(maxPointsInLeafNode - 1), orderMapPointer);
+            final short idx = (short) LeafOrderMap.getValue(x, orderMapReader);
             origIndex[x] = idx;
         }
 
@@ -706,7 +705,8 @@ public class BKDReader extends TraversingBKDReader implements Closeable
             final SeekingRandomAccessInput randoInput = new SeekingRandomAccessInput(bkdInput);
             for (int x = 0; x < count; x++)
             {
-                origIndex[x] = (short) LeafOrderMap.getValue(randoInput, orderMapPointer, x, leafOrderMapReader);
+                LongValues orderMapReader = DirectReader.getInstance(randoInput, DirectWriter.unsignedBitsRequired(maxPointsInLeafNode - 1), orderMapPointer);
+                origIndex[x] = (short) orderMapReader.get(x);
             }
 
             // seek beyond the ordermap
