@@ -19,17 +19,29 @@ package org.apache.cassandra.journal;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import org.junit.Test;
 
+import org.agrona.collections.IntHashSet;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.TimeUUID;
+import org.quicktheories.core.Gen;
+import org.quicktheories.impl.Constraint;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.quicktheories.QuickTheory.qt;
 
 public class IndexTest
 {
@@ -128,6 +140,124 @@ public class IndexTest
              assertTrue(onDisk.mayContainId(key2));
              assertTrue(onDisk.mayContainId(key3));
             assertFalse(onDisk.mayContainId(key4));
+        }
+    }
+
+    @Test
+    public void prop() throws IOException
+    {
+        Constraint sizeConstraint = Constraint.between(1, 10);
+        Constraint valueSizeConstraint = Constraint.between(0, 10);
+        Constraint positionConstraint = Constraint.between(0, Integer.MAX_VALUE);
+        Gen<TimeUUID> keyGen = Generators.timeUUID();
+        Gen<int[]> valueGen = rs -> {
+            int[] array = new int[(int) rs.next(valueSizeConstraint)];
+            IntHashSet uniq = new IntHashSet();
+            for (int i = 0; i < array.length; i++)
+            {
+                int value = (int) rs.next(positionConstraint);
+                while (!uniq.add(value))
+                    value = (int) rs.next(positionConstraint);
+                array[i] = value;
+            }
+            return array;
+        };
+        Gen<Map<TimeUUID, int[]>> gen = rs -> {
+            int size = (int) rs.next(sizeConstraint);
+            Map<TimeUUID, int[]> map = Maps.newHashMapWithExpectedSize(size);
+            for (int i = 0; i < size; i++)
+            {
+                TimeUUID key = keyGen.generate(rs);
+                while (map.containsKey(key))
+                    key = keyGen.generate(rs);
+                int[] value = valueGen.generate(rs);
+                map.put(key, value);
+            }
+            return map;
+        };
+        gen = gen.describedAs(map -> {
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<TimeUUID, int[]> entry : map.entrySet())
+                sb.append('\n').append(entry.getKey()).append('\t').append(Arrays.toString(entry.getValue()));
+            return sb.toString();
+        });
+        File directory = new File(Files.createTempDirectory(null));
+        directory.deleteOnExit();
+        qt().withFixedSeed(1735898489413583L).forAll(gen).checkAssert(map -> test(directory, map));
+    }
+
+    @Test
+    public void sample() throws IOException
+    {
+        File directory = new File(Files.createTempDirectory(null));
+        directory.deleteOnExit();
+
+        test(directory, ImmutableMap.of(TimeUUID.fromString("58ed800a-d357-11b2-0000-000000000000"), new int[]{ 0 },
+                                        TimeUUID.fromString("8001c17e-d357-11b2-0000-000000000000"), new int[]{ 0 }
+        ));
+    }
+
+    private static void test(File directory, Map<TimeUUID, int[]> map)
+    {
+        InMemoryIndex<TimeUUID> inMemory = InMemoryIndex.create(TimeUUIDKeySupport.INSTANCE);
+        for (Map.Entry<TimeUUID, int[]> e : map.entrySet())
+        {
+            TimeUUID key = e.getKey();
+            assertThat(inMemory.lookUp(key)).isEmpty();
+
+            int[] value = e.getValue();
+            if (value.length == 0)
+                continue;
+            for (int i : value)
+                inMemory.update(key, i);
+            Arrays.sort(value);
+        }
+        assertIndex(map, inMemory);
+
+        Descriptor descriptor = Descriptor.create(directory, System.nanoTime(), 1);
+        inMemory.persist(descriptor);
+
+        try (OnDiskIndex<TimeUUID> onDisk = OnDiskIndex.open(descriptor, TimeUUIDKeySupport.INSTANCE))
+        {
+            assertIndex(map, onDisk);
+        }
+    }
+
+    private static void assertIndex(Map<TimeUUID, int[]> expected, Index<TimeUUID> actual)
+    {
+        List<TimeUUID> keys = expected.entrySet()
+                                      .stream()
+                                      .filter(e -> e.getValue().length != 0)
+                                      .map(Map.Entry::getKey)
+                                      .sorted()
+                                      .collect(Collectors.toList());
+
+        if (keys.isEmpty())
+        {
+            assertThat(actual.firstId()).describedAs("Index %s had wrong firstId", actual).isNull();
+            assertThat(actual.lastId()).describedAs("Index %s had wrong lastId", actual).isNull();
+        }
+        else
+        {
+            assertThat(actual.firstId()).describedAs("Index %s had wrong firstId", actual).isEqualTo(keys.get(0));
+            assertThat(actual.lastId()).describedAs("Index %s had wrong lastId", actual).isEqualTo(keys.get(keys.size() - 1));
+        }
+
+        for (Map.Entry<TimeUUID, int[]> e : expected.entrySet())
+        {
+            TimeUUID key = e.getKey();
+            int[] value = e.getValue();
+            int[] read = actual.lookUp(key);
+
+            if (value.length == 0)
+            {
+                assertThat(read).describedAs("Index %s returned wrong values for %s", actual, key).isEmpty();
+            }
+            else
+            {
+                assertThat(read).describedAs("Index %s returned wrong values for %s", actual, key).isEqualTo(value);
+                assertThat(actual.mayContainId(key)).describedAs("Index %s expected %s to exist", key, actual).isTrue();
+            }
         }
     }
 }
