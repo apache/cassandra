@@ -26,21 +26,17 @@ import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
 
 public class ShortPaxosSimulationTest
 {
-//    @Test
-//    public void simulationTest() throws IOException
-//    {
-//        PaxosSimulationRunner.main(new String[] { "run", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30" });
-//    }
+    @Test
+    public void simulationTest() throws IOException
+    {
+        PaxosSimulationRunner.main(new String[] { "run", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30" });
+    }
 
     @Test
     public void casOnAccordSimulationTest() throws IOException
     {
-        //"--cluster-actions", ""
-        //"--legacy-paxos-strategy", "accord",
-//        PaxosSimulationRunner.main(new String[] { "run", "--legacy-paxos-strategy", "accord", "-n", "3...6", "-t", "1000", "--cluster-action-limit", "-1", "-c", "2", "-s", "30" });
         PaxosSimulationRunner.main(new String[] { "run",
-//                                                  "--seed", "0xcb644d45d0d90d3a",
-                                                  "--legacy-paxos-strategy", "migration",
+                                                  "--lwt-strategy", "migration",
                                                   "-n", "3...6",
                                                   "-t", "1000",
                                                   "--cluster-action-limit", "0",
@@ -48,14 +44,8 @@ public class ShortPaxosSimulationTest
                                                   "--consensus-actions", "ACCORD_MIGRATE",
                                                   "-c", "10",
                                                   "-s", "30"});
-                                                  //, "--scheduler-jitter", "10..1000ms"});
     }
 
-//    @Test
-//    public void selfReconcileTest() throws IOException
-//    {
-//        PaxosSimulationRunner.main(new String[] { "reconcile", "--legacy-paxos-strategy", "accord", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "-1", "-s", "30", "--with-self" });
-//    }
 //    @Test
 //    @Ignore("fails due to OOM DirectMemory - unclear why")
 //    public void selfReconcileTest() throws IOException
