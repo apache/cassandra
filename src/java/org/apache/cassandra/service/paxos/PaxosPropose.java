@@ -140,7 +140,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     final int required;
 
     /** Repairing an in flight txn not proposing a new one **/
-    final boolean isForRepair;
+    final boolean isForRecovery;
 
     /** Invoke on reaching a terminal status */
     final OnDone onDone;
@@ -163,7 +163,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
 
     private volatile boolean needsConsensusMigration = false;
 
-    private PaxosPropose(Proposal proposal, int participants, int required, boolean waitForNoSideEffect, boolean isForRepair, OnDone onDone)
+    private PaxosPropose(Proposal proposal, int participants, int required, boolean waitForNoSideEffect, boolean isForRecovery, OnDone onDone)
     {
         this.proposal = proposal;
         assert required > 0;
@@ -171,7 +171,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         this.participants = participants;
         this.required = required;
         this.onDone = onDone;
-        this.isForRepair = isForRepair;
+        this.isForRecovery = isForRecovery;
     }
 
     /**
@@ -179,10 +179,10 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
      * or for the present status if the time elapses without a final result being reached.
      * @param waitForNoSideEffect if true, on failure we will wait until we can say with certainty there are no side effects
      *                            or until we know we will never be able to determine this with certainty
-     * @param isForRepair if true the value being proposed is not a new value it is a value from an existing in flight proposal
+     * @param isForRecovery if true the value being proposed is not a new value it is a value from an existing in flight proposal
      *                    and will be allowed to proceed even if the key is migrating to a different consensus protocol
      */
-    static Paxos.Async<Status> propose(Proposal proposal, Paxos.Participants participants, boolean waitForNoSideEffect, boolean isForRepair)
+    static Paxos.Async<Status> propose(Proposal proposal, Paxos.Participants participants, boolean waitForNoSideEffect, boolean isForRecovery)
     {
         if (waitForNoSideEffect && proposal.update.isEmpty())
             waitForNoSideEffect = false; // by definition this has no "side effects" (besides linearizing the operation)
@@ -190,9 +190,9 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         // to avoid unnecessary object allocations we extend PaxosPropose to implements Paxos.Async
         class Async extends PaxosPropose<ConditionAsConsumer<Status>> implements Paxos.Async<Status>
         {
-            private Async(Proposal proposal, int participants, int required, boolean waitForNoSideEffect, boolean isForRepair)
+            private Async(Proposal proposal, int participants, int required, boolean waitForNoSideEffect, boolean isForRecovery)
             {
-                super(proposal, participants, required, waitForNoSideEffect, isForRepair, newConditionAsConsumer());
+                super(proposal, participants, required, waitForNoSideEffect, isForRecovery, newConditionAsConsumer());
             }
 
             public Status awaitUntil(long deadline)
@@ -211,24 +211,24 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             }
         }
 
-        Async propose = new Async(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect, isForRepair);
+        Async propose = new Async(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect, isForRecovery);
         propose.start(participants);
         return propose;
     }
 
-    static <T extends Consumer<Status>> T propose(Proposal proposal, Paxos.Participants participants, boolean waitForNoSideEffect, boolean isForRepair, T onDone)
+    static <T extends Consumer<Status>> T propose(Proposal proposal, Paxos.Participants participants, boolean waitForNoSideEffect, boolean isForRecovery, T onDone)
     {
         if (waitForNoSideEffect && proposal.update.isEmpty())
             waitForNoSideEffect = false; // by definition this has no "side effects" (besides linearizing the operation)
 
-        PaxosPropose<?> propose = new PaxosPropose<>(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect, isForRepair, onDone);
+        PaxosPropose<?> propose = new PaxosPropose<>(proposal, participants.sizeOfPoll(), participants.sizeOfConsensusQuorum, waitForNoSideEffect, isForRecovery, onDone);
         propose.start(participants);
         return onDone;
     }
 
     void start(Paxos.Participants participants)
     {
-        Message<Request> message = Message.out(PAXOS2_PROPOSE_REQ, new Request(proposal, isForRepair));
+        Message<Request> message = Message.out(PAXOS2_PROPOSE_REQ, new Request(proposal, isForRecovery));
 
         boolean executeOnSelf = false;
         for (int i = 0, size = participants.sizeOfPoll(); i < size ; ++i)
@@ -240,7 +240,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         }
 
         if (executeOnSelf)
-            PAXOS2_PROPOSE_REQ.stage.execute(() -> executeOnSelf(proposal, isForRepair));
+            PAXOS2_PROPOSE_REQ.stage.execute(() -> executeOnSelf(proposal, isForRecovery));
     }
 
     /**
@@ -262,14 +262,14 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         return new MaybeFailure(new Paxos.MaybeFailure(participants, required, accepts(responses), failureReasonsAsMap()));
     }
 
-    private void executeOnSelf(Proposal proposal, boolean isForRepair)
+    private void executeOnSelf(Proposal proposal, boolean isForRecovery)
     {
-        executeOnSelf(proposal, isForRepair, RequestHandler::execute);
+        executeOnSelf(proposal, isForRecovery, RequestHandler::execute);
     }
 
     public void onResponse(AcceptResult acceptResult, InetAddressAndPort from)
     {
-        checkArgument(!isForRepair || acceptResult.rejectedDueToConsensusMigration == false, "Repair should never be rejected due to consensus migration");
+        checkArgument(!isForRecovery || acceptResult.rejectedDueToConsensusMigration == false, "Repair should never be rejected due to consensus migration");
         if (logger.isTraceEnabled())
             logger.trace("{} for {} from {}", acceptResult, proposal, from);
 
@@ -400,11 +400,11 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     static class Request
     {
         final Proposal proposal;
-        final boolean isForRepair;
-        Request(Proposal proposal, boolean isForRepair)
+        final boolean isForRecovery;
+        Request(Proposal proposal, boolean isForRecovery)
         {
             this.proposal = proposal;
-            this.isForRepair = isForRepair;
+            this.isForRecovery = isForRecovery;
         }
 
         @Override
@@ -412,7 +412,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         {
             return "Request{" +
                    "proposal=" + proposal.toString("Propose") +
-                   ", isForRepair=" + isForRepair +
+                   ", isForRecovery=" + isForRecovery +
                    '}';
         }
     }
@@ -426,14 +426,14 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         public void doVerb(Message<Request> message)
         {
             ClusterMetadataService.instance.maybeCatchup(message.epoch());
-            AcceptResult acceptResult = execute(message.payload.proposal, message.payload.isForRepair, message.from());
+            AcceptResult acceptResult = execute(message.payload.proposal, message.payload.isForRecovery, message.from());
             if (acceptResult == null)
                 MessagingService.instance().respondWithFailure(UNKNOWN, message);
             else
                 MessagingService.instance().respond(acceptResult, message);
         }
 
-        public static AcceptResult execute(Proposal proposal, boolean isForRepair, InetAddressAndPort from)
+        public static AcceptResult execute(Proposal proposal, boolean isForRecovery, InetAddressAndPort from)
         {
             if (!Paxos.isInRangeAndShouldProcess(from, proposal.update.partitionKey(), proposal.update.metadata(), false))
                 return null;
@@ -441,7 +441,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             long start = nanoTime();
             try (PaxosState state = PaxosState.get(proposal))
             {
-                return state.acceptIfLatest(proposal, isForRepair);
+                return state.acceptIfLatest(proposal, isForRecovery);
             }
             finally
             {
@@ -458,17 +458,17 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             Proposal.serializer.serialize(request.proposal, out, version);
             // TODO this doesn't seem like the right version
             if (version >= MessagingService.VERSION_50)
-                out.writeBoolean(request.isForRepair);
+                out.writeBoolean(request.isForRecovery);
         }
 
         @Override
         public Request deserialize(DataInputPlus in, int version) throws IOException
         {
             Proposal propose = Proposal.serializer.deserialize(in, version);
-            boolean isForRepair = false;
+            boolean isForRecovery = false;
             if (version >= MessagingService.VERSION_50)
-                isForRepair = in.readBoolean();
-            return new Request(propose, isForRepair);
+                isForRecovery = in.readBoolean();
+            return new Request(propose, isForRecovery);
         }
 
         @Override
@@ -476,7 +476,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         {
             long size = Proposal.serializer.serializedSize(request.proposal, version);
             if (version >= MessagingService.VERSION_50)
-                size += TypeSizes.sizeof(request.isForRepair);
+                size += TypeSizes.sizeof(request.isForRecovery);
             return size;
         }
     }

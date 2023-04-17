@@ -59,21 +59,21 @@ public class PaxosCommitAndPrepare
     {
         final Agreed commit;
 
-        Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRepair)
+        Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
-            super(ballot, electorate, read, isWrite, isForRepair);
+            super(ballot, electorate, read, isWrite, isForRecovery);
             this.commit = commit;
         }
 
-        private Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRepair)
+        private Request(Agreed commit, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
         {
-            super(ballot, electorate, partitionKey, table, isWrite, isForRepair);
+            super(ballot, electorate, partitionKey, table, isWrite, isForRecovery);
             this.commit = commit;
         }
 
         Request withoutRead()
         {
-            return new Request(commit, ballot, electorate, partitionKey, table, isForWrite, isForRepair);
+            return new Request(commit, ballot, electorate, partitionKey, table, isForWrite, isForRecovery);
         }
 
         public String toString()
@@ -84,14 +84,14 @@ public class PaxosCommitAndPrepare
 
     public static class RequestSerializer extends PaxosPrepare.AbstractRequestSerializer<Request, Agreed>
     {
-        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRepair)
+        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
-            return new Request(param, ballot, electorate, read, isWrite, isForRepair);
+            return new Request(param, ballot, electorate, read, isWrite, isForRecovery);
         }
 
-        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRepair)
+        Request construct(Agreed param, Ballot ballot, Paxos.Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
         {
-            return new Request(param, ballot, electorate, partitionKey, table, isWrite, isForRepair);
+            return new Request(param, ballot, electorate, partitionKey, table, isWrite, isForRecovery);
         }
 
         @Override

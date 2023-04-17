@@ -641,7 +641,7 @@ public class PaxosState implements PaxosOperationLock
     /**
      * Record an acceptance of the proposal if there is no newer promise; otherwise inform the caller of the newer ballot
      */
-    public AcceptResult acceptIfLatest(Proposal proposal, boolean isForRepair)
+    public AcceptResult acceptIfLatest(Proposal proposal, boolean isForRecovery)
     {
         if (paxosStatePurging() == legacy && !(proposal instanceof AcceptedWithTTL))
             proposal = AcceptedWithTTL.withDefaultTTL(proposal);
@@ -656,7 +656,7 @@ public class PaxosState implements PaxosOperationLock
             Snapshot realBefore = current;
             before = realBefore.removeExpired((int)proposal.ballot.unix(SECONDS));
             Ballot latest = before.latestWitnessedOrLowBound();
-            if (isForRepair)
+            if (isForRecovery)
                 shouldRejectDueToConsensusMigration = false;
             else
                 shouldRejectDueToConsensusMigration = ConsensusRequestRouter.instance

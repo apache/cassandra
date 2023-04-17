@@ -908,8 +908,9 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         final boolean isForWrite;
         final DecoratedKey partitionKey;
         final TableMetadata table;
+        final boolean isForRecovery;
         
-        AbstractRequest(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isForWrite, boolean isForRepair)
+        AbstractRequest(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isForWrite, boolean isForRecovery)
         {
             this.ballot = ballot;
             this.electorate = electorate;
@@ -917,10 +918,10 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             this.isForWrite = isForWrite;
             this.partitionKey = read.partitionKey();
             this.table = read.metadata();
-            this.isForRepair = isForRepair;
+            this.isForRecovery = isForRecovery;
         }
 
-        AbstractRequest(Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isForWrite, boolean isForRepair)
+        AbstractRequest(Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isForWrite, boolean isForRecovery)
         {
             this.ballot = ballot;
             this.electorate = electorate;
@@ -928,7 +929,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             this.table = table;
             this.read = null;
             this.isForWrite = isForWrite;
-            this.isForRepair = isForRepair;
+            this.isForRecovery = isForRecovery;
         }
 
         abstract R withoutRead();
@@ -941,19 +942,19 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     static class Request extends AbstractRequest<Request>
     {
-        Request(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRepair)
+        Request(Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
-            super(ballot, electorate, read, isWrite, isForRepair);
+            super(ballot, electorate, read, isWrite, isForRecovery);
         }
 
-        private Request(Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRepair)
+        private Request(Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
         {
-            super(ballot, electorate, partitionKey, table, isWrite, isForRepair);
+            super(ballot, electorate, partitionKey, table, isWrite, isForRecovery);
         }
 
         Request withoutRead()
         {
-            return read == null ? this : new Request(ballot, electorate, partitionKey, table, isForWrite, isForRepair);
+            return read == null ? this : new Request(ballot, electorate, partitionKey, table, isForWrite, isForRecovery);
         }
 
         public String toString()
@@ -1134,8 +1135,8 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
 
     static abstract class AbstractRequestSerializer<R extends AbstractRequest<R>, T> implements IVersionedSerializer<R>
     {
-        abstract R construct(T param, Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRepair);
-        abstract R construct(T param, Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRepair);
+        abstract R construct(T param, Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery);
+        abstract R construct(T param, Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery);
 
         @Override
         public void serialize(R request, DataOutputPlus out, int version) throws IOException
@@ -1154,7 +1155,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 DecoratedKey.serializer.serialize(request.partitionKey, out, version);
             }
             if (version >= MessagingService.VERSION_50)
-                out.writeBoolean(request.isForRepair);
+                out.writeBoolean(request.isForRecovery);
         }
 
         public R deserialize(T param, DataInputPlus in, int version) throws IOException
@@ -1165,19 +1166,19 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             if ((flag & 1) != 0)
             {
                 SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) ReadCommand.serializer.deserialize(in, version);
-                boolean isForRepair = false;
+                boolean isForRecovery = false;
                 if (version >= MessagingService.VERSION_50)
-                    isForRepair = in.readBoolean();
-                return construct(param, ballot, electorate, readCommand, (flag & 2) == 0, isForRepair);
+                    isForRecovery = in.readBoolean();
+                return construct(param, ballot, electorate, readCommand, (flag & 2) == 0, isForRecovery);
             }
             else
             {
                 TableMetadata table = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
                 DecoratedKey partitionKey = (DecoratedKey) DecoratedKey.serializer.deserialize(in, table.partitioner, version);
-                boolean isForRepair = false;
+                boolean isForRecovery = false;
                 if (version >= MessagingService.VERSION_50)
-                    isForRepair = in.readBoolean();
-                return construct(param, ballot, electorate, partitionKey, table, (flag & 2) != 0, isForRepair);
+                    isForRecovery = in.readBoolean();
+                return construct(param, ballot, electorate, partitionKey, table, (flag & 2) != 0, isForRecovery);
             }
         }
 
@@ -1191,21 +1192,21 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         : request.table.id.serializedSize()
                             + DecoratedKey.serializer.serializedSize(request.partitionKey, version));
             if (version >= MessagingService.VERSION_50)
-                size += TypeSizes.sizeof(request.isForRepair);
+                size += TypeSizes.sizeof(request.isForRecovery);
             return size;
         }
     }
 
     public static class RequestSerializer extends AbstractRequestSerializer<Request, Object>
     {
-        Request construct(Object ignore, Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRepair)
+        Request construct(Object ignore, Ballot ballot, Electorate electorate, SinglePartitionReadCommand read, boolean isWrite, boolean isForRecovery)
         {
-            return new Request(ballot, electorate, read, isWrite, isForRepair);
+            return new Request(ballot, electorate, read, isWrite, isForRecovery);
         }
 
-        Request construct(Object ignore, Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRepair)
+        Request construct(Object ignore, Ballot ballot, Electorate electorate, DecoratedKey partitionKey, TableMetadata table, boolean isWrite, boolean isForRecovery)
         {
-            return new Request(ballot, electorate, partitionKey, table, isWrite, isForRepair);
+            return new Request(ballot, electorate, partitionKey, table, isWrite, isForRecovery);
         }
 
         public Request deserialize(DataInputPlus in, int version) throws IOException
