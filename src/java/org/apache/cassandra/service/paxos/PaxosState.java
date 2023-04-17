@@ -73,6 +73,8 @@ import static org.apache.cassandra.service.paxos.Commit.CommittedWithTTL;
 import static org.apache.cassandra.service.paxos.Commit.Proposal;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
 import static org.apache.cassandra.service.paxos.Commit.latest;
+import static org.apache.cassandra.service.paxos.PaxosState.AcceptResult.RETRY_NEW_PROTOCOL;
+import static org.apache.cassandra.service.paxos.PaxosState.AcceptResult.SUCCESS;
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PERMIT_READ;
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PROMISE;
 import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.REJECT;
@@ -670,7 +672,7 @@ public class PaxosState implements PaxosOperationLock
 
             // TODO: Consider not answering in the committed ballot case where there is no need to save anything or answer at all
             if (proposal.hasSameBallot(before.committed) || shouldRejectDueToConsensusMigration)
-                return new AcceptResult(null, shouldRejectDueToConsensusMigration);
+                return RETRY_NEW_PROTOCOL;
 
             after = new Snapshot(realBefore.promised, realBefore.promisedWrite, proposal.accepted(), realBefore.committed);
             if (currentUpdater.compareAndSet(this, realBefore, after))
@@ -688,7 +690,7 @@ public class PaxosState implements PaxosOperationLock
         Tracing.trace("Accepting proposal {}", proposal);
         SystemKeyspace.savePaxosProposal(proposal);
         checkState(!shouldRejectDueToConsensusMigration);
-        return new AcceptResult();
+        return SUCCESS;
     }
 
     public void commit(Agreed commit)
@@ -858,23 +860,28 @@ public class PaxosState implements PaxosOperationLock
      */
     public static class AcceptResult
     {
+        static final AcceptResult SUCCESS = new AcceptResult(false);
+
+        static final AcceptResult RETRY_NEW_PROTOCOL = new AcceptResult(true);
+
         @Nullable
         public final Ballot supersededBy;
 
         public final boolean rejectedDueToConsensusMigration;
 
-        // Success result
-        AcceptResult()
-        {
-            supersededBy = null;
-            rejectedDueToConsensusMigration = false;
-        }
-
-        AcceptResult(@Nullable  Ballot supersededBy, boolean rejectedDueToConsensusMigration)
+        public AcceptResult(@Nullable  Ballot supersededBy, boolean rejectedDueToConsensusMigration)
         {
             this.supersededBy = supersededBy;
             this.rejectedDueToConsensusMigration = rejectedDueToConsensusMigration;
         }
+
+        // Success result
+        private AcceptResult(boolean rejectedDueToConsensusMigration)
+        {
+            supersededBy = null;
+            this.rejectedDueToConsensusMigration = rejectedDueToConsensusMigration;
+        }
+
         public String toString() { return supersededBy == null && !rejectedDueToConsensusMigration ? "Accept" : "RejectProposal(supersededBy=" + supersededBy + ", rejectedDueToConsensusMigration=" + rejectedDueToConsensusMigration + ')'; }
     }
 }
