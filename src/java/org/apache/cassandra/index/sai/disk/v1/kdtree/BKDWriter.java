@@ -27,6 +27,7 @@ import java.util.function.IntFunction;
 
 import com.google.common.base.MoreObjects;
 
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.cassandra.index.sai.disk.io.CryptoUtils;
 import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
@@ -35,7 +36,6 @@ import org.apache.cassandra.oldlucene.MutablePointValues;
 import org.apache.lucene.store.DataOutput;
 import org.apache.cassandra.oldlucene.GrowableByteArrayDataOutput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.cassandra.oldlucene.RAMOutputStream;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -621,9 +621,8 @@ public class BKDWriter implements Closeable
             }
         }
 
-        /** Reused while packing the index */
-        // TODO: replace with RAMIndexOutput because RAMOutputStream has synchronized/monitor locks
-        RAMOutputStream writeBuffer = new RAMOutputStream();
+        // Reused while packing the index
+        var writeBuffer = new ResettableByteBuffersIndexOutput(1024, "");
 
         // This is the "file" we append the byte[] to:
         List<byte[]> blocks = new ArrayList<>();
@@ -645,13 +644,11 @@ public class BKDWriter implements Closeable
     }
 
     /** Appends the current contents of writeBuffer as another block on the growing in-memory file */
-    private int appendBlock(RAMOutputStream writeBuffer, List<byte[]> blocks) throws IOException
+    private int appendBlock(ResettableByteBuffersIndexOutput writeBuffer, List<byte[]> blocks) throws IOException
     {
-        int pos = Math.toIntExact(writeBuffer.getFilePointer());
-        byte[] bytes = new byte[pos];
-        writeBuffer.writeTo(bytes, 0);
+        int pos = writeBuffer.intSize();
+        blocks.add(writeBuffer.toArrayCopy());
         writeBuffer.reset();
-        blocks.add(bytes);
         return pos;
     }
 
@@ -659,7 +656,7 @@ public class BKDWriter implements Closeable
      * lastSplitValues is per-dimension split value previously seen; we use this to prefix-code the split byte[] on each
      * inner node
      */
-    private int recursePackIndex(RAMOutputStream writeBuffer, long[] leafBlockFPs, byte[] splitPackedValues, long minBlockFP, List<byte[]> blocks,
+    private int recursePackIndex(ResettableByteBuffersIndexOutput writeBuffer, long[] leafBlockFPs, byte[] splitPackedValues, long minBlockFP, List<byte[]> blocks,
                                  int nodeID, byte[] lastSplitValues, boolean[] negativeDeltas, boolean isLeft) throws IOException
     {
         if (nodeID >= leafBlockFPs.length)
@@ -781,9 +778,8 @@ public class BKDWriter implements Closeable
             {
                 assert leftNumBytes == 0 : "leftNumBytes=" + leftNumBytes;
             }
-            int numBytes2 = Math.toIntExact(writeBuffer.getFilePointer());
-            byte[] bytes2 = new byte[numBytes2];
-            writeBuffer.writeTo(bytes2, 0);
+            byte[] bytes2 = writeBuffer.toArrayCopy();
+            int numBytes2 = bytes2.length;
             writeBuffer.reset();
             // replace our placeholder:
             blocks.set(idxSav, bytes2);
