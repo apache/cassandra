@@ -935,7 +935,12 @@ public class DatabaseDescriptor
         if (conf.paxos_state_purging == null)
             conf.paxos_state_purging = PaxosStatePurging.legacy;
 
-        sstableCompression = CompressionParams.fromOptions(conf.sstable_compressor);
+        String sstableCompressorClass = Optional.of(conf).map(c -> c.sstable_compression).map(p -> p.class_name).orElse(null);
+        Map<String, String> sstableCompressorParameters = Optional.of(conf).map(c -> c.sstable_compression).map(p -> p.parameters).orElse(new HashMap<>());
+        if (sstableCompressorClass != null)
+            sstableCompressorParameters.put("class", sstableCompressorClass);
+
+        sstableCompression = CompressionParams.fromOptions(sstableCompressorParameters);
 
         logInitializationOutcome(logger);
 
@@ -2725,7 +2730,7 @@ public class DatabaseDescriptor
 
     /**
      * If this value is set to <= 0 it will move auth requests to the standard request pool regardless of the current
-     * size of the {@link org.apache.cassandra.transport.Dispatcher#authExecutor}'s active size.
+     * size of the {@code org.apache.cassandra.transport.Dispatcher.authExecutor}'s active size.
      *
      * see {@link org.apache.cassandra.transport.Dispatcher#dispatch} for executor selection
      */

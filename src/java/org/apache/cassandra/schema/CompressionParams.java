@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -46,14 +47,11 @@ import org.apache.cassandra.net.MessagingService;
 
 import static java.lang.String.format;
 
-@SuppressWarnings("deprecation")
 public final class CompressionParams
 {
     private static final Logger logger = LoggerFactory.getLogger(CompressionParams.class);
 
-    private static volatile boolean hasLoggedSsTableCompressionWarning;
     private static volatile boolean hasLoggedChunkLengthWarning;
-    private static volatile boolean hasLoggedCrcCheckChanceWarning;
 
     public static final int DEFAULT_CHUNK_LENGTH = 1024 * 16;
     public static final double DEFAULT_MIN_COMPRESS_RATIO = 0.0;        // Since pre-4.0 versions do not understand the
@@ -63,6 +61,7 @@ public final class CompressionParams
 
     public static final String CLASS = "class";
     public static final String CHUNK_LENGTH_IN_KB = "chunk_length_in_kb";
+    public static final String CHUNK_LENGTH = "chunk_length";
     public static final String ENABLED = "enabled";
     public static final String MIN_COMPRESS_RATIO = "min_compress_ratio";
 
@@ -78,13 +77,6 @@ public final class CompressionParams
                                                                           calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
                                                                           DEFAULT_MIN_COMPRESS_RATIO,
                                                                           Collections.emptyMap());
-
-    private static final String CRC_CHECK_CHANCE_WARNING = "The option crc_check_chance was deprecated as a compression option. " +
-                                                           "You should specify it as a top-level table option instead";
-
-    @Deprecated public static final String SSTABLE_COMPRESSION = "sstable_compression";
-    @Deprecated public static final String CHUNK_LENGTH_KB = "chunk_length_kb";
-    @Deprecated public static final String CRC_CHECK_CHANCE = "crc_check_chance";
 
     private final ICompressor sstableCompressor;
     private final int chunkLength;
@@ -122,7 +114,7 @@ public final class CompressionParams
         }
         else
         {
-            sstableCompressionClass = removeSstableCompressionClass(options);
+            sstableCompressionClass = removeCompressionClass(options);
         }
 
         int chunkLength = removeChunkLength(options);
@@ -282,19 +274,59 @@ public final class CompressionParams
         return maxCompressedLength;
     }
 
-    private static Class<?> parseCompressorClass(String className) throws ConfigurationException
+    public enum CompressorType
     {
-        if (className == null || className.isEmpty())
+        lz4(LZ4Compressor.class, "lz4"),
+        none(NoopCompressor.class, "none"),
+        noop(NoopCompressor.class, "noop"),
+        snappy(SnappyCompressor.class, "snappy"),
+        deflate(DeflateCompressor.class, "deflate"),
+        zstd(ZstdCompressor.class, "zstd");
+
+        final Class<?> clazz;
+        final String alias;
+
+        CompressorType(Class<?> clazz, String alias)
+        {
+            this.clazz = clazz;
+            this.alias = alias;
+        }
+
+        public static String parseAlias(String alias)
+        {
+            if (alias == null)
+                return null;
+
+            String lowercasedAlias = alias.toLowerCase();
+
+            for (CompressorType type : CompressorType.values())
+                if (type.alias.equals(lowercasedAlias))
+                    return type.clazz.getName();
+
+            return null;
+        }
+    }
+
+    private static Class<?> parseCompressorClass(String classNameOrAlias) throws ConfigurationException
+    {
+        if (classNameOrAlias == null || classNameOrAlias.isEmpty())
             return null;
 
-        className = className.contains(".") ? className : "org.apache.cassandra.io.compress." + className;
+        String className = null;
+
+        if (!classNameOrAlias.contains("."))
+            className = CompressorType.parseAlias(classNameOrAlias);
+
+        if (className == null)
+            className = classNameOrAlias.contains(".") ? classNameOrAlias : "org.apache.cassandra.io.compress." + classNameOrAlias;
+
         try
         {
             return Class.forName(className);
         }
         catch (Exception e)
         {
-            throw new ConfigurationException("Could not create Compression for type " + className, e);
+            throw new ConfigurationException("Could not create Compression for type " + classNameOrAlias, e);
         }
     }
 
@@ -305,16 +337,6 @@ public final class CompressionParams
             if (!compressionOptions.isEmpty())
                 throw new ConfigurationException("Unknown compression options (" + compressionOptions.keySet() + ") since no compression class found");
             return null;
-        }
-
-        if (compressionOptions.containsKey(CRC_CHECK_CHANCE))
-        {
-            if (!hasLoggedCrcCheckChanceWarning)
-            {
-                logger.warn(CRC_CHECK_CHANCE_WARNING);
-                hasLoggedCrcCheckChanceWarning = true;
-            }
-            compressionOptions.remove(CRC_CHECK_CHANCE);
         }
 
         try
@@ -388,17 +410,47 @@ public final class CompressionParams
         if (chLengthKB == null)
             return null;
 
+        int parsed = 0;
+
+        Throwable parsingException = null;
+
+        // new format
+
         try
         {
-            int parsed = Integer.parseInt(chLengthKB);
+            parsed = new DataStorageSpec.IntKibibytesBound(chLengthKB).toKibibytes();
+        }
+        catch (IllegalArgumentException ex)
+        {
+            parsingException = new ConfigurationException("Invalid value for " + CHUNK_LENGTH_IN_KB, ex);
+        }
+
+        if (parsingException == null)
+        {
             if (parsed > Integer.MAX_VALUE / 1024)
-                throw new ConfigurationException(format("Value of %s is too large (%s)", CHUNK_LENGTH_IN_KB,parsed));
-            return 1024 * parsed;
+                throw new ConfigurationException(format("Value of %s is too large (%s)", CHUNK_LENGTH_IN_KB, parsed));
+            else
+                return 1024 * parsed;
+        }
+
+        // old format
+
+        parsingException = null;
+
+        try
+        {
+            parsed = Integer.parseInt(chLengthKB);
         }
         catch (NumberFormatException e)
         {
-            throw new ConfigurationException("Invalid value for " + CHUNK_LENGTH_IN_KB, e);
+            parsingException = new ConfigurationException("Invalid value for " + CHUNK_LENGTH_IN_KB, e);
         }
+
+        if (parsingException == null)
+            if (parsed > Integer.MAX_VALUE / 1024)
+                throw new ConfigurationException(format("Value of %s is too large (%s)", CHUNK_LENGTH_IN_KB, parsed));
+
+        return 1024 * parsed;
     }
 
     /**
@@ -409,29 +461,29 @@ public final class CompressionParams
      */
     private static int removeChunkLength(Map<String, String> options)
     {
-        if (options.containsKey(CHUNK_LENGTH_IN_KB))
+        if (options.containsKey(CHUNK_LENGTH))
         {
-            if (options.containsKey(CHUNK_LENGTH_KB))
+            if (options.containsKey(CHUNK_LENGTH_IN_KB))
             {
                 throw new ConfigurationException(format("The '%s' option must not be used if the chunk length is already specified by the '%s' option",
-                                                        CHUNK_LENGTH_KB,
-                                                        CHUNK_LENGTH_IN_KB));
+                                                        CHUNK_LENGTH_IN_KB,
+                                                        CHUNK_LENGTH));
             }
 
-            return parseChunkLength(options.remove(CHUNK_LENGTH_IN_KB));
+            return parseChunkLength(options.remove(CHUNK_LENGTH));
         }
 
-        if (options.containsKey(CHUNK_LENGTH_KB))
+        if (options.containsKey(CHUNK_LENGTH_IN_KB))
         {
             if (!hasLoggedChunkLengthWarning)
             {
                 hasLoggedChunkLengthWarning = true;
                 logger.warn("The {} option has been deprecated. You should use {} instead",
-                                   CHUNK_LENGTH_KB,
-                                   CHUNK_LENGTH_IN_KB);
+                            CHUNK_LENGTH_IN_KB,
+                            CHUNK_LENGTH);
             }
 
-            return parseChunkLength(options.remove(CHUNK_LENGTH_KB));
+            return parseChunkLength(options.remove(CHUNK_LENGTH_IN_KB));
         }
 
         return DEFAULT_CHUNK_LENGTH;
@@ -463,7 +515,7 @@ public final class CompressionParams
      */
     public static boolean containsSstableCompressionClass(Map<String, String> options)
     {
-        return options.containsKey(CLASS) || options.containsKey(SSTABLE_COMPRESSION);
+        return options.containsKey(CLASS);
     }
 
     /**
@@ -472,31 +524,18 @@ public final class CompressionParams
      * @param options the options
      * @return the name of the compression class
      */
-    private static String removeSstableCompressionClass(Map<String, String> options)
+    private static String removeCompressionClass(Map<String, String> options)
     {
-        if (options.containsKey(CLASS))
-        {
-            if (options.containsKey(SSTABLE_COMPRESSION))
-                throw new ConfigurationException(format("The '%s' option must not be used if the compression algorithm is already specified by the '%s' option",
-                                                        SSTABLE_COMPRESSION,
-                                                        CLASS));
+        String clazz = options.get(CLASS);
 
-            String clazz = options.remove(CLASS);
-            if (clazz.isEmpty())
-                throw new ConfigurationException(format("The '%s' option must not be empty. To disable compression use 'enabled' : false", CLASS));
+        if (clazz == null)
+            throw new ConfigurationException(format("The '%s' option must not be empty. To disable compression use 'enabled' : false", CLASS));
 
-            return clazz;
-        }
+        options.remove(CLASS);
+        if (clazz.isEmpty())
+            throw new ConfigurationException(format("The '%s' option must not be empty. To disable compression use 'enabled' : false", CLASS));
 
-        if (options.containsKey(SSTABLE_COMPRESSION) && !hasLoggedSsTableCompressionWarning)
-        {
-            hasLoggedSsTableCompressionWarning = true;
-            logger.warn("The {} option has been deprecated. You should use {} instead",
-                               SSTABLE_COMPRESSION,
-                               CLASS);
-        }
-
-        return options.remove(SSTABLE_COMPRESSION);
+        return clazz;
     }
 
     /**
@@ -532,10 +571,10 @@ public final class CompressionParams
     {
         // if chunk length was not set (chunkLength == null), this is fine, default will be used
         if (chunkLength <= 0)
-            throw new ConfigurationException("Invalid negative or null " + CHUNK_LENGTH_IN_KB);
+            throw new ConfigurationException("Invalid negative or null " + CHUNK_LENGTH);
 
         if ((chunkLength & (chunkLength - 1)) != 0)
-            throw new ConfigurationException(CHUNK_LENGTH_IN_KB + " must be a power of 2");
+            throw new ConfigurationException(CHUNK_LENGTH + " must be a power of 2");
 
         if (maxCompressedLength < 0)
             throw new ConfigurationException("Invalid negative " + MIN_COMPRESS_RATIO);

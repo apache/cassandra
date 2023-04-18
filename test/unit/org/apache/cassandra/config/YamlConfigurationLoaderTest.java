@@ -178,12 +178,16 @@ public class YamlConfigurationLoaderTest
     {
         Config c = load("test/conf/cassandra.yaml");
 
-        assertNull(c.sstable_compressor);
+        assertNull(c.sstable_compression);
 
         c = load("test/conf/cassandra_with_sstable_compressor.yaml");
 
-        assertNotNull(c.sstable_compressor);
-        CompressionParams p = CompressionParams.fromOptions(c.sstable_compressor);
+        assertNotNull(c.sstable_compression);
+
+        Map<String, String> parameters = c.sstable_compression.parameters;
+        parameters.put("class", c.sstable_compression.class_name);
+
+        CompressionParams p = CompressionParams.fromOptions(parameters);
         assertThat(p.klass()).isEqualTo(LZ4Compressor.class);
         assertThat(p.chunkLength()).isEqualTo(32768);
         assertThat(p.getSstableCompressor()).isNotNull();

@@ -568,11 +568,13 @@ commitlog_segment_size: 32MiB
 
 # Defines the compression params used to read/write the sstables.  If undefined the default is LZ4 with 16kb chunk
 # length and min_compress_ratio of 0.0 (see CompressionParams.DEFAULT_MIN_COMPRESS_RATIO).
+# To disable compression set `type: none` or `type: none`NoopCompressor`
 # This is the default options for sstable compression, the (schema) table-level settings will override this option.
-#sstable_compressor:
-#  class: "org.apache.cassandra.io.compress.LZ4Compressor"
-#  chunk_length_in_kb: "16"
-#  min_compress_ratio: "0"
+#sstable_compression:
+#  - class_name: "org.apache.cassandra.io.compress.LZ4Compressor"
+#    parameters:
+#        - chunk_length: "32KiB"
+#          min_compress_ratio: "0"
 
 # any class that implements the SeedProvider interface and has a
 # constructor that takes a Map<String, String> of parameters will do.
