@@ -19,6 +19,10 @@
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">
 
+    <echo>-------------LEI TEST--------------</echo>
+    <echo>${basedir}</echo>
+    <echo>-----------------------------------</echo>
+
     <!--    <fail message="You need to use Ant of version at least 1.10 to continue.">-->
     <!--      <condition>-->
     <!--        <not>-->
@@ -342,6 +346,10 @@
             </fail>
         </sequential>
     </macrodef>
+
+    <target name="ant-lei">
+        <echo>Hello, from Ant</echo>
+    </target>
 
     <target name="validate-build-conf">
         <condition property="use-jdk11">
@@ -1359,7 +1367,7 @@
     <target name="artifacts" depends="_artifacts-init,gen-doc,sources-jar"
             description="Create Cassandra release artifacts">
         <tar compression="gzip" longfile="gnu"
-             destfile="${build.dir}/${final.name}-es-connection-version-bin.tar.gz">
+             destfile="${build.dir}/${final.name}-bin.tar.gz">
 
             <!-- Everything but bin/ (default mode) -->
             <tarfileset dir="${dist.dir}" prefix="${final.name}">
@@ -1485,9 +1493,8 @@
             description="Compile test classes">
         <antcall target="_build-test"/>
     </target>
-
     <target name="_build-test">
-        <javac
+        <javac executable="${javac.executable}"
                 compiler="modern"
                 debug="true"
                 debuglevel="${debuglevel}"
