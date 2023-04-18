@@ -317,6 +317,7 @@ public interface ValueAccessor<V>
     long getLong(V value, int offset);
     /** returns a float from offset 0 */
     float toFloat(V value);
+    float getFloat(V value, int offset);
 
     /** returns a double from offset 0 */
     double toDouble(V value);
