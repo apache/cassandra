@@ -82,6 +82,7 @@ public class Server implements CassandraDaemon.Server
 
     private Server (Builder builder)
     {
+        System.out.println("实例化 Server 类");
         this.socket = builder.getSocket();
         this.tlsEncryptionPolicy = builder.tlsEncryptionPolicy;
         if (builder.workerGroup != null)
@@ -122,6 +123,7 @@ public class Server implements CassandraDaemon.Server
 
     public synchronized void start()
     {
+        System.out.println("开启之后运行");
         if(isRunning())
             return;
 
