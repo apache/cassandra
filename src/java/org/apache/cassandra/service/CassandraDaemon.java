@@ -117,6 +117,7 @@ public class CassandraDaemon
 
     static {
         // Need to register metrics before instrumented appender is created(first access to LoggerFactory).
+        // 在创建插入指令的附加程序之前需要注册度量（首次访问LoggerFactory）。
         SharedMetricRegistries.getOrCreate("logback-metrics").addListener(new MetricRegistryListener.Base()
         {
             @Override
@@ -197,7 +198,8 @@ public class CassandraDaemon
                 JVMStabilityInspector.inspectThrowable(t);
             }
         };
-    
+
+    // 初始化 CassandraDaemon 实例
     static final CassandraDaemon instance = new CassandraDaemon();
 
     private volatile NativeTransportService nativeTransportService;
@@ -738,10 +740,12 @@ public class CassandraDaemon
 
     /**
      * A convenience method to initialize and start the daemon in one shot.
+     * 一种方便的方法，可以一次性初始化和启动守护进程。
      */
     public void activate()
     {
         // Do not put any references to DatabaseDescriptor above the forceStaticInitialization call.
+        // 不要将对DatabaseDescriptor的任何引用放在forceStaticInitialization调用之上。
         try
         {
             applyConfig();
@@ -871,6 +875,7 @@ public class CassandraDaemon
 
     public static void main(String[] args)
     {
+        // 实例激活
         instance.activate();
     }
 
