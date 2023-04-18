@@ -47,6 +47,7 @@ import static com.google.common.collect.Iterables.any;
 
 /**
  * An immutable representation of keyspace metadata (name, params, tables, types, and functions).
+ * keyspace 的元数据（名称、参数、表、类型和函数）的不可变表示。
  */
 public final class KeyspaceMetadata implements SchemaElement
 {
