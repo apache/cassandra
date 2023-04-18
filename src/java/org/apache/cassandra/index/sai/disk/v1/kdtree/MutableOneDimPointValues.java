@@ -19,8 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.kdtree;
 
 import java.io.IOException;
 
-import org.apache.cassandra.oldlucene.MutablePointValues;
-import org.apache.lucene.index.PointValues;
+import org.apache.cassandra.index.sai.disk.oldlucene.MutablePointValues;
 import org.apache.lucene.util.BytesRef;
 
 public abstract class MutableOneDimPointValues extends MutablePointValues
