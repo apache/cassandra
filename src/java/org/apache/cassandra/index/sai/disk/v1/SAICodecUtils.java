@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.IOException;
 
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -30,6 +31,10 @@ import org.apache.lucene.store.IndexOutput;
 
 import static org.apache.lucene.codecs.CodecUtil.CODEC_MAGIC;
 import static org.apache.lucene.codecs.CodecUtil.FOOTER_MAGIC;
+import static org.apache.lucene.codecs.CodecUtil.readBEInt;
+import static org.apache.lucene.codecs.CodecUtil.readBELong;
+import static org.apache.lucene.codecs.CodecUtil.writeBEInt;
+import static org.apache.lucene.codecs.CodecUtil.writeBELong;
 
 public class SAICodecUtils
 {
@@ -37,28 +42,42 @@ public class SAICodecUtils
 
     public static void writeHeader(IndexOutput out) throws IOException
     {
-        out.writeInt(CODEC_MAGIC);
+        writeBEInt(out, CODEC_MAGIC);
         out.writeString(Version.LATEST.toString());
     }
 
     public static void writeFooter(IndexOutput out) throws IOException
     {
-        out.writeInt(FOOTER_MAGIC);
-        out.writeInt(0);
+        writeBEInt(out, FOOTER_MAGIC);
+        writeBEInt(out, 0);
         writeCRC(out);
     }
 
     public static void checkHeader(DataInput in) throws IOException
     {
-        final int actualMagic = in.readInt();
-        if (actualMagic != CODEC_MAGIC)
+        try
         {
-            throw new CorruptIndexException("codec header mismatch: actual header=" + actualMagic + " vs expected header=" + CODEC_MAGIC, in);
+            final int actualMagic = readBEInt(in);
+            if (actualMagic != CODEC_MAGIC)
+            {
+                throw new CorruptIndexException("codec header mismatch: actual header=" + actualMagic + " vs expected header=" + CODEC_MAGIC, in);
+            }
+            final Version actualVersion = Version.parse(in.readString());
+            if (!actualVersion.onOrAfter(Version.EARLIEST))
+            {
+                throw new IOException("Unsupported version: " + actualVersion);
+            }
         }
-        final Version actualVersion = Version.parse(in.readString());
-        if (!actualVersion.onOrAfter(Version.EARLIEST))
+        catch (Throwable th)
         {
-            throw new IOException("Unsupported version: " + actualVersion);
+            if (th.getCause() instanceof CorruptBlockException)
+            {
+                throw new CorruptIndexException("corrupted", in, th.getCause());
+            }
+            else
+            {
+                throw th;
+            }
         }
     }
 
@@ -210,14 +229,14 @@ public class SAICodecUtils
             }
         }
 
-        final int magic = in.readInt();
+        final int magic = readBEInt(in);
 
         if (magic != FOOTER_MAGIC)
         {
             throw new CorruptIndexException("codec footer mismatch (file truncated?): actual footer=" + magic + " vs expected footer=" + FOOTER_MAGIC, in);
         }
 
-        final int algorithmID = in.readInt();
+        final int algorithmID = readBEInt(in);
 
         if (algorithmID != 0)
         {
@@ -237,9 +256,10 @@ public class SAICodecUtils
         long value = output.getChecksum();
         if ((value & 0xFFFFFFFF00000000L) != 0)
         {
-            throw new IllegalStateException("Illegal CRC-32 checksum: " + value + " (resource=" + output + ')');
+            throw new IllegalStateException(
+            "Illegal CRC-32 checksum: " + value + " (resource=" + output + ")");
         }
-        output.writeLong(value);
+        writeBELong(output, value);
     }
 
     /**
@@ -249,7 +269,7 @@ public class SAICodecUtils
      */
     private static long readCRC(IndexInput input) throws IOException
     {
-        long value = input.readLong();
+        long value = readBELong(input);
         if ((value & 0xFFFFFFFF00000000L) != 0)
         {
             throw new CorruptIndexException("Illegal CRC-32 checksum: " + value, input);
