@@ -20,73 +20,53 @@ package org.apache.cassandra.index.sai.memory;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
-import java.util.concurrent.atomic.LongAdder;
+import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.utils.PrimaryKeys;
-import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
-public class MemtableIndex
+public interface MemtableIndex
 {
-    private final TrieMemoryIndex index;
-    private final LongAdder writeCount = new LongAdder();
-    private final LongAdder estimatedMemoryUsed = new LongAdder();
+    long writeCount();
 
-    public MemtableIndex(IndexContext indexContext)
-    {
-        this.index = new TrieMemoryIndex(indexContext);
-    }
+    long estimatedOnHeapMemoryUsed();
 
-    public long writeCount()
-    {
-        return writeCount.sum();
-    }
+    long estimatedOffHeapMemoryUsed();
 
-    public long estimatedMemoryUsed()
-    {
-        return estimatedMemoryUsed.sum();
-    }
+    boolean isEmpty();
 
-    public boolean isEmpty()
-    {
-        return getMinTerm() == null;
-    }
+    // Returns the minimum indexed term in the combined memory indexes.
+    // This can be null if the indexed memtable was empty. Users of the
+    // {@code MemtableIndex} requiring a non-null minimum term should
+    // use the {@link MemtableIndex#isEmpty} method.
+    // Note: Individual index shards can return null here if the index
+    // didn't receive any terms within the token range of the shard
+    @Nullable
+    ByteBuffer getMinTerm();
 
-    public ByteBuffer getMinTerm()
-    {
-        return index.getMinTerm();
-    }
+    // Returns the maximum indexed term in the combined memory indexes.
+    // This can be null if the indexed memtable was empty. Users of the
+    // {@code MemtableIndex} requiring a non-null maximum term should
+    // use the {@link MemtableIndex#isEmpty} method.
+    // Note: Individual index shards can return null here if the index
+    // didn't receive any terms within the token range of the shard
+    @Nullable
+    ByteBuffer getMaxTerm();
 
-    public ByteBuffer getMaxTerm()
-    {
-        return index.getMaxTerm();
-    }
+    void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup);
 
-    public long index(DecoratedKey key, Clustering<?> clustering, ByteBuffer value)
-    {
-        if (value == null || value.remaining() == 0)
-            return 0;
+    RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange);
 
-        long ram = index.add(key, clustering, value);
-        writeCount.increment();
-        estimatedMemoryUsed.add(ram);
-        return ram;
-    }
-
-    public KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange)
-    {
-        return index.search(expression, keyRange);
-    }
-
-    public Iterator<Pair<ByteComparable, PrimaryKeys>> iterator()
-    {
-        return index.iterator();
-    }
+    Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max);
 }
