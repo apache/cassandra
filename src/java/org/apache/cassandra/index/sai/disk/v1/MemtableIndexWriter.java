@@ -40,6 +40,8 @@ import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.disk.hnsw.HnswIndexWriter;
 import org.apache.cassandra.index.sai.disk.hnsw.MemtableFloat32VectorValues;
+import org.apache.cassandra.index.sai.disk.hnsw.HnswIndexWriter;
+import org.apache.cassandra.index.sai.disk.hnsw.MemtableFloat32VectorValues;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.ImmutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.InvertedIndexWriter;

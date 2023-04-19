@@ -38,7 +38,7 @@ public class Float32DenseVectorType extends AbstractType<float[]>
     @Override
     public TypeSerializer<float[]> getSerializer()
     {
-        return Float32DenseVectorSerializer.instance;
+        return Serializer.instance;
     }
 
     @Override
@@ -53,11 +53,11 @@ public class Float32DenseVectorType extends AbstractType<float[]>
         throw new UnsupportedOperationException(); // TODO
     }
 
-    public static class Float32DenseVectorSerializer extends TypeSerializer<float[]>
+    public static class Serializer extends TypeSerializer<float[]>
     {
-        public static final Float32DenseVectorSerializer instance = new Float32DenseVectorSerializer();
+        public static final Serializer instance = new Serializer();
 
-        private Float32DenseVectorSerializer() {}
+        private Serializer() {}
 
         @Override
         public ByteBuffer serialize(float[] value)
