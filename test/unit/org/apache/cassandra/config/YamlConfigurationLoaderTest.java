@@ -33,6 +33,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.CompressionParams;
 import org.yaml.snakeyaml.error.YAMLException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_ALLOW_SYSTEM_PROPERTIES;
@@ -180,11 +181,10 @@ public class YamlConfigurationLoaderTest
 
         assertNotNull(c.sstable_compressor);
         assertThat(c.sstable_compressor.class_name).isEqualTo("lz4");
-        assertThat(c.sstable_compressor.chunk_length).isEqualTo("32MiB");
-        assertThat(c.sstable_compressor.min_compress_ratio).isEqualTo(0.5D);
-        assertThat(c.sstable_compressor.enabled).isTrue();
-        assertThat(c.sstable_compressor.parameters).isNotNull();
-        assertThat(c.sstable_compressor.parameters.size()).isEqualTo(1);
+        assertThat(c.sstable_compressor.parameters.remove(CompressionParams.CHUNK_LENGTH)).isEqualTo("32MiB");
+        assertThat(c.sstable_compressor.parameters.remove(CompressionParams.MIN_COMPRESS_RATIO)).isEqualTo("0.5D");
+        assertThat(c.sstable_compressor.parameters.remove(CompressionParams.ENABLED)).isEqualTo("true");
+        assertThat(c.sstable_compressor.parameters.size()).isEqualTo(2);
     }
 
     @Test

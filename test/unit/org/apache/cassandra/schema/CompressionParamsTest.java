@@ -27,7 +27,7 @@ import java.util.Set;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.SSTableCompressionOptions;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.DeflateCompressor;
@@ -43,29 +43,29 @@ import static org.junit.Assert.assertEquals;
 
 public class CompressionParamsTest
 {
-    private SSTableCompressionOptions options;
+    private ParameterizedClass options;
     private CompressionParams params;
 
     @Before
     public void resetOptions() {
-        options = new SSTableCompressionOptions();
+        options = new ParameterizedClass(null, new HashMap<>());
     }
 
     @Test
     public void additionalParamsTest() {
-        assertThat( options.parameters).isNull();
-        params = CompressionParams.fromOptions(options);
+        options = new ParameterizedClass();
+        params = CompressionParams.fromParameterizedClass(options);
         assertThat( params.getOtherOptions()).isNotNull();
         assertThat( params.getOtherOptions().isEmpty()).isTrue();
 
         options.parameters = new HashMap<>();
-        params = CompressionParams.fromOptions(options);
+        params = CompressionParams.fromParameterizedClass(options);
         assertThat( params.getOtherOptions()).isNotNull();
         assertThat( params.getOtherOptions().isEmpty()).isTrue();
 
         options.parameters.put( "foo", "bar");
-        params = CompressionParams.fromOptions(options);
-        params = CompressionParams.fromOptions(options);
+        params = CompressionParams.fromParameterizedClass(options);
+        params = CompressionParams.fromParameterizedClass(options);
         assertThat( params.getOtherOptions()).isNotNull();
         assertThat( params.getOtherOptions().get("foo")).isEqualTo("bar");
     }
@@ -73,17 +73,60 @@ public class CompressionParamsTest
     @Test
     public void chunkLengthTest()
     {
-        options.chunk_length = "";
-        params = CompressionParams.fromOptions(options);
-        assertEquals(CompressionParams.DEFAULT_CHUNK_LENGTH, params.chunkLength());
+        options.parameters.put(CompressionParams.CHUNK_LENGTH, "");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() ->CompressionParams.fromParameterizedClass(options))
+        .withMessageContaining("Invalid 'chunk_length' value");
 
-        options.chunk_length = "1MiB";
-        params = CompressionParams.fromOptions(options);
+        options.parameters.put(CompressionParams.CHUNK_LENGTH, "1MiB");
+        params = CompressionParams.fromParameterizedClass(options);
         assertEquals(1024, params.chunkLength());
 
-        options.chunk_length = "badvalue";
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromOptions(options))
-                                                               .withMessage("Invalid 'chunk_length' value for the 'sstable_compressor' option.");
+        options.parameters.put(CompressionParams.CHUNK_LENGTH, "badvalue");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+                                                               .withMessageContaining("Invalid 'chunk_length' value");
+
+        options.parameters.remove(CompressionParams.CHUNK_LENGTH);
+        options.parameters.put(CompressionParams.CHUNK_LENGTH_IN_KB, "1");
+        params = CompressionParams.fromParameterizedClass(options);
+        assertEquals(1024, params.chunkLength());
+
+        options.parameters.put(CompressionParams.CHUNK_LENGTH_IN_KB, "-1");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+                                                               .withMessageContaining("Invalid 'chunk_length_in_kb' value")
+                                                               .withMessageContaining("May not be <= 0");
+
+        options.parameters.clear();
+        options.parameters.put(CompressionParams.CHUNK_LENGTH_KB, "1");
+        params = CompressionParams.fromParameterizedClass(options);
+        assertEquals(1024, params.chunkLength());
+
+        options.parameters.put(CompressionParams.CHUNK_LENGTH_KB, "-1");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+                                                               .withMessageContaining("Invalid 'chunk_length_kb' value")
+                                                               .withMessageContaining("May not be <= 0");
+
+    }
+
+    @Test
+    public void chunkLengthNotPowerOfTwoTest()
+    {
+        options.parameters.put( CompressionParams.CHUNK_LENGTH,"3MiB");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+                                                               .withMessageContaining("Invalid 'chunk_length' value")
+                                                               .withMessageContaining("Must be a power of 2");
+
+        options.parameters.clear();
+        options.parameters.put( CompressionParams.CHUNK_LENGTH_IN_KB,Integer.toString(3 ));
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+                                                               .withMessageContaining("Invalid 'chunk_length_in_kb' value")
+                                                               .withMessageContaining("Must be a power of 2");
+
+        options.parameters.clear();
+        options.parameters.put( CompressionParams.CHUNK_LENGTH_KB,Integer.toString(3 ));
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+                                                               .withMessageContaining("Invalid 'chunk_length_kb' value")
+                                                               .withMessageContaining("Must be a power of 2");
+
     }
 
     @Test
@@ -91,63 +134,63 @@ public class CompressionParamsTest
     {
         // pick a compressor that uses standard default options.
         options.class_name = "none";
-        options.min_compress_ratio = null;
-        params = CompressionParams.fromOptions(options);
+        params = CompressionParams.fromParameterizedClass(options);
         assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
         assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
 
-        options.min_compress_ratio = CompressionParams.DEFAULT_MIN_COMPRESS_RATIO;
-        params = CompressionParams.fromOptions(options);
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO, "0.0" ); //CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
+        params = CompressionParams.fromParameterizedClass(options);
         assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
         assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
 
-        options.min_compress_ratio = 0.3;
-        params = CompressionParams.fromOptions(options);
-        assertEquals(0.3, params.minCompressRatio(), Double.MIN_VALUE);
-        assertEquals( (int) Math.ceil(CompressionParams.DEFAULT_CHUNK_LENGTH / 0.3), params.maxCompressedLength());
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO, "0.3");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+                                                               .withMessageContaining( "Invalid 'min_compress_ratio' value")
+                                                               .withMessageContaining("Can either be 0 or greater than or equal to 1");
 
-        options.min_compress_ratio = 1.3;
-        params = CompressionParams.fromOptions(options);
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO, "1.3");
+        params = CompressionParams.fromParameterizedClass(options);
         assertEquals(1.3, params.minCompressRatio(), Double.MIN_VALUE);
         assertEquals( (int) Math.ceil(CompressionParams.DEFAULT_CHUNK_LENGTH / 1.3), params.maxCompressedLength());
 
-        options.min_compress_ratio = -1.0;
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromOptions(options))
-                                                               .withMessage("'min_compress_ratio' may not be less than 0.0 for the 'sstable_compressor' option.");
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,  "-1.0");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+                                                               .withMessageContaining( "Invalid 'min_compress_ratio' value")
+                                                               .withMessageContaining("Can either be 0 or greater than or equal to 1");
     }
 
     @Test
     public void maxCompressedLengthTest()
     {
-        // pick a compressor that uses standard default options.
+        // pick a compressor that uses standard default optionss
         options.class_name = "none";
-        options.max_compressed_length = null;
-        params = CompressionParams.fromOptions(options);
+        params = CompressionParams.fromParameterizedClass(options);
         assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
         assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
 
-        options.max_compressed_length = "";
-        params = CompressionParams.fromOptions(options);
+        options.parameters.put( CompressionParams.MAX_COMPRESSED_LENGTH,"");
+        params = CompressionParams.fromParameterizedClass(options);
         assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
         assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
 
-        options.max_compressed_length = "5GiB";
-        params = CompressionParams.fromOptions(options);
-        assertEquals(5 * 1024 * 1024, params.maxCompressedLength());
-        assertEquals(CompressionParams.DEFAULT_CHUNK_LENGTH / (5.0 * 1024 * 1024), params.minCompressRatio(), Double.MIN_VALUE);
+        options.parameters.put( CompressionParams.MAX_COMPRESSED_LENGTH,"4MiB");
+        params = CompressionParams.fromParameterizedClass(options);
+        assertEquals(4*1024, params.maxCompressedLength());
+        assertEquals(CompressionParams.DEFAULT_CHUNK_LENGTH / (4.0 * 1024), params.minCompressRatio(), Double.MIN_VALUE);
 
-        options.max_compressed_length = "badvalue";
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromOptions(options))
-                                                               .withMessage("Invalid 'max_compressed_length' value for the 'sstable_compressor' option.");
+        options.parameters.put( CompressionParams.MAX_COMPRESSED_LENGTH,"badvalue");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+        .withMessageContaining("Invalid 'max_compressed_length' value")
+                                                               .withMessageContaining("Invalid data storage");
     }
 
     @Test
     public void maxCompressionLengthAndMinCompressRatioTest() {
         options.class_name = "snappy";
-        options.min_compress_ratio = -1.0;
-        options.max_compressed_length = "5Gib";
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromOptions(options))
-                                                               .withMessage("Can not specify both 'min_compress_ratio' and 'max_compressedlength' for the 'sstable_compressor' option.");
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO, "1.0");
+        options.parameters.put( CompressionParams.MAX_COMPRESSED_LENGTH, "4Gib");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+                                                               .withMessage("Can not specify both 'min_compress_ratio' and 'max_compressed_length' for the compressor parameters.");
     }
 
     private void assertParams(boolean enabled, int chunkLength, int maxCompressedLength, double minCompressRatio, Class<?> compressor)
@@ -168,153 +211,153 @@ public class CompressionParamsTest
     @Test
     public void defaultTest()
     {
-        params = CompressionParams.fromOptions( options );
+        params = CompressionParams.fromParameterizedClass( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, CompressionParams.DEFAULT_CHUNK_LENGTH, CompressionParams.CompressorType.lz4.minRatio, LZ4Compressor.class);
 
-        params = CompressionParams.fromOptions( null );
+        params = CompressionParams.fromParameterizedClass( null );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, LZ4Compressor.class);
     }
 
     @Test
     public void lz4Test() {
         options.class_name = CompressionParams.CompressorType.lz4.name();
-        params = CompressionParams.fromOptions( options );
+        params = CompressionParams.fromParameterizedClass( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, CompressionParams.DEFAULT_CHUNK_LENGTH, CompressionParams.CompressorType.lz4.minRatio, LZ4Compressor.class);
 
-        options.chunk_length = "5MiB";
-        params = CompressionParams.fromOptions( options );
-        assertParams(true, 5 * 1024, 5 * 1024, CompressionParams.CompressorType.lz4.minRatio, LZ4Compressor.class);
+        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(true, 4*1024, 4*1024, CompressionParams.CompressorType.lz4.minRatio, LZ4Compressor.class);
 
-        options.min_compress_ratio=0.5;
-        params = CompressionParams.fromOptions( options );
-        assertParams(true, 5 * 1024, 10240, 0.5, LZ4Compressor.class);
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(true, 4*1024, 2731, 1.5, LZ4Compressor.class);
 
-        options.enabled = false;
-        params = CompressionParams.fromOptions( options );
-        assertParams(false, 5 * 1024, 10240, 0.5, null);
+        options.parameters.put( CompressionParams.ENABLED,"false");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(false, 4*1024, 2731, 1.5, null);
     }
 
     @Test
     public void noneTest() {
         options.class_name = CompressionParams.CompressorType.none.name();
-        params = CompressionParams.fromOptions( options );
+        params = CompressionParams.fromParameterizedClass( options );
         // none is never enabled.
         assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.CompressorType.none.minRatio, null);
 
-        options.chunk_length = "5MiB";
-        params = CompressionParams.fromOptions( options );
+        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
+        params = CompressionParams.fromParameterizedClass( options );
         // none does not set chunk length
-        assertParams(false, 5 * 1024, Integer.MAX_VALUE, CompressionParams.CompressorType.none.minRatio, null);
+        assertParams(false, 4*1024, Integer.MAX_VALUE, CompressionParams.CompressorType.none.minRatio, null);
 
-        options.min_compress_ratio=0.5;
-        params = CompressionParams.fromOptions( options );
-        assertParams(false, 5*1024, 10240, 0.5, null);
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(false, 4*1024, 2731, 1.5, null);
 
-        options.enabled = false;
-        params = CompressionParams.fromOptions( options );
-        assertParams(false, 5*1024, 10240, 0.5, null);
+        options.parameters.put( CompressionParams.ENABLED,"false");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(false, 4*1024, 2731, 1.5, null);
 
     }
 
     @Test
     public void noopTest() {
         options.class_name = CompressionParams.CompressorType.noop.name();
-        params = CompressionParams.fromOptions( options );
+        params = CompressionParams.fromParameterizedClass( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.CompressorType.noop.minRatio, NoopCompressor.class);
 
-        options.chunk_length = "5MiB";
-        params = CompressionParams.fromOptions( options );
-        assertParams(true, 5*1024, Integer.MAX_VALUE, CompressionParams.CompressorType.noop.minRatio, NoopCompressor.class);
+        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(true, 4*1024, Integer.MAX_VALUE, CompressionParams.CompressorType.noop.minRatio, NoopCompressor.class);
 
-        options.min_compress_ratio=0.5;
-        params = CompressionParams.fromOptions( options );
-        assertParams(true, 5*1024, 10240, 0.5, NoopCompressor.class);
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(true, 4*1024, 2731, 1.5, NoopCompressor.class);
 
-        options.enabled = false;
-        params = CompressionParams.fromOptions( options );
-        assertParams(false, 5*1024, 10240, 0.5, null);
+        options.parameters.put( CompressionParams.ENABLED,"false");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(false, 4*1024, 2731, 1.5, null);
     }
 
     @Test
     public void snappyTest() {
         options.class_name = CompressionParams.CompressorType.snappy.name();
-        params = CompressionParams.fromOptions( options );
+        params = CompressionParams.fromParameterizedClass( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, (int)Math.ceil(CompressionParams.DEFAULT_CHUNK_LENGTH/ CompressionParams.CompressorType.snappy.minRatio), CompressionParams.CompressorType.snappy.minRatio, SnappyCompressor.class);
 
-        options.chunk_length = "5MiB";
-        params = CompressionParams.fromOptions( options );
-        assertParams(true, 5*1024, (int)Math.ceil(5*1024/ CompressionParams.CompressorType.snappy.minRatio), CompressionParams.CompressorType.snappy.minRatio, SnappyCompressor.class);
+        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(true, 4*1024, (int)Math.ceil(4*1024/ CompressionParams.CompressorType.snappy.minRatio), CompressionParams.CompressorType.snappy.minRatio, SnappyCompressor.class);
 
-        options.min_compress_ratio=0.5;
-        params = CompressionParams.fromOptions( options );
-        assertParams(true, 5*1024, 10240, 0.5, SnappyCompressor.class);
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(true, 4*1024, 2731, 1.5, SnappyCompressor.class);
 
-        options.enabled = false;
-        params = CompressionParams.fromOptions( options );
-        assertParams(false, 5*1024, 10240, 0.5, null);
+        options.parameters.put( CompressionParams.ENABLED,"false");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(false, 4*1024, 2731, 1.5, null);
     }
 
     @Test
     public void deflateTest() {
         options.class_name = CompressionParams.CompressorType.deflate.name();
-        params = CompressionParams.fromOptions( options );
+        params = CompressionParams.fromParameterizedClass( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.CompressorType.deflate.minRatio, DeflateCompressor.class);
 
-        options.chunk_length = "5MiB";
-        params = CompressionParams.fromOptions( options );
-        assertParams(true, 5*1024, Integer.MAX_VALUE, CompressionParams.CompressorType.deflate.minRatio, DeflateCompressor.class);
+        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(true, 4*1024, Integer.MAX_VALUE, CompressionParams.CompressorType.deflate.minRatio, DeflateCompressor.class);
 
-        options.min_compress_ratio=0.5;
-        params = CompressionParams.fromOptions( options );
-        assertParams(true, 5*1024, 10240, 0.5, DeflateCompressor.class);
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(true, 4*1024, 2731, 1.5, DeflateCompressor.class);
 
-        options.enabled = false;
-        params = CompressionParams.fromOptions( options );
-        assertParams(false, 5*1024, 10240, 0.5, null);
+        options.parameters.put( CompressionParams.ENABLED,"false");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(false, 4*1024, 2731, 1.5, null);
     }
 
     @Test
     public void zstdTest() {
         options.class_name = CompressionParams.CompressorType.zstd.name();
-        params = CompressionParams.fromOptions( options );
+        params = CompressionParams.fromParameterizedClass( options );
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.CompressorType.zstd.minRatio, ZstdCompressor.class);
 
-        options.chunk_length = "5MiB";
-        params = CompressionParams.fromOptions( options );
-        assertParams(true, 5*1024, Integer.MAX_VALUE, CompressionParams.CompressorType.zstd.minRatio, ZstdCompressor.class);
+        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(true, 4*1024, Integer.MAX_VALUE, CompressionParams.CompressorType.zstd.minRatio, ZstdCompressor.class);
 
-        options.min_compress_ratio=0.5;
-        params = CompressionParams.fromOptions( options );
-        assertParams(true, 5*1024, 10240, 0.5, ZstdCompressor.class);
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(true, 4*1024, 2731, 1.5, ZstdCompressor.class);
 
-        options.enabled = false;
-        params = CompressionParams.fromOptions( options );
-        assertParams(false, 5*1024, 10240, 0.5, null);
+        options.parameters.put( CompressionParams.ENABLED,"false");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(false, 4*1024, 2731, 1.5, null);
     }
 
     @Test
     public void customTest()
     {
         options.class_name = TestCompressor.class.getName();
-        params = CompressionParams.fromOptions(options);
+        params = CompressionParams.fromParameterizedClass(options);
         assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, TestCompressor.class);
 
-        options.chunk_length = "5MiB";
-        params = CompressionParams.fromOptions(options);
-        assertParams(true, 5 * 1024, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, TestCompressor.class);
+        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
+        params = CompressionParams.fromParameterizedClass(options);
+        assertParams(true, 4*1024, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, TestCompressor.class);
 
-        options.min_compress_ratio=0.5;
-        params = CompressionParams.fromOptions( options );
-        assertParams(true, 5*1024, 10240, 0.5, TestCompressor.class);
+        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
+        params = CompressionParams.fromParameterizedClass( options );
+        assertParams(true, 4*1024, 2731, 1.5, TestCompressor.class);
 
-        options.enabled = false;
-        params = CompressionParams.fromOptions(options);
-        assertParams(false, 5*1024, 10240, 0.5, null);
+        options.parameters.put( CompressionParams.ENABLED,"false");
+        params = CompressionParams.fromParameterizedClass(options);
+        assertParams(false, 4*1024, 2731, 1.5, null);
 
-        options.enabled = true;
+        options.parameters.put( CompressionParams.ENABLED,"true");
 
         options.class_name = "foo";
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromOptions(options))
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
                                                                .withMessage("Could not create Compression for type org.apache.cassandra.io.compress.foo");
     }
 

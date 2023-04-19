@@ -107,3 +107,4 @@ sstable_compressor:
     class_name: lz4
     parameters:
         lz4_compressor_type: high
+        a_double_value : 0.7
