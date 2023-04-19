@@ -9,6 +9,7 @@ import org.apache.cassandra.audit.es.common.ErrorEnum;
 import org.apache.cassandra.audit.es.dto.EsResDto;
 import org.apache.cassandra.audit.es.dto.Hites;
 import org.apache.cassandra.audit.es.res.DataRsp;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
@@ -30,8 +31,7 @@ public class HttpUtil {
         String nodeUrl = getRandomNode(url);
         System.out.println("LEI TEST INFO: 节点地址:" + nodeUrl);
         if (StringUtils.isBlank(nodeUrl)) {
-            // es_node_list 配置为空 返回 406
-            return DataRsp.getError406();
+            nodeUrl = "http://"+DatabaseDescriptor.getRpcAddress().getHostAddress()+":9200";
         }
         Unirest.setTimeouts(0, 0);
         try {
@@ -61,8 +61,7 @@ public class HttpUtil {
         String nodeUrl = getRandomNode(url);
         System.out.println("LEI TEST INFO: 节点地址:" + nodeUrl);
         if (StringUtils.isBlank(nodeUrl)) {
-            // es_node_list 配置为空 返回 406
-            return DataRsp.getError406();
+            nodeUrl = "http://"+DatabaseDescriptor.getRpcAddress().getHostAddress()+":9200";
         }
         Unirest.setTimeouts(0, 0);
         try {
@@ -83,8 +82,7 @@ public class HttpUtil {
         String nodeUrl = getRandomNode(url);
         System.out.println("LEI TEST INFO: 节点地址:" + nodeUrl);
         if (StringUtils.isBlank(nodeUrl)) {
-            // es_node_list 配置为空 返回 406
-            return DataRsp.getError406();
+            nodeUrl = "http://"+DatabaseDescriptor.getRpcAddress().getHostAddress()+":9200";
         }
         Unirest.setTimeouts(0, 0);
         try {
@@ -112,8 +110,7 @@ public class HttpUtil {
         String nodeUrl = getRandomNode(url);
         System.out.println("LEI TEST INFO: 节点地址:" + nodeUrl);
         if (StringUtils.isBlank(nodeUrl)) {
-            // es_node_list 配置为空 返回 406
-            return DataRsp.getError406();
+            nodeUrl = "http://"+DatabaseDescriptor.getRpcAddress().getHostAddress()+":9200";
         }
         List<Hites> hitesList = new ArrayList<>();
         Unirest.setTimeouts(0, 0);
@@ -160,8 +157,7 @@ public class HttpUtil {
         String nodeUrl = getRandomNode(url);
         System.out.println("LEI TEST INFO: 节点地址:" + nodeUrl);
         if (StringUtils.isBlank(nodeUrl)) {
-            // es_node_list 配置为空 返回 406
-            return DataRsp.getError406();
+            nodeUrl = "http://"+DatabaseDescriptor.getRpcAddress().getHostAddress()+":9200";
         }
         Unirest.setTimeouts(0, 0);
         try {
@@ -193,7 +189,7 @@ public class HttpUtil {
     public static DataRsp deleteData(String url, String indexName, Map maps) {
         String nodeUrl = getRandomNode(url);
         if (StringUtils.isBlank(nodeUrl)) {
-            return DataRsp.getError406();
+            nodeUrl = "http://"+DatabaseDescriptor.getRpcAddress().getHostAddress()+":9200";
         }
         Unirest.setTimeouts(0, 0);
         try {

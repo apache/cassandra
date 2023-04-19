@@ -105,7 +105,10 @@ then
 else
     NUMACTL=""
 fi
-
+echo '----------------- LEI TEST--------------'
+echo '$CASSANDRA_CONF:'+$CASSANDRA_CONF
+echo '$CLASSPATH:'+$CLASSPATH
+echo '----------------------------------------'
 if [ -z "$CASSANDRA_CONF" -o -z "$CLASSPATH" ]; then
     echo "You must set the CASSANDRA_CONF and CLASSPATH vars" >&2
     exit 1
