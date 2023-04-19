@@ -21,6 +21,7 @@ fi
 # The directory where Cassandra's configs live (required)
 if [ "x$CASSANDRA_CONF" = "x" ]; then
     CASSANDRA_CONF="$CASSANDRA_HOME/conf"
+    CASSANDRA_CONF="$PWD/config"
 fi
 
 # The java classpath (required)
