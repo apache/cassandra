@@ -516,7 +516,7 @@ public class Directories
             StringJoiner pathString = new StringJoiner(",", "[", "]");
             for (DataDirectory p: paths)
             {
-                pathString.add(p.location.getAbsolutePath());
+                pathString.add(p.location.toJavaIOFile().getAbsolutePath());
             }
             logger.warn("Insufficient disk space for compaction! Across {} there's only {} available, but {} is needed.",
                         pathString.toString(),
