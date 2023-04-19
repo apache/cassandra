@@ -31,6 +31,7 @@ import org.apache.cassandra.index.sai.disk.PerSSTableWriter;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.SearchableIndex;
 import org.apache.cassandra.index.sai.memory.RowMapping;
+import org.apache.cassandra.index.sai.memory.TrieMemtableIndex;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
@@ -120,7 +121,7 @@ public interface OnDiskFormat
     /**
      * Create a new writer for the per-index on-disk components of an index. The {@link LifecycleNewTracker}
      * is used to determine the type of index write about to happen this will either be an
-     * {@code OperationType.FLUSH} indicating that we are about to flush a {@link org.apache.cassandra.index.sai.memory.MemtableIndex}
+     * {@code OperationType.FLUSH} indicating that we are about to flush a {@link TrieMemtableIndex}
      * or one of the other operation types indicating that we will be writing from an existing SSTable
      *
      * @param index The {@link StorageAttachedIndex} holding the current index build status

@@ -36,7 +36,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
  * In memory representation of {@link PrimaryKey} to row ID mappings which only contains
  * {@link Row} regardless it's live or deleted. ({@link RangeTombstoneMarker} is not included.)
  *
- * For JBOD, we can make use of sstable min/max partition key to filter irrelevant {@link MemtableIndex} subranges.
+ * For JBOD, we can make use of sstable min/max partition key to filter irrelevant {@link TrieMemtableIndex} subranges.
  * For Tiered Storage, in most cases, it flushes to tiered 0.
  */
 public class RowMapping
