@@ -54,6 +54,7 @@ public class CreateTest extends CQLTester
     @Test
     public void testCreateTableWithNameCapitalPAndColumnDuration() throws Throwable
     {
+        // CASSANDRA-17919
         createTable(KEYSPACE, "CREATE TABLE %s (a INT PRIMARY KEY, b DURATION);", "P");
         execute("INSERT INTO %s (a, b) VALUES (1, PT0S)");
         assertRows(execute("SELECT * FROM %s"), row(1, Duration.newInstance(0, 0, 0)));
@@ -62,6 +63,7 @@ public class CreateTest extends CQLTester
     @Test
     public void testCreateKeyspaceWithNameCapitalP() throws Throwable
     {
+        // CASSANDRA-17919
         executeFormattedQuery("CREATE KEYSPACE IF NOT EXISTS P WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
         executeFormattedQuery("DROP KEYSPACE P");
     }
