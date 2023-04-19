@@ -30,12 +30,15 @@ import org.slf4j.LoggerFactory;
 import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.Float32DenseVectorType;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.PerIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.hnsw.HnswIndexWriter;
+import org.apache.cassandra.index.sai.disk.hnsw.MemtableFloat32VectorValues;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.ImmutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.InvertedIndexWriter;
@@ -147,7 +150,14 @@ public class MemtableIndexWriter implements PerIndexWriter
         long numRows;
         SegmentMetadata.ComponentMetadataMap indexMetas;
 
-        if (TypeUtil.isLiteral(termComparator))
+        if (termComparator instanceof Float32DenseVectorType) {
+            try (HnswIndexWriter writer = new HnswIndexWriter(indexDescriptor, indexContext, false))
+            {
+                indexMetas = writer.writeAll(MemtableFloat32VectorValues.from(terms));
+                numRows = writer.getNodeCount();
+            }
+        }
+        else if (TypeUtil.isLiteral(termComparator))
         {
             try (InvertedIndexWriter writer = new InvertedIndexWriter(indexDescriptor, indexContext, false))
             {
