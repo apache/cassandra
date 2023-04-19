@@ -27,9 +27,9 @@ import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class MemtableFloat32VectorValues implements RandomAccessVectorValues<float[]>
 {
-    ArrayList<ByteComparable> vectors;
+    ArrayList<float[]> vectors;
 
-    private MemtableFloat32VectorValues(ArrayList<ByteComparable> vectors)
+    private MemtableFloat32VectorValues(ArrayList<float[]> vectors)
     {
         this.vectors = vectors;
     }
@@ -53,39 +53,36 @@ public class MemtableFloat32VectorValues implements RandomAccessVectorValues<flo
         }
     }
 
+    private static float[] vectorFrom(ByteComparable bc) {
+        var source = bc.asComparableBytes(ByteComparable.Version.OSS41);
+        // get the length as big-endian encoded 32bit int
+        var length = (source.next() << 24) | (source.next() << 16) | (source.next() << 8) | (source.next());
+        var vector = new float[length];
+        for (int i = 0; i < length; i++) {
+            // float serialization (ByteBuffer.putFloat) is also byte-order-sensitive
+            vector[i] = Float.intBitsToFloat((source.next() << 24) | (source.next() << 16) | (source.next() << 8) | (source.next()));
+        }
+        return vector;
+    }
+
     @Override
     public float[] vectorValue(int vectorIndex) throws IOException
     {
-        // TODO holy fuck this is ugly, is this how it's supposed to work?
-        // if it is, we're probably better off doing this once up front instead
-        // of repeatedly as each ordinal is requested (multiple times apiece)
-        var source = vectors.get(vectorIndex).asComparableBytes(ByteComparable.Version.OSS41);
-        // get the length as big-endian encoded 32bit int
-        var a = source.next();
-        var b = source.next();
-        var c = source.next();
-        var d = source.next();
-        var length = 0; // TODO
-        var vector = new float[length];
-        for (int i = 0; i < length; i++) {
-            vector[i] = 0; // TODO
-        }
-        return vector;
-        // TODO this is broken without a way to reset the source
+        return vectors.get(vectorIndex);
     }
 
     @Override
     public MemtableFloat32VectorValues copy()
     {
-        return new MemtableFloat32VectorValues((ArrayList<ByteComparable>) vectors.clone());
+        return new MemtableFloat32VectorValues((ArrayList<float[]>) vectors.clone());
     }
 
     public static MemtableFloat32VectorValues from(MemtableTermsIterator terms)
     {
-        var vectors = new ArrayList<ByteComparable>();
+        var vectors = new ArrayList<float[]>();
         while (terms.hasNext())
         {
-            vectors.add(terms.next());
+            vectors.add(vectorFrom(terms.next()));
         }
         return new MemtableFloat32VectorValues(vectors);
     }
