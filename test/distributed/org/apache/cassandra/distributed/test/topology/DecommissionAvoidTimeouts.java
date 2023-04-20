@@ -76,7 +76,7 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
                                       .withInstanceInitializer(new BB())
                                       .withConfig(c -> c.with(Feature.GOSSIP)
                                                         .set("transfer_hints_on_decommission", false)
-                                                        .set("severity_during_decommission", 100D))
+                                                        .set("severity_during_decommission", 10000D))
                                       .start())
         {
             fixDistributedSchemas(cluster);
