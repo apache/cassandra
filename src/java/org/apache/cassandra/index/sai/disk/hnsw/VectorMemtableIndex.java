@@ -20,6 +20,8 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import javax.annotation.Nullable;
 
@@ -42,31 +44,38 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 import com.github.jelmerk.knn.DistanceFunctions;
 import com.github.jelmerk.knn.Item;
 import com.github.jelmerk.knn.hnsw.HnswIndex;
-import org.github.jamm.MemoryMeter;
 
 public class VectorMemtableIndex implements MemtableIndex
 {
     private final IndexContext indexContext;
-    private final HnswIndex<DecoratedKey, float[], VectorItem, Float> hnsw;
+    private final AtomicReference<HnswIndex<DecoratedKey, float[], VectorItem, Float>> hnswRef = new AtomicReference<>();
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder estimatedOnHeapMemoryUsed = new LongAdder();
 
     private final int universeSize = 1_000_000; // TODO make hnsw growable instead of hardcoding size
+    private final AtomicInteger cachedDimensions = new AtomicInteger();
 
     public VectorMemtableIndex(IndexContext indexContext) {
-        hnsw = HnswIndex
-               .newBuilder(vectorDimensions, DistanceFunctions.FLOAT_INNER_PRODUCT, universeSize)
-               .withM(16) // TODO
-               .withEf(200) // TODO
-               .withEfConstruction(200) // TODO
-               .build();
         this.indexContext = indexContext;
     }
 
     @Override
     public void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
     {
-        var item = new VectorItem(key, Float32DenseVectorType.Serializer.instance.deserialize(value));
+        var hnsw = hnswRef.get();
+        if (hnsw == null)
+        {
+            // hnsw wants to know the dimensionality of its vectors, but we don't know that until we add the first one
+            var firstVector = Float32DenseVectorType.Serializer.instance.deserialize(value);
+            HnswIndex<DecoratedKey, float[], VectorItem, Float> newHnsw = HnswIndex
+                                                                          .newBuilder(firstVector.length, DistanceFunctions.FLOAT_INNER_PRODUCT, universeSize)
+                                                                          .withM(16) // TODO
+                                                                          .withEf(200) // TODO
+                                                                          .withEfConstruction(200) // TODO
+                                                                          .build();
+            hnsw = hnswRef.compareAndExchange(null, newHnsw);
+        }
+        var item = new VectorItem(key, value);
         hnsw.add(item);
         writeCount.increment();
         estimatedOnHeapMemoryUsed.add(ObjectSizes.measureDeep(item));
@@ -106,7 +115,8 @@ public class VectorMemtableIndex implements MemtableIndex
     @Override
     public boolean isEmpty()
     {
-        return hnsw.size() > 1;
+        var hnsw = hnswRef.get();
+        return hnsw == null || hnsw.size() == 0;
     }
 
     @Nullable
@@ -123,15 +133,15 @@ public class VectorMemtableIndex implements MemtableIndex
         return null;
     }
 
-    private static class VectorItem implements Item<DecoratedKey, float[]>
+    private class VectorItem implements Item<DecoratedKey, float[]>
     {
         private final DecoratedKey key;
-        private final float[] vector;
+        private final ByteBuffer buffer;
 
-        public VectorItem(DecoratedKey key, float[] vector)
+        public VectorItem(DecoratedKey key, ByteBuffer buffer)
         {
             this.key = key;
-            this.vector = vector;
+            this.buffer = buffer;
         }
 
         @Override
@@ -143,13 +153,21 @@ public class VectorMemtableIndex implements MemtableIndex
         @Override
         public float[] vector()
         {
-            return vector;
+            return Float32DenseVectorType.Serializer.instance.deserialize(buffer);
         }
 
         @Override
         public int dimensions()
         {
-            return vector.length;
+            // if cached dimensions is 0, then this is being called for the first time;
+            // compute it from the current vector length
+            int i = cachedDimensions.get();
+            if (i == 0)
+            {
+                i = vector().length;
+                cachedDimensions.set(i);
+            }
+            return i;
         }
     }
 }
