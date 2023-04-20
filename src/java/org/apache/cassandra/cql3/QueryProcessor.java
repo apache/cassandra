@@ -483,7 +483,7 @@ public class QueryProcessor implements QueryHandler
                                                                                       .map(m -> MessagingService.instance().<ReadResponse>sendWithResult(m, address))
                                                                                       .collect(Collectors.toList()));
 
-            ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), select.getSelection().newSelectors(options), null);
+            ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), select.getSelection().newSelectors(options), false);
             return future.map(list -> {
                 int i = 0;
                 for (Message<ReadResponse> m : list)
@@ -611,17 +611,19 @@ public class QueryProcessor implements QueryHandler
         return select.executeRawInternal(makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), internalQueryState().getClientState(), nowInSec);
     }
 
+    @VisibleForTesting
     public static UntypedResultSet resultify(String query, RowIterator partition)
     {
         return resultify(query, PartitionIterators.singletonIterator(partition));
     }
 
+    @VisibleForTesting
     public static UntypedResultSet resultify(String query, PartitionIterator partitions)
     {
         try (PartitionIterator iter = partitions)
         {
             SelectStatement ss = (SelectStatement) getStatement(query, null);
-            ResultSet cqlRows = ss.process(iter, FBUtilities.nowInSeconds());
+            ResultSet cqlRows = ss.process(iter, FBUtilities.nowInSeconds(), true);
             return UntypedResultSet.create(cqlRows);
         }
     }

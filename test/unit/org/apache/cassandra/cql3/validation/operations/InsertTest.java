@@ -60,7 +60,7 @@ public class InsertTest extends CQLTester
 
         assertInvalidMessage("Invalid unset value for column k", "UPDATE %s SET i = 0 WHERE k = ?", unset());
         assertInvalidMessage("Invalid unset value for column k", "DELETE FROM %s WHERE k = ?", unset());
-        assertInvalidMessage("Invalid unset value for argument in call to function blobasint", "SELECT * FROM %s WHERE k = blobAsInt(?)", unset());
+        assertInvalidMessage("Invalid unset value for argument in call to function blob_as_int", "SELECT * FROM %s WHERE k = blob_as_int(?)", unset());
     }
 
     @Test

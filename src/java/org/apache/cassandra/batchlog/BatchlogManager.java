@@ -505,7 +505,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             ReplayWriteResponseHandler<Mutation> handler = new ReplayWriteResponseHandler<>(replicaPlan, mutation, nanoTime());
             Message<Mutation> message = Message.outWithFlag(MUTATION_REQ, mutation, MessageFlag.CALL_BACK_ON_FAILURE);
             for (Replica replica : liveRemoteOnly.all())
-                MessagingService.instance().sendWriteWithCallback(message, replica, handler, false);
+                MessagingService.instance().sendWriteWithCallback(message, replica, handler);
             return handler;
         }
 

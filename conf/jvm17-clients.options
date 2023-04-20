@@ -36,6 +36,7 @@
 --add-exports java.sql/java.sql=ALL-UNNAMED
 --add-exports jdk.unsupported/sun.misc=ALL-UNNAMED
 --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED
+--add-exports jdk.attach/sun.tools.attach=ALL-UNNAMED
 
 
 --add-opens java.base/java.lang.module=ALL-UNNAMED
@@ -62,5 +63,7 @@
 --add-opens jdk.compiler/com.sun.tools.javac=ALL-UNNAMED
 --add-opens java.base/java.lang=ALL-UNNAMED
 --add-opens java.base/java.lang.reflect=ALL-UNNAMED
+#jamm post CASSANDRA-17199
+--add-opens java.base/java.net=ALL-UNNAMED
 
 # The newline in the end of file is intentional

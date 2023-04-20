@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Set;
+import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
@@ -29,6 +30,7 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.ToolRunner;
@@ -62,6 +64,9 @@ public class IPMembershipTest extends TestBaseImpl
                 getDirectories(nodeToReplace).forEach(FileUtils::deleteRecursive);
 
                 nodeToReplace.config().set("auto_bootstrap", auto_bootstrap);
+
+                // we need to override the host id because otherwise the node will not be considered as a new node
+                ((InstanceConfig) nodeToReplace.config()).setHostId(UUID.randomUUID());
 
                 Assertions.assertThatThrownBy(() -> nodeToReplace.startup())
                           .hasMessage("A node with address /127.0.0.3:7012 already exists, cancelling join. Use cassandra.replace_address if you want to replace this node.");

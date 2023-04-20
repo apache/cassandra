@@ -438,7 +438,7 @@ public class UFTest extends CQLTester
         execute("DROP FUNCTION IF EXISTS " + fSin);
 
         // can't drop native functions
-        assertInvalidMessage("System keyspace 'system' is not user-modifiable", "DROP FUNCTION totimestamp");
+        assertInvalidMessage("System keyspace 'system' is not user-modifiable", "DROP FUNCTION to_timestamp");
         assertInvalidMessage("System keyspace 'system' is not user-modifiable", "DROP FUNCTION uuid");
 
         // sin() no longer exists
@@ -665,7 +665,7 @@ public class UFTest extends CQLTester
     @Test
     public void testFunctionInSystemKS() throws Throwable
     {
-        execute("CREATE OR REPLACE FUNCTION " + KEYSPACE + ".totimestamp(val timeuuid) " +
+        execute("CREATE OR REPLACE FUNCTION " + KEYSPACE + ".to_timestamp(val timeuuid) " +
                 "RETURNS NULL ON NULL INPUT " +
                 "RETURNS timestamp " +
                 "LANGUAGE JAVA\n" +
@@ -679,7 +679,7 @@ public class UFTest extends CQLTester
                              "LANGUAGE JAVA\n" +
                              "AS 'return null;';");
         assertInvalidMessage("System keyspace 'system' is not user-modifiable",
-                             "CREATE OR REPLACE FUNCTION system.totimestamp(val timeuuid) " +
+                             "CREATE OR REPLACE FUNCTION system.to_timestamp(val timeuuid) " +
                              "RETURNS NULL ON NULL INPUT " +
                              "RETURNS timestamp " +
                              "LANGUAGE JAVA\n" +
@@ -696,7 +696,7 @@ public class UFTest extends CQLTester
                              "LANGUAGE JAVA\n" +
                              "AS 'return null;';");
         assertInvalidMessage("System keyspace 'system' is not user-modifiable",
-                             "CREATE OR REPLACE FUNCTION totimestamp(val timeuuid) " +
+                             "CREATE OR REPLACE FUNCTION to_timestamp(val timeuuid) " +
                              "RETURNS NULL ON NULL INPUT " +
                              "RETURNS timestamp " +
                              "LANGUAGE JAVA\n" +
@@ -907,7 +907,7 @@ public class UFTest extends CQLTester
     public void testEmptyString() throws Throwable
     {
         createTable("CREATE TABLE %s (key int primary key, sval text, aval ascii, bval blob, empty_int int)");
-        execute("INSERT INTO %s (key, sval, aval, bval, empty_int) VALUES (?, ?, ?, ?, blobAsInt(0x))", 1, "", "", ByteBuffer.allocate(0));
+        execute("INSERT INTO %s (key, sval, aval, bval, empty_int) VALUES (?, ?, ?, ?, blob_as_int(0x))", 1, "", "", ByteBuffer.allocate(0));
 
         String fNameSRC = createFunction(KEYSPACE_PER_TEST, "text",
                                          "CREATE OR REPLACE FUNCTION %s(val text) " +

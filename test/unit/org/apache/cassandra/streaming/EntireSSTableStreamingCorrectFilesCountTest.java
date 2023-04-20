@@ -212,7 +212,8 @@ public class EntireSSTableStreamingCorrectFilesCountTest
                                                          peer,
                                                          Collections.emptyList(),
                                                          Collections.emptyList(),
-                                                         StreamSession.State.INITIALIZED));
+                                                         StreamSession.State.INITIALIZED,
+                                                         null));
 
         StreamSession session = streamCoordinator.getOrCreateOutboundSession(peer);
         session.init(future);

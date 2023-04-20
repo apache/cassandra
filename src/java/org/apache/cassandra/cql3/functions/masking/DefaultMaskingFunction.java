@@ -26,7 +26,6 @@ import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionParameter;
 import org.apache.cassandra.cql3.functions.NativeFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * A {@link MaskingFunction} that returns a fixed replacement value for the data type of its single argument.
@@ -41,18 +40,34 @@ public class DefaultMaskingFunction extends MaskingFunction
 {
     public static final String NAME = "default";
 
-    private final ByteBuffer defaultValue;
+    private final Masker masker;
 
     private <T> DefaultMaskingFunction(FunctionName name, AbstractType<T> inputType)
     {
         super(name, inputType, inputType);
-        this.defaultValue = inputType.getMaskedValue();
+        masker = new Masker(inputType);
     }
 
     @Override
-    public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+    public Masker masker(ByteBuffer... parameters)
     {
-        return defaultValue;
+        return masker;
+    }
+
+    private static class Masker implements MaskingFunction.Masker
+    {
+        private final ByteBuffer defaultValue;
+
+        private Masker(AbstractType<?> inputType)
+        {
+            defaultValue = inputType.getMaskedValue();
+        }
+
+        @Override
+        public ByteBuffer mask(ByteBuffer value)
+        {
+            return defaultValue;
+        }
     }
 
     /** @return a {@link FunctionFactory} to build new {@link DefaultMaskingFunction}s. */

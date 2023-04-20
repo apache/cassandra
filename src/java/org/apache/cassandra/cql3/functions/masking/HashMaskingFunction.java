@@ -38,7 +38,6 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -78,20 +77,34 @@ public class HashMaskingFunction extends MaskingFunction
     }
 
     @Override
-    public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+    public Masker masker(ByteBuffer... parameters)
     {
-        MessageDigest digest;
-        if (algorithmArgumentType == null || parameters.get(1) == null)
+        return new Masker(algorithmArgumentType, parameters);
+    }
+
+    private static class Masker implements MaskingFunction.Masker
+    {
+        private final MessageDigest digest;
+
+        private Masker(StringType algorithmArgumentType, ByteBuffer... parameters)
         {
-            digest = DEFAULT_DIGEST.get();
-        }
-        else
-        {
-            String algorithm = algorithmArgumentType.compose(parameters.get(1));
-            digest = messageDigest(algorithm);
+            if (algorithmArgumentType == null || parameters[0] == null)
+            {
+                digest = DEFAULT_DIGEST.get();
+            }
+            else
+            {
+                String algorithm = algorithmArgumentType.compose(parameters[0]);
+                digest = messageDigest(algorithm);
+            }
         }
 
-        return hash(digest, parameters.get(0));
+        @Override
+        public ByteBuffer mask(ByteBuffer value)
+        {
+            return HashMaskingFunction.hash(digest, value);
+        }
+
     }
 
     @VisibleForTesting

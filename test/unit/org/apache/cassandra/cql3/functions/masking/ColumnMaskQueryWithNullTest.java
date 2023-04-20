@@ -16,28 +16,29 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.anttasks;
+package org.apache.cassandra.cql3.functions.masking;
 
-import org.apache.tools.ant.Project;
-import org.apache.tools.ant.Task;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
 
-public class KeepBriefBrief extends Task
+import org.junit.runners.Parameterized;
+
+/**
+ * {@link ColumnMaskQueryTester} for {@link NullMaskingFunction}.
+ */
+public class ColumnMaskQueryWithNullTest extends ColumnMaskQueryTester
 {
-    private String property;
-
-    public void setProperty(String property)
+    @Parameterized.Parameters(name = "order={0}, mask={1}, type={2}, value={3}")
+    public static Collection<Object[]> options()
     {
-        this.property = property;
-    }
-
-    public void execute()
-    {
-        Project project = getProject();
-
-        if (project.getUserProperty(property) == null)
-            if (project.getProperty("test.name").equals("*Test"))
-                project.setProperty(property, "true");
-            else
-                project.setProperty(property, "false");
+        List<Object[]> options = new ArrayList<>();
+        for (String order : Arrays.asList("ASC", "DESC"))
+        {
+            options.add(new Object[]{ order, "mask_null()", "text", "abc", null });
+            options.add(new Object[]{ order, "mask_null()", "int", 123, null });
+        }
+        return options;
     }
 }

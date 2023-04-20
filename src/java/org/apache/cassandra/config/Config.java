@@ -176,8 +176,9 @@ public class Config
     @Mutable @Replaces(oldName = "slow_query_log_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public DurationSpec.LongMillisecondsBound slow_query_log_timeout = new DurationSpec.LongMillisecondsBound("500ms");
 
+    public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
     @Mutable
-    public double phi_convict_threshold = 8.0;
+    public volatile double phi_convict_threshold = 8.0;
 
     public int concurrent_reads = 32;
     public int concurrent_writes = 32;
@@ -652,6 +653,8 @@ public class Config
      * Set this to allow UDFs accessing java.lang.System.* methods, which basically allows UDFs to execute any arbitrary code on the system.
      */
     public boolean allow_extra_insecure_udfs = false;
+
+    public boolean dynamic_data_masking_enabled = false;
 
     /**
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.

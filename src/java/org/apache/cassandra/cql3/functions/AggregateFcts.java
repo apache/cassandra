@@ -88,38 +88,51 @@ public abstract class AggregateFcts
      * The function used to count the number of rows of a result set. This function is called when COUNT(*) or COUNT(1)
      * is specified.
      */
-    public static final NativeAggregateFunction countRowsFunction =
-            new NativeAggregateFunction("countRows", LongType.instance)
+    public static final CountRowsFunction countRowsFunction = new CountRowsFunction(false);
+
+    public static class CountRowsFunction extends NativeAggregateFunction
+    {
+        private CountRowsFunction(boolean useLegacyName)
+        {
+            super(useLegacyName ? "countRows" : "count_rows", LongType.instance);
+        }
+
+        @Override
+        public Aggregate newAggregate()
+        {
+            return new Aggregate()
             {
-                public Aggregate newAggregate()
+                private long count;
+
+                public void reset()
                 {
-                    return new Aggregate()
-                    {
-                        private long count;
-
-                        public void reset()
-                        {
-                            count = 0;
-                        }
-
-                        public ByteBuffer compute(ProtocolVersion protocolVersion)
-                        {
-                            return LongType.instance.decompose(count);
-                        }
-
-                        public void addInput(ProtocolVersion protocolVersion, List<ByteBuffer> values)
-                        {
-                            count++;
-                        }
-                    };
+                    count = 0;
                 }
 
-                @Override
-                public String columnName(List<String> columnNames)
+                public ByteBuffer compute(ProtocolVersion protocolVersion)
                 {
-                    return "count";
+                    return LongType.instance.decompose(count);
+                }
+
+                public void addInput(ProtocolVersion protocolVersion, List<ByteBuffer> values)
+                {
+                    count++;
                 }
             };
+        }
+
+        @Override
+        public String columnName(List<String> columnNames)
+        {
+            return "count";
+        }
+
+        @Override
+        public NativeFunction withLegacyName()
+        {
+            return new CountRowsFunction(true);
+        }
+    }
 
     /**
      * The SUM function for decimal values.
