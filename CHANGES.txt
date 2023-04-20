@@ -1,4 +1,5 @@
 4.0.10
+ * Deadlock updating sstable metadata if disk boundaries need reloading (CASSANDRA-18443)
  * Fix nested selection of reversed collections (CASSANDRA-17913)
 
 4.0.9
