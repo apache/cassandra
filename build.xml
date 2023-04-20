@@ -688,6 +688,7 @@
           <dependency groupId="org.apache.lucene" artifactId="lucene-core" version="7.5.0" />
           <dependency groupId="com.bpodgursky" artifactId="jbool_expressions" version="1.14" scope="test"/>
           <dependency groupId="org.apache.lucene" artifactId="lucene-analyzers-common" version="7.5.0" />
+          <dependency groupId="com.github.jelmerk" artifactId="hnswlib-core" version="1.1.0" />
 
           <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" version="2.1.2" scope="test">
             <exclusion groupId="junit" artifactId="junit"/>
@@ -774,6 +775,7 @@
         <dependency groupId="com.bpodgursky" artifactId="jbool_expressions" version="1.14" scope="test"/>
         <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" scope="test"/>
         <dependency groupId="org.apache.lucene" artifactId="lucene-analyzers-common"/>
+        <dependency groupId="com.github.jelmerk" artifactId="hnswlib-core"/>
       </artifact:pom>
 
       <!-- now the pom's for artifacts being deployed to Maven Central -->
@@ -866,6 +868,7 @@
         <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" scope="test"/>
         <dependency groupId="org.hamcrest" artifactId="hamcrest" scope="test"/>
         <dependency groupId="com.esri.geometry" artifactId="esri-geometry-api"/>
+        <dependency groupId="com.github.jelmerk" artifactId="hnswlib-core"/>
 
         <!-- sasi deps -->
         <dependency groupId="de.jflex" artifactId="jflex" />
