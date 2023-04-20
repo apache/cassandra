@@ -1,4 +1,5 @@
 5.0
+ * Fix ClassCastException  from jdk GaloisCounterMode when using JDK17 provider (CASSANDRA-18180)
  * Drop JDK8, add JDK17 (CASSANDRA-18255)
  * Remove WaitingOnFreeMemtableSpace and DroppedMutations metrics (CASSANDRA-18298)
  * Upgrade Jamm version to 0.4.0  (CASSANDRA-17884, CASSANDRA-16304, CASSANDRA-18329)

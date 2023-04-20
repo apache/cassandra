@@ -305,7 +305,8 @@
 
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
     <!-- needed to compile org.apache.cassandra.distributed.impl.Instance-->
-    <property name="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" />
+    <!-- needed to compile org.apache.cassandra.utils.memory.BufferPool -->
+    <property name="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED --add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-exports java.base/sun.nio.ch=ALL-UNNAMED" />
 
     <!--
          Add all the dependencies.
@@ -1002,7 +1003,7 @@
   <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib,simulator-jars"
           description="Compile test classes">
     <antcall target="_build-test"/>
-    <checktestnameshelper/>
+    <antcall target="_check-test-names"/>
   </target>
 
   <target name="_build-test">
@@ -1020,6 +1021,8 @@
         <pathelement location="${fqltool.build.classes}"/>
      </classpath>
      <compilerarg value="-XDignore.symbol.file"/>
+     <!-- needed to compile org.apache.cassandra.utils.memory.BufferPoolTest -->
+     <compilerarg line="${jdk11plus-javac-exports}"/>
      <src path="${test.anttasks.src}"/>
      <src path="${test.unit.src}"/>
      <src path="${test.long.src}"/>
@@ -1040,17 +1043,19 @@
     </copy>
   </target>
 
-  <macrodef name="checktestnameshelper">
-    <sequential>
-      <taskdef name="test-name-check_" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
-        <classpath>
-          <path refid="cassandra.classpath.test"/>
-          <path location="${fqltool.build.classes}"/>
-        </classpath>
-      </taskdef>
-      <test-name-check_/>
-    </sequential>
-  </macrodef>
+  <target name="_check-test-names">
+    <java taskname="check-test-names" fork="true" failonerror="yes" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
+      <classpath>
+        <path refid="cassandra.classpath" />
+        <pathelement location="${test.classes}"/>
+        <pathelement location="${fqltool.build.classes}" />
+        <fileset dir="${test.lib}">
+          <include name="**/*.jar" />
+        </fileset>
+      </classpath>
+      <jvmarg line="${java-jvmargs}"/>
+    </java>
+  </target>
 
   <!-- Run tests separately and report errors after and generate a junit report -->
   <macrodef name="testhelper">
@@ -1873,7 +1878,10 @@
       <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="JavacSettings">
-    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" />
+    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED
+                                                    --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED
+                                                    --add-exports java.base/jdk.internal.ref=ALL-UNNAMED
+                                                    --add-exports java.base/sun.nio.ch=ALL-UNNAMED" />
   </component>
 </project>]]></echo>
   </target>
