@@ -47,6 +47,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.Float32DenseVectorType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.memtable.Memtable;
@@ -207,7 +208,7 @@ public class IndexContext
         // call to computeIfAbsent() if it's not. (see https://bugs.openjdk.java.net/browse/JDK-8161372)
         MemtableIndex target = (current != null)
                                ? current
-                               : liveMemtables.computeIfAbsent(memtable, mt -> new MemtableIndex(this));
+                               : liveMemtables.computeIfAbsent(memtable, mt -> MemtableIndex.createIndex(this));
 
         long start = System.nanoTime();
 
@@ -481,6 +482,12 @@ public class IndexContext
     public boolean isLiteral()
     {
         return TypeUtil.isLiteral(getValidator());
+    }
+
+    public boolean isVector()
+    {
+        //TODO probably move this down to TypeUtils eventually
+        return getValidator() instanceof Float32DenseVectorType;
     }
 
     public boolean equals(Object obj)

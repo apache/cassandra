@@ -151,11 +151,9 @@ public class MemtableIndexWriter implements PerIndexWriter
         SegmentMetadata.ComponentMetadataMap indexMetas;
 
         if (termComparator instanceof Float32DenseVectorType) {
-            try (HnswIndexWriter writer = new HnswIndexWriter(indexDescriptor, indexContext, false))
-            {
-                indexMetas = writer.writeAll(MemtableFloat32VectorValues.from(terms));
-                numRows = writer.getNodeCount();
-            }
+            numRows = 0;
+            indexMetas = null;
+            // TODO
         }
         else if (TypeUtil.isLiteral(termComparator))
         {
