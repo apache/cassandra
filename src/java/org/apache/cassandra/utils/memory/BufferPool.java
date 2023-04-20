@@ -37,6 +37,7 @@ import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import jdk.internal.ref.Cleaner;
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.slf4j.Logger;
@@ -50,6 +51,7 @@ import org.apache.cassandra.metrics.BufferPoolMetrics;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.Ref;
+import sun.nio.ch.DirectBuffer;
 
 import static com.google.common.collect.ImmutableList.of;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -1129,7 +1131,7 @@ public class BufferPool
      * When we reiceve a release request we work out the position by comparing the buffer
      * address to our base address and we simply release the units.
      */
-    final static class Chunk
+    final static class Chunk implements DirectBuffer
     {
         enum Status
         {
@@ -1182,6 +1184,24 @@ public class BufferPool
             this.shift = 31 & (Integer.numberOfTrailingZeros(slab.capacity() / 64));
             // -1 means all free whilst 0 means all in use
             this.freeSlots = slab.capacity() == 0 ? 0L : -1L;
+        }
+
+        @Override
+        public long address()
+        {
+            return baseAddress;
+        }
+
+        @Override
+        public Object attachment()
+        {
+            return MemoryUtil.getAttachment(slab);
+        }
+
+        @Override
+        public Cleaner cleaner()
+        {
+            return null;
         }
 
         /**

@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import jdk.internal.ref.Cleaner;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -50,6 +51,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Shared;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import sun.nio.ch.DirectBuffer;
 
 import static java.util.Collections.emptyList;
 
@@ -90,7 +92,7 @@ import static org.apache.cassandra.utils.Throwables.merge;
  * Once the Ref.GlobalState has been completely released, the Tidy method is called and it removes the global reference
  * to itself so it may also be collected.
  */
-public final class Ref<T> implements RefCounted<T>
+public final class Ref<T> implements RefCounted<T>, DirectBuffer
 {
     static final Logger logger = LoggerFactory.getLogger(Ref.class);
     public static final boolean DEBUG_ENABLED = System.getProperty("cassandra.debugrefcount", "false").equalsIgnoreCase("true");
@@ -731,6 +733,24 @@ public final class Ref<T> implements RefCounted<T>
     public static void setOnLeak(OnLeak onLeak)
     {
         ON_LEAK = onLeak;
+    }
+
+    @Override
+    public long address()
+    {
+        return referent instanceof DirectBuffer ? ((DirectBuffer) referent).address() : 0;
+    }
+
+    @Override
+    public Object attachment()
+    {
+        return referent instanceof DirectBuffer ? ((DirectBuffer) referent).attachment() : null;
+    }
+
+    @Override
+    public Cleaner cleaner()
+    {
+        return referent instanceof DirectBuffer ? ((DirectBuffer) referent).cleaner() : null;
     }
 
     @VisibleForTesting
