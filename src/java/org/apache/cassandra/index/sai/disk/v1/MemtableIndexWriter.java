@@ -150,11 +150,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
         SegmentMetadata.ComponentMetadataMap indexMetas = null;
 
         if (termComparator instanceof Float32DenseVectorType) {
-            try (HnswIndexWriter writer = new HnswIndexWriter(indexDescriptor, indexContext, false))
-            {
-                indexMetas = writer.writeAll(MemtableFloat32VectorValues.from(terms));
-                numRows = writer.getNodeCount();
-            }
+            // TODO
         }
         else if (TypeUtil.isLiteral(termComparator))
         {
