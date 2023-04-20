@@ -37,8 +37,6 @@ import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.PerIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.hnsw.HnswIndexWriter;
-import org.apache.cassandra.index.sai.disk.hnsw.MemtableFloat32VectorValues;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.ImmutableOneDimPointValues;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.InvertedIndexWriter;
@@ -151,11 +149,7 @@ public class MemtableIndexWriter implements PerIndexWriter
         SegmentMetadata.ComponentMetadataMap indexMetas;
 
         if (termComparator instanceof Float32DenseVectorType) {
-            try (HnswIndexWriter writer = new HnswIndexWriter(indexDescriptor, indexContext, false))
-            {
-                indexMetas = writer.writeAll(MemtableFloat32VectorValues.from(terms));
-                numRows = writer.getNodeCount();
-            }
+            // TODO
         }
         else if (TypeUtil.isLiteral(termComparator))
         {
