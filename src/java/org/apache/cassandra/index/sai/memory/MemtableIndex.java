@@ -29,6 +29,8 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.disk.hnsw.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -69,4 +71,9 @@ public interface MemtableIndex
     RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange);
 
     Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max);
+
+    static MemtableIndex createIndex(IndexContext indexContext)
+    {
+        return indexContext.isVector() ? new VectorMemtableIndex(indexContext) : new TrieMemtableIndex(indexContext);
+    }
 }
