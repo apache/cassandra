@@ -149,6 +149,8 @@ public class MemtableIndexWriter implements PerIndexWriter
         SegmentMetadata.ComponentMetadataMap indexMetas;
 
         if (termComparator instanceof Float32DenseVectorType) {
+            numRows = 0;
+            indexMetas = null;
             // TODO
         }
         else if (TypeUtil.isLiteral(termComparator))
