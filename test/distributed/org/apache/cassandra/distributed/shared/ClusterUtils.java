@@ -24,6 +24,7 @@ import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -597,6 +598,22 @@ public class ClusterUtils
             }
             return true;
         });
+    }
+
+    public static void awaitGossipStateMatch(ICluster<? extends  IInstance> cluster, IInstance expectedInGossip, ApplicationState key)
+    {
+        Set<String> matches = null;
+        for (int i = 0; i < 100; i++)
+        {
+            matches = cluster.stream().map(ClusterUtils::gossipInfo)
+                             .map(gi -> Objects.requireNonNull(gi.get(getBroadcastAddressString(expectedInGossip))))
+                             .map(m -> m.get(key.name()))
+                             .collect(Collectors.toSet());
+            if (matches.isEmpty() || matches.size() == 1)
+                return;
+            sleepUninterruptibly(1, TimeUnit.SECONDS);
+        }
+        throw new AssertionError("Expected ApplicationState." + key + " to match, but saw " + matches);
     }
 
     /**

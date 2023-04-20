@@ -49,9 +49,11 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.Coordinators;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
 import org.apache.cassandra.distributed.util.byterewrite.StatusChangeListener;
+import org.apache.cassandra.distributed.util.byterewrite.StatusChangeListener.Hooks;
 import org.apache.cassandra.distributed.util.byterewrite.Undead;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -95,9 +97,14 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
 
             CompletableFuture<Void> nodetool = CompletableFuture.runAsync(() -> toDecom.nodetoolResult("decommission").asserts().success());
 
-            StatusChangeListener.hooks(DECOM_NODE).leave.await();
+            Hooks statusHooks = StatusChangeListener.hooks(DECOM_NODE);
+            statusHooks.leaving.awaitAndEnter();
+            // make sure all nodes see the severity change
+            ClusterUtils.awaitGossipStateMatch(cluster, cluster.get(DECOM_NODE), ApplicationState.SEVERITY);
+
+            statusHooks.leave.await();
             cluster.filters().verbs(Verb.GOSSIP_DIGEST_SYN.id).drop();
-            StatusChangeListener.hooks(DECOM_NODE).leave.enter();
+            statusHooks.leave.enter();
 
             nodetool.join();
 
@@ -167,7 +174,7 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
 
             if (node != DECOM_NODE) return;
-            StatusChangeListener.install(cl, node, StatusChangeListener.Status.LEAVE);
+            StatusChangeListener.install(cl, node, StatusChangeListener.Status.LEAVING, StatusChangeListener.Status.LEAVE);
         }
 
         @Override

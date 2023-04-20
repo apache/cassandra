@@ -32,6 +32,12 @@ public class TwoWay implements AutoCloseable
     private volatile CountDownLatch first = new CountDownLatch(1);
     private final CountDownLatch second = new CountDownLatch(1);
 
+    public void awaitAndEnter()
+    {
+        await();
+        enter();
+    }
+
     public void await()
     {
         await(first);
