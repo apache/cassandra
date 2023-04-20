@@ -38,7 +38,7 @@ public class Expression
 
     public enum IndexOperator
     {
-        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE;
+        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, ANN;
 
         public static IndexOperator valueOf(Operator operator)
         {
@@ -58,6 +58,9 @@ public class Expression
                 case LTE:
                 case GTE:
                     return RANGE;
+
+                case ANN:
+                    return ANN;
 
                 default:
                     return null;
@@ -84,12 +87,19 @@ public class Expression
     // if the datatype being filtered is rounded in the index. These flags are used in the post-filtering
     // process to remove values equal to the bounds.
     public boolean upperInclusive, lowerInclusive;
+    public int topK;
 
     public Expression(IndexContext indexContext)
     {
         this.context = indexContext;
         this.analyzerFactory = indexContext.getQueryAnalyzerFactory();
         this.validator = indexContext.getValidator();
+    }
+
+    public Expression add(Operator op, ByteBuffer value, int topK) {
+        this.topK = topK;
+        add(op, value);
+        return this;
     }
 
     /**
@@ -154,6 +164,12 @@ public class Expression
                     upper = new Bound(value, validator, upperInclusive);
                 else
                     lower = new Bound(value, validator, lowerInclusive);
+                break;
+            case ANN:
+                assert topK > 0 : "ANN queries should use the overload that includes topK";
+                operator = IndexOperator.ANN;
+                lower = new Bound(value, validator, true);
+                upper = lower;
                 break;
         }
 
