@@ -18,10 +18,12 @@
 
 package org.apache.cassandra.index.sai.disk.hnsw;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAdder;
 import javax.annotation.Nullable;
 
@@ -40,45 +42,53 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-
-import com.github.jelmerk.knn.DistanceFunctions;
-import com.github.jelmerk.knn.Item;
-import com.github.jelmerk.knn.hnsw.HnswIndex;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.hnsw.HnswGraphBuilder;
+import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class VectorMemtableIndex implements MemtableIndex
 {
     private final IndexContext indexContext;
-    private final AtomicReference<HnswIndex<DecoratedKey, float[], VectorItem, Float>> hnswRef = new AtomicReference<>();
+    private final ByteBufferVectorValues vectorValues = new ByteBufferVectorValues();
+    private final HnswGraphBuilder builder;
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder estimatedOnHeapMemoryUsed = new LongAdder();
 
-    private final int universeSize = 1_000_000; // TODO make hnsw growable instead of hardcoding size
     private final AtomicInteger cachedDimensions = new AtomicInteger();
 
     public VectorMemtableIndex(IndexContext indexContext) {
         this.indexContext = indexContext;
+        try
+        {
+            // TODO make similarity and possibly M + ef configurable
+            builder = HnswGraphBuilder.create(vectorValues,
+                                              VectorEncoding.FLOAT32,
+                                              VectorSimilarityFunction.COSINE,
+                                              16,
+                                              100,
+                                              ThreadLocalRandom.current().nextLong());
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
+    // TODO either we need to create a concurrent graph builder (possible!), or
+    // do sharding in the memtable with brute force search, followed by building the actual graph on flush
     @Override
-    public void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
+    public synchronized void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
     {
-        var hnsw = hnswRef.get();
-        if (hnsw == null)
+        var vector = vectorValues.add(value);
+        try
         {
-            // hnsw wants to know the dimensionality of its vectors, but we don't know that until we add the first one
-            var firstVector = Float32DenseVectorType.Serializer.instance.deserialize(value);
-            HnswIndex<DecoratedKey, float[], VectorItem, Float> newHnsw = HnswIndex
-                                                                          .newBuilder(firstVector.length, DistanceFunctions.FLOAT_INNER_PRODUCT, universeSize)
-                                                                          .withM(16) // TODO
-                                                                          .withEf(200) // TODO
-                                                                          .withEfConstruction(200) // TODO
-                                                                          .build();
-            hnsw = hnswRef.compareAndExchange(null, newHnsw);
+            builder.addGraphNode(vectorValues.size() - 1, vector);
         }
-        var item = new VectorItem(key, value);
-        hnsw.add(item);
-        writeCount.increment();
-        estimatedOnHeapMemoryUsed.add(ObjectSizes.measureDeep(item));
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -103,7 +113,7 @@ public class VectorMemtableIndex implements MemtableIndex
     @Override
     public long estimatedOnHeapMemoryUsed()
     {
-        return estimatedOnHeapMemoryUsed.longValue();
+        return vectorValues.ramBytesUsed() + builder.getGraph().ramBytesUsed();
     }
 
     @Override
@@ -115,8 +125,7 @@ public class VectorMemtableIndex implements MemtableIndex
     @Override
     public boolean isEmpty()
     {
-        var hnsw = hnswRef.get();
-        return hnsw == null || hnsw.size() == 0;
+        return vectorValues.size() == 0;
     }
 
     @Nullable
@@ -133,41 +142,52 @@ public class VectorMemtableIndex implements MemtableIndex
         return null;
     }
 
-    private class VectorItem implements Item<DecoratedKey, float[]>
+    private class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
     {
-        private final DecoratedKey key;
-        private final ByteBuffer buffer;
+        private final ArrayList<ByteBuffer> buffers = new ArrayList<>();
 
-        public VectorItem(DecoratedKey key, ByteBuffer buffer)
+        public ByteBufferVectorValues() {}
+
+        @Override
+        public int size()
         {
-            this.key = key;
-            this.buffer = buffer;
+            return buffers.size();
         }
 
         @Override
-        public DecoratedKey id()
-        {
-            return key;
-        }
-
-        @Override
-        public float[] vector()
-        {
-            return Float32DenseVectorType.Serializer.instance.deserialize(buffer);
-        }
-
-        @Override
-        public int dimensions()
+        public int dimension()
         {
             // if cached dimensions is 0, then this is being called for the first time;
             // compute it from the current vector length
             int i = cachedDimensions.get();
             if (i == 0)
             {
-                i = vector().length;
+                i = vectorValue(0).length;
                 cachedDimensions.set(i);
             }
             return i;
+        }
+
+        @Override
+        public float[] vectorValue(int i)
+        {
+            return Float32DenseVectorType.Serializer.instance.deserialize(buffers.get(i));
+        }
+
+        public float[] add(ByteBuffer buffer) {
+            buffers.add(buffer);
+            return vectorValue(buffers.size() - 1);
+        }
+
+        @Override
+        public RandomAccessVectorValues<float[]> copy()
+        {
+            return this;
+        }
+
+        public long ramBytesUsed()
+        {
+            return ObjectSizes.measure(buffers) + buffers.size() * (4 + 4 * dimension());
         }
     }
 }
