@@ -20,11 +20,14 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.ParameterizedClass;
@@ -43,22 +46,23 @@ import static org.junit.Assert.assertEquals;
 
 public class CompressionParamsTest
 {
-    private ParameterizedClass options;
-    private CompressionParams params;
+    //private ParameterizedClass options;
+    //private CompressionParams params;
 
-    @Before
-    public void resetOptions() {
-        options = new ParameterizedClass(null, new HashMap<>());
+
+    private static  ParameterizedClass emptyParameterizedClass() {
+        return new ParameterizedClass(null, new HashMap<>());
     }
 
     @Test
     public void additionalParamsTest() {
-        options = new ParameterizedClass();
-        params = CompressionParams.fromParameterizedClass(options);
+        // no map
+        ParameterizedClass options = new ParameterizedClass();
+        CompressionParams params = CompressionParams.fromParameterizedClass(options);
         assertThat( params.getOtherOptions()).isNotNull();
         assertThat( params.getOtherOptions().isEmpty()).isTrue();
 
-        options.parameters = new HashMap<>();
+        options = emptyParameterizedClass();
         params = CompressionParams.fromParameterizedClass(options);
         assertThat( params.getOtherOptions()).isNotNull();
         assertThat( params.getOtherOptions().isEmpty()).isTrue();
@@ -70,130 +74,242 @@ public class CompressionParamsTest
         assertThat( params.getOtherOptions().get("foo")).isEqualTo("bar");
     }
 
-    @Test
-    public void chunkLengthTest()
+    // Tests chunklength settings for both Options and Map.
+    private static <T> void chunkLengthTest(BiConsumer<String,String> put, Consumer<String> remove, Function<T,CompressionParams> func, T instance)
     {
-        options.parameters.put(CompressionParams.CHUNK_LENGTH, "");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() ->CompressionParams.fromParameterizedClass(options))
-        .withMessageContaining("Invalid 'chunk_length' value");
+        // CHUNK_LENGTH
 
-        options.parameters.put(CompressionParams.CHUNK_LENGTH, "1MiB");
-        params = CompressionParams.fromParameterizedClass(options);
-        assertEquals(1024, params.chunkLength());
-
-        options.parameters.put(CompressionParams.CHUNK_LENGTH, "badvalue");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+        // test empty string
+        put.accept(CompressionParams.CHUNK_LENGTH, "");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
                                                                .withMessageContaining("Invalid 'chunk_length' value");
 
-        options.parameters.remove(CompressionParams.CHUNK_LENGTH);
-        options.parameters.put(CompressionParams.CHUNK_LENGTH_IN_KB, "1");
-        params = CompressionParams.fromParameterizedClass(options);
+        // text zero string
+        put.accept(CompressionParams.CHUNK_LENGTH, "0MiB");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining("Invalid 'chunk_length' value");
+
+
+        // test properly formated value
+        put.accept(CompressionParams.CHUNK_LENGTH, "1MiB");
+        CompressionParams params = func.apply(instance);
         assertEquals(1024, params.chunkLength());
 
-        options.parameters.put(CompressionParams.CHUNK_LENGTH_IN_KB, "-1");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
-                                                               .withMessageContaining("Invalid 'chunk_length_in_kb' value")
-                                                               .withMessageContaining("May not be <= 0");
+        // test bad string
+        put.accept(CompressionParams.CHUNK_LENGTH, "badvalue");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining("Invalid 'chunk_length' value");
 
-        options.parameters.clear();
-        options.parameters.put(CompressionParams.CHUNK_LENGTH_KB, "1");
-        params = CompressionParams.fromParameterizedClass(options);
-        assertEquals(1024, params.chunkLength());
-
-        options.parameters.put(CompressionParams.CHUNK_LENGTH_KB, "-1");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
-                                                               .withMessageContaining("Invalid 'chunk_length_kb' value")
-                                                               .withMessageContaining("May not be <= 0");
-
-    }
-
-    @Test
-    public void chunkLengthNotPowerOfTwoTest()
-    {
-        options.parameters.put( CompressionParams.CHUNK_LENGTH,"3MiB");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+        // test not power of 2
+        put.accept(CompressionParams.CHUNK_LENGTH, "3MiB");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
                                                                .withMessageContaining("Invalid 'chunk_length' value")
                                                                .withMessageContaining("Must be a power of 2");
 
-        options.parameters.clear();
-        options.parameters.put( CompressionParams.CHUNK_LENGTH_IN_KB,Integer.toString(3 ));
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+        remove.accept(CompressionParams.CHUNK_LENGTH);
+
+
+        // CHUNK_LENGTH_IN_KB
+        // same tests as above
+
+        put.accept(CompressionParams.CHUNK_LENGTH_IN_KB, "");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining("Invalid 'chunk_length_in_kb' value");
+
+        put.accept(CompressionParams.CHUNK_LENGTH_IN_KB, "0");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining("Invalid 'chunk_length_in_kb' value");
+
+        put.accept(CompressionParams.CHUNK_LENGTH_IN_KB, "1");
+        params = func.apply(instance);
+        assertEquals(1024, params.chunkLength());
+
+        put.accept(CompressionParams.CHUNK_LENGTH_IN_KB, "badvalue");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining("Invalid 'chunk_length_in_kb' value");
+
+        put.accept(CompressionParams.CHUNK_LENGTH_IN_KB, "3");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
                                                                .withMessageContaining("Invalid 'chunk_length_in_kb' value")
                                                                .withMessageContaining("Must be a power of 2");
 
-        options.parameters.clear();
-        options.parameters.put( CompressionParams.CHUNK_LENGTH_KB,Integer.toString(3 ));
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+        // test negative value
+        put.accept(CompressionParams.CHUNK_LENGTH_IN_KB, "-1");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining("Invalid 'chunk_length_in_kb' value")
+                                                               .withMessageContaining("May not be <= 0");
+
+        remove.accept(CompressionParams.CHUNK_LENGTH_IN_KB);
+
+
+        // CHUNK_LENGTH_KB
+        // same stests as above
+
+        put.accept(CompressionParams.CHUNK_LENGTH_KB, "");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining("Invalid 'chunk_length_kb' value");
+
+        put.accept(CompressionParams.CHUNK_LENGTH_KB, "0");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining("Invalid 'chunk_length_kb' value");
+
+        put.accept(CompressionParams.CHUNK_LENGTH_KB, "1");
+        params = func.apply(instance);
+        assertEquals(1024, params.chunkLength());
+
+        put.accept(CompressionParams.CHUNK_LENGTH_KB, "badvalue");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining("Invalid 'chunk_length_kb' value");
+
+        put.accept(CompressionParams.CHUNK_LENGTH_KB, "3");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
                                                                .withMessageContaining("Invalid 'chunk_length_kb' value")
                                                                .withMessageContaining("Must be a power of 2");
 
+        // test negative value
+        put.accept(CompressionParams.CHUNK_LENGTH_KB, "-1");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining("Invalid 'chunk_length_kb' value")
+                                                               .withMessageContaining("May not be <= 0");
+
+        remove.accept(CompressionParams.CHUNK_LENGTH_KB);
+
+        // TEST COMBINATIONS
+        put.accept(CompressionParams.CHUNK_LENGTH, "3MiB");
+        put.accept(CompressionParams.CHUNK_LENGTH_IN_KB, "2");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessage(CompressionParams.TOO_MANY_CHUNK_LENGTH);
+
+        remove.accept(CompressionParams.CHUNK_LENGTH);
+        put.accept(CompressionParams.CHUNK_LENGTH_KB, "2");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessage(CompressionParams.TOO_MANY_CHUNK_LENGTH);
+
+        remove.accept(CompressionParams.CHUNK_LENGTH_IN_KB);
+        put.accept(CompressionParams.CHUNK_LENGTH, "3MiB");
+        put.accept(CompressionParams.CHUNK_LENGTH_KB, "2");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessage(CompressionParams.TOO_MANY_CHUNK_LENGTH);
+    }
+
+    @Test
+    public void chunkLengthTest()
+    {
+        ParameterizedClass options = emptyParameterizedClass();
+        chunkLengthTest( options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
+
+        Map<String,String> map = new HashMap<String,String>();
+        map.put( CompressionParams.CLASS, "lz4");
+        Consumer<String> remove = (s) -> map.remove(s);
+        chunkLengthTest( map::put,remove, CompressionParams::fromMap, map );
+    }
+
+    @Test
+    public void multipleClassNameTest() {
+        ParameterizedClass options = emptyParameterizedClass();
+        options.class_name = "none";
+        options.parameters.put( CompressionParams.SSTABLE_COMPRESSION, "none");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass( options ))
+        .withMessageContaining("The 'sstable_compression' option must not be used");
+
+        Map<String,String> map = new HashMap<>();
+        map.put( CompressionParams.CLASS, "none" );
+        map.put( CompressionParams.SSTABLE_COMPRESSION, "none" );
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap( map ))
+                                                               .withMessageContaining("The 'sstable_compression' option must not be used");
+
+    }
+
+    private static <T> void minCompressRatioTest(BiConsumer<String,String> put,  Function<T,CompressionParams> func, T instance)
+    {
+
+        CompressionParams params = func.apply(instance);
+        assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
+        assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
+
+        put.accept( CompressionParams.MIN_COMPRESS_RATIO, "0.0" ); //CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
+        params =func.apply(instance);
+        assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
+        assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
+
+        put.accept( CompressionParams.MIN_COMPRESS_RATIO, "0.3");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining( "Invalid 'min_compress_ratio' value")
+                                                               .withMessageContaining("Can either be 0 or greater than or equal to 1");
+
+        put.accept( CompressionParams.MIN_COMPRESS_RATIO, "1.3");
+        params = func.apply(instance);
+        assertEquals(1.3, params.minCompressRatio(), Double.MIN_VALUE);
+        assertEquals( (int) Math.ceil(CompressionParams.DEFAULT_CHUNK_LENGTH / 1.3), params.maxCompressedLength());
+
+        put.accept( CompressionParams.MIN_COMPRESS_RATIO,  "-1.0");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining( "Invalid 'min_compress_ratio' value")
+                                                               .withMessageContaining("Can either be 0 or greater than or equal to 1");
     }
 
     @Test
     public void minCompressRatioTest()
     {
-        // pick a compressor that uses standard default options.
-        options.class_name = "none";
-        params = CompressionParams.fromParameterizedClass(options);
-        assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
+        ParameterizedClass options = emptyParameterizedClass();
+        minCompressRatioTest( options.parameters::put, CompressionParams::fromParameterizedClass, options );
+
+        Map<String,String> map = new HashMap<String,String>();
+        map.put( CompressionParams.CLASS, "lz4");
+        minCompressRatioTest( map::put, CompressionParams::fromMap, map );
+    }
+
+    private static <T> void maxCompressedLengthTest(BiConsumer<String,String> put,  Function<T,CompressionParams> func, T instance)
+    {
+        CompressionParams params = func.apply(instance);
         assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
-
-        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO, "0.0" ); //CompressionParams.DEFAULT_MIN_COMPRESS_RATIO
-        params = CompressionParams.fromParameterizedClass(options);
         assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
+
+        put.accept( CompressionParams.MAX_COMPRESSED_LENGTH,"");
+        params = func.apply(instance);
         assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
+        assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
 
-        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO, "0.3");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
-                                                               .withMessageContaining( "Invalid 'min_compress_ratio' value")
-                                                               .withMessageContaining("Can either be 0 or greater than or equal to 1");
+        put.accept( CompressionParams.MAX_COMPRESSED_LENGTH,"4MiB");
+        params = func.apply(instance);
+        assertEquals(4*1024, params.maxCompressedLength());
+        assertEquals(CompressionParams.DEFAULT_CHUNK_LENGTH / (4.0 * 1024), params.minCompressRatio(), Double.MIN_VALUE);
 
-        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO, "1.3");
-        params = CompressionParams.fromParameterizedClass(options);
-        assertEquals(1.3, params.minCompressRatio(), Double.MIN_VALUE);
-        assertEquals( (int) Math.ceil(CompressionParams.DEFAULT_CHUNK_LENGTH / 1.3), params.maxCompressedLength());
-
-        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,  "-1.0");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
-                                                               .withMessageContaining( "Invalid 'min_compress_ratio' value")
-                                                               .withMessageContaining("Can either be 0 or greater than or equal to 1");
+        put.accept( CompressionParams.MAX_COMPRESSED_LENGTH,"badvalue");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
+                                                               .withMessageContaining("Invalid 'max_compressed_length' value")
+                                                               .withMessageContaining("Invalid data storage");
     }
 
     @Test
     public void maxCompressedLengthTest()
     {
-        // pick a compressor that uses standard default optionss
-        options.class_name = "none";
-        params = CompressionParams.fromParameterizedClass(options);
-        assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
-        assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
+        ParameterizedClass options = emptyParameterizedClass();
+        maxCompressedLengthTest(options.parameters::put, CompressionParams::fromParameterizedClass, options);
 
-        options.parameters.put( CompressionParams.MAX_COMPRESSED_LENGTH,"");
-        params = CompressionParams.fromParameterizedClass(options);
-        assertEquals(Integer.MAX_VALUE, params.maxCompressedLength());
-        assertEquals(CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, params.minCompressRatio(), Double.MIN_VALUE);
-
-        options.parameters.put( CompressionParams.MAX_COMPRESSED_LENGTH,"4MiB");
-        params = CompressionParams.fromParameterizedClass(options);
-        assertEquals(4*1024, params.maxCompressedLength());
-        assertEquals(CompressionParams.DEFAULT_CHUNK_LENGTH / (4.0 * 1024), params.minCompressRatio(), Double.MIN_VALUE);
-
-        options.parameters.put( CompressionParams.MAX_COMPRESSED_LENGTH,"badvalue");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
-        .withMessageContaining("Invalid 'max_compressed_length' value")
-                                                               .withMessageContaining("Invalid data storage");
+        Map<String, String> map = new HashMap<String, String>();
+        map.put(CompressionParams.CLASS, "lz4");
+        maxCompressedLengthTest(map::put, CompressionParams::fromMap, map);
     }
 
     @Test
     public void maxCompressionLengthAndMinCompressRatioTest() {
-        options.class_name = "snappy";
+        ParameterizedClass options = emptyParameterizedClass();
         options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO, "1.0");
         options.parameters.put( CompressionParams.MAX_COMPRESSED_LENGTH, "4Gib");
         assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
                                                                .withMessage("Can not specify both 'min_compress_ratio' and 'max_compressed_length' for the compressor parameters.");
+
+        Map<String,String> map = new HashMap<>();
+        map.put( CompressionParams.CLASS, "lz4");
+        map.put( CompressionParams.MIN_COMPRESS_RATIO, "1.0");
+        map.put( CompressionParams.MAX_COMPRESSED_LENGTH, "4Gib");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap(map))
+                                                               .withMessage("Can not specify both 'min_compress_ratio' and 'max_compressed_length' for the compressor parameters.");
+
     }
 
-    private void assertParams(boolean enabled, int chunkLength, int maxCompressedLength, double minCompressRatio, Class<?> compressor)
+    private static void assertParams(CompressionParams params, boolean enabled, int chunkLength, int maxCompressedLength, double minCompressRatio, Class<?> compressor)
     {
         assertThat(params.isEnabled()).isEqualTo(enabled);
         assertThat(params.chunkLength()).isEqualTo(chunkLength);
@@ -208,153 +324,191 @@ public class CompressionParamsTest
         }
     }
 
+
     @Test
     public void defaultTest()
     {
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, CompressionParams.DEFAULT_CHUNK_LENGTH, CompressionParams.CompressorType.lz4.minRatio, LZ4Compressor.class);
+        CompressionParams params = CompressionParams.fromParameterizedClass( emptyParameterizedClass() );
+        assertParams(params,true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, LZ4Compressor.class);
 
         params = CompressionParams.fromParameterizedClass( null );
-        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, LZ4Compressor.class);
+        assertParams(params, true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, LZ4Compressor.class);
+
+        params = CompressionParams.fromMap(Collections.EMPTY_MAP );
+        assertParams(params,true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, LZ4Compressor.class);
+    }
+
+    private static <T> void compressorTest(Class<?> clazz, BiConsumer<String,String> put, Consumer<String> remove, Function<T,CompressionParams> func, T instance)
+    {
+        CompressionParams params = func.apply(instance);
+        assertParams(params, true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, clazz);
+
+        put.accept( CompressionParams.CHUNK_LENGTH,"4MiB");
+        params = func.apply(instance);
+        assertParams(params, true, 4*1024, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, clazz);
+
+        put.accept( CompressionParams.MAX_COMPRESSED_LENGTH,"2MiB");
+        params = func.apply(instance);
+        assertParams(params, true, 4*1024, 2*1024, 2.0, clazz);
+
+        put.accept( CompressionParams.MAX_COMPRESSED_LENGTH,"2097151KiB");
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() ->func.apply(instance))
+        .withMessageContaining("Invalid 'max_compressed_length' value for the 'compression' option: Must be less than or equal to chunk length");
+        assertParams(params, true, 4*1024, 2*1024, 2.0, clazz);
+
+        remove.accept(CompressionParams.MAX_COMPRESSED_LENGTH);
+        put.accept( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
+        params = func.apply(instance);
+        assertParams(params, true, 4*1024, 2731, 1.5, clazz);
+
+        put.accept( CompressionParams.ENABLED,"false");
+        params = func.apply(instance);
+        assertParams(params, false, 4*1024, 2731, 1.5, null);
+    }
+
+
+    @Test
+    public void constructorTest() {
+        Map<String,String> map = new HashMap<>();
+
+
+
+        // chunk length < 0
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> new CompressionParams( TestCompressor.class.getName(), map,  -1, 0.0))
+        .withMessage("Invalid 'chunk_length' value for the 'compression' option.  May not be <= 0: -1");
+
+        // chunk length = 0
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> new CompressionParams( TestCompressor.class.getName(), map,  -1, 0.0))
+                                                               .withMessage("Invalid 'chunk_length' value for the 'compression' option.  May not be <= 0: -1");
+
+        // min compress ratio < 0
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> new CompressionParams( TestCompressor.class.getName(), map,  CompressionParams.DEFAULT_CHUNK_LENGTH, -1.0))
+                                                               .withMessageContaining("Invalid 'min_compress_ratio' value for the 'compression' option.  Can either be 0 or greater than or equal to 1");
+
+        // 0 < min compress ratio < 1
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> new CompressionParams( TestCompressor.class.getName(), map,  CompressionParams.DEFAULT_CHUNK_LENGTH, 0.5))
+                                                               .withMessageContaining("Invalid 'min_compress_ratio' value for the 'compression' option.  Can either be 0 or greater than or equal to 1");
+
+        // max compressed length > chunk length
+        int len = 1 << 30;
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> new CompressionParams( TestCompressor.class.getName(),  len, len+1, map ))
+                                                               .withMessageContaining("Invalid 'max_compressed_length' value for the 'compression' option: Must be less than or equal to chunk length");
+
+        // max compressed length < 0
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> new CompressionParams( TestCompressor.class.getName(),  CompressionParams.DEFAULT_CHUNK_LENGTH, -1, map ))
+                                                               .withMessageContaining("Invalid 'max_compressed_length' value for the 'compression' option.  May not be less than zero: -1");
     }
 
     @Test
     public void lz4Test() {
+        ParameterizedClass options = emptyParameterizedClass();
         options.class_name = CompressionParams.CompressorType.lz4.name();
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, CompressionParams.DEFAULT_CHUNK_LENGTH, CompressionParams.CompressorType.lz4.minRatio, LZ4Compressor.class);
+        compressorTest(LZ4Compressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, 4*1024, 4*1024, CompressionParams.CompressorType.lz4.minRatio, LZ4Compressor.class);
+        options.parameters.clear();
+        options.class_name = "LZ4Compressor";
+        compressorTest(LZ4Compressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, 4*1024, 2731, 1.5, LZ4Compressor.class);
-
-        options.parameters.put( CompressionParams.ENABLED,"false");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(false, 4*1024, 2731, 1.5, null);
+        options.parameters.clear();
+        options.class_name = LZ4Compressor.class.getName();
+        compressorTest(LZ4Compressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
     }
 
     @Test
     public void noneTest() {
+        ParameterizedClass options = emptyParameterizedClass();
         options.class_name = CompressionParams.CompressorType.none.name();
-        params = CompressionParams.fromParameterizedClass( options );
+        CompressionParams params = CompressionParams.fromParameterizedClass( options );
         // none is never enabled.
-        assertParams(false, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.CompressorType.none.minRatio, null);
+        assertParams(params, false, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, null);
 
         options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
         params = CompressionParams.fromParameterizedClass( options );
         // none does not set chunk length
-        assertParams(false, 4*1024, Integer.MAX_VALUE, CompressionParams.CompressorType.none.minRatio, null);
+        assertParams(params, false, 4*1024, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, null);
 
         options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
         params = CompressionParams.fromParameterizedClass( options );
-        assertParams(false, 4*1024, 2731, 1.5, null);
+        assertParams(params, false, 4*1024, 2731, 1.5, null);
 
         options.parameters.put( CompressionParams.ENABLED,"false");
         params = CompressionParams.fromParameterizedClass( options );
-        assertParams(false, 4*1024, 2731, 1.5, null);
+        assertParams(params, false, 4*1024, 2731, 1.5, null);
 
     }
 
     @Test
     public void noopTest() {
+        ParameterizedClass options = emptyParameterizedClass();
         options.class_name = CompressionParams.CompressorType.noop.name();
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.CompressorType.noop.minRatio, NoopCompressor.class);
+        compressorTest(NoopCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, 4*1024, Integer.MAX_VALUE, CompressionParams.CompressorType.noop.minRatio, NoopCompressor.class);
+        options.parameters.clear();
+        options.class_name = "NoopCompressor";
+        compressorTest(NoopCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, 4*1024, 2731, 1.5, NoopCompressor.class);
-
-        options.parameters.put( CompressionParams.ENABLED,"false");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(false, 4*1024, 2731, 1.5, null);
+        options.parameters.clear();
+        options.class_name = NoopCompressor.class.getName();
+        compressorTest(NoopCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
     }
 
     @Test
     public void snappyTest() {
+        ParameterizedClass options = emptyParameterizedClass();
         options.class_name = CompressionParams.CompressorType.snappy.name();
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, (int)Math.ceil(CompressionParams.DEFAULT_CHUNK_LENGTH/ CompressionParams.CompressorType.snappy.minRatio), CompressionParams.CompressorType.snappy.minRatio, SnappyCompressor.class);
+        compressorTest(SnappyCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, 4*1024, (int)Math.ceil(4*1024/ CompressionParams.CompressorType.snappy.minRatio), CompressionParams.CompressorType.snappy.minRatio, SnappyCompressor.class);
+        options.parameters.clear();
+        options.class_name = "SnappyCompressor";
+        compressorTest(SnappyCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, 4*1024, 2731, 1.5, SnappyCompressor.class);
+        options.parameters.clear();
+        options.class_name = SnappyCompressor.class.getName();
+        compressorTest(SnappyCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.ENABLED,"false");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(false, 4*1024, 2731, 1.5, null);
     }
 
     @Test
     public void deflateTest() {
+        ParameterizedClass options = emptyParameterizedClass();
         options.class_name = CompressionParams.CompressorType.deflate.name();
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.CompressorType.deflate.minRatio, DeflateCompressor.class);
+        compressorTest(DeflateCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, 4*1024, Integer.MAX_VALUE, CompressionParams.CompressorType.deflate.minRatio, DeflateCompressor.class);
+        options.parameters.clear();
+        options.class_name = "DeflateCompressor";
+        compressorTest(DeflateCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, 4*1024, 2731, 1.5, DeflateCompressor.class);
-
-        options.parameters.put( CompressionParams.ENABLED,"false");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(false, 4*1024, 2731, 1.5, null);
+        options.parameters.clear();
+        options.class_name = DeflateCompressor.class.getName();
+        compressorTest(DeflateCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
     }
 
     @Test
     public void zstdTest() {
+        ParameterizedClass options = emptyParameterizedClass();
         options.class_name = CompressionParams.CompressorType.zstd.name();
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.CompressorType.zstd.minRatio, ZstdCompressor.class);
+        compressorTest(ZstdCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, 4*1024, Integer.MAX_VALUE, CompressionParams.CompressorType.zstd.minRatio, ZstdCompressor.class);
+        options.parameters.clear();
+        options.class_name = "ZstdCompressor";
+        compressorTest(ZstdCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, 4*1024, 2731, 1.5, ZstdCompressor.class);
-
-        options.parameters.put( CompressionParams.ENABLED,"false");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(false, 4*1024, 2731, 1.5, null);
+        options.parameters.clear();
+        options.class_name = ZstdCompressor.class.getName();
+        compressorTest(ZstdCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
     }
 
     @Test
     public void customTest()
     {
+        ParameterizedClass options = emptyParameterizedClass();
         options.class_name = TestCompressor.class.getName();
-        params = CompressionParams.fromParameterizedClass(options);
-        assertParams(true, CompressionParams.DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, TestCompressor.class);
+        compressorTest(TestCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options );
 
-        options.parameters.put( CompressionParams.CHUNK_LENGTH,"4MiB");
-        params = CompressionParams.fromParameterizedClass(options);
-        assertParams(true, 4*1024, Integer.MAX_VALUE, CompressionParams.DEFAULT_MIN_COMPRESS_RATIO, TestCompressor.class);
-
-        options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO,"1.5");
-        params = CompressionParams.fromParameterizedClass( options );
-        assertParams(true, 4*1024, 2731, 1.5, TestCompressor.class);
-
-        options.parameters.put( CompressionParams.ENABLED,"false");
-        params = CompressionParams.fromParameterizedClass(options);
-        assertParams(false, 4*1024, 2731, 1.5, null);
-
-        options.parameters.put( CompressionParams.ENABLED,"true");
+        options.parameters.clear();
+        options.class_name = "foo";
+        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
+                                                               .withMessage("Could not create Compression for type org.apache.cassandra.io.compress.foo");
 
         options.class_name = "foo";
         assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
@@ -418,4 +572,6 @@ public class CompressionParamsTest
             return options.keySet();
         }
     }
+
+
 }

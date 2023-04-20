@@ -93,8 +93,8 @@ public final class CompressionParams
     private static final String CRC_CHECK_CHANCE_WARNING = "The option crc_check_chance was deprecated as a compression option. " +
                                                            "You should specify it as a top-level table option instead";
 
-    private static final String TOO_MANY_CHUNK_LENGTH = "Only one of 'chunk_length', 'chunk_length_kb', or 'chunk_length_in_kb' may be specified";
-
+    @VisibleForTesting
+    static final String TOO_MANY_CHUNK_LENGTH = "Only one of 'chunk_length', 'chunk_length_kb', or 'chunk_length_in_kb' may be specified";
 
     @Deprecated public static final String SSTABLE_COMPRESSION = "sstable_compression";
     @Deprecated public static final String CHUNK_LENGTH_KB = "chunk_length_kb";
@@ -112,29 +112,31 @@ public final class CompressionParams
 
     public enum CompressorType
     {
-        lz4(1.0),
-        none(DEFAULT_MIN_COMPRESS_RATIO),
-        noop(DEFAULT_MIN_COMPRESS_RATIO),
-        snappy(1.1),
-        deflate(DEFAULT_MIN_COMPRESS_RATIO),
-        zstd(DEFAULT_MIN_COMPRESS_RATIO);
+        lz4("LZ4Compressor"),
+        none(null),
+        noop("NoopCompressor"),
+        snappy("SnappyCompressor"),
+        deflate("DeflateCompressor"),
+        zstd("ZstdCompressor");
 
-        double minRatio;
-        CompressorType(double minRatio) {
-            this.minRatio = minRatio;
+        String className;
+        CompressorType(String className) {
+            this.className = className;
+        }
+
+        static CompressorType forClass(String name) {
+            for (CompressorType type : CompressorType.values()) {
+                if (Objects.equal(type.className, name)) {
+                    return type;
+                }
+            }
+            return null;
         }
     }
 
     public static CompressionParams defaultParams()
     {
         return fromParameterizedClass(DatabaseDescriptor.getSSTableCompressionOptions());
-    }
-
-    private static class LenAndRatio {
-        // max_compressed_length in KB
-        int len;
-        // min_compress_ratio
-        double ratio;
     }
 
     public static CompressionParams fromParameterizedClass(ParameterizedClass options)
@@ -146,56 +148,24 @@ public final class CompressionParams
                    : noCompression();
         }
 
-        return fromClassAndOptions( options.class_name, options.parameters == null ? Collections.emptyMap() : copyOptions(options.parameters));
+        if (options.parameters != null && options.parameters.containsKey(SSTABLE_COMPRESSION))
+            throw new ConfigurationException(format("The '%s' option must not be used with the ParameterizedClass constructor",
+                                                    SSTABLE_COMPRESSION));
+
+        return fromClassAndOptions(options.class_name, options.parameters == null ? Collections.emptyMap() : copyOptions(options.parameters));
     }
 
-    private static String invalidValue( String param, Object value) {
-       return format("Invalid '%s' value for the 'compression' option: %s", param, value );
+    private static String invalidValue( String param, Object value)
+    {
+        return format("Invalid '%s' value for the 'compression' option: %s", param, value);
     }
 
     private static String invalidValue( String param, String extraText, Object value) {
         return format("Invalid '%s' value for the 'compression' option.  %s: %s", param, extraText, value );
     }
 
-    /**
-     * Caclulate the maximum_compressed_length and ratio for the specified chunk size and compressor class specific minRatio.
-     * @param options the Collection of option key/value pairs
-     * @param chunk_length the chunk lenght in kb.
-     * @param minRatio the minimum compress ratio for the compression class.
-     * @return the Length and ratio for the data.
-     */
-    private static LenAndRatio calcLenAndRatio(Map<String,String> options, int chunk_length, double minRatio )
-    {
-        LenAndRatio result = new LenAndRatio();
-        String max_compressed_length = options.remove( MAX_COMPRESSED_LENGTH);
-        if (!StringUtils.isBlank(max_compressed_length))
-        {
-            try
-            {
-                result.len = new DataStorageSpec.IntKibibytesBound(max_compressed_length).toKibibytes();
-                validateMaxCompressedLength( result.len, chunk_length);
-                result.ratio = CompressionParams.calcMinCompressRatio(chunk_length, result.len);
-            } catch (IllegalArgumentException e) {
-                throw new ConfigurationException(invalidValue( MAX_COMPRESSED_LENGTH, e.getMessage(), max_compressed_length ));
-            }
-        }
-        else
-        {
-            result.ratio = removeMinCompressRatio(options, minRatio);
-            validateMinCompressRatio( result.ratio );
-            result.len =  CompressionParams.calcMaxCompressedLength(chunk_length, result.ratio);
-        }
-        return result;
-    }
-
-
-
     public static CompressionParams fromMap(Map<String, String> opts)
     {
-
-        if (!opts.isEmpty() && isEnabled(opts) && !containsSstableCompressionClass(opts))
-            throw new ConfigurationException(format("Missing sub-option '%s' for the 'compression' option.", CLASS));
-
         Map<String, String> options = copyOptions(opts);
 
         String sstableCompressionClass = removeSstableCompressionClass(options);
@@ -210,9 +180,6 @@ public final class CompressionParams
         if (!removeEnabled(options))
         {
             enabled = false;
-
-           // if (!options.isEmpty())
-           //     throw new ConfigurationException(format("If the '%s' option is set to false no other options must be specified", ENABLED));
         }
 
         int chunk_length_in_kb = removeChunkLength(options);
@@ -223,63 +190,75 @@ public final class CompressionParams
             throw new ConfigurationException("Can not specify both 'min_compress_ratio' and 'max_compressed_length' for the compressor parameters.");
         }
 
-
-
-        // If a type is in the options.class_name then process it.
-        CompressorType myType = StringUtils.isEmpty(sstableCompressionClass)?CompressorType.lz4:null;
-        if (myType == null)
+        // calculate the max_compressed_length and min_compress_ratio
+        int max_compressed_length;
+        double min_compress_ratio;
+        String max_compressed_length_str = options.remove( MAX_COMPRESSED_LENGTH);
+        if (!StringUtils.isBlank(max_compressed_length_str))
         {
             try
             {
-                myType = sstableCompressionClass == null ? CompressorType.lz4 : CompressorType.valueOf(sstableCompressionClass);
+                max_compressed_length = new DataStorageSpec.IntKibibytesBound(max_compressed_length_str).toKibibytes();
+                validateMaxCompressedLength( max_compressed_length, chunk_length_in_kb);
+                min_compress_ratio = CompressionParams.calcMinCompressRatio(chunk_length_in_kb, max_compressed_length);
+            } catch (IllegalArgumentException e) {
+                throw new ConfigurationException(invalidValue( MAX_COMPRESSED_LENGTH, e.getMessage(), max_compressed_length_str ));
+            }
+        }
+        else
+        {
+            min_compress_ratio = removeMinCompressRatio(options);
+            validateMinCompressRatio( min_compress_ratio );
+            max_compressed_length =  CompressionParams.calcMaxCompressedLength(chunk_length_in_kb,min_compress_ratio);
+        }
+
+        // try to set compressor type
+        CompressorType compressorType = StringUtils.isEmpty(sstableCompressionClass)?CompressorType.lz4:null;
+        if (compressorType == null)
+        {
+            try
+            {
+                compressorType = CompressorType.valueOf(sstableCompressionClass);
             }
             catch (IllegalArgumentException expected)
             {
-                // do nothing -- expected when class name is provided rather than type.
+                compressorType = CompressorType.forClass(sstableCompressionClass);
             }
         }
 
         CompressionParams cp = null;
-        if (myType != null)
+        if (compressorType != null)
         {
-            LenAndRatio lenAndRatio = calcLenAndRatio( options, chunk_length_in_kb, myType.minRatio);
 
-            switch (myType)
+            switch (compressorType)
             {
                 case none:
-                    cp = new CompressionParams((ICompressor) null, chunk_length_in_kb, lenAndRatio.len, lenAndRatio.ratio, options);
+                    cp = new CompressionParams((ICompressor) null, chunk_length_in_kb, max_compressed_length, min_compress_ratio, options);
                     break;
                 case lz4:
-                    cp = new CompressionParams(enabled?LZ4Compressor.create(options):null, chunk_length_in_kb, lenAndRatio.len, lenAndRatio.ratio, options);
+                    cp = new CompressionParams(enabled?LZ4Compressor.create(options):null, chunk_length_in_kb, max_compressed_length, min_compress_ratio, options);
                     break;
                 case snappy:
-                    cp = new CompressionParams(enabled?SnappyCompressor.instance:null, chunk_length_in_kb, lenAndRatio.len, lenAndRatio.ratio, options);
+                    cp = new CompressionParams(enabled?SnappyCompressor.instance:null, chunk_length_in_kb, max_compressed_length, min_compress_ratio, options);
                     break;
                 case deflate:
-                    cp = new CompressionParams(enabled?DeflateCompressor.instance:null, chunk_length_in_kb, lenAndRatio.len, lenAndRatio.ratio, options);
+                    cp = new CompressionParams(enabled?DeflateCompressor.instance:null, chunk_length_in_kb, max_compressed_length, min_compress_ratio, options);
                     break;
                 case zstd:
-                    cp = new CompressionParams(enabled?ZstdCompressor.create(options):null, chunk_length_in_kb, lenAndRatio.len, lenAndRatio.ratio, options);
+                    cp = new CompressionParams(enabled?ZstdCompressor.create(options):null, chunk_length_in_kb, max_compressed_length, min_compress_ratio, options);
                     break;
                 case noop:
-                    cp = new CompressionParams(enabled?NoopCompressor.create(options):null, chunk_length_in_kb, lenAndRatio.len, lenAndRatio.ratio, options);
+                    cp = new CompressionParams(enabled?NoopCompressor.create(options):null, chunk_length_in_kb, max_compressed_length, min_compress_ratio, options);
                     break;
             }
         } else {
-            LenAndRatio lenAndRatio = calcLenAndRatio(options, chunk_length_in_kb, DEFAULT_MIN_COMPRESS_RATIO);
-            cp = new CompressionParams(enabled?sstableCompressionClass:null, options, chunk_length_in_kb, lenAndRatio.ratio);
+            cp = new CompressionParams(enabled?sstableCompressionClass:null, options, chunk_length_in_kb, min_compress_ratio);
             if (enabled && cp.getSstableCompressor() == null)
             {
                 throw new ConfigurationException(format("'%s' is not a valid compressor class name for the 'sstable_compressor' option.", sstableCompressionClass));
             }
         }
-        cp.validate();
         return cp;
-    }
-
-    public Class<? extends ICompressor> klass()
-    {
-        return sstableCompressor.getClass();
     }
 
     public static CompressionParams noCompression()
@@ -287,78 +266,16 @@ public final class CompressionParams
         return new CompressionParams((ICompressor) null, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
     }
 
-    // The shorthand methods below are only used for tests. They are a little inconsistent in their choice of
-    // parameters -- this is done on purpose to test out various compression parameter combinations.
-
-    @VisibleForTesting
-    public static CompressionParams snappy()
+    public Class<? extends ICompressor> klass()
     {
-        return snappy(DEFAULT_CHUNK_LENGTH);
-    }
-
-    @VisibleForTesting
-    public static CompressionParams snappy(int chunkLength)
-    {
-        return snappy(chunkLength,  CompressorType.snappy.minRatio);
-    }
-
-    @VisibleForTesting
-    public static CompressionParams snappy(int chunkLength, double minCompressRatio)
-    {
-        return new CompressionParams(SnappyCompressor.instance, chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, Collections.emptyMap());
-    }
-
-    @VisibleForTesting
-    public static CompressionParams deflate()
-    {
-        return deflate(DEFAULT_CHUNK_LENGTH);
-    }
-
-    @VisibleForTesting
-    public static CompressionParams deflate(int chunkLength)
-    {
-        return new CompressionParams(DeflateCompressor.instance, chunkLength, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
-    }
-
-    @VisibleForTesting
-    public static CompressionParams lz4()
-    {
-        return lz4(DEFAULT_CHUNK_LENGTH);
-    }
-
-    @VisibleForTesting
-    public static CompressionParams lz4(int chunkLength)
-    {
-        return lz4(chunkLength, chunkLength);
-    }
-
-    @VisibleForTesting
-    public static CompressionParams lz4(int chunkLength, int maxCompressedLength)
-    {
-        return new CompressionParams(LZ4Compressor.create(Collections.emptyMap()), chunkLength, maxCompressedLength, calcMinCompressRatio(chunkLength, maxCompressedLength), Collections.emptyMap());
-    }
-
-    public static CompressionParams zstd()
-    {
-        return zstd(DEFAULT_CHUNK_LENGTH);
-    }
-
-    public static CompressionParams zstd(Integer chunkLength)
-    {
-        ZstdCompressor compressor = ZstdCompressor.create(Collections.emptyMap());
-        return new CompressionParams(compressor, chunkLength, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
-    }
-
-    @VisibleForTesting
-    public static CompressionParams noop()
-    {
-        NoopCompressor compressor = NoopCompressor.create(Collections.emptyMap());
-        return new CompressionParams(compressor, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, DEFAULT_MIN_COMPRESS_RATIO, Collections.emptyMap());
+        return sstableCompressor.getClass();
     }
 
     public CompressionParams(String sstableCompressorClass, Map<String, String> otherOptions, int chunkLength, double minCompressRatio) throws ConfigurationException
     {
         this(createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, calcMaxCompressedLength(chunkLength, minCompressRatio), minCompressRatio, otherOptions);
+        validateChunkLength(CHUNK_LENGTH, chunkLength);
+        validateMinCompressRatio(minCompressRatio);
     }
 
     public static int calcMaxCompressedLength(int chunkLength, double minCompressRatio)
@@ -369,6 +286,8 @@ public final class CompressionParams
     public CompressionParams(String sstableCompressorClass, int chunkLength, int maxCompressedLength, Map<String, String> otherOptions) throws ConfigurationException
     {
         this(createCompressor(parseCompressorClass(sstableCompressorClass), otherOptions), chunkLength, maxCompressedLength, calcMinCompressRatio(chunkLength, maxCompressedLength), otherOptions);
+        validateChunkLength(CHUNK_LENGTH, chunkLength);
+        validateMaxCompressedLength(maxCompressedLength, chunkLength);
     }
 
     static double calcMinCompressRatio(int chunkLength, int maxCompressedLength)
@@ -420,7 +339,6 @@ public final class CompressionParams
         return chunkLength;
     }
 
-    @VisibleForTesting
     double minCompressRatio() {
         return minCompressRatio;
     }
@@ -533,9 +451,6 @@ public final class CompressionParams
      */
     private static Integer parseChunkLength(String key, String chLengthKB) throws ConfigurationException
     {
-        if (chLengthKB == null)
-            return null;
-
         try
         {
             int parsed = Integer.parseInt(chLengthKB);
@@ -618,17 +533,16 @@ public final class CompressionParams
      * Removes the min compress ratio option from the specified set of option.
      *
      * @param options the options
-     * @Param minRatio The compressor class specific min ratio.
      * @return the min compress ratio, used to calculate max chunk size to write compressed
      */
-    private static double removeMinCompressRatio(Map<String, String> options, double minRatio)
+    private static double removeMinCompressRatio(Map<String, String> options)
     {
         String ratio = options.remove(MIN_COMPRESS_RATIO);
         if (ratio != null)
         {
             return Double.parseDouble(ratio);
         }
-        return minRatio;
+        return DEFAULT_MIN_COMPRESS_RATIO;
     }
 
     /**
@@ -725,14 +639,14 @@ public final class CompressionParams
             throw new ConfigurationException(invalidValue(MAX_COMPRESSED_LENGTH, "May not be less than zero", maxCompressedLength ));
 
         if (maxCompressedLength > chunkLength && maxCompressedLength < Integer.MAX_VALUE)
-            throw new ConfigurationException(invalidValue(MAX_COMPRESSED_LENGTH, "Must be less than chunk length" ));
+            throw new ConfigurationException(invalidValue(MAX_COMPRESSED_LENGTH, "Must be less than or equal to chunk length" ));
     }
 
     public void validate() throws ConfigurationException
     {
         validateChunkLength(CHUNK_LENGTH, chunkLength);
         validateMinCompressRatio(minCompressRatio);
-        validateMaxCompressedLength(maxCompressedLength, chunkLength);
+        // do not need to validate max_compressed_length as the above 2 checks limit all possibilities of max_compressed_length
     }
 
     public Map<String, String> asMap()
