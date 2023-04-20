@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import jdk.internal.ref.Cleaner;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -48,6 +49,7 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Shared;
+import sun.nio.ch.DirectBuffer;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -91,7 +93,7 @@ import static org.apache.cassandra.utils.Throwables.merge;
  * Once the Ref.GlobalState has been completely released, the Tidy method is called and it removes the global reference
  * to itself so it may also be collected.
  */
-public final class Ref<T> implements RefCounted<T>
+public class Ref<T> implements RefCounted<T>
 {
     static final Logger logger = LoggerFactory.getLogger(Ref.class);
     public static final boolean DEBUG_ENABLED = TEST_DEBUG_REF_COUNT.getBoolean();
@@ -738,5 +740,34 @@ public final class Ref<T> implements RefCounted<T>
     public static void shutdownReferenceReaper(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         ExecutorUtils.shutdownNowAndWait(timeout, unit, EXEC, STRONG_LEAK_DETECTOR);
+    }
+
+    /**
+     * A version of {@link Ref} for objects that implement {@link DirectBuffer}.
+     */
+    public static final class DirectBufferRef<T extends DirectBuffer> extends Ref<T> implements DirectBuffer
+    {
+        public DirectBufferRef(T referent, Tidy tidy)
+        {
+            super(referent, tidy);
+        }
+
+        @Override
+        public long address()
+        {
+            return referent != null ? referent.address() : 0;
+        }
+
+        @Override
+        public Object attachment()
+        {
+            return referent != null ? referent.attachment() : null;
+        }
+
+        @Override
+        public Cleaner cleaner()
+        {
+            return referent != null ? referent.cleaner() : null;
+        }
     }
 }

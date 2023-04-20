@@ -310,9 +310,17 @@
         <equals arg1="${ant.java.version}" arg2="17"/>
     </condition>
 
-    <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
-    <!-- needed to compile org.apache.cassandra.distributed.impl.Instance-->
-    <condition property="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" else="">
+    <resources id="_jdk11plus_javac_export_args">
+      <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
+      <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
+      <!-- needed to compile org.apache.cassandra.distributed.impl.Instance-->
+      <string>--add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
+      <!-- needed to compile org.apache.cassandra.utils.memory.BufferPool -->
+      <string>--add-exports java.base/jdk.internal.ref=ALL-UNNAMED</string>
+      <string>--add-exports java.base/sun.nio.ch=ALL-UNNAMED</string>
+    </resources>
+    <pathconvert property="_jdk11plus_javac_export_args_concat" refid="_jdk11plus_javac_export_args" pathsep=" "/>
+    <condition property="jdk11plus-javac-exports" value="${_jdk11plus_javac_export_args_concat}" else="">
         <not>
             <equals arg1="${ant.java.version}" arg2="1.8"/>
         </not>
@@ -1011,7 +1019,7 @@
   <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib,simulator-jars,checkstyle-test"
           description="Compile test classes">
     <antcall target="_build-test"/>
-    <checktestnameshelper/>
+    <antcall target="_check-test-names"/>
   </target>
 
   <target name="_build-test">
@@ -1029,6 +1037,8 @@
         <pathelement location="${fqltool.build.classes}"/>
      </classpath>
      <compilerarg value="-XDignore.symbol.file"/>
+     <!-- needed to compile org.apache.cassandra.utils.memory.BufferPoolTest -->
+     <compilerarg line="${jdk11plus-javac-exports}"/>
      <src path="${test.anttasks.src}"/>
      <src path="${test.unit.src}"/>
      <src path="${test.long.src}"/>
@@ -1049,17 +1059,20 @@
     </copy>
   </target>
 
-  <macrodef name="checktestnameshelper">
-    <sequential>
-      <taskdef name="test-name-check_" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
-        <classpath>
-          <path refid="cassandra.classpath.test"/>
-          <path location="${fqltool.build.classes}"/>
-        </classpath>
-      </taskdef>
-      <test-name-check_/>
-    </sequential>
-  </macrodef>
+  <target name="_check-test-names">
+    <java taskname="check-test-names" fork="true" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
+      <classpath>
+        <path refid="cassandra.classpath" />
+        <pathelement location="${test.classes}"/>
+        <pathelement location="${fqltool.build.classes}" />
+        <fileset dir="${test.lib}">
+          <include name="**/*.jar" />
+        </fileset>
+      </classpath>
+      <jvmarg line="${java11-jvmargs}"/>
+      <jvmarg line="${java17-jvmargs}"/>
+    </java>
+  </target>
 
   <!-- Run tests separately and report errors after and generate a junit report -->
   <macrodef name="testhelper">
