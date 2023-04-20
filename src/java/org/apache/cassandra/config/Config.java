@@ -82,45 +82,52 @@ public class Config
     public String authorizer;
     public String role_manager;
     public String network_authorizer;
-    @Mutable @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public DurationSpec.IntMillisecondsBound permissions_validity = new DurationSpec.IntMillisecondsBound("2s");
     @Mutable
-    public int permissions_cache_max_entries = 1000;
-    @Mutable @Replaces(oldName = "permissions_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
-    public DurationSpec.IntMillisecondsBound permissions_update_interval = null;
+    @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public volatile DurationSpec.IntMillisecondsBound permissions_validity = new DurationSpec.IntMillisecondsBound("2s");
     @Mutable
-    public boolean permissions_cache_active_update = false;
-    @Mutable @Replaces(oldName = "roles_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public DurationSpec.IntMillisecondsBound roles_validity = new DurationSpec.IntMillisecondsBound("2s");
+    public volatile int permissions_cache_max_entries = 1000;
     @Mutable
-    public int roles_cache_max_entries = 1000;
-    @Mutable @Replaces(oldName = "roles_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
-    public DurationSpec.IntMillisecondsBound roles_update_interval = null;
+    @Replaces(oldName = "permissions_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
+    public volatile DurationSpec.IntMillisecondsBound permissions_update_interval = null;
     @Mutable
-    public boolean roles_cache_active_update = false;
-    @Mutable @Replaces(oldName = "credentials_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public DurationSpec.IntMillisecondsBound credentials_validity = new DurationSpec.IntMillisecondsBound("2s");
+    public volatile boolean permissions_cache_active_update = false;
     @Mutable
-    public int credentials_cache_max_entries = 1000;
-    @Mutable @Replaces(oldName = "credentials_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
-    public DurationSpec.IntMillisecondsBound credentials_update_interval = null;
+    @Replaces(oldName = "roles_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public volatile DurationSpec.IntMillisecondsBound roles_validity = new DurationSpec.IntMillisecondsBound("2s");
     @Mutable
-    public boolean credentials_cache_active_update = false;
+    public volatile int roles_cache_max_entries = 1000;
+    @Mutable
+    @Replaces(oldName = "roles_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
+    public volatile DurationSpec.IntMillisecondsBound roles_update_interval = null;
+    @Mutable
+    public volatile boolean roles_cache_active_update = false;
+    @Mutable
+    @Replaces(oldName = "credentials_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public volatile DurationSpec.IntMillisecondsBound credentials_validity = new DurationSpec.IntMillisecondsBound("2s");
+    @Mutable
+    public volatile int credentials_cache_max_entries = 1000;
+    @Mutable
+    @Replaces(oldName = "credentials_update_interval_in_ms", converter = Converters.MILLIS_CUSTOM_DURATION, deprecated = true)
+    public volatile DurationSpec.IntMillisecondsBound credentials_update_interval = null;
+    @Mutable
+    public volatile boolean credentials_cache_active_update = false;
 
     /* Hashing strategy Random or OPHF */
     public String partitioner;
 
     public boolean auto_bootstrap = true;
     @Mutable
-    public boolean hinted_handoff_enabled = true;
+    public volatile boolean hinted_handoff_enabled = true;
     public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
-    @Mutable @Replaces(oldName = "max_hint_window_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public DurationSpec.IntMillisecondsBound max_hint_window = new DurationSpec.IntMillisecondsBound("3h");
+    @Mutable
+    @Replaces(oldName = "max_hint_window_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public volatile DurationSpec.IntMillisecondsBound max_hint_window = new DurationSpec.IntMillisecondsBound("3h");
     public String hints_directory;
     public boolean hint_window_persistent_enabled = true;
 
     @Mutable
-    public boolean force_new_prepared_statement_behaviour = false;
+    public volatile boolean force_new_prepared_statement_behaviour = false;
 
     public ParameterizedClass seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
@@ -129,7 +136,7 @@ public class Config
     public CommitFailurePolicy commit_failure_policy = CommitFailurePolicy.stop;
 
     @Mutable
-    public boolean use_deterministic_table_id = false;
+    public volatile boolean use_deterministic_table_id = false;
 
     /* initial token in the ring */
     public String initial_token;
@@ -142,29 +149,37 @@ public class Config
     @Replaces(oldName = "native_transport_idle_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public DurationSpec.LongMillisecondsBound native_transport_idle_timeout = new DurationSpec.LongMillisecondsBound("0ms");
 
-    @Mutable @Replaces(oldName = "request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public DurationSpec.LongMillisecondsBound request_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
+    @Mutable
+    @Replaces(oldName = "request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public volatile DurationSpec.LongMillisecondsBound request_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
 
-    @Mutable @Replaces(oldName = "read_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public DurationSpec.LongMillisecondsBound read_request_timeout = new DurationSpec.LongMillisecondsBound("5000ms");
+    @Mutable
+    @Replaces(oldName = "read_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public volatile DurationSpec.LongMillisecondsBound read_request_timeout = new DurationSpec.LongMillisecondsBound("5000ms");
 
-    @Mutable @Replaces(oldName = "range_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public DurationSpec.LongMillisecondsBound range_request_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
+    @Mutable
+    @Replaces(oldName = "range_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public volatile DurationSpec.LongMillisecondsBound range_request_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
 
-    @Mutable @Replaces(oldName = "write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public DurationSpec.LongMillisecondsBound write_request_timeout = new DurationSpec.LongMillisecondsBound("2000ms");
+    @Mutable
+    @Replaces(oldName = "write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public volatile DurationSpec.LongMillisecondsBound write_request_timeout = new DurationSpec.LongMillisecondsBound("2000ms");
 
-    @Mutable @Replaces(oldName = "counter_write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public DurationSpec.LongMillisecondsBound counter_write_request_timeout = new DurationSpec.LongMillisecondsBound("5000ms");
+    @Mutable
+    @Replaces(oldName = "counter_write_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public volatile DurationSpec.LongMillisecondsBound counter_write_request_timeout = new DurationSpec.LongMillisecondsBound("5000ms");
 
-    @Mutable @Replaces(oldName = "cas_contention_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public DurationSpec.LongMillisecondsBound cas_contention_timeout = new DurationSpec.LongMillisecondsBound("1800ms");
+    @Mutable
+    @Replaces(oldName = "cas_contention_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public volatile DurationSpec.LongMillisecondsBound cas_contention_timeout = new DurationSpec.LongMillisecondsBound("1800ms");
 
-    @Mutable @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public DurationSpec.LongMillisecondsBound truncate_request_timeout = new DurationSpec.LongMillisecondsBound("60000ms");
+    @Mutable
+    @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public volatile DurationSpec.LongMillisecondsBound truncate_request_timeout = new DurationSpec.LongMillisecondsBound("60000ms");
 
-    @Mutable @Replaces(oldName = "repair_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public DurationSpec.LongMillisecondsBound repair_request_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
+    @Mutable
+    @Replaces(oldName = "repair_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public volatile DurationSpec.LongMillisecondsBound repair_request_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
 
     public Integer streaming_connections_per_host = 1;
     @Replaces(oldName = "streaming_keep_alive_period_in_secs", converter = Converters.SECONDS_DURATION, deprecated = true)
@@ -173,10 +188,12 @@ public class Config
     @Replaces(oldName = "cross_node_timeout", converter = Converters.IDENTITY, deprecated = true)
     public boolean internode_timeout = true;
 
-    @Mutable @Replaces(oldName = "slow_query_log_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
-    public DurationSpec.LongMillisecondsBound slow_query_log_timeout = new DurationSpec.LongMillisecondsBound("500ms");
+    @Mutable
+    @Replaces(oldName = "slow_query_log_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
+    public volatile DurationSpec.LongMillisecondsBound slow_query_log_timeout = new DurationSpec.LongMillisecondsBound("500ms");
 
     public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
+
     @Mutable
     public volatile double phi_convict_threshold = 8.0;
 
@@ -210,11 +227,12 @@ public class Config
     // Limit the maximum depth of repair session merkle trees
     @Deprecated
     public volatile Integer repair_session_max_tree_depth = null;
-    @Mutable @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
-    public DataStorageSpec.IntMebibytesBound repair_session_space = null;
+    @Mutable
+    @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
+    public volatile DataStorageSpec.IntMebibytesBound repair_session_space = null;
 
     @Mutable
-    public boolean use_offheap_merkle_trees = true;
+    public volatile boolean use_offheap_merkle_trees = true;
 
     public int storage_port = 7000;
     public int ssl_storage_port = 7001;
@@ -267,18 +285,21 @@ public class Config
 
     // Defensive settings for protecting Cassandra from true network partitions. See (CASSANDRA-14358) for details.
     // The amount of time to wait for internode tcp connections to establish.
-    @Mutable @Replaces(oldName = "internode_tcp_connect_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public DurationSpec.IntMillisecondsBound internode_tcp_connect_timeout = new DurationSpec.IntMillisecondsBound("2s");
+    @Mutable
+    @Replaces(oldName = "internode_tcp_connect_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public volatile DurationSpec.IntMillisecondsBound internode_tcp_connect_timeout = new DurationSpec.IntMillisecondsBound("2s");
     // The amount of time unacknowledged data is allowed on a connection before we throw out the connection
     // Note this is only supported on Linux + epoll, and it appears to behave oddly above a setting of 30000
     // (it takes much longer than 30s) as of Linux 4.12. If you want something that high set this to 0
     // (which picks up the OS default) and configure the net.ipv4.tcp_retries2 sysctl to be ~8.
-    @Mutable @Replaces(oldName = "internode_tcp_user_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public DurationSpec.IntMillisecondsBound internode_tcp_user_timeout = new DurationSpec.IntMillisecondsBound("30s");
+    @Mutable
+    @Replaces(oldName = "internode_tcp_user_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public volatile DurationSpec.IntMillisecondsBound internode_tcp_user_timeout = new DurationSpec.IntMillisecondsBound("30s");
     // Similar to internode_tcp_user_timeout but used specifically for streaming connection.
     // The default is 5 minutes. Increase it or set it to 0 in order to increase the timeout.
-    @Mutable @Replaces(oldName = "internode_streaming_tcp_user_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public DurationSpec.IntMillisecondsBound internode_streaming_tcp_user_timeout = new DurationSpec.IntMillisecondsBound("300s"); // 5 minutes
+    @Mutable
+    @Replaces(oldName = "internode_streaming_tcp_user_timeout_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
+    public volatile DurationSpec.IntMillisecondsBound internode_streaming_tcp_user_timeout = new DurationSpec.IntMillisecondsBound("300s"); // 5 minutes
 
     public boolean start_native_transport = true;
     public int native_transport_port = 9042;
@@ -289,22 +310,24 @@ public class Config
     /** do bcrypt hashing in a limited pool to prevent cpu load spikes; note: any value < 1 will be set to 1 on init **/
     public int native_transport_max_auth_threads = 4;
     @Mutable
-    public long native_transport_max_concurrent_connections = -1L;
+    public volatile long native_transport_max_concurrent_connections = -1L;
     @Mutable
-    public long native_transport_max_concurrent_connections_per_ip = -1L;
+    public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
     @Mutable
-    public boolean native_transport_allow_older_protocols = true;
+    public volatile boolean native_transport_allow_older_protocols = true;
     // Below 2 parameters were fixed in 4.0 + to get default value when ==-1 (old name and value format) or ==null(new name and value format),
     // not <=0 as it is in previous versions. Throwing config exceptions on < -1
-    @Mutable @Replaces(oldName = "native_transport_max_concurrent_requests_in_bytes_per_ip", converter = Converters.BYTES_CUSTOM_DATASTORAGE, deprecated = true)
-    public DataStorageSpec.LongBytesBound native_transport_max_request_data_in_flight_per_ip = null;
-    @Mutable @Replaces(oldName = "native_transport_max_concurrent_requests_in_bytes", converter = Converters.BYTES_CUSTOM_DATASTORAGE, deprecated = true)
-    public DataStorageSpec.LongBytesBound native_transport_max_request_data_in_flight = null;
     @Mutable
-    public boolean native_transport_rate_limiting_enabled = false;
+    @Replaces(oldName = "native_transport_max_concurrent_requests_in_bytes_per_ip", converter = Converters.BYTES_CUSTOM_DATASTORAGE, deprecated = true)
+    public volatile DataStorageSpec.LongBytesBound native_transport_max_request_data_in_flight_per_ip = null;
     @Mutable
-    public int native_transport_max_requests_per_second = 1000000;
+    @Replaces(oldName = "native_transport_max_concurrent_requests_in_bytes", converter = Converters.BYTES_CUSTOM_DATASTORAGE, deprecated = true)
+    public volatile DataStorageSpec.LongBytesBound native_transport_max_request_data_in_flight = null;
+    @Mutable
+    public volatile boolean native_transport_rate_limiting_enabled = false;
+    @Mutable
+    public volatile int native_transport_max_requests_per_second = 1000000;
     @Replaces(oldName = "native_transport_receive_queue_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntBytesBound native_transport_receive_queue_capacity = new DataStorageSpec.IntBytesBound("1MiB");
 
@@ -330,7 +353,7 @@ public class Config
     public String auto_snapshot_ttl;
 
     @Mutable
-    public long snapshot_links_per_second = 0;
+    public volatile long snapshot_links_per_second = 0;
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     @Replaces(oldName = "column_index_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
@@ -420,11 +443,11 @@ public class Config
     // When true, new CDC mutations are rejected/blocked when reaching max CDC storage.
     // When false, new CDC mutations can always be added. But it will remove the oldest CDC commit log segment on full.
     @Mutable
-    public boolean cdc_block_writes = true;
+    public volatile boolean cdc_block_writes = true;
     // When true, CDC data in SSTable go through commit logs during internodes streaming, e.g. repair
     // When false, it behaves the same as normal streaming.
     @Mutable
-    public boolean cdc_on_repair_enabled = true;
+    public volatile boolean cdc_on_repair_enabled = true;
     public String cdc_raw_directory;
     @Replaces(oldName = "cdc_total_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound cdc_total_space = new DataStorageSpec.IntMebibytesBound("0MiB");
@@ -459,15 +482,16 @@ public class Config
     @Replaces(oldName = "max_hints_file_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound max_hints_file_size = new DataStorageSpec.IntMebibytesBound("128MiB");
     @Mutable
-    public DataStorageSpec.LongBytesBound max_hints_size_per_host = new DataStorageSpec.LongBytesBound("0B"); // 0 means disabled
+    public volatile DataStorageSpec.LongBytesBound max_hints_size_per_host = new DataStorageSpec.LongBytesBound("0B"); // 0 means disabled
 
     public ParameterizedClass hints_compression;
     @Mutable
-    public boolean auto_hints_cleanup_enabled = false;
+    public volatile boolean auto_hints_cleanup_enabled = false;
     @Mutable
-    public boolean transfer_hints_on_decommission = true;
+    public volatile boolean transfer_hints_on_decommission = true;
+
     @Mutable
-    public boolean incremental_backups = false;
+    public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;
     @Replaces(oldName = "trickle_fsync_interval_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntKibibytesBound trickle_fsync_interval = new DataStorageSpec.IntKibibytesBound("10240KiB");
@@ -475,7 +499,7 @@ public class Config
     @Mutable
     @Nullable
     @Replaces(oldName = "sstable_preemptive_open_interval_in_mb", converter = Converters.NEGATIVE_MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
-    public DataStorageSpec.IntMebibytesBound sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound("50MiB");
+    public volatile DataStorageSpec.IntMebibytesBound sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound("50MiB");
 
     public volatile boolean key_cache_migrate_during_compaction = true;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
@@ -538,24 +562,24 @@ public class Config
     public MemtableAllocationType memtable_allocation_type = MemtableAllocationType.heap_buffers;
 
     @Mutable
-    public boolean read_thresholds_enabled = false;
+    public volatile boolean read_thresholds_enabled = false;
     @Mutable
-    public DataStorageSpec.LongBytesBound coordinator_read_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound coordinator_read_size_warn_threshold = null;
     @Mutable
-    public DataStorageSpec.LongBytesBound coordinator_read_size_fail_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound coordinator_read_size_fail_threshold = null;
     @Mutable
-    public DataStorageSpec.LongBytesBound local_read_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound local_read_size_warn_threshold = null;
     @Mutable
-    public DataStorageSpec.LongBytesBound local_read_size_fail_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound local_read_size_fail_threshold = null;
     @Mutable
-    public DataStorageSpec.LongBytesBound row_index_read_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound row_index_read_size_warn_threshold = null;
     @Mutable
-    public DataStorageSpec.LongBytesBound row_index_read_size_fail_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound row_index_read_size_fail_threshold = null;
 
     @Mutable
-    public int tombstone_warn_threshold = 1000;
+    public volatile int tombstone_warn_threshold = 1000;
     @Mutable
-    public int tombstone_failure_threshold = 100000;
+    public volatile int tombstone_failure_threshold = 100000;
 
     public final ReplicaFilteringProtectionOptions replica_filtering_protection = new ReplicaFilteringProtectionOptions();
 
@@ -581,7 +605,7 @@ public class Config
      * before expiring and becoming hints
      */
     @Mutable
-    public ConsistencyLevel ideal_consistency_level = null;
+    public volatile ConsistencyLevel ideal_consistency_level = null;
 
     @Deprecated
     public int windows_timer_interval = 0;
@@ -726,7 +750,7 @@ public class Config
     // Default keyspace replication factors allow validation of newly created keyspaces
     // and good defaults if no replication factor is provided by the user
     @Mutable
-    public int default_keyspace_rf = 1;
+    public volatile int default_keyspace_rf = 1;
 
     /**
      * flags for enabling tracking repaired state of data during reads
