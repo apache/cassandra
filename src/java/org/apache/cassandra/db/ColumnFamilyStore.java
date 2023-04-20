@@ -538,7 +538,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         latencyCalculator.cancel(false);
         compactionStrategyManager.shutdown();
-        SystemKeyspace.removeTruncationRecord(metadata.cfId);
+
+        // Do not remove truncation records for index CFs, given they have the same ID as their backing/base tables.
+        if (!metadata.isIndex())
+            SystemKeyspace.removeTruncationRecord(metadata.cfId);
 
         data.dropSSTables();
         LifecycleTransaction.waitForDeletions();
