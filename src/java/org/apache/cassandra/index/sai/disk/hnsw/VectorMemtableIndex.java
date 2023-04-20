@@ -21,10 +21,13 @@ package org.apache.cassandra.index.sai.disk.hnsw;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.TreeSet;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.Clustering;
@@ -34,9 +37,11 @@ import org.apache.cassandra.db.marshal.Float32DenseVectorType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.memory.FilteringKeyRangeIterator;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
@@ -45,15 +50,17 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
+import org.apache.lucene.util.hnsw.HnswGraphSearcher;
+import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
 public class VectorMemtableIndex implements MemtableIndex
 {
     private final IndexContext indexContext;
     private final ByteBufferVectorValues vectorValues = new ByteBufferVectorValues();
+    private final ArrayList<PrimaryKey> keys = new ArrayList<>();
     private final HnswGraphBuilder builder;
     private final LongAdder writeCount = new LongAdder();
-    private final LongAdder estimatedOnHeapMemoryUsed = new LongAdder();
 
     private final AtomicInteger cachedDimensions = new AtomicInteger();
 
@@ -80,6 +87,8 @@ public class VectorMemtableIndex implements MemtableIndex
     @Override
     public synchronized void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
     {
+        var primaryKey = indexContext.keyFactory().create(key, clustering);
+        keys.add(primaryKey);
         var vector = vectorValues.add(value);
         try
         {
@@ -92,16 +101,40 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange)
+    public synchronized RangeIterator search(Expression expr, AbstractBounds<PartitionPosition> keyRange)
     {
-        // FIXME
-        throw new UnsupportedOperationException();
+        // TODO do we need to care about keyRange if we're unsharded?
+        assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
+
+        var buffer = expr.lower.value.raw;
+        var qv = Float32DenseVectorType.Serializer.instance.deserialize(buffer);
+        NeighborQueue nn;
+        try
+        {
+            nn = HnswGraphSearcher.search(qv,
+                                          expr.topK,
+                                          vectorValues,
+                                          VectorEncoding.FLOAT32,
+                                          VectorSimilarityFunction.COSINE,
+                                          builder.getGraph(),
+                                          null, // TODO I think this is where you could filter by PK
+                                          Integer.MAX_VALUE);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        var keys = Arrays.stream(nn.nodes())
+                         .mapToObj(this.keys::get)
+                         .collect(Collectors.toCollection(TreeSet::new));
+        return new FilteringKeyRangeIterator(keys, keyRange);
     }
 
     @Override
     public Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max)
     {
-        return null;
+        throw new UnsupportedOperationException(); // TODO
     }
 
     @Override
