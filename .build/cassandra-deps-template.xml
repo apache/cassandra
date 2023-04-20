@@ -384,5 +384,9 @@
       <groupId>org.apache.lucene</groupId>
       <artifactId>lucene-core</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.github.jelmerk</groupId>
+      <artifactId>hnswlib-core</artifactId>
+    </dependency>
   </dependencies>
 </project>
