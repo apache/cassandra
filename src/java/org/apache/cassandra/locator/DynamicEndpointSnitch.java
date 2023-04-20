@@ -276,7 +276,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         sample.update(unit.toMillis(latency));
     }
 
-    private void updateScores() // this is expensive
+    @VisibleForTesting
+    public void updateScores() // this is expensive
     {
         if (!StorageService.instance.isInitialized())
             return;

@@ -37,6 +37,7 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -101,6 +102,7 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
             statusHooks.leaving.awaitAndEnter();
             // make sure all nodes see the severity change
             ClusterUtils.awaitGossipStateMatch(cluster, cluster.get(DECOM_NODE), ApplicationState.SEVERITY);
+            cluster.forEach(i -> i.runOnInstance(() -> ((DynamicEndpointSnitch) DatabaseDescriptor.getEndpointSnitch()).updateScores()));
 
             statusHooks.leave.await();
             cluster.filters().verbs(Verb.GOSSIP_DIGEST_SYN.id).drop();
