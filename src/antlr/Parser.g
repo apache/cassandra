@@ -1846,6 +1846,7 @@ native_type returns [CQL3Type t]
     | K_TIMEUUID  { $t = CQL3Type.Native.TIMEUUID; }
     | K_DATE      { $t = CQL3Type.Native.DATE; }
     | K_TIME      { $t = CQL3Type.Native.TIME; }
+    | K_DENSE_F32 { $t = CQL3Type.Native.DENSE_F32; }
     ;
 
 collection_type returns [CQL3Type.Raw pt]

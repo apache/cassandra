@@ -20,8 +20,13 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.Json;
+import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -44,13 +49,42 @@ public class Float32DenseVectorType extends AbstractType<float[]>
     @Override
     public ByteBuffer fromString(String source) throws MarshalException
     {
-        throw new UnsupportedOperationException(); // TODO
+        // TODO
+        // following CollectionType example here.  I guess it's because the antlr parser
+        // takes care of building list literals, because they're not strings
+        // (in which case, when would this ever be called?)
+        try
+        {
+            return ByteBufferUtil.hexToBytes(source);
+        }
+        catch (NumberFormatException e)
+        {
+            throw new MarshalException(String.format("cannot parse '%s' as hex bytes", source), e);
+        }
     }
 
     @Override
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
-        throw new UnsupportedOperationException(); // TODO
+        if (parsed instanceof String)
+            parsed = Json.decodeJson((String) parsed);
+
+        if (!(parsed instanceof List))
+            throw new MarshalException(String.format(
+            "Expected a list, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
+
+        List list = (List) parsed;
+        var vector = new float[list.size()];
+        int i = 0;
+        for (Object element : list)
+        {
+            if (element == null)
+                throw new MarshalException("Invalid null element in float32 vector");
+            var n = (Number) element;
+            vector[i++] = n.floatValue();
+        }
+
+        return new Constants.Value(Serializer.instance.serialize(vector));
     }
 
     public static class Serializer extends TypeSerializer<float[]>

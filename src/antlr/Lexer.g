@@ -181,6 +181,7 @@ K_WRITETIME:   W R I T E T I M E;
 K_MAXWRITETIME:M A X W R I T E T I M E;
 K_DATE:        D A T E;
 K_TIME:        T I M E;
+K_DENSE_F32:   D E N S E WS+ F L O A T '32';
 
 K_NULL:        N U L L;
 K_NOT:         N O T;
