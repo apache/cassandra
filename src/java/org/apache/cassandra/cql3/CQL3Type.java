@@ -88,7 +88,7 @@ public interface CQL3Type
         UUID        (UUIDType.instance),
         VARCHAR     (UTF8Type.instance),
         VARINT      (IntegerType.instance),
-        DENSE_F32   (Float32DenseVectorType.instance);
+        DENSE_F32   (DenseFloat32Type.instance);
 
         private final AbstractType<?> type;
 

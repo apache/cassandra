@@ -19,24 +19,21 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Json;
-import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class Float32DenseVectorType extends AbstractType<float[]>
+public class DenseFloat32Type extends AbstractType<float[]>
 {
-    public static final Float32DenseVectorType instance = new Float32DenseVectorType();
+    public static final DenseFloat32Type instance = new DenseFloat32Type();
 
-    private Float32DenseVectorType() {
+    private DenseFloat32Type() {
         super(ComparisonType.BYTE_ORDER);
     }
 

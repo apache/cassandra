@@ -40,7 +40,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.Float32DenseVectorType;
+import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.rows.Cell;
@@ -365,7 +365,7 @@ public class IndexContext
     public boolean isVector()
     {
         //TODO probably move this down to TypeUtils eventually
-        return getValidator() instanceof Float32DenseVectorType;
+        return getValidator() instanceof DenseFloat32Type;
     }
 
     @Override

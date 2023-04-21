@@ -29,7 +29,7 @@ import java.util.stream.StreamSupport;
 
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
-import org.apache.cassandra.db.marshal.Float32DenseVectorType;
+import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import com.google.common.annotations.VisibleForTesting;
@@ -74,7 +74,7 @@ public abstract class Lists
 
     private static AbstractType<?> elementsType(AbstractType<?> type)
     {
-        if (type instanceof Float32DenseVectorType) {
+        if (type instanceof DenseFloat32Type) {
             return FloatType.instance;
         }
         return ((ListType<?>) unwrap(type)).getElementsType();
@@ -184,7 +184,7 @@ public abstract class Lists
         {
             AbstractType<?> type = unwrap(receiver.type);
 
-            if (!(type instanceof ListType || type instanceof Float32DenseVectorType))
+            if (!(type instanceof ListType || type instanceof DenseFloat32Type))
                 throw new InvalidRequestException(String.format("Invalid list literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
 
             ColumnSpecification valueSpec = Lists.valueSpecOf(receiver);
