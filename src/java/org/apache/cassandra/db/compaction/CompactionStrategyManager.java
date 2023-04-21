@@ -762,8 +762,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     private void handleMetadataChangedNotification(SSTableReader sstable, StatsMetadata oldMetadata)
     {
-        AbstractCompactionStrategy acs = getCompactionStrategyFor(sstable);
-        acs.metadataChanged(oldMetadata, sstable);
+        compactionStrategyFor(sstable).metadataChanged(oldMetadata, sstable);
     }
 
     /**
