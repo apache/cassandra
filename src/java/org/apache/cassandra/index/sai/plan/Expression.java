@@ -96,13 +96,6 @@ public class Expression
         this.validator = indexContext.getValidator();
     }
 
-    public Expression add(Operator op, ByteBuffer value, int topK)
-    {
-        this.topK = topK;
-        add(op, value);
-        return this;
-    }
-
     /**
      * This adds an operation to the current {@link Expression} instance and
      * returns the current instance.
@@ -167,7 +160,6 @@ public class Expression
                     lower = new Bound(value, validator, lowerInclusive);
                 break;
             case ANN:
-//                assert topK > 0 : "ANN queries should use the overload that includes topK";
                 operator = IndexOperator.ANN;
                 lower = new Bound(value, validator, true);
                 upper = lower;
