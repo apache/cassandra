@@ -39,11 +39,12 @@ import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.memory.FilteringKeyRangeIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.memory.FilteringInMemoryKeyRangeIterator;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.RangeIterator;
+import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -89,7 +90,7 @@ public class VectorMemtableIndex implements MemtableIndex
     // TODO either we need to create a concurrent graph builder (possible!), or
     // do sharding in the memtable with brute force search, followed by building the actual graph on flush
     @Override
-    public synchronized void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup)
+    public synchronized long index(DecoratedKey key, Clustering clustering, ByteBuffer value)
     {
         var primaryKey = indexContext.keyFactory().create(key, clustering);
         keys.add(primaryKey);
@@ -102,12 +103,13 @@ public class VectorMemtableIndex implements MemtableIndex
         {
             throw new RuntimeException(e);
         }
+        return 0;
     }
 
     @Override
-    public synchronized RangeIterator search(Expression expr, AbstractBounds<PartitionPosition> keyRange)
+    public synchronized KeyRangeIterator search(Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
-        assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
+        assert expr.getOp() == Expression.IndexOperator.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
         var buffer = expr.lower.value.raw;
         var qv = DenseFloat32Type.Serializer.instance.deserialize(buffer);
@@ -120,7 +122,7 @@ public class VectorMemtableIndex implements MemtableIndex
                 bits = new KeyRangeFilteringBits(keyRange);
 
             nn = HnswGraphSearcher.search(qv,
-                                          expr.topK,
+                                          limit,
                                           vectorValues,
                                           VectorEncoding.FLOAT32,
                                           VectorSimilarityFunction.COSINE,
@@ -137,7 +139,7 @@ public class VectorMemtableIndex implements MemtableIndex
                          .mapToObj(this.keys::get)
                          .collect(Collectors.toCollection(TreeSet::new));
 
-        return keys.isEmpty() ? RangeIterator.empty() : new FilteringKeyRangeIterator(keys, keyRange);
+        return keys.isEmpty() ? KeyRangeIterator.empty() : new FilteringInMemoryKeyRangeIterator(keys, keyRange);
     }
 
     private static boolean coversFullRing(AbstractBounds<PartitionPosition> keyRange)
@@ -146,7 +148,7 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max)
+    public Iterator<Pair<ByteComparable, PrimaryKeys>> iterator()
     {
         throw new UnsupportedOperationException(); // TODO
     }
@@ -158,15 +160,9 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public long estimatedOnHeapMemoryUsed()
+    public long estimatedMemoryUsed()
     {
         return vectorValues.ramBytesUsed() + builder.getGraph().ramBytesUsed();
-    }
-
-    @Override
-    public long estimatedOffHeapMemoryUsed()
-    {
-        return 0;
     }
 
     @Override

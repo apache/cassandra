@@ -803,7 +803,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addToRowFilter(RowFilter.Builder filter,
+        public void addRowFilterTo(RowFilter filter,
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {

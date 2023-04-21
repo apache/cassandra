@@ -41,12 +41,11 @@ public abstract class AbstractBlockPackedWriter
     // This collects metadata specific to the block packed writer being used during the
     // writing of the block packed data. This cached metadata is then written to the end
     // of the data file when the block packed writer is finished.
-    protected final ByteBuffersDataOutput blockMetaWriter;
+    protected final ResettableByteBuffersIndexOutput blockMetaWriter;
 
     protected int blockIndex;
     protected boolean finished;
     
-    final ResettableByteBuffersIndexOutput blockMetaWriter;
 
     AbstractBlockPackedWriter(IndexOutput indexOutput, int blockSize)
     {

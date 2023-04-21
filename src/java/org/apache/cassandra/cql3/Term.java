@@ -61,6 +61,11 @@ public interface Term
      */
     public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException;
 
+    default ByteBuffer bindAndGetVector(QueryOptions options) throws InvalidRequestException
+    {
+        throw new InvalidRequestException("Invalid");
+    }
+
     /**
      * Whether or not that term contains at least one bind marker.
      *
@@ -190,9 +195,19 @@ public interface Term
          */
         public abstract ByteBuffer get(ProtocolVersion version) throws InvalidRequestException;
 
+        public ByteBuffer getVector(ProtocolVersion protocolVersion) throws InvalidRequestException
+        {
+            throw new InvalidRequestException("Doesn't support getVector");
+        }
+
         public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {
             return get(options.getProtocolVersion());
+        }
+
+        public ByteBuffer bindAndGetVector(QueryOptions options) throws InvalidRequestException
+        {
+            return getVector(options.getProtocolVersion());
         }
     }
 

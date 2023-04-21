@@ -251,6 +251,16 @@ public abstract class Lists
             return CollectionSerializer.pack(elements, elements.size());
         }
 
+        public ByteBuffer getVector(ProtocolVersion protocolVersion)
+        {
+            var bb = ByteBuffer.allocate(4 + 4 * elements.size());
+            bb.putInt(elements.size());
+            for (var v : elements)
+                bb.put(v);
+            bb.position(0);
+            return bb;
+        }
+
         public boolean equals(ListType<?> lt, Value v)
         {
             if (elements.size() != v.elements.size())

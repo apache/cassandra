@@ -61,7 +61,7 @@ public class MemtableIndexManager
         // call to computeIfAbsent() if it's not. (see https://bugs.openjdk.java.net/browse/JDK-8161372)
         MemtableIndex target = (current != null)
                                ? current
-                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> new MemtableIndex(indexContext));
+                               : liveMemtableIndexMap.computeIfAbsent(mt, memtable -> MemtableIndex.createIndex(indexContext));
 
         long start = Clock.Global.nanoTime();
 
@@ -115,7 +115,7 @@ public class MemtableIndexManager
                                    .orElse(null);
     }
 
-    public KeyRangeIterator searchMemtableIndexes(Expression e, AbstractBounds<PartitionPosition> keyRange)
+    public KeyRangeIterator searchMemtableIndexes(Expression e, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         Collection<MemtableIndex> memtableIndexes = liveMemtableIndexMap.values();
 
@@ -128,7 +128,7 @@ public class MemtableIndexManager
 
         for (MemtableIndex memtableIndex : memtableIndexes)
         {
-            builder.add(memtableIndex.search(e, keyRange));
+            builder.add(memtableIndex.search(e, keyRange, limit));
         }
 
         return builder.build();

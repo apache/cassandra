@@ -176,7 +176,7 @@ public class QueryController
             for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView)
             {
                 @SuppressWarnings({"resource", "RedundantSuppression"}) // RangeIterators are closed by releaseIndexes
-                KeyRangeIterator index = IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext);
+                KeyRangeIterator index = IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext, command.limits().count());
 
                 builder.add(index);
             }

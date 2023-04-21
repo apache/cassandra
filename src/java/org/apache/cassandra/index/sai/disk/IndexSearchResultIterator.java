@@ -60,11 +60,12 @@ public class IndexSearchResultIterator extends KeyRangeIterator
     public static IndexSearchResultIterator build(Expression expression,
                                                   Collection<SSTableIndex> sstableIndexes,
                                                   AbstractBounds<PartitionPosition> keyRange,
-                                                  QueryContext queryContext)
+                                                  QueryContext queryContext,
+                                                  int limit)
     {
         List<KeyRangeIterator> subIterators = new ArrayList<>(1 + sstableIndexes.size());
 
-        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(expression, keyRange);
+        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(expression, keyRange, limit);
         if (memtableIterator != null)
             subIterators.add(memtableIterator);
 

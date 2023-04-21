@@ -30,10 +30,6 @@ import org.apache.cassandra.index.sai.disk.PerSSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.RowMapping;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
-import org.apache.cassandra.index.sai.disk.SearchableIndex;
-import org.apache.cassandra.index.sai.memory.RowMapping;
-import org.apache.cassandra.index.sai.memory.TrieMemtableIndex;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 /**

@@ -50,8 +50,8 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.hnsw.VectorMemtableIndex;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -59,7 +59,6 @@ import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -99,7 +98,7 @@ public class VectorMemtableIndexTest extends SAITester
                                                    .build();
         cfs = MockSchema.newCFS(tableMetadata);
         partitioner = cfs.getPartitioner();
-        indexContext = SAITester.createIndexContext("index", Int32Type.instance, cfs);
+        indexContext = SAITester.createIndexContext("index", Int32Type.instance);
         indexSearchCounter.reset();
         keyMap = new TreeMap<>();
         rowMap = new HashMap<Integer, ByteBuffer>();
@@ -134,7 +133,7 @@ public class VectorMemtableIndexTest extends SAITester
                                            .collect(Collectors.toSet());
 
             Set<Integer> foundKeys = new HashSet<>();
-            try (RangeIterator iterator = memtableIndex.search(expression, keyRange))
+            try (KeyRangeIterator iterator = memtableIndex.search(expression, keyRange, getRandom().nextIntBetween(1, 100)))
             {
                 while (iterator.hasNext())
                 {
@@ -206,9 +205,7 @@ public class VectorMemtableIndexTest extends SAITester
         DecoratedKey key = makeKey(cfs.metadata(), pk);
         memtableIndex.index(key,
                             Clustering.EMPTY,
-                            value,
-                            cfs.getCurrentMemtable(),
-                            new OpOrder().start());
+                            value);
         keyMap.put(key, pk);
     }
 
