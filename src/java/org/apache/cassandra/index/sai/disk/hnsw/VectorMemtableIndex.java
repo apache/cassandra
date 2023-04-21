@@ -105,7 +105,6 @@ public class VectorMemtableIndex implements MemtableIndex
     @Override
     public synchronized RangeIterator search(Expression expr, AbstractBounds<PartitionPosition> keyRange)
     {
-        // TODO do we need to care about keyRange if we're unsharded?
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
         var buffer = expr.lower.value.raw;
