@@ -140,6 +140,7 @@ New features
     - Added new SELECT_MASKED permission. It allows to run SELECT queries selecting the clear values of masked columns.
       Superusers have it by default, whereas regular users don't have it by default.
     - Added support for using UDFs as masking functions attached to table columns on the schema.
+    - Added `sstablepartitions` offline tool to find large partitions in sstables.
 
 Upgrading
 ---------
