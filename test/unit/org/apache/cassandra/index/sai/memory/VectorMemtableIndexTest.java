@@ -26,7 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
+import com.google.common.collect.Sets;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -44,7 +46,6 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
-import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
@@ -128,7 +129,9 @@ public class VectorMemtableIndexTest extends SAITester
         {
             Expression expression = generateRandomExpression();
             AbstractBounds<PartitionPosition> keyRange = generateRandomBounds(keys);
-            long keysInRange = keys.stream().filter(keyRange::contains).count();
+            Set<Integer> keysInRange = keys.stream().filter(keyRange::contains)
+                                           .map(k -> Int32Type.instance.compose(k.getKey()))
+                                           .collect(Collectors.toSet());
 
             Set<Integer> foundKeys = new HashSet<>();
             try (RangeIterator iterator = memtableIndex.search(expression, keyRange))
@@ -141,8 +144,9 @@ public class VectorMemtableIndexTest extends SAITester
                     foundKeys.add(key);
                 }
             }
-            long expectedResult = Math.min(expression.topK, keysInRange);
-            assertEquals(expectedResult, foundKeys.size());
+            // with -Dcassandra.test.random.seed=260652334768666, there is one missing key
+            long expectedResult = Math.min(expression.topK, keysInRange.size());
+            assertEquals("Missing key: " + Sets.difference(keysInRange, foundKeys), expectedResult, foundKeys.size());
         }
     }
 
