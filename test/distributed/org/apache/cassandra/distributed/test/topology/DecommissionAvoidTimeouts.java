@@ -153,6 +153,9 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
                 }
             }
             if (!failures.isEmpty()) throw new AssertionError(String.join("\n", failures));
+
+            // since only one tests exists per file, shutdown without blocking so .close does not timeout
+            cluster.forEach(i -> i.shutdown());
         }
     }
 
