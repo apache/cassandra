@@ -258,7 +258,7 @@ public class IndexContext
                             .orElse(null);
     }
 
-    public RangeIterator searchMemtable(Expression e, AbstractBounds<PartitionPosition> keyRange)
+    public RangeIterator searchMemtable(Expression e, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         Collection<MemtableIndex> memtables = liveMemtables.values();
 
@@ -271,7 +271,7 @@ public class IndexContext
 
         for (MemtableIndex index : memtables)
         {
-            builder.add(index.search(e, keyRange));
+            builder.add(index.search(e, keyRange ,limit));
         }
 
         return builder.build();

@@ -158,7 +158,7 @@ public class TrieMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange)
+    public RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         RangeConcatIterator.Builder builder = RangeConcatIterator.builder();
 

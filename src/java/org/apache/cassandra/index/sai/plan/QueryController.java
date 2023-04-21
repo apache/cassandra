@@ -199,7 +199,7 @@ public class QueryController
             for (Map.Entry<Expression, NavigableSet<SSTableIndex>> e : view)
             {
                 @SuppressWarnings("resource") // RangeIterators are closed by releaseIndexes
-                RangeIterator index = TermIterator.build(e.getKey(), e.getValue(), mergeRange, queryContext, defer);
+                RangeIterator index = TermIterator.build(e.getKey(), e.getValue(), mergeRange, queryContext, command.limits().rows(), defer);
 
                 builder.add(index);
             }

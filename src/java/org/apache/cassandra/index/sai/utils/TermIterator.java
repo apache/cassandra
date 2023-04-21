@@ -52,11 +52,11 @@ public class TermIterator extends RangeIterator
     }
 
     @SuppressWarnings("resource")
-    public static TermIterator build(final Expression e, Set<SSTableIndex> perSSTableIndexes, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext, boolean defer)
+    public static TermIterator build(final Expression e, Set<SSTableIndex> perSSTableIndexes, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext, int limit, boolean defer)
     {
         final List<RangeIterator> tokens = new ArrayList<>(1 + perSSTableIndexes.size());;
 
-        RangeIterator memtableIterator = e.context.searchMemtable(e, keyRange);
+        RangeIterator memtableIterator = e.context.searchMemtable(e, keyRange, limit);
         if (memtableIterator != null)
             tokens.add(memtableIterator);
 
