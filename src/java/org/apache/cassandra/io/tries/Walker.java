@@ -58,7 +58,7 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
     protected long lesserBranch;
 
     // Version of the byte comparable conversion to use
-    public static final ByteComparable.Version BYTE_COMPARABLE_VERSION = ByteComparable.Version.OSS42;
+    public static final ByteComparable.Version BYTE_COMPARABLE_VERSION = ByteComparable.Version.OSS50;
 
     /**
      * Creates a walker. Rebufferer must be aligned and with a buffer size that is at least 4k.
