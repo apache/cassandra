@@ -29,6 +29,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
@@ -42,6 +43,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceInitializer;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
@@ -61,6 +63,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.AssertionUtils;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
@@ -155,7 +158,15 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
             if (!failures.isEmpty()) throw new AssertionError(String.join("\n", failures));
 
             // since only one tests exists per file, shutdown without blocking so .close does not timeout
-            cluster.forEach(i -> i.shutdown());
+            try
+            {
+                FBUtilities.waitOnFutures(cluster.stream().map(IInstance::shutdown).collect(Collectors.toList()),
+                                          1, TimeUnit.MINUTES);
+            }
+            catch (Exception e)
+            {
+                // ignore
+            }
         }
     }
 
