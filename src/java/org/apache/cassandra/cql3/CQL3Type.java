@@ -25,7 +25,6 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.CollectionType.Kind;
@@ -89,7 +88,7 @@ public interface CQL3Type
         UUID        (UUIDType.instance),
         VARCHAR     (UTF8Type.instance),
         VARINT      (IntegerType.instance),
-        DENSEVECTOR (Float32DenseVectorType.instance);
+        DENSE_F32   (Float32DenseVectorType.instance);
 
         private final AbstractType<?> type;
 

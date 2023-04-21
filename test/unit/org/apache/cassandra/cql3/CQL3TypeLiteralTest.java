@@ -272,11 +272,11 @@ public class CQL3TypeLiteralTest
             for (int j = 0; j < n; j++)
                 v[j] = randFloat();
             addNativeValue(Float32DenseVectorType.Serializer.instance.toString(v),
-                           CQL3Type.Native.DENSEVECTOR,
+                           CQL3Type.Native.DENSE_F32,
                            Float32DenseVectorType.Serializer.instance.serialize(v));
         }
-        addNativeValue("null", CQL3Type.Native.DENSEVECTOR, ByteBufferUtil.EMPTY_BYTE_BUFFER);
-        addNativeValue("null", CQL3Type.Native.DENSEVECTOR, null);
+        addNativeValue("null", CQL3Type.Native.DENSE_F32, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+        addNativeValue("null", CQL3Type.Native.DENSE_F32, null);
     }
 
     @Test
