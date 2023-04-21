@@ -159,7 +159,7 @@ public class VectorMemtableIndexTest extends SAITester
     private Expression generateRandomExpression()
     {
         Expression expression = new Expression(indexContext);
-        expression.add(Operator.ANN, randomVector(), getRandom().nextIntBetween(1, 100));
+        expression.add(Operator.ANN, randomVector());
         return expression;
     }
 
