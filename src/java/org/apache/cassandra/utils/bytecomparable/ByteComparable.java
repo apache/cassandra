@@ -37,7 +37,7 @@ public interface ByteComparable
     enum Version
     {
         LEGACY, // Encoding used in legacy sstable format; forward (value to byte-comparable) translation only
-        OSS42,  // CASSANDRA 4.2 encoding
+        OSS50,  // CASSANDRA 5.0 encoding
     }
 
     ByteComparable EMPTY = (Version version) -> ByteSource.EMPTY;

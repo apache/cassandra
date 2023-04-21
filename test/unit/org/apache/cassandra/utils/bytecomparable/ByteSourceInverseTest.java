@@ -47,7 +47,7 @@ public class ByteSourceInverseTest
     @Parameterized.Parameters(name = "version={0}")
     public static Iterable<ByteComparable.Version> versions()
     {
-        return ImmutableList.of(ByteComparable.Version.OSS42);
+        return ImmutableList.of(ByteComparable.Version.OSS50);
     }
 
     private final ByteComparable.Version version;
@@ -218,7 +218,7 @@ public class ByteSourceInverseTest
             ArrayList<ByteSource> sources = new ArrayList<>();
             sources.add(null);
             sources.add(ByteSource.EMPTY);
-            int length = ByteComparable.length(version -> ByteSource.variableLengthInteger(value), ByteComparable.Version.OSS42);
+            int length = ByteComparable.length(version -> ByteSource.variableLengthInteger(value), ByteComparable.Version.OSS50);
             for (int i = 0; i < length; ++i)
                 sources.add(ByteSource.cut(ByteSource.variableLengthInteger(value), i));
 
