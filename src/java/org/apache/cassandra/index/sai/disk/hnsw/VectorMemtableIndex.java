@@ -105,7 +105,7 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public synchronized RangeIterator search(Expression expr, AbstractBounds<PartitionPosition> keyRange)
+    public synchronized RangeIterator search(Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
@@ -120,7 +120,7 @@ public class VectorMemtableIndex implements MemtableIndex
                 bits = new KeyRangeFilteringBits(keyRange);
 
             nn = HnswGraphSearcher.search(qv,
-                                          expr.topK,
+                                          limit,
                                           vectorValues,
                                           VectorEncoding.FLOAT32,
                                           VectorSimilarityFunction.COSINE,

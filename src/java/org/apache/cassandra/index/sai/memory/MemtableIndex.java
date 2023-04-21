@@ -68,7 +68,7 @@ public interface MemtableIndex
 
     void index(DecoratedKey key, Clustering clustering, ByteBuffer value, Memtable memtable, OpOrder.Group opGroup);
 
-    RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange);
+    RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit);
 
     Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max);
 
