@@ -222,6 +222,8 @@ K_MASKED:      M A S K E D;
 K_UNMASK:      U N M A S K;
 K_SELECT_MASKED: S E L E C T '_' M A S K E D;
 
+K_ANN:         A N N;
+
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
 fragment B: ('b'|'B');

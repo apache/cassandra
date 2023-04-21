@@ -1727,6 +1727,7 @@ relationType returns [Operator op]
 relation[WhereClause.Builder clauses]
     : name=cident type=relationType t=term { $clauses.add(new SingleColumnRelation(name, type, t)); }
     | name=cident K_LIKE t=term { $clauses.add(new SingleColumnRelation(name, Operator.LIKE, t)); }
+    | name=cident K_ANN t=term { $clauses.add(new SingleColumnRelation(name, Operator.ANN, t)); }
     | name=cident K_IS K_NOT K_NULL { $clauses.add(new SingleColumnRelation(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
     | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
         { $clauses.add(new TokenRelation(l, type, t)); }
@@ -1959,5 +1960,6 @@ basic_unreserved_keyword returns [String str]
         | K_MASKED
         | K_UNMASK
         | K_SELECT_MASKED
+        | K_ANN
         ) { $str = $k.text; }
     ;
