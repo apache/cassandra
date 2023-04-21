@@ -262,6 +262,27 @@ public class Descriptor
         return fromFileWithComponent(file).left;
     }
 
+    public static Component componentFromFile(File file)
+    {
+        String name = file.name();
+        List<String> tokens = filenameTokens(name);
+
+        return Component.parse(tokens.get(3), formatFromName(name, tokens));
+    }
+
+    private static SSTableFormat.Type formatFromName(String fileName, List<String> tokens)
+    {
+        String format = tokens.get(2);
+        try
+        {
+            return SSTableFormat.Type.getByName(format);
+        }
+        catch (RuntimeException e)
+        {
+            throw invalidSSTable(fileName, "unknown 'format' part (%s)", format);
+        }
+    }
+
     /**
      * Parse a sstable filename, extracting both the {@code Descriptor} and {@code Component} part.
      * The keyspace/table name will be extracted from the directory path.
@@ -342,9 +363,8 @@ public class Descriptor
         return Pair.create(new Descriptor(info.version, parentOf(file.name(), file), keyspace, table, info.id, info.format), info.component);
     }
 
-    private static SSTableInfo validateAndExtractInfo(File file)
+    private static List<String> filenameTokens(String name)
     {
-        String name = file.name();
         List<String> tokens = filenameSplitter.splitToList(name);
         int size = tokens.size();
 
@@ -359,6 +379,13 @@ public class Descriptor
                 throw new IllegalArgumentException(String.format("%s is of version %s which is now unsupported and cannot be read.", name, tokens.get(size - 3)));
             throw new IllegalArgumentException(String.format("Invalid sstable file %s: the name doesn't look like a supported sstable file name", name));
         }
+        return tokens;
+    }
+
+    private static SSTableInfo validateAndExtractInfo(File file)
+    {
+        String name = file.name();
+        List<String> tokens = filenameTokens(name);
 
         String versionString = tokens.get(0);
         if (!Version.validate(versionString))
@@ -374,17 +401,7 @@ public class Descriptor
             throw invalidSSTable(name, "the 'id' part (%s) of the name doesn't parse as a valid unique identifier", tokens.get(1));
         }
 
-        String formatString = tokens.get(2);
-        SSTableFormat.Type format;
-        try
-        {
-            format = SSTableFormat.Type.getByName(formatString);
-        }
-        catch (RuntimeException e)
-        {
-            throw invalidSSTable(name, "unknown 'format' part (%s)", formatString);
-        }
-
+        SSTableFormat.Type format = formatFromName(name, tokens);
         Component component = Component.parse(tokens.get(3), format);
 
         Version version = format.info.getVersion(versionString);

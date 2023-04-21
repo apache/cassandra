@@ -1,4 +1,5 @@
 5.0
+ * Add sstablepartitions offline tool to find large partitions in sstables (CASSANDRA-8720)
  * Replace usages of json-simple dependency by Jackson (CASSANDRA-16855)
  * When decommissioning should set Severity to limit traffic (CASSANDRA-18430)
  * For Java11 and Java17 remove -XX:-UseBiasedLocking as it is the default already (CASSANDRA-17869)

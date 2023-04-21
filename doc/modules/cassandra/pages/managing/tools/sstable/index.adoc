@@ -12,6 +12,7 @@ stopped.
 * xref:tools/sstable/sstableloader.adoc[sstableloader]
 * xref:tools/sstable/sstablemetadata.adoc[sstablemetadata]
 * xref:tools/sstable/sstableofflinerelevel.adoc[sstableofflinerelevel]
+* xref:tools/sstable/sstablepartitions.adoc[sstablepartitions]
 * xref:tools/sstable/sstablerepairedset.adoc[sstablerepairdset]
 * xref:tools/sstable/sstablescrub.adoc[sstablescrub]
 * xref:tools/sstable/sstablesplit.adoc[sstablesplit]
