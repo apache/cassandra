@@ -18,18 +18,28 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import accord.api.BarrierType;
 import accord.messages.Request;
-import accord.primitives.Seekable;
+import accord.primitives.Ranges;
+import accord.primitives.Seekables;
 import accord.primitives.Txn;
 import accord.topology.TopologyManager;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.tcm.Epoch;
+
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public interface IAccordService
 {
@@ -37,7 +47,19 @@ public interface IAccordService
 
     void createEpochFromConfigUnsafe();
 
-    long barrier(@Nonnull Seekable keyOrRange, long minEpoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite);
+    long barrier(@Nonnull Seekables keysOrRanges, long minEpoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite);
+
+    default void barrierForRepairSession(ColumnFamilyStore cfs, List<Range<Token>> ranges)
+    {
+        String ks = cfs.keyspace.getName();
+        Ranges accordRanges = Ranges.of(ranges
+             .stream()
+             .map(r -> new TokenRange(new TokenKey(ks, r.left), new TokenKey(ks, r.right)))
+             .collect(Collectors.toList())
+             .toArray(new accord.primitives.Range[0]));
+        long start = nanoTime();
+        barrier(accordRanges, Epoch.FIRST.getEpoch(), start, BarrierType.global_sync, true);
+    }
 
     @Nonnull TxnResult coordinate(@Nonnull Txn txn, @Nonnull ConsistencyLevel consistencyLevel, long queryStartNanos);
 

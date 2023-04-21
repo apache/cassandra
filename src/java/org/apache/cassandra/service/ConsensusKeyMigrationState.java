@@ -28,6 +28,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import accord.api.BarrierType;
+import accord.primitives.Seekables;
 import com.github.benmanes.caffeine.cache.CacheLoader;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
@@ -277,7 +278,7 @@ public abstract class ConsensusKeyMigrationState
             // will soon be ready to execute, but only waits for the local replica to be ready
             // Local will only create a transaction if it can't find an existing one to wait on
             BarrierType barrierType = global ? BarrierType.global_async : BarrierType.local;
-            AccordService.instance().barrier(new PartitionKey(keyspace, tableId, key), minEpoch, queryStartNanos, barrierType, isForWrite);
+            AccordService.instance().barrier(Seekables.of(new PartitionKey(keyspace, tableId, key)), minEpoch, queryStartNanos, barrierType, isForWrite);
             // We don't save the state to the cache here. Accord will notify the agent every time a barrier happens.
         }
         finally

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
@@ -41,11 +42,13 @@ import org.apache.cassandra.db.rows.ThrottledUnfilteredIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.streaming.IncomingStream;
 import org.apache.cassandra.streaming.StreamReceiver;
 import org.apache.cassandra.streaming.StreamSession;
@@ -229,6 +232,12 @@ public class CassandraStreamReceiver implements StreamReceiver
     @Override
     public void finished()
     {
+        List<Range<Token>> ranges = sstables.stream()
+                                            .map(reader -> new Range<>(reader.first.getToken(), reader.last.getToken()))
+                                            .collect(Collectors.toList());
+        if (session.streamOperation().requiresBarrierTransaction())
+            AccordService.instance().barrierForRepairSession(cfs, ranges);
+
         boolean requiresWritePath = requiresWritePath(cfs);
         Collection<SSTableReader> readers = sstables;
 

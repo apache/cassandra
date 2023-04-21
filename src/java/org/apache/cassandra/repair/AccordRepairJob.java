@@ -127,7 +127,8 @@ public class AccordRepairJob extends AbstractRepairJob
                 checkState(!toRepair.equals(lastRepaired), "Shouldn't repair the same range twice");
                 checkState(lastRepaired == null || toRepair.start().equals(lastRepaired.end()), "Next range should directly follow previous range");
                 lastRepaired = toRepair;
-                // TODO Won't work until range transactions work
+                // TODO Won't work until range transactions work, also important to add retries
+                // Since we could end up having the barrier transaction or the transaction it listens to invalidated
 //                AccordService.instance().barrier(toRepair, minEpoch.getEpoch(), nanoTime(), BarrierType.global_sync, false);
                 remainingStart = toRepair.end();
             }

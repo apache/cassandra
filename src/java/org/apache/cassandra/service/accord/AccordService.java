@@ -37,7 +37,7 @@ import accord.impl.SizeOfIntersectionSorter;
 import accord.local.Node;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.messages.Request;
-import accord.primitives.Seekable;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
@@ -98,7 +98,7 @@ public class AccordService implements IAccordService, Shutdownable
         public void createEpochFromConfigUnsafe() { }
 
         @Override
-        public long barrier(@Nonnull Seekable keyOrRange, long minEpoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite)
+        public long barrier(@Nonnull Seekables keysOrRanges, long minEpoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite)
         {
             throw new UnsupportedOperationException("No accord barriers should be executed when accord_transactions_enabled = false in cassandra.yaml");
         }
@@ -180,7 +180,7 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public long barrier(@Nonnull Seekable keyOrRange, long epoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite)
+    public long barrier(@Nonnull Seekables keysOrRanges, long epoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite)
     {
         AccordClientRequestMetrics metrics = isForWrite ? accordWriteMetrics : accordReadMetrics;
         TxnId txnId = null;
@@ -198,14 +198,14 @@ public class AccordService implements IAccordService, Shutdownable
                 throw new UnavailableException("There are no local shards to run the transaction on", ConsistencyLevel.ANY, 0, 0);
             }
 
-            logger.debug("Starting barrier key: {} epoch: {} barrierType: {} isForWrite {}", keyOrRange, epoch, barrierType, isForWrite);
-            txnId = node.nextTxnId(Kind.SyncPoint, keyOrRange.domain());
-            AsyncResult<Timestamp> asyncResult = node.barrier(keyOrRange, epoch, barrierType);
+            logger.debug("Starting barrier key: {} epoch: {} barrierType: {} isForWrite {}", keysOrRanges, epoch, barrierType, isForWrite);
+            txnId = node.nextTxnId(Kind.SyncPoint, keysOrRanges.domain());
+            AsyncResult<Timestamp> asyncResult = node.barrier(keysOrRanges, epoch, barrierType);
             long deadlineNanos = queryStartNanos + DatabaseDescriptor.getTransactionTimeout(NANOSECONDS);
             Timestamp barrierExecuteAt = AsyncChains.getBlocking(asyncResult, deadlineNanos - nanoTime(), NANOSECONDS);
             logger.debug("Completed in {}ms barrier key: {} epoch: {} barrierType: {} isForWrite {}",
                          NANOSECONDS.toMillis(nanoTime() - queryStartNanos),
-                         keyOrRange, epoch, barrierType, isForWrite);
+                         keysOrRanges, epoch, barrierType, isForWrite);
             return barrierExecuteAt.epoch();
         }
         catch (ExecutionException e)
