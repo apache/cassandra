@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
 import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.Float32DenseVectorType;
+import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
@@ -148,7 +148,7 @@ public class MemtableIndexWriter implements PerIndexWriter
         long numRows;
         SegmentMetadata.ComponentMetadataMap indexMetas;
 
-        if (termComparator instanceof Float32DenseVectorType) {
+        if (termComparator instanceof DenseFloat32Type) {
             numRows = 0;
             indexMetas = null;
             // TODO

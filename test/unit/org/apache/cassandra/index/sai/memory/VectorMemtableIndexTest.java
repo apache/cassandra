@@ -36,7 +36,7 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.marshal.Float32DenseVectorType;
+import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.BootStrapper;
@@ -161,7 +161,7 @@ public class VectorMemtableIndexTest extends SAITester
         for (int i = 0; i < dimensionCount; i++) {
             rawVector[i] = getRandom().nextFloat();
         }
-        return Float32DenseVectorType.Serializer.instance.serialize(rawVector);
+        return DenseFloat32Type.Serializer.instance.serialize(rawVector);
     }
 
     private AbstractBounds<PartitionPosition> generateRandomBounds(List<DecoratedKey> keys)
