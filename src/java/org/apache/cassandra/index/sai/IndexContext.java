@@ -275,6 +275,9 @@ public class IndexContext
             op == Operator.LIKE_MATCHES ||
             op == Operator.LIKE_SUFFIX) return false;
 
+        if (op == Operator.ANN)
+            return columnMetadata.type instanceof DenseFloat32Type;
+
         Expression.IndexOperator operator = Expression.IndexOperator.valueOf(op);
 
         if (isNonFrozenCollection())

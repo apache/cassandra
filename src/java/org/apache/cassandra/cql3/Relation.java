@@ -155,6 +155,8 @@ public abstract class Relation
             case LIKE_MATCHES:
             case LIKE:
                 return newLikeRestriction(table, boundNames, relationType);
+            case ANN:
+                return newAnnRestriction(table, boundNames);
             default: throw invalidRequest("Unsupported \"!=\" relation: %s", this);
         }
     }
@@ -208,6 +210,11 @@ public abstract class Relation
     protected abstract Restriction newIsNotRestriction(TableMetadata table, VariableSpecifications boundNames);
 
     protected abstract Restriction newLikeRestriction(TableMetadata table, VariableSpecifications boundNames, Operator operator);
+
+    /**
+     * Creates a new ANN restriction instance.
+     */
+    protected abstract Restriction newAnnRestriction(TableMetadata table, VariableSpecifications boundNames);
 
     /**
      * Converts the specified <code>Raw</code> into a <code>Term</code>.

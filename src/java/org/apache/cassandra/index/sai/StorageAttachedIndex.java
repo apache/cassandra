@@ -146,7 +146,8 @@ public class StorageAttachedIndex implements Index
                                                                         CQL3Type.Native.SMALLINT, CQL3Type.Native.TEXT, CQL3Type.Native.TIME,
                                                                         CQL3Type.Native.TIMESTAMP, CQL3Type.Native.TIMEUUID, CQL3Type.Native.TINYINT,
                                                                         CQL3Type.Native.UUID, CQL3Type.Native.VARCHAR, CQL3Type.Native.INET,
-                                                                        CQL3Type.Native.VARINT, CQL3Type.Native.DECIMAL, CQL3Type.Native.BOOLEAN);
+                                                                        CQL3Type.Native.VARINT, CQL3Type.Native.DECIMAL, CQL3Type.Native.BOOLEAN,
+                                                                        CQL3Type.Native.DENSE_F32);
 
     private static final Set<Class<? extends IPartitioner>> ILLEGAL_PARTITIONERS =
             ImmutableSet.of(OrderPreservingPartitioner.class, LocalPartitioner.class, ByteOrderedPartitioner.class, RandomPartitioner.class);
@@ -239,12 +240,12 @@ public class StorageAttachedIndex implements Index
             for (AbstractType<?> subType : type.subTypes())
             {
                 if (!SUPPORTED_TYPES.contains(subType.asCQL3Type()) && !TypeUtil.isFrozen(subType))
-                    throw new InvalidRequestException("Unsupported type: " + subType.asCQL3Type());
+                    throw new InvalidRequestException("Unsupported composite type for SAI: " + subType.asCQL3Type());
             }
         }
         else if (!SUPPORTED_TYPES.contains(type.asCQL3Type()) && !TypeUtil.isFrozen(type))
         {
-            throw new InvalidRequestException("Unsupported type: " + type.asCQL3Type());
+            throw new InvalidRequestException("Unsupported type for SAI: " + type.asCQL3Type());
         }
 
         AbstractAnalyzer.fromOptions(type, options);

@@ -779,4 +779,60 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             return Pair.create(operator, newValue);
         }
     }
+
+    public static final class AnnRestriction extends SingleColumnRestriction
+    {
+        private final Term value;
+
+        public AnnRestriction(ColumnMetadata columnDef, Term value)
+        {
+            super(columnDef);
+            this.value = value;
+        }
+
+        @Override
+        public void addFunctionsTo(List<Function> functions)
+        {
+            value.addFunctionsTo(functions);
+        }
+
+        @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void addToRowFilter(RowFilter.Builder filter,
+                                   IndexRegistry indexRegistry,
+                                   QueryOptions options)
+        {
+            filter.add(columnDef, Operator.ANN, value.bindAndGet(options));
+        }
+
+        @Override
+        public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("ANN(%s)", value);
+        }
+
+        @Override
+        public SingleRestriction doMergeWith(SingleRestriction otherRestriction)
+        {
+            // TODO not sure if this is right
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected boolean isSupportedBy(Index index)
+        {
+            return index.supportsExpression(columnDef, Operator.ANN);
+        }
+    }
 }
