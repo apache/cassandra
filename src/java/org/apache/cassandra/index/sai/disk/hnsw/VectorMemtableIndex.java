@@ -37,7 +37,7 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.Float32DenseVectorType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.memory.FilteringKeyRangeIterator;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
@@ -50,7 +50,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
@@ -65,6 +65,8 @@ public class VectorMemtableIndex implements MemtableIndex
     private final LongAdder writeCount = new LongAdder();
 
     private final AtomicInteger cachedDimensions = new AtomicInteger();
+
+    private static final Token.KeyBound MIN_KEY_BOUND = DatabaseDescriptor.getPartitioner().getMinimumToken().minKeyBound();
 
     public VectorMemtableIndex(IndexContext indexContext) {
         this.indexContext = indexContext;
@@ -113,17 +115,10 @@ public class VectorMemtableIndex implements MemtableIndex
         NeighborQueue nn;
         try
         {
-            SparseFixedBitSet bits = null;
+            Bits bits = null;
             // key range doesn't full token ring, we need to filter keys inside ANN search
-            if (!coversFullRing(keyRange))
-            {
-                bits = new SparseFixedBitSet(keys.size());
-                for (int i = 0; i < keys.size(); i++)
-                {
-                    if (keyRange.contains(keys.get(i).partitionKey()))
-                        bits.set(i);
-                }
-            }
+            if (!keys.isEmpty() && !coversFullRing(keyRange))
+                bits = new KeyRangeFilteringBits(keyRange);
 
             nn = HnswGraphSearcher.search(qv,
                                           expr.topK,
@@ -148,9 +143,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
     private static boolean coversFullRing(AbstractBounds<PartitionPosition> keyRange)
     {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        return keyRange.left.equals(partitioner.getMinimumToken().minKeyBound())
-               && keyRange.right.equals(partitioner.getMinimumToken().minKeyBound());
+        return keyRange.left.equals(MIN_KEY_BOUND) && keyRange.right.equals(MIN_KEY_BOUND);
     }
 
     @Override
@@ -197,6 +190,28 @@ public class VectorMemtableIndex implements MemtableIndex
         return null;
     }
 
+    private class KeyRangeFilteringBits implements Bits
+    {
+        private final AbstractBounds<PartitionPosition> keyRange;
+
+        public KeyRangeFilteringBits(AbstractBounds<PartitionPosition> keyRange)
+        {
+            this.keyRange = keyRange;
+        }
+
+        @Override
+        public boolean get(int index)
+        {
+            PrimaryKey key = keys.get(index);
+            return keyRange.contains(key.partitionKey());
+        }
+
+        @Override
+        public int length()
+        {
+            return keys.size();
+        }
+    }
     private class ByteBufferVectorValues implements RandomAccessVectorValues<float[]>
     {
         private final ArrayList<ByteBuffer> buffers = new ArrayList<>();
