@@ -566,34 +566,47 @@ commitlog_segment_size: 32MiB
 #
 # flush_compression: fast
 
-
-# Defines the compression params used to read/write the sstables.  If undefined the default is LZ4 with 16kb chunk
-# length and min_compress_ratio of 0.0 (see CompressionParams.DEFAULT_MIN_COMPRESS_RATIO).
-# To disable compression set `type: none` or set the `enable` parameter as `false`.
-# This is the default options for sstable compression, the (schema) table-level settings will override this option.
-#sstable_compressor:
 #
-  #enable=false # defaults to true
+sstable_compressor:
+#   - class_name: lz4
+#     parameters:
+#       - enable: true
+#         chunk_length: 16KiB
+#         min_compress_ratio: 0.0
+#         max_comrpessed_length: 16KiB
+#         class_specific_parameter: value
 #
-  #chunk_length: 16KiB : defaults to 16KiB
 #
-  # min_compress_ratio: 0.0
-  # max_compressed_length: 16KiB
-
-  # only one of the above options can be specified.  The mathematically related in that
-  # chunk_length / max_compressed_length = min_compress_ratio
-  # if neither option is specified a min_compress_ratio of 0.0 is the default.
-  # A min_compress_ratio <= 0 implies max_compressed_length of Integer.MAX_VALUE KiB
-
+# The class_name is the compressor class name. It may be one of the aliases,
+# the class name of a system ICompressor implementation, or fully qualified
+# name of a class that implements ICompressor.
 #
-  #class_name:
-  # The compressor class name may be one of:
-  # lz4,  none,  noop,  snappy,  deflate,  or zstd; or it may be the fully qualified  name of a class
-  # that implements ICompressor
+# class aliases are:
+#  alias   system compressor impl.
+#  lz4      LZ4Compressor,
+#  none     (null) -- disabled
+#  noop     NoopCompressor
+#  snappy   SnappyCompressor
+#  deflate  DeflateCompressor
+#  zstd     ZstdCompressor
+#
+# The standard parameters are any required or optional parameter for the instantiation of the
+# specified class, or one of the following standard parameters:
+# parameter                       usage
+# enable                Disables compression if set to false. Defaults to true.
+# chunk_length          The lenght of the compresson chunks, defaults to 16KiB
+# min_compress_ratio    The miniimal acceptable compression, must greater than or equal to 1.0.
+# max_compressed_length The maximum size for a compressed block.  Must be less than
+#                           chunk_length.   Defaults to Integer.MAX_VALUE
+# chunk_length_in_kb    The CQL compression parameter.
+#
+# Only one of the min_compress_ratio and max_compressed_length options can be specified.
+# They are  mathematically related in that
+# chunk_length / max_compressed_length = min_compress_ratio
+# if neither option is specified a min_compress_ratio of 0.0 is the default.
+#
+# Only one of chunk_length or chunk_length_in_kb may be specified.
 
-  #parameters:
-    # param1 : value
-  # The parameters for the class.  (optional)
 
 # any class that implements the SeedProvider interface and has a
 # constructor that takes a Map<String, String> of parameters will do.
