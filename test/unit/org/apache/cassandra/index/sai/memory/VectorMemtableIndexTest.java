@@ -44,6 +44,7 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.IncludingExcludingBounds;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
@@ -127,6 +128,7 @@ public class VectorMemtableIndexTest extends SAITester
         {
             Expression expression = generateRandomExpression();
             AbstractBounds<PartitionPosition> keyRange = generateRandomBounds(keys);
+            long keysInRange = keys.stream().filter(keyRange::contains).count();
 
             Set<Integer> foundKeys = new HashSet<>();
             try (RangeIterator iterator = memtableIndex.search(expression, keyRange))
@@ -139,7 +141,8 @@ public class VectorMemtableIndexTest extends SAITester
                     foundKeys.add(key);
                 }
             }
-            assertEquals(expression.topK, foundKeys.size());
+            long expectedResult = Math.min(expression.topK, keysInRange);
+            assertEquals(expectedResult, foundKeys.size());
         }
     }
 

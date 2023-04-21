@@ -30,12 +30,14 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.memory.FilteringKeyRangeIterator;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
@@ -48,6 +50,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
@@ -110,13 +113,25 @@ public class VectorMemtableIndex implements MemtableIndex
         NeighborQueue nn;
         try
         {
+            SparseFixedBitSet bits = null;
+            // key range doesn't full token ring, we need to filter keys inside ANN search
+            if (!coversFullRing(keyRange))
+            {
+                bits = new SparseFixedBitSet(keys.size());
+                for (int i = 0; i < keys.size(); i++)
+                {
+                    if (keyRange.contains(keys.get(i).partitionKey()))
+                        bits.set(i);
+                }
+            }
+
             nn = HnswGraphSearcher.search(qv,
                                           expr.topK,
                                           vectorValues,
                                           VectorEncoding.FLOAT32,
                                           VectorSimilarityFunction.COSINE,
                                           builder.getGraph(),
-                                          null, // TODO I think this is where you could filter by PK
+                                          bits,
                                           Integer.MAX_VALUE);
         }
         catch (IOException e)
@@ -124,10 +139,18 @@ public class VectorMemtableIndex implements MemtableIndex
             throw new RuntimeException(e);
         }
 
-        var keys = Arrays.stream(nn.nodes())
+        TreeSet<PrimaryKey> keys = Arrays.stream(nn.nodes())
                          .mapToObj(this.keys::get)
                          .collect(Collectors.toCollection(TreeSet::new));
-        return new FilteringKeyRangeIterator(keys, keyRange);
+
+        return keys.isEmpty() ? RangeIterator.empty() : new FilteringKeyRangeIterator(keys, keyRange);
+    }
+
+    private static boolean coversFullRing(AbstractBounds<PartitionPosition> keyRange)
+    {
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        return keyRange.left.equals(partitioner.getMinimumToken().minKeyBound())
+               && keyRange.right.equals(partitioner.getMinimumToken().minKeyBound());
     }
 
     @Override
