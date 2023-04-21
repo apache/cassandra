@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Term;
@@ -82,6 +83,11 @@ public class DenseFloat32Type extends AbstractType<float[]>
         }
 
         return new Constants.Value(Serializer.instance.serialize(vector));
+    }
+
+    public CQL3Type asCQL3Type()
+    {
+        return CQL3Type.Native.DENSE_F32;
     }
 
     public static class Serializer extends TypeSerializer<float[]>

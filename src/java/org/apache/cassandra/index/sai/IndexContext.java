@@ -398,6 +398,9 @@ public class IndexContext
     {
         if (op.isLike() || op == Operator.LIKE) return false;
 
+        if (op == Operator.ANN)
+            return column.type instanceof DenseFloat32Type;
+
         Expression.Op operator = Expression.Op.valueOf(op);
 
         if (isNonFrozenCollection())

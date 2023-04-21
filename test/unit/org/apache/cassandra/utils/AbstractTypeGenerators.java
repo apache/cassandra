@@ -318,7 +318,7 @@ public final class AbstractTypeGenerators
             TypeSupport<T> support = (TypeSupport<T>) TypeSupport.of(tupleType, new TupleGen(tupleType, sizeGen));
             return support;
         }
-        throw new UnsupportedOperationException("Unsupported type: " + type);
+        throw new UnsupportedOperationException("No TypeSupport for: " + type);
     }
 
     private static final class TupleGen implements Gen<ByteBuffer>
