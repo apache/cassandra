@@ -485,7 +485,6 @@ public class Directories
     {
         long writeSize = expectedTotalWriteSize / estimatedSSTables;
         long totalAvailable = 0L;
-        boolean hasSpace = true;
 
         for (DataDirectory dataDir : paths)
         {
@@ -504,14 +503,15 @@ public class Directories
             }
             totalAvailable += candidate.availableSpace;
         }
-        if(totalAvailable <= expectedTotalWriteSize)
+
+        if (totalAvailable <= expectedTotalWriteSize)
         {
             StringJoiner pathString = new StringJoiner(",", "[", "]");
             for (DataDirectory p: paths)
             {
                 pathString.add(p.location.getAbsolutePath());
             }
-            logger.warn("Insufficient disk space for compaction! Across {} there's only {} available, but {} is needed.",
+            logger.warn("Insufficient disk space for compaction. Across {} there's only {} available, but {} is needed.",
                         pathString.toString(),
                         FileUtils.stringifyFileSize(totalAvailable),
                         FileUtils.stringifyFileSize(expectedTotalWriteSize));
