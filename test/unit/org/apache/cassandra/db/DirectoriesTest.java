@@ -134,7 +134,7 @@ public class DirectoriesTest
 
     private static final String MDCID = "test-DirectoriesTest-id";
     private static AtomicInteger diyThreadId = new AtomicInteger(1);
-    private int myDiyId=-1;
+    private int myDiyId = -1;
     private static Logger logger;
     private ListAppender<ILoggingEvent> listAppender;
 
@@ -944,10 +944,11 @@ public class DirectoriesTest
     private List<ILoggingEvent> filterLogByDiyId(List<ILoggingEvent> log)
     {
         ArrayList<ILoggingEvent> filteredLog = new ArrayList<>();
-        for(ILoggingEvent event : log)
+        for (ILoggingEvent event : log)
         {
             int mdcId = Integer.parseInt(event.getMDCPropertyMap().get(this.MDCID));
-            if(mdcId == myDiyId){
+            if (mdcId == myDiyId)
+            {
                 filteredLog.add(event);
             }
         }
