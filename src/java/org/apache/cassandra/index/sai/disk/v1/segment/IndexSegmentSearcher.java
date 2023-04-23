@@ -41,12 +41,12 @@ public abstract class IndexSegmentSearcher implements Closeable
     final PrimaryKeyMap.Factory primaryKeyMapFactory;
     final PerColumnIndexFiles indexFiles;
     final SegmentMetadata metadata;
-    final IndexContext indexContext;
+    protected final IndexContext indexContext;
 
-    IndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
-                         PerColumnIndexFiles perIndexFiles,
-                         SegmentMetadata segmentMetadata,
-                         IndexContext indexContext)
+    protected IndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
+                                   PerColumnIndexFiles perIndexFiles,
+                                   SegmentMetadata segmentMetadata,
+                                   IndexContext indexContext)
     {
         this.primaryKeyMapFactory = primaryKeyMapFactory;
         this.indexFiles = perIndexFiles;
@@ -75,9 +75,9 @@ public abstract class IndexSegmentSearcher implements Closeable
      *
      * @return {@link KeyRangeIterator} with matches for the given expression
      */
-    public abstract KeyRangeIterator search(Expression expression, QueryContext queryContext) throws IOException;
+    public abstract KeyRangeIterator search(Expression expression, QueryContext queryContext, int limit) throws IOException;
 
-    KeyRangeIterator toIterator(PostingList postingList, QueryContext queryContext) throws IOException
+    protected KeyRangeIterator toIterator(PostingList postingList, QueryContext queryContext) throws IOException
     {
         if (postingList == null)
             return KeyRangeIterator.empty();

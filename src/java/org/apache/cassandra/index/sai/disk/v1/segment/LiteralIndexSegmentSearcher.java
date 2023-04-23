@@ -79,7 +79,7 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
 
     @Override
     @SuppressWarnings({"resource", "RedundantSuppression"})
-    public KeyRangeIterator search(Expression expression, QueryContext queryContext) throws IOException
+    public KeyRangeIterator search(Expression expression, QueryContext queryContext, int limit) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), expression);

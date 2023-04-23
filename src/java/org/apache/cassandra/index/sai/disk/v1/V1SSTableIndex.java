@@ -158,7 +158,8 @@ public class V1SSTableIndex extends SSTableIndex
     @Override
     public List<KeyRangeIterator> search(Expression expression,
                                          AbstractBounds<PartitionPosition> keyRange,
-                                         QueryContext context) throws IOException
+                                         QueryContext context,
+                                         int limit) throws IOException
     {
         List<KeyRangeIterator> segmentIterators = new ArrayList<>();
 
@@ -166,7 +167,7 @@ public class V1SSTableIndex extends SSTableIndex
         {
             if (segment.intersects(keyRange))
             {
-                segmentIterators.add(segment.search(expression, context));
+                segmentIterators.add(segment.search(expression, context, limit));
             }
         }
 

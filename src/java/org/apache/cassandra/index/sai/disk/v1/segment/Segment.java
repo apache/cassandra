@@ -110,9 +110,9 @@ public class Segment implements Closeable
 
      * @return range iterator that matches given expression
      */
-    public KeyRangeIterator search(Expression expression, QueryContext context) throws IOException
+    public KeyRangeIterator search(Expression expression, QueryContext context, int limit) throws IOException
     {
-        return index.search(expression, context);
+        return index.search(expression, context, limit);
     }
 
     @Override

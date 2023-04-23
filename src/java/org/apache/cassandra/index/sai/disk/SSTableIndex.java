@@ -137,7 +137,8 @@ public abstract class SSTableIndex
      */
     public abstract List<KeyRangeIterator> search(Expression expression,
                                                   AbstractBounds<PartitionPosition> keyRange,
-                                                  QueryContext context) throws IOException;
+                                                  QueryContext context,
+                                                  int limit) throws IOException;
 
     /**
      * Populates a virtual table using the index metadata owned by the index

@@ -32,6 +32,11 @@ public enum IndexComponent
     META("Meta"),
 
     /**
+     * Lucene creates 3 vector files with ".vex", ".vec" and ".vem" extensions
+     */
+    VECTOR("Vector"),
+
+    /**
      * Term dictionary written by {@link TrieTermsDictionaryWriter} stores mappings of term and
      * file pointer to posting block on posting file.
      */

@@ -60,6 +60,8 @@ import static org.mockito.Mockito.mock;
 
 public class InvertedIndexSearcherTest extends SAIRandomizedTester
 {
+    public static final int LIMIT = Integer.MAX_VALUE;
+
     public static final PrimaryKeyMap TEST_PRIMARY_KEY_MAP = new PrimaryKeyMap()
     {
         private final PrimaryKey.Factory primaryKeyFactory = new PrimaryKey.Factory(new ClusteringComparator());
@@ -102,7 +104,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
             for (int t = 0; t < numTerms; ++t)
             {
                 try (KeyRangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), context))
+                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), context, Integer.MAX_VALUE))
                 {
                     assertEquals(results.getMinimum(), results.getCurrent());
                     assertTrue(results.hasNext());
@@ -118,7 +120,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
                 }
 
                 try (KeyRangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), context))
+                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), context, Integer.MAX_VALUE))
                 {
                     assertEquals(results.getMinimum(), results.getCurrent());
                     assertTrue(results.hasNext());
@@ -141,12 +143,12 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
             // try searching for terms that weren't indexed
             final String tooLongTerm = randomSimpleString(10, 12);
             KeyRangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                                                                .add(Operator.EQ, UTF8Type.instance.decompose(tooLongTerm)), context);
+                                                                .add(Operator.EQ, UTF8Type.instance.decompose(tooLongTerm)), context, Integer.MAX_VALUE);
             assertFalse(results.hasNext());
 
             final String tooShortTerm = randomSimpleString(1, 2);
             results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                                                      .add(Operator.EQ, UTF8Type.instance.decompose(tooShortTerm)), context);
+                                                      .add(Operator.EQ, UTF8Type.instance.decompose(tooShortTerm)), context, Integer.MAX_VALUE);
             assertFalse(results.hasNext());
         }
     }
@@ -162,7 +164,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
         try (IndexSegmentSearcher searcher = buildIndexAndOpenSearcher(numTerms, numPostings, termsEnum))
         {
             searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                            .add(Operator.GT, UTF8Type.instance.decompose("a")), context);
+                            .add(Operator.GT, UTF8Type.instance.decompose("a")), context, Integer.MAX_VALUE);
 
             fail("Expect IllegalArgumentException thrown, but didn't");
         }
