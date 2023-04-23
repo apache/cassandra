@@ -113,8 +113,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -135,7 +135,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -294,8 +294,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -313,7 +313,7 @@ jobs:
   j8_dtests_large_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 4
@@ -371,8 +371,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -428,8 +428,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -447,10 +447,10 @@ jobs:
   j8_dtests_large_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -553,8 +553,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -575,7 +575,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -734,8 +734,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -756,7 +756,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -915,8 +915,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -934,7 +934,7 @@ jobs:
   j8_dtests_large:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 4
@@ -992,8 +992,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -1011,10 +1011,10 @@ jobs:
   j8_upgrade_dtests_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1117,8 +1117,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -1217,8 +1217,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -1236,10 +1236,10 @@ jobs:
   j8_dtests_vnode_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1342,8 +1342,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -1361,10 +1361,10 @@ jobs:
   j8_upgrade_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1419,8 +1419,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -1441,7 +1441,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1600,8 +1600,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -1622,7 +1622,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1711,8 +1711,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -1730,10 +1730,10 @@ jobs:
   j8_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1788,8 +1788,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -1807,10 +1807,10 @@ jobs:
   j8_dtests_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1865,8 +1865,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -1887,7 +1887,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2046,8 +2046,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -2068,7 +2068,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2224,8 +2224,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -2243,10 +2243,10 @@ jobs:
   j8_dtests_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2349,8 +2349,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -2460,8 +2460,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -2547,8 +2547,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -2603,8 +2603,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -2622,10 +2622,10 @@ jobs:
   j8_dtests_large_vnode_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2728,8 +2728,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -2750,7 +2750,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2839,8 +2839,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -2936,8 +2936,8 @@ jobs:
     - REPEATED_UTESTS_COUNT: 500
     - REPEATED_UTESTS_LONG: null
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_JVM_DTESTS: null
-    - REPEATED_JVM_DTESTS_COUNT: 500
+    - REPEATED_JVM_DTESTS: org.apache.cassandra.distributed.test.IndexDroppingTest
+    - REPEATED_JVM_DTESTS_COUNT: 1000
     - REPEATED_JVM_UPGRADE_DTESTS: null
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
     - REPEATED_DTESTS: null
@@ -2972,6 +2972,12 @@ workflows:
     - j8_jvm_dtests:
         requires:
         - start_j8_jvm_dtests
+        - build
+    - start_j8_jvm_dtests_repeat:
+        type: approval
+    - j8_jvm_dtests_repeat:
+        requires:
+        - start_j8_jvm_dtests_repeat
         - build
     - start_j8_cqlshlib_tests:
         type: approval
@@ -3050,6 +3056,9 @@ workflows:
         requires:
         - build
     - j8_jvm_dtests:
+        requires:
+        - build
+    - j8_jvm_dtests_repeat:
         requires:
         - build
     - j8_cqlshlib_tests:
