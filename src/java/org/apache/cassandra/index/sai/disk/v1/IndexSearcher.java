@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.Closeable;
 import java.io.IOException;
 
+import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.IndexSearcherContext;
@@ -64,9 +65,11 @@ public abstract class IndexSearcher implements Closeable
                                      IndexDescriptor indexDescriptor,
                                      IndexContext indexContext) throws IOException
     {
-        return TypeUtil.isLiteral(indexContext.getValidator())
-               ? new InvertedIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext)
-               : new KDTreeIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);
+        if (indexContext.getValidator() instanceof DenseFloat32Type)
+            return new VectorIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);
+        if (TypeUtil.isLiteral(indexContext.getValidator()))
+            return new InvertedIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);
+        return new KDTreeIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);
     }
 
     /**
@@ -77,13 +80,13 @@ public abstract class IndexSearcher implements Closeable
     /**
      * Search on-disk index synchronously.
      *
-     * @param expression to filter on disk index
+     * @param expression   to filter on disk index
      * @param queryContext to track per sstable cache and per query metrics
-     * @param defer create the iterator in a deferred state
-     *
+     * @param defer        create the iterator in a deferred state
+     * @param limit
      * @return {@link RangeIterator} that matches given expression
      */
-    public abstract RangeIterator search(Expression expression, SSTableQueryContext queryContext, boolean defer) throws IOException;
+    public abstract RangeIterator search(Expression expression, SSTableQueryContext queryContext, boolean defer, int limit) throws IOException;
 
     RangeIterator toIterator(PostingList postingList, SSTableQueryContext queryContext, boolean defer) throws IOException
     {

@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,6 +68,7 @@ public class MemtableIndexWriter implements PerIndexWriter
     {
         assert rowMapping != null && rowMapping != RowMapping.DUMMY : "Row mapping must exist during FLUSH.";
 
+        Preconditions.checkState(!(indexContext.getValidator() instanceof DenseFloat32Type));
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
         this.memtable = memtable;
@@ -148,12 +150,7 @@ public class MemtableIndexWriter implements PerIndexWriter
         long numRows;
         SegmentMetadata.ComponentMetadataMap indexMetas;
 
-        if (termComparator instanceof DenseFloat32Type) {
-            numRows = 0;
-            indexMetas = null;
-            // TODO
-        }
-        else if (TypeUtil.isLiteral(termComparator))
+        if (TypeUtil.isLiteral(termComparator))
         {
             try (InvertedIndexWriter writer = new InvertedIndexWriter(indexDescriptor, indexContext, false))
             {

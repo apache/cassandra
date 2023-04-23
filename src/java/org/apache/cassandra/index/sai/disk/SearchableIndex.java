@@ -62,7 +62,7 @@ public interface SearchableIndex extends Closeable
     public List<RangeIterator> search(Expression expression,
                                       AbstractBounds<PartitionPosition> keyRange,
                                       SSTableQueryContext context,
-                                      boolean defer) throws IOException;
+                                      boolean defer, int limit) throws IOException;
 
     public void populateSystemView(SimpleDataSet dataSet, SSTableReader sstable);
 }

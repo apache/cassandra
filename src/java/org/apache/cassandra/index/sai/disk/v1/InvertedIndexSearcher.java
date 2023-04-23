@@ -82,7 +82,7 @@ public class InvertedIndexSearcher extends IndexSearcher
 
     @Override
     @SuppressWarnings("resource")
-    public RangeIterator search(Expression exp, SSTableQueryContext context, boolean defer) throws IOException
+    public RangeIterator search(Expression exp, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);

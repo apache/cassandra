@@ -127,13 +127,14 @@ public class Segment implements Closeable
      * Search on-disk index synchronously
      *
      * @param expression to filter on disk index
-     * @param context to track per sstable cache and per query metrics
-     * @param defer create the iterator in a deferred state
+     * @param context    to track per sstable cache and per query metrics
+     * @param defer      create the iterator in a deferred state
+     * @param limit
      * @return range iterator that matches given expression
      */
-    public RangeIterator search(Expression expression, SSTableQueryContext context, boolean defer) throws IOException
+    public RangeIterator search(Expression expression, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        return index.search(expression, context, defer);
+        return index.search(expression, context, defer, limit);
     }
 
     @Override
