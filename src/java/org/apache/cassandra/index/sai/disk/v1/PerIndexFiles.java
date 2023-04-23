@@ -22,6 +22,7 @@ import java.io.Closeable;
 import java.util.EnumMap;
 import java.util.Map;
 
+import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -39,7 +40,11 @@ public class PerIndexFiles implements Closeable
     {
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
-        if (TypeUtil.isLiteral(indexContext.getValidator()))
+        if (indexContext.getValidator() instanceof DenseFloat32Type)
+        {
+            // TODO  lucene doesn't follow SAI file patterns
+        }
+        else if (TypeUtil.isLiteral(indexContext.getValidator()))
         {
             files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, temporary));
             files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, temporary));

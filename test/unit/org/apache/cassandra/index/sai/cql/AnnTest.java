@@ -23,6 +23,8 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.index.sai.SAITester;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 public class AnnTest extends SAITester
 {
     @Test
@@ -38,7 +40,24 @@ public class AnnTest extends SAITester
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'D', [4.0, 5.0, 6.0])");
 
         UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann [2.5, 3.5, 4.5] LIMIT 5");
+        assertThat(result).hasSizeGreaterThan(0);
+        System.out.println(makeRowStrings(result));
 
+        flush();
+        result = execute("SELECT * FROM %s WHERE val ann [2.5, 3.5, 4.5] LIMIT 5");
+        assertThat(result).hasSizeGreaterThan(0);
+        System.out.println(makeRowStrings(result));
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'E', [5.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'F', [6.0, 3.0, 4.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'G', [7.0, 4.0, 5.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'H', [8.0, 5.0, 6.0])");
+
+        flush();
+        compact();
+
+        result = execute("SELECT * FROM %s WHERE val ann [2.5, 3.5, 4.5] LIMIT 5");
+        assertThat(result).hasSizeGreaterThan(0);
         System.out.println(makeRowStrings(result));
     }
 }

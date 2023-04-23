@@ -139,9 +139,9 @@ public class SSTableIndex
     public List<RangeIterator> search(Expression expression,
                                       AbstractBounds<PartitionPosition> keyRange,
                                       SSTableQueryContext context,
-                                      boolean defer) throws IOException
+                                      boolean defer, int limit) throws IOException
     {
-        return searchableIndex.search(expression, keyRange, context, defer);
+        return searchableIndex.search(expression, keyRange, context, defer, limit);
     }
 
     public void populateSegmentView(SimpleDataSet dataSet)

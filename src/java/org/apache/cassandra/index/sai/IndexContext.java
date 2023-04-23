@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -74,6 +75,11 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 
 /**
  * Manage metadata for each column index.
@@ -646,5 +652,28 @@ public class IndexContext
     public boolean isSegmentCompactionEnabled()
     {
         return this.segmentCompactionEnabled;
+    }
+
+    public FieldInfo createFieldInfo(int vectorDimension)
+    {
+        String name = this.getIndexName();
+        int number = 0;
+        boolean storeTermVector = false;
+        boolean omitNorms = false;
+        boolean storePayloads = false;
+        IndexOptions indexOptions = IndexOptions.NONE;
+        DocValuesType docValues = DocValuesType.NONE;
+        long dvGen = -1;
+        Map<String, String> attributes = Map.of();
+        int pointDimensionCount = 0;
+        int pointIndexDimensionCount = 0;
+        int pointNumBytes = 0;
+        VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
+        VectorSimilarityFunction vectorSimilarityFunction = VectorSimilarityFunction.COSINE;
+        boolean softDeletesField = false;
+
+        return new FieldInfo(name, number, storeTermVector, omitNorms, storePayloads, indexOptions, docValues,
+                             dvGen, attributes, pointDimensionCount, pointIndexDimensionCount, pointNumBytes,
+                             vectorDimension, vectorEncoding, vectorSimilarityFunction, softDeletesField);
     }
 }

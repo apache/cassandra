@@ -69,7 +69,7 @@ public class TermIterator extends RangeIterator
                 assert !index.isReleased();
 
                 SSTableQueryContext context = queryContext.getSSTableQueryContext(index.getSSTable());
-                List<RangeIterator> keyIterators = index.search(e, keyRange, context, defer);
+                List<RangeIterator> keyIterators = index.search(e, keyRange, context, defer, limit);
 
                 if (keyIterators == null || keyIterators.isEmpty())
                     continue;

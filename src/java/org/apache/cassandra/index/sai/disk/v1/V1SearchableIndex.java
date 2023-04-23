@@ -158,7 +158,8 @@ public class V1SearchableIndex implements SearchableIndex
     public List<RangeIterator> search(Expression expression,
                                       AbstractBounds<PartitionPosition> keyRange,
                                       SSTableQueryContext context,
-                                      boolean defer) throws IOException
+                                      boolean defer,
+                                      int limit) throws IOException
     {
         List<RangeIterator> iterators = new ArrayList<>();
 
@@ -166,7 +167,7 @@ public class V1SearchableIndex implements SearchableIndex
         {
             if (segment.intersects(keyRange))
             {
-                iterators.add(segment.search(expression, context, defer));
+                iterators.add(segment.search(expression, context, defer, limit));
             }
         }
 
