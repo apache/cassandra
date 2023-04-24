@@ -276,8 +276,14 @@ public final class StatementRestrictions
             }
             if (hasQueriableIndex)
                 usesSecondaryIndexing = true;
-            else if (!allowFiltering && requiresAllowFilteringIfNotSpecified())
-                throw invalidRequest(allowFilteringMessage(state));
+            else if (!allowFiltering)
+            {
+                int restrictionsSize = partitionKeyRestrictions.getColumnDefinitions().size() +
+                                       clusteringColumnsRestrictions.getColumnDefinitions().size();
+                int primaryKeysSize = table.partitionKeyColumns().size() + table.clusteringColumns().size();
+                if (restrictionsSize != primaryKeysSize && requiresAllowFilteringIfNotSpecified())
+                    throw invalidRequest(allowFilteringMessage(state));
+            }
 
             filterRestrictions.add(nonPrimaryKeyRestrictions);
         }

@@ -1264,10 +1264,7 @@ public class SelectTest extends CQLTester
                        row(1, 2, 1, 4, 8),
                        row(1, 4, 1, 4, 8));
 
-            assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                                 "SELECT * FROM %s WHERE a = 1 AND b = 4 AND d = 8");
-
-            assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b = 4 AND d = 8 ALLOW FILTERING"),
+            assertRows(execute("SELECT * FROM %s WHERE a = 1 AND b = 4 AND d = 8"),
                        row(1, 4, 1, 4, 8));
 
             assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
@@ -1681,6 +1678,9 @@ public class SelectTest extends CQLTester
 
             assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                     "SELECT * FROM %s WHERE a > 11 and b = 1");
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 11 and b = 12 and c = 13 and d = 14"),
+                       row(11, 12, 13, 14));
 
             assertRows(execute("SELECT * FROM %s WHERE a = 11 ALLOW FILTERING"),
                     row(11, 12, 13, 14),
