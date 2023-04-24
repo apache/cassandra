@@ -1188,4 +1188,21 @@ public class FBUtilities
         }
         return builder.build();
     }
+
+    public enum Order { LT, EQ, GT }
+    public static <T> Order compare(T a, T b, Comparator<T> comparator)
+    {
+        int rc = comparator.compare(a, b);
+        if (rc < 0) return Order.LT;
+        if (rc == 0) return Order.EQ;
+        return Order.GT;
+    }
+
+    public static <A, B> Order compare(A a, B b, AsymmetricOrdering<A, B> comparator)
+    {
+        int rc = comparator.compareAsymmetric(a, b);
+        if (rc < 0) return Order.LT;
+        if (rc == 0) return Order.EQ;
+        return Order.GT;
+    }
 }

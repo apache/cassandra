@@ -169,6 +169,17 @@ final class Descriptor implements Comparable<Descriptor>
         return (other instanceof Descriptor) && equals((Descriptor) other);
     }
 
+    boolean equals(Descriptor other)
+    {
+        assert this.directory.equals(other.directory)
+             : format("Descriptors have mismatching directories: %s and %s", this.directory, other.directory);
+
+        return this.timestamp == other.timestamp
+            && this.generation == other.generation
+            && this.journalVersion == other.journalVersion
+            && this.userVersion == other.userVersion;
+    }
+
     @Override
     public int hashCode()
     {
@@ -178,18 +189,6 @@ final class Descriptor implements Comparable<Descriptor>
         result = 31 * result + journalVersion;
         result = 31 * result + userVersion;
         return result;
-    }
-
-    boolean equals(Descriptor other)
-    {
-        assert this.directory.equals(other.directory)
-             : format("Descriptors have mismatching directories: %s and %s", this.directory, other.directory);
-
-
-        return this.timestamp == other.timestamp
-            && this.generation == other.generation
-            && this.journalVersion == other.journalVersion
-            && this.userVersion == other.userVersion;
     }
 
     @Override
