@@ -92,10 +92,10 @@ public class CompositePartitionKeyIndexTest extends SAITester
         assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk2 = '2'"),
                 expectedRow(2));
 
-        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk1 > 1 AND pk2 = '2' ALLOW FILTERING"),
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk1 > 1 AND pk2 = '2'"),
                 expectedRow(2));
 
-        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk1 = -1 AND pk2 = '2' ALLOW FILTERING"));
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE pk1 = -1 AND pk2 = '2'"));
 
         assertThatThrownBy(()->execute("SELECT * FROM %s WHERE pk1 = -1 AND val = 2"))
                 .hasMessageContaining("use ALLOW FILTERING");

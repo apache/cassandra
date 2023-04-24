@@ -128,6 +128,28 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         for (Index index : indexRegistry.listIndexes())
            if (isSupportedBy(index))
                return true;
+
+        return false;
+    }
+
+    @Override
+    public boolean needsFiltering(Index.Group indexGroup)
+    {
+        for (ColumnMetadata column : columnDefs)
+        {
+            if (!isSupportedBy(indexGroup, column))
+                return true;
+        }
+        return false;
+    }
+
+    private boolean isSupportedBy(Index.Group indexGroup, ColumnMetadata column)
+    {
+        for (Index index : indexGroup.getIndexes())
+        {
+            if (isSupportedBy(index, column))
+                return true;
+        }
         return false;
     }
 
@@ -138,7 +160,17 @@ public abstract class MultiColumnRestriction implements SingleRestriction
      * @return <code>true</code> this type of restriction is supported by the specified index,
      * <code>false</code> otherwise.
      */
-    protected abstract boolean isSupportedBy(Index index);
+    private boolean isSupportedBy(Index index)
+    {
+        for (ColumnMetadata column : columnDefs)
+        {
+            if (isSupportedBy(index, column))
+                return true;
+        }
+        return false;
+    }
+
+    protected abstract boolean isSupportedBy(Index index, ColumnMetadata def);
 
     public static class EQRestriction extends MultiColumnRestriction
     {
@@ -176,12 +208,9 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        protected boolean isSupportedBy(Index index)
+        protected boolean isSupportedBy(Index index, ColumnMetadata column)
         {
-            for(ColumnMetadata column : columnDefs)
-                if (index.supportsExpression(column, Operator.EQ))
-                    return true;
-            return false;
+            return index.supportsExpression(column, Operator.EQ);
         }
 
         @Override
@@ -198,7 +227,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public final void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
+        public final void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             Tuples.Value t = ((Tuples.Value) value.bind(options));
             List<ByteBuffer> values = t.getElements();
@@ -246,16 +275,13 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        protected boolean isSupportedBy(Index index)
+        protected boolean isSupportedBy(Index index, ColumnMetadata column)
         {
-            for (ColumnMetadata column: columnDefs)
-                if (index.supportsExpression(column, Operator.IN))
-                    return true;
-            return false;
+            return index.supportsExpression(column, Operator.IN);
         }
 
         @Override
-        public final void addRowFilterTo(RowFilter filter,
+        public final void addToRowFilter(RowFilter filter,
                                          IndexRegistry indexRegistry,
                                          QueryOptions options)
         {
@@ -443,12 +469,9 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        protected boolean isSupportedBy(Index index)
+        protected boolean isSupportedBy(Index index, ColumnMetadata column)
         {
-            for(ColumnMetadata def : columnDefs)
-                if (slice.isSupportedBy(def, index))
-                    return true;
-            return false;
+            return slice.isSupportedBy(column, index);
         }
 
         @Override
@@ -499,7 +522,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public final void addRowFilterTo(RowFilter filter,
+        public final void addToRowFilter(RowFilter filter,
                                          IndexRegistry indexRegistry,
                                          QueryOptions options)
         {
@@ -573,12 +596,9 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        protected boolean isSupportedBy(Index index)
+        protected boolean isSupportedBy(Index index, ColumnMetadata column)
         {
-            for(ColumnMetadata column : columnDefs)
-                if (index.supportsExpression(column, Operator.IS_NOT))
-                    return true;
-            return false;
+            return index.supportsExpression(column, Operator.IS_NOT);
         }
 
         @Override
@@ -588,7 +608,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public final void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
+        public final void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             throw new UnsupportedOperationException("Secondary indexes do not support IS NOT NULL restrictions");
         }
