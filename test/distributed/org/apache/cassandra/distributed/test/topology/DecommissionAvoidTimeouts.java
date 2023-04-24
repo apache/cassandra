@@ -83,6 +83,9 @@ public abstract class DecommissionAvoidTimeouts extends TestBaseImpl
                                                         .set("dynamic_snitch_badness_threshold", 0))
                                       .start())
         {
+            // failure happens in PendingRangeCalculatorService.update, so the keyspace is being removed
+            cluster.setUncaughtExceptionsFilter((ignore, throwable) -> !"Unknown keyspace system_distributed".equals(throwable.getMessage()));
+
             fixDistributedSchemas(cluster);
             cluster.schemaChange("CREATE KEYSPACE " + KEYSPACE + " WITH replication = {'class': 'NetworkTopologyStrategy', 'datacenter1': 3, 'datacenter2': 3}");
             String table = KEYSPACE + ".tbl";
