@@ -220,7 +220,7 @@ public interface Index
     {
         return INDEX_BUILDER_SUPPORT;
     }
-    
+
     /**
      * Same as {@code getBuildTaskSupport} but can be overloaded with a specific 'recover' logic different than the index building one
      */
@@ -228,7 +228,7 @@ public interface Index
     {
         return getBuildTaskSupport();
     }
-    
+
     /**
      * Returns the type of operations supported by the index in case its building has failed and it's needing recovery.
      *
@@ -277,9 +277,9 @@ public interface Index
 
     /**
      * If the index implementation uses a local table to store its index data, this method should return a
-     * handle to it. If not, an empty {@link Optional} should be returned. This exists to support legacy 
+     * handle to it. If not, an empty {@link Optional} should be returned. This exists to support legacy
      * implementations, and should always be empty for indexes not belonging to a {@link SingletonIndexGroup}.
-     * 
+     *
      * @return an Optional referencing the Index's backing storage table if it has one, or Optional.empty() if not.
      */
     public Optional<ColumnFamilyStore> getBackingTable();
@@ -388,6 +388,17 @@ public interface Index
      * @return true if this index is capable of supporting such expressions, false otherwise
      */
     public boolean supportsExpression(ColumnMetadata column, Operator operator);
+
+    /**
+     * Returns whether this index does any kind of filtering when the query has multiple contains expressions, assuming
+     * that each of those expressions are supported as defined by {@link #supportsExpression(ColumnMetadata, Operator)}.
+     *
+     * @return {@code true} if this index uses filtering on multiple contains expressions, {@code false} otherwise
+     */
+    default boolean filtersMultipleContains()
+    {
+        return true;
+    }
 
     /**
      * If the index supports custom search expressions using the
@@ -636,7 +647,7 @@ public interface Index
          * Replica filtering protection may fetch data that doesn't match query conditions.
          *
          * On coordinator, we need to filter the replicas' responses again.
-         * 
+         *
          * This will not be called if {@link QueryPlan#supportsReplicaFilteringProtection(RowFilter)} returns false.
          *
          * @return filtered response that satisfied query conditions

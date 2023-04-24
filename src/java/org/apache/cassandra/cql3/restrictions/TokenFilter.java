@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableRangeSet;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -280,9 +281,15 @@ final class TokenFilter implements PartitionKeyRestrictions
     }
 
     @Override
-    public void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
+    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
     {
-        restrictions.addRowFilterTo(filter, indexRegistry, options);
+        restrictions.addToRowFilter(filter, indexRegistry, options);
+    }
+
+    @Override
+    public boolean needsFiltering(Index.Group indexGroup)
+    {
+        return restrictions.needsFiltering(indexGroup);
     }
 
     @Override

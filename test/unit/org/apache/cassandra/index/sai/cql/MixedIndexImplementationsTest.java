@@ -74,11 +74,11 @@ public class MixedIndexImplementationsTest extends SAITester
         assertRowsIgnoringOrder(execute(ossSelect, 0), new Object[][]{{0, 0, 0}, {1, 0, 1}});
         assertRowsIgnoringOrder(execute(ossSelect, 1), new Object[][]{{2, 1, 0}, {3, 1, 1}});
 
-        String ndiSelect = "SELECT * FROM %s WHERE v1 = ? AND v2 = ? ALLOW FILTERING";
-        assertRowsIgnoringOrder(execute(ndiSelect, 0, 0), new Object[]{0, 0, 0});
-        assertRowsIgnoringOrder(execute(ndiSelect, 0, 1), new Object[]{1, 0, 1});
-        assertRowsIgnoringOrder(execute(ndiSelect, 1, 0), new Object[]{2, 1, 0});
-        assertRowsIgnoringOrder(execute(ndiSelect, 1, 1), new Object[]{3, 1, 1});
+        String saiSelect = "SELECT * FROM %s WHERE v1 = ? AND v2 = ? ALLOW FILTERING";
+        assertRowsIgnoringOrder(execute(saiSelect, 0, 0), new Object[]{0, 0, 0});
+        assertRowsIgnoringOrder(execute(saiSelect, 0, 1), new Object[]{1, 0, 1});
+        assertRowsIgnoringOrder(execute(saiSelect, 1, 0), new Object[]{2, 1, 0});
+        assertRowsIgnoringOrder(execute(saiSelect, 1, 1), new Object[]{3, 1, 1});
     }
 
     @Test
@@ -107,17 +107,17 @@ public class MixedIndexImplementationsTest extends SAITester
         testAllowFiltering("SELECT * FROM %s WHERE c4=0", false);
         testAllowFiltering("SELECT * FROM %s WHERE r1=0", false);
         testAllowFiltering("SELECT * FROM %s WHERE r2=0", false);
-        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND c3=0", true);
-        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND r1=0", true);
-        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND r2=0", true);
-        testAllowFiltering("SELECT * FROM %s WHERE c3=0 AND r1=0", true);
-        testAllowFiltering("SELECT * FROM %s WHERE c3=0 AND r2=0", true);
-        testAllowFiltering("SELECT * FROM %s WHERE r1=0 AND r2=0", true);
-        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND c3=0 AND r1=0", true);
-        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND c3=0 AND r2=0", true);
-        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND r1=0 AND r2=0", true);
-        testAllowFiltering("SELECT * FROM %s WHERE c3=0 AND r1=0 AND r2=0", true);
-        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND c3=0 AND r1=0 AND r2=0", true);
+        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND c3=0", false);
+        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND r1=0", false);
+        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND r2=0", false);
+        testAllowFiltering("SELECT * FROM %s WHERE c3=0 AND r1=0", false);
+        testAllowFiltering("SELECT * FROM %s WHERE c3=0 AND r2=0", false);
+        testAllowFiltering("SELECT * FROM %s WHERE r1=0 AND r2=0", false);
+        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND c3=0 AND r1=0", false);
+        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND c3=0 AND r2=0", false);
+        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND r1=0 AND r2=0", false);
+        testAllowFiltering("SELECT * FROM %s WHERE c3=0 AND r1=0 AND r2=0", false);
+        testAllowFiltering("SELECT * FROM %s WHERE c2=0 AND c3=0 AND r1=0 AND r2=0", false);
 
         // using the not-SAI index on partition key
         testAllowFiltering("SELECT * FROM %s WHERE k1=0", false);

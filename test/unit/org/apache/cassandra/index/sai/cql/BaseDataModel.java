@@ -40,10 +40,9 @@ class BaseDataModel
     public static final String KEYSPACE = "sai_query_keyspace";
 
     public static final String SIMPLE_SELECT_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? LIMIT ?";
-    public static final String SIMPLE_SELECT_WITH_FILTERING_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? LIMIT ? ALLOW FILTERING";
-    public static final String TWO_CLAUSE_AND_QUERY_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? LIMIT ? ALLOW FILTERING";
-    public static final String TWO_CLAUSE_AND_QUERY_FILTERING_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? LIMIT ? ALLOW FILTERING";
-    public static final String THREE_CLAUSE_AND_QUERY_FILTERING_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? AND %s %s ? LIMIT ? ALLOW FILTERING";
+    public static final String RANGE_QUERY_TEMPLATE = "SELECT %s FROM %%s WHERE %s > ? AND %<s < ? LIMIT ?";
+    public static final String TWO_CLAUSE_AND_QUERY_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? LIMIT ?";
+    public static final String THREE_CLAUSE_AND_QUERY_TEMPLATE = "SELECT %s FROM %%s WHERE %s %s ? AND %s %s ? AND %s %s ? LIMIT ?";
 
     public static final String ASCII_COLUMN = "abbreviation";
     public static final String BIGINT_COLUMN = "gdp";
@@ -163,9 +162,9 @@ class BaseDataModel
         String keyColumnDefs = keyColumns.stream().map(column -> column.left + ' ' + column.right).collect(Collectors.joining(", "));
         String normalColumnDefs = columns.stream().map(column -> column.left + ' ' + column.right).collect(Collectors.joining(", "));
 
-        String template = "CREATE TABLE %s (%s, %s, PRIMARY KEY (%s))" + tableOptions;
-        tester.createTable(String.format(template, KEYSPACE + '.' + indexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
-        tester.createTable(String.format(template, KEYSPACE + '.' + nonIndexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
+        String template = "CREATE TABLE %s.%s (%s, %s, PRIMARY KEY (%s))" + tableOptions;
+        tester.createTable(String.format(template, KEYSPACE, indexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
+        tester.createTable(String.format(template, KEYSPACE, nonIndexedTable, keyColumnDefs, normalColumnDefs, primaryKey));
     }
 
     public void createIndexes(Executor tester) throws Throwable

@@ -86,13 +86,13 @@ public class SingleNodeQueryFailureTest extends SAITester
         {
             Injections.inject(injection);
 
-            assertThatThrownBy(() -> executeNet("SELECT id FROM %s WHERE v1 = '0' ALLOW FILTERING"))
+            assertThatThrownBy(() -> executeNet("SELECT id FROM %s WHERE v1 = '0'"))
                     .isInstanceOf(ReadFailureException.class);
 
-            assertThatThrownBy(() -> executeNet("SELECT id FROM %s WHERE v1 = '1' ALLOW FILTERING"))
+            assertThatThrownBy(() -> executeNet("SELECT id FROM %s WHERE v1 = '1'"))
                     .isInstanceOf(ReadFailureException.class);
 
-            assertThatThrownBy(() -> executeNet("SELECT id FROM %s WHERE v1 = '2' ALLOW FILTERING"))
+            assertThatThrownBy(() -> executeNet("SELECT id FROM %s WHERE v1 = '2'"))
                     .isInstanceOf(ReadFailureException.class);
         }
         catch (Exception e)

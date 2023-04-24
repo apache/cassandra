@@ -22,6 +22,7 @@ import java.util.Objects;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.TableMetadata;
 
 public class CustomIndexExpression
@@ -53,6 +54,23 @@ public class CustomIndexExpression
                                              .get(targetIndex.getName())
                                              .orElseThrow(() -> IndexRestrictions.indexNotFound(targetIndex, table)),
                                         value.bindAndGet(options));
+    }
+
+    /**
+     * Returns whether this expression would need filtering if the specified index group were used.
+     *
+     * @param indexGroup an index group
+     * @return {@code true} if this would need filtering if {@code indexGroup} were used, {@code false} otherwise
+     */
+    public boolean needsFiltering(Index.Group indexGroup)
+    {
+        String indexName = targetIndex.getName();
+        for (Index index : indexGroup.getIndexes())
+        {
+            if (index.getIndexMetadata().name.equals(indexName))
+                return false;
+        }
+        return true;
     }
 
     public String toCQLString()
