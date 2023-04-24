@@ -23,7 +23,17 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.EnumMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.junit.Test;
@@ -264,18 +274,18 @@ public class CQL3TypeLiteralTest
         addNativeValue("null", CQL3Type.Native.INET, ByteBufferUtil.EMPTY_BYTE_BUFFER);
         addNativeValue("null", CQL3Type.Native.INET, null);
 
-        for (int i = 0; i < 20; i++)
-        {
-            int n = randInt(200);
-            var v = new float[n];
-            for (int j = 0; j < n; j++)
-                v[j] = randFloat();
-            addNativeValue(DenseFloat32Type.Serializer.instance.toString(v),
-                           CQL3Type.Native.DENSE_F32,
-                           DenseFloat32Type.Serializer.instance.serialize(v));
-        }
-        addNativeValue("null", CQL3Type.Native.DENSE_F32, ByteBufferUtil.EMPTY_BYTE_BUFFER);
-        addNativeValue("null", CQL3Type.Native.DENSE_F32, null);
+//        for (int i = 0; i < 20; i++)
+//        {
+//            int n = randInt(200);
+//            var v = new float[n];
+//            for (int j = 0; j < n; j++)
+//                v[j] = randFloat();
+//            addNativeValue(DenseFloat32Type.Serializer.instance.toString(v),
+//                           CQL3Type.Native.DENSE_F32,
+//                           DenseFloat32Type.Serializer.instance.serialize(v));
+//        }
+//        addNativeValue("null", CQL3Type.Native.DENSE_F32, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+//        addNativeValue("null", CQL3Type.Native.DENSE_F32, null);
     }
 
     @Test

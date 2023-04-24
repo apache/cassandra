@@ -30,7 +30,7 @@ public class AnnTest extends SAITester
     @Test
     public void endToEndTest() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, str_val text, val dense float32, PRIMARY KEY(pk))");
+        createTable("CREATE TABLE %s (pk int, str_val text, val dense float32[3], PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 

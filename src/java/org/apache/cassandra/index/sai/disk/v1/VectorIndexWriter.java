@@ -29,7 +29,7 @@ import com.google.common.base.Stopwatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.PerColumnIndexWriter;
@@ -79,7 +79,7 @@ public class VectorIndexWriter implements PerColumnIndexWriter
 
     public VectorIndexWriter(IndexDescriptor indexDescriptor, IndexContext indexContext)
     {
-        Preconditions.checkState(indexContext.getValidator() instanceof DenseFloat32Type);
+        Preconditions.checkState(indexContext.isVector());
 
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
@@ -101,7 +101,7 @@ public class VectorIndexWriter implements PerColumnIndexWriter
         ByteBuffer value = indexContext.getValueOf(key.partitionKey(), row, nowInSec);
         if (value != null)
         {
-            float[] vector = DenseFloat32Type.Serializer.instance.deserialize(value.duplicate());
+            float[] vector = VectorType.Serializer.instance.deserialize(value.duplicate());
             try
             {
                 maybeCreateWriter(vector.length);
