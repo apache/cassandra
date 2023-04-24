@@ -31,7 +31,6 @@ import org.slf4j.LoggerFactory;
 import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.MemtableTermsIterator;
@@ -68,7 +67,7 @@ public class MemtableIndexWriter implements PerIndexWriter
     {
         assert rowMapping != null && rowMapping != RowMapping.DUMMY : "Row mapping must exist during FLUSH.";
 
-        Preconditions.checkState(!(indexContext.getValidator() instanceof DenseFloat32Type));
+        Preconditions.checkState(!(indexContext.isVector()));
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
         this.memtable = memtable;

@@ -32,7 +32,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
@@ -372,7 +371,7 @@ public class SSTableIndexWriter implements PerIndexWriter
     private SegmentBuilder newSegmentBuilder()
     {
         // vector uses VectorIndexSearcher
-        Preconditions.checkState(!(indexContext.getValidator() instanceof DenseFloat32Type));
+        Preconditions.checkState(!(indexContext.isVector()));
 
         SegmentBuilder builder = TypeUtil.isLiteral(indexContext.getValidator())
                                  ? new SegmentBuilder.RAMStringSegmentBuilder(indexContext.getValidator(), limiter)

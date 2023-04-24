@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.Term.Raw;
@@ -269,7 +269,7 @@ public final class SingleColumnRelation extends Relation
     protected Restriction newAnnRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
         ColumnMetadata columnDef = table.getExistingColumn(entity);
-        if (!(columnDef.type instanceof DenseFloat32Type))
+        if (!(columnDef.type instanceof VectorType))
             throw invalidRequest("ANN is only supported against DENSE FLOAT32 columns");
         Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
         return new SingleColumnRestriction.AnnRestriction(columnDef, term);

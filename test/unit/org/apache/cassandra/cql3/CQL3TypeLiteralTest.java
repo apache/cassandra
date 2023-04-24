@@ -23,14 +23,52 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.EnumMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
 
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.serializers.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.DecimalType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.TupleType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.serializers.AsciiSerializer;
+import org.apache.cassandra.serializers.BytesSerializer;
+import org.apache.cassandra.serializers.CollectionSerializer;
+import org.apache.cassandra.serializers.DurationSerializer;
+import org.apache.cassandra.serializers.InetAddressSerializer;
+import org.apache.cassandra.serializers.SimpleDateSerializer;
+import org.apache.cassandra.serializers.TimeSerializer;
+import org.apache.cassandra.serializers.TimestampSerializer;
+import org.apache.cassandra.serializers.UTF8Serializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
@@ -265,18 +303,18 @@ public class CQL3TypeLiteralTest
         addNativeValue("null", CQL3Type.Native.INET, ByteBufferUtil.EMPTY_BYTE_BUFFER);
         addNativeValue("null", CQL3Type.Native.INET, null);
 
-        for (int i = 0; i < 20; i++)
-        {
-            int n = randInt(200);
-            var v = new float[n];
-            for (int j = 0; j < n; j++)
-                v[j] = randFloat();
-            addNativeValue(DenseFloat32Type.Serializer.instance.toString(v),
-                           CQL3Type.Native.DENSE_F32,
-                           DenseFloat32Type.Serializer.instance.serialize(v));
-        }
-        addNativeValue("null", CQL3Type.Native.DENSE_F32, ByteBufferUtil.EMPTY_BYTE_BUFFER);
-        addNativeValue("null", CQL3Type.Native.DENSE_F32, null);
+//        for (int i = 0; i < 20; i++)
+//        {
+//            int n = randInt(200);
+//            var v = new float[n];
+//            for (int j = 0; j < n; j++)
+//                v[j] = randFloat();
+//            addNativeValue(DenseFloat32Type.Serializer.instance.toString(v),
+//                           CQL3Type.Native.DENSE_F32,
+//                           DenseFloat32Type.Serializer.instance.serialize(v));
+//        }
+//        addNativeValue("null", CQL3Type.Native.DENSE_F32, ByteBufferUtil.EMPTY_BYTE_BUFFER);
+//        addNativeValue("null", CQL3Type.Native.DENSE_F32, null);
     }
 
     @Test

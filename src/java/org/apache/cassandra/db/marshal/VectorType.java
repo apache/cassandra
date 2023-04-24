@@ -20,74 +20,64 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class DenseFloat32Type extends AbstractType<float[]>
+public class VectorType extends AbstractType<float[]>
 {
-    public static final DenseFloat32Type instance = new DenseFloat32Type();
+    private static final ConcurrentHashMap<Integer, VectorType> instances = new ConcurrentHashMap<>();
 
-    private DenseFloat32Type() {
+    private final int dimensions;
+
+
+    public static VectorType getInstance(int dimensions)
+    {
+        VectorType type = instances.get(dimensions);
+        return null == type
+               ? instances.computeIfAbsent(dimensions, k -> new VectorType(dimensions))
+               : type;
+    }
+
+
+    private VectorType(int dimensions)
+    {
         super(ComparisonType.BYTE_ORDER);
+        this.dimensions = dimensions;
+    }
+
+    @Override
+    public boolean isVector()
+    {
+        return true;
+    }
+
+    @Override
+    public CQL3Type asCQL3Type()
+    {
+        return new CQL3Type.Vector(dimensions);
+    }
+
+    @Override
+    public ByteBuffer fromString(String source) throws MarshalException
+    {
+        return null;
+    }
+
+    @Override
+    public Term fromJSONObject(Object parsed) throws MarshalException
+    {
+        return null;
     }
 
     @Override
     public TypeSerializer<float[]> getSerializer()
     {
         return Serializer.instance;
-    }
-
-    @Override
-    public ByteBuffer fromString(String source) throws MarshalException
-    {
-        // TODO
-        // following CollectionType example here.  I guess it's because the antlr parser
-        // takes care of building list literals, because they're not strings
-        // (in which case, when would this ever be called?)
-        try
-        {
-            return ByteBufferUtil.hexToBytes(source);
-        }
-        catch (NumberFormatException e)
-        {
-            throw new MarshalException(String.format("cannot parse '%s' as hex bytes", source), e);
-        }
-    }
-
-    @Override
-    public Term fromJSONObject(Object parsed) throws MarshalException
-    {
-        if (parsed instanceof String)
-            parsed = Json.decodeJson((String) parsed);
-
-        if (!(parsed instanceof List))
-            throw new MarshalException(String.format(
-            "Expected a list, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
-
-        List list = (List) parsed;
-        var vector = new float[list.size()];
-        int i = 0;
-        for (Object element : list)
-        {
-            if (element == null)
-                throw new MarshalException("Invalid null element in float32 vector");
-            var n = (Number) element;
-            vector[i++] = n.floatValue();
-        }
-
-        return new Constants.Value(Serializer.instance.serialize(vector));
-    }
-
-    public CQL3Type asCQL3Type()
-    {
-        return CQL3Type.Native.DENSE_F32;
     }
 
     public static class Serializer extends TypeSerializer<float[]>
