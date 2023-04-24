@@ -48,7 +48,6 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
@@ -387,7 +386,7 @@ public class QueryController
             NavigableSet<SSTableIndex> indexes = new TreeSet<>(SSTableIndex.COMPARATOR);
 
             // always search all for ANN
-            if (e.context.getValidator() instanceof DenseFloat32Type)
+            if (e.context.isVector())
                 indexes.addAll(view.getIndexes());
             else
                 indexes.addAll(applyScope(view.match(e)));

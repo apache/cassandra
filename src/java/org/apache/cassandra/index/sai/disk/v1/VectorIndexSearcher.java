@@ -29,7 +29,7 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.IndexSearcherContext;
@@ -110,7 +110,7 @@ public class VectorIndexSearcher extends IndexSearcher
         String field = indexContext.getIndexName();
 
         ByteBuffer buffer = exp.lower.value.raw;
-        float[] queryVector = DenseFloat32Type.Serializer.instance.deserialize(buffer.duplicate());
+        float[] queryVector = VectorType.Serializer.instance.deserialize(buffer.duplicate());
 
         Bits bits = null; // TODO filter partitions inside ANN search
         TopDocs docs = reader.search(field, queryVector, limit, bits, Integer.MAX_VALUE);

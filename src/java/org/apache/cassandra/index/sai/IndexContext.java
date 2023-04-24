@@ -48,9 +48,9 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -405,7 +405,7 @@ public class IndexContext
         if (op.isLike() || op == Operator.LIKE) return false;
 
         if (op == Operator.ANN)
-            return column.type instanceof DenseFloat32Type;
+            return column.type instanceof VectorType;
 
         Expression.Op operator = Expression.Op.valueOf(op);
 
@@ -496,7 +496,7 @@ public class IndexContext
     public boolean isVector()
     {
         //TODO probably move this down to TypeUtils eventually
-        return getValidator() instanceof DenseFloat32Type;
+        return getValidator().isVector();
     }
 
     public boolean equals(Object obj)

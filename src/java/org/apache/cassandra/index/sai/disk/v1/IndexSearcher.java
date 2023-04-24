@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.Closeable;
 import java.io.IOException;
 
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.IndexSearcherContext;
@@ -65,7 +64,7 @@ public abstract class IndexSearcher implements Closeable
                                      IndexDescriptor indexDescriptor,
                                      IndexContext indexContext) throws IOException
     {
-        if (indexContext.getValidator() instanceof DenseFloat32Type)
+        if (indexContext.isVector())
             return new VectorIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);
         if (TypeUtil.isLiteral(indexContext.getValidator()))
             return new InvertedIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);

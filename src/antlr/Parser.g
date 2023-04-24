@@ -1758,6 +1758,7 @@ comparatorType returns [CQL3Type.Raw t]
     : n=native_type     { $t = CQL3Type.Raw.from(n); }
     | c=collection_type { $t = c; }
     | tt=tuple_type     { $t = tt; }
+    | vc=vector_type    { $t = vc; }
     | id=userTypeName   { $t = CQL3Type.Raw.userType(id); }
     | K_FROZEN '<' f=comparatorType '>'
       {
@@ -1801,7 +1802,6 @@ native_type returns [CQL3Type t]
     | K_TIMEUUID  { $t = CQL3Type.Native.TIMEUUID; }
     | K_DATE      { $t = CQL3Type.Native.DATE; }
     | K_TIME      { $t = CQL3Type.Native.TIME; }
-    | K_DENSE_F32 { $t = CQL3Type.Native.DENSE_F32; }
     ;
 
 collection_type returns [CQL3Type.Raw pt]
@@ -1821,6 +1821,11 @@ tuple_type returns [CQL3Type.Raw t]
     @init {List<CQL3Type.Raw> types = new ArrayList<>();}
     @after {$t = CQL3Type.Raw.tuple(types);}
     : K_TUPLE '<' t1=comparatorType { types.add(t1); } (',' tn=comparatorType { types.add(tn); })* '>'
+    ;
+
+vector_type returns [CQL3Type.Raw vt]
+    : K_DENSE_F32  '[' d=INTEGER ']'
+        { $vt = CQL3Type.Raw.vector(Integer.parseInt($d.text)); }
     ;
 
 username

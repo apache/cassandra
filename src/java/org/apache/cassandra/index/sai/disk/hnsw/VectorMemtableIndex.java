@@ -34,7 +34,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
@@ -110,7 +110,7 @@ public class VectorMemtableIndex implements MemtableIndex
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
         var buffer = expr.lower.value.raw;
-        var qv = DenseFloat32Type.Serializer.instance.deserialize(buffer);
+        var qv = VectorType.Serializer.instance.deserialize(buffer);
         NeighborQueue nn;
         try
         {
@@ -240,7 +240,7 @@ public class VectorMemtableIndex implements MemtableIndex
         @Override
         public float[] vectorValue(int i)
         {
-            return DenseFloat32Type.Serializer.instance.deserialize(buffers.get(i));
+            return VectorType.Serializer.instance.deserialize(buffers.get(i));
         }
 
         public float[] add(ByteBuffer buffer) {

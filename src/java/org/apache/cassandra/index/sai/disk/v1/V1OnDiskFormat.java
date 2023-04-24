@@ -31,7 +31,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.db.marshal.DenseFloat32Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
@@ -177,13 +176,13 @@ public class V1OnDiskFormat implements OnDiskFormat
             logger.info(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
                         prettyPrintMemory(limiter.currentBytesUsed()));
 
-            if (index.getIndexContext().getValidator() instanceof DenseFloat32Type)
+            if (index.getIndexContext().isVector())
                 return new VectorIndexWriter(indexDescriptor, index.getIndexContext());
 
             return new SSTableIndexWriter(indexDescriptor, index.getIndexContext(), limiter, index.isIndexValid());
         }
 
-        if (index.getIndexContext().getValidator() instanceof DenseFloat32Type)
+        if (index.getIndexContext().isVector())
             return new VectorIndexWriter(indexDescriptor, index.getIndexContext()
             );
 
@@ -262,7 +261,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public Set<IndexComponent> perIndexComponents(IndexContext indexContext)
     {
-        if (indexContext.getValidator() instanceof DenseFloat32Type)
+        if (indexContext.isVector())
             return VECTOR_COMPONENTS;
         else if (TypeUtil.isLiteral(indexContext.getValidator()))
             return LITERAL_COMPONENTS;
