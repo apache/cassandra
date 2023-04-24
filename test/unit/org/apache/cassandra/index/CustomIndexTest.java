@@ -37,6 +37,7 @@ import com.datastax.driver.core.exceptions.QueryValidationException;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
@@ -57,6 +58,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.index.transactions.IndexTransaction;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.TableMetadata;
@@ -370,7 +372,7 @@ public class CustomIndexTest extends CQLTester
         assertInvalidMessage(String.format(IndexRestrictions.INDEX_NOT_FOUND, indexName, currentTableMetadata().toString()),
                              String.format("SELECT * FROM %%s WHERE expr(%s, 'foo bar baz')", indexName));
 
-        createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(c) USING '%s'", indexName, StubIndex.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(c) USING '%s'", indexName, ColumnTargetedIndex.class.getName()));
 
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
                                   String.format(IndexRestrictions.INDEX_NOT_FOUND, "no_such_index", currentTableMetadata().toString()),
@@ -390,7 +392,7 @@ public class CustomIndexTest extends CQLTester
                                                 indexName));
 
         // multiple expressions on different indexes
-        createIndex(String.format("CREATE CUSTOM INDEX other_custom_index ON %%s(d) USING '%s'", StubIndex.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX other_custom_index ON %%s(d) USING '%s'", ColumnTargetedIndex.class.getName()));
         assertInvalidThrowMessage(Optional.of(ProtocolVersion.CURRENT),
                                   IndexRestrictions.MULTIPLE_EXPRESSIONS,
                                   QueryValidationException.class,
@@ -402,6 +404,26 @@ public class CustomIndexTest extends CQLTester
                                   QueryValidationException.class,
                                   String.format("SELECT * FROM %%s WHERE expr(%s, 'foo') AND d=0", indexName));
         assertRows(execute(String.format("SELECT * FROM %%s WHERE expr(%s, 'foo') AND d=0 ALLOW FILTERING", indexName)), row);
+    }
+
+    /**
+     * A {@link StubIndex} that only supports expressions on its target column.
+     */
+    public static final class ColumnTargetedIndex extends StubIndex
+    {
+        private final ColumnMetadata indexedColumn;
+
+        public ColumnTargetedIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+            indexedColumn = TargetParser.parse(baseCfs.metadata(), metadata).left;
+        }
+
+        @Override
+        public boolean supportsExpression(ColumnMetadata column, Operator operator)
+        {
+            return column.equals(indexedColumn) && super.supportsExpression(column, operator);
+        }
     }
 
     @Test
