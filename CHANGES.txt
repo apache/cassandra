@@ -1,4 +1,5 @@
 5.0
+ * When decommissioning should set Severity to limit traffic (CASSANDRA-18430)
  * For Java11 and Java17 remove -XX:-UseBiasedLocking as it is the default already (CASSANDRA-17869)
  * Upgrade commons-io to 2.11.0 (CASSANDRA-17364)
  * Node Draining Should Abort All Current SSTables Imports (CASSANDRA-18373)

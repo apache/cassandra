@@ -27,6 +27,8 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -190,9 +192,20 @@ public class TestBaseImpl extends DistributedTestBase
     {
         // These keyspaces are under replicated by default, so must be updated when doing a multi-node cluster;
         // else bootstrap will fail with 'Unable to find sufficient sources for streaming range <range> in keyspace <name>'
+        Map<String, Long> dcCounts = cluster.stream()
+                                            .map(i -> i.config().localDatacenter())
+                                            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        String replica = "{'class': 'NetworkTopologyStrategy'";
+        for (Map.Entry<String, Long> e : dcCounts.entrySet())
+        {
+            String dc = e.getKey();
+            int rf = Math.min(e.getValue().intValue(), 3);
+            replica += ", '" + dc + "': " + rf;
+        }
+        replica += "}";
         for (String ks : Arrays.asList("system_auth", "system_traces"))
         {
-            cluster.schemaChange("ALTER KEYSPACE " + ks + " WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': " + Math.min(cluster.size(), 3) + "}");
+            cluster.schemaChange("ALTER KEYSPACE " + ks + " WITH REPLICATION = " + replica);
         }
 
         // in real live repair is needed in this case, but in the test case it doesn't matter if the tables loose

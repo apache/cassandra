@@ -62,7 +62,7 @@ public class Row
         this.nameIndex = nameIndex;
     }
 
-    void setResults(Object[] results)
+    public void setResults(Object[] results)
     {
         this.results = results;
     }

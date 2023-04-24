@@ -1348,13 +1348,14 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
         public void setup(SSTableReader reader, boolean trackHotness, Collection<? extends AutoCloseable> closeables)
         {
-            this.setup = true;
             // get a new reference to the shared descriptor-type tidy
             this.globalRef = GlobalTidy.get(reader);
             this.global = globalRef.get();
             if (trackHotness)
                 global.ensureReadMeter();
             this.closeables = new ArrayList<>(closeables);
+            // to avoid tidy seeing partial state, set setup=true at the end
+            this.setup = true;
         }
 
         private InstanceTidier(Descriptor descriptor, Owner owner)

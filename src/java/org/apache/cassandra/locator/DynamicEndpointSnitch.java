@@ -26,6 +26,8 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
 
 import com.codahale.metrics.Snapshot;
@@ -200,7 +202,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         {
             Double score = scores.get(replica.endpoint());
             if (score == null)
-                score = 0.0;
+                score = defaultStore(replica.endpoint());
             subsnitchOrderedScores.add(score);
         }
 
@@ -224,6 +226,11 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         return replicas;
     }
 
+    private static double defaultStore(InetAddressAndPort target)
+    {
+        return USE_SEVERITY ? getSeverity(target) : 0.0;
+    }
+
     // Compare endpoints given an immutable snapshot of the scores
     private int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2, Map<InetAddressAndPort, Double> scores)
     {
@@ -232,12 +239,12 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         
         if (scored1 == null)
         {
-            scored1 = 0.0;
+            scored1 = defaultStore(a1.endpoint());
         }
 
         if (scored2 == null)
         {
-            scored2 = 0.0;
+            scored2 = defaultStore(a2.endpoint());
         }
 
         if (scored1.equals(scored2))
@@ -269,7 +276,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         sample.update(unit.toMillis(latency));
     }
 
-    private void updateScores() // this is expensive
+    @VisibleForTesting
+    public void updateScores() // this is expensive
     {
         if (!StorageService.instance.isInitialized())
             return;
@@ -359,12 +367,19 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         return timings;
     }
 
+    @Override
     public void setSeverity(double severity)
+    {
+        addSeverity(severity);
+    }
+
+    public static void addSeverity(double severity)
     {
         Gossiper.instance.addLocalApplicationState(ApplicationState.SEVERITY, StorageService.instance.valueFactory.severity(severity));
     }
 
-    private double getSeverity(InetAddressAndPort endpoint)
+    @VisibleForTesting
+    public static double getSeverity(InetAddressAndPort endpoint)
     {
         EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         if (state == null)
