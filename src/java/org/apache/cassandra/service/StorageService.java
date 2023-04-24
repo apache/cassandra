@@ -5083,6 +5083,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     private void startLeaving()
     {
+        DatabaseDescriptor.getSeverityDuringDecommission().ifPresent(DynamicEndpointSnitch::addSeverity);
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, valueFactory.leaving(getLocalTokens()));
         Gossiper.instance.addLocalApplicationState(ApplicationState.STATUS, valueFactory.leaving(getLocalTokens()));
         tokenMetadata.addLeavingEndpoint(FBUtilities.getBroadcastAddressAndPort());
