@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.service.consensus.migration;
 
 import javax.annotation.Nonnull;
 
@@ -30,7 +30,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigratedAt;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigratedAt;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -38,13 +38,13 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.base.Preconditions.checkState;
-import static org.apache.cassandra.service.ConsensusKeyMigrationState.getConsensusMigratedAt;
-import static org.apache.cassandra.service.ConsensusRequestRouter.ConsensusRoutingDecision.accord;
-import static org.apache.cassandra.service.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV1;
-import static org.apache.cassandra.service.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV2;
-import static org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationTarget;
-import static org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationTarget.paxos;
-import static org.apache.cassandra.service.ConsensusTableMigrationState.TableMigrationState;
+import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.getConsensusMigratedAt;
+import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.accord;
+import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV1;
+import static org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter.ConsensusRoutingDecision.paxosV2;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationTarget;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationTarget.paxos;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
 
 /**
  * Helper class to decide where to route a request that requires consensus, migrating a key if necessary

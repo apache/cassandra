@@ -35,9 +35,9 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.ConsensusTableMigrationState;
-import org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationRepairType;
-import org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationTarget;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationRepairType;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationTarget;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
@@ -50,8 +50,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static java.lang.String.format;
 import static org.apache.cassandra.dht.Range.intersects;
 import static org.apache.cassandra.dht.Range.normalize;
-import static org.apache.cassandra.service.ConsensusTableMigrationState.MigrationStateSnapshot;
-import static org.apache.cassandra.service.ConsensusTableMigrationState.TableMigrationState;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.MigrationStateSnapshot;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
 
 
 public class MaybeFinishConsensusMigrationForTableAndRange implements Transformation

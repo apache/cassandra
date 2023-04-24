@@ -17,21 +17,22 @@
  */
 package org.apache.cassandra.streaming.messages;
 
-import java.io.*;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamRequest;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamSummary;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 
 public class PrepareSynMessage extends StreamMessage
 {
     public static Serializer<PrepareSynMessage> serializer = new Serializer<PrepareSynMessage>()
     {
-        public PrepareSynMessage deserialize(DataInputPlus input, int version) throws IOException
+        public PrepareSynMessage deserialize(DataInputPlus input, IPartitioner partitioner, int version) throws IOException
         {
             PrepareSynMessage message = new PrepareSynMessage();
             // requests
@@ -41,7 +42,7 @@ public class PrepareSynMessage extends StreamMessage
             // summaries
             int numSummaries = input.readInt();
             for (int i = 0; i < numSummaries; i++)
-                message.summaries.add(StreamSummary.serializer.deserialize(input, version));
+                message.summaries.add(StreamSummary.serializer.deserialize(input, partitioner, version));
             return message;
         }
 

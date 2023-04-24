@@ -23,10 +23,10 @@ import java.util.Map;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.ConsensusTableMigrationState;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
 
-import static org.apache.cassandra.service.ConsensusTableMigrationState.MigrationStateSnapshot;
-import static org.apache.cassandra.service.ConsensusTableMigrationState.TableMigrationState;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.MigrationStateSnapshot;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
 
 public class ClusterMetadata
 {

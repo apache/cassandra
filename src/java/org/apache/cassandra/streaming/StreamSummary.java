@@ -19,23 +19,31 @@ package org.apache.cassandra.streaming;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.List;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.IPartitionerDependentSerializer;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.CollectionSerializers;
 
 /**
  * Summary of streaming.
  */
 public class StreamSummary implements Serializable
 {
-    public static final IVersionedSerializer<StreamSummary> serializer = new StreamSummarySerializer();
+    public static final IPartitionerDependentSerializer<StreamSummary> serializer = new StreamSummarySerializer();
 
     public final TableId tableId;
+    public final List<Range<Token>> ranges;
 
     /**
      * Number of files to transfer. Can be 0 if nothing to transfer for some streaming request.
@@ -43,9 +51,10 @@ public class StreamSummary implements Serializable
     public final int files;
     public final long totalSize;
 
-    public StreamSummary(TableId tableId, int files, long totalSize)
+    public StreamSummary(TableId tableId, List<Range<Token>> ranges, int files, long totalSize)
     {
         this.tableId = tableId;
+        this.ranges = ranges;
         this.files = files;
         this.totalSize = totalSize;
     }
@@ -56,13 +65,13 @@ public class StreamSummary implements Serializable
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         StreamSummary summary = (StreamSummary) o;
-        return files == summary.files && totalSize == summary.totalSize && tableId.equals(summary.tableId);
+        return files == summary.files && totalSize == summary.totalSize && tableId.equals(summary.tableId) && ranges.equals(summary.ranges);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(tableId, files, totalSize);
+        return Objects.hashCode(tableId, ranges, files, totalSize);
     }
 
     @Override
@@ -70,27 +79,33 @@ public class StreamSummary implements Serializable
     {
         final StringBuilder sb = new StringBuilder("StreamSummary{");
         sb.append("path=").append(tableId);
+        sb.append(", ranges=").append(ranges);
         sb.append(", files=").append(files);
         sb.append(", totalSize=").append(totalSize);
         sb.append('}');
         return sb.toString();
     }
 
-    public static class StreamSummarySerializer implements IVersionedSerializer<StreamSummary>
+    public static class StreamSummarySerializer implements IPartitionerDependentSerializer<StreamSummary>
     {
         public void serialize(StreamSummary summary, DataOutputPlus out, int version) throws IOException
         {
             summary.tableId.serialize(out);
             out.writeInt(summary.files);
             out.writeLong(summary.totalSize);
+            if (version >= MessagingService.VERSION_50)
+                CollectionSerializers.serializeCollection(summary.ranges, out, version, Range.rangeSerializer);
         }
 
-        public StreamSummary deserialize(DataInputPlus in, int version) throws IOException
+        public StreamSummary deserialize(DataInputPlus in, IPartitioner p, int version) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
             int files = in.readInt();
             long totalSize = in.readLong();
-            return new StreamSummary(tableId, files, totalSize);
+            List<Range<Token>> ranges = ImmutableList.of();
+            if (version >= MessagingService.VERSION_50)
+                ranges = CollectionSerializers.deserializeList(in, p, version, Range.rangeSerializer);
+            return new StreamSummary(tableId, ranges, files, totalSize);
         }
 
         public long serializedSize(StreamSummary summary, int version)
@@ -98,6 +113,8 @@ public class StreamSummary implements Serializable
             long size = summary.tableId.serializedSize();
             size += TypeSizes.sizeof(summary.files);
             size += TypeSizes.sizeof(summary.totalSize);
+            if (version >= MessagingService.VERSION_50)
+                size += CollectionSerializers.serializedCollectionSize(summary.ranges, version, Range.rangeSerializer);
             return size;
         }
     }

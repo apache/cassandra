@@ -25,7 +25,8 @@ import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.IPartitionerDependentSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -78,7 +79,7 @@ public class SessionSummary
         return result;
     }
 
-    public static IVersionedSerializer<SessionSummary> serializer = new IVersionedSerializer<SessionSummary>()
+    public static IPartitionerDependentSerializer<SessionSummary> serializer = new IPartitionerDependentSerializer<SessionSummary>()
     {
         public void serialize(SessionSummary summary, DataOutputPlus out, int version) throws IOException
         {
@@ -98,7 +99,7 @@ public class SessionSummary
             }
         }
 
-        public SessionSummary deserialize(DataInputPlus in, int version) throws IOException
+        public SessionSummary deserialize(DataInputPlus in, IPartitioner partitioner, int version) throws IOException
         {
             InetAddressAndPort coordinator = inetAddressAndPortSerializer.deserialize(in, version);
             InetAddressAndPort peer = inetAddressAndPortSerializer.deserialize(in, version);
@@ -107,14 +108,14 @@ public class SessionSummary
             List<StreamSummary> receivingSummaries = new ArrayList<>(numRcvd);
             for (int i=0; i<numRcvd; i++)
             {
-                receivingSummaries.add(StreamSummary.serializer.deserialize(in, version));
+                receivingSummaries.add(StreamSummary.serializer.deserialize(in, partitioner, version));
             }
 
             int numSent = in.readInt();
             List<StreamSummary> sendingSummaries = new ArrayList<>(numRcvd);
             for (int i=0; i<numSent; i++)
             {
-                sendingSummaries.add(StreamSummary.serializer.deserialize(in, version));
+                sendingSummaries.add(StreamSummary.serializer.deserialize(in, partitioner, version));
             }
 
             return new SessionSummary(coordinator, peer, receivingSummaries, sendingSummaries);

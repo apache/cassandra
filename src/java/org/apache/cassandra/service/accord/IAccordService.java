@@ -49,7 +49,7 @@ public interface IAccordService
 
     long barrier(@Nonnull Seekables keysOrRanges, long minEpoch, long queryStartNanos, BarrierType barrierType, boolean isForWrite);
 
-    default void barrierForRepairSession(ColumnFamilyStore cfs, List<Range<Token>> ranges)
+    default void barrier(ColumnFamilyStore cfs, List<Range<Token>> ranges)
     {
         String ks = cfs.keyspace.getName();
         Ranges accordRanges = Ranges.of(ranges

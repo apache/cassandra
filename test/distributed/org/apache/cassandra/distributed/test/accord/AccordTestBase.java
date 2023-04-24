@@ -59,7 +59,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.ConsensusTableMigrationState.MigrationStateSnapshot;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.MigrationStateSnapshot;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;

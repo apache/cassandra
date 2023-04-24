@@ -37,7 +37,7 @@ import org.apache.cassandra.tcm.Epoch;
 import static accord.primitives.Routable.Domain.Key;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
-import static org.apache.cassandra.service.ConsensusKeyMigrationState.maybeSaveAccordKeyMigrationLocally;
+import static org.apache.cassandra.service.consensus.migration.ConsensusKeyMigrationState.maybeSaveAccordKeyMigrationLocally;
 
 public class AccordAgent implements Agent
 {

@@ -890,7 +890,7 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
     {
         TokenFactory tokenFactory = partitioner.getTokenFactory();
         String[] parts = value.split(",");
-        Token left = tokenFactory.fromString(parts[0].substring(1, parts[0].length()));
+        Token left = tokenFactory.fromString(parts[0].substring(1));
         Token right = tokenFactory.fromString(parts[1].substring(0, parts[1].length() -1));
         return new Range<>(left, right);
     }

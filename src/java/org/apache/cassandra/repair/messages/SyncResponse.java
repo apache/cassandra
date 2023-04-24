@@ -23,12 +23,13 @@ import java.util.List;
 import java.util.Objects;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.SyncNodePair;
 import org.apache.cassandra.streaming.SessionSummary;
 
 /**
@@ -103,7 +104,7 @@ public class SyncResponse extends RepairMessage
             List<SessionSummary> summaries = new ArrayList<>(numSummaries);
             for (int i=0; i<numSummaries; i++)
             {
-                summaries.add(SessionSummary.serializer.deserialize(in, version));
+                summaries.add(SessionSummary.serializer.deserialize(in, IPartitioner.global(), version));
             }
 
             return new SyncResponse(desc, nodes, success, summaries);

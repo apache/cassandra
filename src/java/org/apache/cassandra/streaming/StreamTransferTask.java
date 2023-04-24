@@ -20,7 +20,10 @@ package org.apache.cassandra.streaming;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -33,6 +36,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.utils.ExecutorUtils;
@@ -57,6 +62,8 @@ public class StreamTransferTask extends StreamTask
     private long totalSize = 0;
     private int totalFiles = 0;
 
+    private final Set<Range<Token>> ranges = new HashSet<>();
+
     public StreamTransferTask(StreamSession session, TableId tableId)
     {
         super(session, tableId);
@@ -70,6 +77,7 @@ public class StreamTransferTask extends StreamTask
         streams.put(message.header.sequenceNumber, message);
         totalSize += message.stream.getEstimatedSize();
         totalFiles += message.stream.getNumFiles();
+        ranges.addAll(stream.ranges());
     }
 
     /**
@@ -147,6 +155,12 @@ public class StreamTransferTask extends StreamTask
             Throwables.throwIfUnchecked(fail);
             throw new RuntimeException(fail);
         }
+    }
+
+    @Override
+    protected List<Range<Token>> ranges()
+    {
+        return Range.normalize(ranges);
     }
 
     public synchronized int getTotalNumberOfFiles()

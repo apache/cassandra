@@ -90,6 +90,11 @@ public class CollectionSerializers
         return deserializeCollection(in, version, serializer, newArrayList());
     }
 
+    public static <V> List<V> deserializeList(DataInputPlus in, IPartitioner partitioner, int version, IPartitionerDependentSerializer<V> serializer) throws IOException
+    {
+        return deserializeCollection(in, partitioner, version, serializer, newArrayList());
+    }
+
     public static <V> Set<V> deserializeSet(DataInputPlus in, int version, IVersionedSerializer<V> serializer) throws IOException
     {
         return deserializeCollection(in, version, serializer, newHashSet());

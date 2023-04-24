@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.service;
+package org.apache.cassandra.service.consensus.migration;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -54,7 +54,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigratedAt;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigratedAt;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.paxos.AbstractPaxosRepair.Failure;
@@ -68,9 +68,9 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static org.apache.cassandra.net.Verb.CONSENSUS_KEY_MIGRATION;
-import static org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationTarget;
-import static org.apache.cassandra.service.ConsensusTableMigrationState.ConsensusMigrationTarget.paxos;
-import static org.apache.cassandra.service.ConsensusTableMigrationState.TableMigrationState;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationTarget;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationTarget.paxos;
+import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 /**
