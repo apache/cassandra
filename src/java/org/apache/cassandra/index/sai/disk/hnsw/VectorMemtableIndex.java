@@ -62,7 +62,7 @@ public class VectorMemtableIndex implements MemtableIndex
     private final IndexContext indexContext;
     private final ByteBufferVectorValues vectorValues = new ByteBufferVectorValues();
     private final ArrayList<PrimaryKey> keys = new ArrayList<>();
-    private final HnswGraphBuilder builder;
+    private final HnswGraphBuilder<float[]> builder;
     private final LongAdder writeCount = new LongAdder();
 
     private final AtomicInteger cachedDimensions = new AtomicInteger();
@@ -252,7 +252,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
         public long ramBytesUsed()
         {
-            return ObjectSizes.measure(buffers) + buffers.size() * (4 + 4 * dimension());
+            return ObjectSizes.measure(buffers) + buffers.size() * (4 + 4L * dimension());
         }
     }
 }
