@@ -196,13 +196,13 @@ public final class StatementRestrictions
                 if (!type.allowUseOfSecondaryIndices() || !restriction.hasSupportingIndex(indexRegistry))
                     throw new InvalidRequestException(String.format("LIKE restriction is only supported on properly " +
                                                                     "indexed columns. %s is not valid.",
-                                                                    relation.toString()));
+                                                                    relation));
 
-                addRestriction(restriction);
+                addRestriction(restriction, indexRegistry);
             }
             else
             {
-                addRestriction(relation.toRestriction(table, boundNames));
+                addRestriction(relation.toRestriction(table, boundNames), indexRegistry);
             }
         }
 
@@ -296,13 +296,13 @@ public final class StatementRestrictions
         return !tableNullable.allowFilteringImplicitly();
     }
 
-    private void addRestriction(Restriction restriction)
+    private void addRestriction(Restriction restriction, IndexRegistry indexRegistry)
     {
         ColumnMetadata def = restriction.getFirstColumn();
         if (def.isPartitionKey())
             partitionKeyRestrictions = partitionKeyRestrictions.mergeWith(restriction);
         else if (def.isClusteringColumn())
-            clusteringColumnsRestrictions = clusteringColumnsRestrictions.mergeWith(restriction);
+            clusteringColumnsRestrictions = clusteringColumnsRestrictions.mergeWith(restriction, indexRegistry);
         else
             nonPrimaryKeyRestrictions = nonPrimaryKeyRestrictions.addRestriction((SingleRestriction) restriction);
     }
@@ -682,7 +682,7 @@ public final class StatementRestrictions
 
         RowFilter filter = RowFilter.create();
         for (Restrictions restrictions : filterRestrictions.getRestrictions())
-            restrictions.addRowFilterTo(filter, indexRegistry, options);
+            restrictions.addToRowFilter(filter, indexRegistry, options);
 
         for (CustomIndexExpression expression : filterRestrictions.getCustomIndexExpressions())
             expression.addToRowFilter(filter, table, options);
@@ -868,16 +868,17 @@ public final class StatementRestrictions
      * Checks if the query need to use filtering.
      * @return <code>true</code> if the query need to use filtering, <code>false</code> otherwise.
      */
-    public boolean needFiltering()
+    public boolean needFiltering(TableMetadata table)
     {
+        IndexRegistry indexRegistry = IndexRegistry.obtain(table);
+        if (filterRestrictions.needsFiltering(indexRegistry))
+            return true;
+
         int numberOfRestrictions = filterRestrictions.getCustomIndexExpressions().size();
         for (Restrictions restrictions : filterRestrictions.getRestrictions())
             numberOfRestrictions += restrictions.size();
 
-        return numberOfRestrictions > 1
-                || (numberOfRestrictions == 0 && !clusteringColumnsRestrictions.isEmpty())
-                || (numberOfRestrictions != 0
-                        && nonPrimaryKeyRestrictions.hasMultipleContains());
+        return numberOfRestrictions == 0 && !clusteringColumnsRestrictions.isEmpty();
     }
 
     private void validateSecondaryIndexSelections()
