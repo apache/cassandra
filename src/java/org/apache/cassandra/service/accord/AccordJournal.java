@@ -39,6 +39,7 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.journal.AsyncWriteCallback;
 import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.Params;
@@ -87,15 +88,15 @@ class AccordJournal
         return context instanceof TxnRequest && Type.mustAppend((TxnRequest<?>) context);
     }
 
-    void append(int storeId, PreLoadContext context, Executor executor, Runnable onDurable)
+    void append(int storeId, PreLoadContext context, Executor executor, AsyncWriteCallback callback)
     {
-        append(storeId, (TxnRequest<?>) context, executor, onDurable);
+        append(storeId, (TxnRequest<?>) context, executor, callback);
     }
 
-    void append(int storeId, TxnRequest<?> message, Executor executor, Runnable onDurable)
+    void append(int storeId, TxnRequest<?> message, Executor executor, AsyncWriteCallback callback)
     {
         Key key = new Key(message.txnId, Type.fromMsgType(message.type()), storeId);
-        journal.asyncWrite(key, message, SENTINEL_HOSTS, executor, onDurable);
+        journal.asyncWrite(key, message, SENTINEL_HOSTS, executor, callback);
     }
 
     TxnRequest<?> read(int storeId, TxnId txnId, Type type)

@@ -19,18 +19,21 @@ package org.apache.cassandra.service.accord.async;
 
 import java.util.function.BiConsumer;
 
+import javax.annotation.Nullable;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.local.PreLoadContext;
 import accord.utils.Invariants;
+import org.apache.cassandra.journal.AsyncWriteCallback;
 import org.apache.cassandra.service.accord.AccordCommandStore;
 
 /**
  * Durably appends PreAccept, Accept, Commit, and Apply messages to {@code AccordJournal}
  * before any further steps can be attempted.
  */
-public class AsyncAppender implements Runnable
+public class AsyncAppender implements AsyncWriteCallback
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncAppender.class);
 
@@ -69,12 +72,23 @@ public class AsyncAppender implements Runnable
         return state == State.FINISHED;
     }
 
-    @Override
-    public void run()
+    private void onFinished(@Nullable Throwable error)
     {
         commandStore.checkInStoreThread();
         Invariants.checkState(state == State.WAITING, "Expected WAITING state but was %s", state);
         state = State.FINISHED;
-        callback.accept(null, null);
+        callback.accept(error, null);
+    }
+
+    @Override
+    public void onSuccess()
+    {
+        onFinished(null);
+    }
+
+    @Override
+    public void onError(Throwable error)
+    {
+        onFinished(error);
     }
 }

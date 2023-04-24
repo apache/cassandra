@@ -206,7 +206,7 @@ final class Flusher<K, V>
     @FunctionalInterface
     private interface AsyncFlushMethod<K>
     {
-        void flush(ActiveSegment<K>.Allocation allocation, Executor executor, Runnable onDurable);
+        void flush(ActiveSegment<K>.Allocation allocation, Executor executor, AsyncWriteCallback callback);
     }
 
     private SyncFlushMethod<K> syncFlushMethod(Params params)
@@ -237,9 +237,9 @@ final class Flusher<K, V>
         written.incrementAndGet();
     }
 
-    void asyncFlush(ActiveSegment<K>.Allocation alloc, Executor executor, Runnable onDurable)
+    void asyncFlush(ActiveSegment<K>.Allocation alloc, Executor executor, AsyncWriteCallback callback)
     {
-        asyncFlushMethod.flush(alloc, executor, onDurable);
+        asyncFlushMethod.flush(alloc, executor, callback);
     }
 
     private void waitForFlushBatch(ActiveSegment<K>.Allocation alloc)
@@ -250,7 +250,7 @@ final class Flusher<K, V>
         pending.decrementAndGet();
     }
 
-    private void asyncFlushBatch(ActiveSegment<K>.Allocation alloc, Executor executor, Runnable onDurable)
+    private void asyncFlushBatch(ActiveSegment<K>.Allocation alloc, Executor executor, AsyncWriteCallback callback)
     {
         pending.incrementAndGet();
         requestExtraFlush();
@@ -259,7 +259,7 @@ final class Flusher<K, V>
             alloc.awaitFlush(journal.metrics.waitingOnFlush);
             pending.decrementAndGet();
             written.incrementAndGet();
-            executor.execute(onDurable);
+            executor.execute(callback);
          });
     }
 
@@ -270,7 +270,7 @@ final class Flusher<K, V>
         pending.decrementAndGet();
     }
 
-    private void asyncFlushGroup(ActiveSegment<K>.Allocation alloc, Executor executor, Runnable onDurable)
+    private void asyncFlushGroup(ActiveSegment<K>.Allocation alloc, Executor executor, AsyncWriteCallback callback)
     {
         pending.incrementAndGet();
         callbackExecutor.execute(() ->
@@ -278,7 +278,7 @@ final class Flusher<K, V>
             alloc.awaitFlush(journal.metrics.waitingOnFlush);
             pending.decrementAndGet();
             written.incrementAndGet();
-            executor.execute(onDurable);
+            executor.execute(callback);
         });
     }
 
@@ -293,7 +293,7 @@ final class Flusher<K, V>
         }
     }
 
-    private void asyncFlushPeriodic(ActiveSegment<K>.Allocation ignore, Executor executor, Runnable onDurable)
+    private void asyncFlushPeriodic(ActiveSegment<K>.Allocation ignore, Executor executor, AsyncWriteCallback callback)
     {
         long expectedFlushTime = nanoTime() - periodicFlushLabBlockNanos();
         callbackExecutor.execute(() ->
@@ -305,7 +305,7 @@ final class Flusher<K, V>
                 pending.decrementAndGet();
             }
             written.incrementAndGet();
-            executor.execute(onDurable);
+            executor.execute(callback);
         });
     }
 

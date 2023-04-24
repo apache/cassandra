@@ -268,19 +268,19 @@ public class Journal<K, V>
      * @param record the record to store
      * @param hosts hosts expected to invalidate the record
      */
-    public void asyncWrite(K id, V record, Set<Integer> hosts, @Nonnull Executor executor, @Nonnull Runnable onDurable)
+    public void asyncWrite(K id, V record, Set<Integer> hosts, @Nonnull Executor executor, @Nonnull AsyncWriteCallback callback)
     {
         try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             valueSerializer.serialize(record, dob, params.userVersion());
             ActiveSegment<K>.Allocation alloc = allocate(dob.getLength(), hosts);
             alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
-            flusher.asyncFlush(alloc, executor, onDurable);
+            flusher.asyncFlush(alloc, executor, callback);
         }
         catch (IOException e)
         {
             // exception during record serialization into the scratch buffer
-            throw new RuntimeException(e);
+            executor.execute(() -> callback.onError(e));
         }
     }
 
