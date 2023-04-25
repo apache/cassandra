@@ -201,12 +201,6 @@ public class AccordCommandStore implements CommandStore
         return AsyncChains.ofCallable(executor, task);
     }
 
-    @Override
-    public void execute(Runnable command)
-    {
-        executor.execute(command);
-    }
-
     public DataStore dataStore()
     {
         return dataStore;
