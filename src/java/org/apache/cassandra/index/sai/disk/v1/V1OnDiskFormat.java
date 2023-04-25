@@ -169,6 +169,9 @@ public class V1OnDiskFormat implements OnDiskFormat
                                             LifecycleNewTracker tracker,
                                             RowMapping rowMapping)
     {
+        if (index.getIndexContext().isVector())
+            return new VectorIndexWriter(indexDescriptor, index.getIndexContext());
+
         // If we're not flushing or we haven't yet started the initialization build, flush from SSTable contents.
         if (tracker.opType() != OperationType.FLUSH || !index.isInitBuildStarted())
         {
@@ -176,15 +179,8 @@ public class V1OnDiskFormat implements OnDiskFormat
             logger.info(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
                         prettyPrintMemory(limiter.currentBytesUsed()));
 
-            if (index.getIndexContext().isVector())
-                return new VectorIndexWriter(indexDescriptor, index.getIndexContext());
-
             return new SSTableIndexWriter(indexDescriptor, index.getIndexContext(), limiter, index.isIndexValid());
         }
-
-        if (index.getIndexContext().isVector())
-            return new VectorIndexWriter(indexDescriptor, index.getIndexContext()
-            );
 
         return new MemtableIndexWriter(index.getIndexContext().getPendingMemtableIndex(tracker),
                                        indexDescriptor,
@@ -227,7 +223,8 @@ public class V1OnDiskFormat implements OnDiskFormat
     {
         for (IndexComponent indexComponent : perIndexComponents(indexContext))
         {
-            if (!isBuildCompletionMarker(indexComponent))
+            // TODO: lucene doesn't follow SAI naming patterns and manage its own validation
+            if (!isBuildCompletionMarker(indexComponent) && !(indexContext.isVector()))
             {
                 try (IndexInput input = indexDescriptor.openPerIndexInput(indexComponent, indexContext))
                 {

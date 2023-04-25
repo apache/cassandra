@@ -50,6 +50,14 @@ public class VectorType extends AbstractType<float[]>
         this.dimensions = dimensions;
     }
 
+    /**
+     * @return num of dimensions of current vector type
+     */
+    public int getDimensions()
+    {
+        return dimensions;
+    }
+
     @Override
     public boolean isVector()
     {

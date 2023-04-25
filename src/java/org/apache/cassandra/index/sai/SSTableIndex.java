@@ -139,7 +139,8 @@ public class SSTableIndex
     public List<RangeIterator> search(Expression expression,
                                       AbstractBounds<PartitionPosition> keyRange,
                                       SSTableQueryContext context,
-                                      boolean defer, int limit) throws IOException
+                                      boolean defer,
+                                      int limit) throws IOException
     {
         return searchableIndex.search(expression, keyRange, context, defer, limit);
     }

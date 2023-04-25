@@ -281,7 +281,7 @@ public class QueryController
     /**
      * Try to reference all SSTableIndexes before querying on disk indexes.
      *
-     * If we attempt to proceed into {@link TermIterator#build(Expression, Set, AbstractBounds, QueryContext, boolean)}
+     * If we attempt to proceed into {@link TermIterator#build(Expression, Set, AbstractBounds, QueryContext, int, boolean)}
      * without first referencing all indexes, a concurrent compaction may decrement one or more of their backing
      * SSTable {@link Ref} instances. This will allow the {@link SSTableIndex} itself to be released and will fail the query.
      */
@@ -385,7 +385,7 @@ public class QueryController
 
             NavigableSet<SSTableIndex> indexes = new TreeSet<>(SSTableIndex.COMPARATOR);
 
-            // always search all for ANN
+            // always search all for vector
             if (e.context.isVector())
                 indexes.addAll(view.getIndexes());
             else

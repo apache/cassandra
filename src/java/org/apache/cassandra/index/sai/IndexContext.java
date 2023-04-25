@@ -654,7 +654,7 @@ public class IndexContext
         return this.segmentCompactionEnabled;
     }
 
-    public FieldInfo createFieldInfo(int vectorDimension)
+    public FieldInfo createFieldInfoForVector(int vectorDimension)
     {
         String name = this.getIndexName();
         int number = 0;

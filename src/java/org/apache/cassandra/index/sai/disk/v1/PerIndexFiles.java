@@ -41,7 +41,7 @@ public class PerIndexFiles implements Closeable
         this.indexContext = indexContext;
         if (indexContext.isVector())
         {
-            // TODO  lucene doesn't follow SAI file patterns
+            // TODO  lucene doesn't follow SAI file patterns and lucene manages its own file access
         }
         else if (TypeUtil.isLiteral(indexContext.getValidator()))
         {

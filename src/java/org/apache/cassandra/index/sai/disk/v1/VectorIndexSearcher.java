@@ -84,8 +84,8 @@ public class VectorIndexSearcher extends IndexSearcher
         int maxDocId = Math.toIntExact(segmentMetadata.maxSSTableRowId); // TODO we don't support more than 2.1B docs per segment. Do not enable segment merging
         SegmentInfo segmentInfo = new SegmentInfo(directory, Version.LATEST, Version.LATEST, segmentName, maxDocId, false, Lucene95Codec.getDefault(), Collections.emptyMap(), segmentId, Collections.emptyMap(), null);
 
-        int vectorDimension = Integer.parseInt(configs.get("DIMENSION"));
-        FieldInfo fieldInfo = indexContext.createFieldInfo(vectorDimension);
+        int vectorDimension = ((VectorType) indexContext.getValidator()).getDimensions();
+        FieldInfo fieldInfo = indexContext.createFieldInfoForVector(vectorDimension);
         FieldInfos fieldInfos = new FieldInfos(Collections.singletonList(fieldInfo).toArray(new FieldInfo[0]));
         SegmentReadState state = new SegmentReadState(directory, segmentInfo, fieldInfos, IOContext.DEFAULT);
         reader = new Lucene95HnswVectorsFormat().fieldsReader(state);
@@ -135,8 +135,9 @@ public class VectorIndexSearcher extends IndexSearcher
     }
 
     @Override
-    public void close()
+    public void close() throws IOException
     {
+        reader.close();
     }
 
     public static class TopDocsPostingList implements PostingList
@@ -180,7 +181,7 @@ public class VectorIndexSearcher extends IndexSearcher
                 if (index >= scoreDocs.length)
                     return PostingList.END_OF_STREAM;
 
-                doc = scoreDocs[++index];
+                doc = scoreDocs[index];
             }
 
             return doc.doc;
