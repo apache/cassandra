@@ -77,7 +77,7 @@ public class AsyncAppender implements AsyncWriteCallback
         commandStore.checkInStoreThread();
         Invariants.checkState(state == State.WAITING, "Expected WAITING state but was %s", state);
         state = State.FINISHED;
-        callback.accept(error, null);
+        callback.accept(null, error);
     }
 
     @Override
