@@ -163,13 +163,13 @@ public final class SystemDistributedKeyspace
 
     private static final TableMetadata AuditUser =
         parse(AUDIT_USER,
-              "Audit user",
+              "List of audit users",
               "CREATE TABLE %s ("
               + "role text PRIMARY KEY,"
               + "account_type text,"
               + "filter_percent double)")
         .compaction(CompactionParams.lcs(emptyMap()))
-        .comment("List of audit users").build();
+        .build();
 
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
@@ -180,10 +180,7 @@ public final class SystemDistributedKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        if (DatabaseDescriptor.getAuditLoggingOptions().enabled) {
-            return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable, AuditUser));
-        }
-        return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable));
+        return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(Math.max(DEFAULT_RF, DatabaseDescriptor.getDefaultKeyspaceRF())), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus, PartitionDenylistTable, AuditUser));
     }
 
     public static void startParentRepair(TimeUUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)

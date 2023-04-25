@@ -175,6 +175,9 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 
+4.0.6.01
+ * [SO-20343] audit_users table should be created by default
+
 Uber specific changes:
 <begin>
  * [SO-19793] Correct the invalid usernames for m3 metrics
