@@ -149,8 +149,7 @@ import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.SSTableLoader;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.format.VersionAndType;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.PathUtils;
@@ -481,7 +480,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         jmxObjectName = "org.apache.cassandra.db:type=StorageService";
 
-        sstablesTracker = new SSTablesGlobalTracker(SSTableFormat.Type.current());
+        sstablesTracker = new SSTablesGlobalTracker(DatabaseDescriptor.getSelectedSSTableFormat());
     }
 
     private void registerMBeans()
@@ -1148,7 +1147,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (!(notification instanceof SSTablesVersionsInUseChangeNotification))
                     return;
 
-                Set<VersionAndType> versions = ((SSTablesVersionsInUseChangeNotification)notification).versionsInUse;
+                Set<Version> versions = ((SSTablesVersionsInUseChangeNotification)notification).versionsInUse;
                 logger.debug("Updating local sstables version in Gossip to {}", versions);
 
                 Gossiper.instance.addLocalApplicationState(ApplicationState.SSTABLE_VERSIONS,

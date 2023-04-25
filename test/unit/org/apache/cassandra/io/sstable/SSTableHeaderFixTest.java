@@ -830,7 +830,7 @@ public class SSTableHeaderFixTest
         try
         {
 
-            Descriptor desc = new Descriptor(version, dir, "ks", "cf", MockSchema.sstableId(generation), BigFormat.getInstance().getType());
+            Descriptor desc = new Descriptor(version, dir, "ks", "cf", MockSchema.sstableId(generation));
 
             // Just create the component files - we don't really need those.
             for (Component component : requiredComponents)

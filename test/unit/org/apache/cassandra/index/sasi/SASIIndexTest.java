@@ -226,7 +226,7 @@ public class SASIIndexTest
                                                             sstable.getKeyspaceName(),
                                                             sstable.getColumnFamilyName(),
                                                             sstable.descriptor.id,
-                                                            sstable.descriptor.formatType);
+                                                            sstable.descriptor.version.format);
 
                 Set<Component> components = snapshotSSTables.get(snapshotSSTable);
 
@@ -236,7 +236,7 @@ public class SASIIndexTest
                 for (Component c : components)
                 {
                     long componentSize = snapshotSSTable.fileFor(c).length();
-                    if (Component.Type.fromRepresentation(c.name, sstable.descriptor.formatType) == Components.Types.SECONDARY_INDEX)
+                    if (Component.Type.fromRepresentation(c.name, sstable.descriptor.version.format) == Components.Types.SECONDARY_INDEX)
                         indexSize += componentSize;
                     else
                         tableSize += componentSize;

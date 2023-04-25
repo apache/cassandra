@@ -42,6 +42,7 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Timer;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -278,7 +279,7 @@ public class TableMetrics
     public final TableMeter rowIndexSizeAborts;
     public final TableHistogram rowIndexSize;
 
-    public final ImmutableMap<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
+    public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
@@ -891,18 +892,18 @@ public class TableMetrics
         }
     }
 
-    private ImmutableMap<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> createFormatSpecificGauges(ColumnFamilyStore cfs)
+    private ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> createFormatSpecificGauges(ColumnFamilyStore cfs)
     {
-        ImmutableMap.Builder<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> builder = ImmutableMap.builder();
-        for (SSTableFormat.Type formatType : SSTableFormat.Type.values())
+        ImmutableMap.Builder<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> builder = ImmutableMap.builder();
+        for (SSTableFormat<?, ?> format : DatabaseDescriptor.getSSTableFormats().values())
         {
             ImmutableMap.Builder<String, Gauge<? extends Number>> gauges = ImmutableMap.builder();
-            for (GaugeProvider<?> gaugeProvider : formatType.info.getFormatSpecificMetricsProviders().getGaugeProviders())
+            for (GaugeProvider<?> gaugeProvider : format.getFormatSpecificMetricsProviders().getGaugeProviders())
             {
                 Gauge<? extends Number> gauge = createTableGauge(gaugeProvider.name, gaugeProvider.getTableGauge(cfs), gaugeProvider.getGlobalGauge());
                 gauges.put(gaugeProvider.name, gauge);
             }
-            builder.put(formatType, gauges.build());
+            builder.put(format, gauges.build());
         }
         return builder.build();
     }

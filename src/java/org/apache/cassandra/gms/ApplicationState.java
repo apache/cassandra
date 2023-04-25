@@ -52,7 +52,7 @@ public enum ApplicationState
      * which new sstables are written), but may contain more on newly upgraded nodes before `upgradesstable` has been
      * run.
      *
-     * <p>The value (a set of sstable {@link org.apache.cassandra.io.sstable.format.VersionAndType}) is serialized as
+     * <p>The value (a set of sstable {@link org.apache.cassandra.io.sstable.format.Version}) is serialized as
      * a comma-separated list.
      **/
     SSTABLE_VERSIONS,

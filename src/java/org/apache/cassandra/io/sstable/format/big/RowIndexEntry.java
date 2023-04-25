@@ -137,6 +137,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class RowIndexEntry extends AbstractRowIndexEntry
 {
+    private static final BigFormat FORMAT = BigFormat.getInstance();
     private static final long EMPTY_SIZE = ObjectSizes.measure(new RowIndexEntry(0));
 
     // constants for type of row-index-entry as serialized for saved-cache
@@ -192,7 +193,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
     @Override
     public BigFormat getSSTableFormat()
     {
-        return BigFormat.getInstance();
+        return FORMAT;
     }
 
     @Override
