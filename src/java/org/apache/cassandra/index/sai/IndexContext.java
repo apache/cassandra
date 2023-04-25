@@ -514,7 +514,7 @@ public class IndexContext
                         .sum();
     }
 
-    public FieldInfo createFieldInfo(int vectorDimension)
+    public FieldInfo createFieldInfoForVector(int vectorDimension)
     {
         String name = this.getIndexName();
         int number = 0;
