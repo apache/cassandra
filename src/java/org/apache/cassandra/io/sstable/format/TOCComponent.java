@@ -68,7 +68,7 @@ public class TOCComponent
         Set<Component> components = Sets.newHashSetWithExpectedSize(componentNames.size());
         for (String componentName : componentNames)
         {
-            Component component = Component.parse(componentName, descriptor.formatType);
+            Component component = Component.parse(componentName, descriptor.version.format);
             if (skipMissing && !descriptor.fileFor(component).exists())
                 logger.error("Missing component: {}", descriptor.fileFor(component));
             else

@@ -18,25 +18,15 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.function.Supplier;
+import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.CharMatcher;
-import com.google.common.collect.ImmutableList;
-
-import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -54,7 +44,6 @@ import org.apache.cassandra.utils.Pair;
  */
 public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
 {
-    int ordinal();
     String name();
 
     Version getLatestVersion();
@@ -113,101 +102,12 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
 
     void deleteOrphanedComponents(Descriptor descriptor, Set<Component> components);
 
-    void setup(int id, String name, Map<String, String> options);
-
-    Type getType();
-
     /**
      * Deletes the existing components of the sstables represented by the provided descriptor.
      * The method is also responsible for cleaning up the in-memory resources occupied by the stuff related to that
      * sstables, such as row key cache entries.
      */
     void delete(Descriptor descriptor);
-
-    class Type
-    {
-        private final static ImmutableList<Type> types;
-        private final static Type[] typesById;
-
-        static
-        {
-            Pair<List<Type>, Type[]> factories = readFactories(DatabaseDescriptor.getSSTableFormatFactories());
-            types = ImmutableList.copyOf(factories.left);
-            typesById = factories.right;
-        }
-
-        @VisibleForTesting
-        public static Pair<List<Type>, Type[]> readFactories(Map<String, Supplier<SSTableFormat<?, ?>>> factories)
-        {
-            List<Type> typesList = new ArrayList<>(factories.size());
-            factories.forEach((key, factory) -> {
-                SSTableFormat<?, ?> format = factory.get();
-                typesList.add(new Type(format.ordinal(), format.name(), format));
-            });
-            List<Type> types = ImmutableList.copyOf(typesList);
-            int maxId = typesList.stream().mapToInt(t -> t.ordinal).max().getAsInt();
-            Type[] typesById = new Type[maxId + 1];
-            typesList.forEach(t -> typesById[t.ordinal] = t);
-            return Pair.create(types, typesById);
-        }
-
-        public final int ordinal;
-        public final SSTableFormat<?, ?> info;
-        public final String name;
-
-        private static Type currentType;
-
-        public static Type current()
-        {
-            if (currentType != null)
-                return currentType;
-
-            String name = CassandraRelevantProperties.SSTABLE_FORMAT_DEFAULT.getString();
-            if (name == null)
-                return types.get(0);
-
-            try
-            {
-                Type type = getByName(name);
-                currentType = type;
-                return type;
-            }
-            catch (RuntimeException ex)
-            {
-                throw new ConfigurationException("SSTable format " + name + " is not registered. Registered formats are: " + types);
-            }
-        }
-
-        private Type(int ordinal, String name, SSTableFormat<?, ?> info)
-        {
-            //Since format comes right after generation
-            //we disallow formats with numeric names
-            assert !CharMatcher.digit().matchesAllOf(name);
-            this.ordinal = ordinal;
-            this.name = name;
-            this.info = info;
-        }
-
-        public static Type getByName(String name)
-        {
-            for (int i = 0; i < types.size(); i++)
-                if (types.get(i).name.equals(name))
-                    return types.get(i);
-            throw new NoSuchElementException(name);
-        }
-
-        public static Type getByOrdinal(int ordinal)
-        {
-            if (ordinal < 0 || ordinal >= typesById.length || typesById[ordinal] == null)
-                throw new NoSuchElementException(String.valueOf(ordinal));
-            return typesById[ordinal];
-        }
-
-        public static Iterable<Type> values()
-        {
-            return types;
-        }
-    }
 
     interface SSTableReaderFactory<R extends SSTableReader, B extends SSTableReader.Builder<R, B>>
     {
@@ -298,4 +198,21 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
         void serialize(T entry, DataOutputPlus output) throws IOException;
     }
 
+    interface Factory
+    {
+        /**
+         * Returns a name of the format. Format name must not be empty, must be unique and must consist only of lowercase letters.
+         */
+        String name();
+
+        /**
+         * Returns an instance of the sstable format configured with the provided options.
+         * <p/>
+         * The method is expected to validate the options, and throw
+         * {@link org.apache.cassandra.exceptions.ConfigurationException} if the validation fails.
+         *
+         * @param options    overrides for the default options, can be empty, cannot be null
+         */
+        SSTableFormat<?, ?> getInstance(@Nonnull Map<String, String> options);
+    }
 }
