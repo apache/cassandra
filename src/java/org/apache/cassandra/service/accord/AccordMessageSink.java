@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.concurrent.Executor;
 
 import com.google.common.base.Preconditions;
 
@@ -29,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
 import accord.api.MessageSink;
+import accord.local.AgentExecutor;
 import accord.local.Node;
 import accord.messages.Callback;
 import accord.messages.MessageType;
@@ -120,14 +120,14 @@ public class AccordMessageSink implements MessageSink
     }
 
     @Override
-    public void send(Node.Id to, Request request, Executor executor, Callback callback)
+    public void send(Node.Id to, Request request, AgentExecutor executor, Callback callback)
     {
         Verb verb = getVerb(request.type());
         Preconditions.checkNotNull(verb, "Verb is null for type %s", request.type());
         Message<Request> message = Message.out(verb, request);
         InetAddressAndPort endpoint = getEndpoint(to);
         logger.debug("Sending {} {} to {}", verb, message.payload, endpoint);
-        messaging.sendWithCallback(message, endpoint, new AccordCallback<>(executor, agent, (Callback<Reply>) callback));
+        messaging.sendWithCallback(message, endpoint, new AccordCallback<>(executor, (Callback<Reply>) callback));
     }
 
     @Override

@@ -18,13 +18,11 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.concurrent.Executor;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import accord.api.Agent;
 import accord.coordinate.Timeout;
+import accord.local.AgentExecutor;
 import accord.messages.Callback;
 import accord.messages.SafeCallback;
 import accord.messages.Reply;
@@ -37,9 +35,9 @@ class AccordCallback<T extends Reply> extends SafeCallback<T> implements Request
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCallback.class);
 
-    public AccordCallback(Executor executor, Agent agent, Callback<T> callback)
+    public AccordCallback(AgentExecutor executor, Callback<T> callback)
     {
-        super(executor, agent, callback);
+        super(executor, callback);
     }
 
     @Override
