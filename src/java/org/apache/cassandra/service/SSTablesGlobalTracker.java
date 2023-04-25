@@ -36,7 +36,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.format.VersionAndType;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.notifications.INotification;
 import org.apache.cassandra.notifications.INotificationConsumer;
 import org.apache.cassandra.notifications.InitialSSTableAddedNotification;
@@ -78,23 +78,23 @@ public class SSTablesGlobalTracker implements INotificationConsumer
 
     private final Set<Descriptor> allSSTables = ConcurrentHashMap.newKeySet();
 
-    private final VersionAndType currentVersion;
+    private final Version currentVersion;
     private int sstablesForCurrentVersion;
-    private final Map<VersionAndType, Integer> sstablesForOtherVersions = new HashMap<>();
+    private final Map<Version, Integer> sstablesForOtherVersions = new HashMap<>();
 
-    private volatile ImmutableSet<VersionAndType> versionsInUse = ImmutableSet.of();
+    private volatile ImmutableSet<Version> versionsInUse = ImmutableSet.of();
 
     private final Set<INotificationConsumer> subscribers = new CopyOnWriteArraySet<>();
 
-    public SSTablesGlobalTracker(SSTableFormat.Type currentSSTableFormat)
+    public SSTablesGlobalTracker(SSTableFormat<?, ?> currentSSTableFormat)
     {
-        this.currentVersion = new VersionAndType(currentSSTableFormat.info.getLatestVersion(), currentSSTableFormat);
+        this.currentVersion = currentSSTableFormat.getLatestVersion();
     }
 
     /**
      * The set of all sstable versions currently in use on this node.
      */
-    public Set<VersionAndType> versionsInUse()
+    public Set<Version> versionsInUse()
     {
         return versionsInUse;
     }
@@ -151,7 +151,7 @@ public class SSTablesGlobalTracker implements INotificationConsumer
          synchronized block.
         */
         int currentDelta = 0;
-        Map<VersionAndType, Integer> othersDelta = null;
+        Map<Version, Integer> othersDelta = null;
         /*
          Note: we deal with removes first as if a notification both removes and adds, it's a compaction and while
          it should never remove and add the same descriptor in practice, doing the remove first is more logical.
@@ -161,7 +161,7 @@ public class SSTablesGlobalTracker implements INotificationConsumer
             if (!allSSTables.remove(desc))
                 continue;
 
-            VersionAndType version = version(desc);
+            Version version = desc.version;
             if (currentVersion.equals(version))
                 --currentDelta;
             else
@@ -172,7 +172,7 @@ public class SSTablesGlobalTracker implements INotificationConsumer
             if (!allSSTables.add(desc))
                 continue;
 
-            VersionAndType version = version(desc);
+            Version version = desc.version;
             if (currentVersion.equals(version))
                 ++currentDelta;
             else
@@ -196,9 +196,9 @@ public class SSTablesGlobalTracker implements INotificationConsumer
 
             if (othersDelta != null)
             {
-                for (Map.Entry<VersionAndType, Integer> entry : othersDelta.entrySet())
+                for (Map.Entry<Version, Integer> entry : othersDelta.entrySet())
                 {
-                    VersionAndType version = entry.getKey();
+                    Version version = entry.getKey();
                     int delta = entry.getValue();
                     /*
                      Updates the count, removing the version if it reaches 0 (note: we could use Map#compute for this,
@@ -221,16 +221,16 @@ public class SSTablesGlobalTracker implements INotificationConsumer
         return triggerUpdate;
     }
 
-    private static ImmutableSet<VersionAndType> computeVersionsInUse(int sstablesForCurrentVersion, VersionAndType currentVersion, Map<VersionAndType, Integer> sstablesForOtherVersions)
+    private static ImmutableSet<Version> computeVersionsInUse(int sstablesForCurrentVersion, Version currentVersion, Map<Version, Integer> sstablesForOtherVersions)
     {
-        ImmutableSet.Builder<VersionAndType> builder = ImmutableSet.builder();
+        ImmutableSet.Builder<Version> builder = ImmutableSet.builder();
         if (sstablesForCurrentVersion > 0)
             builder.add(currentVersion);
         builder.addAll(sstablesForOtherVersions.keySet());
         return builder.build();
     }
 
-    private static int sanitizeSSTablesCount(int sstableCount, VersionAndType version)
+    private static int sanitizeSSTablesCount(int sstableCount, Version version)
     {
         if (sstableCount >= 0)
             return sstableCount;
@@ -241,7 +241,7 @@ public class SSTablesGlobalTracker implements INotificationConsumer
         */
         noSpamLogger.error("Invalid state while handling sstables change notification: the number of sstables for " +
                            "version {} was computed to {}. This indicate a bug and please report it, but it should " +
-                           "not have adverse consequences.", version, sstableCount, new RuntimeException());
+                           "not have adverse consequences.", version.toFormatAndVersionString(), sstableCount, new RuntimeException());
         return 0;
     }
 
@@ -267,18 +267,13 @@ public class SSTablesGlobalTracker implements INotificationConsumer
             return Collections.emptyList();
     }
 
-    private static Map<VersionAndType, Integer> update(Map<VersionAndType, Integer> counts,
-                                                       VersionAndType toUpdate,
+    private static Map<Version, Integer> update(Map<Version, Integer> counts,
+                                                       Version toUpdate,
                                                        int delta)
     {
-        Map<VersionAndType, Integer> m = counts == null ? new HashMap<>() : counts;
+        Map<Version, Integer> m = counts == null ? new HashMap<>() : counts;
         m.merge(toUpdate, delta, (a, b) -> (a + b == 0) ? null : (a + b));
         return m;
     }
 
-    @VisibleForTesting
-    static VersionAndType version(Descriptor sstable)
-    {
-        return new VersionAndType(sstable.version, sstable.formatType);
-    }
 }

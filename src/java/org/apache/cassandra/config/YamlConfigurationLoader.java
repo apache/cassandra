@@ -200,6 +200,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         Yaml rawYaml = new Yaml(loaderOptions);
 
         Map<String, Object> rawConfig = rawYaml.load(new ByteArrayInputStream(configBytes));
+        if (rawConfig == null)
+            rawConfig = new HashMap<>();
         verifyReplacements(replacements, rawConfig);
 
     }

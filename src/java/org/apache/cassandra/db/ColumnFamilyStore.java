@@ -879,8 +879,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                                            descriptor.cfname,
                                            // Increment the generation until we find a filename that doesn't exist. This is needed because the new
                                            // SSTables that are being loaded might already use these generation numbers.
-                                           sstableIdGenerator.get(),
-                                           descriptor.formatType);
+                                           sstableIdGenerator.get());
         }
         while (newDescriptor.fileFor(Components.DATA).exists());
         return newDescriptor;
@@ -926,22 +925,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
 
     public Descriptor newSSTableDescriptor(File directory)
     {
-        return newSSTableDescriptor(directory, SSTableFormat.Type.current().info.getLatestVersion(), SSTableFormat.Type.current());
+        return newSSTableDescriptor(directory, DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion());
     }
 
-    public Descriptor newSSTableDescriptor(File directory, SSTableFormat.Type format)
+    public Descriptor newSSTableDescriptor(File directory, SSTableFormat<?, ?> format)
     {
-        return newSSTableDescriptor(directory, format.info.getLatestVersion(), format);
+        return newSSTableDescriptor(directory, format.getLatestVersion());
     }
 
-    public Descriptor newSSTableDescriptor(File directory, Version version, SSTableFormat.Type format)
+    public Descriptor newSSTableDescriptor(File directory, Version version)
     {
         Descriptor newDescriptor = new Descriptor(version,
                                                   directory,
                                                   keyspace.getName(),
                                                   name,
-                                                  sstableIdGenerator.get(),
-                                                  format);
+                                                  sstableIdGenerator.get());
         assert !newDescriptor.fileFor(Components.DATA).exists();
         return newDescriptor;
     }

@@ -66,7 +66,7 @@ public class SerializationHeaderTest
     @Test
     public void testWrittenAsDifferentKind() throws Exception
     {
-        SSTableFormat<?, ?> format = SSTableFormat.Type.current().info;
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
         final String tableName = "testWrittenAsDifferentKind";
         ColumnIdentifier v = ColumnIdentifier.getInterned("v", false);
         TableMetadata schemaWithStatic = TableMetadata.builder(KEYSPACE, tableName)
@@ -91,7 +91,7 @@ public class SerializationHeaderTest
         try
         {
             BiFunction<TableMetadata, Function<ByteBuffer, Clustering<?>>, Callable<Descriptor>> writer = (schema, clusteringFunction) -> () -> {
-                Descriptor descriptor = new Descriptor(format.getLatestVersion(), dir, schema.keyspace, schema.name, id.get(), format.getType());
+                Descriptor descriptor = new Descriptor(format.getLatestVersion(), dir, schema.keyspace, schema.name, id.get());
 
                 SerializationHeader header = SerializationHeader.makeWithoutStats(schema);
                 try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);

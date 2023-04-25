@@ -21,13 +21,16 @@ package org.apache.cassandra.db.compaction;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.lang.ref.WeakReference;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -173,7 +176,7 @@ public class CompactionLogger
     {
         ObjectNode node = json.objectNode();
         node.put("generation", sstable.descriptor.id.toString());
-        node.put("version", sstable.descriptor.version.getVersion());
+        node.put("version", sstable.descriptor.version.version);
         node.put("size", sstable.onDiskLength());
         JsonNode logResult = strategy.strategyLogger().sstable(sstable);
         if (logResult != null)

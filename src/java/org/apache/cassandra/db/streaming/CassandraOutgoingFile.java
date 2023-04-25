@@ -31,9 +31,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.OutgoingStream;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Ref;
 
@@ -81,7 +81,6 @@ public class CassandraOutgoingFile implements OutgoingStream
                 : null;
 
         return CassandraStreamHeader.builder()
-                                    .withSSTableFormat(sstable.descriptor.formatType)
                                     .withSSTableVersion(sstable.descriptor.version)
                                     .withSSTableLevel(operation.keepSSTableLevel() ? sstable.getSSTableLevel() : 0)
                                     .withEstimatedKeys(estimatedKeys)

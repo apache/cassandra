@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -31,8 +30,6 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
@@ -76,9 +73,6 @@ public class Config
      * Prefix for Java properties for internal Cassandra configuration options
      */
     public static final String PROPERTY_PREFIX = "cassandra.";
-
-    public static final String SSTABLE_FORMAT_ID = "id";
-    public static final String SSTABLE_FORMAT_NAME = "name";
 
     public String cluster_name = "Test Cluster";
     public String authenticator;
@@ -364,9 +358,13 @@ public class Config
 
     public String[] data_file_directories = new String[0];
 
-    public List<ParameterizedClass> sstable_formats = ImmutableList.of(new ParameterizedClass(BigFormat.class.getName(),// "org.apache.cassandra.io.sstable.format.big.BigFormat",
-                                                                                              ImmutableMap.of(SSTABLE_FORMAT_ID, "0",
-                                                                                                              SSTABLE_FORMAT_NAME, "big")));
+    public static class SSTableConfig
+    {
+        public String selected_format = BigFormat.NAME;
+        public Map<String, Map<String, String>> format = new HashMap<>();
+    }
+
+    public final SSTableConfig sstable = new SSTableConfig();
 
     /**
      * The directory to use for storing the system keyspaces data.

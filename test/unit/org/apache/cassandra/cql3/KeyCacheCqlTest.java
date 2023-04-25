@@ -34,7 +34,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.filter.BloomFilterMetrics;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.keycache.KeyCacheSupport;
 import org.apache.cassandra.metrics.CacheMetrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -102,7 +101,7 @@ public class KeyCacheCqlTest extends CQLTester
     {
         CachingParams.DEFAULT = CachingParams.CACHE_NOTHING;
         CQLTester.setUpClass();
-        sstableImplCachesKeys = KeyCacheSupport.isSupportedBy(SSTableFormat.Type.current());
+        sstableImplCachesKeys = KeyCacheSupport.isSupportedBy(DatabaseDescriptor.getSelectedSSTableFormat());
     }
 
     /**
@@ -619,7 +618,7 @@ public class KeyCacheCqlTest extends CQLTester
 
     private long recentBloomFilterFalsePositives()
     {
-        return getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).metric.formatSpecificGauges.get(SSTableFormat.Type.current())
+        return getCurrentColumnFamilyStore(KEYSPACE_PER_TEST).metric.formatSpecificGauges.get(DatabaseDescriptor.getSelectedSSTableFormat())
                                                                                          .get(BloomFilterMetrics.instance.recentBloomFilterFalsePositives.name)
                                                                                          .getValue()
                                                                                          .longValue();

@@ -20,6 +20,8 @@ package org.apache.cassandra.io.sstable.format.big;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
@@ -31,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.KeyCacheKey;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -69,13 +72,13 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 {
     private final static Logger logger = LoggerFactory.getLogger(BigFormat.class);
 
-    public static final BigFormat instance = new BigFormat();
+    public static final String NAME = "big";
 
     private final Version latestVersion = new BigVersion(this, BigVersion.current_version);
     private final BigTableReaderFactory readerFactory = new BigTableReaderFactory();
     private final BigTableWriterFactory writerFactory = new BigTableWriterFactory();
 
-    public static class Components extends AbstractSSTableFormat.Components
+    public static class Components extends SSTableFormat.Components
     {
         public static class Types extends SSTableFormat.Components.Types
         {
@@ -128,19 +131,30 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
                                                                              TOC);
     }
 
-    private BigFormat()
+    public BigFormat(Map<String, String> options)
     {
+        super(NAME, options);
+    }
 
+    @Override
+    public String name()
+    {
+        return NAME;
+    }
+
+    public static boolean is(SSTableFormat<?, ?> format)
+    {
+        return format.name().equals(NAME);
     }
 
     public static BigFormat getInstance()
     {
-        return instance;
+        return (BigFormat) Objects.requireNonNull(DatabaseDescriptor.getSSTableFormats().get(NAME), "Unknown SSTable format: " + NAME);
     }
 
-    public static boolean isDefault()
+    public static boolean isDefault() // TODO rename to isSelected
     {
-        return getInstance().getType() == Type.current();
+        return DatabaseDescriptor.getSelectedSSTableFormat().getClass().equals(BigFormat.class);
     }
 
     @Override
@@ -537,6 +551,22 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public Iterable<GaugeProvider<?>> getGaugeProviders()
         {
             return gaugeProviders;
+        }
+    }
+
+    @SuppressWarnings("unused")
+    public static class BigFormatFactory implements Factory
+    {
+        @Override
+        public String name()
+        {
+            return NAME;
+        }
+
+        @Override
+        public SSTableFormat<?, ?> getInstance(Map<String, String> options)
+        {
+            return new BigFormat(options);
         }
     }
 }

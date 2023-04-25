@@ -19,46 +19,31 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.util.Map;
-
-import com.google.common.base.Preconditions;
+import java.util.Objects;
 
 public abstract class AbstractSSTableFormat<R extends SSTableReader, W extends SSTableWriter> implements SSTableFormat<R, W>
 {
-    private String name;
-    private int ordinal;
+    public final String name;
+    protected final Map<String, String> options;
 
-    @Override
-    public final synchronized void setup(int ordinal, String name, Map<String, String> options)
+    protected AbstractSSTableFormat(String name, Map<String, String> options)
     {
-        if (this.name != null)
-            throw new IllegalStateException("Attempted to set up already configured sstable format");
-        this.name = name;
-        this.ordinal = ordinal;
-        setup(options);
-    }
-
-    protected void setup(Map<String, String> options)
-    {
+        this.name = Objects.requireNonNull(name);
+        this.options = options;
     }
 
     @Override
-    public final Type getType()
+    public final boolean equals(Object o)
     {
-        Preconditions.checkState(name != null, "Not configured");
-        Type type = Type.getByOrdinal(ordinal);
-        assert type != null;
-        return type;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        AbstractSSTableFormat<?, ?> that = (AbstractSSTableFormat<?, ?>) o;
+        return Objects.equals(name, that.name);
     }
 
     @Override
-    public int ordinal()
+    public final int hashCode()
     {
-        return ordinal;
-    }
-
-    @Override
-    public String name()
-    {
-        return name;
+        return Objects.hash(name);
     }
 }

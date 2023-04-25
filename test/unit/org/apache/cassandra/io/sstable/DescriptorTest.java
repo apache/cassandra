@@ -27,7 +27,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -86,12 +85,12 @@ public class DescriptorTest
 
     private void testFromFilenameFor(File dir)
     {
-        checkFromFilename(new Descriptor(dir, ksname, cfname, new SequenceBasedSSTableId(1), SSTableFormat.Type.current()));
+        checkFromFilename(new Descriptor(dir, ksname, cfname, new SequenceBasedSSTableId(1), DatabaseDescriptor.getSelectedSSTableFormat()));
 
         // secondary index
         String idxName = "myidx";
         File idxDir = new File(dir.absolutePath() + File.pathSeparator() + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName);
-        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, new SequenceBasedSSTableId(4), SSTableFormat.Type.current()));
+        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, new SequenceBasedSSTableId(4), DatabaseDescriptor.getSelectedSSTableFormat()));
     }
 
     private void checkFromFilename(Descriptor original)
@@ -114,8 +113,8 @@ public class DescriptorTest
     {
         // Descriptor should be equal when parent directory points to the same directory
         File dir = new File(".");
-        Descriptor desc1 = new Descriptor(dir, "ks", "cf", new SequenceBasedSSTableId(1), SSTableFormat.Type.current());
-        Descriptor desc2 = new Descriptor(dir.toAbsolute(), "ks", "cf", new SequenceBasedSSTableId(1), SSTableFormat.Type.current());
+        Descriptor desc1 = new Descriptor(dir, "ks", "cf", new SequenceBasedSSTableId(1), DatabaseDescriptor.getSelectedSSTableFormat());
+        Descriptor desc2 = new Descriptor(dir.toAbsolute(), "ks", "cf", new SequenceBasedSSTableId(1), DatabaseDescriptor.getSelectedSSTableFormat());
         assertEquals(desc1, desc2);
         assertEquals(desc1.hashCode(), desc2.hashCode());
     }
@@ -123,7 +122,7 @@ public class DescriptorTest
     @Test
     public void validateNames()
     {
-        String name = SSTableFormat.Type.current().name;
+        String name = DatabaseDescriptor.getSelectedSSTableFormat().name();
         String[] fileNames = { "ma-1-" + name + "-Data.db",
                                // 2ndary index
                                ".idx1" + File.pathSeparator() + "ma-1-" + name + "-Data.db",

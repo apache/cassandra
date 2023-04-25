@@ -41,11 +41,13 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LogRecord.Type;
 import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
@@ -84,6 +86,8 @@ final class LogFile implements AutoCloseable
 
     // The unique id of the transaction
     private final TimeUUID id;
+
+    private final Version version = DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion();
 
     static LogFile make(File logReplica)
     {
@@ -504,7 +508,10 @@ final class LogFile implements AutoCloseable
 
     private String getFileName()
     {
-        return StringUtils.join(SSTableFormat.Type.current().info.getLatestVersion(), LogFile.SEP, // remove version and separator when downgrading to 4.x is becomes unsupported
+        // For pre-5.0 versions, only BigFormat is supported, and the file name includes only the version string.
+        // To retain the ability to downgrade to 4.x, we keep the old file naming scheme for BigFormat sstables
+        // and add format names for other formats as they are supported only in 5.0 and above.
+        return StringUtils.join(BigFormat.is(version.format) ? version.toString() : version.toFormatAndVersionString(), LogFile.SEP, // remove version and separator when downgrading to 4.x is becomes unsupported
                                 "txn", LogFile.SEP,
                                 type.fileName, LogFile.SEP,
                                 id.toString(), LogFile.EXT);

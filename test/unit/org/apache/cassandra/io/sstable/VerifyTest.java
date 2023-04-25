@@ -57,7 +57,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReaderWithFilter;
 import org.apache.cassandra.io.sstable.format.SortedTableVerifier.RangeOwnHelper;
@@ -559,7 +558,7 @@ public class VerifyTest
     @Test
     public void testVerifyBf() throws IOException
     {
-        Assume.assumeTrue(SSTableReaderWithFilter.class.isAssignableFrom(SSTableFormat.Type.current().info.getReaderFactory().getReaderClass()));
+        Assume.assumeTrue(SSTableReaderWithFilter.class.isAssignableFrom(DatabaseDescriptor.getSelectedSSTableFormat().getReaderFactory().getReaderClass()));
         testBrokenComponentHelper(Components.FILTER);
     }
 

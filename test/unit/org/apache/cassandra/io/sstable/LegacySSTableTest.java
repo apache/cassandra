@@ -592,7 +592,7 @@ public class LegacySSTableTest
     /**
      * Generates sstables for 8 CQL tables (see {@link #createTables(String)}) in <i>current</i>
      * sstable format (version) into {@code test/data/legacy-sstables/VERSION}, where
-     * {@code VERSION} matches {@link Version#getVersion() BigFormat.latestVersion.getVersion()}.
+     * {@code VERSION} matches {@link Version#version BigFormat.latestVersion.getVersion()}.
      * <p>
      * Run this test alone (e.g. from your IDE) when a new version is introduced or format changed
      * during development. I.e. remove the {@code @Ignore} annotation temporarily.
@@ -602,7 +602,7 @@ public class LegacySSTableTest
     @Test
     public void testGenerateSstables() throws Throwable
     {
-        SSTableFormat<?, ?> format = SSTableFormat.Type.current().info;
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
         Random rand = new Random();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 128; i++)

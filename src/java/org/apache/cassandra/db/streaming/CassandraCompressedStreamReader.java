@@ -76,7 +76,7 @@ public class CassandraCompressedStreamReader extends CassandraStreamReader
         {
             TrackedDataInputPlus in = new TrackedDataInputPlus(cis);
             deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
-            writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
+            writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, inputVersion.format);
             String filename = writer.getFilename();
             String sectionName = filename + '-' + fileSeqNum;
             int sectionIdx = 0;

@@ -32,7 +32,6 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 
@@ -79,7 +78,7 @@ public class RangeAwareSSTableWriterTest
                                                                      0,
                                                                      null,
                                                                      false,
-                                                                     SSTableFormat.Type.current(),
+                                                                     DatabaseDescriptor.getSelectedSSTableFormat(),
                                                                      0,
                                                                      0,
                                                                      txn,

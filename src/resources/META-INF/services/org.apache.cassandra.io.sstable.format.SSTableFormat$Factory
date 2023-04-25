@@ -1,0 +1,1 @@
+org.apache.cassandra.io.sstable.format.big.BigFormat$BigFormatFactory
