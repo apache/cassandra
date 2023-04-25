@@ -111,7 +111,7 @@ public class SyncRequest extends RepairMessage
         public SyncRequest deserialize(DataInputPlus in, int version) throws IOException
         {
             RepairJobDesc desc = RepairJobDesc.serializer.deserialize(in, version);
-            InetAddressAndPort owner = inetAddressAndPortSerializer.deserialize(in, version);
+            InetAddressAndPort initiator = inetAddressAndPortSerializer.deserialize(in, version);
             InetAddressAndPort src = inetAddressAndPortSerializer.deserialize(in, version);
             InetAddressAndPort dst = inetAddressAndPortSerializer.deserialize(in, version);
             int rangesCount = in.readInt();
@@ -120,13 +120,15 @@ public class SyncRequest extends RepairMessage
                 ranges.add((Range<Token>) AbstractBounds.tokenSerializer.deserialize(in, IPartitioner.global(), version));
             PreviewKind previewKind = PreviewKind.deserialize(in.readInt());
             boolean asymmetric = in.readBoolean();
-            return new SyncRequest(desc, owner, src, dst, ranges, previewKind, asymmetric);
+            return new SyncRequest(desc, initiator, src, dst, ranges, previewKind, asymmetric);
         }
 
         public long serializedSize(SyncRequest message, int version)
         {
             long size = RepairJobDesc.serializer.serializedSize(message.desc, version);
-            size += 3 * inetAddressAndPortSerializer.serializedSize(message.initiator, version);
+            size += inetAddressAndPortSerializer.serializedSize(message.initiator, version);
+            size += inetAddressAndPortSerializer.serializedSize(message.src, version);
+            size += inetAddressAndPortSerializer.serializedSize(message.dst, version);
             size += TypeSizes.sizeof(message.ranges.size());
             for (Range<Token> range : message.ranges)
                 size += AbstractBounds.tokenSerializer.serializedSize(range, version);
