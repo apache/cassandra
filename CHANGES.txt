@@ -15,6 +15,7 @@ Merged from 3.11:
  * Suppress CVE-2022-45688 (CASSANDRA-18389)
  * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
 Merged from 3.0:
+ * Do not remove truncated_at entry in system.local while dropping an index (CASSANDRA-18105)
  * Save host id to system.local and flush immediately after startup (CASSANDRA-18153)
 
 4.1.1
