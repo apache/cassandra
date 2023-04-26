@@ -2,6 +2,8 @@
  * Incremental repairs fail on mixed IPv4/v6 addresses serializing SyncRequest (CASSANDRA-18474)
  * Deadlock updating sstable metadata if disk boundaries need reloading (CASSANDRA-18443)
  * Fix nested selection of reversed collections (CASSANDRA-17913)
+Merged from 3.0:
+ * Do not remove truncated_at entry in system.local while dropping an index (CASSANDRA-18105)
 
 4.0.9
  * Update zstd-jni library to version 1.5.5 (CASSANDRA-18429)
