@@ -43,11 +43,16 @@ public class StaticControllerTest extends ControllerTest
     public void testFromOptions()
     {
         Map<String, String> options = new HashMap<>();
+        Map<String, String> options2 = new HashMap<>();
         String wStr = Arrays.stream(Ws).mapToObj(Integer::toString).collect(Collectors.joining(","));
         options.put(StaticController.STATIC_SCALING_PARAMETERS_OPTION, wStr);
+        options2.put(StaticController.STATIC_SCALING_FACTORS_OPTION, wStr);
 
         Controller controller = testFromOptions(false, options);
         assertTrue(controller instanceof StaticController);
+        Controller controller2 = testFromOptions(false, options2);
+        assertTrue(controller2 instanceof StaticController);
+
 
         for (int i = 0; i < Ws.length; i++)
             assertEquals(Ws[i], controller.getScalingParameter(i));
@@ -59,10 +64,13 @@ public class StaticControllerTest extends ControllerTest
     public void testValidateOptions()
     {
         Map<String, String> options = new HashMap<>();
+        Map<String, String> options2 = new HashMap<>();
         String wStr = Arrays.stream(Ws).mapToObj(Integer::toString).collect(Collectors.joining(","));
         options.put(StaticController.STATIC_SCALING_PARAMETERS_OPTION, wStr);
+        options2.put(StaticController.STATIC_SCALING_FACTORS_OPTION, wStr);
 
         super.testValidateOptions(options, false);
+        super.testValidateOptions(options2, false);
     }
 
     @Test

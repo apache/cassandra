@@ -118,7 +118,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
                     String.format("'dataset_size_in_gb' : '%d', ", dataSetSizeGB) +
                     String.format("'num_shards' : '%d', ", numShards) +
                     String.format("'min_sstable_size_in_mb' : '%d', ", minSstableSizeMB) +
-                    String.format("'static_scaling_parameters' : '%s'}", scalingParametersStr));
+                    String.format("'scaling_parameters' : '%s'}", scalingParametersStr));
 
         CompactionStrategy strategy = getCurrentCompactionStrategy();
         assertTrue(strategy instanceof UnifiedCompactionStrategy);
@@ -211,7 +211,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
         int valSize = 1024;
 
         createTable("create table %s (id int primary key, val blob) with compaction = {'class':'UnifiedCompactionStrategy', 'adaptive' : 'false', " +
-                    String.format("'static_scaling_parameters' : '%d', 'min_sstable_size_in_mb' : '1', 'num_shards': '1', 'log_all' : 'true'}", W));
+                    String.format("'scaling_parameters' : '%d', 'min_sstable_size_in_mb' : '1', 'num_shards': '1', 'log_all' : 'true'}", W));
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
@@ -284,7 +284,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
 
         createTable("create table %s (id int primary key, val blob) with compression = { 'enabled' : false } AND " +
                     "compaction = {'class':'UnifiedCompactionStrategy', 'adaptive' : 'false', " +
-                    String.format("'static_scaling_parameters' : '%s', 'min_sstable_size_in_mb' : '1', 'num_shards': '%d', 'log_all' : 'true'}",
+                    String.format("'scaling_parameters' : '%s', 'min_sstable_size_in_mb' : '1', 'num_shards': '%d', 'log_all' : 'true'}",
                                   scalingParamsStr, numShards));
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
