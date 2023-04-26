@@ -50,7 +50,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
-public class AccordCommandStore implements CommandStore
+public class AccordCommandStore extends CommandStore
 {
     private static long getThreadId(ExecutorService executor)
     {
@@ -68,7 +68,6 @@ public class AccordCommandStore implements CommandStore
         }
     }
 
-    private final int id;
     private final long threadId;
     public final String loggingId;
     private final ExecutorService executor;
@@ -79,12 +78,6 @@ public class AccordCommandStore implements CommandStore
     private AccordSafeCommandStore current = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
 
-    private final NodeTimeService time;
-    private final Agent agent;
-    private final DataStore dataStore;
-    private final ProgressLog progressLog;
-    private final RangesForEpochHolder rangesForEpochHolder;
-
     private AccordCommandStore(int id,
                               NodeTimeService time,
                               Agent agent,
@@ -92,12 +85,7 @@ public class AccordCommandStore implements CommandStore
                               ProgressLog.Factory progressLogFactory,
                               RangesForEpochHolder rangesForEpoch)
     {
-        this.id = id;
-        this.time = time;
-        this.agent = agent;
-        this.dataStore = dataStore;
-        this.progressLog = progressLogFactory.create(this);
-        this.rangesForEpochHolder = rangesForEpoch;
+        super(id, time, agent, dataStore, progressLogFactory, rangesForEpoch);
         this.loggingId = String.format("[%s]", id);
         this.executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
         this.threadId = getThreadId(this.executor);
@@ -114,14 +102,8 @@ public class AccordCommandStore implements CommandStore
                                             RangesForEpochHolder rangesForEpoch)
     {
         AccordCommandStore acs = new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, rangesForEpoch);
-        acs.executor.execute(() -> CommandStore.register(acs));
+        acs.execute(() -> CommandStore.register(acs));
         return acs;
-    }
-
-    @Override
-    public int id()
-    {
-        return id;
     }
 
     @Override
@@ -215,13 +197,7 @@ public class AccordCommandStore implements CommandStore
 
     public DataStore dataStore()
     {
-        return dataStore;
-    }
-
-    @Override
-    public Agent agent()
-    {
-        return agent;
+        return store;
     }
 
     NodeTimeService time()
@@ -290,13 +266,5 @@ public class AccordCommandStore implements CommandStore
     public void shutdown()
     {
         executor.shutdown();
-    }
-
-    @Override
-    public String toString()
-    {
-        return "AccordCommandStore{" +
-               "id=" + id +
-               '}';
     }
 }
