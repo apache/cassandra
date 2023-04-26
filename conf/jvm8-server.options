@@ -13,6 +13,9 @@
 # see http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workaround.html
 -XX:ThreadPriorityPolicy=42
 
+# Disable biased locking as it does not benefit Cassandra.
+-XX:-UseBiasedLocking
+
 #################
 #  GC SETTINGS  #
 #################

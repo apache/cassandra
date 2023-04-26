@@ -1,4 +1,6 @@
 5.0
+ * When decommissioning should set Severity to limit traffic (CASSANDRA-18430)
+ * For Java11 and Java17 remove -XX:-UseBiasedLocking as it is the default already (CASSANDRA-17869)
  * Upgrade commons-io to 2.11.0 (CASSANDRA-17364)
  * Node Draining Should Abort All Current SSTables Imports (CASSANDRA-18373)
  * Use snake case for the names of CQL native functions (CASSANDRA-18037)
@@ -127,6 +129,9 @@
  * Add new CQL function maxWritetime (CASSANDRA-17425)
  * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
+Merged from 4.0:
+ * Incremental repairs fail on mixed IPv4/v6 addresses serializing SyncRequest (CASSANDRA-18474)
+ * Deadlock updating sstable metadata if disk boundaries need reloading (CASSANDRA-18443)
 
 4.1.2
  * Allow keystore and trustrore passwords to be nullable (CASSANDRA-18124)
@@ -143,6 +148,7 @@ Merged from 3.11:
  * Suppress CVE-2022-45688 (CASSANDRA-18389)
  * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
 Merged from 3.0:
+ * Do not remove truncated_at entry in system.local while dropping an index (CASSANDRA-18105)
  * Save host id to system.local and flush immediately after startup (CASSANDRA-18153)
  
 4.1.1

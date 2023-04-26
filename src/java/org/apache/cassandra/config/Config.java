@@ -1234,4 +1234,6 @@ public class Config implements Serializable
 
     public volatile boolean dump_heap_on_uncaught_exception = false;
     public String heap_dump_path = "heapdump";
+
+    public double severity_during_decommission = 0;
 }

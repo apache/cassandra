@@ -1186,6 +1186,20 @@ public class FBUtilities
         return builder.build();
     }
 
+    public static void closeQuietly(Object o)
+    {
+        if (!(o instanceof AutoCloseable))
+            return;
+        try
+        {
+            ((AutoCloseable) o).close();
+        }
+        catch (Exception e)
+        {
+            logger.warn("Closing {} had an unexpected exception", o, e);
+        }
+    }
+
     /**
      * Wraps the passed in {@link Runnable} that will throw the passed in {@code exceptionFactory}.
      * @param callable Callable to wrap.
