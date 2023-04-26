@@ -331,7 +331,7 @@ public class CompactionsBytemanTest extends CQLTester
                      "org.apache.cassandra.db.compaction.CompactionsBytemanTest.PROCEED.acquireUninterruptibly();")
     public void testTotalCompactionsUCS() throws Throwable
     {
-        testTotalCompactions("{'class': 'UnifiedCompactionStrategy', 'static_scaling_parameters': 1}");
+        testTotalCompactions("{'class': 'UnifiedCompactionStrategy', 'scaling_parameters': 1}");
     }
 
     private void testTotalCompactions(String compactionOption) throws Throwable

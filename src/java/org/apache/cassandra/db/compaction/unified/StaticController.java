@@ -35,7 +35,8 @@ public class StaticController extends Controller
      * The scaling parameters W, one per bucket index and separated by a comma.
      * Higher indexes will use the value of the last index with a W specified.
      */
-    final static String STATIC_SCALING_PARAMETERS_OPTION = "static_scaling_parameters";
+    static final String STATIC_SCALING_PARAMETERS_OPTION = "scaling_parameters";
+    static final String STATIC_SCALING_FACTORS_OPTION = "static_scaling_factors";
     private final static String DEFAULT_STATIC_SCALING_PARAMETERS = System.getProperty(PREFIX + STATIC_SCALING_PARAMETERS_OPTION, "2");
 
     private final int[] scalingParameters;
@@ -82,9 +83,13 @@ public class StaticController extends Controller
                                   boolean l0ShardsEnabled,
                                   Map<String, String> options)
     {
-        int[] Ws = parseScalingParameters(options.getOrDefault(STATIC_SCALING_PARAMETERS_OPTION, DEFAULT_STATIC_SCALING_PARAMETERS));
+        int[] scalingParameters;
+        if (options.containsKey(STATIC_SCALING_FACTORS_OPTION))
+            scalingParameters = parseScalingParameters(options.get(STATIC_SCALING_FACTORS_OPTION));
+        else
+            scalingParameters = parseScalingParameters(options.getOrDefault(STATIC_SCALING_PARAMETERS_OPTION, DEFAULT_STATIC_SCALING_PARAMETERS));
         return new StaticController(env,
-                                    Ws,
+                                    scalingParameters,
                                     survivalFactors,
                                     dataSetSizeMB,
                                     numShards,
@@ -110,9 +115,14 @@ public class StaticController extends Controller
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException
     {
-        String s = options.remove(STATIC_SCALING_PARAMETERS_OPTION);
-        if (s != null)
-            parseScalingParameters(s);
+        String parameters = options.remove(STATIC_SCALING_PARAMETERS_OPTION);
+        if (parameters != null)
+            parseScalingParameters(parameters);
+        String factors = options.remove(STATIC_SCALING_FACTORS_OPTION);
+        if (factors != null)
+            parseScalingParameters(factors);
+        if (parameters != null && factors != null)
+            throw new ConfigurationException(String.format("Either '%s' or '%s' should be used, not both", STATIC_SCALING_PARAMETERS_OPTION, STATIC_SCALING_FACTORS_OPTION));
         return options;
     }
 
@@ -141,6 +151,6 @@ public class StaticController extends Controller
     @Override
     public String toString()
     {
-        return String.format("Static controller, m: %d, o: %s, Ws: %s, cost: %s", minSstableSizeMB, Arrays.toString(survivalFactors), Arrays.toString(scalingParameters), calculator);
+        return String.format("Static controller, m: %d, o: %s, scalingParameters: %s, cost: %s", minSstableSizeMB, Arrays.toString(survivalFactors), Arrays.toString(scalingParameters), calculator);
     }
 }
