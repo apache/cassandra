@@ -33,7 +33,7 @@ public class AccordCommandStores extends CommandStores<AccordCommandStore>
     AccordCommandStores(NodeTimeService time, Agent agent, DataStore store, RandomSource random,
                         ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory)
     {
-        super(time, agent, store, random, shardDistributor, progressLogFactory, AccordCommandStore::new);
+        super(time, agent, store, random, shardDistributor, progressLogFactory, AccordCommandStore::create);
         setCacheSize(maxCacheSize());
     }
 

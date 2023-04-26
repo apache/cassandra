@@ -85,7 +85,7 @@ public class AccordCommandStore implements CommandStore
     private final ProgressLog progressLog;
     private final RangesForEpochHolder rangesForEpochHolder;
 
-    public AccordCommandStore(int id,
+    private AccordCommandStore(int id,
                               NodeTimeService time,
                               Agent agent,
                               DataStore dataStore,
@@ -104,6 +104,18 @@ public class AccordCommandStore implements CommandStore
         this.stateCache = new AccordStateCache(8<<20);
         this.commandCache = stateCache.instance(TxnId.class, accord.local.Command.class, AccordSafeCommand::new, AccordObjectSizes::command);
         this.commandsForKeyCache = stateCache.instance(RoutableKey.class, CommandsForKey.class, AccordSafeCommandsForKey::new, AccordObjectSizes::commandsForKey);
+    }
+
+    public static AccordCommandStore create(int id,
+                                            NodeTimeService time,
+                                            Agent agent,
+                                            DataStore dataStore,
+                                            ProgressLog.Factory progressLogFactory,
+                                            RangesForEpochHolder rangesForEpoch)
+    {
+        AccordCommandStore acs = new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, rangesForEpoch);
+        acs.executor.execute(() -> CommandStore.register(acs));
+        return acs;
     }
 
     @Override

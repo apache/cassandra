@@ -326,12 +326,12 @@ public class AccordTestUtils
             @Override public long now() {return now.getAsLong(); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
         };
-        return new AccordCommandStore(0,
-                                      time,
-                                      new AccordAgent(),
-                                      null,
-                                      cs -> NOOP_PROGRESS_LOG,
-                                      new SingleEpochRanges(topology.rangesForNode(node)));
+        return AccordCommandStore.create(0,
+                                         time,
+                                         new AccordAgent(),
+                                         null,
+                                         cs -> NOOP_PROGRESS_LOG,
+                                         new SingleEpochRanges(topology.rangesForNode(node)));
     }
 
     public static AccordCommandStore createAccordCommandStore(LongSupplier now, String keyspace, String table)
