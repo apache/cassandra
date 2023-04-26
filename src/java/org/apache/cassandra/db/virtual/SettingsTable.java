@@ -72,7 +72,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     protected void applyColumnDeletion(ColumnValues partitionKey, ColumnValues clusteringColumns, String columnName)
     {
         String key = partitionKey.value(0);
-        runExceptionally(() -> registry.set(key, null), e -> invalidRequest("Invalid deletion request; cause: '%s'", e.getMessage()));
+        runExceptionally(() -> registry.setValue(key, null), e -> invalidRequest("Invalid deletion request; cause: '%s'", e.getMessage()));
     }
 
     @Override
@@ -82,7 +82,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         String key = partitionKey.value(0);
         String value = columnValue.map(v -> v.value().toString()).orElse(null);
-        runExceptionally(() -> registry.set(key, value), e -> invalidRequest("Invalid update request; cause: '%s'", e.getMessage()));
+        runExceptionally(() -> registry.setValue(key, value), e -> invalidRequest("Invalid update request; cause: '%s'", e.getMessage()));
     }
 
     @Override
@@ -196,11 +196,11 @@ final class SettingsTable extends AbstractMutableVirtualTable
         }
 
         @Override
-        public void set(String name, @Nullable Object value)
+        public void setValue(String name, @Nullable Object value)
         {
             Replacement replacement = replacements.get(name);
             if (replacement == null)
-                registry.set(name, value);
+                registry.setValue(name, value);
             else
                 throw new ConfigurationException(String.format("Unable to set '%s' as it is deprecated and is read only; use '%s' instead", name, replacement.newName));
         }

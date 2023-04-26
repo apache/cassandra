@@ -2844,8 +2844,10 @@ public class StorageProxy implements StorageProxyMBean
 
     public String setIdealConsistencyLevel(String cl)
     {
-        DatabaseDescriptor.getConfigRegistry().set(ConfigFields.IDEAL_CONSISTENCY_LEVEL, cl);
-        return String.format("Updating ideal consistency level new value: %s", cl);
+        ConsistencyLevel original = DatabaseDescriptor.getIdealConsistencyLevel();
+        ConsistencyLevel newCL = ConsistencyLevel.valueOf(cl.trim().toUpperCase());
+        DatabaseDescriptor.setIdealConsistencyLevel(newCL);
+        return String.format("Updating ideal consistency level new value: %s old value %s", newCL, original.toString());
     }
 
     @Deprecated

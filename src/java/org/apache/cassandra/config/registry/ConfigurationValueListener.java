@@ -19,15 +19,23 @@
 package org.apache.cassandra.config.registry;
 
 /**
- * Interface validating configuration property's value.
+ * Interface for listening to configuration property changes.
  */
-public interface ConfigurationConstraint<T>
+public interface ConfigurationValueListener<T>
 {
     /**
-     * Called before a property change occurrs. If this method throws an exception, the change
-     * will be aborted. If it returns normally, the change will proceed with a returned value.
+     * Called on configuration change property event occurr.
      *
-     * @param newValue the new value of the property to validate.
+     * @param name     the name of the property.
+     * @param oldValue the old value of the property.
+     * @param newValue the new value of the property.
      */
-    void validate(T newValue);
+    void listen(String name, EventType type, T oldValue, T newValue);
+
+    /** EventType of property change. */
+    enum EventType
+    {
+        BEFORE_CHANGE,
+        AFTER_CHANGE,
+    }
 }

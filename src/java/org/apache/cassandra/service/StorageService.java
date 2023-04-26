@@ -244,8 +244,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DRAIN_EXECUTOR_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMENT_ALLOW_EMPTY;
-import static org.apache.cassandra.config.ConfigFields.REPAIR_REQUEST_TIMEOUT;
-import static org.apache.cassandra.config.DatabaseDescriptor.getConfigRegistry;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -974,8 +972,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
-        getConfigRegistry().addPropertyConstraint(REPAIR_REQUEST_TIMEOUT,
-                                                  DurationSpec.LongMillisecondsBound.class, (newVal) -> Preconditions.checkState(newVal.toMilliseconds() > 0));
         completeInitialization();
     }
 
@@ -1540,6 +1536,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setRpcTimeout(long value)
     {
         DatabaseDescriptor.setRpcTimeout(value);
+        logger.info("set rpc timeout to {} ms", value);
     }
 
     public long getRpcTimeout()
@@ -1583,6 +1580,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setInternodeTcpConnectTimeoutInMS(int value)
     {
         DatabaseDescriptor.setInternodeTcpConnectTimeoutInMS(value);
+        logger.info("set internode tcp connect timeout to {} ms", value);
     }
 
     public int getInternodeTcpConnectTimeoutInMS()
@@ -1593,6 +1591,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setInternodeTcpUserTimeoutInMS(int value)
     {
         DatabaseDescriptor.setInternodeTcpUserTimeoutInMS(value);
+        logger.info("set internode tcp user timeout to {} ms", value);
     }
 
     public int getInternodeTcpUserTimeoutInMS()
@@ -1602,7 +1601,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setInternodeStreamingTcpUserTimeoutInMS(int value)
     {
+        Preconditions.checkArgument(value >= 0, "TCP user timeout cannot be negative for internode streaming connection. Got %s", value);
         DatabaseDescriptor.setInternodeStreamingTcpUserTimeoutInMS(value);
+        logger.info("set internode streaming tcp user timeout to {} ms", value);
     }
 
     public int getInternodeStreamingTcpUserTimeoutInMS()
@@ -6445,6 +6446,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setTombstoneWarnThreshold(int threshold)
     {
         DatabaseDescriptor.setTombstoneWarnThreshold(threshold);
+        logger.info("updated tombstone_warn_threshold to {}", threshold);
     }
 
     public int getTombstoneFailureThreshold()
@@ -6651,6 +6653,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setTransferHintsOnDecommission(boolean enabled)
     {
         DatabaseDescriptor.setTransferHintsOnDecommission(enabled);
+        logger.info("updated transfer_hints_on_decommission to {}", enabled);
     }
 
     @Override
@@ -7012,6 +7015,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setDefaultKeyspaceReplicationFactor(int value)
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(value);
+        logger.info("set default keyspace rf to {}", value);
     }
 
     private static DataStorageSpec.LongBytesBound parseDataStorageSpec(String threshold)
@@ -7161,7 +7165,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setRepairRpcTimeout(Long timeoutInMillis)
     {
+        Preconditions.checkState(timeoutInMillis > 0);
         DatabaseDescriptor.setRepairRpcTimeout(timeoutInMillis);
+        logger.info("RepairRpcTimeout set to {}ms via JMX", timeoutInMillis);
     }
     public void evictHungRepairs()
     {

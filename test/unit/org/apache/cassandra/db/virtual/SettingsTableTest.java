@@ -33,7 +33,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.config.registry.ConfigurationRegistry;
+import org.apache.cassandra.config.registry.DatabaseConfigurationSource;
 import org.apache.cassandra.config.registry.Registry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
@@ -63,7 +63,7 @@ public class SettingsTableTest extends CQLTester
         config.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
         config.commitlog_sync_group_window = new DurationSpec.IntMillisecondsBound(0);
         config.credentials_update_interval = null;
-        table = new SettingsTable(KS_NAME, new ConfigurationRegistry(() -> config));
+        table = new SettingsTable(KS_NAME, new DatabaseConfigurationSource(() -> config));
         tableRegistry = table.registry();
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();

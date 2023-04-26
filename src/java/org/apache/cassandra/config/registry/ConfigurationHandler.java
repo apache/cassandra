@@ -18,24 +18,23 @@
 
 package org.apache.cassandra.config.registry;
 
+import org.slf4j.Logger;
+
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 /**
- * Interface for listening to configuration property changes.
+ * Interface validating configuration property's value.
  */
-public interface ConfigurationListener<T>
+public interface ConfigurationHandler
 {
     /**
-     * Called on configuration change property event occurr.
+     * Called before a property change occurrs. If this method throws an exception, the change
+     * will be aborted. If it returns normally, the change will proceed with a returned value.
      *
-     * @param name     the name of the property.
-     * @param oldValue the old value of the property.
-     * @param newValue the new value of the property.
+     * @param config the current configuration.
+     * @param descriptor the descriptor of the property to be changed.
+     * @param logger the logger to use for logging.
      */
-    void onUpdate(String name, T oldValue, T newValue);
-
-    /** Type of property change. */
-    enum ChangeType
-    {
-        BEFORE,
-        AFTER,
-    }
+    void validate(Config config, DatabaseDescriptor.DynamicDatabaseDescriptor descriptor, Logger logger);
 }
