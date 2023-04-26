@@ -32,6 +32,7 @@ import org.apache.cassandra.config.Converters;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Replacement;
 import org.apache.cassandra.config.Replacements;
+import org.apache.cassandra.config.registry.ConfigurationSource;
 import org.apache.cassandra.config.registry.Registry;
 import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.db.DecoratedKey;
@@ -56,7 +57,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         this(keyspace, DatabaseDescriptor.getConfigRegistry());
     }
 
-    SettingsTable(String keyspace, Registry registry)
+    SettingsTable(String keyspace, ConfigurationSource registry)
     {
         super(TableMetadata.builder(keyspace, "settings")
                            .comment("current settings")
@@ -109,12 +110,12 @@ final class SettingsTable extends AbstractMutableVirtualTable
     }
 
     @VisibleForTesting
-    Registry registry()
+    ConfigurationSource registry()
     {
         return registry;
     }
 
-    private static Map<String, Replacement> replacements(Registry registry)
+    private static Map<String, Replacement> replacements(ConfigurationSource registry)
     {
         // only handling top-level replacements for now, previous logic was only top level so not a regression
         Map<String, Replacement> replacements = Replacements.getNameReplacements(Config.class).get(Config.class);
@@ -182,12 +183,12 @@ final class SettingsTable extends AbstractMutableVirtualTable
      * <p>
      * Updating a configuration property object will throw an exception if you will try to update a deprecated property.
      */
-    private static class BackwardsCompatableRegistry implements Registry
+    private static class BackwardsCompatableRegistry implements ConfigurationSource
     {
-        private final Registry registry;
+        private final ConfigurationSource registry;
         private final Map<String, Replacement> replacements;
         private final Set<String> uniquePropertyKeys;
-        public BackwardsCompatableRegistry(Registry registry)
+        public BackwardsCompatableRegistry(ConfigurationSource registry)
         {
             this.registry = registry;
             this.replacements = replacements(registry);
@@ -200,7 +201,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         {
             Replacement replacement = replacements.get(name);
             if (replacement == null)
-                registry.setValue(name, value);
+                registry.set(name, value);
             else
                 throw new ConfigurationException(String.format("Unable to set '%s' as it is deprecated and is read only; use '%s' instead", name, replacement.newName));
         }
@@ -220,7 +221,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
         {
             Replacement replacement = replacements.get(name);
 
-            return replacement == null ? registry.getString(name) : TypeConverter.DEFAULT.convertNullable(get(newReplacementType(replacement), name));
+            return replacement == null ? registry.get(String.class, name) : TypeConverter.DEFAULT.convertNullable(get(newReplacementType(replacement), name));
         }
 
         @Override
@@ -233,14 +234,6 @@ final class SettingsTable extends AbstractMutableVirtualTable
         public Iterable<String> keys()
         {
             return uniquePropertyKeys;
-        }
-
-        @Override
-        public Class<?> type(String name)
-        {
-            if (replacements.containsKey(name))
-                return replacements.get(name).oldType;
-            return registry.type(name);
         }
 
         @Override
