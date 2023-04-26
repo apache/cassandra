@@ -134,19 +134,14 @@ public class FBUtilities
 
     private static volatile String previousReleaseVersionString;
 
-    private static int availableProcessors = Integer.getInteger("cassandra.available_processors", DatabaseDescriptor.getAvailableProcessors());
-
     public static void setAvailableProcessors(int value)
     {
-        availableProcessors = value;
+        DatabaseDescriptor.setAvailableProcessors(value);
     }
 
     public static int getAvailableProcessors()
     {
-        if (availableProcessors > 0)
-            return availableProcessors;
-        else
-            return Runtime.getRuntime().availableProcessors();
+        return DatabaseDescriptor.getAvailableProcessors();
     }
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;

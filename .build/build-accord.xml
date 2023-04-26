@@ -27,8 +27,10 @@
         <arg value="publishToMavenLocal" />
         <arg value="-x" />
         <arg value="test" />
-        <arg value="-x" />
+        <!-- since so much development is done from this hook, by adding checkstyle and rat will avoid issues earlier -->
         <arg value="rat" />
+        <arg value="checkstyleMain" />
+        <arg value="checkstyleTest" />
         <arg value="-Paccord_group=org.apache.cassandra" />
         <arg value="-Paccord_artifactId=cassandra-accord" />
         <arg value="-Paccord_version=${version}" />
