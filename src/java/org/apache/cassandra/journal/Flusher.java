@@ -284,7 +284,7 @@ final class Flusher<K, V>
 
     private void waitForFlushPeriodic(ActiveSegment<K>.Allocation alloc)
     {
-        long expectedFlushTime = nanoTime() - periodicFlushLabBlockNanos();
+        long expectedFlushTime = nanoTime() - periodicFlushLagBlockNanos();
         if (lastFlushedAt < expectedFlushTime)
         {
             pending.incrementAndGet();
@@ -295,7 +295,7 @@ final class Flusher<K, V>
 
     private void asyncFlushPeriodic(ActiveSegment<K>.Allocation ignore, Executor executor, AsyncWriteCallback callback)
     {
-        long expectedFlushTime = nanoTime() - periodicFlushLabBlockNanos();
+        long expectedFlushTime = nanoTime() - periodicFlushLagBlockNanos();
         callbackExecutor.execute(() ->
         {
             if (lastFlushedAt < expectedFlushTime)
@@ -337,7 +337,7 @@ final class Flusher<K, V>
         return 1_000_000L * params.flushPeriod();
     }
 
-    private long periodicFlushLabBlockNanos()
+    private long periodicFlushLagBlockNanos()
     {
         return 1_000_000L * params.periodicFlushLagBlock();
     }
