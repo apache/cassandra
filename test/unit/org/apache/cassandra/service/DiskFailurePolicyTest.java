@@ -23,7 +23,6 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import org.junit.After;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,16 +30,26 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DisallowedDirectories;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
+
+import static org.apache.cassandra.config.Config.DiskFailurePolicy.best_effort;
+import static org.apache.cassandra.config.Config.DiskFailurePolicy.die;
+import static org.apache.cassandra.config.Config.DiskFailurePolicy.ignore;
+import static org.apache.cassandra.config.Config.DiskFailurePolicy.stop;
+import static org.apache.cassandra.config.Config.DiskFailurePolicy.stop_paranoid;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
 public class DiskFailurePolicyTest
@@ -79,22 +88,24 @@ public class DiskFailurePolicyTest
     public static Collection<Object[]> generateData()
     {
         return Arrays.asList(new Object[][]{
-                             { Config.DiskFailurePolicy.die, true, new FSReadError(new IOException(), "blah"), false, true, true},
-                             { DiskFailurePolicy.ignore, true, new FSReadError(new IOException(), "blah"), true, false, false},
-                             { DiskFailurePolicy.stop, true, new FSReadError(new IOException(), "blah"), false, true, true},
-                             { DiskFailurePolicy.stop_paranoid, true, new FSReadError(new IOException(), "blah"), false, true, true},
-                             { Config.DiskFailurePolicy.die, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
-                             { DiskFailurePolicy.ignore, true, new CorruptSSTableException(new IOException(), "blah"), true, false, false},
-                             { DiskFailurePolicy.stop, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
-                             { DiskFailurePolicy.stop_paranoid, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
-                             { Config.DiskFailurePolicy.die, false, new FSReadError(new IOException(), "blah"), false, true, false},
-                             { DiskFailurePolicy.ignore, false, new FSReadError(new IOException(), "blah"), true, false, false},
-                             { DiskFailurePolicy.stop, false, new FSReadError(new IOException(), "blah"), false, false, false},
-                             { DiskFailurePolicy.stop_paranoid, false, new FSReadError(new IOException(), "blah"), false, false, false},
-                             { Config.DiskFailurePolicy.die, false, new CorruptSSTableException(new IOException(), "blah"), false, true, false},
-                             { DiskFailurePolicy.ignore, false, new CorruptSSTableException(new IOException(), "blah"), true, false, false},
-                             { DiskFailurePolicy.stop, false, new CorruptSSTableException(new IOException(), "blah"), true, false, false},
-                             { DiskFailurePolicy.stop_paranoid, false, new CorruptSSTableException(new IOException(), "blah"), false, false, false}
+                             { die, true, new FSReadError(new IOException(), "blah"), false, true, true},
+                             { ignore, true, new FSReadError(new IOException(), "blah"), true, false, false},
+                             { stop, true, new FSReadError(new IOException(), "blah"), false, true, true},
+                             { stop_paranoid, true, new FSReadError(new IOException(), "blah"), false, true, true},
+                             { die, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
+                             { ignore, true, new CorruptSSTableException(new IOException(), "blah"), true, false, false},
+                             { stop, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
+                             { stop_paranoid, true, new CorruptSSTableException(new IOException(), "blah"), false, true, true},
+                             { die, false, new FSReadError(new IOException(), "blah"), false, true, false},
+                             { ignore, false, new FSReadError(new IOException(), "blah"), true, false, false},
+                             { stop, false, new FSReadError(new IOException(), "blah"), false, false, false},
+                             { stop_paranoid, false, new FSReadError(new IOException(), "blah"), false, false, false},
+                             { die, false, new CorruptSSTableException(new IOException(), "blah"), false, true, false},
+                             { ignore, false, new CorruptSSTableException(new IOException(), "blah"), true, false, false},
+                             { stop, false, new CorruptSSTableException(new IOException(), "blah"), true, false, false},
+                             { stop_paranoid, false, new CorruptSSTableException(new IOException(), "blah"), false, false, false},
+                             { best_effort, false, new FSReadError(new IOException(new OutOfMemoryError("Java heap space")), "best_effort_oom"), true, false, false},
+                             { best_effort, false, new FSReadError(new IOException(), "best_effort_io_exception"), true, false, false},
                              }
         );
     }
@@ -110,7 +121,7 @@ public class DiskFailurePolicyTest
         originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         originalDiskFailurePolicy = DatabaseDescriptor.getDiskFailurePolicy();
         StorageService.instance.startGossiping();
-        Assert.assertTrue(Gossiper.instance.isEnabled());
+        assertTrue(Gossiper.instance.isEnabled());
     }
 
     @After
@@ -124,12 +135,34 @@ public class DiskFailurePolicyTest
     public void testPolicies()
     {
         DatabaseDescriptor.setDiskFailurePolicy(testPolicy);
-        JVMStabilityInspector.inspectThrowable(t);
-        Assert.assertEquals(expectJVMKilled, killerForTests.wasKilled());
-        Assert.assertEquals(expectJVMKilledQuiet, killerForTests.wasKilledQuietly());
-        if (!expectJVMKilled) {
+        try
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+        }
+        catch (OutOfMemoryError e)
+        {
+            if (testPolicy == best_effort)
+            {
+                if (t.getCause().getCause() != e)
+                    throw e;
+            }
+            else
+                throw e;
+        }
+
+        if (testPolicy == best_effort && ((FSReadError) t).path.equals("best_effort_io_exception"))
+            assertTrue(DisallowedDirectories.isUnreadable(new File("best_effort_io_exception")));
+
+        // when we have OOM, as cause, there is no reason to remove data
+        if (testPolicy == best_effort && ((FSReadError) t).path.equals("best_effort_oom"))
+            assertFalse(DisallowedDirectories.isUnreadable(new File("best_effort_oom")));
+
+        assertEquals(expectJVMKilled, killerForTests.wasKilled());
+        assertEquals(expectJVMKilledQuiet, killerForTests.wasKilledQuietly());
+        if (!expectJVMKilled)
+        {
             // only verify gossip if JVM is not killed
-            Assert.assertEquals(expectGossipRunning, Gossiper.instance.isEnabled());
+            assertEquals(expectGossipRunning, Gossiper.instance.isEnabled());
         }
     }
 }
