@@ -249,7 +249,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 Assume.assumeTrue("vnode is requested but not supported", getTokenCount() == 1);
             }
 
-            if (rootDefined)
+            if (!rootDefined)
                 withRoot(org.apache.cassandra.io.util.Files.newInMemoryFileSystem().getPath("/cassandra"));
 
             return super.createWithoutStarting();
@@ -1085,6 +1085,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         checkAndResetUncaughtExceptions();
         //checkForThreadLeaks();
         //withThreadLeakCheck(futures);
+        try
+        {
+            root.getFileSystem().close();
+        }
+        catch (UnsupportedOperationException | IOException e)
+        {
+            // ignore
+        }
     }
 
     @Override
