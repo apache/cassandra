@@ -302,7 +302,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     {
         Invariants.checkArgument(this.callback == null);
         this.callback = callback;
-        commandStore.executor().submit(this);
+        commandStore.executor().execute(this);
     }
 
     private static Iterable<RoutableKey> toRoutableKeys(Seekables<?, ?> keys)

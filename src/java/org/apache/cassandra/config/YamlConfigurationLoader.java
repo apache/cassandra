@@ -132,21 +132,27 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new AssertionError(e);
             }
 
-            SafeConstructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
-            Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
-            verifyReplacements(replacements, configBytes);
-            PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
-            constructor.setPropertyUtils(propertiesChecker);
-            Yaml yaml = new Yaml(constructor);
-            Config result = loadConfig(yaml, configBytes);
-            propertiesChecker.check();
-            maybeAddSystemProperties(result);
-            return result;
+            return loadConfig(configBytes);
         }
         catch (YAMLException e)
         {
             throw new ConfigurationException("Invalid yaml: " + url, e);
         }
+    }
+
+    @VisibleForTesting
+    static Config loadConfig(byte[] configBytes)
+    {
+        SafeConstructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
+        Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
+        verifyReplacements(replacements, configBytes);
+        PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
+        constructor.setPropertyUtils(propertiesChecker);
+        Yaml yaml = new Yaml(constructor);
+        Config result = loadConfig(yaml, configBytes);
+        propertiesChecker.check();
+        maybeAddSystemProperties(result);
+        return result;
     }
 
     private static void maybeAddSystemProperties(Object obj)
