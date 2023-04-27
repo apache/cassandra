@@ -618,14 +618,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
         this.jimfs  = new ListenableFileSystem(Jimfs.newFileSystem(Long.toHexString(seed) + 'x' + uniqueNum, Configuration.unix().toBuilder()
                                                                                                                           .setMaxSize(4L << 30).setBlockSize(512)
                                                                                                                           .build()));
-        jimfs.listen((ListenableFileSystem.OnRead) (path, channel, position, dst, read) -> {
-            if (read > 0 && path.getFileName().toString().endsWith("Index.db") && random.decide(.05f))
-            {
-                int offset = random.uniform(0, read);
-                int index = dst.position() - offset;
-                dst.put(index, (byte) (dst.get(index) + 1));
-            }
-        });
 
         final SimulatedMessageDelivery delivery;
         final SimulatedExecution execution;
