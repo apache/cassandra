@@ -141,7 +141,7 @@ public class FBUtilities
 
     public static void setAvailableProcessors(int value)
     {
-        availableProcessors = value;
+        DatabaseDescriptor.setAvailableProcessors(value);
     }
 
     @VisibleForTesting
@@ -152,10 +152,7 @@ public class FBUtilities
 
     public static int getAvailableProcessors()
     {
-        if (availableProcessors > 0)
-            return availableProcessors;
-        else
-            return Runtime.getRuntime().availableProcessors();
+        return DatabaseDescriptor.getAvailableProcessors();
     }
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;

@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.simulator.paxos;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -286,19 +288,39 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
 
     private RuntimeException logAndThrow()
     {
-        Integer causedByPrimaryKey = null;
-        Throwable causedByThrowable = null;
+        class Violation
+        {
+            final int primaryKey;
+            final Throwable cause;
+
+            Violation(int primaryKey, Throwable cause)
+            {
+                this.primaryKey = primaryKey;
+                this.cause = cause;
+            }
+        }
+        List<Violation> violations = new ArrayList<>();
         for (Throwable t : simulated.failures.get())
         {
+            Integer causedByPrimaryKey;
             if (null != (causedByPrimaryKey = causedBy(t)))
             {
-                causedByThrowable = t;
+                violations.add(new Violation(causedByPrimaryKey, t));
                 break;
             }
         }
 
-        log(causedByPrimaryKey);
-        Throwable t = (causedByPrimaryKey != null) ? causedByThrowable : simulated.failures.get().get(0);
+        if (!violations.isEmpty())
+        {
+            AssertionError error = new AssertionError("History violations detected");
+            violations.forEach(v -> {
+                log(v.primaryKey);
+                error.addSuppressed(v.cause);
+            });
+            throw error;
+        }
+
+        Throwable t = simulated.failures.get().get(0);
         Throwables.throwIfUnchecked(t);
         throw new RuntimeException(t);
     }

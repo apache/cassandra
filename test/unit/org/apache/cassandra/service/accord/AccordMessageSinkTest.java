@@ -18,17 +18,21 @@
 
 package org.apache.cassandra.service.accord;
 
-import org.apache.cassandra.net.MessageDelivery;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.mockito.Mockito;
+
+import accord.api.Agent;
 import accord.local.Node;
 import accord.messages.InformOfTxnId;
 import accord.messages.SimpleReply;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.Verb;
-import org.mockito.Mockito;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 
 public class AccordMessageSinkTest
 {
@@ -36,6 +40,8 @@ public class AccordMessageSinkTest
     public static void setup()
     {
         DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ClusterMetadataService.initializeForClients();
     }
 
     @Test
@@ -48,7 +54,7 @@ public class AccordMessageSinkTest
         SimpleReply reply = SimpleReply.Ok;
 
         MessageDelivery messaging = Mockito.mock(MessageDelivery.class);
-        AccordMessageSink sink = new AccordMessageSink(messaging);
+        AccordMessageSink sink = new AccordMessageSink(Mockito.mock(Agent.class), messaging);
         sink.reply(new Node.Id(1), req, reply);
 
         Mockito.verify(messaging).send(Mockito.any(), Mockito.any());

@@ -25,14 +25,15 @@ import accord.local.CommandStores;
 import accord.local.NodeTimeService;
 import accord.local.ShardDistributor;
 import accord.topology.Topology;
+import accord.utils.RandomSource;
 
 public class AccordCommandStores extends CommandStores<AccordCommandStore>
 {
     private long cacheSize;
-    AccordCommandStores(NodeTimeService time, Agent agent, DataStore store,
+    AccordCommandStores(NodeTimeService time, Agent agent, DataStore store, RandomSource random,
                         ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory)
     {
-        super(time, agent, store, shardDistributor, progressLogFactory, AccordCommandStore::new);
+        super(time, agent, store, random, shardDistributor, progressLogFactory, AccordCommandStore::new);
         setCacheSize(maxCacheSize());
     }
 
