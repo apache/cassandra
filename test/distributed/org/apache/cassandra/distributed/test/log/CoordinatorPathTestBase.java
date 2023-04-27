@@ -95,10 +95,6 @@ import static org.apache.cassandra.distributed.test.log.PlacementSimulator.Node;
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.RefSimulatedPlacementHolder;
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacementHolder;
 import static org.apache.cassandra.distributed.test.log.PlacementSimulator.SimulatedPlacements;
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.bootstrap_diffBased;
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.leave_diffBased;
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.replace_directly;
-import static org.apache.cassandra.distributed.test.log.PlacementSimulator.replicate;
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_ACK;
 import static org.apache.cassandra.net.Verb.TCM_REPLICATION;
 
@@ -106,12 +102,17 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorPathTestBase.class);
 
-    public void coordinatorPathTest(TestRunner.ThrowingBiConsumer<Cluster, SimulatedCluster> test) throws Throwable
+    public void coordinatorPathTest(PlacementSimulator.ReplicationFactor rf, TestRunner.ThrowingBiConsumer<Cluster, SimulatedCluster> test) throws Throwable
     {
-        coordinatorPathTest(test, true);
+        coordinatorPathTest(rf, test, true);
     }
 
-    public void coordinatorPathTest(TestRunner.ThrowingBiConsumer<Cluster, SimulatedCluster> test, boolean startCluster) throws Throwable
+    /**
+     * Coordinator path test allows to test a real node (127.0.0.1), which is _not_ a part of CMS.
+     *
+     * CMS node is 127.0.0.10 and is simulated.
+     */
+    public void coordinatorPathTest(PlacementSimulator.ReplicationFactor rf, TestRunner.ThrowingBiConsumer<Cluster, SimulatedCluster> test, boolean startCluster) throws Throwable
     {
         ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
@@ -119,20 +120,19 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         String nodeUnderTest = "127.0.0.1";
         InetAddressAndPort nodeUnderTestAddr = InetAddressAndPort.getByName(nodeUnderTest + ":7012");
 
-        String cmsNodeStr = "127.0.0.10";
-        InetAddressAndPort cmsAddr = InetAddressAndPort.getByName(cmsNodeStr + ":7012");
-        FBUtilities.setBroadcastInetAddressAndPort(cmsAddr);
+        PlacementSimulator.NodeFactory factory = PlacementSimulator.nodeFactory();
+        Node fakeCmsNode = factory.make(10,1,1);
+        FBUtilities.setBroadcastInetAddressAndPort(fakeCmsNode.addr());
 
-        TokenSupplier tokenSupplier = TokenSupplier.evenlyDistributedTokens(10);
         try (Cluster cluster = builder().withNodes(1)
                                         .withConfig(cfg -> cfg.set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                                                                                                           Collections.singletonMap("seeds", cmsNodeStr + ":7012"))))
-                                        .withTokenSupplier(tokenSupplier)
+                                                                                                           Collections.singletonMap("seeds", fakeCmsNode.id() + ":7012"))))
+                                        .withTokenSupplier(factory)
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(10, "dc0", "rack0"))
                                         .createWithoutStarting();
-             SimulatedCluster simulatedCluster = new SimulatedCluster(cluster, tokenSupplier))
+             SimulatedCluster simulatedCluster = new SimulatedCluster(rf, cluster, factory))
         {
-            simulatedCluster.initWithFakeCms(cmsAddr, nodeUnderTestAddr);
+            simulatedCluster.initWithFakeCms(fakeCmsNode, nodeUnderTestAddr);
             if  (startCluster)
                 cluster.startup();
             test.accept(cluster, simulatedCluster);
@@ -153,7 +153,8 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                         .withTokenSupplier(tokenSupplier)
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(10, "dc0", "rack0"))
                                         .createWithoutStarting();
-             SimulatedCluster simulatedCluster = new SimulatedCluster(cluster, tokenSupplier))
+             SimulatedCluster simulatedCluster = new SimulatedCluster(new PlacementSimulator.SimpleReplicationFactor(3),
+                                                                      cluster, tokenSupplier))
         {
             // Note that in case of a CMS node teset we first start a cluster, and then initialize a simulated cluster.
             cluster.startup();
@@ -256,26 +257,6 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         {
             super.register();
             ClusterMetadataTestHelper.register(node.idx());
-        }
-
-        @Override
-        public void join()
-        {
-            super.join();
-            ClusterMetadataTestHelper.join(node.idx(), node.token());
-        }
-
-        @Override
-        public void leave()
-        {
-            super.leave();
-            ClusterMetadataTestHelper.leave(node.idx());
-        }
-
-        public void replace(int replaced)
-        {
-            super.replace();
-            ClusterMetadataTestHelper.replace(replaced, node.idx());
         }
 
         @Override
@@ -523,14 +504,6 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                        .finishLeave();
         }
 
-        public void replace()
-        {
-            lazyReplace().prepareReplace()
-                         .startReplace()
-                         .midReplace()
-                         .finishReplace();
-        }
-
         @Override
         public ClusterMetadataTestHelper.JoinProcess lazyJoin()
         {
@@ -543,10 +516,10 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                     assert idx == -1;
                     assert steps == null;
 
-                    ModelChecker.Pair<SimulatedPlacements, PlacementSimulator.Transformations> res = bootstrap_diffBased(ref.get(), node.idx(), node.token());
-                    ref.set(res.l);
-                    steps = res.r;
-                    ref.apply(steps);
+                    SimulatedPlacements placements = ref.get();
+                    steps = PlacementSimulator.join(placements, node);
+                    ref.set(placements.withStashed(steps));
+                    ref.applyNext(steps);
                     idx++;
                     return this;
                 }
@@ -554,7 +527,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                 public ClusterMetadataTestHelper.JoinProcess startJoin()
                 {
                     assert idx == 0;
-                    ref.apply(steps);
+                    ref.applyNext(steps);
                     idx++;
                     return this;
                 }
@@ -562,7 +535,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                 public ClusterMetadataTestHelper.JoinProcess midJoin()
                 {
                     assert idx == 1;
-                    ref.apply(steps);
+                    ref.applyNext(steps);
                     idx++;
                     return this;
                 }
@@ -570,7 +543,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                 public ClusterMetadataTestHelper.JoinProcess finishJoin()
                 {
                     assert idx == 2;
-                    ref.apply(steps);
+                    ref.applyNext(steps);
                     idx++;
                     assert !steps.hasNext();
                     return this;
@@ -590,9 +563,11 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                     assert idx == -1;
                     assert steps == null;
 
-                    ModelChecker.Pair<SimulatedPlacements, Transformations> res = leave_diffBased(ref.get(), node.token());
-                    ref.set(res.l);
-                    steps = res.r;
+                    SimulatedPlacements placements = ref.get();
+                    Transformations tranformations = PlacementSimulator.leave(placements, node);
+                    ref.set(placements.withStashed(tranformations));
+
+                    steps = tranformations;
                     idx++;
                     return this;
                 }
@@ -600,7 +575,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                 public ClusterMetadataTestHelper.LeaveProcess startLeave()
                 {
                     assert idx == 0;
-                    ref.apply(steps);
+                    ref.applyNext(steps);
                     idx++;
                     return this;
                 }
@@ -608,7 +583,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                 public ClusterMetadataTestHelper.LeaveProcess midLeave()
                 {
                     assert idx == 1;
-                    ref.apply(steps);
+                    ref.applyNext(steps);
                     idx++;
                     return this;
                 }
@@ -616,54 +591,8 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                 public ClusterMetadataTestHelper.LeaveProcess finishLeave()
                 {
                     assert idx == 2;
-                    ref.apply(steps);
+                    ref.applyNext(steps);
                     idx++;
-                    return this;
-                }
-            };
-        }
-
-        public ClusterMetadataTestHelper.ReplaceProcess lazyReplace()
-        {
-            return new ClusterMetadataTestHelper.ReplaceProcess()
-            {
-                PlacementSimulator.Transformations steps = null;
-                int idx = -1;
-                public ClusterMetadataTestHelper.ReplaceProcess prepareReplace()
-                {
-                    assert idx == -1;
-                    assert steps == null;
-
-                    ModelChecker.Pair<SimulatedPlacements, PlacementSimulator.Transformations> res = replace_directly(ref.get(), node.token(), node.idx());
-                    ref.set(res.l);
-                    steps = res.r;
-                    ref.apply(steps);
-                    idx++;
-                    return this;
-                }
-
-                public ClusterMetadataTestHelper.ReplaceProcess startReplace()
-                {
-                    assert idx == 0;
-                    ref.apply(steps);
-                    idx++;
-                    return this;
-                }
-
-                public ClusterMetadataTestHelper.ReplaceProcess midReplace()
-                {
-                    assert idx == 1;
-                    ref.apply(steps);
-                    idx++;
-                    return this;
-                }
-
-                public ClusterMetadataTestHelper.ReplaceProcess finishReplace()
-                {
-                    assert idx == 2;
-                    ref.apply(steps);
-                    idx++;
-                    assert !steps.hasNext();
                     return this;
                 }
             };
@@ -678,25 +607,25 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         protected final TokenSupplier tokenSupplier;
         protected final IPartitioner partitioner = Murmur3Partitioner.instance;
         protected ExecutorPlus executor;
+        public final PlacementSimulator.NodeFactory nodeFactory = PlacementSimulator.nodeFactory();
 
-        public SimulatedCluster(ICluster<IInvokableInstance> realCluster, TokenSupplier tokenSupplier)
+        public SimulatedCluster(PlacementSimulator.ReplicationFactor rf, ICluster<IInvokableInstance> realCluster, TokenSupplier tokenSupplier)
         {
-            int rf = 3;
             this.tokenSupplier = tokenSupplier;
 
             InetAddressAndPort nodeUnderTestAddr = ClusterMetadataTestHelper.addr(1);
-            Node nodeUnderTest = new Node(tokenSupplier.token(1), nodeUnderTestAddr.addressBytes[3]);
+            Node nodeUnderTest = nodeFactory.make(nodeUnderTestAddr.addressBytes[3], 1, 1);
             List<Node> orig = Collections.singletonList(nodeUnderTest);
-            this.state = new RefSimulatedPlacementHolder(new SimulatedPlacements(3,
+            this.state = new RefSimulatedPlacementHolder(new SimulatedPlacements(rf,
                                                                                  Collections.singletonList(nodeUnderTest),
-                                                                                 replicate(orig, rf),
-                                                                                 replicate(orig, rf),
+                                                                                 rf.replicate(orig).asMap(),
+                                                                                 rf.replicate(orig).asMap(),
                                                                                  Collections.emptyList()));
             this.realCluster = realCluster;
             this.nodes = new HashMap<>();
 
             // We would like all messages directed to the node under test to be delivered it.
-            this.nodes.put(nodeUnderTestAddr, new RealSimulatedNode(this, new Node(tokenSupplier.token(1), 1)) {
+            this.nodes.put(nodeUnderTestAddr, new RealSimulatedNode(this, nodeUnderTest) {
                 @Override
                 public boolean test(Message<?> message)
                 {
@@ -706,7 +635,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             });
         }
 
-        public void initWithFakeCms(InetAddressAndPort cms, InetAddressAndPort nodeUnderTest)
+        public void initWithFakeCms(Node cms, InetAddressAndPort nodeUnderTest)
         {
             assert executor == null;
             LogStorage logStorage = new AtomicLongBackedProcessor.InMemoryStorage();
@@ -715,7 +644,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
             // Replicator only replicates to the node under test, as there are no other nodes in reality
             Commit.Replicator replicator = (result, source) -> {
                 realCluster.deliverMessage(realCluster.get(1).broadcastAddress(),
-                                           Instance.serializeMessage(cms, nodeUnderTest,
+                                           Instance.serializeMessage(cms.addr(), nodeUnderTest,
                                                                      Message.out(Verb.TCM_REPLICATION, result.success().replication)));
             };
 
@@ -729,13 +658,13 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                                                         true);
             ClusterMetadataService.setInstance(service);
 
-            log.bootstrap(cms);
+            log.bootstrap(cms.addr());
             service.commit(new Initialize(log.metadata()));
-            service.commit(new Register(new NodeAddresses(cms, cms, cms), new Location("dc0", "rack0"), NodeVersion.CURRENT));
+            service.commit(new Register(new NodeAddresses(cms.addr()), new Location(cms.dc(), cms.rack()), NodeVersion.CURRENT));
 
             IVerbHandler<Commit> commitRequestHandler = Commit.handlerForTests(processor,
                                                                                replicator,
-                                                                               (msg, to) -> realCluster.deliverMessage(to, Instance.serializeMessage(cms, to, msg)));
+                                                                               (msg, to) -> realCluster.deliverMessage(to, Instance.serializeMessage(cms.addr(), to, msg)));
             executor = ExecutorFactory.Global.executorFactory().pooled("FakeMessaging", 10);
 
             realCluster.setMessageSink((target, msg) -> executor.submit(() -> {
@@ -743,14 +672,14 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                 {
                     Message<?> message = Instance.deserializeMessage(msg);
                     // Catch the messages from the node under test and forward them to the CMS
-                    if (target.equals(cms))
+                    if (target.equals(cms.addr()))
                     {
                         switch (message.verb())
                         {
                             case TCM_DISCOVER_REQ:
-                                Message<?> rsp = message.responseWith(new Discovery.DiscoveredNodes(Collections.singleton(cms), Discovery.DiscoveredNodes.Kind.CMS_ONLY));
+                                Message<?> rsp = message.responseWith(new Discovery.DiscoveredNodes(Collections.singleton(cms.addr()), Discovery.DiscoveredNodes.Kind.CMS_ONLY));
                                 realCluster.deliverMessage(message.from(),
-                                                           Instance.serializeMessage(cms, message.from(), rsp));
+                                                           Instance.serializeMessage(cms.addr(), message.from(), rsp));
                                 return;
                             case TCM_COMMIT_REQ:
                             {
@@ -762,7 +691,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
                                 Replay request = (Replay) message.payload;
                                 LogState logState = logStorage.getLogState(request.start);
                                 realCluster.deliverMessage(message.from(),
-                                                           Instance.serializeMessage(cms, message.from(), message.responseWith(logState)));
+                                                           Instance.serializeMessage(cms.addr(), message.from(), message.responseWith(logState)));
                                 return;
                             }
                             default:
@@ -862,7 +791,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         public RealSimulatedNode createNode()
         {
             int idx = this.nodes.size() + 1;
-            RealSimulatedNode node = new RealSimulatedNode(this, new Node(tokenSupplier.token(idx), idx));
+            RealSimulatedNode node = new RealSimulatedNode(this, nodeFactory.make(idx, 1, 1));
             node.initializeDefaultHandlers();
             nodes.put(node.node.addr(), node);
             return node;
@@ -870,7 +799,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
 
         public VirtualSimulatedCluster asVirtual()
         {
-            return new VirtualSimulatedCluster(state.fork(), tokenSupplier);
+            return new VirtualSimulatedCluster(state.fork(), nodeFactory);
         }
 
         public RealSimulatedNode node(int i)
@@ -913,12 +842,12 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
     {
         protected final SimulatedPlacementHolder state;
         protected final List<VirtualSimulatedNode> nodes;
-        protected final TokenSupplier tokenSupplier;
+        protected final PlacementSimulator.NodeFactory factory;
 
-        public VirtualSimulatedCluster(SimulatedPlacementHolder state, TokenSupplier tokenSupplier)
+        public VirtualSimulatedCluster(SimulatedPlacementHolder state, PlacementSimulator.NodeFactory factory)
         {
             this.state = state;
-            this.tokenSupplier = tokenSupplier;
+            this.factory = factory;
             this.nodes = new ArrayList<>();
             for (Node node : state.get().nodes)
                 this.nodes.add(new VirtualSimulatedNode(state, node));
@@ -927,7 +856,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         public VirtualSimulatedNode createNode()
         {
             int idx = nodes.size() + 1;
-            VirtualSimulatedNode node = new VirtualSimulatedNode(state, new Node(tokenSupplier.token(idx), idx));
+            VirtualSimulatedNode node = new VirtualSimulatedNode(state, factory.make(idx, 1, 1));
             nodes.add(node);
             return node;
         }

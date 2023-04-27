@@ -43,10 +43,12 @@ import static org.apache.cassandra.distributed.test.log.PlacementSimulator.Node;
 
 public class CoordinatorPathTest extends CoordinatorPathTestBase
 {
+    private static final PlacementSimulator.SimpleReplicationFactor RF =new PlacementSimulator.SimpleReplicationFactor(3);
+
     @Test
     public void writeConsistencyTest() throws Throwable
     {
-        coordinatorPathTest((cluster, simulatedCluster) -> {
+        coordinatorPathTest(RF, (cluster, simulatedCluster) -> {
             Random random = new Random(0);
             cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + 3 + "};", true, cluster.get(1));
             cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))", true, cluster.get(1));
@@ -116,7 +118,7 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
     @Test
     public void readConsistencyTest() throws Throwable
     {
-        coordinatorPathTest((cluster, simulatedCluster) -> {
+        coordinatorPathTest(RF, (cluster, simulatedCluster) -> {
             Random random = new Random(0);
             cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + 3 + "};", true, cluster.get(1));
             cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))", true, cluster.get(1));
@@ -168,7 +170,7 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
                     if (t.getMessage() == null)
                         throw t;
                     Assert.assertTrue(String.format("Got exception: %s", t),
-                                      t.getMessage().contains("During operation execution, the ring has changed in a way that would make responses violate the consistency level."));
+                                      t.getMessage().contains("During operation execution, the ring has changed"));
                     return;
                 }
             }
@@ -178,7 +180,7 @@ public class CoordinatorPathTest extends CoordinatorPathTestBase
     @Test
     public void coordinatorReadWriteTest() throws Throwable
     {
-        coordinatorPathTest((cluster, simulatedCluster) -> {
+        coordinatorPathTest(RF, (cluster, simulatedCluster) -> {
             cluster.schemaChange("CREATE KEYSPACE IF NOT EXISTS " + KEYSPACE + " WITH replication = {'class': 'SimpleStrategy', 'replication_factor': " + 3 + "};");
             cluster.schemaChange("CREATE TABLE IF NOT EXISTS " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 

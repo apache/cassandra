@@ -366,6 +366,12 @@ public class ClusterMetadata
             return this;
         }
 
+        public Transformer unregister(NodeId nodeId)
+        {
+            directory = directory.without(nodeId);
+            return this;
+        }
+
         public Transformer withNodeState(NodeId id, NodeState state)
         {
             directory = directory.withNodeState(id, state);
@@ -391,9 +397,10 @@ public class ClusterMetadata
             return this;
         }
 
-        public Transformer unproposeTokens(NodeId nodeId, Collection<Token> tokens)
+        public Transformer moveTokens(NodeId nodeId, Collection<Token> tokens)
         {
-            tokenMap = tokenMap.unassignTokens(nodeId, tokens);
+            tokenMap = tokenMap.unassignTokens(nodeId)
+                               .assignTokens(nodeId, tokens);
             return this;
         }
 

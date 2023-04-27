@@ -92,29 +92,6 @@ public class TokenMap implements MetadataValue<TokenMap>
         return new TokenMap(lastModified, partitioner, finalisedCopy);
     }
 
-    /**
-     * Find a token that is immediately after this one in the ring.
-     */
-    public Token nextInRing(Token token, boolean exactMatchOnly)
-    {
-        int idx = Collections.binarySearch(tokens, token);
-        if (idx < 0)
-        {
-            if (exactMatchOnly)
-                throw new IllegalArgumentException(String.format("Can not find token %s in the ring %s", token, token));
-            int realIdx = -1 - idx;
-            if (realIdx == tokens.size())
-                realIdx = 0;
-
-            return tokens.get(realIdx);
-        }
-
-        if (idx == tokens.size() - 1)
-            return tokens.get(0);
-        else
-            return tokens.get(idx + 1);
-    }
-
     public TokenMap unassignTokens(NodeId id)
     {
         SortedBiMultiValMap<Token, NodeId> finalisedCopy = SortedBiMultiValMap.create(map);

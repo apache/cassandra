@@ -70,8 +70,8 @@ import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
  *        -XX:CICompilerCount=1
  *        -XX:Tier4CompileThreshold=1000
  *        -XX:ReservedCodeCacheSize=256M
- *        -Xmx8G
- *        -Xmx1024m
+ *        -Xmx16G
+ *        -Xmx4G
  */
 public class ShortPaxosSimulationTest
 {

@@ -519,7 +519,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             return new ReplicaPlan.ForWrite(keyspace, liveAndDown.replicationStrategy(),
                                             ConsistencyLevel.ONE, liveRemoteOnly.pending(), liveRemoteOnly.all(), liveRemoteOnly.all(), liveRemoteOnly.all(),
                                             (cm) -> forReplayMutation(cm, keyspace, token),
-                                            liveAndDown.epoch());
+                                            metadata.epoch);
         }
         private static int gcgs(Collection<Mutation> mutations)
         {

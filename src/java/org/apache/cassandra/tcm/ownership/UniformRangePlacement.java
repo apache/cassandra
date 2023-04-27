@@ -135,24 +135,20 @@ public class UniformRangePlacement implements PlacementProvider
     {
         DataPlacements base = calculatePlacements(metadata, keyspaces);
 
-        TokenMap withMoved = metadata.transformer()
-                                     .proposeToken(nodeId, tokens)
-                                     .build().metadata.tokenMap;
+        TokenMap withMoved = metadata.tokenMap.assignTokens(nodeId, tokens);
         // Introduce new tokens, but do not change the ownership just yet
         DataPlacements start = splitRanges(metadata.tokenMap, withMoved, base);
 
-        DataPlacements withoutLeaving = calculatePlacements(metadata.transformer()
-                                                                    .unproposeTokens(nodeId)
-                                                                    .proposeToken(nodeId, tokens)
-                                                                    .build().metadata,
-                                                            keyspaces);
+        DataPlacements afterMove = calculatePlacements(metadata.transformer()
+                                                               .moveTokens(nodeId, tokens)
+                                                               .build().metadata,
+                                                       keyspaces);
 
         // Old tokens owned by the move target are now owned by the next-in-ring;
         // Move target now owns its newly assigned tokens
-        DataPlacements end = splitRanges(metadata.tokenMap, withMoved, withoutLeaving);
+        DataPlacements end = splitRanges(metadata.tokenMap, withMoved, afterMove);
 
         DataPlacements maximal = start.combineReplicaGroups(end);
-
 
         PlacementDeltas.Builder split = PlacementDeltas.builder();
         PlacementDeltas.Builder toMaximal = PlacementDeltas.builder();
@@ -169,7 +165,7 @@ public class UniformRangePlacement implements PlacementProvider
         });
 
         end.withDistributed((params, placement) -> {
-            merge.put(params, placement.difference(withoutLeaving.get(params)));
+            merge.put(params, placement.difference(afterMove.get(params)));
         });
 
         return new PlacementTransitionPlan(split.build(), toMaximal.build(), toFinal.build(), merge.build());

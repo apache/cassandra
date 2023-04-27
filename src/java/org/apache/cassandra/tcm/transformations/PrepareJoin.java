@@ -127,6 +127,9 @@ public class PrepareJoin implements Transformation
     @Override
     public Result execute(ClusterMetadata prev)
     {
+        if (prev.directory.peerState(nodeId) != NodeState.REGISTERED)
+            return new Rejected(String.format("Rejecting this plan as the node %s is in state %s", nodeId, prev.directory.peerState(nodeId)));
+
         PlacementTransitionPlan transitionPlan = placementProvider.planForJoin(prev, nodeId, tokens, prev.schema.getKeyspaces());
 
         LockedRanges.AffectedRanges rangesToLock = transitionPlan.affectedRanges();

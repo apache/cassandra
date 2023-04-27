@@ -37,6 +37,7 @@ import java.util.function.Supplier;
 
 public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>>
 {
+    Epoch epoch();
     Keyspace keyspace();
     AbstractReplicationStrategy replicationStrategy();
     ConsistencyLevel consistencyLevel();
@@ -91,8 +92,8 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
             this.replicationStrategy = replicationStrategy;
             this.consistencyLevel = consistencyLevel;
             this.contacts = contacts;
-            this.epoch = epoch;
             this.recompute = recompute;
+            this.epoch = epoch;
         }
 
         public E contacts() { return contacts; }
@@ -182,11 +183,12 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
             if (readQuorum <= 0)
                 return true;
 
-            throw new IllegalStateException(String.format("During operation execution, the ring has changed in a way that would make responses violate the consistency level." +
+            throw new IllegalStateException(String.format("During operation execution, the ring has changed from %s to %s in a way that would make responses violate the consistency level." +
                                                           "\n\tReceived responses from: %s" +
                                                           "\n\tOld candidates: %s" +
                                                           "\n\tNew candidates: %s" +
                                                           "\n\tRemaining required: %d",
+                                                          epoch, newMetadata.epoch,
                                                           contacted, candidates, newPlan.readCandidates(), readQuorum));
         }
     }
@@ -279,6 +281,7 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         final EndpointsForToken liveAndDown;
         final EndpointsForToken live;
         final int writeQuorum;
+
         public ForWrite(Keyspace keyspace,
                         AbstractReplicationStrategy replicationStrategy,
                         ConsistencyLevel consistencyLevel,
@@ -379,7 +382,6 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         private final Predicate<Replica> skipBlockingFor;
 
         public ForReadRepair(Keyspace keyspace,
-                             // TODO: replication strategy is now a part of ks
                              AbstractReplicationStrategy replicationStrategy,
                              ConsistencyLevel consistencyLevel,
                              EndpointsForToken pending,

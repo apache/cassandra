@@ -75,6 +75,9 @@ public class PrepareLeave implements Transformation
     @Override
     public Result execute(ClusterMetadata prev)
     {
+        if (prev.directory.peerState(nodeId) != NodeState.JOINED)
+            return new Rejected(String.format("Rejecting this plan as the node %s is in state %s", nodeId, prev.directory.peerState(nodeId)));
+
         ClusterMetadata proposed = prev.transformer().proposeRemoveNode(nodeId).build().metadata;
 
         if (!force && !validateReplicationForDecommission(proposed))

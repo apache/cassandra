@@ -19,12 +19,11 @@
 package org.apache.cassandra.tcm.ownership;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -42,6 +41,8 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 
 public class UniformRangePlacementIntegrationTest
 {
+    private static final PlacementSimulator.ReplicationFactor RF = new PlacementSimulator.NtsReplicationFactor(3, 3);
+    private CMSTestBase.CMSSut sut;
     @BeforeClass
     public static void beforeClass()
     {
@@ -52,13 +53,13 @@ public class UniformRangePlacementIntegrationTest
     public void before() throws ExecutionException, InterruptedException
     {
         ClusterMetadataService.unsetInstance();
-        new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, 3);
+        sut = new CMSTestBase.CMSSut(AtomicLongBackedProcessor::new, false, RF);
     }
 
-    @Before
-    public void after() throws ExecutionException, InterruptedException
+    @After
+    public void after() throws Exception
     {
-        ClusterMetadataService.unsetInstance();
+        sut.close();
     }
 
     @Test
@@ -67,35 +68,30 @@ public class UniformRangePlacementIntegrationTest
         UniformRangePlacement rangePlacement = new UniformRangePlacement();
         Random rng = new Random(1);
         int idx = 1;
+        PlacementSimulator.NodeFactory factory = PlacementSimulator.nodeFactory();
         List<PlacementSimulator.Node> nodes = new ArrayList<>();
         for (int i = 0; i < 5; i++)
         {
             for (int j = 1; j <= 3; j++)
             {
-                long token = rng.nextLong();
                 int dc = j;
                 int rack = (rng.nextInt(3) + 1);
-                PlacementSimulator.Node node = new PlacementSimulator.Node(token, idx, dc, rack);
+                PlacementSimulator.Node node = factory.make(idx, dc, rack);
                 ClusterMetadataTestHelper.register(idx, node.dc(), node.rack());
-                ClusterMetadataTestHelper.join(idx, token);
+                ClusterMetadataTestHelper.join(idx, node.token());
                 nodes.add(node);
                 idx++;
             }
         }
+        nodes.sort(PlacementSimulator.Node::compareTo);
 
         ClusterMetadataService.instance().replayAndWait();
         DataPlacements placements = rangePlacement.calculatePlacements(ClusterMetadata.current(),
-                                                                       Keyspaces.of(ClusterMetadata.current().schema.getKeyspaces().get("test_nts").get()));
-        Map<String, Integer> rf = new HashMap<>();
-        for (int i = 1; i <= 3; i++)
-        {
-            String dc = "datacenter" + i;
-            rf.put(dc, 3);
-        }
+                                                                       Keyspaces.of(ClusterMetadata.current().schema.getKeyspaces().get("test").get()));
 
-        PlacementSimulator.ReplicatedRanges predicted = PlacementSimulator.replicate(nodes, rf);
+        PlacementSimulator.ReplicatedRanges predicted = RF.replicate(nodes);
 
-        ReplicationParams replicationParams = ClusterMetadata.current().schema.getKeyspaces().get("test_nts").get().params.replication;
+        ReplicationParams replicationParams = ClusterMetadata.current().schema.getKeyspaces().get("test").get().params.replication;
         MetadataChangeSimulationTest.match(placements.get(replicationParams).reads,
                                            predicted.asMap());
     }

@@ -34,18 +34,8 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
-import org.apache.cassandra.tcm.transformations.AlterSchema;
-import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
-import org.apache.cassandra.tcm.transformations.CustomTransformation;
-import org.apache.cassandra.tcm.transformations.ForceSnapshot;
-import org.apache.cassandra.tcm.transformations.PrepareJoin;
-import org.apache.cassandra.tcm.transformations.PrepareLeave;
-import org.apache.cassandra.tcm.transformations.PrepareMove;
-import org.apache.cassandra.tcm.transformations.PrepareReplace;
-import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.tcm.transformations.SealPeriod;
+import org.apache.cassandra.tcm.transformations.*;
 import org.apache.cassandra.tcm.transformations.Startup;
-import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.FinishAddToCMS;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
@@ -154,6 +144,7 @@ public interface Transformation
         SEAL_PERIOD(() -> SealPeriod.serializer),
         SCHEMA_CHANGE(() -> AlterSchema.serializer),
         REGISTER(() -> Register.serializer),
+        UNREGISTER(() -> Unregister.serializer),
 
         UNSAFE_JOIN(() -> UnsafeJoin.serializer),
         PREPARE_JOIN(() -> PrepareJoin.serializer),

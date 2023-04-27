@@ -3575,19 +3575,26 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             new ProgressBarrier(epoch, ImmutableSet.of(replacement), false).await();
         }
 
-        logger.info("starting decom with {} {}", metadata.epoch, self);
-        if (metadata.inProgressSequences.contains(self))
-            throw new IllegalArgumentException("Can not decomission a node that has an in-progress sequence");
+        InProgressSequence<?> inProgress = metadata.inProgressSequences.get(self);
 
-        ClusterMetadataService.instance().commit(new PrepareLeave(self,
-                                                                  force,
-                                                                  ClusterMetadataService.instance().placementProvider()),
-                                                 (metadata_) -> !metadata_.inProgressSequences.contains(self),
-                                                 (metadata_) -> null,
-                                                 (metadata_, reason) -> {
-                                                     throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting leave sequence.",
-                                                                                                   reason));
-                                                 });
+        if (inProgress == null)
+        {
+            logger.info("starting decom with {} {}", metadata.epoch, self);
+            ClusterMetadataService.instance().commit(new PrepareLeave(self,
+                                                                      force,
+                                                                      ClusterMetadataService.instance().placementProvider()),
+                                                     (metadata_) -> !metadata_.inProgressSequences.contains(self),
+                                                     (metadata_) -> null,
+                                                     (metadata_, reason) -> {
+                                                         throw new IllegalStateException(String.format("Can not commit event to metadata service: %s. Interrupting leave sequence.",
+                                                                                                       reason));
+                                                     });
+        }
+        else if (!InProgressSequences.isLeave(inProgress))
+        {
+            throw new IllegalArgumentException("Can not decomission a node that has an in-progress sequence");
+        }
+
         finishInProgressSequences(self);
         finishLeaving();
     }

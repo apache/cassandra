@@ -408,7 +408,7 @@ public class ReplicaPlans
                                              live.all(),
                                              contacts,
                                              (newClusterMetadata) -> forReadRepair(newClusterMetadata, keyspace, consistencyLevel, token, isAlive),
-                                             live.epoch());
+                                             metadata.epoch);
     }
 
     public static ReplicaPlan.ForWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, Selector selector) throws UnavailableException
@@ -459,7 +459,7 @@ public class ReplicaPlans
                                         live.all(),
                                         contacts,
                                         (newClusterMetadata) -> forWrite(newClusterMetadata, keyspace, consistencyLevel, liveAndDownSupplier, isAlive, selector),
-                                        live.epoch());
+                                        metadata.epoch);
     }
 
     public interface Selector
@@ -634,7 +634,6 @@ public class ReplicaPlans
                                                live.all().size());
         }
 
-        assert live.epoch().equals(liveAndDown.epoch());
         return new ReplicaPlan.ForPaxosWrite(keyspace,
                                              consistencyForPaxos,
                                              liveAndDown.pending(),
@@ -643,7 +642,7 @@ public class ReplicaPlans
                                              live.all(),
                                              requiredParticipants,
                                              (newClusterMetadata) -> forPaxos(newClusterMetadata, keyspace, key, consistencyForPaxos, false),
-                                             live.epoch());
+                                             metadata.epoch);
     }
 
     private static <E extends Endpoints<E>> E candidatesForRead(Keyspace keyspace,
@@ -815,7 +814,7 @@ public class ReplicaPlans
                                             vnodeCount,
                                             (newClusterMetadata) -> forRangeRead(newClusterMetadata, keyspace, indexQueryPlan, consistencyLevel, range, vnodeCount, false),
                                             (token) -> forReadRepair(metadata, keyspace, consistencyLevel, token, FailureDetector.isReplicaAlive),
-                                            forRangeRead.epoch());
+                                            metadata.epoch);
     }
 
     /**

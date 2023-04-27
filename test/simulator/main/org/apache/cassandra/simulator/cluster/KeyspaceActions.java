@@ -65,6 +65,7 @@ public class KeyspaceActions extends ClusterActions
 
     final EnumSet<TopologyChange> ops = EnumSet.noneOf(TopologyChange.class);
     final NodeLookup nodeLookup;
+    final PlacementSimulator.NodeFactory factory;
     final int[] minRf, initialRf, maxRf;
     final int[] membersOfQuorumDcs;
 
@@ -97,6 +98,7 @@ public class KeyspaceActions extends ClusterActions
 
         this.nodeLookup = simulated.snitch;
 
+        this.factory = new PlacementSimulator.NodeFactory(new SimulationLookup());
         int[] dcSizes = new int[options.initialRf.length];
         for (int dc : nodeLookup.nodeToDc)
             ++dcSizes[dc];
@@ -191,15 +193,17 @@ public class KeyspaceActions extends ClusterActions
             for (int i = 0; i < nodesByDc.dcSizes[dcIdx]; i++)
             {
                 int nodeIdx = nodesInDc[i];
-                nodes.add(new PlacementSimulator.Node(tokenOf(nodeIdx).token, nodeIdx, lookup.dcOf(nodeIdx) + 1, 1));
+                PlacementSimulator.Node node = factory.make(nodeIdx,nodeIdx, 1);
+                nodes.add(node);
+                assert node.token() == tokenOf(nodeIdx);
             }
         }
 
         Map<String, Integer> rf = new HashMap<>();
         for (int i = 0; i < rfs.length; i++)
-            rf.put(PlacementSimulator.DEFAULT_LOOKUP.dc(i + 1), rfs[i]);
+            rf.put(factory.lookup().dc(i + 1), rfs[i]);
 
-        return PlacementSimulator.replicate(nodes, rf);
+        return new PlacementSimulator.NtsReplicationFactor(rfs).replicate(nodes);
     }
 
     private Topology recomputeTopology(PlacementSimulator.ReplicatedRanges readPlacements,
@@ -399,9 +403,34 @@ public class KeyspaceActions extends ClusterActions
         return sum;
     }
 
-    private LongToken tokenOf(int node)
+    private long tokenOf(int node)
     {
-        return new LongToken(Long.parseLong(cluster.get(nodeLookup.tokenOf(node)).config().getString("initial_token")));
+        return Long.parseLong(cluster.get(nodeLookup.tokenOf(node)).config().getString("initial_token"));
     }
 
+    public class SimulationLookup extends PlacementSimulator.DefaultLookup
+    {
+        public String dc(int dcIdx)
+        {
+            return super.dc(nodeLookup.dcOf(dcIdx) + 1);
+        }
+
+        public String rack(int rackIdx)
+        {
+            return super.rack(1);
+        }
+
+        public long token(int tokenIdx)
+        {
+            return Long.parseLong(cluster.get(nodeLookup.tokenOf(tokenIdx)).config().getString("initial_token"));
+        }
+
+        public PlacementSimulator.Lookup forceToken(int tokenIdx, long token)
+        {
+            SimulationLookup newLookup = new SimulationLookup();
+            newLookup.overrides.putAll(overrides);
+            newLookup.overrides.put(tokenIdx, token);
+            return newLookup;
+        }
+    }
 }

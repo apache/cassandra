@@ -52,7 +52,6 @@ import org.slf4j.LoggerFactory;
 
 import harry.core.VisibleForTesting;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -419,7 +418,7 @@ public class ClusterUtils
         return Epoch.create(periodEpoch);
     }
 
-    public static void waitForCMSToQuiesce(Cluster cluster, IInvokableInstance leader, int...ignored)
+    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, IInvokableInstance leader, int...ignored)
     {
         ClusterUtils.waitForCMSToQuiesce(cluster, getClusterMetadataVersion(leader), ignored);
     }
@@ -573,7 +572,7 @@ public class ClusterUtils
         }
     }
 
-    public static void waitForCMSToQuiesce(Cluster cluster, Epoch awaitedEpoch, int...ignored)
+    public static void waitForCMSToQuiesce(ICluster<IInvokableInstance> cluster, Epoch awaitedEpoch, int...ignored)
     {
         List<ClusterMetadataVersion> notMatching = new ArrayList<>();
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);

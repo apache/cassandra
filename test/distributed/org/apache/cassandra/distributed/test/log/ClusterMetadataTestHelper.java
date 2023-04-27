@@ -705,10 +705,8 @@ public class ClusterMetadataTestHelper
         public void register();
         public void join();
         public void leave();
-        public void replace();
         public JoinProcess lazyJoin();
         public LeaveProcess lazyLeave();
-        public ReplaceProcess lazyReplace();
     }
 
     public static interface JoinProcess

@@ -85,6 +85,12 @@ public class PrepareReplace implements Transformation
     @Override
     public Result execute(ClusterMetadata prev)
     {
+        if (prev.directory.peerState(replaced) != NodeState.JOINED)
+            return new Rejected(String.format("Rejecting this plan as the replaced node %s is in state %s", replaced, prev.directory.peerState(replaced)));
+
+        if (prev.directory.peerState(replacement) != NodeState.REGISTERED)
+            return new Rejected(String.format("Rejecting this plan as the replacement node %s is in state %s", replacement, prev.directory.peerState(replacement)));
+
         LockedRanges.Key unlockKey = LockedRanges.keyFor(prev.nextEpoch());
         LockedRanges lockedRanges = prev.lockedRanges;
 

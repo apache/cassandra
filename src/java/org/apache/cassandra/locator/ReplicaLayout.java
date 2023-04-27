@@ -25,7 +25,6 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
@@ -43,23 +42,11 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
     private final E natural;
     // the snapshot of the replication strategy that corresponds to the replica layout
     private final AbstractReplicationStrategy replicationStrategy;
-    private final Epoch epoch;
 
     ReplicaLayout(AbstractReplicationStrategy replicationStrategy, E natural)
     {
-        this(replicationStrategy, natural, Epoch.EMPTY);
-    }
-
-    ReplicaLayout(AbstractReplicationStrategy replicationStrategy, E natural, Epoch epoch)
-    {
         this.replicationStrategy = replicationStrategy;
         this.natural = natural;
-        this.epoch = epoch;
-    }
-
-    public Epoch epoch()
-    {
-        return epoch;
     }
 
     /**
@@ -96,11 +83,6 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         public ForTokenRead(AbstractReplicationStrategy replicationStrategy, EndpointsForToken natural)
         {
             super(replicationStrategy, natural);
-        }
-
-        public ForTokenRead(AbstractReplicationStrategy replicationStrategy, EndpointsForToken natural, Epoch epoch)
-        {
-            super(replicationStrategy, natural, epoch);
         }
 
         @Override
@@ -379,7 +361,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
                                      : forNonLocalStrategyTokenRead(metadata, keyspace.getMetadata(), token);
         replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
         replicas = replicas.filter(FailureDetector.isReplicaAlive);
-        return new ReplicaLayout.ForTokenRead(replicationStrategy, replicas, metadata.epoch);
+        return new ReplicaLayout.ForTokenRead(replicationStrategy, replicas);
     }
 
     /**

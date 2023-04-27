@@ -155,7 +155,7 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
     @Test
     public void bounceNodeBootrappedFromSnapshot() throws Throwable
     {
-        coordinatorPathTest((cluster, simulatedCluster) -> {
+        coordinatorPathTest(new PlacementSimulator.SimpleReplicationFactor(3), (cluster, simulatedCluster) -> {
             ClusterMetadataService.instance().sealPeriod();
             ClusterMetadataService.instance().log().waitForHighestConsecutive();
             ClusterMetadataService.instance().snapshotManager().storeSnapshot(ClusterMetadata.current());

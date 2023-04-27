@@ -80,6 +80,9 @@ public class PrepareMove implements Transformation
 
     public Result execute(ClusterMetadata prev)
     {
+        if (prev.directory.peerState(nodeId) != NodeState.JOINED)
+            return new Rejected(String.format("Rejecting this plan as the node %s is in state %s", nodeId, prev.directory.peerState(nodeId)));
+
         PlacementTransitionPlan transitionPlan = placementProvider.planForMove(prev, nodeId, tokens, prev.schema.getKeyspaces());
         LockedRanges.AffectedRanges rangesToLock = transitionPlan.affectedRanges();
         LockedRanges.Key alreadyLockedBy = prev.lockedRanges.intersects(rangesToLock);
@@ -238,8 +241,7 @@ public class PrepareMove implements Transformation
         @Override
         public ClusterMetadata.Transformer transform(ClusterMetadata prev, ClusterMetadata.Transformer transformer)
         {
-            return transformer.unproposeTokens(nodeId)
-                              .proposeToken(nodeId, newTokens)
+            return transformer.moveTokens(nodeId, newTokens)
                               .join(nodeId)
                               .with(prev.inProgressSequences.without(nodeId));
         }

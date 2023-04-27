@@ -51,8 +51,7 @@ public class NodeNotInRingTest extends TestBaseImpl
                    .outbound()
                    .drop()
                    .on();
-            // todo: this can probably use an event like "unsafe assassinate" or similar?
-//            cluster.run(GossipHelper.removeFromRing(cluster.get(3)), 1, 2);
+            cluster.get(3).runOnInstance(() -> StorageService.instance.decommission(true));
             cluster.run(inst -> inst.runsOnInstance(() -> {
                 Assert.assertEquals("There should be 2 remaining nodes in ring",
                                     2, StorageService.instance.effectiveOwnershipWithPort(KEYSPACE).size());

@@ -28,9 +28,8 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
-import org.apache.cassandra.locator.ReplicationFactor;
+import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -46,17 +45,25 @@ import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
 import org.mockito.Mockito;
 
+import static org.apache.cassandra.tcm.transformations.cms.EntireRange.affectedRanges;
+
 public class CMSTestBase
 {
     static
     {
         DatabaseDescriptor.daemonInitialization();
-        // todo; mockito-mock returns null for dc/rack, which we don't support with the btree maps (yes, could probably have
-        //       done this with mockito as well but it didn't work first try so this was simpler)
         DatabaseDescriptor.setEndpointSnitch(new IEndpointSnitch()
         {
-            public String getRack(InetAddressAndPort endpoint) {return "rack1";}
-            public String getDatacenter(InetAddressAndPort endpoint) {return "datacenter1";}
+            public String getRack(InetAddressAndPort endpoint)
+            {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                return metadata.directory.location(metadata.directory.peerId(endpoint)).rack;
+            }
+            public String getDatacenter(InetAddressAndPort endpoint)
+            {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                return metadata.directory.location(metadata.directory.peerId(endpoint)).datacenter;
+            }
             public <C extends ReplicaCollection<? extends C>> C sortedByProximity(InetAddressAndPort address, C addresses) {return null;}
             public int compareEndpoints(InetAddressAndPort target, Replica r1, Replica r2) {return 0;}
             public void gossiperStarting() {}
@@ -81,12 +88,12 @@ public class CMSTestBase
         public final LocalLog log;
         public final ClusterMetadataService service;
         public final SchemaProvider schemaProvider;
-        public final ReplicationFactor replication;
+        public final PlacementSimulator.ReplicationFactor rf;
 
-        public CMSSut(IIsolatedExecutor.SerializableFunction<LocalLog, Processor> processorFactory, boolean addListeners, int rf)
+        public CMSSut(IIsolatedExecutor.SerializableFunction<LocalLog, Processor> processorFactory, boolean addListeners, PlacementSimulator.ReplicationFactor rf)
         {
             partitioner = Murmur3Partitioner.instance;
-            replication = ReplicationFactor.fullOnly(rf);
+            this.rf = rf;
             schemaProvider = Mockito.mock(SchemaProvider.class);
             ClusterMetadata initial = new ClusterMetadata(partitioner);
             log = LocalLog.sync(initial, LogStorage.None, addListeners);
@@ -100,12 +107,18 @@ public class CMSTestBase
 
             ClusterMetadataService.setInstance(service);
             log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
-            service.commit(new Initialize(ClusterMetadata.current()));
+            service.commit(new Initialize(ClusterMetadata.current()) {
+                public Result execute(ClusterMetadata prev)
+                {
+                    ClusterMetadata next = baseState;
+                    DistributedSchema initialSchema = new DistributedSchema(prev.schema.getKeyspaces());
+                    ClusterMetadata.Transformer transformer = next.transformer().with(initialSchema);
+                    return success(transformer, affectedRanges);
+                }
+
+            });
             service.commit(new AlterSchema((cm, schema) -> {
-                return schema.with(Keyspaces.of(KeyspaceMetadata.create("test", KeyspaceParams.simple(rf)),
-                                                KeyspaceMetadata.create("test_nts", KeyspaceParams.nts("datacenter1", rf,
-                                                                                                       "datacenter2", rf,
-                                                                                                       "datacenter3", rf))));
+                return schema.with(Keyspaces.of(KeyspaceMetadata.create("test", rf.asKeyspaceParams())));
             }, schemaProvider));
         }
 

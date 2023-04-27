@@ -476,6 +476,11 @@ public class Paxos
             return electorateLive.anyMatch(Paxos::isOldParticipant);
         }
 
+        public Epoch epoch()
+        {
+            return epoch;
+        }
+
         @Override
         public Keyspace keyspace()
         {
