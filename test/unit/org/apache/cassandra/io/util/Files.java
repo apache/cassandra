@@ -19,6 +19,8 @@
 package org.apache.cassandra.io.util;
 
 import java.io.IOException;
+import java.nio.file.ClosedFileSystemException;
+import java.nio.file.FileSystem;
 import java.nio.file.attribute.FileAttribute;
 
 import com.google.common.base.StandardSystemProperty;
@@ -34,6 +36,15 @@ public class Files
         ListenableFileSystem fs = new ListenableFileSystem(Jimfs.newFileSystem(Configuration.unix().toBuilder()
                                                                                             .setMaxSize(4L << 30).setBlockSize(512)
                                                                                             .build()));
+        try
+        {
+            FileSystem previous = new File("").toPath().getFileSystem();
+            previous.close();
+        }
+        catch (IOException | UnsupportedOperationException | ClosedFileSystemException e)
+        {
+            // ignore
+        }
         File.unsafeSetFilesystem(fs);
         return fs;
     }
