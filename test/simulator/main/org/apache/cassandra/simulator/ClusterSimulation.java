@@ -90,7 +90,6 @@ import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.simulator.utils.LongRange;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
@@ -579,7 +578,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                    .set("concurrent_counter_writes", take(1, 4))
                    .set("concurrent_materialized_view_writes", take(1, 4))
                    .set("concurrent_reads", take(1, 4))
-                   .forceSet("available_processors", take(3, 4));
+                   .set("available_processors", take(3, 4));
         }
 
         // begin allocating for a new node
@@ -626,7 +625,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             if (remaining * min <= allocationPool)
                 return min;
             if (times == remaining)
-                return allocationPool / remaining;
+                return Math.max(allocationPool / remaining, min);
             if (times + 1 == remaining)
                 return random.uniform(Math.max(min, (allocationPool - max) / times), Math.min(max, (allocationPool - min) / times));
 
@@ -636,7 +635,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
             return min >= max ? min : random.uniform(min, max);
         }
     }
-
 
     public final RandomSource random;
     public final SimulatedSystems simulated;
@@ -760,7 +758,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              @Override
                              public void beforeStartup(IInstance i)
                              {
-                                 ((IInvokableInstance) i).unsafeAcceptOnThisThread(FBUtilities::setAvailableProcessors, i.config().getInt("available_processors"));
                                  ((IInvokableInstance) i).unsafeAcceptOnThisThread(IfInterceptibleThread::setThreadLocalRandomCheck, (LongConsumer) threadLocalRandomCheck);
 
                                  int num = i.config().num();

@@ -140,6 +140,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.GuardrailsOptions$Config",
     "org.apache.cassandra.config.GuardrailsOptions$ConsistencyLevels",
     "org.apache.cassandra.config.GuardrailsOptions$TableProperties",
+    "org.apache.cassandra.config.OptionaldPositiveInt",
     "org.apache.cassandra.config.ParameterizedClass",
     "org.apache.cassandra.config.RepairConfig",
     "org.apache.cassandra.config.RepairRetrySpec",
