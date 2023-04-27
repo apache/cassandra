@@ -385,11 +385,11 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
                     notify = from;
                 }
                 boolean isTimeout = deliver != FAILURE;
-                Executor callbackExecutor = notify.executorFor(verb.id);
-                if (callbackExecutor instanceof ImmediateExecutor)
-                    callbackExecutor = to.executor();
+                Executor notifierExecutor = notify.executorFor(verb.id);
+                if (notifierExecutor instanceof ImmediateExecutor)
+                    notifierExecutor = notify.executor();
                 InterceptedExecution.InterceptedTaskExecution failTask = new InterceptedRunnableExecution(
-                    (InterceptingExecutor) callbackExecutor,
+                    (InterceptingExecutor) notifierExecutor,
                     () -> notify.unsafeApplyOnThisThread((socketAddress, id, innerIsTimeout) -> {
                         InetAddressAndPort address = InetAddressAndPort.getByAddress(socketAddress);
                         RequestCallbacks.CallbackInfo callback = instance().callbacks.remove(id, address);

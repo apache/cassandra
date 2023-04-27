@@ -50,7 +50,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
-public class AccordCommandStore implements CommandStore
+public class AccordCommandStore extends CommandStore
 {
     private static long getThreadId(ExecutorService executor)
     {
@@ -68,7 +68,6 @@ public class AccordCommandStore implements CommandStore
         }
     }
 
-    private final int id;
     private final long threadId;
     public final String loggingId;
     private final ExecutorService executor;
@@ -79,12 +78,6 @@ public class AccordCommandStore implements CommandStore
     private AccordSafeCommandStore current = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
 
-    private final NodeTimeService time;
-    private final Agent agent;
-    private final DataStore dataStore;
-    private final ProgressLog progressLog;
-    private final RangesForEpochHolder rangesForEpochHolder;
-
     public AccordCommandStore(int id,
                               NodeTimeService time,
                               Agent agent,
@@ -92,24 +85,20 @@ public class AccordCommandStore implements CommandStore
                               ProgressLog.Factory progressLogFactory,
                               RangesForEpochHolder rangesForEpoch)
     {
-        this.id = id;
-        this.time = time;
-        this.agent = agent;
-        this.dataStore = dataStore;
-        this.progressLog = progressLogFactory.create(this);
-        this.rangesForEpochHolder = rangesForEpoch;
+        super(id, time, agent, dataStore, progressLogFactory, rangesForEpoch);
         this.loggingId = String.format("[%s]", id);
         this.executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
         this.threadId = getThreadId(this.executor);
         this.stateCache = new AccordStateCache(8<<20);
         this.commandCache = stateCache.instance(TxnId.class, accord.local.Command.class, AccordSafeCommand::new, AccordObjectSizes::command);
         this.commandsForKeyCache = stateCache.instance(RoutableKey.class, CommandsForKey.class, AccordSafeCommandsForKey::new, AccordObjectSizes::commandsForKey);
+        executor.execute(() -> CommandStore.register(this));
     }
 
     @Override
-    public int id()
+    public boolean inStore()
     {
-        return id;
+        return Thread.currentThread().getId() == threadId;
     }
 
     public void setCacheSize(long bytes)
@@ -125,12 +114,12 @@ public class AccordCommandStore implements CommandStore
 
     public void checkInStoreThread()
     {
-        Invariants.checkState(Thread.currentThread().getId() == threadId);
+        Invariants.checkState(inStore());
     }
 
     public void checkNotInStoreThread()
     {
-        Invariants.checkState(Thread.currentThread().getId() != threadId);
+        Invariants.checkState(!inStore());
     }
 
     public ExecutorService executor()
@@ -197,13 +186,7 @@ public class AccordCommandStore implements CommandStore
 
     public DataStore dataStore()
     {
-        return dataStore;
-    }
-
-    @Override
-    public Agent agent()
-    {
-        return agent;
+        return store;
     }
 
     NodeTimeService time()

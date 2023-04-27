@@ -61,7 +61,6 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentAccordOps;
 import static org.apache.cassandra.config.DatabaseDescriptor.getPartitioner;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -134,7 +133,8 @@ public class AccordService implements IAccordService, Shutdownable
     {
         Node.Id localId = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
         logger.info("Starting accord with nodeId {}", localId);
-        this.messageSink = new AccordMessageSink();
+        AccordAgent agent = new AccordAgent();
+        this.messageSink = new AccordMessageSink(agent);
         this.configService = new AccordConfigurationService(localId);
         this.scheduler = new AccordScheduler();
         this.node = new Node(localId,
@@ -142,8 +142,8 @@ public class AccordService implements IAccordService, Shutdownable
                              configService,
                              AccordService::uniqueNow,
                              () -> null,
-                             new KeyspaceSplitter(new EvenSplit<>(getConcurrentAccordOps(), getPartitioner().accordSplitter())),
-                             new AccordAgent(),
+                             new KeyspaceSplitter(new EvenSplit<>(DatabaseDescriptor.getAccordShardCount(), getPartitioner().accordSplitter())),
+                             agent,
                              new DefaultRandom(),
                              scheduler,
                              SizeOfIntersectionSorter.SUPPLIER,

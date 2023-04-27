@@ -81,7 +81,7 @@ public class ReadDataSerializers
 
             out.writeByte(0);
             ReadOk readOk = (ReadOk) reply;
-            TxnData.serializer.serialize((TxnData) readOk.data, out, version);
+            TxnData.nullableSerializer.serialize((TxnData) readOk.data, out, version);
         }
 
         @Override
@@ -91,7 +91,7 @@ public class ReadDataSerializers
             if (id != 0)
                 return nacks[id - 1];
 
-            return new ReadOk(TxnData.serializer.deserialize(in, version));
+            return new ReadOk(TxnData.nullableSerializer.deserialize(in, version));
         }
 
         @Override
@@ -101,7 +101,7 @@ public class ReadDataSerializers
                 return TypeSizes.BYTE_SIZE;
 
             ReadOk readOk = (ReadOk) reply;
-            return TypeSizes.BYTE_SIZE + TxnData.serializer.serializedSize((TxnData) readOk.data, version);
+            return TypeSizes.BYTE_SIZE + TxnData.nullableSerializer.serializedSize((TxnData) readOk.data, version);
         }
     };
 }
