@@ -189,6 +189,14 @@
       <isset property="arch_x86" />
     </condition>
 
+    <resources id="_jvm8_arg_items">
+        <!-- add necessary args in <string> tags; see _jvm11_arg_items as an example -->
+    </resources>
+    <pathconvert property="_jvm8_args_concat" refid="_jvm8_arg_items" pathsep=" "/>
+    <condition property="java-jvmargs" value="${_jvm8_args_concat}">
+        <equals arg1="${ant.java.version}" arg2="1.8"/>
+    </condition>
+
     <resources id="_jvm11_arg_items">
         <string>-Djdk.attach.allowAttachSelf=true</string>
         <string>-XX:+UseConcMarkSweepGC</string>
@@ -221,8 +229,8 @@
         <string>--add-opens java.base/jdk.internal.util.jar=ALL-UNNAMED</string>
         <string>--add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</string>
     </resources>
-    <pathconvert property="_jvm_args_concat" refid="_jvm11_arg_items" pathsep=" "/>
-    <condition property="java11-jvmargs" value="${_jvm_args_concat}" else="">
+    <pathconvert property="_jvm11_args_concat" refid="_jvm11_arg_items" pathsep=" "/>
+    <condition property="java-jvmargs" value="${_jvm11_args_concat}">
         <equals arg1="${ant.java.version}" arg2="11"/>
     </condition>
 
@@ -269,8 +277,8 @@
 
         <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
     </resources>
-    <pathconvert property="_jvm_args_concat2" refid="_jvm17_arg_items" pathsep=" "/>
-    <condition property="java17-jvmargs" value="${_jvm_args_concat2}" else="">
+    <pathconvert property="_jvm17_args_concat" refid="_jvm17_arg_items" pathsep=" "/>
+    <condition property="java-jvmargs" value="${_jvm17_args_concat}">
         <equals arg1="${ant.java.version}" arg2="17"/>
     </condition>
 
@@ -304,10 +312,13 @@
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
     </resources>
     <pathconvert property="_jvm17_test_arg_items_concat" refid="_jvm17_test_arg_items" pathsep=" "/>
-    <condition property="_std-test-jvmargs11" value="${_jvm11_test_arg_items_concat}" else=" ">
+    <condition property="_std-test-jvmargs" value="${_jvm8_test_arg_items_concat}">
+        <equals arg1="${ant.java.version}" arg2="1.8"/>
+    </condition>
+    <condition property="_std-test-jvmargs" value="${_jvm11_test_arg_items_concat}">
             <equals arg1="${ant.java.version}" arg2="11"/>
     </condition>
-    <condition property="_std-test-jvmargs17" value="${_jvm17_test_arg_items_concat}" else=" ">
+    <condition property="_std-test-jvmargs" value="${_jvm17_test_arg_items_concat}">
         <equals arg1="${ant.java.version}" arg2="17"/>
     </condition>
 
@@ -489,8 +500,7 @@
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
         <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
-        <jvmarg line="${java11-jvmargs}"/>
-        <jvmarg line="${java17-jvmargs}"/>
+        <jvmarg line="${java-jvmargs}"/>
       </java>
     </target>
 
@@ -1148,12 +1158,10 @@
         <jvmarg value="-Dcassandra.test.flush_local_schema_changes=${cassandra.test.flush_local_schema_changes}"/>
         <jvmarg value="-Dcassandra.test.messagingService.nonGracefulShutdown=${cassandra.test.messagingService.nonGracefulShutdown}"/>
         <jvmarg value="-Dcassandra.use_nix_recursive_delete=${cassandra.use_nix_recursive_delete}"/>
-        <jvmarg line="${java11-jvmargs}"/>
-        <jvmarg line="${java17-jvmargs}"/>
+        <jvmarg line="${java-jvmargs}"/>
         <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
-        <jvmarg line="${_std-test-jvmargs11}" />
-        <jvmarg line="${_std-test-jvmargs17}" />
+        <jvmarg line="${_std-test-jvmargs} " />
         <jvmarg line="${test.jvm.args}" />
         <optjvmargs/>
         <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
@@ -1842,13 +1850,13 @@
       </java>
   </target>
 
-  <target name="_maybe_update_idea_to_java11" depends="init" if="java.version.11">
-    <replace file="${eclipse.project.name}.iml" token="JDK_1_8" value="JDK_11"/>
-    <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_11"/>
-    <replace file=".idea/misc.xml" token="1.8" value="11"/>
+  <target name="_maybe_update_idea_to_java11plus" depends="init" unless="java.version.8">
+    <replace file="${eclipse.project.name}.iml" token="JDK_1_8" value="JDK_${ant.java.version}"/>
+    <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_${ant.java.version}"/>
+    <replace file=".idea/misc.xml" token="1.8" value="${ant.java.version}"/>
     <replaceregexp file=".idea/workspace.xml"
                    match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)"
-                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java11-jvmargs}"
+                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java-jvmargs} ${_std-test-jvmargs}"
                    byline="true"/>
 
       <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
@@ -1857,29 +1865,12 @@
     <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" />
   </component>
 </project>]]></echo>
-      <echo>"IDE configuration updated for use with JDK11"</echo>
   </target>
-
-  <target name="_maybe_update_idea_to_java17" depends="init" if="java.version.17">
-        <replace file="${eclipse.project.name}.iml" token="JDK_1_8" value="JDK_17"/>
-        <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_17"/>
-        <replace file=".idea/misc.xml" token="1.8" value="17"/>
-        <replaceregexp file=".idea/workspace.xml"
-                       match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)"
-                       replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java17-jvmargs}"
-                       byline="true"/>
-
-        <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="JavacSettings">
-    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" />
-  </component>
-</project>]]></echo>
-        <echo>"IDE configuration updated for use with JDK17"</echo>
-    </target>
 
   <!-- Generate IDEA project description files -->
   <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,createVersionPropFile" description="Generate IDEA files">
+    <delete dir=".idea"/>
+    <delete file="${eclipse.project.name}.iml"/>
     <mkdir dir=".idea"/>
     <mkdir dir=".idea/libraries"/>
     <copy todir=".idea" overwrite="true">
@@ -1897,8 +1888,13 @@
     </modules>
   </component>
 </project>]]></echo>
-      <antcall target="_maybe_update_idea_to_java11"/>
-      <antcall target="_maybe_update_idea_to_java17"/>
+      <antcall target="_maybe_update_idea_to_java11plus"/>
+      <echo>
+      IDE configuration in .idea/ updated for use with JDK${ant.java.version}.
+
+      In IntelliJ verify that the SDK is ${ant.java.version}, and its path is valid.
+      This can be verified in 'Project Structure/Project Setting/Project' and 'Project Structure/Platform Setting/SDKs'. 
+      </echo>
   </target>
 
   <!-- Generate Eclipse project description files -->
