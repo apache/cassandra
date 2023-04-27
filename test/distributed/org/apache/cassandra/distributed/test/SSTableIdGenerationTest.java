@@ -45,6 +45,7 @@ import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
+import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.UUIDBasedSSTableId;
@@ -66,6 +67,8 @@ import static org.apache.cassandra.db.SystemKeyspace.LEGACY_SSTABLE_ACTIVITY;
 import static org.apache.cassandra.db.SystemKeyspace.SSTABLE_ACTIVITY_V2;
 import static org.apache.cassandra.distributed.shared.FutureUtils.waitOn;
 import static org.apache.cassandra.distributed.test.ExecUtil.rethrow;
+import static org.apache.cassandra.io.util.Files.createTempDirectory;
+import static org.apache.cassandra.io.util.Files.newInMemoryFileSystem;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class SSTableIdGenerationTest extends TestBaseImpl
@@ -265,12 +268,14 @@ public class SSTableIdGenerationTest extends TestBaseImpl
     @Test
     public void testSnapshot() throws Exception
     {
-        File tmpDir = new File(Files.createTempDirectory("test"));
+        ListenableFileSystem fs = newInMemoryFileSystem();
+        File tmpDir = createTempDirectory("test");
         Set<String> seqOnlyBackupDirs;
         Set<String> seqAndUUIDBackupDirs;
         Set<String> uuidOnlyBackupDirs;
         try (Cluster cluster = init(Cluster.build(1)
                                            .withDataDirCount(1)
+                                           .withRoot(fs.getPath("/cassandra"))
                                            .withConfig(config -> config.with(Feature.NETWORK)
                                                                        .set("incremental_backups", true)
                                                                        .set("snapshot_before_compaction", false)

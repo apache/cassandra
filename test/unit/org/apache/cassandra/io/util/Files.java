@@ -18,6 +18,10 @@
 
 package org.apache.cassandra.io.util;
 
+import java.io.IOException;
+import java.nio.file.attribute.FileAttribute;
+
+import com.google.common.base.StandardSystemProperty;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
@@ -32,5 +36,19 @@ public class Files
                                                                                             .build()));
         File.unsafeSetFilesystem(fs);
         return fs;
+    }
+
+    public static File tmpDir()
+    {
+        File dir = new File(StandardSystemProperty.JAVA_IO_TMPDIR.value());
+        if (!dir.exists())
+            dir.tryCreateDirectories();
+        return dir;
+    }
+
+    public static File createTempDirectory(String prefix,
+                                           FileAttribute<?>... attrs) throws IOException
+    {
+        return new File(java.nio.file.Files.createTempDirectory(tmpDir().toPath(), prefix, attrs));
     }
 }
