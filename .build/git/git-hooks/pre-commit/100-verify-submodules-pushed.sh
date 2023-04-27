@@ -84,7 +84,6 @@ _main() {
       _log "\t\tgit config --local cassandra.pre-commit.verify-submodules.enabled false"
       _log "\tOr"
       _log "\t\tgit config --local cassandra.pre-commit.verify-submodule-${file}.enabled false"
-      set -x
       git_sub_dir="${file}/.git"
       branch="$(git config -f .gitmodules "submodule.${file}.branch")"
       [[ -z "${branch:-}" ]] && error "Submodule ${file} does not define a branch"
