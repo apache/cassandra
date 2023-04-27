@@ -30,7 +30,6 @@ import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.impl.CommandsForKey;
 import accord.local.Command;
-import accord.local.CommandListener;
 import accord.local.CommonAttributes;
 import accord.local.Node;
 import accord.local.SaveStatus;
@@ -233,7 +232,7 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long EMPTY_WRITES_SIZE = measure(new Writes(null, null, null));
+    private static final long EMPTY_WRITES_SIZE = measure(new Writes(null, null, null, null));
     public static long writes(Writes writes)
     {
         long size = EMPTY_WRITES_SIZE;
@@ -244,14 +243,12 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static final long EMPTY_COMMAND_LISTENER = measure(new Command.Listener(null));
+    private static final long EMPTY_COMMAND_LISTENER = measure(new Command.ProxyListener(null));
     private static final long EMPTY_CFK_LISTENER = measure(new CommandsForKey.Listener((Key) null));
-    public static long listener(CommandListener listener)
+    public static long listener(Command.DurableAndIdempotentListener listener)
     {
-        if (listener.isTransient())
-            return 0;
-        if (listener instanceof Command.Listener)
-            return EMPTY_COMMAND_LISTENER + timestamp(((Command.Listener) listener).txnId());
+        if (listener instanceof Command.ProxyListener)
+            return EMPTY_COMMAND_LISTENER + timestamp(((Command.ProxyListener) listener).txnId());
         if (listener instanceof CommandsForKey.Listener)
             return EMPTY_CFK_LISTENER + key(((CommandsForKey.Listener) listener).key());
         throw new IllegalArgumentException("Unhandled listener type: " + listener.getClass());
@@ -306,7 +303,7 @@ public class AccordObjectSizes
         size += sizeNullable(command.progressKey(), AccordObjectSizes::key);
         size += sizeNullable(command.route(), AccordObjectSizes::route);
         size += sizeNullable(command.promised(), AccordObjectSizes::timestamp);
-        for (CommandListener listener : command.listeners())
+        for (Command.DurableAndIdempotentListener listener : command.durableListeners())
             size += listener(listener);
 
         if (!command.isWitnessed())

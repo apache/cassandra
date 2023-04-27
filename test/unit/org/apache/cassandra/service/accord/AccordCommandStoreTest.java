@@ -114,7 +114,7 @@ public class AccordCommandStoreTest
         attrs.partialDeps(dependencies);
         ImmutableSortedSet<TxnId> waitingOnCommit = ImmutableSortedSet.of(oldTxnId1);
         ImmutableSortedMap<Timestamp, TxnId > waitingOnApply = ImmutableSortedMap.of(oldTimestamp, oldTxnId2);
-        attrs.addListener(new Command.Listener(oldTxnId1));
+        attrs.addListener(new Command.ProxyListener(oldTxnId1));
         Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
         Command command = Command.SerializerSupport.executed(attrs, SaveStatus.Applied, executeAt, promised, accepted,
                                                              waitingOnCommit, waitingOnApply, result.left, result.right);

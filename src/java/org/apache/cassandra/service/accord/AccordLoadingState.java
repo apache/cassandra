@@ -18,9 +18,14 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 
+import accord.local.Command;
+import accord.utils.DeterministicIdentitySet;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncResults;
 
@@ -54,6 +59,7 @@ public class AccordLoadingState<K, V>
 
     private final K key;
     private Object state = UNINITIALIZED;
+    private Set<Command.TransientListener> transientListeners;
 
     public AccordLoadingState(K key)
     {
@@ -159,5 +165,28 @@ public class AccordLoadingState<K, V>
     {
         checkState(LoadingState.PENDING, false);
         return (PendingLoad<V>) state;
+    }
+
+
+    public void addListener(Command.TransientListener listener)
+    {
+        if (transientListeners == null)
+            transientListeners = new DeterministicIdentitySet<>();
+        transientListeners.add(listener);
+    }
+
+    public boolean removeListener(Command.TransientListener listener)
+    {
+        if (transientListeners == null)
+            return false;
+
+        return transientListeners.remove(listener);
+    }
+
+    public Collection<Command.TransientListener> transientListeners()
+    {
+        if (transientListeners == null)
+            return Collections.emptySet();
+        return transientListeners;
     }
 }
