@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -33,10 +34,11 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.registry.ConfigurationSource;
 import org.apache.cassandra.config.registry.DatabaseConfigurationSource;
-import org.apache.cassandra.config.registry.Registry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.utils.Pair;
 import org.assertj.core.util.Streams;
 
 public class SettingsTableTest extends CQLTester
@@ -44,7 +46,7 @@ public class SettingsTableTest extends CQLTester
     public static final String KS_NAME = "vts";
     private Config config;
     private SettingsTable table;
-    private Registry tableRegistry;
+    private ConfigurationSource tableSource;
 
     @BeforeClass
     public static void setUpClass()
@@ -63,8 +65,8 @@ public class SettingsTableTest extends CQLTester
         config.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
         config.commitlog_sync_group_window = new DurationSpec.IntMillisecondsBound(0);
         config.credentials_update_interval = null;
-        table = new SettingsTable(KS_NAME, new DatabaseConfigurationSource(() -> config));
-        tableRegistry = table.registry();
+        table = new SettingsTable(KS_NAME, new DatabaseConfigurationSource(config));
+        tableSource = table.source();
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();
     }
@@ -74,25 +76,27 @@ public class SettingsTableTest extends CQLTester
     {
         int paging = (int) (Math.random() * 100 + 1);
         ResultSet result = executeNetWithPaging("SELECT * FROM vts.settings", paging);
+        Set<String> unprocessedKeys = Streams.stream(tableSource.iterator()).map(Pair::left).collect(Collectors.toSet());
         int i = 0;
         for (Row r : result)
         {
             i++;
             String name = r.getString("name");
             String value = r.getString("value");
-            String expected = tableRegistry.getString(name);
+            String expected = tableSource.getString(name);
             Assert.assertEquals("Unexpected result for key: " + name, expected, value);
+            unprocessedKeys.remove(name);
         }
-        Assert.assertEquals(table.registry().size(), i);
+        Assert.assertTrue("Configuration fields not processed: " + unprocessedKeys, unprocessedKeys.isEmpty());
     }
 
     @Test
     public void testSelectPartition() throws Throwable
     {
-        for (String key : table.registry().keys())
+        for (String key : Streams.stream(table.source().iterator()).map(Pair::left).collect(Collectors.toList()))
         {
             String q = "SELECT * FROM vts.settings WHERE name = '" + key + '\'';
-            assertRowsNet(executeNet(q), new Object[] { key, tableRegistry.getString(key) });
+            assertRowsNet(executeNet(q), new Object[] { key, tableSource.getString(key) });
         }
     }
 
@@ -167,7 +171,7 @@ public class SettingsTableTest extends CQLTester
         String all = "SELECT * FROM vts.settings WHERE " +
                      "name > 'server_encryption' AND name < 'server_encryptionz' ALLOW FILTERING";
 
-        List<String> expectedNames = Streams.stream(tableRegistry.keys()).filter(n -> n.startsWith("server_encryption")).collect(Collectors.toList());
+        List<String> expectedNames = Streams.stream(tableSource.iterator()).map(Pair::left).filter(n -> n.startsWith("server_encryption")).collect(Collectors.toList());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
 
         check(pre + "algorithm", null);
@@ -228,7 +232,7 @@ public class SettingsTableTest extends CQLTester
                      "name > 'audit_logging' AND name < 'audit_loggingz' ALLOW FILTERING";
 
         config.audit_logging_options.enabled = true;
-        List<String> expectedNames = Streams.stream(tableRegistry.keys()).filter(n -> n.startsWith("audit_logging")).collect(Collectors.toList());
+        List<String> expectedNames = Streams.stream(tableSource.iterator()).map(Pair::left).filter(n -> n.startsWith("audit_logging")).collect(Collectors.toList());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
         check(pre + "enabled", "true");
 
@@ -275,7 +279,7 @@ public class SettingsTableTest extends CQLTester
                      "name < 'transparent_data_encryption_optionsz' ALLOW FILTERING";
 
         config.transparent_data_encryption_options.enabled = true;
-        List<String> expectedNames = Streams.stream(tableRegistry.keys()).filter(n -> n.startsWith("transparent_data_encryption_options")).collect(Collectors.toList());
+        List<String> expectedNames = Streams.stream(tableSource.iterator()).map(Pair::left).filter(n -> n.startsWith("transparent_data_encryption_options")).collect(Collectors.toList());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
         check(pre + "enabled", "true");
 

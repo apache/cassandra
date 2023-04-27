@@ -21,11 +21,11 @@ package org.apache.cassandra.config.registry;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
  * A registry for {@link TypeConverter} instances.
@@ -41,11 +41,13 @@ public class TypeConverterRegistry
     }
 
     @SuppressWarnings("unchecked")
-    public <V> Optional<TypeConverter<V>> get(Class<?> from, Class<V> to)
+    public <V> TypeConverter<V> get(Class<?> from, Class<V> to)
     {
         if (from.equals(to))
-            return Optional.of((TypeConverter<V>) TypeConverter.IDENTITY);
-        return Optional.of((TypeConverter<V>) converters.get(of(from, to)));
+            return (TypeConverter<V>) TypeConverter.IDENTITY;
+        if (converters.get(of(from, to)) == null)
+            throw new ConfigurationException(String.format("No converter found from %s to %s", from, to));
+        return (TypeConverter<V>) converters.get(of(from, to));
     }
 
     private static void registerConverters(Map<ConverterKey, TypeConverter<?>> converters)

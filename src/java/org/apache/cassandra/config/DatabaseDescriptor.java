@@ -419,7 +419,7 @@ public class DatabaseDescriptor
     private static void setConfig(Config config)
     {
         conf = config;
-        confRegistry = new DatabaseConfigurationSource(() -> config);
+        confRegistry = new DatabaseConfigurationSource(config);
     }
 
     private static void applyAll(Config conf, DynamicDatabaseDescriptor holder) throws ConfigurationException
@@ -457,11 +457,6 @@ public class DatabaseDescriptor
         validateUpperBoundStreamingConfig(conf);
 
         ConfigurationRegistry registry = null;
-
-//        registry.getValue(String.class, "auto_snapshot_ttl")
-//                .map(DurationSpec.IntSecondsBound::new,
-//                     (e, v) -> new ConfigurationException("Invalid value of auto_snapshot_ttl: " + v, false))
-//                .ifPresent(v -> holder.autoSnapshoTtl = v);
 
         if (conf.auto_snapshot_ttl != null)
         {

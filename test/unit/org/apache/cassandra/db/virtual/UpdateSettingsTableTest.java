@@ -38,6 +38,7 @@ import org.apache.cassandra.config.registry.DatabaseConfigurationSource;
 import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.utils.Pair;
 import org.assertj.core.util.Streams;
 
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
@@ -53,7 +54,7 @@ public class UpdateSettingsTableTest extends CQLTester
 {
     private static final List<String> updatableProperties = new ArrayList<>();
     private static final Map<Class<?>, Object[]> defaultTestValues = registerTestConfigurationValues();
-    private DatabaseConfigurationSource registry;
+    private DatabaseConfigurationSource tableSource;
 
     @BeforeClass
     public static void setUpClass()
@@ -65,11 +66,12 @@ public class UpdateSettingsTableTest extends CQLTester
     public void prepare()
     {
         // Creating a new instence will avoid calling listeners registered in the registry.
-        registry = new DatabaseConfigurationSource(DatabaseDescriptor::getRawConfig);
+        tableSource = new DatabaseConfigurationSource(DatabaseDescriptor.getRawConfig());
 //        DatabaseDescriptor.applyConfigurationRegistryConstraints(registry);
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(new SettingsTable(KS_NAME, registry))));
-        Streams.stream(registry.keys())
-               .filter(k -> registry.isWritable(k))
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(new SettingsTable(KS_NAME, tableSource))));
+        Streams.stream(tableSource.iterator())
+               .map(Pair::left)
+               .filter(k -> tableSource.isWritable(k))
                .forEach(updatableProperties::add);
         disablePreparedReuseForTest();
     }
@@ -116,11 +118,11 @@ public class UpdateSettingsTableTest extends CQLTester
 
     private void doUpdateSettingAndRevertBack(String statement, String propertyName) throws Throwable
     {
-        Object oldValue = registry.get(registry.type(propertyName), propertyName);
-        Object[] testValues = defaultTestValues.get(registry.type(propertyName));
+        Object oldValue = tableSource.get(tableSource.type(propertyName), propertyName);
+        Object[] testValues = defaultTestValues.get(tableSource.type(propertyName));
         assertNotNull(String.format("No test values found for setting '%s' with type '%s'",
-                                           propertyName, registry.type(propertyName)), testValues);
-        Object value = getNextValue(defaultTestValues.get(registry.type(propertyName)), oldValue);
+                                    propertyName, tableSource.type(propertyName)), testValues);
+        Object value = getNextValue(defaultTestValues.get(tableSource.type(propertyName)), oldValue);
         updateConfigurationProperty(statement, propertyName, value);
         updateConfigurationProperty(statement, propertyName, oldValue);
     }
@@ -128,7 +130,7 @@ public class UpdateSettingsTableTest extends CQLTester
     private void updateConfigurationProperty(String statement, String propertyName, @Nullable Object value) throws Throwable
     {
         assertRowsNet(executeNet(statement, TypeConverter.DEFAULT.convertNullable(value), propertyName));
-        assertEquals(value, registry.get(registry.type(propertyName), propertyName));
+        assertEquals(value, tableSource.get(tableSource.type(propertyName), propertyName));
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, TypeConverter.DEFAULT.convertNullable((value)) });
     }
 

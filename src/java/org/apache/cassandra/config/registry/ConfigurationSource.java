@@ -20,7 +20,11 @@ package org.apache.cassandra.config.registry;
 
 import java.util.Optional;
 
-public interface ConfigurationSource
+import org.apache.cassandra.config.DataRateSpec;
+import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.utils.Pair;
+
+public interface ConfigurationSource extends Iterable<Pair<String, Object>>
 {
     /**
      * Sets the value of the property with the given name.
@@ -29,6 +33,16 @@ public interface ConfigurationSource
      * @param value the value of the property.
      */
     <T> void set(String name, T value);
+
+    /**
+     * Returns the type of the property with the given name.
+     *
+     * @param name the name of the property.
+     * @return the type of the property.
+     */
+    Class<?> type(String name);
+
+    Object getRaw(String name);
 
     /**
      * Returns the value of the property with the given name.
@@ -62,5 +76,37 @@ public interface ConfigurationSource
      */
     default <T> Optional<T> getOptional(Class<T> clazz, String name) {
         return Optional.ofNullable(get(clazz, name));
+    }
+
+    default String getString(String name)
+    {
+        return get(String.class, name);
+    }
+
+    default String getString(String name, String defaultValue)
+    {
+        return get(String.class, name, defaultValue);
+    }
+
+    default <T extends DataRateSpec<T>> T getDataRateSpec(Class<? extends T> clazz, String name)
+    {
+        return get(clazz, name);
+    }
+
+    default <T extends DataRateSpec<T>> T getDataRateSpec(String name, T defaultValue)
+    {
+        T value = getDataRateSpec(defaultValue.getDeclaringClass(), name);
+        return value == null ? defaultValue : value;
+    }
+
+    default <T extends DataStorageSpec<T>> T getDataStorageSpec(Class<? extends T> clazz, String name)
+    {
+        return get(clazz, name);
+    }
+
+    default <T extends DataStorageSpec<T>> T getDataStorageSpec(String name, T defaultValue)
+    {
+        T value = getDataStorageSpec(defaultValue.getDeclaringClass(), name);
+        return value == null ? defaultValue : value;
     }
 }

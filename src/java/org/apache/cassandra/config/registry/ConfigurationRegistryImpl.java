@@ -24,6 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
@@ -71,7 +72,7 @@ public class ConfigurationRegistryImpl implements ConfigurationRegistry
         private final String key;
         private final Supplier<T> value;
 
-        private final Map<ConfigurationValueListener.EventType, List<ConfigurationValueListener<T>>> listeners = new EnumMap<>(ConfigurationValueListener.EventType.class);
+        private final Map<ConfigurationSourceListener.EventType, List<BiConsumer<T, T>>> listeners = new EnumMap<>(ConfigurationSourceListener.EventType.class);
 
         public ConfigurationValueImpl(String key, Supplier<T> value)
         {
@@ -106,7 +107,7 @@ public class ConfigurationRegistryImpl implements ConfigurationRegistry
         }
 
         @Override
-        public ListenerRemover addListener(ConfigurationValueListener.EventType changeType, ConfigurationValueListener<T> listener)
+        public ListenerRemover addListener(ConfigurationSourceListener.EventType changeType, BiConsumer<T, T> listener)
         {
             listeners.computeIfAbsent(changeType, t -> new ArrayList<>()).add(listener);
             return () -> listeners.get(changeType).remove(listener);

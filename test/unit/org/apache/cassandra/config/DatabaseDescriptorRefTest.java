@@ -146,7 +146,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker",
     "org.apache.cassandra.config.YamlConfigurationLoader$PropertiesChecker$1",
     "org.apache.cassandra.config.registry.ConfigurationHandler",
-    "org.apache.cassandra.config.registry.ConfigurationValueListener$EventType",
+    "org.apache.cassandra.config.registry.ConfigurationSourceListener$EventType",
     "org.apache.cassandra.config.registry.DatabaseConfigurationSource",
     "org.apache.cassandra.config.registry.DatabaseConfigurationSource$ConfigurationListenerList",
     "org.apache.cassandra.config.registry.DatabaseConfigurationSource$TypedConstraintAdapter",

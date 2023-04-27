@@ -16,31 +16,15 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.config.registry;
-
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+package org.apache.cassandra.exceptions;
 
 /**
- * Converts configuration value from one type to another, you can use {@link TypeConverterRegistry}
- * if your input type is String and you want to convert it to an appropriate configuration object type.
- *
- * @param <T> Type to convert to.
+ * Configuration exception thrown when a configuration key is not found.
  */
-public interface TypeConverter<T>
+public class PropertyNotFoundException extends ConfigurationException
 {
-    TypeConverter<?> IDENTITY = value -> value;
-    TypeConverter<String> DEFAULT = Object::toString;
-
-    /**
-     * Converts a value to the target type.
-     * @param value Value to convert.
-     * @return Converted value.
-     */
-    @Nullable T convert(@Nonnull Object value);
-
-    default @Nullable T convertNullable(@Nullable Object value)
+    public PropertyNotFoundException(String msg)
     {
-        return value == null ? null : convert(value);
+        super(msg, false);
     }
 }
