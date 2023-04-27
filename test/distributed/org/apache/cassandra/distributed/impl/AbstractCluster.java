@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.distributed.impl;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
@@ -210,6 +211,24 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             return (B) this;
         }
 
+        private boolean rootDefined = false;
+
+        @Override
+        public B withRoot(File root)
+        {
+            if (root != null)
+                rootDefined = true;
+            return super.withRoot(root);
+        }
+
+        @Override
+        public B withRoot(Path root)
+        {
+            if (root != null)
+                rootDefined = true;
+            return super.withRoot(root);
+        }
+
         @Override
         public C createWithoutStarting() throws IOException
         {
@@ -230,7 +249,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 Assume.assumeTrue("vnode is requested but not supported", getTokenCount() == 1);
             }
 
-            if (getRootPath() == null)
+            if (rootDefined)
                 withRoot(org.apache.cassandra.io.util.Files.newInMemoryFileSystem().getPath("/cassandra"));
 
             return super.createWithoutStarting();
