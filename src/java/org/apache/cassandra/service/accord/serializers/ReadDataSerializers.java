@@ -20,10 +20,11 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
-import accord.messages.ReadData;
 import accord.messages.ReadData.ReadNack;
 import accord.messages.ReadData.ReadOk;
 import accord.messages.ReadData.ReadReply;
+import accord.messages.ReadTxnData;
+import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
@@ -32,12 +33,16 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.txn.TxnData;
 
+import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
+import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSize;
+
 public class ReadDataSerializers
 {
-    public static final IVersionedSerializer<ReadData> request = new IVersionedSerializer<ReadData>()
+    public static final IVersionedSerializer<ReadTxnData> request = new IVersionedSerializer<ReadTxnData>()
     {
         @Override
-        public void serialize(ReadData read, DataOutputPlus out, int version) throws IOException
+        public void serialize(ReadTxnData read, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(read.txnId, out, version);
             KeySerializers.seekables.serialize(read.readScope, out, version);
@@ -46,17 +51,17 @@ public class ReadDataSerializers
         }
 
         @Override
-        public ReadData deserialize(DataInputPlus in, int version) throws IOException
+        public ReadTxnData deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
             Seekables<?, ?> readScope = KeySerializers.seekables.deserialize(in, version);
             long waitForEpoch = in.readUnsignedVInt();
             long executeAtEpoch = in.readUnsignedVInt() + waitForEpoch;
-            return ReadData.SerializerSupport.create(txnId, readScope, executeAtEpoch, waitForEpoch);
+            return ReadTxnData.SerializerSupport.create(txnId, readScope, executeAtEpoch, waitForEpoch);
         }
 
         @Override
-        public long serializedSize(ReadData read, int version)
+        public long serializedSize(ReadTxnData read, int version)
         {
             return CommandSerializers.txnId.serializedSize(read.txnId, version)
                    + KeySerializers.seekables.serializedSize(read.readScope, version)
@@ -81,6 +86,7 @@ public class ReadDataSerializers
 
             out.writeByte(0);
             ReadOk readOk = (ReadOk) reply;
+            serializeNullable(readOk.unavailable, out, version, KeySerializers.ranges);
             TxnData.nullableSerializer.serialize((TxnData) readOk.data, out, version);
         }
 
@@ -91,7 +97,9 @@ public class ReadDataSerializers
             if (id != 0)
                 return nacks[id - 1];
 
-            return new ReadOk(TxnData.nullableSerializer.deserialize(in, version));
+            Ranges ranges = deserializeNullable(in, version, KeySerializers.ranges);
+            TxnData data = TxnData.nullableSerializer.deserialize(in, version);
+            return new ReadOk(ranges, data);
         }
 
         @Override
@@ -101,7 +109,9 @@ public class ReadDataSerializers
                 return TypeSizes.BYTE_SIZE;
 
             ReadOk readOk = (ReadOk) reply;
-            return TypeSizes.BYTE_SIZE + TxnData.nullableSerializer.serializedSize((TxnData) readOk.data, version);
+            return TypeSizes.BYTE_SIZE
+                   + serializedNullableSize(readOk.unavailable, version, KeySerializers.ranges)
+                   + TxnData.nullableSerializer.serializedSize((TxnData) readOk.data, version);
         }
     };
 }

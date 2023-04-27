@@ -54,6 +54,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     public static final String SERIAL_READ_NAME = "SERIAL_READ";
     public static final TxnDataName SERIAL_READ = TxnDataName.user(SERIAL_READ_NAME);
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnRead(new TxnNamedRead[0], null));
+    public static final TxnRead EMPTY = new TxnRead(new TxnNamedRead[0], Keys.EMPTY);
 
     private final Keys txnKeys;
     

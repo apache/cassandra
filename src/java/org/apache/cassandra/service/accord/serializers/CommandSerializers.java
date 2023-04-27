@@ -169,6 +169,7 @@ public class CommandSerializers
         @Override
         public void serialize(Writes writes, DataOutputPlus out, int version) throws IOException
         {
+            txnId.serialize(writes.txnId, out, version);
             timestamp.serialize(writes.executeAt, out, version);
             KeySerializers.seekables.serialize(writes.keys, out, version);
             boolean hasWrites = writes.write != null;
@@ -180,7 +181,7 @@ public class CommandSerializers
         @Override
         public Writes deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new Writes(timestamp.deserialize(in, version),
+            return new Writes(txnId.deserialize(in, version), timestamp.deserialize(in, version),
                               KeySerializers.seekables.deserialize(in, version),
                               in.readBoolean() ? TxnWrite.serializer.deserialize(in, version) : null);
         }
@@ -188,7 +189,8 @@ public class CommandSerializers
         @Override
         public long serializedSize(Writes writes, int version)
         {
-            long size = timestamp.serializedSize(writes.executeAt, version);
+            long size = txnId.serializedSize(writes.txnId, version);
+            size += timestamp.serializedSize(writes.executeAt, version);
             size += KeySerializers.seekables.serializedSize(writes.keys, version);
             boolean hasWrites = writes.write != null;
             size += TypeSizes.sizeof(hasWrites);

@@ -19,18 +19,22 @@
 package org.apache.cassandra.service.accord.async;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterables;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.impl.CommandsForKey;
 import accord.local.Command;
+import accord.local.PreLoadContext;
 import accord.primitives.RoutableKey;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -70,6 +74,15 @@ public class AsyncLoader
         this.commandStore = commandStore;
         this.txnIds = txnIds;
         this.keys = keys;
+    }
+
+    protected static Iterable<TxnId> txnIds(PreLoadContext context)
+    {
+        TxnId primaryid = context.primaryTxnId();
+        Collection<TxnId> additionalIds = context.additionalTxnIds();
+        if (primaryid == null) return additionalIds;
+        if (additionalIds.isEmpty()) return Collections.singleton(primaryid);
+        return Iterables.concat(Collections.singleton(primaryid), additionalIds);
     }
 
     private <K, V, S extends AccordSafeState<K, V>> void referenceAndAssembleReads(Iterable<K> keys,

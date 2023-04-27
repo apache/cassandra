@@ -44,6 +44,7 @@ import accord.api.Write;
 import accord.impl.CommandsForKey;
 import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
+import accord.local.CommandStore;
 import accord.local.CommandStores;
 import accord.local.CommonAttributes;
 import accord.local.Node;
@@ -197,7 +198,7 @@ public class AccordTestUtils
     public static Pair<Writes, Result> processTxnResult(AccordCommandStore commandStore, TxnId txnId, PartialTxn txn, Timestamp executeAt) throws Throwable
     {
         AtomicReference<Pair<Writes, Result>> result = new AtomicReference<>();
-        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(Collections.emptyList(), txn.keys()),
+        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txn.keys()),
                               safeStore -> {
                                   TxnRead read = (TxnRead) txn.read();
                                   Data readData = read.keys().stream().map(key -> {
@@ -215,9 +216,9 @@ public class AccordTestUtils
                                                           }
                                                       })
                                                       .reduce(null, TxnData::merge);
-                                  Write write = txn.update().apply(readData);
-                                  result.set(Pair.create(new Writes(executeAt, (Keys)txn.keys(), write),
-                                                         txn.query().compute(txnId, readData, txn.read(), txn.update())));
+                                  Write write = txn.update().apply(executeAt, readData);
+                                  result.set(Pair.create(new Writes(txnId, executeAt, txn.keys(), write),
+                                                         txn.query().compute(txnId, executeAt, readData, txn.read(), txn.update())));
                               }));
         return result.get();
     }
@@ -292,7 +293,11 @@ public class AccordTestUtils
         public SingleEpochRanges(Ranges ranges)
         {
             this.ranges = ranges;
-            this.current = new CommandStores.RangesForEpoch(1, ranges);
+        }
+
+        private void set(CommandStore store)
+        {
+            this.current = new CommandStores.RangesForEpoch(1, ranges, store);
         }
     }
 
@@ -309,12 +314,15 @@ public class AccordTestUtils
             @Override public long now() {return now.getAsLong(); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
         };
-        return new InMemoryCommandStore.Synchronized(0,
+
+        SingleEpochRanges holder = new SingleEpochRanges(Ranges.of(range));
+        InMemoryCommandStore.Synchronized result = new InMemoryCommandStore.Synchronized(0,
                                                      time,
                                                      new AccordAgent(),
                                                      null,
-                                                     cs -> null,
-                                                     new SingleEpochRanges(Ranges.of(range)));
+                                                     cs -> null, holder);
+        holder.set(result);
+        return result;
     }
 
     public static AccordCommandStore createAccordCommandStore(Node.Id node, LongSupplier now, Topology topology)
@@ -326,12 +334,16 @@ public class AccordTestUtils
             @Override public long now() {return now.getAsLong(); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
         };
-        return new AccordCommandStore(0,
+
+        SingleEpochRanges holder = new SingleEpochRanges(topology.rangesForNode(node));
+        AccordCommandStore result = new AccordCommandStore(0,
                                       time,
                                       new AccordAgent(),
                                       null,
                                       cs -> NOOP_PROGRESS_LOG,
-                                      new SingleEpochRanges(topology.rangesForNode(node)));
+                                      holder);
+        holder.set(result);
+        return result;
     }
 
     public static AccordCommandStore createAccordCommandStore(LongSupplier now, String keyspace, String table)
