@@ -11,6 +11,7 @@ Merged from 4.0:
  * Fix nested selection of reversed collections (CASSANDRA-17913)
  * Update zstd-jni library to version 1.5.5 (CASSANDRA-18429)
 Merged from 3.11:
+ * Fix the capital P usage in the CQL parser (CASSANDRA-17919)
  * Fix sstable_count metric missing from tablestats json/yaml output (CASSANDRA-18448)
  * Suppress CVE-2022-45688 (CASSANDRA-18389)
  * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
