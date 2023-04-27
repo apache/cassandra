@@ -33,6 +33,7 @@ import accord.api.Update;
 import accord.api.Write;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
+import accord.primitives.Timestamp;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -170,7 +171,7 @@ public class TxnUpdate implements Update
     }
 
     @Override
-    public Write apply(Data data)
+    public Write apply(Timestamp executeAt, Data data)
     {
         if (!checkCondition(data))
             return TxnWrite.EMPTY;
