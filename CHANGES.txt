@@ -5,6 +5,7 @@
 Merged from 3.11:
  * Fix the capital P usage in the CQL parser (CASSANDRA-17919)
 Merged from 3.0:
+ * Do not remove SSTables when cause of FSReadError is OutOfMemoryError while using best_effort disk failure policy (CASSANDRA-18336)
  * Do not remove truncated_at entry in system.local while dropping an index (CASSANDRA-18105)
 
 4.0.9
