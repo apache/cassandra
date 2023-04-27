@@ -16,28 +16,21 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.simulator.test;
+package org.apache.cassandra.io.util;
 
-import java.io.IOException;
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 
-import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
-
-public class ShortPaxosSimulationTest
+public class Files
 {
-    @Test
-    public void simulationTest() throws IOException
+    public static ListenableFileSystem newInMemoryFileSystem()
     {
-        PaxosSimulationRunner.main(new String[] { "run", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30", "--seed", "0xa03aba138c555b0d"});
-    }
-
-    @Test
-    @Ignore("fails due to OOM DirectMemory - unclear why")
-    public void selfReconcileTest() throws IOException
-    {
-        PaxosSimulationRunner.main(new String[] { "reconcile", "-n", "3..6", "-t", "1000", "-c", "2", "--cluster-action-limit", "2", "-s", "30", "--with-self" });
+        ListenableFileSystem fs = new ListenableFileSystem(Jimfs.newFileSystem(Configuration.unix().toBuilder()
+                                                                                            .setMaxSize(4L << 30).setBlockSize(512)
+                                                                                            .build()));
+        File.unsafeSetFilesystem(fs);
+        return fs;
     }
 }
-

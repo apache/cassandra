@@ -21,7 +21,6 @@ package org.apache.cassandra.simulator;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.nio.file.FileSystem;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -41,7 +40,6 @@ import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
-import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -54,7 +52,6 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableConsum
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.impl.DirectStreamingConnectionFactory;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
-import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.simulator.RandomSource.Choices;
@@ -62,6 +59,7 @@ import org.apache.cassandra.simulator.asm.InterceptAsClassTransformer;
 import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
+import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.simulator.systems.Failures;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
@@ -95,7 +93,6 @@ import org.apache.cassandra.utils.memory.BufferPools;
 import org.apache.cassandra.utils.memory.HeapPool;
 
 import static java.lang.Integer.min;
-import static java.util.Collections.emptyMap;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -607,7 +604,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
     public final SimulatedSystems simulated;
     public final Cluster cluster;
     public final S simulation;
-    private final FileSystem jimfs;
+    private final ListenableFileSystem jimfs;
     protected final Map<Integer, List<Closeable>> onUnexpectedShutdown = new TreeMap<>();
     protected final List<Callable<Void>> onShutdown = new CopyOnWriteArrayList<>();
     protected final ThreadLocalRandomCheck threadLocalRandomCheck;
@@ -618,9 +615,17 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              SimulationFactory<S> factory) throws IOException
     {
         this.random = random;
-        this.jimfs  = Jimfs.newFileSystem(Long.toHexString(seed) + 'x' + uniqueNum, Configuration.unix().toBuilder()
-                                                                               .setMaxSize(4L << 30).setBlockSize(512)
-                                                                               .build());
+        this.jimfs  = new ListenableFileSystem(Jimfs.newFileSystem(Long.toHexString(seed) + 'x' + uniqueNum, Configuration.unix().toBuilder()
+                                                                                                                          .setMaxSize(4L << 30).setBlockSize(512)
+                                                                                                                          .build()));
+        jimfs.listen((ListenableFileSystem.OnRead) (path, channel, position, dst, read) -> {
+            if (read > 0 && path.getFileName().toString().endsWith("Index.db") && random.decide(.05f))
+            {
+                int offset = random.uniform(0, read);
+                int index = dst.position() - offset;
+                dst.put(index, (byte) (dst.get(index) + 1));
+            }
+        });
 
         final SimulatedMessageDelivery delivery;
         final SimulatedExecution execution;
@@ -683,9 +688,10 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              .set("memtable_allocation_type", builder.memoryListener != null ? "unslabbed_heap_buffers_logged" : "heap_buffers")
                              .set("file_cache_size", "16MiB")
                              .set("use_deterministic_table_id", true)
-                             .set("disk_access_mode", "standard")
+//                             .set("disk_access_mode", "standard")
+                             .set("disk_access_mode", "mmap")
                              .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
-                             .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
+//                             .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
                          )))
                          .withInstanceInitializer(new IInstanceInitializer()
                          {

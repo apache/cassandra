@@ -189,12 +189,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             // those properties may be set for unit-test optimizations; those should not be used when running dtests
             CassandraRelevantProperties.FLUSH_LOCAL_SCHEMA_CHANGES.reset();
             CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
+            CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
         }
 
         public AbstractBuilder(Factory<I, C, B> factory)
         {
             super(factory);
             withSharedClasses(SHARED_PREDICATE);
+            withRoot(org.apache.cassandra.io.util.Files.newInMemoryFileSystem().getPath("/cassandra"));
         }
 
         public B withNodeProvisionStrategy(INodeProvisionStrategy.Strategy nodeProvisionStrategy)
@@ -1158,7 +1160,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
             return shared.contains(s) ||
                    InstanceClassLoader.getDefaultLoadSharedFilter().test(s) ||
-                   s.startsWith("org.jboss.byteman");
+                   s.startsWith("org.jboss.byteman") ||
+                   s.startsWith("org.apache.cassandra.io.filesystem");
         };
     }
 
