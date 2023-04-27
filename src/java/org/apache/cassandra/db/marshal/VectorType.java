@@ -32,8 +32,7 @@ public class VectorType extends AbstractType<float[]>
 {
     private static final ConcurrentHashMap<Integer, VectorType> instances = new ConcurrentHashMap<>();
 
-    private final int dimensions;
-
+    public final int dimensions;
 
     public static VectorType getInstance(int dimensions)
     {
@@ -42,7 +41,6 @@ public class VectorType extends AbstractType<float[]>
                ? instances.computeIfAbsent(dimensions, k -> new VectorType(dimensions))
                : type;
     }
-
 
     private VectorType(int dimensions)
     {
@@ -128,10 +126,10 @@ public class VectorType extends AbstractType<float[]>
             if (size == 0)
                 return;
             if (size < 4)
-                throw new MarshalException(String.format("Expected at least 4 bytes for a float32 dense vector (found %d)", size));
+                throw new MarshalException(String.format("Expected at least 4 bytes for a float vector (found %d)", size));
             int length = accessor.getInt(value, 0);
             if (size != 4 * (1 + length))
-                throw new MarshalException(String.format("Expected %d bytes for a float32 dense vector (found %d)", 4 + 4 * length, size));
+                throw new MarshalException(String.format("Expected %d bytes for a float vector (found %d)", 4 + 4 * length, size));
         }
 
         @Override

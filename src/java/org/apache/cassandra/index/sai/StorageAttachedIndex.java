@@ -154,6 +154,9 @@ public class StorageAttachedIndex implements Index
                                                                      IndexTarget.CUSTOM_INDEX_OPTION_NAME,
                                                                      IndexWriterConfig.POSTING_LIST_LVL_MIN_LEAVES,
                                                                      IndexWriterConfig.POSTING_LIST_LVL_SKIP_OPTION,
+                                                                     IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS,
+                                                                     IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH,
+                                                                     IndexWriterConfig.SIMILARITY_FUNCTION,
                                                                      LuceneAnalyzer.INDEX_ANALYZER,
                                                                      LuceneAnalyzer.QUERY_ANALYZER);
 

@@ -97,7 +97,8 @@ public class VectorIndexWriter implements PerIndexWriter
             segmentId = StringHelper.randomId();
             SegmentInfo segmentInfo = new SegmentInfo(directory, Version.LATEST, Version.LATEST, segmentName, -1, false, Lucene95Codec.getDefault(), Collections.emptyMap(), segmentId, Collections.emptyMap(), null);
             SegmentWriteState state = new SegmentWriteState(InfoStream.getDefault(), directory, segmentInfo, null, null, IOContext.DEFAULT);
-            writer = (Lucene95HnswVectorsWriter) new Lucene95HnswVectorsFormat().fieldsWriter(state);
+            writer = (Lucene95HnswVectorsWriter) new Lucene95HnswVectorsFormat(indexContext.getIndexWriterConfig().getMaximumNodeConnections(),
+                                                                               indexContext.getIndexWriterConfig().getConstructionBeamWidth()).fieldsWriter(state);
 
             FieldInfo fieldInfo = indexContext.createFieldInfoForVector(dimension);
             // lucene creates 3 vectors files, e.g.:

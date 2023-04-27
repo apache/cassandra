@@ -194,8 +194,11 @@ public abstract class Lists
         {
             AbstractType<?> type = unwrap(receiver.type);
 
-            if (!(type instanceof ListType || type instanceof VectorType))
+            if (!(type instanceof ListType || type.isVector()))
                 throw new InvalidRequestException(String.format("Invalid list literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
+
+            if (type.isVector() && elements.size() != ((VectorType)type).dimensions)
+                throw new InvalidRequestException(String.format("Invalid number of dimensions %s in list literal for %s of type %s", elements.size(), receiver.name, receiver.type.asCQL3Type()));
 
             ColumnSpecification valueSpec = Lists.valueSpecOf(receiver);
             for (Term.Raw rt : elements)

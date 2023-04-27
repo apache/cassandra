@@ -669,7 +669,7 @@ public class IndexContext
         int pointIndexDimensionCount = 0;
         int pointNumBytes = 0;
         VectorEncoding vectorEncoding = VectorEncoding.FLOAT32;
-        VectorSimilarityFunction vectorSimilarityFunction = VectorSimilarityFunction.COSINE;
+        VectorSimilarityFunction vectorSimilarityFunction = indexWriterConfig.getSimilarityFunction();
         boolean softDeletesField = false;
 
         return new FieldInfo(name, number, storeTermVector, omitNorms, storePayloads, indexOptions, docValues,

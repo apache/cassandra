@@ -88,7 +88,8 @@ public class VectorIndexSearcher extends IndexSearcher
         FieldInfo fieldInfo = indexContext.createFieldInfoForVector(vectorDimension);
         FieldInfos fieldInfos = new FieldInfos(Collections.singletonList(fieldInfo).toArray(new FieldInfo[0]));
         SegmentReadState state = new SegmentReadState(directory, segmentInfo, fieldInfos, IOContext.DEFAULT);
-        reader = new Lucene95HnswVectorsFormat().fieldsReader(state);
+        reader = new Lucene95HnswVectorsFormat(indexContext.getIndexWriterConfig().getMaximumNodeConnections(),
+                                               indexContext.getIndexWriterConfig().getConstructionBeamWidth()).fieldsReader(state);
     }
 
     @Override

@@ -179,7 +179,7 @@ K_TOKEN:       T O K E N;
 K_WRITETIME:   W R I T E T I M E;
 K_DATE:        D A T E;
 K_TIME:        T I M E;
-K_DENSE_F32:   D E N S E WS+ F L O A T '32';
+K_VECTOR:      V E C T O R;
 
 K_NULL:        N U L L;
 K_NOT:         N O T;
@@ -224,7 +224,7 @@ K_LABEL:       L A B E L;
 K_DROPPED:     D R O P P E D;
 K_COLUMN:      C O L U M N;
 K_RECORD:      R E C O R D;
-K_ANN:         A N N;
+K_ANN_OF:      A N N WS+ O F;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');

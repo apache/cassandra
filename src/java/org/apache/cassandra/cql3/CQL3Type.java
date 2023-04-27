@@ -523,7 +523,13 @@ public interface CQL3Type
         @Override
         public String toCQLLiteral(ByteBuffer bytes, ProtocolVersion version)
         {
-            return "dense float32[" + dimensions + ']';
+            return "float vector[" + dimensions + ']';
+        }
+
+        @Override
+        public String toString()
+        {
+            return "float vector[" + dimensions + ']';
         }
     }
 
@@ -979,7 +985,7 @@ public interface CQL3Type
             @Override
             public String toString()
             {
-                return "dense float32" + '[' + dimensions + ']';
+                return "float vector[" + dimensions + ']';
             }
         }
     }

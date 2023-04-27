@@ -49,7 +49,6 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.lucene.index.VectorEncoding;
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
@@ -72,12 +71,11 @@ public class VectorMemtableIndex implements MemtableIndex
         this.indexContext = indexContext;
         try
         {
-            // TODO make similarity and possibly M + ef configurable
             builder = HnswGraphBuilder.create(vectorValues,
                                               VectorEncoding.FLOAT32,
-                                              VectorSimilarityFunction.COSINE,
-                                              16,
-                                              100,
+                                              indexContext.getIndexWriterConfig().getSimilarityFunction(),
+                                              indexContext.getIndexWriterConfig().getMaximumNodeConnections(),
+                                              indexContext.getIndexWriterConfig().getConstructionBeamWidth(),
                                               ThreadLocalRandom.current().nextLong());
         }
         catch (IOException e)
@@ -123,7 +121,7 @@ public class VectorMemtableIndex implements MemtableIndex
                                           limit,
                                           vectorValues,
                                           VectorEncoding.FLOAT32,
-                                          VectorSimilarityFunction.COSINE,
+                                          indexContext.getIndexWriterConfig().getSimilarityFunction(),
                                           builder.getGraph(),
                                           bits,
                                           Integer.MAX_VALUE);
