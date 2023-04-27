@@ -28,6 +28,7 @@ import accord.api.Query;
 import accord.api.Read;
 import accord.api.Result;
 import accord.api.Update;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -48,7 +49,7 @@ public abstract class TxnQuery implements Query
         }
 
         @Override
-        public Result compute(TxnId txnId, Data data, @Nullable Read read, @Nullable Update update)
+        public Result compute(TxnId txnId, Timestamp executeAt, Data data, @Nullable Read read, @Nullable Update update)
         {
             return data != null ? (TxnData) data : new TxnData();
         }
@@ -63,7 +64,7 @@ public abstract class TxnQuery implements Query
         }
 
         @Override
-        public Result compute(TxnId txnId, Data data, @Nullable Read read, @Nullable Update update)
+        public Result compute(TxnId txnId, Timestamp executeAt, Data data, @Nullable Read read, @Nullable Update update)
         {
             return new TxnData();
         }
@@ -78,7 +79,7 @@ public abstract class TxnQuery implements Query
         }
 
         @Override
-        public Result compute(TxnId txnId, Data data, @Nullable Read read, Update update)
+        public Result compute(TxnId txnId, Timestamp executeAt, Data data, @Nullable Read read, Update update)
         {
             checkNotNull(txnId, "txnId should not be null");
             checkNotNull(data, "data should not be null");
