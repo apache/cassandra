@@ -73,15 +73,18 @@ public class AccordConfigurationService implements ConfigurationService
     }
 
     @Override
-    public void acknowledgeEpoch(long epoch)
+    public void acknowledgeEpoch(EpochReady ready)
     {
-        Topology acknowledged = getTopologyForEpoch(epoch);
+        Topology acknowledged = getTopologyForEpoch(ready.epoch);
         for (Node.Id node : acknowledged.nodes())
         {
             if (node.equals(localId))
                 continue;
-            for (Listener listener : listeners)
-                listener.onEpochSyncComplete(node, epoch);
+
+            ready.coordination.addCallback(() -> {
+                for (Listener listener : listeners)
+                    listener.onEpochSyncComplete(node, ready.epoch);
+            });
         }
     }
 

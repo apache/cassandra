@@ -144,7 +144,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    protected Timestamp maxConflict(Seekables<?, ?> keysOrRanges, Ranges slice)
+    public Timestamp maxConflict(Seekables<?, ?> keysOrRanges, Ranges slice)
     {
         // TODO: Seekables
         // TODO: efficiency

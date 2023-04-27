@@ -20,7 +20,6 @@ package org.apache.cassandra.service.accord.async;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -92,7 +91,6 @@ import org.mockito.Mockito;
 import static accord.local.PreLoadContext.contextFor;
 import static accord.utils.Property.qt;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
-import static java.util.Collections.singleton;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
@@ -100,6 +98,7 @@ import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.keys;
 import static org.apache.cassandra.service.accord.AccordTestUtils.loaded;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
+import static org.apache.cassandra.service.accord.async.AsyncLoader.txnIds;
 
 public class AsyncOperationTest
 {
@@ -150,7 +149,7 @@ public class AsyncOperationTest
         Txn txn = createTxn((int)clock.incrementAndGet());
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
-        getUninterruptibly(commandStore.execute(contextFor(Collections.emptyList(), Keys.of(key)), instance -> {
+        getUninterruptibly(commandStore.execute(contextFor(key), instance -> {
             SafeCommandsForKey cfk = ((AccordSafeCommandStore) instance).maybeCommandsForKey(key);
             Assert.assertNull(cfk);
         }));
@@ -193,7 +192,7 @@ public class AsyncOperationTest
         PartialDeps deps = PartialDeps.builder(ranges).build();
         try
         {
-            return getUninterruptibly(commandStore.submit(PreLoadContext.contextFor(Collections.singleton(txnId), partialTxn.keys()), safe -> {
+            return getUninterruptibly(commandStore.submit(contextFor(txnId, partialTxn.keys()), safe -> {
                 CheckedCommands.preaccept(safe, txnId, partialTxn, route, null);
                 CheckedCommands.accept(safe, txnId, Ballot.ZERO, partialRoute, partialTxn.keys(), null, executeAt, deps);
                 CheckedCommands.commit(safe, txnId, route, null, partialTxn, executeAt, deps);
@@ -240,7 +239,7 @@ public class AsyncOperationTest
         createCommittedAndPersist(commandStore, txnId);
 
         Consumer<SafeCommandStore> consumer = safeStore -> safeStore.command(txnId).readyToExecute();
-        PreLoadContext ctx = PreLoadContext.contextFor(singleton(txnId), Keys.EMPTY);
+        PreLoadContext ctx = contextFor(txnId);
         AsyncOperation<Void> operation = new AsyncOperation.ForConsumer(commandStore, ctx, consumer)
         {
 
@@ -252,7 +251,7 @@ public class AsyncOperationTest
             @Override
             AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
             {
-                return new AsyncLoader(commandStore, preLoadContext.txnIds(), (Iterable<RoutableKey>) preLoadContext.keys()) {
+                return new AsyncLoader(commandStore, txnIds(preLoadContext), (Iterable<RoutableKey>) preLoadContext.keys()) {
 
                     @Override
                     void state(State state)
@@ -325,7 +324,7 @@ public class AsyncOperationTest
 
             assertNoReferences(commandStore, ids, keys);
 
-            PreLoadContext ctx = PreLoadContext.contextFor(ids, keys);
+            PreLoadContext ctx = contextFor(ids, keys);
 
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
 
@@ -334,7 +333,7 @@ public class AsyncOperationTest
                 @Override
                 AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
                 {
-                    return new AsyncLoader(commandStore, preLoadContext.txnIds(), (Iterable<RoutableKey>) preLoadContext.keys())
+                    return new AsyncLoader(commandStore, txnIds(preLoadContext), (Iterable<RoutableKey>) preLoadContext.keys())
                     {
                         @Override
                         Function<TxnId, Command> loadCommandFunction()
@@ -386,7 +385,7 @@ public class AsyncOperationTest
             createCommand(commandStore, rs, ids);
             assertNoReferences(commandStore, ids, keys);
 
-            PreLoadContext ctx = PreLoadContext.contextFor(ids, keys);
+            PreLoadContext ctx = contextFor(ids, keys);
 
             Consumer<SafeCommandStore> consumer = Mockito.mock(Consumer.class);
             String errorMsg = "txn_ids " + ids;
@@ -422,7 +421,7 @@ public class AsyncOperationTest
 
             assertNoReferences(commandStore, ids, keys);
 
-            PreLoadContext ctx = PreLoadContext.contextFor(ids, keys);
+            PreLoadContext ctx = contextFor(ids, keys);
 
             Consumer<SafeCommandStore> consumer = store -> ids.forEach(id -> store.command(id).readyToExecute());
 
@@ -466,7 +465,7 @@ public class AsyncOperationTest
                 SafeCommand command = store.command(id);
                 Command current = command.current();
                 Assertions.assertThat(current.status()).isEqualTo(Status.ReadyToExecute);
-                Writes writes = current.partialTxn().execute(current.executeAt(), new TxnData());
+                Writes writes = current.partialTxn().execute(current.txnId(), current.executeAt(), new TxnData());
                 command.preapplied(current, current.txnId(), current.asCommitted().waitingOn(), writes, null);
             }));
             getUninterruptibly(o2);
