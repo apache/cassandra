@@ -78,7 +78,7 @@ public class AccordCommandStore extends CommandStore
     private AccordSafeCommandStore current = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
 
-    private AccordCommandStore(int id,
+    public AccordCommandStore(int id,
                               NodeTimeService time,
                               Agent agent,
                               DataStore dataStore,
@@ -92,18 +92,7 @@ public class AccordCommandStore extends CommandStore
         this.stateCache = new AccordStateCache(8<<20);
         this.commandCache = stateCache.instance(TxnId.class, accord.local.Command.class, AccordSafeCommand::new, AccordObjectSizes::command);
         this.commandsForKeyCache = stateCache.instance(RoutableKey.class, CommandsForKey.class, AccordSafeCommandsForKey::new, AccordObjectSizes::commandsForKey);
-    }
-
-    public static AccordCommandStore create(int id,
-                                            NodeTimeService time,
-                                            Agent agent,
-                                            DataStore dataStore,
-                                            ProgressLog.Factory progressLogFactory,
-                                            RangesForEpochHolder rangesForEpoch)
-    {
-        AccordCommandStore acs = new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, rangesForEpoch);
-        acs.execute(() -> CommandStore.register(acs));
-        return acs;
+        executor.execute(() -> CommandStore.register(this));
     }
 
     @Override
