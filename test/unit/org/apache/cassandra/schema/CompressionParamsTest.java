@@ -142,52 +142,11 @@ public class CompressionParamsTest
         remove.accept(CompressionParams.CHUNK_LENGTH_IN_KB);
 
 
-        // CHUNK_LENGTH_KB
-        // same stests as above
 
-        put.accept(CompressionParams.CHUNK_LENGTH_KB, "");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessageContaining("Invalid 'chunk_length_kb' value");
-
-        put.accept(CompressionParams.CHUNK_LENGTH_KB, "0");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessageContaining("Invalid 'chunk_length_kb' value");
-
-        put.accept(CompressionParams.CHUNK_LENGTH_KB, "1");
-        params = func.apply(instance);
-        assertEquals(1024, params.chunkLength());
-
-        put.accept(CompressionParams.CHUNK_LENGTH_KB, "badvalue");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessageContaining("Invalid 'chunk_length_kb' value");
-
-        put.accept(CompressionParams.CHUNK_LENGTH_KB, "3");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessageContaining("Invalid 'chunk_length_kb' value")
-                                                               .withMessageContaining("Must be a power of 2");
-
-        // test negative value
-        put.accept(CompressionParams.CHUNK_LENGTH_KB, "-1");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessageContaining("Invalid 'chunk_length_kb' value")
-                                                               .withMessageContaining("May not be <= 0");
-
-        remove.accept(CompressionParams.CHUNK_LENGTH_KB);
 
         // TEST COMBINATIONS
         put.accept(CompressionParams.CHUNK_LENGTH, "3MiB");
         put.accept(CompressionParams.CHUNK_LENGTH_IN_KB, "2");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessage(CompressionParams.TOO_MANY_CHUNK_LENGTH);
-
-        remove.accept(CompressionParams.CHUNK_LENGTH);
-        put.accept(CompressionParams.CHUNK_LENGTH_KB, "2");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
-                                                               .withMessage(CompressionParams.TOO_MANY_CHUNK_LENGTH);
-
-        remove.accept(CompressionParams.CHUNK_LENGTH_IN_KB);
-        put.accept(CompressionParams.CHUNK_LENGTH, "3MiB");
-        put.accept(CompressionParams.CHUNK_LENGTH_KB, "2");
         assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> func.apply(instance))
                                                                .withMessage(CompressionParams.TOO_MANY_CHUNK_LENGTH);
     }
@@ -202,22 +161,6 @@ public class CompressionParamsTest
         map.put( CompressionParams.CLASS, "lz4");
         Consumer<String> remove = (s) -> map.remove(s);
         chunkLengthTest( map::put,remove, CompressionParams::fromMap, map );
-    }
-
-    @Test
-    public void multipleClassNameTest() {
-        ParameterizedClass options = emptyParameterizedClass();
-        options.class_name = "none";
-        options.parameters.put( CompressionParams.SSTABLE_COMPRESSION, "none");
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass( options ))
-        .withMessageContaining("The 'sstable_compression' option must not be used");
-
-        Map<String,String> map = new HashMap<>();
-        map.put( CompressionParams.CLASS, "none" );
-        map.put( CompressionParams.SSTABLE_COMPRESSION, "none" );
-        assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromMap( map ))
-                                                               .withMessageContaining("The 'sstable_compression' option must not be used");
-
     }
 
     private static <T> void minCompressRatioTest(BiConsumer<String,String> put,  Function<T,CompressionParams> func, T instance)

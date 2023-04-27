@@ -89,10 +89,6 @@ public final class CompressionParams
                                                                        calcMaxCompressedLength(DEFAULT_CHUNK_LENGTH, DEFAULT_MIN_COMPRESS_RATIO),
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        Collections.emptyMap());
-
-    private static final String CRC_CHECK_CHANCE_WARNING = "The option crc_check_chance was deprecated as a compression option. " +
-                                                           "You should specify it as a top-level table option instead";
-
     @VisibleForTesting
     static final String TOO_MANY_CHUNK_LENGTH = "Only one of 'chunk_length', or 'chunk_length_in_kb' may be specified";
 
@@ -532,6 +528,7 @@ public final class CompressionParams
 
             return clazz;
         }
+        return null;
     }
 
     /**
