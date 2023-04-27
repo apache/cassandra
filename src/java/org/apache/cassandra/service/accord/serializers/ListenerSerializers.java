@@ -22,8 +22,6 @@ import java.io.IOException;
 
 import accord.impl.CommandsForKey;
 import accord.local.Command;
-import accord.local.CommandListener;
-import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -36,9 +34,9 @@ public class ListenerSerializers
     {
         COMMAND, COMMANDS_FOR_KEY;
 
-        private static Kind of(CommandListener listener)
+        private static Kind of(Command.DurableAndIdempotentListener listener)
         {
-            if (listener instanceof Command.Listener)
+            if (listener instanceof Command.ProxyListener)
                 return COMMAND;
 
             if (listener instanceof CommandsForKey.Listener)
@@ -49,22 +47,22 @@ public class ListenerSerializers
     }
 
 
-    private static final IVersionedSerializer<Command.Listener> commandListener = new IVersionedSerializer<Command.Listener>()
+    private static final IVersionedSerializer<Command.ProxyListener> commandListener = new IVersionedSerializer<Command.ProxyListener>()
     {
         @Override
-        public void serialize(Command.Listener listener, DataOutputPlus out, int version) throws IOException
+        public void serialize(Command.ProxyListener listener, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(listener.txnId(), out, version);
         }
 
         @Override
-        public Command.Listener deserialize(DataInputPlus in, int version) throws IOException
+        public Command.ProxyListener deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new Command.Listener(CommandSerializers.txnId.deserialize(in, version));
+            return new Command.ProxyListener(CommandSerializers.txnId.deserialize(in, version));
         }
 
         @Override
-        public long serializedSize(Command.Listener listener, int version)
+        public long serializedSize(Command.ProxyListener listener, int version)
         {
             return CommandSerializers.txnId.serializedSize(listener.txnId(), version);
         }
@@ -91,18 +89,17 @@ public class ListenerSerializers
         }
     };
 
-    public static final IVersionedSerializer<CommandListener> listener = new IVersionedSerializer<CommandListener>()
+    public static final IVersionedSerializer<Command.DurableAndIdempotentListener> listener = new IVersionedSerializer<Command.DurableAndIdempotentListener>()
     {
         @Override
-        public void serialize(CommandListener listener, DataOutputPlus out, int version) throws IOException
+        public void serialize(Command.DurableAndIdempotentListener listener, DataOutputPlus out, int version) throws IOException
         {
-            Invariants.checkArgument(!listener.isTransient());
             Kind kind = Kind.of(listener);
             out.write(kind.ordinal());
             switch (kind)
             {
                 case COMMAND:
-                    commandListener.serialize((Command.Listener) listener, out, version);
+                    commandListener.serialize((Command.ProxyListener) listener, out, version);
                     break;
                 case COMMANDS_FOR_KEY:
                     cfkListener.serialize((CommandsForKey.Listener) listener, out, version);
@@ -113,7 +110,7 @@ public class ListenerSerializers
         }
 
         @Override
-        public CommandListener deserialize(DataInputPlus in, int version) throws IOException
+        public Command.DurableAndIdempotentListener deserialize(DataInputPlus in, int version) throws IOException
         {
             Kind kind = Kind.values()[in.readByte()];
             switch (kind)
@@ -128,15 +125,14 @@ public class ListenerSerializers
         }
 
         @Override
-        public long serializedSize(CommandListener listener, int version)
+        public long serializedSize(Command.DurableAndIdempotentListener listener, int version)
         {
-            Invariants.checkArgument(!listener.isTransient());
             Kind kind = Kind.of(listener);
             long size = TypeSizes.BYTE_SIZE;
             switch (kind)
             {
                 case COMMAND:
-                    size += commandListener.serializedSize((Command.Listener) listener, version);
+                    size += commandListener.serializedSize((Command.ProxyListener) listener, version);
                     break;
                 case COMMANDS_FOR_KEY:
                     size += cfkListener.serializedSize((CommandsForKey.Listener) listener, version);

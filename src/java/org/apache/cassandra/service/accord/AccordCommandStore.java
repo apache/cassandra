@@ -39,6 +39,7 @@ import accord.local.CommandStores.RangesForEpochHolder;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
+import accord.primitives.Deps;
 import accord.primitives.RoutableKey;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
@@ -99,6 +100,11 @@ public class AccordCommandStore extends CommandStore
     public boolean inStore()
     {
         return Thread.currentThread().getId() == threadId;
+    }
+
+    @Override
+    protected void registerHistoricalTransactions(Deps deps)
+    {
     }
 
     public void setCacheSize(long bytes)

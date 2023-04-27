@@ -44,7 +44,6 @@ import accord.api.Result;
 import accord.impl.CommandsForKey;
 import accord.impl.CommandsForKey.CommandTimeseries;
 import accord.local.Command;
-import accord.local.CommandListener;
 import accord.local.CommandStore;
 import accord.local.CommonAttributes;
 import accord.local.Listeners;
@@ -191,7 +190,7 @@ public class AccordKeyspace
         static final LocalVersionedSerializer<PartialDeps> partialDeps = localSerializer(DepsSerializer.partialDeps);
         static final LocalVersionedSerializer<Writes> writes = localSerializer(CommandSerializers.writes);
         static final LocalVersionedSerializer<TxnData> result = localSerializer(TxnData.serializer);
-        static final LocalVersionedSerializer<CommandListener> listeners = localSerializer(ListenerSerializers.listener);
+        static final LocalVersionedSerializer<Command.DurableAndIdempotentListener> listeners = localSerializer(ListenerSerializers.listener);
 
         private static <T> LocalVersionedSerializer<T> localSerializer(IVersionedSerializer<T> serializer)
         {
@@ -507,7 +506,7 @@ public class AccordKeyspace
 
             addCellIfModified(CommandsColumns.dependencies, Command::partialDeps, CommandsSerializers.partialDeps, builder, timestampMicros, original, command);
 
-            addSetChanges(CommandsColumns.listeners, cmd -> Sets.filter(cmd.listeners(), l -> !l.isTransient()), v -> serialize(v, CommandsSerializers.listeners), builder, timestampMicros, nowInSeconds, original, command);
+            addSetChanges(CommandsColumns.listeners, Command::durableListeners, v -> serialize(v, CommandsSerializers.listeners), builder, timestampMicros, nowInSeconds, original, command);
 
             if (command.isCommitted())
             {

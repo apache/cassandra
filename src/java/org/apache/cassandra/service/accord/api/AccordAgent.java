@@ -22,8 +22,13 @@ import accord.api.Agent;
 import accord.api.Result;
 import accord.local.Command;
 import accord.local.Node;
+import accord.primitives.Ranges;
+import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
+import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import org.apache.cassandra.service.accord.txn.TxnQuery;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -47,6 +52,12 @@ public class AccordAgent implements Agent
     }
 
     @Override
+    public void onFailedBootstrap(String phase, Ranges ranges, Runnable retry, Throwable failure)
+    {
+
+    }
+
+    @Override
     public void onUncaughtException(Throwable t)
     {
         // TODO: this
@@ -64,5 +75,11 @@ public class AccordAgent implements Agent
     {
         // TODO: should distinguish between reads and writes
         return now - initiated.hlc() > getReadRpcTimeout(MICROSECONDS);
+    }
+
+    @Override
+    public Txn emptyTxn(Txn.Kind kind, Seekables<?, ?> keysOrRanges)
+    {
+        return new Txn.InMemory(kind, keysOrRanges, TxnRead.EMPTY, TxnQuery.ALL, null);
     }
 }
