@@ -209,6 +209,8 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
             public Action get()
             {
                 int[] primaryKeyIndex = consume(simulated.random, available);
+                if (primaryKeyIndex == null)
+                    return Actions.empty("All primary keys are taken, try again later");
                 long untilNanos = simulated.time.nanoTime() + SECONDS.toNanos(simulateKeyForSeconds.select(simulated.random));
                 int concurrency = withinKeyConcurrency.select(simulated.random);
                 Supplier<Action> supplier = factory.apply(simulated, primaryKeyIndex);
@@ -249,7 +251,7 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
     private int[] consume(RandomSource random, List<Integer> available)
     {
         if (available.isEmpty())
-            throw new AssertionError("available partitions are empty!");
+            return null;
         int numPartitions = available.size() == 1 || !allowMultiplePartitions() ? 1 : random.uniform(1, available.size());
         int[] partitions = new int[numPartitions];
         for (int counter = 0; counter < numPartitions; counter++)

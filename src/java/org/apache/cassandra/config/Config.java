@@ -186,10 +186,9 @@ public class Config
 
     public int concurrent_reads = 32;
     public int concurrent_writes = 32;
-    public int concurrent_accord_operations = 32;
     public int concurrent_counter_writes = 32;
     public int concurrent_materialized_view_writes = 32;
-    public int available_processors = -1;
+    public OptionaldPositiveInt available_processors = new OptionaldPositiveInt(Integer.getInteger("cassandra.available_processors", OptionaldPositiveInt.UNDEFINED_VALUE));
 
     public int memtable_flush_writers = 0;
     @Replaces(oldName = "memtable_heap_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
@@ -604,6 +603,7 @@ public class Config
     public volatile boolean use_statements_enabled = true;
 
     public boolean accord_transactions_enabled = false;
+    public OptionaldPositiveInt accord_shard_count = OptionaldPositiveInt.UNDEFINED;
 
     /**
      * Optionally disable asynchronous UDF execution.

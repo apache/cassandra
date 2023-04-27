@@ -40,6 +40,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.NullableSerializer;
 import org.apache.cassandra.utils.ObjectSizes;
 
 public class TxnData implements Data, Result, Iterable<FilteredPartition>
@@ -196,4 +197,6 @@ public class TxnData implements Data, Result, Iterable<FilteredPartition>
             return size;
         }
     };
+
+    public static final IVersionedSerializer<TxnData> nullableSerializer = NullableSerializer.wrap(serializer);
 }

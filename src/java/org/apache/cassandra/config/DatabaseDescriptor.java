@@ -568,9 +568,6 @@ public class DatabaseDescriptor
         if (conf.concurrent_counter_writes < 2)
             throw new ConfigurationException("concurrent_counter_writes must be at least 2, but was " + conf.concurrent_counter_writes, false);
 
-        if (conf.concurrent_accord_operations < 1)
-            throw new ConfigurationException("concurrent_accord_operations must be at least 1, but was " + conf.concurrent_accord_operations, false);
-
         if (conf.networking_cache_size == null)
             conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
 
@@ -2347,20 +2344,6 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_writes = concurrent_materialized_view_writes;
     }
 
-    public static int getConcurrentAccordOps()
-    {
-        return conf.concurrent_accord_operations;
-    }
-
-    public static void setConcurrentAccordOps(int concurrent_operations)
-    {
-        if (concurrent_operations < 0)
-        {
-            throw new IllegalArgumentException("Concurrent accord operations must be non-negative");
-        }
-        conf.concurrent_accord_operations = concurrent_operations;
-    }
-
     public static int getFlushWriters()
     {
         return conf.memtable_flush_writers;
@@ -2368,7 +2351,13 @@ public class DatabaseDescriptor
 
     public static int getAvailableProcessors()
     {
-        return conf == null ? -1 : conf.available_processors;
+        OptionaldPositiveInt ap = conf == null ? OptionaldPositiveInt.UNDEFINED : conf.available_processors;
+        return ap.or(Runtime.getRuntime()::availableProcessors);
+    }
+
+    public static void setAvailableProcessors(int value)
+    {
+        conf.available_processors = new OptionaldPositiveInt(value);
     }
 
     public static int getConcurrentCompactors()
@@ -4788,6 +4777,11 @@ public class DatabaseDescriptor
     public static void setAccordTransactionsEnabled(boolean b)
     {
         conf.accord_transactions_enabled = b;
+    }
+
+    public static int getAccordShardCount()
+    {
+        return conf.accord_shard_count.or(DatabaseDescriptor::getAvailableProcessors);
     }
 
     public static boolean getForceNewPreparedStatementBehaviour()
