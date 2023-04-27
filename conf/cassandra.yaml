@@ -566,15 +566,7 @@ commitlog_segment_size: 32MiB
 #
 # flush_compression: fast
 
-#
-sstable_compressor:
-#   - class_name: lz4
-#     parameters:
-#       - enable: true
-#         chunk_length: 16KiB
-#         min_compress_ratio: 0.0
-#         max_comrpessed_length: 16KiB
-#         class_specific_parameter: value
+
 #
 #
 # The class_name is the compressor class name. It may be one of the aliases,
@@ -606,6 +598,15 @@ sstable_compressor:
 # if neither option is specified a min_compress_ratio of 0.0 is the default.
 #
 # Only one of chunk_length or chunk_length_in_kb may be specified.
+#
+sstable_compression:
+#   - class_name: lz4
+#     parameters:
+#       - enable: true
+#         chunk_length: 16KiB
+#         min_compress_ratio: 0.0
+#         max_comrpessed_length: 16KiB
+#         class_specific_parameter: value
 
 
 # any class that implements the SeedProvider interface and has a

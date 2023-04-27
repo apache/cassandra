@@ -175,16 +175,16 @@ public class YamlConfigurationLoaderTest
     {
         Config c = load("test/conf/cassandra.yaml");
 
-        assertNull(c.sstable_compressor);
+        assertNull(c.sstable_compression);
 
         c = load("test/conf/cassandra-with-sstable-compressor.yaml");
 
-        assertNotNull(c.sstable_compressor);
-        assertThat(c.sstable_compressor.class_name).isEqualTo("lz4");
-        assertThat(c.sstable_compressor.parameters.remove(CompressionParams.CHUNK_LENGTH)).isEqualTo("32MiB");
-        assertThat(c.sstable_compressor.parameters.remove(CompressionParams.MIN_COMPRESS_RATIO)).isEqualTo("0.5D");
-        assertThat(c.sstable_compressor.parameters.remove(CompressionParams.ENABLED)).isEqualTo("true");
-        assertThat(c.sstable_compressor.parameters.size()).isEqualTo(2);
+        assertNotNull(c.sstable_compression);
+        assertThat(c.sstable_compression.class_name).isEqualTo("lz4");
+        assertThat(c.sstable_compression.parameters.remove(CompressionParams.CHUNK_LENGTH)).isEqualTo("32MiB");
+        assertThat(c.sstable_compression.parameters.remove(CompressionParams.MIN_COMPRESS_RATIO)).isEqualTo("0.5D");
+        assertThat(c.sstable_compression.parameters.remove(CompressionParams.ENABLED)).isEqualTo("true");
+        assertThat(c.sstable_compression.parameters.size()).isEqualTo(2);
     }
 
     @Test
