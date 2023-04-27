@@ -25,7 +25,6 @@ import accord.messages.GetDeps.GetDepsOk;
 import accord.primitives.PartialRoute;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
-import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -40,7 +39,6 @@ public class GetDepsSerializers
         {
             KeySerializers.seekables.serialize(msg.keys, out, version);
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
-            CommandSerializers.kind.serialize(msg.kind, out, version);
         }
 
         @Override
@@ -48,16 +46,14 @@ public class GetDepsSerializers
         {
             Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
             Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
-            Txn.Kind kind = CommandSerializers.kind.deserialize(in, version);
-            return GetDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, doNotComputeProgressKey, keys, executeAt, kind);
+            return GetDeps.SerializationSupport.create(txnId, scope, waitForEpoch, minEpoch, doNotComputeProgressKey, keys, executeAt);
         }
 
         @Override
         public long serializedBodySize(GetDeps msg, int version)
         {
             return KeySerializers.seekables.serializedSize(msg.keys, version)
-                   + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
-                   + CommandSerializers.kind.serializedSize(msg.kind, version);
+                   + CommandSerializers.timestamp.serializedSize(msg.executeAt, version);
         }
     };
 

@@ -42,6 +42,8 @@ import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
 import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.AccordSafeState;
 
+import static org.apache.cassandra.service.accord.async.AsyncLoader.txnIds;
+
 public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements Runnable, Function<SafeCommandStore, R>
 {
     private static final Logger logger = LoggerFactory.getLogger(AsyncOperation.class);
@@ -143,7 +145,7 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
 
     AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
     {
-        return new AsyncLoader(commandStore, preLoadContext.txnIds(), toRoutableKeys(preLoadContext.keys()));
+        return new AsyncLoader(commandStore, txnIds(preLoadContext), toRoutableKeys(preLoadContext.keys()));
     }
 
     @VisibleForTesting

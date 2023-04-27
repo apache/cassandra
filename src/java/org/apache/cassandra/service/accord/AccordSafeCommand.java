@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Collection;
 import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -120,5 +121,23 @@ public class AccordSafeCommand extends SafeCommand implements AccordSafeState<Tx
     public boolean invalidated()
     {
         return invalidated;
+    }
+
+    @Override
+    public void addListener(Command.TransientListener listener)
+    {
+        global.addListener(listener);
+    }
+
+    @Override
+    public boolean removeListener(Command.TransientListener listener)
+    {
+        return global().removeListener(listener);
+    }
+
+    @Override
+    public Collection<Command.TransientListener> transientListeners()
+    {
+        return global.transientListeners();
     }
 }
