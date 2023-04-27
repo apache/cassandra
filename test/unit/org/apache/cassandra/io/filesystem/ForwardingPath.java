@@ -82,7 +82,10 @@ public class ForwardingPath implements Path
     @Override
     public Path getParent()
     {
-        return wrap(delegate().getParent());
+        Path parent = delegate().getParent();
+        if (parent == null)
+            return null;
+        return wrap(parent);
     }
 
     @Override
