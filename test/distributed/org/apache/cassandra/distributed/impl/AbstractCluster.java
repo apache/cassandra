@@ -196,7 +196,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         {
             super(factory);
             withSharedClasses(SHARED_PREDICATE);
-            withRoot(org.apache.cassandra.io.util.Files.newInMemoryFileSystem().getPath("/cassandra"));
         }
 
         public B withNodeProvisionStrategy(INodeProvisionStrategy.Strategy nodeProvisionStrategy)
@@ -230,6 +229,9 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 // if token count == 1 and isVnode == false, then goodAbstractClusterTest
                 Assume.assumeTrue("vnode is requested but not supported", getTokenCount() == 1);
             }
+
+            if (getRootPath() == null)
+                withRoot(org.apache.cassandra.io.util.Files.newInMemoryFileSystem().getPath("/cassandra"));
 
             return super.createWithoutStarting();
         }
