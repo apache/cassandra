@@ -181,7 +181,7 @@ K_WRITETIME:   W R I T E T I M E;
 K_MAXWRITETIME:M A X W R I T E T I M E;
 K_DATE:        D A T E;
 K_TIME:        T I M E;
-K_DENSE_F32:   D E N S E WS+ F L O A T '32';
+K_VECTOR:      V E C T O R;
 
 K_NULL:        N U L L;
 K_NOT:         N O T;
@@ -223,7 +223,7 @@ K_MASKED:      M A S K E D;
 K_UNMASK:      U N M A S K;
 K_SELECT_MASKED: S E L E C T '_' M A S K E D;
 
-K_ANN:         A N N;
+K_ANN_OF:      A N N WS+ O F;
 
 // Case-insensitive alpha characters
 fragment A: ('a'|'A');
