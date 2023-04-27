@@ -44,6 +44,7 @@ import accord.primitives.FullRoute;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Seekables;
+import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import accord.topology.Topologies;
@@ -244,7 +245,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
         }
 
         @Override
-        public Write apply(@Nullable Data data)
+        public Write apply(Timestamp executeAt, @Nullable Data data)
         {
             return null;
         }

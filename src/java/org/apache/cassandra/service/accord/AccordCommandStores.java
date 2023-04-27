@@ -17,10 +17,14 @@
  */
 package org.apache.cassandra.service.accord;
 
+import java.util.function.Supplier;
+
 import accord.api.Agent;
+import accord.api.ConfigurationService.EpochReady;
 import accord.api.DataStore;
 import accord.api.ProgressLog;
 import accord.local.CommandStores;
+import accord.local.Node;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommandStore;
@@ -32,7 +36,7 @@ import accord.utils.RandomSource;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.journal.AsyncWriteCallback;
 
-public class AccordCommandStores extends CommandStores<AccordCommandStore>
+public class AccordCommandStores extends CommandStores
 {
     private final AccordJournal journal;
 
@@ -48,14 +52,6 @@ public class AccordCommandStores extends CommandStores<AccordCommandStore>
     {
         return (time, agent, store, random, shardDistributor, progressLogFactory) ->
                new AccordCommandStores(time, agent, store, random, shardDistributor, progressLogFactory, journal);
-    }
-
-    @Override
-    public synchronized void shutdown()
-    {
-        super.shutdown();
-        journal.shutdown();
-        //TODO shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
     }
 
     @Override
@@ -100,13 +96,6 @@ public class AccordCommandStores extends CommandStores<AccordCommandStore>
         });
     }
 
-    @Override
-    public synchronized void updateTopology(Topology newTopology)
-    {
-        super.updateTopology(newTopology);
-        refreshCacheSizes();
-    }
-
     private long cacheSize;
 
     synchronized void setCacheSize(long bytes)
@@ -127,5 +116,29 @@ public class AccordCommandStores extends CommandStores<AccordCommandStore>
     private static long maxCacheSize()
     {
         return 5 << 20; // TODO (required): make configurable
+    }
+
+    @Override
+    public synchronized Supplier<EpochReady> updateTopology(Node node, Topology newTopology)
+    {
+        Supplier<EpochReady> start = super.updateTopology(node, newTopology);
+        return () -> {
+            EpochReady ready = start.get();
+            ready.metadata.addCallback(() -> {
+                synchronized (this)
+                {
+                    refreshCacheSizes();
+                }
+            });
+            return ready;
+        };
+    }
+
+    @Override
+    public synchronized void shutdown()
+    {
+        super.shutdown();
+        journal.shutdown();
+        //TODO shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
     }
 }
