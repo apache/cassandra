@@ -392,17 +392,6 @@ public class FBUtilities
 
     public static File cassandraTriggerDir()
     {
-        File triggerDir = triggerDir();
-        if (triggerDir == null || !triggerDir.exists())
-        {
-            logger.warn("Trigger directory doesn't exist, please create it and try again.");
-            return null;
-        }
-        return triggerDir;
-    }
-
-    private static File triggerDir()
-    {
         File triggerDir = null;
         if (System.getProperty("cassandra.triggers_dir") != null)
         {
@@ -414,14 +403,12 @@ public class FBUtilities
             if (confDir != null)
                 triggerDir = new File(confDir.getFile());
         }
+        if (triggerDir == null || !triggerDir.exists())
+        {
+            logger.warn("Trigger directory doesn't exist, please create it and try again.");
+            return null;
+        }
         return triggerDir;
-    }
-
-    public static void maybeCreateTriggerDir()
-    {
-        File dir = triggerDir();
-        if (!dir.exists())
-            dir.tryCreateDirectories();
     }
 
     public static void setPreviousReleaseVersionString(String previousReleaseVersionString)

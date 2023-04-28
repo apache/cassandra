@@ -18,18 +18,14 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
-import java.nio.file.ClosedFileSystemException;
 import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -93,7 +89,6 @@ import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
-import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
@@ -150,7 +145,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     // include byteman so tests can use
     public static final Predicate<String> SHARED_PREDICATE = getSharedClassPredicate(ANY);
 
-    private final List<Runnable> onClose = new ArrayList<>();
     private final UUID clusterId = UUID.randomUUID();
     private final Path root;
     private final ClassLoader sharedClassLoader;
@@ -188,7 +182,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public static abstract class AbstractBuilder<I extends IInstance, C extends ICluster, B extends AbstractBuilder<I, C, B>>
         extends org.apache.cassandra.distributed.shared.AbstractBuilder<I, C, B>
     {
-        private final List<Runnable> onClose = new ArrayList<>();
         private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
         private ShutdownExecutor shutdownExecutor = DEFAULT_SHUTDOWN_EXECUTOR;
 
@@ -196,7 +189,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             // those properties may be set for unit-test optimizations; those should not be used when running dtests
             CassandraRelevantProperties.FLUSH_LOCAL_SCHEMA_CHANGES.reset();
             CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
-            CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
         }
 
         public AbstractBuilder(Factory<I, C, B> factory)
@@ -217,38 +209,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             return (B) this;
         }
 
-        private boolean rootDefined = false;
-        private enum FS { DISK, IN_MEMORY }
-        private FS fsType = FS.IN_MEMORY;
-
-        public B withInMemoryFileSystem()
-        {
-            fsType = FS.IN_MEMORY;
-            return (B) this;
-        }
-
-        public B withDiskFileSystem()
-        {
-            fsType = FS.DISK;
-            return (B) this;
-        }
-
-        @Override
-        public B withRoot(File root)
-        {
-            if (root != null)
-                rootDefined = true;
-            return super.withRoot(root);
-        }
-
-        @Override
-        public B withRoot(Path root)
-        {
-            if (root != null)
-                rootDefined = true;
-            return super.withRoot(root);
-        }
-
         @Override
         public C createWithoutStarting() throws IOException
         {
@@ -267,22 +227,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 Assume.assumeTrue("single-token is not supported", isSingleTokenAllowed());
                 // if token count == 1 and isVnode == false, then goodAbstractClusterTest
                 Assume.assumeTrue("vnode is requested but not supported", getTokenCount() == 1);
-            }
-
-            if (fsType == FS.IN_MEMORY && !rootDefined)
-            {
-                ListenableFileSystem fs = org.apache.cassandra.io.util.Files.newInMemoryFileSystem();
-                withRoot(fs.getPath("/cassandra"));
-                onClose.add(() -> {
-                    try
-                    {
-                        fs.close();
-                    }
-                    catch (UnsupportedOperationException | IOException | ClosedFileSystemException e)
-                    {
-                        // ignore
-                    }
-                });
             }
 
             return super.createWithoutStarting();
@@ -575,8 +519,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     protected AbstractCluster(AbstractBuilder<I, ? extends ICluster<I>, ?> builder)
     {
-        this.onClose.addAll(builder.onClose);
-        builder.onClose.clear();
         this.root = builder.getRootPath();
         this.sharedClassLoader = builder.getSharedClassLoader();
         this.sharedClassPredicate = builder.getSharedClasses();
@@ -629,20 +571,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         if (configUpdater != null)
         {
             configUpdater.accept(config);
-            if (root.getFileSystem() != FileSystems.getDefault())
-            {
-                FBUtilities.maybeCreateTriggerDir();
-                Map<String, Object> ops = (Map<String, Object>) config.get("server_encryption_options");
-                if (ops != null)
-                {
-                    String keystore = (String) ops.get("keystore");
-                    if (keystore != null)
-                        maybeCopyFromLocal(keystore, root.getFileSystem());
-                    String truststore = (String) ops.get("truststore");
-                    if (truststore != null)
-                        maybeCopyFromLocal(truststore, root.getFileSystem());
-                }
-            }
             int testTokenCount = config.getInt("num_tokens");
             if (defaultTokenCount != testTokenCount)
             {
@@ -1134,8 +1062,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         checkAndResetUncaughtExceptions();
         //checkForThreadLeaks();
         //withThreadLeakCheck(futures);
-        onClose.forEach(Runnable::run);
-        onClose.clear();
     }
 
     @Override
@@ -1232,8 +1158,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
             return shared.contains(s) ||
                    InstanceClassLoader.getDefaultLoadSharedFilter().test(s) ||
-                   s.startsWith("org.jboss.byteman") ||
-                   s.startsWith("org.apache.cassandra.io.filesystem");
+                   s.startsWith("org.jboss.byteman");
         };
     }
 
@@ -1405,24 +1330,6 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 throw new IllegalStateException("This version of Cassandra does not support multiple nodes with the same InetAddress: " + address + " vs " + prev);
         });
         return lookup;
-    }
-
-    private static void maybeCopyFromLocal(String path, FileSystem fs)
-    {
-        Path ks = FileSystems.getDefault().getPath(path);
-        Path to = fs.getPath(path);
-        if (!Files.exists(to))
-        {
-            try
-            {
-                Files.createDirectories(to.getParent());
-                Files.copy(ks, to);
-            }
-            catch (IOException e)
-            {
-                throw new UncheckedIOException(e);
-            }
-        }
     }
 
     // after upgrading a static function became an interface method, so need this class to mimic old behavior

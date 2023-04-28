@@ -271,7 +271,6 @@ public class SSTableIdGenerationTest extends TestBaseImpl
         Set<String> uuidOnlyBackupDirs;
         try (Cluster cluster = init(Cluster.build(1)
                                            .withDataDirCount(1)
-                                           .withDiskFileSystem()
                                            .withConfig(config -> config.with(Feature.NETWORK)
                                                                        .set("incremental_backups", true)
                                                                        .set("snapshot_before_compaction", false)
@@ -360,7 +359,6 @@ public class SSTableIdGenerationTest extends TestBaseImpl
 
         try (Cluster cluster = init(Cluster.build(1)
                                            .withDataDirCount(1)
-                                           .withDiskFileSystem()
                                            .withConfig(config -> config.with(Feature.NETWORK, Feature.NATIVE_PROTOCOL)
                                                                        .set("incremental_backups", true)
                                                                        .set("snapshot_before_compaction", false)

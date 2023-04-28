@@ -31,7 +31,6 @@ import org.junit.rules.ExpectedException;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -75,7 +74,6 @@ public class MigrationManagerTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        CQLTester.setUpClass();
         SchemaLoader.prepareServer();
         SchemaLoader.startGossiper();
         SchemaLoader.createKeyspace(KEYSPACE1,

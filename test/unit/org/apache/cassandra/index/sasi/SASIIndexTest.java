@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -142,7 +143,6 @@ public class SASIIndexTest
     static {
         System.setProperty("cassandra.config", "cassandra-murmur.yaml");
         PARTITIONER = Murmur3Partitioner.instance;
-        CQLTester.setUpClass();
     }
 
     private static final String KS_NAME = "sasi";
@@ -2080,7 +2080,7 @@ public class SASIIndexTest
         Util.flush(store);
 
         SSTable ssTable = store.getSSTables(SSTableSet.LIVE).iterator().next();
-        Path path = new File(ssTable.getFilename().replace("-Data", "-SI_" + CLUSTERING_CF_NAME_1 + "_age")).toPath();
+        Path path = FileSystems.getDefault().getPath(ssTable.getFilename().replace("-Data", "-SI_" + CLUSTERING_CF_NAME_1 + "_age"));
 
         // Overwrite index file with garbage
         try(FileChannel fc = FileChannel.open(path, StandardOpenOption.WRITE))
