@@ -34,6 +34,7 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -332,6 +333,8 @@ public class ListenableFileSystem extends ForwardingFileSystem
         @Override
         public File toFile()
         {
+            if (delegate().getFileSystem() == FileSystems.getDefault())
+                return delegate().toFile();
             throw new UnsupportedOperationException();
         }
     }
