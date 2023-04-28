@@ -127,7 +127,7 @@ public class DirectoriesTest
 
     private static final String MDCID = "test-DirectoriesTest-id";
     private static AtomicInteger diyThreadId = new AtomicInteger(1);
-    private int myDiyId=-1;
+    private int myDiyId = -1;
     private static Logger logger;
     private ListAppender<ILoggingEvent> listAppender;
 
