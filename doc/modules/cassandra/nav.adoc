@@ -17,18 +17,6 @@
 *** xref:architecture/messaging.adoc[Improved internode messaging]
 *** xref:architecture/streaming.adoc[Improved streaming]
 
-<<<<<<< HEAD
-** xref:developing:data_modeling/index.adoc[Data modeling]
-*** xref:developing:data_modeling/intro.adoc[Introduction]
-*** xref:developing:data_modeling/data_modeling_conceptual.adoc[Conceptual data modeling]
-*** xref:developing:data_modeling/data_modeling_rdbms.adoc[RDBMS design]
-*** xref:developing:data_modeling/data_modeling_queries.adoc[Defining application queries]
-*** xref:developing:data_modeling/data_modeling_logical.adoc[Logical data modeling]
-*** xref:developing:data_modeling/data_modeling_physical.adoc[Physical data modeling]
-*** xref:developing:data_modeling/data_modeling_refining.adoc[Evaluating and refining data models]
-*** xref:developing:data_modeling/data_modeling_schema.adoc[Defining database schema]
-*** xref:developing:data_modeling/data_modeling_tools.adoc[Cassandra data modeling tools]
-=======
 ** xref:developing:data-modeling/index.adoc[Data modeling]
 *** xref:developing:data-modeling/intro.adoc[Introduction]
 *** xref:developing:data-modeling/data-modeling_conceptual.adoc[Conceptual data modeling]
@@ -39,7 +27,6 @@
 *** xref:developing:data-modeling/data-modeling_refining.adoc[Evaluating and refining data models]
 *** xref:developing:data-modeling/data-modeling_schema.adoc[Defining database schema]
 *** xref:developing:data-modeling/data-modeling_tools.adoc[Cassandra data modeling tools]
->>>>>>> 8424affa8c (DOC -  Reorganizing doc directories using new info arch)
 
 ** xref:developing:cql/index.adoc[Cassandra Query Language (CQL)]
 *** xref:developing:cql/definitions.adoc[Definitions]
