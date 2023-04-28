@@ -196,6 +196,7 @@ public abstract class CQLTester
             Files.newGlobalInMemoryFileSystem();
             CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
             FBUtilities.maybeCreateTriggerDir();
+            Files.tmpDir();
         }
 
         checkProtocolVersion();
