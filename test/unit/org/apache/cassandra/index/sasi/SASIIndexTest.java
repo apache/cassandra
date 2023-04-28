@@ -143,6 +143,7 @@ public class SASIIndexTest
     static {
         System.setProperty("cassandra.config", "cassandra-murmur.yaml");
         PARTITIONER = Murmur3Partitioner.instance;
+        CQLTester.setUpClass();
     }
 
     private static final String KS_NAME = "sasi";
@@ -2080,7 +2081,7 @@ public class SASIIndexTest
         Util.flush(store);
 
         SSTable ssTable = store.getSSTables(SSTableSet.LIVE).iterator().next();
-        Path path = FileSystems.getDefault().getPath(ssTable.getFilename().replace("-Data", "-SI_" + CLUSTERING_CF_NAME_1 + "_age"));
+        Path path = new File(ssTable.getFilename().replace("-Data", "-SI_" + CLUSTERING_CF_NAME_1 + "_age")).toPath();
 
         // Overwrite index file with garbage
         try(FileChannel fc = FileChannel.open(path, StandardOpenOption.WRITE))

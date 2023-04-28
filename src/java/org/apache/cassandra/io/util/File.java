@@ -791,7 +791,7 @@ public class File implements Comparable<File>
     }
 
     @VisibleForTesting
-    static FileSystem unsafeGetFilesystem()
+    public static FileSystem unsafeGetFilesystem()
     {
         return filesystem;
     }

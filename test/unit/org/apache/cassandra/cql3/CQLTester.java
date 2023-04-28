@@ -26,6 +26,7 @@ import java.net.MalformedURLException;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.rmi.server.RMISocketFactory;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -147,7 +148,6 @@ public abstract class CQLTester
     protected static String jmxHost;
     protected static int jmxPort;
     protected static MBeanServerConnection jmxConnection;
-    private static FileSystem fileSystem;
 
     protected static final int nativePort;
     protected static final InetAddress nativeAddr;
@@ -191,9 +191,9 @@ public abstract class CQLTester
 
     static
     {
-        if (fileSystem == null)
+        if (File.unsafeGetFilesystem() == FileSystems.getDefault())
         {
-            fileSystem = Files.newGlobalInMemoryFileSystem();
+            Files.newGlobalInMemoryFileSystem();
             CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
             FBUtilities.maybeCreateTriggerDir();
         }
