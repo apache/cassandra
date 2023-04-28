@@ -631,6 +631,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             configUpdater.accept(config);
             if (root.getFileSystem() != FileSystems.getDefault())
             {
+                FBUtilities.maybeCreateTriggerDir();
                 Map<String, Object> ops = (Map<String, Object>) config.get("server_encryption_options");
                 if (ops != null)
                 {
