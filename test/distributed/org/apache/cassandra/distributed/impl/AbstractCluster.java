@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.impl;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -28,6 +29,7 @@ import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
 import java.nio.file.ClosedFileSystemException;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -627,6 +629,19 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         if (configUpdater != null)
         {
             configUpdater.accept(config);
+            if (root.getFileSystem() != FileSystems.getDefault())
+            {
+                Map<String, Object> ops = (Map<String, Object>) config.get("server_encryption_options");
+                if (ops != null)
+                {
+                    String keystore = (String) ops.get("keystore");
+                    if (keystore != null)
+                        maybeCopyFromLocal(keystore, root.getFileSystem());
+                    String truststore = (String) ops.get("truststore");
+                    if (truststore != null)
+                        maybeCopyFromLocal(truststore, root.getFileSystem());
+                }
+            }
             int testTokenCount = config.getInt("num_tokens");
             if (defaultTokenCount != testTokenCount)
             {
@@ -1389,6 +1404,24 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 throw new IllegalStateException("This version of Cassandra does not support multiple nodes with the same InetAddress: " + address + " vs " + prev);
         });
         return lookup;
+    }
+
+    private static void maybeCopyFromLocal(String path, FileSystem fs)
+    {
+        Path ks = FileSystems.getDefault().getPath(path);
+        Path to = fs.getPath(path);
+        if (!Files.exists(to))
+        {
+            try
+            {
+                Files.createDirectories(to.getParent());
+                Files.copy(ks, to);
+            }
+            catch (IOException e)
+            {
+                throw new UncheckedIOException(e);
+            }
+        }
     }
 
     // after upgrading a static function became an interface method, so need this class to mimic old behavior
