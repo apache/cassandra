@@ -31,11 +31,9 @@ public class Files
 {
     public static ListenableFileSystem newInMemoryFileSystem()
     {
-        ListenableFileSystem fs = new ListenableFileSystem(Jimfs.newFileSystem(Configuration.unix().toBuilder()
-                                                                                            .setMaxSize(4L << 30).setBlockSize(512)
-                                                                                            .build()));
-        File.unsafeSetFilesystem(fs);
-        return fs;
+        return new ListenableFileSystem(Jimfs.newFileSystem(Configuration.unix().toBuilder()
+                                                                         .setMaxSize(4L << 30).setBlockSize(512)
+                                                                         .build()));
     }
 
     public static File tmpDir()

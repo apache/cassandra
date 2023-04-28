@@ -26,6 +26,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.InetSocketAddress;
+import java.nio.file.ClosedFileSystemException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -90,6 +91,7 @@ import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
+import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
@@ -146,6 +148,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     // include byteman so tests can use
     public static final Predicate<String> SHARED_PREDICATE = getSharedClassPredicate(ANY);
 
+    private final List<Runnable> onClose = new ArrayList<>();
     private final UUID clusterId = UUID.randomUUID();
     private final Path root;
     private final ClassLoader sharedClassLoader;
@@ -183,6 +186,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public static abstract class AbstractBuilder<I extends IInstance, C extends ICluster, B extends AbstractBuilder<I, C, B>>
         extends org.apache.cassandra.distributed.shared.AbstractBuilder<I, C, B>
     {
+        private final List<Runnable> onClose = new ArrayList<>();
         private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
         private ShutdownExecutor shutdownExecutor = DEFAULT_SHUTDOWN_EXECUTOR;
 
@@ -212,6 +216,20 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         }
 
         private boolean rootDefined = false;
+        private enum FS { DISK, IN_MEMORY }
+        private FS fsType = FS.IN_MEMORY;
+
+        public B withInMemoryFileSystem()
+        {
+            fsType = FS.IN_MEMORY;
+            return (B) this;
+        }
+
+        public B withDiskFileSystem()
+        {
+            fsType = FS.DISK;
+            return (B) this;
+        }
 
         @Override
         public B withRoot(File root)
@@ -249,8 +267,21 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 Assume.assumeTrue("vnode is requested but not supported", getTokenCount() == 1);
             }
 
-            if (!rootDefined)
-                withRoot(org.apache.cassandra.io.util.Files.newInMemoryFileSystem().getPath("/cassandra"));
+            if (fsType == FS.IN_MEMORY && !rootDefined)
+            {
+                ListenableFileSystem fs = org.apache.cassandra.io.util.Files.newInMemoryFileSystem();
+                withRoot(fs.getPath("/cassandra"));
+                onClose.add(() -> {
+                    try
+                    {
+                        fs.close();
+                    }
+                    catch (UnsupportedOperationException | IOException | ClosedFileSystemException e)
+                    {
+                        // ignore
+                    }
+                });
+            }
 
             return super.createWithoutStarting();
         }
@@ -542,6 +573,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     protected AbstractCluster(AbstractBuilder<I, ? extends ICluster<I>, ?> builder)
     {
+        this.onClose.addAll(builder.onClose);
+        builder.onClose.clear();
         this.root = builder.getRootPath();
         this.sharedClassLoader = builder.getSharedClassLoader();
         this.sharedClassPredicate = builder.getSharedClasses();
@@ -1085,14 +1118,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         checkAndResetUncaughtExceptions();
         //checkForThreadLeaks();
         //withThreadLeakCheck(futures);
-        try
-        {
-            root.getFileSystem().close();
-        }
-        catch (UnsupportedOperationException | IOException e)
-        {
-            // ignore
-        }
+        onClose.forEach(Runnable::run);
+        onClose.clear();
     }
 
     @Override
