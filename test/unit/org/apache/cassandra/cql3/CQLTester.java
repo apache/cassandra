@@ -25,6 +25,7 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
+import java.nio.file.FileSystem;
 import java.rmi.server.RMISocketFactory;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -69,6 +70,7 @@ import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
@@ -76,6 +78,7 @@ import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.Files;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -144,6 +147,7 @@ public abstract class CQLTester
     protected static String jmxHost;
     protected static int jmxPort;
     protected static MBeanServerConnection jmxConnection;
+    private static FileSystem fileSystem;
 
     protected static final int nativePort;
     protected static final InetAddress nativeAddr;
@@ -187,6 +191,12 @@ public abstract class CQLTester
 
     static
     {
+        if (fileSystem == null)
+        {
+            fileSystem = Files.newGlobalInMemoryFileSystem();
+            CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
+        }
+
         checkProtocolVersion();
 
         nativeAddr = InetAddress.getLoopbackAddress();
