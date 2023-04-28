@@ -19,21 +19,45 @@
 package org.apache.cassandra.io.util;
 
 import java.io.IOException;
+import java.nio.file.FileSystem;
 import java.nio.file.attribute.FileAttribute;
 
 import com.google.common.base.StandardSystemProperty;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
+import org.apache.cassandra.io.filesystem.ForwardingFileSystem;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 
 public class Files
 {
     public static ListenableFileSystem newInMemoryFileSystem()
     {
-        return new ListenableFileSystem(Jimfs.newFileSystem(Configuration.unix().toBuilder()
-                                                                         .setMaxSize(4L << 30).setBlockSize(512)
-                                                                         .build()));
+        return new ListenableFileSystem(jimfs());
+    }
+
+    public static ListenableFileSystem newGlobalInMemoryFileSystem()
+    {
+        FileSystem real = jimfs();
+        FileSystem current = File.unsafeGetFilesystem();
+        ListenableFileSystem fs = new ListenableFileSystem(new ForwardingFileSystem(real)
+        {
+            @Override
+            public void close() throws IOException
+            {
+                super.close();
+                File.unsafeSetFilesystem(current);
+            }
+        });
+        File.unsafeSetFilesystem(fs);
+        return fs;
+    }
+
+    private static FileSystem jimfs()
+    {
+        return Jimfs.newFileSystem(Configuration.unix().toBuilder()
+                                                .setMaxSize(4L << 30).setBlockSize(512)
+                                                .build());
     }
 
     public static File tmpDir()

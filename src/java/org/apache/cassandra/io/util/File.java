@@ -790,6 +790,12 @@ public class File implements Comparable<File>
         return path;
     }
 
+    @VisibleForTesting
+    static FileSystem unsafeGetFilesystem()
+    {
+        return filesystem;
+    }
+
     public static void unsafeSetFilesystem(FileSystem fs)
     {
         filesystem = fs;
