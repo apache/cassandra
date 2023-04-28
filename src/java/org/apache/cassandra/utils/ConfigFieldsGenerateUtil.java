@@ -37,7 +37,7 @@ import org.apache.cassandra.config.Mutable;
 /**
  * This class is used to generate constants class of provided class.
  */
-public class ConstantFieldsGenerateUtil
+public class ConfigFieldsGenerateUtil
 {
     private static final Pattern COMPILE = Pattern.compile("\\.");
     private static final String CLASS_POSTFIX = "Fields";
@@ -82,7 +82,7 @@ public class ConstantFieldsGenerateUtil
         code.add("package " + clazz.getPackage().getName() + ';');
         code.add("");
         code.add("/**");
-        code.add(" * This class is created by {@link " + ConstantFieldsGenerateUtil.class.getName() + "} based on provided");
+        code.add(" * This class is created by {@link " + ConfigFieldsGenerateUtil.class.getName() + "} based on provided");
         code.add(" * the {@link " + clazz.getCanonicalName() + "} class. It contains non-private non-static {@code Cofig}'s fields");
         code.add(" * marked with the {@link " + Mutable.class.getCanonicalName() + "} annotation to expose them to public APIs.");
         code.add("");

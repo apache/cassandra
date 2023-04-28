@@ -22,10 +22,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import org.apache.cassandra.config.DataRateSpec;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
+
+import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 
 /**
  * A registry for {@link TypeConverter} instances.
@@ -40,14 +43,24 @@ public class TypeConverterRegistry
         registerConverters(converters);
     }
 
-    @SuppressWarnings("unchecked")
     public <V> TypeConverter<V> get(Class<?> from, Class<V> to)
     {
-        if (from.equals(to))
+        Class<?> fromShaded = primitiveToWrapper(from);
+        TypeConverter<V> converter = get(fromShaded, to, null);
+        if (converter == null)
+            throw new ConfigurationException(String.format("No converter found from '%s' to '%s'", fromShaded.getCanonicalName(), to.getCanonicalName()));
+        return converter;
+    }
+
+    @SuppressWarnings("unchecked")
+    public <V> TypeConverter<V> get(Class<?> from, Class<V> to, TypeConverter<V> defaultConverter)
+    {
+        Class<?> fromShaded = primitiveToWrapper(from);
+        if (fromShaded.equals(to))
             return (TypeConverter<V>) TypeConverter.IDENTITY;
-        if (converters.get(of(from, to)) == null)
-            throw new ConfigurationException(String.format("No converter found from %s to %s", from, to));
-        return (TypeConverter<V>) converters.get(of(from, to));
+        if (converters.get(key(fromShaded, to)) == null)
+            return defaultConverter;
+        return (TypeConverter<V>) converters.get(key(fromShaded, to));
     }
 
     private static void registerConverters(Map<ConverterKey, TypeConverter<?>> converters)
@@ -61,27 +74,28 @@ public class TypeConverterRegistry
         addForwardBackwardStringConverters(converters, Integer.class, s -> Integer.parseInt((String) s), i -> Integer.toString((Integer) i));
         addForwardBackwardStringConverters(converters, Long.class, s -> Long.parseLong((String) s), l -> Long.toString((Long) l));
         addForwardBackwardStringConverters(converters, String.class, s -> (String) s, s -> (String) s);
-        addForwardBackwardStringConverters(converters, DurationSpec.LongNanosecondsBound.class, s -> new DurationSpec.LongNanosecondsBound((String) s), TypeConverter.DEFAULT);
-        addForwardBackwardStringConverters(converters, DurationSpec.LongMillisecondsBound.class, s -> new DurationSpec.LongMillisecondsBound((String) s), TypeConverter.DEFAULT);
-        addForwardBackwardStringConverters(converters, DurationSpec.LongSecondsBound.class, s -> new DurationSpec.LongSecondsBound((String) s), TypeConverter.DEFAULT);
-        addForwardBackwardStringConverters(converters, DurationSpec.IntMinutesBound.class, s -> new DurationSpec.IntMinutesBound((String) s), TypeConverter.DEFAULT);
-        addForwardBackwardStringConverters(converters, DurationSpec.IntSecondsBound.class, s -> new DurationSpec.IntSecondsBound((String) s), TypeConverter.DEFAULT);
-        addForwardBackwardStringConverters(converters, DurationSpec.IntMillisecondsBound.class, s -> new DurationSpec.IntMillisecondsBound((String) s), TypeConverter.DEFAULT);
-        addForwardBackwardStringConverters(converters, DataStorageSpec.LongBytesBound.class, s -> new DataStorageSpec.LongBytesBound((String) s), TypeConverter.DEFAULT);
-        addForwardBackwardStringConverters(converters, DataStorageSpec.IntBytesBound.class, s -> new DataStorageSpec.IntBytesBound((String) s), TypeConverter.DEFAULT);
-        addForwardBackwardStringConverters(converters, DataStorageSpec.IntKibibytesBound.class, s -> new DataStorageSpec.IntKibibytesBound((String) s), TypeConverter.DEFAULT);
-        addForwardBackwardStringConverters(converters, DataStorageSpec.LongMebibytesBound.class, s -> new DataStorageSpec.LongMebibytesBound((String) s), TypeConverter.DEFAULT);
-        addForwardBackwardStringConverters(converters, DataStorageSpec.IntMebibytesBound.class, s -> new DataStorageSpec.IntMebibytesBound((String) s), TypeConverter.DEFAULT);
+        addForwardBackwardStringConverters(converters, DurationSpec.LongNanosecondsBound.class, s -> new DurationSpec.LongNanosecondsBound((String) s), TypeConverter.TO_STRING);
+        addForwardBackwardStringConverters(converters, DurationSpec.LongMillisecondsBound.class, s -> new DurationSpec.LongMillisecondsBound((String) s), TypeConverter.TO_STRING);
+        addForwardBackwardStringConverters(converters, DurationSpec.LongSecondsBound.class, s -> new DurationSpec.LongSecondsBound((String) s), TypeConverter.TO_STRING);
+        addForwardBackwardStringConverters(converters, DurationSpec.IntMinutesBound.class, s -> new DurationSpec.IntMinutesBound((String) s), TypeConverter.TO_STRING);
+        addForwardBackwardStringConverters(converters, DurationSpec.IntSecondsBound.class, s -> new DurationSpec.IntSecondsBound((String) s), TypeConverter.TO_STRING);
+        addForwardBackwardStringConverters(converters, DurationSpec.IntMillisecondsBound.class, s -> new DurationSpec.IntMillisecondsBound((String) s), TypeConverter.TO_STRING);
+        addForwardBackwardStringConverters(converters, DataStorageSpec.LongBytesBound.class, s -> new DataStorageSpec.LongBytesBound((String) s), TypeConverter.TO_STRING);
+        addForwardBackwardStringConverters(converters, DataStorageSpec.IntBytesBound.class, s -> new DataStorageSpec.IntBytesBound((String) s), TypeConverter.TO_STRING);
+        addForwardBackwardStringConverters(converters, DataStorageSpec.IntKibibytesBound.class, s -> new DataStorageSpec.IntKibibytesBound((String) s), TypeConverter.TO_STRING);
+        addForwardBackwardStringConverters(converters, DataStorageSpec.LongMebibytesBound.class, s -> new DataStorageSpec.LongMebibytesBound((String) s), TypeConverter.TO_STRING);
+        addForwardBackwardStringConverters(converters, DataStorageSpec.IntMebibytesBound.class, s -> new DataStorageSpec.IntMebibytesBound((String) s), TypeConverter.TO_STRING);
         addForwardBackwardStringConverters(converters, ConsistencyLevel.class, s -> ConsistencyLevel.fromStringIgnoreCase((String) s), c -> ((ConsistencyLevel) c).name());
+        addForwardBackwardStringConverters(converters, DataRateSpec.LongBytesPerSecondBound.class, s -> new DataRateSpec.LongBytesPerSecondBound((String) s), TypeConverter.TO_STRING);
     }
 
     private static <T> void addForwardBackwardStringConverters(Map<ConverterKey, TypeConverter<?>> converters, Class<T> type, TypeConverter<T> forward, TypeConverter<String> reverse)
     {
-        converters.put(of(type, String.class), forward);
-        converters.put(of(String.class, type), reverse);
+        converters.put(key(type, String.class), reverse);
+        converters.put(key(String.class, type), forward);
     }
 
-    private static ConverterKey of(Class<?> from, Class<?> to)
+    private static ConverterKey key(Class<?> from, Class<?> to)
     {
         return new ConverterKey(from, to);
     }

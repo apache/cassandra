@@ -24,11 +24,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
-import org.apache.commons.lang3.SerializationUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,7 +59,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
     private final Config source;
     private final Map<String, Property> properties;
     private final List<ConfigurationSourceListener> propertyChangeListeners = new ArrayList<>();
-    private final List<ConfigurationHandler> handlers = new ArrayList<>();
+    private final List<ConfigurationValidator> validators = new ArrayList<>();
 
     public DatabaseConfigurationSource(Config source)
     {
@@ -69,7 +71,8 @@ public class DatabaseConfigurationSource implements ConfigurationSource
                                          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
         typeConverterRegistry = TypeConverterRegistry.instance;
         // Initialize the configuration handlers.
-        addConfigurationHandler(DatabaseDescriptor::applySimpleConfig);
+        addConfigurationHandler(DatabaseDescriptor::validateUpperBoundStreamingConfig);
+        addConfigurationHandler(createLoggingValidator(DatabaseDescriptor::validateRepairSessionSpace));
     }
 
     @Override
@@ -82,21 +85,22 @@ public class DatabaseConfigurationSource implements ConfigurationSource
             Class<?> originalType = property.getType();
             // Do conversion if the value is not null and the type is not the same as the property type.
             Object convertedValue = ofNullable(value)
-                                            .map(Object::getClass)
-                                            .map(from -> typeConverterRegistry.get(from, primitiveToWrapper(originalType))
-                                                                              .convert(value))
-                                            .orElse(null);
-            // TODO: do validation first for converted new value
-            Config config = SerializationUtils.clone(source);
-            for (ConfigurationHandler handler : handlers)
-                handler.validate(config, new DatabaseDescriptor.DynamicDatabaseDescriptor(), logger);
+                                    .map(Object::getClass)
+                                    .map(from -> typeConverterRegistry.get(from, originalType)
+                                                                      .convert(value))
+                                    .orElse(null);
+            // Use given converted value if it is not null, otherwise use the default value.
+            ConfigurationSource validationSource = PropertyValidationSource.create(this, name, convertedValue);
+            for (ConfigurationValidator validator : validators)
+                validator.validate(validationSource);
             // Do set the value only if the validation passes.
+            Object validatedValue = validationSource.getRaw(name);
             Object oldValue = property.get(source);
-            propertyChangeListeners.forEach(l -> l.listen(name, ConfigurationSourceListener.EventType.BEFORE_CHANGE, oldValue, convertedValue));
-            property.set(source, convertedValue);
-            propertyChangeListeners.forEach(l -> l.listen(name, ConfigurationSourceListener.EventType.AFTER_CHANGE, oldValue, convertedValue));
+            propertyChangeListeners.forEach(l -> l.listen(name, ConfigurationSourceListener.EventType.BEFORE_CHANGE, oldValue, validatedValue));
+            property.set(source, validatedValue);
+            propertyChangeListeners.forEach(l -> l.listen(name, ConfigurationSourceListener.EventType.AFTER_CHANGE, oldValue, validatedValue));
             // This potentially may expose the values that are not safe to see in logs on production.
-            logger.info("Property '{}' updated from '{}' to '{}'.", property.getName(), oldValue, convertedValue);
+            logger.info("Property '{}' updated from '{}' to '{}'.", property.getName(), oldValue, validatedValue);
         }
         catch (ConfigurationException e)
         {
@@ -127,7 +131,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
     @Override
     public Class<?> type(String name)
     {
-        return ofNullable(properties.get(name)).orElseThrow(() -> notFound(name)).getType();
+        return ofNullable(properties.get(name)).map(f -> primitiveToWrapper(f.getType())).orElseThrow(() -> notFound(name));
     }
 
     @Override
@@ -151,11 +155,20 @@ public class DatabaseConfigurationSource implements ConfigurationSource
      * @param name the property name to get.
      * @return The value of the property with the given name.
      */
+    @SuppressWarnings("unchecked")
     public <T> T get(Class<T> cls, String name)
     {
-        Object value = getRaw(name);
-        return value == null ? null : typeConverterRegistry.get(primitiveToWrapper(properties.get(name).getType()), cls)
-                                                           .convert(value);
+        try
+        {
+            Object value = getRaw(name);
+            return cls.equals(String.class) ?
+                   typeConverterRegistry.get(properties.get(name).getType(), cls, (TypeConverter<T>) TypeConverter.TO_STRING).convertNullable(value) :
+                   typeConverterRegistry.get(properties.get(name).getType(), cls).convertNullable(value);
+        }
+        catch (ClassCastException e)
+        {
+            throw new ConfigurationException(String.format("Invalid value for configuration property '%s'.", name), e);
+        }
     }
 
     @Override
@@ -174,13 +187,81 @@ public class DatabaseConfigurationSource implements ConfigurationSource
         propertyChangeListeners.add(listener);
     }
 
-    public final void addConfigurationHandler(ConfigurationHandler handler)
+    private void addConfigurationHandler(ConfigurationValidator handler)
     {
-        this.handlers.add(handler);
+        this.validators.add(handler);
+    }
+
+    private static ConfigurationValidator createLoggingValidator(BiConsumer<ConfigurationSource, Logger> validator)
+    {
+        return source -> validator.accept(source, logger);
     }
 
     private static PropertyNotFoundException notFound(String name)
     {
         return new PropertyNotFoundException(String.format("Property with name '%s' is not availabe.", name));
+    }
+
+    /**
+     * This is a special configuration source that is used to validate the property value before it is set.
+     */
+    private static class PropertyValidationSource implements ConfigurationSource
+    {
+        private final ConfigurationSource delegate;
+        private final String key;
+        private @Nullable Object newValue;
+
+        private PropertyValidationSource(ConfigurationSource delegate, String key, Object newValue)
+        {
+            this.delegate = delegate;
+            this.key = key;
+            this.newValue = newValue;
+        }
+
+        private static ConfigurationSource create(ConfigurationSource source, String key, Object newValue)
+        {
+            return new PropertyValidationSource(source, key, newValue);
+        }
+
+        @Override
+        public <T> void set(String name, T value)
+        {
+            if (!name.equals(this.key))
+                throw new UnsupportedOperationException("Configuration source is read-only: " + name);
+
+            if (value == null)
+                newValue = null;
+            else if (value.getClass().equals(delegate.type(name)))
+                newValue = value;
+            else
+                throw new ConfigurationException(String.format("The value type '%s' doesn't match property's '%s' type '%s'.",
+                                                               value.getClass().getCanonicalName(), name, delegate.type(name).getCanonicalName()));
+        }
+
+        @Override
+        public Class<?> type(String name)
+        {
+            return delegate.type(name);
+        }
+
+        @Override
+        public Object getRaw(String name)
+        {
+            return name.equals(this.key) ? newValue : delegate.getRaw(name);
+        }
+
+        @Override
+        public <T> T get(Class<T> clazz, String name)
+        {
+            // Cast is safe because the value is converted prior to this call.
+            return name.equals(this.key) ? clazz.cast(newValue) : delegate.get(clazz, name);
+        }
+
+        @Override
+        public Iterator<Pair<String, Object>> iterator()
+        {
+            // Configuration source iterator is not used for validation and forbidden to use.
+            throw new UnsupportedOperationException();
+        }
     }
 }

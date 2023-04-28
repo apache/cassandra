@@ -35,10 +35,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Replacement;
 import org.apache.cassandra.config.Replacements;
 import org.apache.cassandra.config.registry.ConfigurationSource;
+import org.apache.cassandra.config.registry.TypeConverter;
+import org.apache.cassandra.config.registry.TypeConverterRegistry;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.PropertyNotFoundException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.utils.Pair;
@@ -55,7 +58,7 @@ final class SettingsTable extends AbstractMutableVirtualTable
 
     SettingsTable(String keyspace)
     {
-        this(keyspace, DatabaseDescriptor.getConfigRegistry());
+        this(keyspace, DatabaseDescriptor.configSource());
     }
 
     SettingsTable(String keyspace, ConfigurationSource configSource)
@@ -95,8 +98,11 @@ final class SettingsTable extends AbstractMutableVirtualTable
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
             ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + '\'');
 
-        runExceptionally(() -> result.row(name).column(VALUE, configSource.getString(name)),
-                         e -> invalidRequest("Invalid configuration request during searching by key; cause: '%s'", e.getMessage()));
+        if (propertyExists(configSource, name))
+        {
+            runExceptionally(() -> result.row(name).column(VALUE, configSource.getString(name)),
+                             e -> invalidRequest("Invalid configuration request during searching by key '%s'; cause: '%s'", name, e.getMessage()));
+        }
         return result;
     }
 
@@ -105,9 +111,8 @@ final class SettingsTable extends AbstractMutableVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
         Iterators.transform(configSource.iterator(), Pair::left)
-                 .forEachRemaining(name ->
-                                   runExceptionally(() -> result.row(name).column(VALUE, configSource.getString(name)),
-                                                    e -> invalidRequest("Invalid configuration request; cause: '%s'", e.getMessage())));
+                 .forEachRemaining(name -> runExceptionally(() -> result.row(name).column(VALUE, configSource.getString(name)),
+                                                            e -> invalidRequest("Invalid configuration request with key '%s'; cause: '%s'", name, e.getMessage())));
         return result;
     }
 
@@ -124,18 +129,31 @@ final class SettingsTable extends AbstractMutableVirtualTable
         assert replacements != null;
         for (Replacement r : replacements.values())
         {
-            source.getString(r.newName); // throws if not found
+            if (!propertyExists(source, r.newName))
+                throw new AssertionError("Unable to find replacement new name: " + r.newName);
         }
         for (Map.Entry<String, String> e : BACKWARDS_COMPATABLE_NAMES.entrySet())
         {
             String oldName = e.getKey();
             String newName = e.getValue();
-            source.getRaw(oldName); // throws if not found
-//            if (source.contains(oldName))
-//                throw new AssertionError("Name " + oldName + " is present in Config, this adds a conflict as this name had a different meaning in " + SettingsTable.class.getSimpleName());
+            if (propertyExists(source, oldName))
+                throw new AssertionError("Name " + oldName + " is present in Config, this adds a conflict as this name had a different meaning in " + SettingsTable.class.getSimpleName());
             replacements.put(oldName, new Replacement(Config.class, oldName, source.type(newName), newName, Converters.IDENTITY, true));
         }
         return replacements;
+    }
+
+    private static boolean propertyExists(ConfigurationSource source, String name)
+    {
+        try
+        {
+            source.getRaw(name);
+            return true;
+        }
+        catch (PropertyNotFoundException e)
+        {
+            return false;
+        }
     }
 
     /**
@@ -231,17 +249,27 @@ final class SettingsTable extends AbstractMutableVirtualTable
                     replacement.converter.unconvert(configSource.getRaw(replacement.newName));
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         public <T> T get(Class<T> cls, String name)
         {
             Replacement replacement = replacements.get(name);
-            return replacement == null ? configSource.get(cls, name) : cls.cast(getRaw(name));
+            if (replacement == null)
+                return configSource.get(cls, name);
+
+            Object value = getRaw(name);
+            if (value == null)
+                return null;
+
+            return cls.equals(String.class) ?
+                   TypeConverterRegistry.instance.get(value.getClass(), cls, (TypeConverter<T>) TypeConverter.TO_STRING).convert(value) :
+                   TypeConverterRegistry.instance.get(value.getClass(), cls).convert(value);
         }
 
         @Override
         public Iterator<Pair<String, Object>> iterator()
         {
-           return Iterators.transform(uniquePropertyKeys.iterator(), key -> Pair.create(key, get(Object.class, key)));
+           return Iterators.transform(uniquePropertyKeys.iterator(), key -> Pair.create(key, getRaw(key)));
         }
     }
 }

@@ -18,23 +18,16 @@
 
 package org.apache.cassandra.config.registry;
 
-import org.slf4j.Logger;
-
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-
 /**
  * Interface validating configuration property's value.
  */
-public interface ConfigurationHandler
+public interface ConfigurationValidator
 {
     /**
      * Called before a property change occurrs. If this method throws an exception, the change
      * will be aborted. If it returns normally, the change will proceed with a returned value.
      *
-     * @param config the current configuration.
-     * @param descriptor the descriptor of the property to be changed.
-     * @param logger the logger to use for logging.
+     * @param source the source of the change.
      */
-    void validate(Config config, DatabaseDescriptor.DynamicDatabaseDescriptor descriptor, Logger logger);
+    void validate(ConfigurationSource source);
 }

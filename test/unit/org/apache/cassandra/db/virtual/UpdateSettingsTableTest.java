@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.config.ConfigFields;
+import org.apache.cassandra.config.DataRateSpec;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
@@ -67,7 +68,6 @@ public class UpdateSettingsTableTest extends CQLTester
     {
         // Creating a new instence will avoid calling listeners registered in the registry.
         tableSource = new DatabaseConfigurationSource(DatabaseDescriptor.getRawConfig());
-//        DatabaseDescriptor.applyConfigurationRegistryConstraints(registry);
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(new SettingsTable(KS_NAME, tableSource))));
         Streams.stream(tableSource.iterator())
                .map(Pair::left)
@@ -86,10 +86,14 @@ public class UpdateSettingsTableTest extends CQLTester
     @Test
     public void testUpdateWithNull() throws Throwable
     {
-        // Settings table called as apply column deletion. So, we need to test that we can delete a value.
-//        assertNotNull(registry.get(registry.type(ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD), ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD));
-//        updateConfigurationProperty(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
-//                                     ConfigFields.COORDINATOR_READ_SIZE_WARN_THRESHOLD, null);
+        String expectedValue = new DataStorageSpec.IntMebibytesBound(DatabaseDescriptor.MAX_MEMORY_UPPER_BOUND_MB).toString();
+        assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
+                                 null, ConfigFields.REPAIR_SESSION_SPACE));
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.REPAIR_SESSION_SPACE),
+                      new Object[]{ ConfigFields.REPAIR_SESSION_SPACE, expectedValue });
+        String sessionSpace = tableSource.getString(ConfigFields.REPAIR_SESSION_SPACE);
+        assertNotNull(sessionSpace);
+        assertEquals(expectedValue, sessionSpace);
     }
 
     @Test
@@ -99,14 +103,16 @@ public class UpdateSettingsTableTest extends CQLTester
         try
         {
             updateConfigurationProperty(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
-                                        ConfigFields.PHI_CONVICT_THRESHOLD, 4.0);
+                                        ConfigFields.STREAM_THROUGHPUT_OUTBOUND, Integer.MAX_VALUE + 1L);
         }
         catch (InvalidQueryException ex)
         {
             e = ex;
         }
         assertNotNull(e);
-        assertEquals("Invalid update request; cause: 'Error updating property 'phi_convict_threshold'; cause: phi_convict_threshold must be between 5 and 16, but was 4.0'", e.getMessage());
+        assertEquals("Invalid update request; cause: 'Error updating property 'stream_throughput_outbound'; " +
+                     "cause: Invalid data rate: 2147483648 Accepted units: MiB/s, KiB/s, B/s where case matters and " +
+                     "only non-negative values are valid'", e.getMessage());
     }
 
     @Test
@@ -129,9 +135,9 @@ public class UpdateSettingsTableTest extends CQLTester
 
     private void updateConfigurationProperty(String statement, String propertyName, @Nullable Object value) throws Throwable
     {
-        assertRowsNet(executeNet(statement, TypeConverter.DEFAULT.convertNullable(value), propertyName));
+        assertRowsNet(executeNet(statement, TypeConverter.TO_STRING.convertNullable(value), propertyName));
         assertEquals(value, tableSource.get(tableSource.type(propertyName), propertyName));
-        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, TypeConverter.DEFAULT.convertNullable((value)) });
+        assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), propertyName), new Object[]{ propertyName, TypeConverter.TO_STRING.convertNullable((value)) });
     }
 
     private static Object getNextValue(Object[] values, Object currentValue)
@@ -143,7 +149,6 @@ public class UpdateSettingsTableTest extends CQLTester
         {
             if (values[i].toString().equals(currentValue.toString()))
                 continue;
-
             return values[i];
         }
         fail("No next value found for " + currentValue);
@@ -173,6 +178,7 @@ public class UpdateSettingsTableTest extends CQLTester
                            .put(DataStorageSpec.IntKibibytesBound.class, new Object[]{ new DataStorageSpec.IntKibibytesBound("100KiB"), new DataStorageSpec.IntKibibytesBound("200KiB") })
                            .put(DataStorageSpec.LongMebibytesBound.class, new Object[]{ new DataStorageSpec.LongMebibytesBound("100MiB"), new DataStorageSpec.LongMebibytesBound("200MiB") })
                            .put(DataStorageSpec.IntMebibytesBound.class, new Object[]{ new DataStorageSpec.IntMebibytesBound("100MiB"), new DataStorageSpec.IntMebibytesBound("200MiB") })
+                           .put(DataRateSpec.LongBytesPerSecondBound.class, new Object[]{ new DataRateSpec.LongBytesPerSecondBound("63MiB/s"), new DataRateSpec.LongBytesPerSecondBound("62MiB/s") })
                            .put(ConsistencyLevel.class, new Object[]{ ConsistencyLevel.ONE, ConsistencyLevel.TWO })
                            .build();
     }

@@ -30,7 +30,7 @@ import javax.annotation.Nullable;
 public interface TypeConverter<T>
 {
     TypeConverter<?> IDENTITY = value -> value;
-    TypeConverter<String> DEFAULT = Object::toString;
+    TypeConverter<String> TO_STRING = Object::toString;
 
     /**
      * Converts a value to the target type.
