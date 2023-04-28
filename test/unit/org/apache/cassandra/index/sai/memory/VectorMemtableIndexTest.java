@@ -168,7 +168,7 @@ public class VectorMemtableIndexTest extends SAITester
         for (int i = 0; i < dimensionCount; i++) {
             rawVector[i] = getRandom().nextFloat();
         }
-        return VectorType.Serializer.instance.serialize(rawVector);
+        return VectorType.getInstance(dimensionCount).getSerializer().serialize(rawVector);
     }
 
     private AbstractBounds<PartitionPosition> generateRandomBounds(List<DecoratedKey> keys)

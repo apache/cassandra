@@ -206,6 +206,9 @@ public class Expression
 
     public boolean isSatisfiedBy(ByteBuffer columnValue)
     {
+        if (validator.isVector())
+            return true;
+
         if (!TypeUtil.isValid(columnValue, validator))
         {
             logger.error(context.logMessage("Value is not valid for indexed column {} with {}"), context.getColumnName(), validator);

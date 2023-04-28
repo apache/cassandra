@@ -186,6 +186,9 @@ public abstract class Operation
             if (receiver.type.isUDT())
                 return new UserTypes.Setter(receiver, v);
 
+            if (receiver.type.isVector())
+                return new Vectors.Setter(receiver, v);
+
             return new Constants.Setter(receiver, v);
         }
 

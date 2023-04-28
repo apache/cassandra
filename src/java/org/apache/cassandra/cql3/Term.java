@@ -61,11 +61,6 @@ public interface Term
      */
     public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException;
 
-    default ByteBuffer bindAndGetVector(QueryOptions options) throws InvalidRequestException
-    {
-        throw new InvalidRequestException("Invalid");
-    }
-
     /**
      * Whether or not that term contains at least one bind marker.
      *

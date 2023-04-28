@@ -434,8 +434,7 @@ public abstract class Constants
 
         public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
         {
-            ByteBuffer value = column.type instanceof VectorType ? t.bindAndGetVector(params.options)
-                                                                 : t.bindAndGet(params.options);
+            ByteBuffer value = t.bindAndGet(params.options);
             if (value == null)
                 params.addTombstone(column);
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER) // use reference equality and not object equality

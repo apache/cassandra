@@ -523,7 +523,16 @@ public interface CQL3Type
         @Override
         public String toCQLLiteral(ByteBuffer bytes, ProtocolVersion version)
         {
-            return "float vector[" + dimensions + ']';
+            if (bytes == null)
+                return "null";
+
+            StringBuilder target = new StringBuilder();
+
+            target.append('[');
+            target.append(getType().getSerializer().toCQLLiteral(bytes));
+            target.append(']');
+
+            return target.toString();
         }
 
         @Override

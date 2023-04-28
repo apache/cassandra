@@ -130,7 +130,7 @@ public class VectorIndexWriter implements PerIndexWriter
         ByteBuffer value = indexContext.getValueOf(key.partitionKey(), row, nowInSec);
         if (value != null)
         {
-            float[] vector = VectorType.Serializer.instance.deserialize(value.duplicate());
+            float[] vector = (float[])indexContext.getValidator().getSerializer().deserialize(value.duplicate());
             try
             {
                 // we should not have more than 2.1B rows in memtable

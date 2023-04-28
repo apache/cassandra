@@ -186,7 +186,7 @@ public abstract class Lists
 
                 values.add(t);
             }
-            DelayedValue value = new DelayedValue(values);
+            Term.NonTerminal value = receiver.type.isVector() ? new Vectors.DelayedValue(values) : new DelayedValue(values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 

@@ -111,7 +111,7 @@ public class VectorIndexSearcher extends IndexSearcher
         String field = indexContext.getIndexName();
 
         ByteBuffer buffer = exp.lower.value.raw;
-        float[] queryVector = VectorType.Serializer.instance.deserialize(buffer.duplicate());
+        float[] queryVector = (float[])indexContext.getValidator().getSerializer().deserialize(buffer.duplicate());
 
         Bits bits = null; // TODO filter partitions inside ANN search
         TopDocs docs = reader.search(field, queryVector, limit, bits, Integer.MAX_VALUE);

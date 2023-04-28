@@ -108,7 +108,7 @@ public class VectorMemtableIndex implements MemtableIndex
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
         var buffer = expr.lower.value.raw;
-        var qv = VectorType.Serializer.instance.deserialize(buffer);
+        float[] qv = (float[])indexContext.getValidator().getSerializer().deserialize(buffer);
         NeighborQueue nn;
         try
         {
@@ -238,7 +238,7 @@ public class VectorMemtableIndex implements MemtableIndex
         @Override
         public float[] vectorValue(int i)
         {
-            return VectorType.Serializer.instance.deserialize(buffers.get(i));
+            return (float[])indexContext.getValidator().getSerializer().deserialize(buffers.get(i));
         }
 
         public float[] add(ByteBuffer buffer) {
@@ -254,7 +254,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
         public long ramBytesUsed()
         {
-            return ObjectSizes.measure(buffers) + buffers.size() * (4 + 4L * dimension());
+            return ObjectSizes.measure(buffers) + buffers.size() * (4L * dimension());
         }
     }
 }

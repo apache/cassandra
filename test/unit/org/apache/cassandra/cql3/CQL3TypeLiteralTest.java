@@ -60,6 +60,7 @@ import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.serializers.AsciiSerializer;
 import org.apache.cassandra.serializers.BytesSerializer;
 import org.apache.cassandra.serializers.CollectionSerializer;
@@ -302,19 +303,6 @@ public class CQL3TypeLiteralTest
         }
         addNativeValue("null", CQL3Type.Native.INET, ByteBufferUtil.EMPTY_BYTE_BUFFER);
         addNativeValue("null", CQL3Type.Native.INET, null);
-
-//        for (int i = 0; i < 20; i++)
-//        {
-//            int n = randInt(200);
-//            var v = new float[n];
-//            for (int j = 0; j < n; j++)
-//                v[j] = randFloat();
-//            addNativeValue(DenseFloat32Type.Serializer.instance.toString(v),
-//                           CQL3Type.Native.DENSE_F32,
-//                           DenseFloat32Type.Serializer.instance.serialize(v));
-//        }
-//        addNativeValue("null", CQL3Type.Native.DENSE_F32, ByteBufferUtil.EMPTY_BYTE_BUFFER);
-//        addNativeValue("null", CQL3Type.Native.DENSE_F32, null);
     }
 
     @Test
