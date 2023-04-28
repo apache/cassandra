@@ -20,9 +20,7 @@ package org.apache.cassandra.io.util;
 
 import java.io.IOException;
 import java.nio.file.FileSystem;
-import java.nio.file.attribute.FileAttribute;
 
-import com.google.common.base.StandardSystemProperty;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
@@ -38,7 +36,16 @@ public class Files
 
     public static ListenableFileSystem newGlobalInMemoryFileSystem()
     {
-        FileSystem real = jimfs();
+        return global(jimfs());
+    }
+
+    public static ListenableFileSystem global()
+    {
+        return global(File.unsafeGetFilesystem());
+    }
+
+    public static ListenableFileSystem global(FileSystem real)
+    {
         FileSystem current = File.unsafeGetFilesystem();
         ListenableFileSystem fs = new ListenableFileSystem(new ForwardingFileSystem(real)
         {
@@ -61,22 +68,18 @@ public class Files
 
     public static FileSystem jimfs()
     {
-        return Jimfs.newFileSystem(Configuration.unix().toBuilder()
-                                                .setMaxSize(4L << 30).setBlockSize(512)
-                                                .build());
+        return Jimfs.newFileSystem(jimfsConfig());
     }
 
-    public static File tmpDir()
+    public static FileSystem jimfs(String name)
     {
-        File dir = new File(StandardSystemProperty.JAVA_IO_TMPDIR.value());
-        if (!dir.exists())
-            dir.tryCreateDirectories();
-        return dir;
+        return Jimfs.newFileSystem(name, jimfsConfig());
     }
 
-    public static File createTempDirectory(String prefix,
-                                           FileAttribute<?>... attrs) throws IOException
+    private static Configuration jimfsConfig()
     {
-        return new File(java.nio.file.Files.createTempDirectory(tmpDir().toPath(), prefix, attrs));
+        return Configuration.unix().toBuilder()
+                            .setMaxSize(4L << 30).setBlockSize(512)
+                            .build();
     }
 }
