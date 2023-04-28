@@ -45,8 +45,14 @@ public class Files
             @Override
             public void close() throws IOException
             {
-                super.close();
-                File.unsafeSetFilesystem(current);
+                try
+                {
+                    super.close();
+                }
+                finally
+                {
+                    File.unsafeSetFilesystem(current);
+                }
             }
         });
         File.unsafeSetFilesystem(fs);
