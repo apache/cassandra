@@ -341,7 +341,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     private class ListenableFileChannel extends ForwardingFileChannel
     {
-        private final AtomicReference<Mapped> current = new AtomicReference<>();
+        private final AtomicReference<Mapped> mutable = new AtomicReference<>();
         private final Path path;
 
         ListenableFileChannel(Path path, FileChannel delegate)
@@ -441,8 +441,8 @@ public class ListenableFileSystem extends ForwardingFileSystem
             // this behavior isn't 100% correct... if you mix access with FileChanel and ByteBuffer you will get different
             // results than with a real mmap solution... This limitation is due to ByteBuffer being private, so not able
             // to create custom BBs to mimc this access...
-            if (current.get() != null)
-                throw new UnsupportedOperationException("map called twice");
+            if (mode == MapMode.READ_WRITE && mutable.get() != null)
+                throw new UnsupportedOperationException("map called twice with mode READ_WRITE; first was " + mutable.get() + ", now " + new Mapped(mode, null, position, Math.toIntExact(size)));
 
             int isize = Math.toIntExact(size);
             MappedByteBuffer bb = (MappedByteBuffer) ByteBuffer.allocateDirect(isize);
@@ -464,6 +464,9 @@ public class ListenableFileSystem extends ForwardingFileSystem
                     ByteBufferUtil.readFully(this, mapped.bb, position);
                     mapped.bb.flip();
                 }
+                // with real files the FD gets copied so the close of the channel does not block the BB mutation
+                // from flushing...  its possible to support this use case, but kept things simplier for now by
+                // failing if the backing channel was closed.
                 Runnable forcer = () -> {
                     ByteBuffer local = bb.duplicate();
                     local.position(0);
@@ -484,14 +487,21 @@ public class ListenableFileSystem extends ForwardingFileSystem
                     }
                 };
                 MemoryUtil.setAttachment(bb, forcer);
+                if (!mutable.compareAndSet(null, mapped))
+                    throw new UnsupportedOperationException("map called twice");
             }
             else
             {
                 throw new UnsupportedOperationException("Unsupported mode: " + mode);
             }
-            if (!current.compareAndSet(null, mapped))
-                throw new UnsupportedOperationException("map called twice");
             return mapped.bb;
+        }
+
+        @Override
+        protected void implCloseChannel() throws IOException
+        {
+            super.implCloseChannel();
+            mutable.set(null);
         }
     }
 
@@ -508,6 +518,16 @@ public class ListenableFileSystem extends ForwardingFileSystem
             this.bb = bb;
             this.position = position;
             this.size = size;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Mapped{" +
+                   "mode=" + mode +
+                   ", position=" + position +
+                   ", size=" + size +
+                   '}';
         }
     }
 }
