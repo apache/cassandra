@@ -21,6 +21,7 @@ package org.apache.cassandra.io.util;
 import java.io.IOException;
 import java.nio.file.FileSystem;
 
+import com.google.common.base.StandardSystemProperty;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
@@ -81,5 +82,13 @@ public class Files
         return Configuration.unix().toBuilder()
                             .setMaxSize(4L << 30).setBlockSize(512)
                             .build();
+    }
+
+    public static File maybeCreateTmp()
+    {
+        File dir = new File(StandardSystemProperty.JAVA_IO_TMPDIR.value());
+        if (!dir.exists())
+            dir.tryCreateDirectories();
+        return dir;
     }
 }

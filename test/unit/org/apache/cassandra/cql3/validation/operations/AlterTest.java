@@ -48,7 +48,7 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class AlterTest extends CQLTester
+public class AlterTest extends CQLTester.InMemory
 {
     @Test
     public void testAddList() throws Throwable

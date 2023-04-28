@@ -69,13 +69,16 @@ import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.Files;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -191,8 +194,6 @@ public abstract class CQLTester
 
         nativeAddr = InetAddress.getLoopbackAddress();
         nativePort = getAutomaticallyAllocatedPort(nativeAddr);
-
-        ServerTestUtils.daemonInitialization();
     }
 
     private List<String> keyspaces = new ArrayList<>();
@@ -318,6 +319,8 @@ public abstract class CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        ServerTestUtils.daemonInitialization();
+
         if (ROW_CACHE_SIZE_IN_MIB > 0)
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
@@ -2440,6 +2443,20 @@ public abstract class CQLTester
 
             return Objects.equal(username, u.username)
                 && Objects.equal(password, u.password);
+        }
+    }
+
+    public static abstract class InMemory extends CQLTester
+    {
+        protected static ListenableFileSystem fs = null;
+        @BeforeClass
+        public static void setUpClass()
+        {
+            fs = Files.newGlobalInMemoryFileSystem();
+            CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
+            Files.maybeCreateTmp();
+
+            CQLTester.setUpClass();
         }
     }
 }
