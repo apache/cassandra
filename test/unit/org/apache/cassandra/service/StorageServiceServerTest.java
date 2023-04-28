@@ -641,6 +641,28 @@ public class StorageServiceServerTest
         assertEquals("127.0.0.3:666", StorageService.instance.getNativeaddress(internalAddress, true));
     }
 
+    /**
+     * Test that StorageService.getNativeAddressSSL returns the correct value based on available yaml and gossip state
+     * @throws Exception
+     */
+    @Test
+    public void testGetNativeAddressSSL() throws Exception
+    {
+        String internalAddressString = "127.0.0.2:6661";
+        InetAddressAndPort internalAddress = InetAddressAndPort.getByName(internalAddressString);
+        Gossiper.instance.addSavedEndpoint(internalAddress);
+        //Default to using the provided address with the configured port
+        assertEquals("127.0.0.2:" + DatabaseDescriptor.getNativeTransportPortSSL(), StorageService.instance.getNativeAddressSSL(internalAddress, true));
+
+        VersionedValue.VersionedValueFactory valueFactory =  new VersionedValue.VersionedValueFactory(Murmur3Partitioner.instance);
+        //If we don't have the port use the gossip address, but with the configured port
+        Gossiper.instance.getEndpointStateForEndpoint(internalAddress).addApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(InetAddress.getByName("127.0.0.3")));
+        assertEquals("127.0.0.3:" + DatabaseDescriptor.getNativeTransportPortSSL(), StorageService.instance.getNativeAddressSSL(internalAddress, true));
+        //If we have the address and port in gossip use that
+        Gossiper.instance.getEndpointStateForEndpoint(internalAddress).addApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT_SSL, valueFactory.nativeaddressAndPort(InetAddressAndPort.getByName("127.0.0.3:6661")));
+        assertEquals("127.0.0.3:6661", StorageService.instance.getNativeAddressSSL(internalAddress, true));
+    }
+
     @Test
     public void testGetNativeAddressIPV6() throws Exception
     {

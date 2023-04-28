@@ -95,6 +95,7 @@ public class FBUtilities
     private static volatile InetAddress broadcastInetAddress;
     private static volatile InetAddress broadcastNativeAddress;
     private static volatile InetAddressAndPort broadcastNativeAddressAndPort;
+    private static volatile InetAddressAndPort broadcastNativeAddressAndPortSsl;
     private static volatile InetAddressAndPort broadcastInetAddressAndPort;
     private static volatile InetAddressAndPort localInetAddressAndPort;
 
@@ -250,7 +251,7 @@ public class FBUtilities
     public static InetAddressAndPort getBroadcastNativeAddressAndPort()
     {
         if (broadcastNativeAddressAndPort == null)
-            if(DatabaseDescriptor.getRawConfig() == null)
+            if (DatabaseDescriptor.getRawConfig() == null)
             {
                 broadcastNativeAddressAndPort = InetAddressAndPort.getByAddress(getJustBroadcastNativeAddress());
             }
@@ -260,6 +261,24 @@ public class FBUtilities
                                                                                                 DatabaseDescriptor.getNativeTransportPort());
             }
         return broadcastNativeAddressAndPort;
+    }
+
+    public static InetAddressAndPort getBroadcastNativeAddressAndPortSSL()
+    {
+        if (broadcastNativeAddressAndPortSsl == null)
+        {
+            if (DatabaseDescriptor.getRawConfig() == null)
+            {
+                broadcastNativeAddressAndPortSsl = InetAddressAndPort.getByAddress(getJustBroadcastNativeAddress());
+            }
+            else
+            {
+                broadcastNativeAddressAndPortSsl = InetAddressAndPort.getByAddressOverrideDefaults(getJustBroadcastNativeAddress(),
+                                                                                                   DatabaseDescriptor.getNativeTransportPortSSL());
+            }
+        }
+
+        return broadcastNativeAddressAndPortSsl;
     }
 
     public static String getNetworkInterface(InetAddress localAddress)

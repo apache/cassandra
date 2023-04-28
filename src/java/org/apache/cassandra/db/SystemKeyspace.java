@@ -248,6 +248,7 @@ public final class SystemKeyspace
                 + "release_version text,"
                 + "native_address inet,"
                 + "native_port int,"
+                + "native_port_ssl int,"
                 + "schema_version uuid,"
                 + "tokens set<varchar>,"
                 + "PRIMARY KEY ((peer), peer_port))")
@@ -811,6 +812,16 @@ public final class SystemKeyspace
         executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, address.address, address.port);
     }
 
+    public static synchronized void updatePeerNativeAddressSSL(InetAddressAndPort ep, InetAddressAndPort address)
+    {
+        if (ep.equals(FBUtilities.getBroadcastAddressAndPort()))
+            return;
+
+        String req = "INSERT INTO system.%s (peer, rpc_address) VALUES (?, ?)";
+        executeInternal(String.format(req, LEGACY_PEERS), ep.address, address.address);
+        req = "INSERT INTO system.%s (peer, peer_port, native_address, native_port_ssl) VALUES (?, ?, ?, ?)";
+        executeInternal(String.format(req, PEERS_V2), ep.address, ep.port, address.address, address.port);
+    }
 
     public static synchronized void updateHintsDropped(InetAddressAndPort ep, UUID timePeriod, int value)
     {

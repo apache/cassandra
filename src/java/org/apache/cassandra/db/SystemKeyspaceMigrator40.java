@@ -90,9 +90,10 @@ public class SystemKeyspaceMigrator40
                                       + "release_version, "
                                       + "native_address, "
                                       + "native_port, "
+                                      + "native_port_ssl, "
                                       + "schema_version, "
                                       + "tokens) "
-                                      + " values ( ?, ?, ? , ? , ?, ?, ?, ?, ?, ?, ?, ?)",
+                                      + " values ( ?, ?, ? , ? , ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                       peersName);
 
         UntypedResultSet rows = QueryProcessor.executeInternalWithPaging(query, 1000);
@@ -112,6 +113,7 @@ public class SystemKeyspaceMigrator40
                                            row.has("release_version") ? row.getString("release_version") : null,
                                            row.has("rpc_address") ? row.getInetAddress("rpc_address") : null,
                                            DatabaseDescriptor.getNativeTransportPort(),
+                                           DatabaseDescriptor.getNativeTransportPortSSL(),
                                            row.has("schema_version") ? row.getUUID("schema_version") : null,
                                            row.has("tokens") ? row.getSet("tokens", UTF8Type.instance) : null);
             transferred++;

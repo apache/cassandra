@@ -108,6 +108,7 @@ public class NodeToolGossipInfoTest extends CQLTester
         Assertions.assertThat(tool.getStdout()).containsPattern("NET_VERSION:[0-9]+:.+");
         Assertions.assertThat(tool.getStdout()).containsPattern("HOST_ID:[0-9]+:.+");
         Assertions.assertThat(tool.getStdout()).containsPattern("NATIVE_ADDRESS_AND_PORT:[0-9]+:127.0.0.1:[0-9]+");
+        Assertions.assertThat(tool.getStdout()).containsPattern("NATIVE_ADDRESS_AND_PORT_SSL:[0-9]+:127.0.0.1:[0-9]+");
         Assertions.assertThat(tool.getStdout()).containsPattern("STATUS_WITH_PORT:[0-9]+:NORMAL,.+");
         Assertions.assertThat(tool.getStdout()).containsPattern("TOKENS:[0-9]+:<hidden>");
         assertTrue(tool.getCleanedStderr().isEmpty());
