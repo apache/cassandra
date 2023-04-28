@@ -59,7 +59,7 @@ public class Files
         return fs;
     }
 
-    private static FileSystem jimfs()
+    public static FileSystem jimfs()
     {
         return Jimfs.newFileSystem(Configuration.unix().toBuilder()
                                                 .setMaxSize(4L << 30).setBlockSize(512)
