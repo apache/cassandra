@@ -25,6 +25,15 @@ import org.apache.cassandra.cql3.CQLTester;
 public class DropTest extends CQLTester
 {
     @Test
+    public void testDropTableWithNameCapitalPAndColumnDuration() throws Throwable
+    {
+        // CASSANDRA-17919
+        createTable(KEYSPACE, "CREATE TABLE %s (a INT PRIMARY KEY, b DURATION);", "P");
+        execute("DROP TABLE %s");
+        assertRowsIgnoringOrder(execute(String.format("SELECT * FROM system_schema.dropped_columns WHERE keyspace_name = '%s' AND table_name = 'P'", keyspace())));
+    }
+
+    @Test
     public void testNonExistingOnes() throws Throwable
     {
         assertInvalidMessage(String.format("Table '%s.table_does_not_exist' doesn't exist", KEYSPACE),  "DROP TABLE " + KEYSPACE + ".table_does_not_exist");
