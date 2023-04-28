@@ -1092,6 +1092,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             appStates.put(ApplicationState.NET_VERSION, valueFactory.networkVersion());
             appStates.put(ApplicationState.HOST_ID, valueFactory.hostId(localHostId));
             appStates.put(ApplicationState.NATIVE_ADDRESS_AND_PORT, valueFactory.nativeaddressAndPort(FBUtilities.getBroadcastNativeAddressAndPort()));
+            appStates.put(ApplicationState.NATIVE_ADDRESS_AND_PORT_SSL, valueFactory.nativeAddressAndPortSSL(FBUtilities.getBroadcastNativeAddressAndPortSSL()));
             appStates.put(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(FBUtilities.getJustBroadcastNativeAddress()));
             appStates.put(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
             appStates.put(ApplicationState.SSTABLE_VERSIONS, valueFactory.sstableVersions(sstablesTracker.versionsInUse()));
@@ -2258,6 +2259,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
          }
     }
 
+    public String getNativeAddressSSL(InetAddressAndPort endpoint, boolean withPort)
+    {
+        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
+            return FBUtilities.getBroadcastNativeAddressAndPortSSL().getHostAddress(withPort);
+
+        if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT_SSL) != null)
+        {
+            try
+            {
+                InetAddressAndPort address = InetAddressAndPort.getByName(Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT_SSL).value);
+                return address.getHostAddress(withPort);
+            }
+            catch (UnknownHostException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+        else if (Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS) == null)
+        {
+            String address = endpoint.getAddress().getHostAddress();
+            return withPort ? address + ':' + DatabaseDescriptor.getNativeTransportPortSSL() : address;
+        }
+        else
+        {
+            String address = Gossiper.instance.getEndpointStateForEndpoint(endpoint).getApplicationState(ApplicationState.RPC_ADDRESS).value;
+            return withPort ? address + ':' + DatabaseDescriptor.getNativeTransportPortSSL() : address;
+        }
+    }
+
     public Map<List<String>, List<String>> getRangeToRpcaddressMap(String keyspace)
     {
         return getRangeToNativeaddressMap(keyspace, false);
@@ -2665,6 +2695,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                             throw new RuntimeException(e);
                         }
                         break;
+                    case NATIVE_ADDRESS_AND_PORT_SSL:
+                        try
+                        {
+                            InetAddressAndPort address = InetAddressAndPort.getByName(value.value);
+                            SystemKeyspace.updatePeerNativeAddressSSL(endpoint, address);
+                        }
+                        catch (UnknownHostException e)
+                        {
+                            throw new RuntimeException(e);
+                        }
+                        break;
                     case SCHEMA:
                         SystemKeyspace.updatePeerInfo(endpoint, "schema_version", UUID.fromString(value.value));
                         break;
@@ -2722,6 +2763,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         EndpointState epState = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
         InetAddress native_address = null;
         int native_port = DatabaseDescriptor.getNativeTransportPort();
+        int native_port_ssl = DatabaseDescriptor.getNativeTransportPortSSL();
 
         for (Map.Entry<ApplicationState, VersionedValue> entry : epState.states())
         {
@@ -2758,6 +2800,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                         throw new RuntimeException(e);
                     }
                     break;
+                case NATIVE_ADDRESS_AND_PORT_SSL:
+                    try
+                    {
+                        InetAddressAndPort address = InetAddressAndPort.getByName(entry.getValue().value);
+                        native_address = address.getAddress();
+                        native_port_ssl = address.getPort();
+                    }
+                    catch (UnknownHostException e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                    break;
                 case SCHEMA:
                     SystemKeyspace.updatePeerInfo(endpoint, "schema_version", UUID.fromString(entry.getValue().value));
                     break;
@@ -2773,6 +2827,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             SystemKeyspace.updatePeerNativeAddress(endpoint,
                                                    InetAddressAndPort.getByAddressOverrideDefaults(native_address,
                                                                                                    native_port));
+            SystemKeyspace.updatePeerNativeAddressSSL(endpoint,
+                                                      InetAddressAndPort.getByAddressOverrideDefaults(native_address,
+                                                                                                      native_port_ssl));
         }
     }
 
