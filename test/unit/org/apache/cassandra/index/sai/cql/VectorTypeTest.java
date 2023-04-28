@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import com.google.common.collect.Lists;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -142,6 +143,23 @@ public class VectorTypeTest extends SAITester
     }
 
     @Test
+    public void bindVariablesTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, str_val text, val float vector[3], PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", Lists.newArrayList(1.0, 2.0 ,3.0));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", Lists.newArrayList(2.0 ,3.0, 4.0));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", Lists.newArrayList(3.0, 4.0, 5.0));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'D', ?)", Lists.newArrayList(4.0, 5.0, 6.0));
+
+        UntypedResultSet result = execute("SELECT * FROM %s WHERE val ann of [2.5, 3.5, 4.5] LIMIT 3");
+        assertThat(result).hasSize(3);
+        System.out.println(makeRowStrings(result));
+    }
+
+    @Test
     public void randomizedTest() throws Throwable
     {
         createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val float vector[%d], PRIMARY KEY(pk))", dimensionCount));
@@ -232,6 +250,6 @@ public class VectorTypeTest extends SAITester
         {
             rawVector[i] = getRandom().nextFloat();
         }
-        return VectorType.Serializer.instance.serialize(rawVector);
+        return VectorType.getInstance(dimensionCount).getSerializer().serialize(rawVector);
     }
 }

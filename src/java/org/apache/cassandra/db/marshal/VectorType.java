@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.db.marshal;
 
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
@@ -33,6 +34,7 @@ public class VectorType extends AbstractType<float[]>
     private static final ConcurrentHashMap<Integer, VectorType> instances = new ConcurrentHashMap<>();
 
     public final int dimensions;
+    public final Serializer serializer;
 
     public static VectorType getInstance(int dimensions)
     {
@@ -46,6 +48,7 @@ public class VectorType extends AbstractType<float[]>
     {
         super(ComparisonType.BYTE_ORDER);
         this.dimensions = dimensions;
+        this.serializer = new Serializer(dimensions);
     }
 
     /**
@@ -83,14 +86,17 @@ public class VectorType extends AbstractType<float[]>
     @Override
     public TypeSerializer<float[]> getSerializer()
     {
-        return Serializer.instance;
+        return serializer;
     }
 
     public static class Serializer extends TypeSerializer<float[]>
     {
-        public static final Serializer instance = new Serializer();
+        private final int dimensions;
 
-        private Serializer() {}
+        private Serializer(int dimensions)
+        {
+            this.dimensions = dimensions;
+        }
 
         @Override
         public ByteBuffer serialize(float[] value)
@@ -98,8 +104,7 @@ public class VectorType extends AbstractType<float[]>
             if (value == null)
                 return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
-            var bb = ByteBuffer.allocate(4 + 4 * value.length);
-            bb.putInt(value.length);
+            var bb = ByteBuffer.allocate(4 * value.length);
             for (var v : value)
                 bb.putFloat(v);
             bb.position(0);
@@ -112,9 +117,8 @@ public class VectorType extends AbstractType<float[]>
             if (accessor.isEmpty(value))
                 return null;
 
-            var length = accessor.getInt(value, 0);
-            var vector = new float[length];
-            for (int i = 0, offset = 4; i < length; offset += 4, i++)
+            var vector = new float[dimensions];
+            for (int i = 0, offset = 0; i < dimensions; offset += 4, i++)
                 vector[i] = accessor.getFloat(value, offset);
             return vector;
         }
@@ -122,14 +126,20 @@ public class VectorType extends AbstractType<float[]>
         @Override
         public <V> void validate(V value, ValueAccessor<V> accessor) throws MarshalException
         {
-            int size = accessor.size(value);
-            if (size == 0)
-                return;
-            if (size < 4)
-                throw new MarshalException(String.format("Expected at least 4 bytes for a float vector (found %d)", size));
-            int length = accessor.getInt(value, 0);
-            if (size != 4 * (1 + length))
-                throw new MarshalException(String.format("Expected %d bytes for a float vector (found %d)", 4 + 4 * length, size));
+            int offset = 0;
+            try
+            {
+                for (int index = 0; index < dimensions; offset += 4, index++)
+                {
+                    accessor.getFloat(value, offset);
+                }
+                if (!accessor.isEmptyFromOffset(value, offset))
+                    throw new MarshalException("Unexpected extraneous bytes after vector value");
+            }
+            catch (BufferUnderflowException | IndexOutOfBoundsException e)
+            {
+                throw new MarshalException(String.format("Not enough bytes to read a vector of %s dimensions", dimensions));
+            }
         }
 
         @Override

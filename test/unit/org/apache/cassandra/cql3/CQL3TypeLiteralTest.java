@@ -273,19 +273,6 @@ public class CQL3TypeLiteralTest
         }
         addNativeValue("null", CQL3Type.Native.INET, ByteBufferUtil.EMPTY_BYTE_BUFFER);
         addNativeValue("null", CQL3Type.Native.INET, null);
-
-//        for (int i = 0; i < 20; i++)
-//        {
-//            int n = randInt(200);
-//            var v = new float[n];
-//            for (int j = 0; j < n; j++)
-//                v[j] = randFloat();
-//            addNativeValue(DenseFloat32Type.Serializer.instance.toString(v),
-//                           CQL3Type.Native.DENSE_F32,
-//                           DenseFloat32Type.Serializer.instance.serialize(v));
-//        }
-//        addNativeValue("null", CQL3Type.Native.DENSE_F32, ByteBufferUtil.EMPTY_BYTE_BUFFER);
-//        addNativeValue("null", CQL3Type.Native.DENSE_F32, null);
     }
 
     @Test

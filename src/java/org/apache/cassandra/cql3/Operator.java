@@ -271,7 +271,6 @@ public enum Operator
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
             return true;
-//            throw new UnsupportedOperationException();
         }
     };
 
