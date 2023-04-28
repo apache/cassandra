@@ -77,16 +77,16 @@ public class UpdateSettingsTableTest extends CQLTester
     }
 
     @Test
-    public void testUpdateSettings() throws Throwable
+    public void testUpdateAllSettings() throws Throwable
     {
         for (String propertyName : updatableProperties)
             doUpdateSettingAndRevertBack(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME), propertyName);
     }
 
     @Test
-    public void testUpdateWithNull() throws Throwable
+    public void testUpdateRepairSessionSpaceToNull() throws Throwable
     {
-        String expectedValue = new DataStorageSpec.IntMebibytesBound(DatabaseDescriptor.MAX_MEMORY_UPPER_BOUND_MB).toString();
+        String expectedValue = new DataStorageSpec.IntMebibytesBound(DatabaseDescriptor.SPACE_UPPER_BOUND_MB).toString();
         assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
                                  null, ConfigFields.REPAIR_SESSION_SPACE));
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.REPAIR_SESSION_SPACE),
@@ -97,7 +97,7 @@ public class UpdateSettingsTableTest extends CQLTester
     }
 
     @Test
-    public void testUpdateConstraintViolation() throws Throwable
+    public void testUpdateSettingsValidationFail() throws Throwable
     {
         InvalidQueryException e = null;
         try
@@ -116,7 +116,7 @@ public class UpdateSettingsTableTest extends CQLTester
     }
 
     @Test
-    public void testInsertSettings() throws Throwable
+    public void testInsertSettingsNewValues() throws Throwable
     {
         for (String propertyName : updatableProperties)
             doUpdateSettingAndRevertBack(String.format("INSERT INTO %s.settings (value, name) VALUES (?, ?);", KS_NAME), propertyName);

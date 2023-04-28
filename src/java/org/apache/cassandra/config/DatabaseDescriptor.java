@@ -145,7 +145,7 @@ public class DatabaseDescriptor
      */
     static final DurationSpec.LongMillisecondsBound LOWEST_ACCEPTED_TIMEOUT = new DurationSpec.LongMillisecondsBound(10L);
 
-    public static final int MAX_MEMORY_UPPER_BOUND_MB = (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576));
+    public static final int SPACE_UPPER_BOUND_MB = (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576));
 
     private static Supplier<IFailureDetector> newFailureDetector;
     private static IEndpointSnitch snitch;
@@ -539,20 +539,20 @@ public class DatabaseDescriptor
             logger.warn("concurrent_replicates has been deprecated and should be removed from cassandra.yaml");
 
         if (conf.networking_cache_size == null)
-            conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, MAX_MEMORY_UPPER_BOUND_MB));
+            conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, SPACE_UPPER_BOUND_MB));
 
         if (conf.file_cache_size == null)
-            conf.file_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(512, MAX_MEMORY_UPPER_BOUND_MB));
+            conf.file_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(512, SPACE_UPPER_BOUND_MB));
 
         // round down for SSDs and round up for spinning disks
         if (conf.file_cache_round_up == null)
             conf.file_cache_round_up = conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.spinning;
 
         if (conf.memtable_offheap_space == null)
-            conf.memtable_offheap_space = new DataStorageSpec.IntMebibytesBound(MAX_MEMORY_UPPER_BOUND_MB);
+            conf.memtable_offheap_space = new DataStorageSpec.IntMebibytesBound(SPACE_UPPER_BOUND_MB);
         // for the moment, we default to twice as much on-heap space as off-heap, as heap overhead is very large
         if (conf.memtable_heap_space == null)
-            conf.memtable_heap_space = new DataStorageSpec.IntMebibytesBound(MAX_MEMORY_UPPER_BOUND_MB);
+            conf.memtable_heap_space = new DataStorageSpec.IntMebibytesBound(SPACE_UPPER_BOUND_MB);
         if (conf.memtable_heap_space.toMebibytes() == 0)
             throw new ConfigurationException("memtable_heap_space must be positive, but was " + conf.memtable_heap_space, false);
         logger.info("Global memtable on-heap threshold is enabled at {}", conf.memtable_heap_space);
@@ -3600,13 +3600,13 @@ public class DatabaseDescriptor
         DataStorageSpec.IntMebibytesBound value = source.getDataStorageSpec(DataStorageSpec.IntMebibytesBound.class, ConfigFields.REPAIR_SESSION_SPACE);
 
         if (value == null)
-            source.set(ConfigFields.REPAIR_SESSION_SPACE, new DataStorageSpec.IntMebibytesBound(Math.max(1, MAX_MEMORY_UPPER_BOUND_MB)));
+            source.set(ConfigFields.REPAIR_SESSION_SPACE, new DataStorageSpec.IntMebibytesBound(Math.max(1, SPACE_UPPER_BOUND_MB)));
 
         value = source.getDataStorageSpec(DataStorageSpec.IntMebibytesBound.class, ConfigFields.REPAIR_SESSION_SPACE);
 
         if (value.toMebibytes() < 1)
             throw new ConfigurationException(String.format("Cannot set '%s' to '%s' < 1 mebibyte", ConfigFields.REPAIR_SESSION_SPACE, value.toMebibytes()));
-        else if (value.toMebibytes() > MAX_MEMORY_UPPER_BOUND_MB)
+        else if (value.toMebibytes() > SPACE_UPPER_BOUND_MB)
             logger.warn("A '{}' of '{}' mebibytes is likely to cause heap pressure", ConfigFields.REPAIR_SESSION_SPACE, value.toMebibytes());
     }
 
