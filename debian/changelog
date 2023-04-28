@@ -1,8 +1,8 @@
-cassandra (3.11.15) UNRELEASED; urgency=medium
+cassandra (3.11.15) unstable; urgency=medium
 
   * New release
 
- -- Mick Semb Wever <mck@apache.org>  Wed, 19 Oct 2022 10:27:23 +0200
+ -- Stefan Miklosovic <smiklosovic@apache.org>  Fri, 28 Apr 2023 12:29:32 +0200
 
 cassandra (3.11.14) unstable; urgency=medium
 
