@@ -27,11 +27,11 @@ public interface ConfigurationSourceListener
      * Called on configuration change property event occurr.
      *
      * @param name  the name of the configuration property.
-     * @param type  the type of the event.
+     * @param eventType  the eventType of the event.
      * @param oldValue the old value of the property.
      * @param newValue the new value of the property.
      */
-    void listen(String name, EventType type, Object oldValue, Object newValue);
+    void listen(String name, EventType eventType, Object oldValue, Object newValue);
 
     /** EventType of property change. */
     enum EventType

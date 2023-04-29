@@ -1230,6 +1230,7 @@ public class FBUtilities
         }
         catch (Exception e)
         {
+            e.printStackTrace();
             throw exceptionFactory.apply(e);
         }
     }

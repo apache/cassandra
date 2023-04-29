@@ -22,9 +22,11 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -54,12 +56,12 @@ import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 public class DatabaseConfigurationSource implements ConfigurationSource
 {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseConfigurationSource.class);
-    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
-    private final TypeConverterRegistry typeConverterRegistry;
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final List<ConfigurationSourceListener> changeListeners = new CopyOnWriteArrayList<>();
+    private final List<ConfigurationValidator> validators = new ArrayList<>();
+    private final TypeConverterRegistry converters;
     private final Config source;
     private final Map<String, Property> properties;
-    private final List<ConfigurationSourceListener> propertyChangeListeners = new ArrayList<>();
-    private final List<ConfigurationValidator> validators = new ArrayList<>();
 
     public DatabaseConfigurationSource(Config source)
     {
@@ -69,7 +71,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
                                          .entrySet()
                                          .stream()
                                          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
-        typeConverterRegistry = TypeConverterRegistry.instance;
+        converters = TypeConverterRegistry.instance;
         // Initialize the configuration handlers.
         addConfigurationHandler(DatabaseDescriptor::validateUpperBoundStreamingConfig);
         addConfigurationHandler(createLoggingValidator(DatabaseDescriptor::validateRepairSessionSpace));
@@ -79,15 +81,15 @@ public class DatabaseConfigurationSource implements ConfigurationSource
     public <T> void set(String name, T value)
     {
         Property property = ofNullable(properties.get(name)).orElseThrow(() -> notFound(name));
-        rwLock.writeLock().lock();
+        lock.writeLock().lock();
         try
         {
             Class<?> originalType = property.getType();
             // Do conversion if the value is not null and the type is not the same as the property type.
             Object convertedValue = ofNullable(value)
                                     .map(Object::getClass)
-                                    .map(from -> typeConverterRegistry.get(from, originalType)
-                                                                      .convert(value))
+                                    .map(from -> converters.get(from, originalType)
+                                                           .convert(value))
                                     .orElse(null);
             // Use given converted value if it is not null, otherwise use the default value.
             ConfigurationSource validationSource = PropertyValidationSource.create(this, name, convertedValue);
@@ -96,11 +98,15 @@ public class DatabaseConfigurationSource implements ConfigurationSource
             // Do set the value only if the validation passes.
             Object validatedValue = validationSource.getRaw(name);
             Object oldValue = property.get(source);
-            propertyChangeListeners.forEach(l -> l.listen(name, ConfigurationSourceListener.EventType.BEFORE_CHANGE, oldValue, validatedValue));
+            changeListeners.forEach(l -> l.listen(name,
+                                                  ConfigurationSourceListener.EventType.BEFORE_CHANGE,
+                                                  oldValue, validatedValue));
             property.set(source, validatedValue);
-            propertyChangeListeners.forEach(l -> l.listen(name, ConfigurationSourceListener.EventType.AFTER_CHANGE, oldValue, validatedValue));
+            changeListeners.forEach(l -> l.listen(name,
+                                                  ConfigurationSourceListener.EventType.AFTER_CHANGE,
+                                                  oldValue, validatedValue));
             // This potentially may expose the values that are not safe to see in logs on production.
-            logger.info("Property '{}' updated from '{}' to '{}'.", property.getName(), oldValue, validatedValue);
+            logger.info("Configuration property '{}' updated from '{}' to '{}'.", property.getName(), oldValue, validatedValue);
         }
         catch (ConfigurationException e)
         {
@@ -112,7 +118,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
         }
         finally
         {
-            rwLock.writeLock().unlock();
+            lock.writeLock().unlock();
         }
     }
 
@@ -137,7 +143,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
     @Override
     public Object getRaw(String name)
     {
-        rwLock.readLock().lock();
+        lock.readLock().lock();
         try
         {
             return ofNullable(properties.get(name))
@@ -146,7 +152,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
         }
         finally
         {
-            rwLock.readLock().unlock();
+            lock.readLock().unlock();
         }
     }
 
@@ -162,8 +168,8 @@ public class DatabaseConfigurationSource implements ConfigurationSource
         {
             Object value = getRaw(name);
             return cls.equals(String.class) ?
-                   typeConverterRegistry.get(properties.get(name).getType(), cls, (TypeConverter<T>) TypeConverter.TO_STRING).convertNullable(value) :
-                   typeConverterRegistry.get(properties.get(name).getType(), cls).convertNullable(value);
+                   converters.get(properties.get(name).getType(), cls, (TypeConverter<T>) TypeConverter.TO_STRING).convertNullable(value) :
+                   converters.get(properties.get(name).getType(), cls).convertNullable(value);
         }
         catch (ClassCastException e)
         {
@@ -172,19 +178,46 @@ public class DatabaseConfigurationSource implements ConfigurationSource
     }
 
     @Override
-    public Iterator<Pair<String, Object>> iterator()
+    public Iterator<Pair<String, Supplier<Object>>> iterator()
     {
         return Iterators.transform(properties.entrySet().iterator(),
-                                   e -> Pair.create(e.getKey(), getRaw(e.getKey())));
+                                   e -> Pair.create(e.getKey(), () -> getRaw(e.getKey())));
     }
 
     /**
      * Adds a listener for the property with the given name.
      * @param listener listener to add.
      */
-    public void addConfigurationChangeListener(ConfigurationSourceListener listener)
+    @Override
+    public ListenerUnsubscriber addSourceListener(ConfigurationSourceListener listener)
     {
-        propertyChangeListeners.add(listener);
+        lock.writeLock().lock();
+        try
+        {
+            changeListeners.add(listener);
+            return () -> removeSourceListener(listener);
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * Removes listener for the configuration source.
+     * @param listener Listener to remove.
+     */
+    private void removeSourceListener(ConfigurationSourceListener listener)
+    {
+        lock.writeLock().lock();
+        try
+        {
+            changeListeners.remove(listener);
+        }
+        finally
+        {
+            lock.writeLock().unlock();
+        }
     }
 
     private void addConfigurationHandler(ConfigurationValidator handler)
@@ -199,7 +232,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
 
     private static PropertyNotFoundException notFound(String name)
     {
-        return new PropertyNotFoundException(String.format("Property with name '%s' is not availabe.", name));
+        return new PropertyNotFoundException(String.format("Property with name '%s' is not found.", name));
     }
 
     /**
@@ -258,7 +291,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
         }
 
         @Override
-        public Iterator<Pair<String, Object>> iterator()
+        public Iterator<Pair<String, Supplier<Object>>> iterator()
         {
             // Configuration source iterator is not used for validation and forbidden to use.
             throw new UnsupportedOperationException();

@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -267,9 +268,9 @@ final class SettingsTable extends AbstractMutableVirtualTable
         }
 
         @Override
-        public Iterator<Pair<String, Object>> iterator()
+        public Iterator<Pair<String, Supplier<Object>>> iterator()
         {
-           return Iterators.transform(uniquePropertyKeys.iterator(), key -> Pair.create(key, getRaw(key)));
+           return Iterators.transform(uniquePropertyKeys.iterator(), key -> Pair.create(key, () -> getRaw(key)));
         }
     }
 }

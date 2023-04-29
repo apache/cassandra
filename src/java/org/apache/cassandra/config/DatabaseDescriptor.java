@@ -112,8 +112,6 @@ import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBY
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
 import static org.apache.cassandra.utils.Clock.Global.logInitializationOutcome;
-import static org.apache.cassandra.utils.FBUtilities.cause;
-import static org.apache.cassandra.utils.FBUtilities.runExceptionally;
 
 public class DatabaseDescriptor
 {
@@ -3592,7 +3590,7 @@ public class DatabaseDescriptor
 
     public static void setRepairSessionSpaceInMiB(int sizeInMiB)
     {
-        configSource.set(ConfigFields.REPAIR_SESSION_SPACE, sizeInMiB == -1 ? null : new DataStorageSpec.IntMebibytesBound(sizeInMiB));
+        setProperty(ConfigFields.REPAIR_SESSION_SPACE, sizeInMiB == -1 ? null : new DataStorageSpec.IntMebibytesBound(sizeInMiB));
     }
 
     public static void validateRepairSessionSpace(ConfigurationSource source, Logger logger)
@@ -3600,9 +3598,10 @@ public class DatabaseDescriptor
         DataStorageSpec.IntMebibytesBound value = source.getDataStorageSpec(DataStorageSpec.IntMebibytesBound.class, ConfigFields.REPAIR_SESSION_SPACE);
 
         if (value == null)
-            source.set(ConfigFields.REPAIR_SESSION_SPACE, new DataStorageSpec.IntMebibytesBound(Math.max(1, SPACE_UPPER_BOUND_MB)));
-
-        value = source.getDataStorageSpec(DataStorageSpec.IntMebibytesBound.class, ConfigFields.REPAIR_SESSION_SPACE);
+        {
+            value = new DataStorageSpec.IntMebibytesBound(Math.max(1, SPACE_UPPER_BOUND_MB));
+            source.set(ConfigFields.REPAIR_SESSION_SPACE, value);
+        }
 
         if (value.toMebibytes() < 1)
             throw new ConfigurationException(String.format("Cannot set '%s' to '%s' < 1 mebibyte", ConfigFields.REPAIR_SESSION_SPACE, value.toMebibytes()));
@@ -4724,30 +4723,6 @@ public class DatabaseDescriptor
      */
     private static void setProperty(String name, Object value)
     {
-        runExceptionally(() -> configSource.set(name, value), new SearchInternalCauseForPublicAPI());
-    }
-
-    private static class SearchInternalCauseForPublicAPI implements Function<Exception, RuntimeException>
-    {
-        @Override
-        public RuntimeException apply(Exception e)
-        {
-            RuntimeException rt;
-            if ((rt = cause(e, IllegalArgumentException.class)) != null)
-                return new IllegalArgumentException(rt.getMessage());
-            else if ((rt = cause(e, IllegalStateException.class)) != null)
-                return new IllegalStateException(rt.getMessage());
-            else if ((rt = cause(e, UnsupportedOperationException.class)) != null)
-                return new UnsupportedOperationException(rt.getMessage());
-            else
-            {
-                logger.error("Unexpected exception", e);
-                return new RuntimeException(e.getMessage());
-            }
-        }
-    }
-
-    public static class DynamicDatabaseDescriptor extends DatabaseDescriptor
-    {
+        configSource.set(name, value);
     }
 }

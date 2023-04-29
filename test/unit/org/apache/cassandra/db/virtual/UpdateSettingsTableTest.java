@@ -35,6 +35,7 @@ import org.apache.cassandra.config.DataRateSpec;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.registry.ConfigurationQuery;
 import org.apache.cassandra.config.registry.DatabaseConfigurationSource;
 import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.cql3.CQLTester;
@@ -42,6 +43,8 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.util.Streams;
 
+import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
+import static org.apache.cassandra.config.registry.ConfigurationSourceListener.EventType.BEFORE_CHANGE;
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -86,14 +89,28 @@ public class UpdateSettingsTableTest extends CQLTester
     @Test
     public void testUpdateRepairSessionSpaceToNull() throws Throwable
     {
-        String expectedValue = new DataStorageSpec.IntMebibytesBound(DatabaseDescriptor.SPACE_UPPER_BOUND_MB).toString();
+        ConfigurationQuery.from(tableSource).getValue(DataStorageSpec.IntMebibytesBound.class, ConfigFields.REPAIR_SESSION_SPACE)
+                          .map(DataStorageSpec.IntMebibytesBound::toBytes)
+                          .listen(BEFORE_CHANGE, (oldValue, newValue) -> {
+                                     System.out.println("oldValue = " + oldValue);
+                                     System.out.println("newValue = " + newValue);
+                                 });
+
+        String nonDefaultValue = new DataStorageSpec.IntMebibytesBound(10L, MEBIBYTES).toString();
+        assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
+                                 nonDefaultValue, ConfigFields.REPAIR_SESSION_SPACE));
+        assertEquals(nonDefaultValue, tableSource.getString(ConfigFields.REPAIR_SESSION_SPACE));
+        // Try to use null as a value.
+        String expectedIfNullGiven = new DataStorageSpec.IntMebibytesBound(DatabaseDescriptor.SPACE_UPPER_BOUND_MB).toString();
         assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
                                  null, ConfigFields.REPAIR_SESSION_SPACE));
         assertRowsNet(executeNet(String.format("SELECT * FROM %s.settings WHERE name = ?;", KS_NAME), ConfigFields.REPAIR_SESSION_SPACE),
-                      new Object[]{ ConfigFields.REPAIR_SESSION_SPACE, expectedValue });
+                      new Object[]{ ConfigFields.REPAIR_SESSION_SPACE, expectedIfNullGiven });
         String sessionSpace = tableSource.getString(ConfigFields.REPAIR_SESSION_SPACE);
         assertNotNull(sessionSpace);
-        assertEquals(expectedValue, sessionSpace);
+        assertEquals(expectedIfNullGiven, sessionSpace);
+        assertNotNull(DatabaseDescriptor.getRawConfig().repair_session_space);
+        assertEquals(expectedIfNullGiven, DatabaseDescriptor.getRawConfig().repair_session_space.toString());
     }
 
     @Test

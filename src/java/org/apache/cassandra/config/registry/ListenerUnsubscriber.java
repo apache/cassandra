@@ -18,28 +18,18 @@
 
 package org.apache.cassandra.config.registry;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
 /**
- * Converts configuration value from one type to another, you can use {@link TypeConverterRegistry}
- * if your input type is String and you want to convert it to an appropriate configuration object type.
- *
- * @param <T> Type to convert to.
+ * The handler to remove a configuration value listener.
  */
-public interface TypeConverter<T>
+@FunctionalInterface
+public
+interface ListenerUnsubscriber extends Runnable
 {
-    TypeConverter<String> TO_STRING = Object::toString;
+    void unsubscribe();
 
-    /**
-     * Converts a value to the target type.
-     * @param value Value to convert.
-     * @return Converted value.
-     */
-    @Nullable T convert(@Nonnull Object value);
-
-    default @Nullable T convertNullable(@Nullable Object value)
+    @Override
+    default void run()
     {
-        return value == null ? null : convert(value);
+        unsubscribe();
     }
 }

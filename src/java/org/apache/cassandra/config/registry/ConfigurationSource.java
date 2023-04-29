@@ -19,12 +19,29 @@
 package org.apache.cassandra.config.registry;
 
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.apache.cassandra.config.DataRateSpec;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.utils.Pair;
 
-public interface ConfigurationSource extends Iterable<Pair<String, Object>>
+/**
+ * A source of Cassandra's configuration properties that can be updated at runtime. As an example you can take
+ * a look at the {@link org.apache.cassandra.config.Config} class of configuration fields available to the system.
+ * This source is used to provide an access layer to the configuration properties, and to provide a way to
+ * handle properties that are loaded from the {@code cassandra.yaml} configuration file, and are updated via JMX or
+ * through the settings virtual table.
+ * <p>
+ * You can use {@link #set(String, Object)} to update a configuration property, in case the property is not present
+ * in the source the {@link org.apache.cassandra.exceptions.PropertyNotFoundException} will be thrown. If the property
+ * is present, the source will try to convert given value to a corresponding configuration property type, and if
+ * the conversion fails, an exception will be thrown. You can use the {@code String} as a value to convert to,
+ * or you can use the property's type as a value as a value input. In the latter case, no conversion will be performed.
+ *
+ * @see org.apache.cassandra.config.Config
+ * @see org.apache.cassandra.exceptions.PropertyNotFoundException
+ */
+public interface ConfigurationSource extends Iterable<Pair<String, Supplier<Object>>>
 {
     /**
      * Sets the value of the property with the given name.
@@ -108,5 +125,14 @@ public interface ConfigurationSource extends Iterable<Pair<String, Object>>
     {
         T value = getDataStorageSpec(defaultValue.getDeclaringClass(), name);
         return value == null ? defaultValue : value;
+    }
+
+    /**
+     * Adds a listener to the configuration source.
+     * @param listener the listener to add.
+     */
+    default ListenerUnsubscriber addSourceListener(ConfigurationSourceListener listener)
+    {
+        throw new UnsupportedOperationException();
     }
 }

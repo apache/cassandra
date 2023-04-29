@@ -57,7 +57,7 @@ public class TypeConverterRegistry
     {
         Class<?> fromShaded = primitiveToWrapper(from);
         if (fromShaded.equals(to))
-            return (TypeConverter<V>) TypeConverter.IDENTITY;
+            return to::cast;
         if (converters.get(key(fromShaded, to)) == null)
             return defaultConverter;
         return (TypeConverter<V>) converters.get(key(fromShaded, to));
