@@ -72,6 +72,7 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
+import org.apache.cassandra.config.registry.ConfigurationQuery;
 import org.apache.cassandra.config.registry.ConfigurationSource;
 import org.apache.cassandra.config.registry.DatabaseConfigurationSource;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -132,7 +133,7 @@ public class DatabaseDescriptor
 
     private static Config conf;
     /**
-     * The registry of configuration properties. It is used to access the configuration properties loaded from
+     * The source of configuration properties. It is used to access the configuration class loaded from
      * the {@link #conf} and must be initialized the same time the {@link #conf} is initialized, usually
      * by calling {@link #toolInitialization()}, {@link #daemonInitialization()} or {@link #clientInitialization()}.
      */
@@ -351,6 +352,16 @@ public class DatabaseDescriptor
     public static DatabaseConfigurationSource configSource()
     {
         return configSource;
+    }
+
+    public static ConfigurationQuery configQuery()
+    {
+        return ConfigurationQuery.from(configSource);
+    }
+
+    public static ConfigurationQuery configQuery(Function<ConfigurationException, ? extends RuntimeException> handler)
+    {
+        return ConfigurationQuery.from(configSource, handler);
     }
 
     @VisibleForTesting

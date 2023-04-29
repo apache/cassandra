@@ -107,6 +107,8 @@ public class TypeConverterRegistry
 
         public ConverterKey(Class<?> from, Class<?> to)
         {
+            Objects.requireNonNull(from);
+            Objects.requireNonNull(to);
             this.from = from;
             this.to = to;
         }

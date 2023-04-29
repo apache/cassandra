@@ -19,6 +19,7 @@
 package org.apache.cassandra.config.registry;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
@@ -114,7 +114,9 @@ public class DatabaseConfigurationSource implements ConfigurationSource
         }
         catch (Exception e)
         {
-            throw new ConfigurationException(String.format("Error updating property '%s'; cause: %s", property.getName(), e.getMessage()), e);
+            logger.error(String.format("Failed to update property '%s'", name), e);
+            throw new ConfigurationException(String.format("Failed to update property '%s'. The cause: %s",
+                                                           name, e.getMessage()), false);
         }
         finally
         {
@@ -173,7 +175,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
         }
         catch (ClassCastException e)
         {
-            throw new ConfigurationException(String.format("Invalid value for configuration property '%s'.", name), e);
+            throw new ConfigurationException(String.format("Failed to get value for the property '%s'.", name), e);
         }
     }
 
@@ -220,7 +222,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
         }
     }
 
-    private void addConfigurationHandler(ConfigurationValidator handler)
+    public void addConfigurationHandler(ConfigurationValidator handler)
     {
         this.validators.add(handler);
     }
@@ -232,7 +234,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
 
     private static PropertyNotFoundException notFound(String name)
     {
-        return new PropertyNotFoundException(String.format("Property with name '%s' is not found.", name));
+        return new PropertyNotFoundException(String.format("Property '%s' is not found.", name));
     }
 
     /**
@@ -267,7 +269,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
             else if (value.getClass().equals(delegate.type(name)))
                 newValue = value;
             else
-                throw new ConfigurationException(String.format("The value type '%s' doesn't match property's '%s' type '%s'.",
+                throw new ConfigurationException(String.format("The value type '%s' doesn't match the '%s' property type '%s'.",
                                                                value.getClass().getCanonicalName(), name, delegate.type(name).getCanonicalName()));
         }
 

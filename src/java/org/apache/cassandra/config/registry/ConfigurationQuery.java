@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -41,11 +42,14 @@ public class ConfigurationQuery implements Iterable<ConfigurationValue<?>>
     private static final Map<ConfigurationSource, ConfigurationQuery> instances = new HashMap<>();
     private final List<ListenerUnsubscriber> unsubscribers = new CopyOnWriteArrayList<>();
     private final Map<String, ConfigurationValue<?>> values = new ConcurrentHashMap<>();
+    private final Function<ConfigurationException, ? extends RuntimeException> exceptionHandler;
     private final ConfigurationSource source;
 
-    private ConfigurationQuery(ConfigurationSource source)
+    private ConfigurationQuery(ConfigurationSource source,
+                               Function<ConfigurationException, ? extends RuntimeException> exceptionHandler)
     {
         this.source = source;
+        this.exceptionHandler = exceptionHandler;
         unsubscribers.add(source.addSourceListener((name, eventType, oldValue, newValue) -> {
             ConfigurationValue<?> value = values.get(name);
             if (value == null)
@@ -54,9 +58,20 @@ public class ConfigurationQuery implements Iterable<ConfigurationValue<?>>
         }));
     }
 
+    private ConfigurationQuery(ConfigurationSource source)
+    {
+        this(source, e -> e);
+    }
+
     public static ConfigurationQuery from(ConfigurationSource source)
     {
         return instances.computeIfAbsent(source, ConfigurationQuery::new);
+    }
+
+    public static ConfigurationQuery from(ConfigurationSource source,
+                                          Function<ConfigurationException, ? extends RuntimeException> handler)
+    {
+        return instances.computeIfAbsent(source, s -> new ConfigurationQuery(s, handler));
     }
 
     /**
@@ -69,7 +84,30 @@ public class ConfigurationQuery implements Iterable<ConfigurationValue<?>>
     @SuppressWarnings("unchecked")
     public <T> ConfigurationValue<T> getValue(Class<T> clazz, String key)
     {
-        return (ConfigurationValue<T>) values.computeIfAbsent(key, k -> new ConfigurationValueImpl<>(k, () -> source.get(clazz, k), clazz::cast));
+        return (ConfigurationValue<T>) values.computeIfAbsent(key, k -> new ConfigurationValueImpl<>(
+            k,
+            () -> getAndHandle(() -> source.get(clazz, k), exceptionHandler),
+            clazz::cast
+        ));
+    }
+
+    /**
+     * Get the value of the configuration property and handle the exception thrown by the configuration source.
+     * @param supplier Supplier of the configuration property value.
+     * @param exceptionHandler Exception handler for the configuration property value.
+     * @return Configuration property value.
+     * @param <T> Configuration property type.
+     */
+    private static <T> T getAndHandle(Supplier<T> supplier, Function<ConfigurationException, ? extends RuntimeException> exceptionHandler)
+    {
+        try
+        {
+            return supplier.get();
+        }
+        catch (ConfigurationException e)
+        {
+            throw exceptionHandler.apply(e);
+        }
     }
 
     @Override
