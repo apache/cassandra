@@ -128,6 +128,12 @@ public class ListenableFileSystem extends ForwardingFileSystem
         }
     }
 
+    public interface Unsubscribable extends AutoCloseable
+    {
+        @Override
+        void close();
+    }
+
     private final List<OnOpen> onOpen = new CopyOnWriteArrayList<>();
     private final List<OnTransferTo> onTransferTo = new CopyOnWriteArrayList<>();
     private final List<OnRead> onRead = new CopyOnWriteArrayList<>();
@@ -142,7 +148,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
         this.provider = new ListenableFileSystemProvider(super.provider());
     }
 
-    public void listen(Listener listener)
+    public Unsubscribable listen(Listener listener)
     {
         if (listener instanceof OnOpen)
             onOpen.add((OnOpen) listener);
@@ -156,6 +162,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
             onTransferFrom.add((OnTransferFrom) listener);
         if (listener instanceof OnChannelMeta)
             onChannelMeta.add((OnChannelMeta) listener);
+        return () -> remove(listener);
     }
 
     public void remove(Listener listener)
