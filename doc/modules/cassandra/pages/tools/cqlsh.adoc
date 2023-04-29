@@ -162,7 +162,8 @@ consistency `ALL` is not guaranteed to be enough).
 === `SHOW VERSION`
 
 Prints the `cqlsh`, Cassandra, CQL, and native protocol versions in use.
-Example:
+
+Example usage:
 
 [source,none]
 ----
@@ -173,7 +174,9 @@ cqlsh> SHOW VERSION
 === `SHOW HOST`
 
 Prints the IP address and port of the Cassandra node that `cqlsh` is
-connected to in addition to the cluster name. Example:
+connected to in addition to the cluster name. 
+
+Example usage:
 
 [source,none]
 ----
@@ -470,7 +473,7 @@ See `shared-copy-options` for options that apply to both `COPY TO` and
 `MAXINSERTERRORS`::
   The maximum global number of insert errors to ignore. -1 means
   unlimited. The default is 1000.
-`ERRFILE` =::
+`ERRFILE`::
   A file to store all rows that could not be imported, by default this
   is `import_<ks>_<table>.err` where `<ks>` is your keyspace and
   `<table>` is your table name.
@@ -490,7 +493,7 @@ Options that are common to both `COPY TO` and `COPY FROM`.
   The string placeholder for null values. Defaults to `null`.
 `HEADER`::
   For `COPY TO`, controls whether the first line in the CSV output file
-  will contain the column names. For COPY FROM, specifies whether the
+  will contain the column names. For `COPY FROM`, specifies whether the
   first line in the CSV input file contains column names. Defaults to
   `false`.
 `DECIMALSEP`::
@@ -499,7 +502,7 @@ Options that are common to both `COPY TO` and `COPY FROM`.
 `THOUSANDSSEP`::
   The character that is used to separate thousands. Defaults to the
   empty string.
-`BOOLSTYlE`::
+`BOOLSTYLE`::
   The string literal format for boolean values. Defaults to
   `True,False`.
 `NUMPROCESSES`::

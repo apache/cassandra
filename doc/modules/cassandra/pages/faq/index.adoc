@@ -62,7 +62,7 @@ making sure that each node will generate a random token on the next
 restart.
 
 [[change-replication-factor]]
-== Can I change the replication factor (a a keyspace) on a live cluster?
+== Can I change the replication factor (for a keyspace) on a live cluster?
 
 Yes, but it will require running a full repair (or cleanup) to change
 the replica count of existing data:
@@ -178,16 +178,16 @@ one live seed to contact. Once a node join the ring, it learns about the
 other nodes, so it doesn't need seed on subsequent boot.
 
 You can make a seed a node at any time. There is nothing special about
-seed nodes. If you list the node in seed list it is a seed
+seed nodes. If you list the node in seed list then it is a seed.
 
 Seeds do not auto bootstrap (i.e. if a node has itself in its seed list
-it will not automatically transfer data to itself) If you want a node to
+it will not automatically transfer data to itself). If you want a node to
 do that, bootstrap it first and then add it to seeds later. If you have
 no data (new install) you do not have to worry about bootstrap at all.
 
 Recommended usage of seeds:
 
-* pick two (or more) nodes per data center as seed nodes.
+* pick two (or more) nodes per data center as seed nodes
 * sync the seed list to all your nodes
 
 [[are-seeds-SPOF]]
