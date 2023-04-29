@@ -140,6 +140,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
     private final List<OnWrite> onWrite = new CopyOnWriteArrayList<>();
     private final List<OnTransferFrom> onTransferFrom = new CopyOnWriteArrayList<>();
     private final List<OnChannelMeta> onChannelMeta = new CopyOnWriteArrayList<>();
+    private final List<List<? extends Listener>> lists = Arrays.asList(onOpen, onRead, onTransferTo, onWrite, onTransferFrom, onChannelMeta);
     private final ListenableFileSystemProvider provider;
 
     public ListenableFileSystem(FileSystem delegate)
@@ -167,12 +168,12 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public void remove(Listener listener)
     {
-        onOpen.remove(listener);
-        onRead.remove(listener);
-        onTransferTo.remove(listener);
-        onWrite.remove(listener);
-        onTransferFrom.remove(listener);
-        onChannelMeta.remove(listener);
+        lists.forEach(l -> l.remove(listener));
+    }
+
+    public void clearListeners()
+    {
+        lists.forEach(List::clear);
     }
 
     private interface ListenerAction<T>
