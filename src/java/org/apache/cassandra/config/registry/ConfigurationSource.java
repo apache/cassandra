@@ -98,7 +98,7 @@ public interface ConfigurationSource extends Iterable<Pair<String, Supplier<Obje
         return get(Integer.class, name);
     }
 
-    default <T extends DataRateSpec<T>> T getDataRateSpec(Class<? extends T> clazz, String name)
+    default <T extends DataRateSpec<T>> T getDataRateSpec(Class<T> clazz, String name)
     {
         return get(clazz, name);
     }
@@ -109,7 +109,7 @@ public interface ConfigurationSource extends Iterable<Pair<String, Supplier<Obje
         return value == null ? defaultValue : value;
     }
 
-    default <T extends DataStorageSpec<T>> T getDataStorageSpec(Class<? extends T> clazz, String name)
+    default <T extends DataStorageSpec<T>> T getDataStorageSpec(Class<T> clazz, String name)
     {
         return get(clazz, name);
     }

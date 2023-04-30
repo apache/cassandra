@@ -25,6 +25,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Streams;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -41,7 +42,6 @@ import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.Pair;
-import org.assertj.core.util.Streams;
 
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.apache.cassandra.config.registry.ConfigurationSourceListener.EventType.BEFORE_CHANGE;
@@ -89,13 +89,6 @@ public class UpdateSettingsTableTest extends CQLTester
     @Test
     public void testUpdateRepairSessionSpaceToNull() throws Throwable
     {
-        ConfigurationQuery.from(tableSource).getValue(DataStorageSpec.IntMebibytesBound.class, ConfigFields.REPAIR_SESSION_SPACE)
-                          .map(DataStorageSpec.IntMebibytesBound::toBytes)
-                          .listen(BEFORE_CHANGE, (oldValue, newValue) -> {
-                                     System.out.println("oldValue = " + oldValue);
-                                     System.out.println("newValue = " + newValue);
-                                 });
-
         String nonDefaultValue = new DataStorageSpec.IntMebibytesBound(10L, MEBIBYTES).toString();
         assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
                                  nonDefaultValue, ConfigFields.REPAIR_SESSION_SPACE));
@@ -114,6 +107,23 @@ public class UpdateSettingsTableTest extends CQLTester
     }
 
     @Test
+    public void testUpdateWithNotificationListeners() throws Throwable
+    {
+        DataStorageSpec.IntMebibytesBound value0 = new DataStorageSpec.IntMebibytesBound(10L, MEBIBYTES);
+        ConfigurationQuery.from(tableSource).getValue(DataStorageSpec.IntMebibytesBound.class, ConfigFields.REPAIR_SESSION_SPACE)
+                          .map(DataStorageSpec.IntMebibytesBound::toBytes)
+                          .listen(BEFORE_CHANGE, (oldValue, newValue) -> {
+                              assertNotNull(oldValue);
+                              assertNotNull(newValue);
+                              assertEquals(new DataStorageSpec.IntMebibytesBound(DatabaseDescriptor.SPACE_UPPER_BOUND_MB).toBytes(), oldValue.intValue());
+                              assertEquals(value0.toBytes(), newValue.intValue());
+                          });
+        assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
+                                 value0.toString(), ConfigFields.REPAIR_SESSION_SPACE));
+        assertEquals(value0.toString(), tableSource.getString(ConfigFields.REPAIR_SESSION_SPACE));
+    }
+
+    @Test
     public void testUpdateSettingsValidationFail() throws Throwable
     {
         InvalidQueryException e = null;
@@ -127,8 +137,8 @@ public class UpdateSettingsTableTest extends CQLTester
             e = ex;
         }
         assertNotNull(e);
-        assertEquals("Invalid update request; cause: 'Error updating property 'stream_throughput_outbound'; " +
-                     "cause: Invalid data rate: 2147483648 Accepted units: MiB/s, KiB/s, B/s where case matters and " +
+        assertEquals("Invalid update request; cause: 'Failed to update property 'stream_throughput_outbound'. " +
+                     "The cause: Invalid data rate: 2147483648 Accepted units: MiB/s, KiB/s, B/s where case matters and " +
                      "only non-negative values are valid'", e.getMessage());
     }
 

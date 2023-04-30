@@ -27,10 +27,7 @@ import java.nio.file.Paths; //checkstyle: permit this import
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.config.Config;
@@ -101,7 +98,7 @@ public class ConfigFieldsGenerateUtil
               .filter(f -> !Modifier.isPrivate(f.getModifiers()))
               .filter(f -> f.isAnnotationPresent(Mutable.class))
               .forEach(f -> {
-                  constants.add(TAB + "/** See {@link " + clazz.getCanonicalName() + '#' + f.getName() + "} */");
+                  constants.add(TAB + "/** String representation of the {@link " + clazz.getCanonicalName() + '#' + f.getName() + "}. */");
                   constants.add(TAB + "public static final String " + f.getName().toUpperCase() + " = \"" + f.getName() + "\";");
               });
 

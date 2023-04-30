@@ -44,6 +44,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.ToDoubleFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -957,27 +958,26 @@ public class DatabaseDescriptor
     }
 
     /**
-     * Validates the {@link Config#stream_throughput_outbound} configuration options
+     * Validates throughput configuration options.
      * @param source the source of the configuration.
      * @throws ConfigurationException if the values are invalid.
      */
     public static void validateUpperBoundStreamingConfig(ConfigurationSource source) throws ConfigurationException
     {
         // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
-        if (source.getDataRateSpec(DataRateSpec.LongBytesPerSecondBound.class, ConfigFields.STREAM_THROUGHPUT_OUTBOUND).toMegabitsPerSecond() >= Integer.MAX_VALUE)
-            throw new ConfigurationException("Invalid value of stream_throughput_outbound: " + conf.stream_throughput_outbound.toString(), false);
+        validateThroughputUpperBound(ConfigFields.STREAM_THROUGHPUT_OUTBOUND, source, DataRateSpec.LongBytesPerSecondBound::toMegabitsPerSecond);
+        validateThroughputUpperBound(ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND, source, DataRateSpec.LongBytesPerSecondBound::toMegabitsPerSecond);
+        validateThroughputUpperBound(ConfigFields.ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND, source, DataRateSpec.LongBytesPerSecondBound::toMebibytesPerSecond);
+        validateThroughputUpperBound(ConfigFields.ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND, source, DataRateSpec.LongBytesPerSecondBound::toMebibytesPerSecond);
+        validateThroughputUpperBound(ConfigFields.COMPACTION_THROUGHPUT, source, DataRateSpec.LongBytesPerSecondBound::toMebibytesPerSecond);
+    }
 
-        if (source.getDataRateSpec(DataRateSpec.LongBytesPerSecondBound.class, ConfigFields.INTER_DC_STREAM_THROUGHPUT_OUTBOUND).toMegabitsPerSecond() >= Integer.MAX_VALUE)
-            throw new ConfigurationException("Invalid value of inter_dc_stream_throughput_outbound: " + conf.inter_dc_stream_throughput_outbound.toString(), false);
-
-        if (source.getDataRateSpec(DataRateSpec.LongBytesPerSecondBound.class, ConfigFields.ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND).toMebibytesPerSecond() >= Integer.MAX_VALUE)
-            throw new ConfigurationException("Invalid value of entire_sstable_stream_throughput_outbound: " + conf.entire_sstable_stream_throughput_outbound.toString(), false);
-
-        if (source.getDataRateSpec(DataRateSpec.LongBytesPerSecondBound.class, ConfigFields.ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND).toMebibytesPerSecond() >= Integer.MAX_VALUE)
-            throw new ConfigurationException("Invalid value of entire_sstable_inter_dc_stream_throughput_outbound: " + conf.entire_sstable_inter_dc_stream_throughput_outbound.toString(), false);
-
-        if (source.getDataRateSpec(DataRateSpec.LongBytesPerSecondBound.class, ConfigFields.COMPACTION_THROUGHPUT).toMebibytesPerSecond() >= Integer.MAX_VALUE)
-            throw new ConfigurationException("Invalid value of compaction_throughput: " + conf.compaction_throughput.toString(), false);
+    @SuppressWarnings("unchecked")
+    private static <T extends DataRateSpec<T>> void validateThroughputUpperBound(String name, ConfigurationSource source, ToDoubleFunction<T> throughput)
+    {
+        DataRateSpec.LongBytesPerSecondBound value = source.getDataRateSpec(DataRateSpec.LongBytesPerSecondBound.class, name);
+        if (throughput.applyAsDouble((T) value) >= Integer.MAX_VALUE)
+            throw new ConfigurationException(String.format("Invalid value of '%s': '%s'", name, value), false);
     }
 
     @VisibleForTesting
@@ -2115,22 +2115,12 @@ public class DatabaseDescriptor
     @VisibleForTesting // only for testing!
     public static void setCompactionThroughputBytesPerSec(int value)
     {
-        if (BYTES_PER_SECOND.toMebibytesPerSecond(value) >= Integer.MAX_VALUE)
-            throw new IllegalArgumentException("compaction_throughput: " + value +
-                                               " is too large; it should be less than " +
-                                               Integer.MAX_VALUE + " in MiB/s");
-
-        conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value);
+        setProperty(ConfigFields.COMPACTION_THROUGHPUT, new DataRateSpec.LongBytesPerSecondBound(value));
     }
 
     public static void setCompactionThroughputMebibytesPerSec(int value)
     {
-        if (value == Integer.MAX_VALUE)
-            throw new IllegalArgumentException("compaction_throughput: " + value +
-                                               " is too large; it should be less than " +
-                                               Integer.MAX_VALUE + " in MiB/s");
-
-        conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
+        setProperty(ConfigFields.COMPACTION_THROUGHPUT, new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND));
     }
 
     public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold.toBytesInLong(); }
