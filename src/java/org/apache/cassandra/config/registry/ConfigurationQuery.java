@@ -46,7 +46,7 @@ public class ConfigurationQuery implements Iterable<ConfigurationValue<?>>
     public static final Function<ConfigurationException, ? extends RuntimeException> JMX_EXCEPTION_HANDLER =
         e -> new RuntimeException(e.getMessage());
     private static final Map<ConfigurationSource, ConfigurationQuery> instances = new HashMap<>();
-    private final List<ListenerUnsubscriber> unsubscribers = new CopyOnWriteArrayList<>();
+    private final List<ListenerRemover> listenerRemovers = new CopyOnWriteArrayList<>();
     private final Map<String, ConfigurationValue<?>> values = new ConcurrentHashMap<>();
     private final Function<ConfigurationException, ? extends RuntimeException> exceptionHandler;
     private final ConfigurationSource source;
@@ -56,11 +56,11 @@ public class ConfigurationQuery implements Iterable<ConfigurationValue<?>>
     {
         this.source = source;
         this.exceptionHandler = exceptionHandler;
-        unsubscribers.add(source.addSourceListener((name, eventType, oldValue, newValue) -> {
+        listenerRemovers.add(source.addSourceListener((name, eventType, oldValue, newValue) -> {
             ConfigurationValue<?> value = values.get(name);
             if (value == null)
                 return;
-            ((ValueChangeListener) value).update(eventType, oldValue, newValue);
+            ((UpdateListener) value).update(eventType, oldValue, newValue);
         }));
     }
 
@@ -124,15 +124,15 @@ public class ConfigurationQuery implements Iterable<ConfigurationValue<?>>
 
     public static void shutdown()
     {
-        instances.forEach((source, registry) -> registry.unsubscribers.forEach(ListenerUnsubscriber::unsubscribe));
+        instances.forEach((source, registry) -> registry.listenerRemovers.forEach(ListenerRemover::remove));
     }
 
-    private class ConfigurationValueImpl<T> implements ConfigurationValue<T>, ValueChangeListener
+    private class ConfigurationValueImpl<T> implements ConfigurationValue<T>, UpdateListener
     {
         private final String key;
         private final Supplier<T> value;
-        private final Map<ConfigurationSourceListener.EventType, List<BiConsumer<T, T>>> valueListeners = new EnumMap<>(ConfigurationSourceListener.EventType.class);
-        private final List<ValueChangeListener> dependents = new CopyOnWriteArrayList<>();
+        private final Map<ChangeEventType, List<BiConsumer<T, T>>> valueListeners = new EnumMap<>(ChangeEventType.class);
+        private final List<UpdateListener> descendants = new CopyOnWriteArrayList<>();
         private final TypeConverter<T> converter;
 
         public ConfigurationValueImpl(String key, Supplier<T> value, TypeConverter<T> converter)
@@ -163,7 +163,7 @@ public class ConfigurationQuery implements Iterable<ConfigurationValue<?>>
                                                                           // It is safe to cast the old value to T because
                                                                           // the mapper is called when type old value is T.
                                                                           oldValue -> mapper.apply((T) oldValue));
-            dependents.add(next);
+            descendants.add(next);
             return next;
         }
 
@@ -194,23 +194,23 @@ public class ConfigurationQuery implements Iterable<ConfigurationValue<?>>
         }
 
         @Override
-        public void listen(ConfigurationSourceListener.EventType changeType, BiConsumer<T, T> listener)
+        public void listen(ChangeEventType changeType, BiConsumer<T, T> listener)
         {
             valueListeners.computeIfAbsent(changeType, t -> new CopyOnWriteArrayList<>()).add(listener);
-            ConfigurationQuery.this.unsubscribers.add(() -> valueListeners.get(changeType).remove(listener));
+            ConfigurationQuery.this.listenerRemovers.add(() -> valueListeners.get(changeType).remove(listener));
         }
 
         @Override
-        public void update(ConfigurationSourceListener.EventType changeType, Object oldValue, Object newValue)
+        public void update(ChangeEventType changeType, Object oldValue, Object newValue)
         {
-            dependents.forEach(listener -> listener.update(changeType, oldValue, newValue));
+            descendants.forEach(listener -> listener.update(changeType, oldValue, newValue));
             ofNullable(valueListeners.get(changeType)).ifPresent(l -> l.forEach(listener -> listener.accept(converter.convertNullable(oldValue),
                                                                                                             converter.convertNullable(newValue))));
         }
     }
 
-    interface ValueChangeListener
+    interface UpdateListener
     {
-        void update(ConfigurationSourceListener.EventType changeType, Object oldValue, Object newValue);
+        void update(ChangeEventType changeType, Object oldValue, Object newValue);
     }
 }

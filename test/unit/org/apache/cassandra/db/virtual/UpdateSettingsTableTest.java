@@ -44,7 +44,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
-import static org.apache.cassandra.config.registry.ConfigurationSourceListener.EventType.BEFORE_CHANGE;
+import static org.apache.cassandra.config.registry.ChangeEventType.BEFORE_CHANGE;
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;

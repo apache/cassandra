@@ -19,15 +19,10 @@
 package org.apache.cassandra.config.registry;
 
 /**
- * Interface validating configuration property's value.
+ * EventType of property change.
  */
-public interface ConfigurationValidator
+public enum ChangeEventType
 {
-    /**
-     * Called before a property change occurrs. If this method throws an exception, the change
-     * will be aborted. If it returns normally, the change will proceed with a returned value.
-     *
-     * @param source the source of the change.
-     */
-    void validate(ConfigurationSource source);
+    BEFORE_CHANGE,
+    AFTER_CHANGE,
 }

@@ -58,7 +58,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
     private static final Logger logger = LoggerFactory.getLogger(DatabaseConfigurationSource.class);
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final List<ConfigurationSourceListener> changeListeners = new CopyOnWriteArrayList<>();
-    private final List<ConfigurationValidator> validators = new ArrayList<>();
+    private final List<ConfigurationSourceValidator> validators = new ArrayList<>();
     private final TypeConverterRegistry converters;
     private final Config source;
     private final Map<String, Property> properties;
@@ -76,7 +76,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
         registerConfigurationValidators(this::addConfigurationValidator);
     }
 
-    private static void registerConfigurationValidators(Consumer<ConfigurationValidator> adder)
+    private static void registerConfigurationValidators(Consumer<ConfigurationSourceValidator> adder)
     {
         adder.accept(DatabaseDescriptor::validateUpperBoundStreamingConfig);
         adder.accept(createLoggingValidator(DatabaseDescriptor::validateRepairSessionSpace));
@@ -99,17 +99,17 @@ public class DatabaseConfigurationSource implements ConfigurationSource
                                     .orElse(null);
             // Use given converted value if it is not null, otherwise use the default value.
             ConfigurationSource validationSource = PropertyValidationSource.create(this, name, convertedValue);
-            for (ConfigurationValidator validator : validators)
+            for (ConfigurationSourceValidator validator : validators)
                 validator.validate(validationSource);
             // Do set the value only if the validation passes.
             Object validatedValue = validationSource.getRaw(name);
             Object oldValue = property.get(source);
             changeListeners.forEach(l -> l.listen(name,
-                                                  ConfigurationSourceListener.EventType.BEFORE_CHANGE,
+                                                  ChangeEventType.BEFORE_CHANGE,
                                                   oldValue, validatedValue));
             property.set(source, validatedValue);
             changeListeners.forEach(l -> l.listen(name,
-                                                  ConfigurationSourceListener.EventType.AFTER_CHANGE,
+                                                  ChangeEventType.AFTER_CHANGE,
                                                   oldValue, validatedValue));
             // This potentially may expose the values that are not safe to see in logs on production.
             logger.info("Configuration property '{}' updated from '{}' to '{}'.", property.getName(), oldValue, validatedValue);
@@ -197,7 +197,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
      * @param listener listener to add.
      */
     @Override
-    public ListenerUnsubscriber addSourceListener(ConfigurationSourceListener listener)
+    public ListenerRemover addSourceListener(ConfigurationSourceListener listener)
     {
         lock.writeLock().lock();
         try
@@ -228,12 +228,12 @@ public class DatabaseConfigurationSource implements ConfigurationSource
         }
     }
 
-    public void addConfigurationValidator(ConfigurationValidator handler)
+    public void addConfigurationValidator(ConfigurationSourceValidator handler)
     {
         this.validators.add(handler);
     }
 
-    private static ConfigurationValidator createLoggingValidator(BiConsumer<ConfigurationSource, Logger> validator)
+    private static ConfigurationSourceValidator createLoggingValidator(BiConsumer<ConfigurationSource, Logger> validator)
     {
         return source -> validator.accept(source, logger);
     }

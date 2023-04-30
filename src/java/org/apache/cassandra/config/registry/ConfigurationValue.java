@@ -33,8 +33,8 @@ public interface ConfigurationValue<T>
 
     String key();
 
-    void listen(ConfigurationSourceListener.EventType changeType, BiConsumer<T, T> values);
-    default void listenOptional(ConfigurationSourceListener.EventType changeType, BiConsumer<Optional<T>, Optional<T>> values)
+    void listen(ChangeEventType changeType, BiConsumer<T, T> values);
+    default void listenOptional(ChangeEventType changeType, BiConsumer<Optional<T>, Optional<T>> values)
     {
         listen(changeType, (oldValue, newValue) -> values.accept(Optional.ofNullable(oldValue), Optional.ofNullable(newValue)));
     }

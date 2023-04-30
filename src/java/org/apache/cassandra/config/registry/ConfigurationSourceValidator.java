@@ -19,17 +19,15 @@
 package org.apache.cassandra.config.registry;
 
 /**
- * The handler to remove a configuration value listener.
+ * Interface validating configuration property's value.
  */
-@FunctionalInterface
-public
-interface ListenerUnsubscriber extends Runnable
+public interface ConfigurationSourceValidator
 {
-    void unsubscribe();
-
-    @Override
-    default void run()
-    {
-        unsubscribe();
-    }
+    /**
+     * Called before a property change occurrs. If this method throws an exception, the change
+     * will be aborted. If it returns normally, the change will proceed with a returned value.
+     *
+     * @param source the source of the change.
+     */
+    void validate(ConfigurationSource source);
 }

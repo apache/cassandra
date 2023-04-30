@@ -111,8 +111,8 @@ import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.registry.ChangeEventType;
 import org.apache.cassandra.config.registry.ConfigurationQuery;
-import org.apache.cassandra.config.registry.ConfigurationSourceListener;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -978,7 +978,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         DatabaseDescriptor.configQuery(JMX_EXCEPTION_HANDLER)
                           .getValue(Integer.class, ConfigFields.CONCURRENT_COMPACTORS)
-                          .listenOptional(ConfigurationSourceListener.EventType.BEFORE_CHANGE,
+                          .listenOptional(ChangeEventType.BEFORE_CHANGE,
                                           (oldValue, newValue) -> newValue.ifPresent(CompactionManager.instance::setConcurrentCompactors));
 
         completeInitialization();

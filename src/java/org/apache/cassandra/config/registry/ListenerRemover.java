@@ -19,17 +19,16 @@
 package org.apache.cassandra.config.registry;
 
 /**
- * Interface for listening to configuration property changes.
+ * The handler to remove a configuration value listener.
  */
-public interface ConfigurationSourceListener
+@FunctionalInterface
+public interface ListenerRemover extends Runnable
 {
-    /**
-     * Called on configuration change property event occurr.
-     *
-     * @param name  the name of the configuration property.
-     * @param eventType  the eventType of the event.
-     * @param oldValue the old value of the property.
-     * @param newValue the new value of the property.
-     */
-    void listen(String name, ChangeEventType eventType, Object oldValue, Object newValue);
+    void remove();
+
+    @Override
+    default void run()
+    {
+        remove();
+    }
 }
