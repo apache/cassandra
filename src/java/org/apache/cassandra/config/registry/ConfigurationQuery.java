@@ -39,6 +39,12 @@ import static java.util.Optional.ofNullable;
  */
 public class ConfigurationQuery implements Iterable<ConfigurationValue<?>>
 {
+    /**
+     * Exception handler that throws the exception as a RuntimeException so that the JMX client can handle it and
+     * is not confronted with a Cassandra-specific exception class that does not exist in the client's classpath.
+     */
+    public static final Function<ConfigurationException, ? extends RuntimeException> JMX_EXCEPTION_HANDLER =
+        e -> new RuntimeException(e.getMessage());
     private static final Map<ConfigurationSource, ConfigurationQuery> instances = new HashMap<>();
     private final List<ListenerUnsubscriber> unsubscribers = new CopyOnWriteArrayList<>();
     private final Map<String, ConfigurationValue<?>> values = new ConcurrentHashMap<>();

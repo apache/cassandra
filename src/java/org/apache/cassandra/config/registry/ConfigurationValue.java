@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.config.registry;
 
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -33,6 +34,10 @@ public interface ConfigurationValue<T>
     String key();
 
     void listen(ConfigurationSourceListener.EventType changeType, BiConsumer<T, T> values);
+    default void listenOptional(ConfigurationSourceListener.EventType changeType, BiConsumer<Optional<T>, Optional<T>> values)
+    {
+        listen(changeType, (oldValue, newValue) -> values.accept(Optional.ofNullable(oldValue), Optional.ofNullable(newValue)));
+    }
 
     <U> ConfigurationValue<U> map(Mapper<? super T, ? extends U> mapper);
 

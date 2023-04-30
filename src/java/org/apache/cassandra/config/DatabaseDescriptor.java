@@ -743,12 +743,7 @@ public class DatabaseDescriptor
         if (conf.memtable_cleanup_threshold < 0.1f)
             logger.warn("memtable_cleanup_threshold is set very low [{}], which may cause performance degradation", conf.memtable_cleanup_threshold);
 
-        if (conf.concurrent_compactors == null)
-            conf.concurrent_compactors = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
-
-        if (conf.concurrent_compactors <= 0)
-            throw new ConfigurationException("concurrent_compactors should be strictly greater than 0, but was " + conf.concurrent_compactors, false);
-
+        validateConcurrentCompactors(configSource);
         applyConcurrentValidations(conf);
         applyRepairCommandPoolSize(conf);
         applyReadThresholdsValidations(conf);
@@ -2099,7 +2094,7 @@ public class DatabaseDescriptor
 
     public static void setConcurrentCompactors(int value)
     {
-        conf.concurrent_compactors = value;
+        setProperty(ConfigFields.CONCURRENT_COMPACTORS, value);
     }
 
     public static int getCompactionThroughputMebibytesPerSecAsInt()
@@ -3620,6 +3615,22 @@ public class DatabaseDescriptor
             logger.warn("A '{}' of '{}' mebibytes is likely to cause heap pressure", ConfigFields.REPAIR_SESSION_SPACE, value.toMebibytes());
     }
 
+    public static void validateConcurrentCompactors(ConfigurationSource source)
+    {
+        Integer value = source.getInteger(ConfigFields.CONCURRENT_COMPACTORS);
+
+        if (value == null)
+        {
+            value = Math.min(8, Math.max(2, Math.min(FBUtilities.getAvailableProcessors(), conf.data_file_directories.length)));
+            source.set(ConfigFields.CONCURRENT_COMPACTORS, value);
+        }
+
+        if (value <= 0)
+            throw new ConfigurationException(String.format("'%s' should be strictly greater than 0, but was '%s'",
+                                                           ConfigFields.CONCURRENT_COMPACTORS, value), false);
+    }
+
+
     public static int getPaxosRepairParallelism()
     {
         return conf.paxos_repair_parallelism;
@@ -4732,7 +4743,7 @@ public class DatabaseDescriptor
      * @param name Property name.
      * @param value Property value.
      */
-    private static void setProperty(String name, Object value)
+    public static void setProperty(String name, Object value)
     {
         configSource.set(name, value);
     }

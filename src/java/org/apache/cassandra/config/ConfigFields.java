@@ -29,10 +29,12 @@ package org.apache.cassandra.config;
 public class ConfigFields
 {
     public static final String COMPACTION_THROUGHPUT = "compaction_throughput";
+    public static final String CONCURRENT_COMPACTORS = "concurrent_compactors";
     public static final String ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_inter_dc_stream_throughput_outbound";
     public static final String ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_stream_throughput_outbound";
     public static final String INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "inter_dc_stream_throughput_outbound";
     public static final String REPAIR_SESSION_SPACE = "repair_session_space";
-    public static final String REQUEST_TIMEOUT = "request_timeout";
     public static final String STREAM_THROUGHPUT_OUTBOUND = "stream_throughput_outbound";
+
+    private ConfigFields() {}
 }

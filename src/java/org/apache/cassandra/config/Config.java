@@ -131,7 +131,6 @@ public class Config
     @Replaces(oldName = "native_transport_idle_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public DurationSpec.LongMillisecondsBound native_transport_idle_timeout = new DurationSpec.LongMillisecondsBound("0ms");
 
-    @Mutable
     @Replaces(oldName = "request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound request_timeout = new DurationSpec.LongMillisecondsBound("10000ms");
 
@@ -327,6 +326,7 @@ public class Config
     public volatile DataStorageSpec.IntKibibytesBound batch_size_fail_threshold = new DataStorageSpec.IntKibibytesBound("50KiB");
 
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
+    @Mutable
     public volatile Integer concurrent_compactors;
     @Mutable
     @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converters.MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)

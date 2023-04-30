@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.config.registry;
 
-import java.util.Optional;
 import java.util.function.Supplier;
 
 import org.apache.cassandra.config.DataRateSpec;
@@ -84,17 +83,6 @@ public interface ConfigurationSource extends Iterable<Pair<String, Supplier<Obje
         return value == null ? defaultValue : value;
     }
 
-    /**
-     * Returns the value of the property with the given name.
-     *
-     * @param clazz the class of the property.
-     * @param name the name of the property.
-     * @return the value of the property.
-     */
-    default <T> Optional<T> getOptional(Class<T> clazz, String name) {
-        return Optional.ofNullable(get(clazz, name));
-    }
-
     default String getString(String name)
     {
         return get(String.class, name);
@@ -103,6 +91,11 @@ public interface ConfigurationSource extends Iterable<Pair<String, Supplier<Obje
     default String getString(String name, String defaultValue)
     {
         return get(String.class, name, defaultValue);
+    }
+
+    default Integer getInteger(String name)
+    {
+        return get(Integer.class, name);
     }
 
     default <T extends DataRateSpec<T>> T getDataRateSpec(Class<? extends T> clazz, String name)

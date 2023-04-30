@@ -78,6 +78,7 @@ public class ConfigFieldsGenerateUtil
     {
         final List<String> code = new ArrayList<>();
         final Set<String> constants = new TreeSet<>();
+        final String genClassName = clazz.getSimpleName() + CLASS_POSTFIX;
         code.add("");
         code.add("package " + clazz.getPackage().getName() + ';');
         code.add("");
@@ -89,7 +90,7 @@ public class ConfigFieldsGenerateUtil
         code.add(" * @see " + Mutable.class.getCanonicalName());
         code.add(" * @see " + clazz.getCanonicalName());
         code.add(" */");
-        code.add("public class " + clazz.getSimpleName() + CLASS_POSTFIX);
+        code.add("public class " + genClassName);
         code.add("{");
         Field[] fields = clazz.getDeclaredFields();
         Arrays.stream(fields)
@@ -99,6 +100,8 @@ public class ConfigFieldsGenerateUtil
               .forEach(f -> constants.add(TAB + "public static final String " + f.getName().toUpperCase() + " = \"" + f.getName() + "\";"));
 
         code.addAll(constants);
+        code.add("");
+        code.add(TAB + "private " + genClassName + "() {}");
         code.add("}");
         addLicense(code);
         return code;

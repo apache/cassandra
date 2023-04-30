@@ -19,7 +19,6 @@
 package org.apache.cassandra.config.registry;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +26,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -73,8 +73,14 @@ public class DatabaseConfigurationSource implements ConfigurationSource
                                          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
         converters = TypeConverterRegistry.instance;
         // Initialize the configuration handlers.
-        addConfigurationHandler(DatabaseDescriptor::validateUpperBoundStreamingConfig);
-        addConfigurationHandler(createLoggingValidator(DatabaseDescriptor::validateRepairSessionSpace));
+        registerConfigurationValidators(this::addConfigurationValidator);
+    }
+
+    private static void registerConfigurationValidators(Consumer<ConfigurationValidator> adder)
+    {
+        adder.accept(DatabaseDescriptor::validateUpperBoundStreamingConfig);
+        adder.accept(createLoggingValidator(DatabaseDescriptor::validateRepairSessionSpace));
+        adder.accept(DatabaseDescriptor::validateConcurrentCompactors);
     }
 
     @Override
@@ -222,7 +228,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
         }
     }
 
-    public void addConfigurationHandler(ConfigurationValidator handler)
+    public void addConfigurationValidator(ConfigurationValidator handler)
     {
         this.validators.add(handler);
     }

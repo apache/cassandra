@@ -123,6 +123,20 @@ final class SettingsTable extends AbstractMutableVirtualTable
         return configSource;
     }
 
+
+    private static boolean propertyExists(ConfigurationSource source, String name)
+    {
+        try
+        {
+            source.getRaw(name);
+            return true;
+        }
+        catch (PropertyNotFoundException e)
+        {
+            return false;
+        }
+    }
+
     private static Map<String, Replacement> replacements(ConfigurationSource source)
     {
         // only handling top-level replacements for now, previous logic was only top level so not a regression
@@ -142,19 +156,6 @@ final class SettingsTable extends AbstractMutableVirtualTable
             replacements.put(oldName, new Replacement(Config.class, oldName, source.type(newName), newName, Converters.IDENTITY, true));
         }
         return replacements;
-    }
-
-    private static boolean propertyExists(ConfigurationSource source, String name)
-    {
-        try
-        {
-            source.getRaw(name);
-            return true;
-        }
-        catch (PropertyNotFoundException e)
-        {
-            return false;
-        }
     }
 
     /**
@@ -228,9 +229,9 @@ final class SettingsTable extends AbstractMutableVirtualTable
             if (replacement == null)
                 configSource.set(name, value);
             else
-                // The replacement is exists only for backwards compat (yaml-file) and there is usage of the old name
-                // in the code. If we are going to set the value for the old name, we should add toString/fromString
-                // methods to the converter to handle the old format.
+                // The replacement is exists only for backwards compatibility (yaml-file) and there is no usage of
+                // the old name in the code. If we are going to set the value for the old name, we should add
+                // toString/fromString methods to the converter to handle the old format.
                 throw new ConfigurationException(String.format("Unable to set '%s' as it is deprecated and is read only; use '%s' instead", name, replacement.newName));
         }
 
