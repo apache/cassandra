@@ -28,12 +28,19 @@ package org.apache.cassandra.config;
  */
 public class ConfigFields
 {
+    /** See {@link org.apache.cassandra.config.Config#compaction_throughput} */
     public static final String COMPACTION_THROUGHPUT = "compaction_throughput";
+    /** See {@link org.apache.cassandra.config.Config#concurrent_compactors} */
     public static final String CONCURRENT_COMPACTORS = "concurrent_compactors";
+    /** See {@link org.apache.cassandra.config.Config#entire_sstable_inter_dc_stream_throughput_outbound} */
     public static final String ENTIRE_SSTABLE_INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_inter_dc_stream_throughput_outbound";
+    /** See {@link org.apache.cassandra.config.Config#entire_sstable_stream_throughput_outbound} */
     public static final String ENTIRE_SSTABLE_STREAM_THROUGHPUT_OUTBOUND = "entire_sstable_stream_throughput_outbound";
+    /** See {@link org.apache.cassandra.config.Config#inter_dc_stream_throughput_outbound} */
     public static final String INTER_DC_STREAM_THROUGHPUT_OUTBOUND = "inter_dc_stream_throughput_outbound";
+    /** See {@link org.apache.cassandra.config.Config#repair_session_space} */
     public static final String REPAIR_SESSION_SPACE = "repair_session_space";
+    /** See {@link org.apache.cassandra.config.Config#stream_throughput_outbound} */
     public static final String STREAM_THROUGHPUT_OUTBOUND = "stream_throughput_outbound";
 
     private ConfigFields() {}

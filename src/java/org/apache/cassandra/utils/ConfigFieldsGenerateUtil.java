@@ -26,6 +26,8 @@ import java.net.URL;
 import java.nio.file.Paths; //checkstyle: permit this import
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -77,7 +79,7 @@ public class ConfigFieldsGenerateUtil
     private static List<String> generate(Class<?> clazz)
     {
         final List<String> code = new ArrayList<>();
-        final Set<String> constants = new TreeSet<>();
+        final List<String> constants = new ArrayList<>();
         final String genClassName = clazz.getSimpleName() + CLASS_POSTFIX;
         code.add("");
         code.add("package " + clazz.getPackage().getName() + ';');
@@ -94,10 +96,14 @@ public class ConfigFieldsGenerateUtil
         code.add("{");
         Field[] fields = clazz.getDeclaredFields();
         Arrays.stream(fields)
+              .sorted(Comparator.comparing(Field::getName))
               .filter(f -> !Modifier.isStatic(f.getModifiers()))
               .filter(f -> !Modifier.isPrivate(f.getModifiers()))
               .filter(f -> f.isAnnotationPresent(Mutable.class))
-              .forEach(f -> constants.add(TAB + "public static final String " + f.getName().toUpperCase() + " = \"" + f.getName() + "\";"));
+              .forEach(f -> {
+                  constants.add(TAB + "/** See {@link " + clazz.getCanonicalName() + '#' + f.getName() + "} */");
+                  constants.add(TAB + "public static final String " + f.getName().toUpperCase() + " = \"" + f.getName() + "\";");
+              });
 
         code.addAll(constants);
         code.add("");
