@@ -1,4 +1,4 @@
 [submodule "modules/accord"]
 	path = modules/accord
 	url = https://github.com/aweisberg/cassandra-accord
-	branch = cassandra-18129-livemigration-trunk
+	branch = cassandra-18129-interoperability-trunk

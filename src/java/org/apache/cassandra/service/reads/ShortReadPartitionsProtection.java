@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.service.reads;
 
-import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,15 +38,19 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.reads.repair.NoopReadRepair;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 
 public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
 {
     private static final Logger logger = LoggerFactory.getLogger(ShortReadPartitionsProtection.class);
+
+    private final ReadCoordinator coordinator;
     private final ReadCommand command;
     private final Replica source;
 
@@ -64,13 +65,16 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
     private final long queryStartNanoTime;
 
-    public ShortReadPartitionsProtection(ReadCommand command,
+
+    public ShortReadPartitionsProtection(ReadCoordinator coordinator,
+                                         ReadCommand command,
                                          Replica source,
                                          Runnable preFetchCallback,
                                          DataLimits.Counter singleResultCounter,
                                          DataLimits.Counter mergedResultCounter,
                                          long queryStartNanoTime)
     {
+        this.coordinator = coordinator;
         this.command = command;
         this.source = source;
         this.preFetchCallback = preFetchCallback;
@@ -177,10 +181,11 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
     private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
     UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
     {
-        DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);
+        cmd = coordinator.maybeAllowOutOfRangeReads(cmd);
+        DataResolver<E, P> resolver = new DataResolver<>(coordinator, cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);
         ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryStartNanoTime);
 
-        if (source.isSelf())
+        if (source.isSelf() && coordinator.localReadSupported())
         {
             Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
         }
@@ -188,7 +193,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         {
             if (source.isTransient())
                 cmd = cmd.copyAsTransientQuery(source);
-            MessagingService.instance().sendWithCallback(cmd.createMessage(false), source.endpoint(), handler);
+            coordinator.sendReadCommand(cmd.createMessage(false), source.endpoint(), handler);
         }
 
         // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.

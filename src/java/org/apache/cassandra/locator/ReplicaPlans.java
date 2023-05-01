@@ -18,8 +18,16 @@
 
 package org.apache.cassandra.locator;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
@@ -27,7 +35,11 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import com.carrotsearch.hppc.ObjectIntHashMap;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
@@ -41,19 +53,14 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.*;
 
 import javax.annotation.Nullable;
 
@@ -392,10 +399,10 @@ public class ReplicaPlans
         return result;
     }
 
-    public static ReplicaPlan.ForReadRepair forReadRepair(ClusterMetadata metadata, Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, Predicate<Replica> isAlive) throws UnavailableException
+    public static ReplicaPlan.ForReadRepair forReadRepair(ClusterMetadata metadata, Keyspace keyspace, ConsistencyLevel consistencyLevel, Token token, Predicate<Replica> isAlive, ReadCoordinator coordinator) throws UnavailableException
     {
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
-        ReplicaLayout.ForTokenRead forTokenRead = ReplicaLayout.forTokenReadLiveSorted(metadata, keyspace, replicationStrategy, token);
+        ReplicaLayout.ForTokenRead forTokenRead = ReplicaLayout.forTokenReadLiveSorted(metadata, keyspace, replicationStrategy, token, coordinator);
         EndpointsForToken candidates = candidatesForRead(keyspace, null /*TODO TCM, check?*/, consistencyLevel, forTokenRead.natural());
         EndpointsForToken contacts = contactForRead(replicationStrategy, consistencyLevel, true, candidates);
 
@@ -413,7 +420,7 @@ public class ReplicaPlans
                                              liveAndDown.all(),
                                              live.all(),
                                              contacts,
-                                             (newClusterMetadata) -> forReadRepair(newClusterMetadata, keyspace, consistencyLevel, token, isAlive),
+                                             (newClusterMetadata) -> forReadRepair(newClusterMetadata, keyspace, consistencyLevel, token, isAlive, coordinator),
                                              metadata.epoch);
     }
 
@@ -748,9 +755,10 @@ public class ReplicaPlans
                                                    Token token,
                                                    @Nullable Index.QueryPlan indexQueryPlan,
                                                    ConsistencyLevel consistencyLevel,
-                                                   SpeculativeRetryPolicy retry)
+                                                   SpeculativeRetryPolicy retry,
+                                                   ReadCoordinator coordinator)
     {
-        return forRead(ClusterMetadata.current(), keyspace, token, indexQueryPlan, consistencyLevel, retry, false);
+        return forRead(ClusterMetadata.current(), keyspace, token, indexQueryPlan, consistencyLevel, retry, coordinator, false);
     }
 
     public static ReplicaPlan.ForTokenRead forRead(ClusterMetadata metadata,
@@ -758,15 +766,16 @@ public class ReplicaPlans
                                                    Token token,
                                                    @Nullable Index.QueryPlan indexQueryPlan,
                                                    ConsistencyLevel consistencyLevel,
-                                                   SpeculativeRetryPolicy retry)
+                                                   SpeculativeRetryPolicy retry,
+                                                   ReadCoordinator coordinator)
     {
-        return forRead(metadata, keyspace, token, indexQueryPlan, consistencyLevel, retry, true);
+        return forRead(metadata, keyspace, token, indexQueryPlan, consistencyLevel, retry, coordinator, true);
     }
 
-    private static ReplicaPlan.ForTokenRead forRead(ClusterMetadata metadata, Keyspace keyspace, Token token, @Nullable Index.QueryPlan indexQueryPlan, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry,  boolean throwOnInsufficientLiveReplicas)
+    private static ReplicaPlan.ForTokenRead forRead(ClusterMetadata metadata, Keyspace keyspace, Token token, @Nullable Index.QueryPlan indexQueryPlan, ConsistencyLevel consistencyLevel, SpeculativeRetryPolicy retry, ReadCoordinator coordinator,  boolean throwOnInsufficientLiveReplicas)
     {
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
-        ReplicaLayout.ForTokenRead forTokenRead = ReplicaLayout.forTokenReadLiveSorted(metadata, keyspace, replicationStrategy, token);
+        ReplicaLayout.ForTokenRead forTokenRead = ReplicaLayout.forTokenReadLiveSorted(metadata, keyspace, replicationStrategy, token, coordinator);
         EndpointsForToken candidates = candidatesForRead(keyspace, indexQueryPlan, consistencyLevel, forTokenRead.natural());
         EndpointsForToken contacts = contactForRead(replicationStrategy, consistencyLevel, retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE), candidates);
 
@@ -774,8 +783,8 @@ public class ReplicaPlans
             assureSufficientLiveReplicasForRead(replicationStrategy, consistencyLevel, contacts);
 
         return new ReplicaPlan.ForTokenRead(keyspace, replicationStrategy, consistencyLevel, candidates, contacts,
-                                            (newClusterMetadata) -> forRead(newClusterMetadata, keyspace, token, indexQueryPlan, consistencyLevel, retry, false),
-                                            () -> forReadRepair(metadata, keyspace, consistencyLevel, token, FailureDetector.isReplicaAlive),
+                                            (newClusterMetadata) -> forRead(newClusterMetadata, keyspace, token, indexQueryPlan, consistencyLevel, retry, coordinator, false),
+                                            () -> forReadRepair(metadata, keyspace, consistencyLevel, token, FailureDetector.isReplicaAlive, coordinator),
                                             metadata.epoch);
     }
 
@@ -819,7 +828,7 @@ public class ReplicaPlans
                                             contacts,
                                             vnodeCount,
                                             (newClusterMetadata) -> forRangeRead(newClusterMetadata, keyspace, indexQueryPlan, consistencyLevel, range, vnodeCount, false),
-                                            (token) -> forReadRepair(metadata, keyspace, consistencyLevel, token, FailureDetector.isReplicaAlive),
+                                            (token) -> forReadRepair(metadata, keyspace, consistencyLevel, token, FailureDetector.isReplicaAlive, ReadCoordinator.DEFAULT),
                                             metadata.epoch);
     }
 
@@ -870,7 +879,7 @@ public class ReplicaPlans
                                             (token) -> {
                                                 // It might happen that the ring has moved forward since the operation has started, but because we'll be recomputing a quorum
                                                 // after the operation is complete, we will catch inconsistencies either way.
-                                                return forReadRepair(ClusterMetadata.current(), keyspace, consistencyLevel, token, FailureDetector.isReplicaAlive);
+                                                return forReadRepair(ClusterMetadata.current(), keyspace, consistencyLevel, token, FailureDetector.isReplicaAlive, ReadCoordinator.DEFAULT);
                                             },
                                             left.epoch);
     }

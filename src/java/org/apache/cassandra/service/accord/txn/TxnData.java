@@ -24,6 +24,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
+import com.google.common.collect.Maps;
+
 import accord.api.Data;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
@@ -47,7 +49,7 @@ import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.apache.cassandra.service.accord.txn.TxnResult.Kind.txn_data;
 
-public class  TxnData extends TxnResult implements Data, Iterable<FilteredPartition>
+public class TxnData extends TxnResult implements Data, Iterable<FilteredPartition>
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new TxnData());
 
@@ -84,7 +86,7 @@ public class  TxnData extends TxnResult implements Data, Iterable<FilteredPartit
     }
 
     @Override
-    public Data merge(Data data)
+    public TxnData merge(Data data)
     {
         TxnData that = (TxnData) data;
         TxnData merged = new TxnData();
@@ -198,8 +200,8 @@ public class  TxnData extends TxnResult implements Data, Iterable<FilteredPartit
         @Override
         public TxnData deserialize(DataInputPlus in, int version) throws IOException
         {
-            Map<TxnDataName, FilteredPartition> data = new HashMap<>();
-            long size = in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
+            Map<TxnDataName, FilteredPartition> data = Maps.newHashMapWithExpectedSize(size);
             for (int i=0; i<size; i++)
             {
                 TxnDataName name = TxnDataName.serializer.deserialize(in, version);

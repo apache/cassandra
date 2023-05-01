@@ -20,12 +20,11 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.function.Consumer;
 
-import com.codahale.metrics.Meter;
 import com.google.common.base.Preconditions;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Meter;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -40,11 +39,11 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.DigestResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.tracing.Tracing;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -54,6 +53,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 {
     protected static final Logger logger = LoggerFactory.getLogger(AbstractReadRepair.class);
 
+    protected final ReadCoordinator coordinator;
     protected final ReadCommand command;
     protected final long queryStartNanoTime;
     protected final ReplicaPlan.Shared<E, P> replicaPlan;
@@ -75,10 +75,11 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         }
     }
 
-    public AbstractReadRepair(ReadCommand command,
+    public AbstractReadRepair(ReadCoordinator coordinator, ReadCommand command,
                               ReplicaPlan.Shared<E, P> replicaPlan,
                               long queryStartNanoTime)
     {
+        this.coordinator = coordinator;
         this.command = command;
         this.queryStartNanoTime = queryStartNanoTime;
         this.replicaPlan = replicaPlan;
@@ -92,9 +93,9 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
 
     void sendReadCommand(Replica to, ReadCallback<E, P> readCallback, boolean speculative, boolean trackRepairedStatus)
     {
-        ReadCommand command = this.command;
-        
-        if (to.isSelf())
+        ReadCommand command = coordinator.maybeAllowOutOfRangeReads(this.command);
+
+        if (to.isSelf() && coordinator.localReadSupported())
         {
             Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(command, readCallback, trackRepairedStatus));
             return;
@@ -117,7 +118,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         }
 
         Message<ReadCommand> message = command.createMessage(trackRepairedStatus && to.isFull());
-        MessagingService.instance().sendWithCallback(message, to.endpoint(), readCallback);
+        coordinator.sendReadCommand(message, to.endpoint(), readCallback);
     }
 
     abstract Meter getRepairMeter();
@@ -139,7 +140,7 @@ public abstract class AbstractReadRepair<E extends Endpoints<E>, P extends Repli
         boolean trackRepairedStatus = DatabaseDescriptor.getRepairedDataTrackingForPartitionReadsEnabled();
 
         // Do a full data read to resolve the correct response (and repair node that need be)
-        DataResolver<E, P> resolver = new DataResolver<>(command, replicaPlan, this, queryStartNanoTime, trackRepairedStatus);
+        DataResolver<E, P> resolver = new DataResolver<>(coordinator, command, replicaPlan, this, queryStartNanoTime, trackRepairedStatus);
         ReadCallback<E, P> readCallback = new ReadCallback<>(resolver, command, replicaPlan, queryStartNanoTime);
 
         digestRepair = new DigestRepair<>(resolver, readCallback, resultConsumer);

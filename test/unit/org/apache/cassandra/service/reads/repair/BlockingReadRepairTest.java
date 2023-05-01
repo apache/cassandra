@@ -42,6 +42,7 @@ import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -53,7 +54,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     {
         public InstrumentedReadRepairHandler(Map<Replica, Mutation> repairs, ReplicaPlan.ForReadRepair writePlan)
         {
-            super(Util.dk("not a real usable value"), repairs, writePlan, e -> targets.contains(e));
+            super(ReadCoordinator.DEFAULT, Util.dk("not a real usable value"), repairs, writePlan, e -> targets.contains(e));
         }
 
         Map<InetAddressAndPort, Mutation> mutationsSent = new HashMap<>();
@@ -86,7 +87,7 @@ public class BlockingReadRepairTest extends AbstractReadRepairTest
     {
         public InstrumentedBlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
         {
-            super(command, replicaPlan, queryStartNanoTime);
+            super(ReadCoordinator.DEFAULT, command, replicaPlan, queryStartNanoTime);
         }
 
         Set<InetAddressAndPort> readCommandRecipients = new HashSet<>();

@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,14 +35,19 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.primitives.Unseekables;
 import accord.topology.Topologies;
+import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.functions.types.utils.Bytes;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -54,6 +60,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -66,6 +73,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
+@RunWith(Parameterized.class)
 public class AccordCQLTest extends AccordTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCQLTest.class);
@@ -76,11 +84,36 @@ public class AccordCQLTest extends AccordTestBase
         return logger;
     }
 
+    @Parameterized.Parameter
+    public String nonSerialWriteStrategyName;
+
+    NonSerialWriteStrategy nonSerialWriteStrategy;
+
+    @Parameterized.Parameters(name = "nonSerialWriteStrategy={0}")
+    public static Collection<Object[]> data()
+    {
+        return ImmutableList.of(new Object[] {NonSerialWriteStrategy.accord.toString()}, new Object[] {NonSerialWriteStrategy.migration.toString()});
+    }
+
+    @Before
+    public void setNonSerialWriteStrategy()
+    {
+        nonSerialWriteStrategy = NonSerialWriteStrategy.valueOf(nonSerialWriteStrategyName);
+        String nonSerialWriteStrategyName = this.nonSerialWriteStrategyName;
+        SHARED_CLUSTER.forEach(node -> {
+            node.runOnInstance(() -> {
+                DatabaseDescriptor.setNonSerialWriteStrategy(NonSerialWriteStrategy.valueOf(nonSerialWriteStrategyName));
+            });
+        });
+    }
+
     @BeforeClass
     public static void setupClass() throws IOException
     {
-        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord")), 2);
+        AccordTestBase.setupCluster(builder -> builder.appendConfig(config -> config.set("lwt_strategy", "accord")
+                                                                                    .set("non_serial_write_strategy", "migration")), 2);
         SHARED_CLUSTER.schemaChange("CREATE TYPE " + KEYSPACE + ".person (height int, age int)");
+        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged(KEYSPACE));
     }
 
     @Test
@@ -142,7 +175,8 @@ public class AccordCQLTest extends AccordTestBase
     {
         String keyspace = "multipleShards";
         String currentTable = keyspace + ".tbl";
-        List<String> ddls = Arrays.asList("CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
+        List<String> ddls = Arrays.asList("DROP KEYSPACE IF EXISTS " + keyspace + ";",
+                                          "CREATE KEYSPACE " + keyspace + " WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor': 1}",
                                           "CREATE TABLE " + currentTable + " (k blob, c int, v int, primary key (k, c))");
         List<String> tokens = tokens();
         List<ByteBuffer> keys = tokensToKeys(tokens);
@@ -358,7 +392,12 @@ public class AccordCQLTest extends AccordTestBase
 
     private void assertResultsFromAccordMatches(Cluster cluster, String accordRead, String simpleRead, int key)
     {
-        Object[][] simpleReadResult = cluster.get(1).executeInternal(simpleRead, key);
+        Object[][] simpleReadResult;
+        if (nonSerialWriteStrategy.ignoresSuppliedConsistencyLevel)
+            // With accord non-SERIAL write strategy the commit CL is effectively ANY so we need to read at SERIAL
+            simpleReadResult = cluster.coordinator(1).execute(simpleRead, ConsistencyLevel.SERIAL, key);
+        else
+            simpleReadResult = cluster.get(1).executeInternal(simpleRead, key);
         Object[][] accordReadResult = executeWithRetry(cluster, accordRead, key).toObjectArrays();
 
         Assertions.assertThat(withRemovedNullOnlyRows(accordReadResult)).isEqualTo(withRemovedNullOnlyRows(simpleReadResult));
@@ -2460,7 +2499,9 @@ public class AccordCQLTest extends AccordTestBase
     @Test
     public void demoTest() throws Throwable
     {
+        SHARED_CLUSTER.schemaChange("DROP KEYSPACE IF EXISTS demo_ks;");
         SHARED_CLUSTER.schemaChange("CREATE KEYSPACE demo_ks WITH REPLICATION={'class':'SimpleStrategy', 'replication_factor':2};");
+        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged("demo_ks"));
         SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_docs ( org_name text, doc_id int, contents_version int static, title text, permissions int, PRIMARY KEY (org_name, doc_id) );");
         SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.org_users ( org_name text, user text, members_version int static, permissions int, PRIMARY KEY (org_name, user) );");
         SHARED_CLUSTER.schemaChange("CREATE TABLE demo_ks.user_docs ( user text, doc_id int, title text, org_name text, permissions int, PRIMARY KEY (user, doc_id) );");
@@ -2578,7 +2619,11 @@ public class AccordCQLTest extends AccordTestBase
                 assertEquals(1, rangeDeletionCheck.length);
 
                 // Make sure all the consensus using queries actually were run on Accord
-                assertEquals( 17, getAccordCoordinateCount() - startingAccordCoordinateCount);
+                if (nonSerialWriteStrategy.writesThroughAccord)
+                    assertEquals( 20, getAccordCoordinateCount() - startingAccordCoordinateCount);
+                else
+                    // Non-serial writes don't go through Accord in these modes
+                    assertEquals( 17, getAccordCoordinateCount() - startingAccordCoordinateCount);
             });
     }
 
@@ -2654,5 +2699,21 @@ public class AccordCQLTest extends AccordTestBase
                  assertArrayEquals("History doesn't match between the two columns", seq1, seq2);
              }
         );
+    }
+
+    @Test
+    public void testSerialReadDescending() throws Throwable
+    {
+        test("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY(k, c))",
+             cluster -> {
+                 ICoordinator coordinator = cluster.coordinator(1);
+                 for (int i = 1; i <= 10; i++)
+                     coordinator.execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (0, ?, ?) USING TIMESTAMP 0;", ConsistencyLevel.ALL, i, i * 10);
+                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 1", AssertUtils.row(10, 100));
+                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 2", AssertUtils.row(10, 100), AssertUtils.row(9, 90));
+                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 3", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80));
+                 assertRowSerial(cluster, "SELECT c, v FROM " + currentTable + " WHERE k=0 ORDER BY c DESC LIMIT 4", AssertUtils.row(10, 100), AssertUtils.row(9, 90), AssertUtils.row(8, 80), AssertUtils.row(7, 70));
+             }
+         );
     }
 }

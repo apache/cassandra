@@ -76,6 +76,7 @@ import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.LWTStrategy;
+import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -1044,8 +1045,13 @@ public class DatabaseDescriptor
                                                            conf.progress_barrier_default_consistency_level, progressBarrierCLsArr));
         }
 
-        if (conf.lwt_strategy == LWTStrategy.accord && !conf.accord.enabled)
-            throw new ConfigurationException(NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE);
+        if (conf.lwt_strategy == LWTStrategy.accord)
+        {
+            if (!conf.accord.enabled)
+                throw new ConfigurationException(NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE);
+            if (conf.non_serial_write_strategy == Config.NonSerialWriteStrategy.normal)
+                throw new ConfigurationException("If Accord is used for LWTs then regular writes needs to be routed through Accord for interoperability by setting non_serial_write_strategy to \"accord\" or \"migration\"");
+        }
     }
 
     @VisibleForTesting
@@ -3215,6 +3221,21 @@ public class DatabaseDescriptor
     public static LWTStrategy getLWTStrategy()
     {
         return conf.lwt_strategy;
+    }
+
+    public static void setLWTStrategy(LWTStrategy lwtStrategy)
+    {
+        conf.lwt_strategy = lwtStrategy;
+    }
+
+    public static Config.NonSerialWriteStrategy getNonSerialWriteStrategy()
+    {
+        return conf.non_serial_write_strategy;
+    }
+
+    public static void setNonSerialWriteStrategy(NonSerialWriteStrategy nonSerialWriteStrategy)
+    {
+        conf.non_serial_write_strategy = nonSerialWriteStrategy;
     }
 
     public static int getAccordBarrierRetryAttempts()

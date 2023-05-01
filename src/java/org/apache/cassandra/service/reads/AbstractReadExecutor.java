@@ -42,8 +42,8 @@ import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy.LocalReadRunnable;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.TraceState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
@@ -63,6 +63,7 @@ public abstract class AbstractReadExecutor
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractReadExecutor.class);
 
+    protected final ReadCoordinator coordinator;
     protected final ReadCommand command;
     private   final ReplicaPlan.SharedForTokenRead replicaPlan;
     protected final ReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead> readRepair;
@@ -74,14 +75,15 @@ public abstract class AbstractReadExecutor
     private   final int initialDataRequestCount;
     protected volatile PartitionIterator result = null;
 
-    AbstractReadExecutor(ColumnFamilyStore cfs, ReadCommand command, ReplicaPlan.ForTokenRead replicaPlan, int initialDataRequestCount, long queryStartNanoTime)
+    AbstractReadExecutor(ReadCoordinator coordinator, ColumnFamilyStore cfs, ReadCommand command, ReplicaPlan.ForTokenRead replicaPlan, int initialDataRequestCount, long queryStartNanoTime)
     {
+        this.coordinator = coordinator;
         this.command = command;
         this.replicaPlan = ReplicaPlan.shared(replicaPlan);
         this.initialDataRequestCount = initialDataRequestCount;
         // the ReadRepair and DigestResolver both need to see our updated
-        this.readRepair = ReadRepair.create(command, this.replicaPlan, queryStartNanoTime);
-        this.digestResolver = new DigestResolver<>(command, this.replicaPlan, queryStartNanoTime);
+        this.readRepair = ReadRepair.create(coordinator, command, this.replicaPlan, queryStartNanoTime);
+        this.digestResolver = new DigestResolver<>(coordinator, command, this.replicaPlan, queryStartNanoTime);
         this.handler = new ReadCallback<>(digestResolver, command, this.replicaPlan, queryStartNanoTime);
         this.cfs = cfs;
         this.traceState = Tracing.instance.get();
@@ -132,13 +134,14 @@ public abstract class AbstractReadExecutor
     {
         boolean hasLocalEndpoint = false;
         Message<ReadCommand> message = null;
+        readCommand = coordinator.maybeAllowOutOfRangeReads(readCommand);
 
         for (Replica replica: replicas)
         {
             assert replica.isFull() || readCommand.acceptsTransient();
 
             InetAddressAndPort endpoint = replica.endpoint();
-            if (replica.isSelf())
+            if (replica.isSelf() && coordinator.localReadSupported())
             {
                 hasLocalEndpoint = true;
                 continue;
@@ -150,7 +153,7 @@ public abstract class AbstractReadExecutor
             if (null == message)
                 message = readCommand.createMessage(false).withEpoch(ClusterMetadata.current().epoch);
 
-            MessagingService.instance().sendWithCallback(message, endpoint, handler);
+            coordinator.sendReadCommand(message, endpoint, handler);
         }
 
         // We delay the local (potentially blocking) read till the end to avoid stalling remote requests.
@@ -175,8 +178,11 @@ public abstract class AbstractReadExecutor
         EndpointsForToken selected = replicaPlan().contacts();
         EndpointsForToken fullDataRequests = selected.filter(Replica::isFull, initialDataRequestCount);
         makeFullDataRequests(fullDataRequests);
-        makeTransientDataRequests(selected.filterLazily(Replica::isTransient));
-        makeDigestRequests(selected.filterLazily(r -> r.isFull() && !fullDataRequests.contains(r)));
+        EndpointsForToken transientRequests = selected.filter(Replica::isTransient);
+        makeTransientDataRequests(transientRequests);
+        EndpointsForToken digestRequests = selected.filter(r -> r.isFull() && !fullDataRequests.contains(r));
+        makeDigestRequests(digestRequests);
+        coordinator.notifyOfInitialContacts(fullDataRequests, transientRequests, digestRequests);
     }
 
     /**
@@ -185,6 +191,7 @@ public abstract class AbstractReadExecutor
     public static AbstractReadExecutor getReadExecutor(ClusterMetadata metadata,
                                                        SinglePartitionReadCommand command,
                                                        ConsistencyLevel consistencyLevel,
+                                                       ReadCoordinator coordinator,
                                                        long queryStartNanoTime) throws UnavailableException
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
@@ -196,25 +203,26 @@ public abstract class AbstractReadExecutor
                                                                     command.partitionKey().getToken(),
                                                                     command.indexQueryPlan(),
                                                                     consistencyLevel,
-                                                                    retry);
+                                                                    retry,
+                                                                    coordinator);
 
         // Speculative retry is disabled *OR*
         // 11980: Disable speculative retry if using EACH_QUORUM in order to prevent miscounting DC responses
         if (retry.equals(NeverSpeculativeRetryPolicy.INSTANCE) || consistencyLevel == ConsistencyLevel.EACH_QUORUM)
-            return new NeverSpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime, false);
+            return new NeverSpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, queryStartNanoTime, false);
 
         // There are simply no extra replicas to speculate.
         // Handle this separately so it can record failed attempts to speculate due to lack of replicas
         if (replicaPlan.contacts().size() == replicaPlan.readCandidates().size())
         {
             boolean recordFailedSpeculation = consistencyLevel != ConsistencyLevel.ALL;
-            return new NeverSpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime, recordFailedSpeculation);
+            return new NeverSpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, queryStartNanoTime, recordFailedSpeculation);
         }
 
         if (retry.equals(AlwaysSpeculativeRetryPolicy.INSTANCE))
-            return new AlwaysSpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime);
+            return new AlwaysSpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, queryStartNanoTime);
         else // PERCENTILE or CUSTOM.
-            return new SpeculatingReadExecutor(cfs, command, replicaPlan, queryStartNanoTime);
+            return new SpeculatingReadExecutor(coordinator, cfs, command, replicaPlan, queryStartNanoTime);
     }
 
     public boolean hasLocalRead()
@@ -257,9 +265,9 @@ public abstract class AbstractReadExecutor
          */
         private final boolean logFailedSpeculation;
 
-        public NeverSpeculatingReadExecutor(ColumnFamilyStore cfs, ReadCommand command, ReplicaPlan.ForTokenRead replicaPlan, long queryStartNanoTime, boolean logFailedSpeculation)
+        public NeverSpeculatingReadExecutor(ReadCoordinator coordinator, ColumnFamilyStore cfs, ReadCommand command, ReplicaPlan.ForTokenRead replicaPlan, long queryStartNanoTime, boolean logFailedSpeculation)
         {
-            super(cfs, command, replicaPlan, 1, queryStartNanoTime);
+            super(coordinator, cfs, command, replicaPlan, 1, queryStartNanoTime);
             this.logFailedSpeculation = logFailedSpeculation;
         }
 
@@ -276,7 +284,8 @@ public abstract class AbstractReadExecutor
     {
         private volatile boolean speculated = false;
 
-        public SpeculatingReadExecutor(ColumnFamilyStore cfs,
+        public SpeculatingReadExecutor(ReadCoordinator coordinator,
+                                       ColumnFamilyStore cfs,
                                        ReadCommand command,
                                        ReplicaPlan.ForTokenRead replicaPlan,
                                        long queryStartNanoTime)
@@ -284,7 +293,7 @@ public abstract class AbstractReadExecutor
             // We're hitting additional targets for read repair (??).  Since our "extra" replica is the least-
             // preferred by the snitch, we do an extra data read to start with against a replica more
             // likely to respond; better to let RR fail than the entire query.
-            super(cfs, command, replicaPlan, replicaPlan.readQuorum() < replicaPlan.contacts().size() ? 2 : 1, queryStartNanoTime);
+            super(coordinator, cfs, command, replicaPlan, replicaPlan.readQuorum() < replicaPlan.contacts().size() ? 2 : 1, queryStartNanoTime);
         }
 
         public void maybeTryAdditionalReplicas()
@@ -346,14 +355,15 @@ public abstract class AbstractReadExecutor
 
     private static class AlwaysSpeculatingReadExecutor extends AbstractReadExecutor
     {
-        public AlwaysSpeculatingReadExecutor(ColumnFamilyStore cfs,
+        public AlwaysSpeculatingReadExecutor(ReadCoordinator coordinator,
+                                             ColumnFamilyStore cfs,
                                              ReadCommand command,
                                              ReplicaPlan.ForTokenRead replicaPlan,
                                              long queryStartNanoTime)
         {
             // presumably, we speculate an extra data request here in case it is our data request that fails to respond,
             // and there are no more nodes to consult
-            super(cfs, command, replicaPlan, replicaPlan.contacts().size() > 1 ? 2 : 1, queryStartNanoTime);
+            super(coordinator, cfs, command, replicaPlan, replicaPlan.contacts().size() > 1 ? 2 : 1, queryStartNanoTime);
         }
 
         public void maybeTryAdditionalReplicas()

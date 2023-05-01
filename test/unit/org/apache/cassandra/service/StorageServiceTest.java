@@ -171,6 +171,29 @@ public class StorageServiceTest extends CassandraTestBase
 //        assertMultimapEqualsIgnoreOrder(result, expectedResult.build());
     }
 
+    public void testGetChangedReplicasForLeaving2() throws Exception
+    {
+//        TokenMetadata tmd = new TokenMetadata();
+//        tmd.updateNormalToken(threeToken, aAddress);
+//        tmd.updateNormalToken(sixToken, bAddress);
+//        tmd.updateNormalToken(nineToken, cAddress);
+//        tmd.updateNormalToken(elevenToken, dAddress);
+//
+//        tmd.addLeavingEndpoint(dAddress);
+//
+//        AbstractReplicationStrategy strat = simpleStrategy(tmd);
+//
+//        EndpointsByReplica result = StorageService.getChangedReplicasForLeaving("StorageServiceTest", aAddress, tmd, strat);
+//        System.out.println(result);
+//        EndpointsByReplica.Builder expectedResult = new EndpointsByReplica.Builder();
+//        expectedResult.put(new Replica(aAddress, aRange, true), new Replica(cAddress, new Range<>(oneToken, sixToken), true));
+//        expectedResult.put(new Replica(aAddress, aRange, true), new Replica(dAddress, new Range<>(oneToken, sixToken), false));
+//        expectedResult.put(new Replica(aAddress, eRange, true), new Replica(bAddress, eRange, true));
+//        expectedResult.put(new Replica(aAddress, eRange, true), new Replica(cAddress, eRange, false));
+//        expectedResult.put(new Replica(aAddress, dRange, false), new Replica(bAddress, dRange, false));
+//        assertMultimapEqualsIgnoreOrder(result, expectedResult.build());
+    }
+
     @Test
     public void testSetGetSSTablePreemptiveOpenIntervalInMB()
     {
