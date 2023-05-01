@@ -41,8 +41,8 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 
 public class PartialCompactionsTest extends SchemaLoader
@@ -120,7 +120,7 @@ public class PartialCompactionsTest extends SchemaLoader
     private static int liveRows(ColumnFamilyStore cfs)
     {
         return Util.getAll(Util.cmd(cfs, "key1").build()).stream()
-                   .map(partition -> count(partition.rowIterator()))
+                   .map(partition -> count(partition.rowIterator(false)))
                    .reduce(Integer::sum)
                    .orElse(0);
     }

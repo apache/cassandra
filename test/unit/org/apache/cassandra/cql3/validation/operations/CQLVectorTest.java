@@ -202,7 +202,7 @@ public class CQLVectorTest extends CQLTester.InMemory
 
         execute("INSERT INTO %s (pk, value) VALUES (0, {z: [{y:1}, {y:2}]})");
         assertRows(execute("SELECT * FROM %s"),
-                   row(0, userType("z", vector(userType("y", 1), userType("y", 2)))));
+                   row(0, userType("z", vector((Object)userType("y", 1), (Object)userType("y", 2)))));
     }
 
     @Test

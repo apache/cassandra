@@ -38,6 +38,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.CloseableIterator;
@@ -91,7 +92,7 @@ public class ScanAllRangesCommandIterator extends RangeCommandIterator
 
         ReplicaPlan.ForRangeRead plan = ReplicaPlans.forFullRangeRead(keyspace, consistencyLevel, command.dataRange().keyRange(), replicasToQuery, totalRangeCount);
         ReplicaPlan.SharedForRangeRead sharedReplicaPlan = ReplicaPlan.shared(plan);
-        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new DataResolver<>(command, sharedReplicaPlan, NoopReadRepair.instance, queryStartNanoTime, false);
+        DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver = new DataResolver<>(ReadCoordinator.DEFAULT, command, sharedReplicaPlan, NoopReadRepair.instance, queryStartNanoTime, false);
         ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler = new ReadCallback<>(resolver, command, sharedReplicaPlan, queryStartNanoTime);
 
         int nodes = 0;

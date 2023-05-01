@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Joiner;
@@ -56,22 +55,23 @@ import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 
-import static com.google.common.collect.Iterables.*;
+import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Iterables.transform;
 
 public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
 {
     private final boolean enforceStrictLiveness;
-    private final ReadRepair<E, P> readRepair;
+    public final ReadRepair<E, P> readRepair;
     private final boolean trackRepairedStatus;
 
-    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
+    public DataResolver(ReadCoordinator coordinator, ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
     {
-        this(command, replicaPlan, readRepair, queryStartNanoTime, false);
+        this(coordinator, command, replicaPlan, readRepair, queryStartNanoTime, false);
     }
 
-    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime, boolean trackRepairedStatus)
+    public DataResolver(ReadCoordinator coordinator, ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime, boolean trackRepairedStatus)
     {
-        super(command, replicaPlan, queryStartNanoTime);
+        super(coordinator, command, replicaPlan, queryStartNanoTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
         this.readRepair = readRepair;
         this.trackRepairedStatus = trackRepairedStatus;
@@ -204,6 +204,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                             originalResponse,
                                             command,
                                             context.mergedResultCounter,
+                                            coordinator,
                                             queryStartNanoTime,
                                             enforceStrictLiveness)
                : originalResponse;
@@ -246,7 +247,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         // We need separate contexts, as each context has his own counter
         ResolveContext firstPhaseContext = new ResolveContext(replicas);
         ResolveContext secondPhaseContext = new ResolveContext(replicas);
-        ReplicaFilteringProtection<E> rfp = new ReplicaFilteringProtection<>(replicaPlan().keyspace(),
+        ReplicaFilteringProtection<E> rfp = new ReplicaFilteringProtection<>(coordinator, replicaPlan().keyspace(),
                                                                              command,
                                                                              replicaPlan().consistencyLevel(),
                                                                              queryStartNanoTime,

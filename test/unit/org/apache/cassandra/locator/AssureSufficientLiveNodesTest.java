@@ -51,6 +51,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.reads.NeverSpeculativeRetryPolicy;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.utils.FBUtilities;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
@@ -153,7 +154,7 @@ public class AssureSufficientLiveNodesTest extends CassandraTestBase
             // alter to
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE, ReadCoordinator.DEFAULT)
         );
     }
 
@@ -186,7 +187,7 @@ public class AssureSufficientLiveNodesTest extends CassandraTestBase
             // alter to
             KeyspaceParams.nts(DC1, 3, DC2, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE, ReadCoordinator.DEFAULT)
         );
         raceOfReplicationStrategyTest(
             // init. The # of live endpoints is 3 = 2 + 1
@@ -194,7 +195,7 @@ public class AssureSufficientLiveNodesTest extends CassandraTestBase
             // alter to. (3 + 3) / 2 + 1 > 3
             KeyspaceParams.nts(DC1, 2, DC2, 1, DC3, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, QUORUM, NeverSpeculativeRetryPolicy.INSTANCE, ReadCoordinator.DEFAULT)
         );
     }
 
@@ -218,7 +219,7 @@ public class AssureSufficientLiveNodesTest extends CassandraTestBase
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, EACH_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE, ReadCoordinator.DEFAULT)
         );
     }
 
@@ -242,7 +243,7 @@ public class AssureSufficientLiveNodesTest extends CassandraTestBase
             // alter to
             KeyspaceParams.nts(DC1, 3),
             // test
-            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, LOCAL_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE)
+            keyspace -> ReplicaPlans.forRead(keyspace, tk, null, LOCAL_QUORUM, NeverSpeculativeRetryPolicy.INSTANCE, ReadCoordinator.DEFAULT)
         );
     }
 

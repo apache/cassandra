@@ -50,7 +50,7 @@ import static com.google.common.base.Throwables.getStackTraceAsString;
 import static org.apache.cassandra.exceptions.RemoteExceptionTest.normalizeThrowable;
 import static org.apache.cassandra.net.Message.serializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
-import static org.apache.cassandra.net.MessagingService.VERSION_50;
+import static org.apache.cassandra.net.MessagingService.VERSION_51;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.ParamType.RESPOND_TO;
 import static org.apache.cassandra.net.ParamType.TRACE_SESSION;
@@ -342,7 +342,7 @@ public class MessageTest
             RequestFailure reason1 = (RequestFailure)msg1.payload;
             RequestFailure reason2 = (RequestFailure)msg2.payload;
             assertEquals(reason1.reason, reason2.reason);
-            if (version >= VERSION_50)
+            if (version >= VERSION_51)
             {
                 if (reason1.failure == null)
                     assertNull(reason2.failure);

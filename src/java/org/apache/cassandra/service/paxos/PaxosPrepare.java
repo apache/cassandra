@@ -1157,7 +1157,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 request.table.id.serialize(out);
                 DecoratedKey.serializer.serialize(request.partitionKey, out, version);
             }
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 out.writeBoolean(request.isForRecovery);
         }
 
@@ -1170,7 +1170,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             {
                 SinglePartitionReadCommand readCommand = (SinglePartitionReadCommand) ReadCommand.serializer.deserialize(in, version);
                 boolean isForRecovery = false;
-                if (version >= MessagingService.VERSION_50)
+                if (version >= MessagingService.VERSION_51)
                     isForRecovery = in.readBoolean();
                 return construct(param, ballot, electorate, readCommand, (flag & 2) == 0, isForRecovery);
             }
@@ -1179,7 +1179,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 TableMetadata table = Schema.instance.getExistingTableMetadata(TableId.deserialize(in));
                 DecoratedKey partitionKey = (DecoratedKey) DecoratedKey.serializer.deserialize(in, table.partitioner, version);
                 boolean isForRecovery = false;
-                if (version >= MessagingService.VERSION_50)
+                if (version >= MessagingService.VERSION_51)
                     isForRecovery = in.readBoolean();
                 return construct(param, ballot, electorate, partitionKey, table, (flag & 2) != 0, isForRecovery);
             }
@@ -1194,7 +1194,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         ? ReadCommand.serializer.serializedSize(request.read, version)
                         : request.table.id.serializedSize()
                             + DecoratedKey.serializer.serializedSize(request.partitionKey, version));
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 size += TypeSizes.sizeof(request.isForRecovery);
             return size;
         }
@@ -1222,7 +1222,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     {
         out.writeByte(0);
         supersededBy.serialize(out);
-        if (version >= MessagingService.VERSION_50)
+        if (version >= MessagingService.VERSION_51)
             ConsensusMigratedAt.serializer.serialize(maybeConsenusMigratedAt, out, version);
     }
 
@@ -1254,7 +1254,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 serializeMap(promised.gossipInfo, out, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer);
                 if (promised.outcome == PERMIT_READ)
                     promised.supersededBy.serialize(out);
-                if (version >= MessagingService.VERSION_50)
+                if (version >= MessagingService.VERSION_51)
                     ConsensusMigratedAt.serializer.serialize(response.maybeConsenusMigratedAt, out, version);
             }
         }
@@ -1266,7 +1266,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
             {
                 Ballot supersededBy = Ballot.deserialize(in);
                 ConsensusMigratedAt consensusMigratedAt = null;
-                if (version >= MessagingService.VERSION_50)
+                if (version >= MessagingService.VERSION_51)
                     consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in, version);
                 return new Rejected(supersededBy, consensusMigratedAt);
             }
@@ -1283,7 +1283,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                 if (outcome == PERMIT_READ)
                     supersededBy = Ballot.deserialize(in);
                 ConsensusMigratedAt consensusMigratedAt = null;
-                if (version >= MessagingService.VERSION_50)
+                if (version >= MessagingService.VERSION_51)
                     consensusMigratedAt = ConsensusMigratedAt.serializer.deserialize(in, version);
                 return new Permitted(outcome, consensusMigratedAt, lowBound, acceptedNotCommitted, committed, readResponse, hasProposalStability, gossipInfo, supersededBy);
             }
@@ -1308,7 +1308,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
                         + serializedMapSize(permitted.gossipInfo, version, inetAddressAndPortSerializer, EndpointState.nullableSerializer)
                         + (permitted.outcome == PERMIT_READ ? Ballot.sizeInBytes() : 0);
             }
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 size += ConsensusMigratedAt.serializer.serializedSize(response.maybeConsenusMigratedAt, version);
 
             return size;

@@ -173,6 +173,7 @@ public class ReadCommandVerbHandlerTest
                   false,
                   0,
                   false,
+                  false,
                   metadata,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(metadata),

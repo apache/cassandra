@@ -47,6 +47,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.primitives.Keys;
 import accord.primitives.Txn;
 import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.batchlog.BatchlogManager;
@@ -54,6 +55,7 @@ import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -125,10 +127,17 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.txn.AccordUpdate;
+import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
+import org.apache.cassandra.service.accord.txn.TxnReferenceOperations;
 import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.service.accord.txn.TxnUpdate;
+import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
 import org.apache.cassandra.service.paxos.Ballot;
 import org.apache.cassandra.service.paxos.Commit;
@@ -139,6 +148,7 @@ import org.apache.cassandra.service.paxos.v1.PrepareCallback;
 import org.apache.cassandra.service.paxos.v1.ProposeCallback;
 import org.apache.cassandra.service.reads.AbstractReadExecutor;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -369,11 +379,15 @@ public class StorageProxy implements StorageProxyMBean
                                                   queryStartNanoTime);
                     break;
                 case accord:
-                    TxnResult txnResult = AccordService.instance().coordinate(request.toAccordTxn(consistencyForPaxos,
-                                                                                                  clientState,
-                                                                                                  nowInSeconds),
-                                                                              consistencyForPaxos,
-                                                                              queryStartNanoTime);
+                    Txn txn = request.toAccordTxn(consistencyForPaxos,
+                                                        consistencyForCommit,
+                                                        clientState,
+                                                        nowInSeconds);
+                    IAccordService accordService = AccordService.instance();
+                    accordService.maybeConvertKeyspacesToAccord(txn);
+                    TxnResult txnResult = accordService.coordinate(txn,
+                                                                   consistencyForPaxos,
+                                                                   queryStartNanoTime);
                     lastAttemptResult = request.toCasResult(txnResult);
                     break;
                 default:
@@ -416,7 +430,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     Tracing.trace("CAS precondition does not match current values {}", current);
                     casWriteMetrics.conditionNotMet.inc();
-                    return Pair.create(PartitionUpdate.emptyUpdate(metadata, key), current.rowIterator());
+                    return Pair.create(PartitionUpdate.emptyUpdate(metadata, key), current.rowIterator(false));
                 }
 
                 // Create the desired updates
@@ -1201,6 +1215,7 @@ public class StorageProxy implements StorageProxyMBean
 
         Collection<Mutation> augmented = TriggerExecutor.instance.execute(mutations);
 
+        String keyspaceName = mutations.iterator().next().getKeyspaceName();
         boolean updatesView = Keyspace.open(mutations.iterator().next().getKeyspaceName())
                               .viewManager
                               .updatesAffectView(mutations, true);
@@ -1208,8 +1223,10 @@ public class StorageProxy implements StorageProxyMBean
         long size = IMutation.dataSize(mutations);
         writeMetrics.mutationSize.update(size);
         writeMetricsForLevel(consistencyLevel).mutationSize.update(size);
-
-        if (augmented != null)
+        NonSerialWriteStrategy nonSerialWriteStrategy = DatabaseDescriptor.getNonSerialWriteStrategy();
+        if (nonSerialWriteStrategy.writesThroughAccord && !SchemaConstants.getSystemKeyspaces().contains(keyspaceName))
+            mutateWithAccord(augmented != null ? augmented : mutations, consistencyLevel, queryStartNanoTime, nonSerialWriteStrategy);
+        else if (augmented != null)
             mutateAtomically(augmented, consistencyLevel, updatesView, queryStartNanoTime);
         else
         {
@@ -1218,6 +1235,29 @@ public class StorageProxy implements StorageProxyMBean
             else
                 mutate(mutations, consistencyLevel, queryStartNanoTime);
         }
+    }
+
+    private static void mutateWithAccord(Collection<? extends IMutation> iMutations, ConsistencyLevel consistencyLevel, long queryStartNanoTime, Config.NonSerialWriteStrategy nonSerialWriteStrategy)
+    {
+        int fragmentIndex = 0;
+        List<TxnWrite.Fragment> fragments = new ArrayList<>(iMutations.size());
+        List<PartitionKey> partitionKeys = new ArrayList<>(iMutations.size());
+        for (IMutation mutation : iMutations)
+        {
+            for (PartitionUpdate update : mutation.getPartitionUpdates())
+            {
+                PartitionKey pk = PartitionKey.of(update);
+                partitionKeys.add(pk);
+                fragments.add(new TxnWrite.Fragment(PartitionKey.of(update), fragmentIndex++, update, TxnReferenceOperations.empty()));
+            }
+        }
+        // Potentially ignore commit consistency level if the strategy specifies accord and not migration
+        ConsistencyLevel clForCommit = nonSerialWriteStrategy.commitCLForStrategy(consistencyLevel);
+        AccordUpdate update = new TxnUpdate(fragments, TxnCondition.none(), clForCommit);
+        Txn.InMemory txn = new Txn.InMemory(Keys.of(partitionKeys), TxnRead.EMPTY, TxnQuery.EMPTY, update);
+        IAccordService accordService = AccordService.instance();
+        accordService.maybeConvertKeyspacesToAccord(txn);
+        accordService.coordinate(txn, consistencyLevel, queryStartNanoTime);
     }
 
     /**
@@ -1936,15 +1976,21 @@ public class StorageProxy implements StorageProxyMBean
     {
         if (group.queries.size() > 1)
             throw new InvalidRequestException("SERIAL/LOCAL_SERIAL consistency may only be requested for one partition at a time");
-        TxnRead read = TxnRead.createSerialRead(group.queries.get(0), consistencyLevel);
+        SinglePartitionReadCommand readCommand = group.queries.get(0);
+        // If the non-SERIAL write strategy is sending all writes through Accord there is no need to use the supplied consistency
+        // level since Accord will manage reading safely
+        consistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().readCLForStrategy(consistencyLevel);
+        TxnRead read = TxnRead.createSerialRead(readCommand, consistencyLevel);
         Txn txn = new Txn.InMemory(read.keys(), read, TxnQuery.ALL);
-        TxnResult txnResult = AccordService.instance().coordinate(txn, consistencyLevel, queryStartNanoTime);
+        IAccordService accordService = AccordService.instance();
+        accordService.maybeConvertKeyspacesToAccord(txn);
+        TxnResult txnResult = accordService.coordinate(txn, consistencyLevel, queryStartNanoTime);
         if (txnResult.kind() == retry_new_protocol)
             return RETRY_NEW_PROTOCOL;
         TxnData data = (TxnData)txnResult;
         FilteredPartition partition = data.get(TxnRead.SERIAL_READ);
         if (partition != null)
-            return serialReadResult(PartitionIterators.singletonIterator(partition.rowIterator()));
+            return serialReadResult(PartitionIterators.singletonIterator(partition.rowIterator(readCommand.isReversed())));
         else
             return serialReadResult(EmptyIterators.partition());
     }
@@ -1998,7 +2044,7 @@ public class StorageProxy implements StorageProxyMBean
                 throw new ReadFailureException(consistencyLevel, e.received, e.blockFor, false, e.failureReasonByEndpoint);
             }
 
-            return serialReadResult(fetchRows(group.queries, consistencyForReplayCommitsOrFetch, queryStartNanoTime));
+            return serialReadResult(fetchRows(group.queries, consistencyForReplayCommitsOrFetch, ReadCoordinator.DEFAULT, queryStartNanoTime));
         }
         catch (UnavailableException e)
         {
@@ -2040,13 +2086,14 @@ public class StorageProxy implements StorageProxyMBean
         }
     }
 
-    private static PartitionIterator readRegular(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+    @SuppressWarnings("resource")
+    public static PartitionIterator readRegular(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, ReadCoordinator coordinator, long queryStartNanoTime)
     throws UnavailableException, ReadFailureException, ReadTimeoutException
     {
         long start = nanoTime();
         try
         {
-            PartitionIterator result = fetchRows(group.queries, consistencyLevel, queryStartNanoTime);
+            PartitionIterator result = fetchRows(group.queries, consistencyLevel, coordinator, queryStartNanoTime);
             // Note that the only difference between the command in a group must be the partition key on which
             // they applied.
             boolean enforceStrictLiveness = group.queries.get(0).metadata().enforceStrictLiveness();
@@ -2090,6 +2137,11 @@ public class StorageProxy implements StorageProxyMBean
             for (ReadCommand command : group.queries)
                 Keyspace.openAndGetStore(command.metadata()).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
         }
+    }
+
+    public static PartitionIterator readRegular(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+    {
+        return readRegular(group, consistencyLevel, ReadCoordinator.DEFAULT, queryStartNanoTime);
     }
 
     public static void recordReadRegularAbort(ConsistencyLevel consistencyLevel, Throwable cause)
@@ -2137,7 +2189,7 @@ public class StorageProxy implements StorageProxyMBean
      * 4. If the digests (if any) match the data return the data
      * 5. else carry out read repair by getting data from all the nodes.
      */
-    private static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
+    private static PartitionIterator fetchRows(List<SinglePartitionReadCommand> commands, ConsistencyLevel consistencyLevel, ReadCoordinator coordinator, long queryStartNanoTime)
     throws UnavailableException, ReadFailureException, ReadTimeoutException
     {
         int cmdCount = commands.size();
@@ -2149,7 +2201,7 @@ public class StorageProxy implements StorageProxyMBean
         // for type of speculation we'll use in this read
         for (int i=0; i<cmdCount; i++)
         {
-            reads[i] = AbstractReadExecutor.getReadExecutor(metadata, commands.get(i), consistencyLevel, queryStartNanoTime);
+            reads[i] = AbstractReadExecutor.getReadExecutor(metadata, commands.get(i), consistencyLevel, coordinator, queryStartNanoTime);
 
             if (reads[i].hasLocalRead())
                 readMetrics.localRequests.mark();

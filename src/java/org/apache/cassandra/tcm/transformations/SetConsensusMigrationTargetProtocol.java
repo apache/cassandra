@@ -102,7 +102,7 @@ public class SetConsensusMigrationTargetProtocol implements Transformation
                 .collect(toImmutableMap(TableMigrationState::getTableId, Function.identity()));
         }
 
-        return success(transformer.with(newStates, targetProtocol == reset ? false : true), LockedRanges.AffectedRanges.EMPTY);
+        return Transformation.success(transformer.with(newStates, targetProtocol == reset ? false : true), LockedRanges.AffectedRanges.EMPTY);
     }
 
     static class Serializer implements AsymmetricMetadataSerializer<Transformation, SetConsensusMigrationTargetProtocol>

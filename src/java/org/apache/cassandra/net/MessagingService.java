@@ -31,10 +31,10 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
-import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.util.concurrent.Future; //checkstyle: permit this import
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -53,7 +53,6 @@ import org.apache.cassandra.utils.concurrent.Promise;
 
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.MINUTES;
-
 import static org.apache.cassandra.concurrent.Stage.MUTATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -456,9 +455,9 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
                                                          }
 
                                                          @Override
-                                                         public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                                                         public void onFailure(InetAddressAndPort from, RequestFailure failure)
                                                          {
-                                                             future.setFailure(new RuntimeException(failureReason.toString()));
+                                                             future.setFailure(new RuntimeException(failure.toString()));
                                                          }
                                                      });
 

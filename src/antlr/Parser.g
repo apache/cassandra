@@ -354,7 +354,7 @@ letStatement returns [SelectStatement.RawStatement expr]
     : K_LET txnVar=IDENT '='
       '(' { stmtBegins(); } K_SELECT assignments=letSelectors K_FROM cf=columnFamilyName K_WHERE wclause=whereClause ( K_LIMIT rows=intValue { limit = rows; } )? ')'
       {
-          SelectStatement.Parameters params = new SelectStatement.Parameters(Collections.emptyMap(), Collections.emptyList(), false, false, false, $txnVar.text);
+          SelectStatement.Parameters params = new SelectStatement.Parameters(Collections.emptyList(), Collections.emptyList(), false, false, false, $txnVar.text);
           WhereClause where = wclause == null ? WhereClause.empty() : wclause.build();
 
           $expr = new SelectStatement.RawStatement(cf, params, assignments, where, limit, null, stmtSrc());

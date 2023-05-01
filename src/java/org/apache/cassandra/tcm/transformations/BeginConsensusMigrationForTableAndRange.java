@@ -101,7 +101,7 @@ public class BeginConsensusMigrationForTableAndRange implements Transformation
                                 new TableMigrationState(cfs.keyspace.getName(), cfs.name, cfs.getTableId(), targetProtocol, ImmutableSet.of(), ImmutableMap.of(Epoch.EMPTY, ranges)))
                 .collect(toImmutableMap(TableMigrationState::getTableId, Function.identity()));
 
-        return success(transformer.with(newStates), LockedRanges.AffectedRanges.EMPTY);
+        return Transformation.success(transformer.with(newStates), LockedRanges.AffectedRanges.EMPTY);
     }
 
     static class Serializer implements AsymmetricMetadataSerializer<Transformation, BeginConsensusMigrationForTableAndRange>

@@ -42,6 +42,7 @@ import accord.impl.SimpleProgressLog;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.local.DurableBefore;
 import accord.local.Node;
+import accord.local.Node.Id;
 import accord.local.NodeTimeService;
 import accord.local.RedundantBefore;
 import accord.local.ShardDistributor.EvenSplit;
@@ -83,6 +84,9 @@ import org.apache.cassandra.service.accord.api.AccordTopologySorter;
 import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
+import org.apache.cassandra.service.accord.interop.AccordInteropApply;
+import org.apache.cassandra.service.accord.interop.AccordInteropExecution;
+import org.apache.cassandra.service.accord.interop.AccordInteropPersist;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -111,8 +115,6 @@ public class AccordService implements IAccordService, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
 
-    public static final AccordClientRequestMetrics readMetrics = new AccordClientRequestMetrics("AccordRead");
-    public static final AccordClientRequestMetrics writeMetrics = new AccordClientRequestMetrics("AccordWrite");
     private static final Future<Void> BOOTSTRAP_SUCCESS = ImmediateFuture.success(null);
 
     private final Node node;
@@ -204,7 +206,7 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         @Override
-        public void addAccordManagedKeyspace(String keyspace) {}
+        public void ensureKeyspaceIsAccordManaged(String keyspace) {}
     };
 
     private static volatile Node.Id localId = null;
@@ -281,6 +283,9 @@ public class AccordService implements IAccordService, Shutdownable
                                                             new AccordTopologySorter.Supplier(configService, DatabaseDescriptor.getEndpointSnitch())),
                              SimpleProgressLog::new,
                              AccordCommandStores.factory(journal),
+                             new AccordInteropExecution.Factory(agent, configService),
+                             AccordInteropPersist.FACTORY,
+                             AccordInteropApply.FACTORY,
                              configuration);
         this.nodeShutdown = toShutdownable(node);
         this.verbHandler = new AccordVerbHandler<>(node, configService, journal);
@@ -563,6 +568,11 @@ public class AccordService implements IAccordService, Shutdownable
         return scheduler;
     }
 
+    public Id nodeId()
+    {
+        return node.id();
+    }
+
     @VisibleForTesting
     public Node node()
     {
@@ -648,19 +658,18 @@ public class AccordService implements IAccordService, Shutdownable
         return ClusterMetadata.current().accordKeyspaces.contains(keyspace);
     }
 
-    public void addAccordManagedKeyspace(String keyspace)
+    @Override
+    public void ensureKeyspaceIsAccordManaged(String keyspace)
     {
         if (isAccordManagedKeyspace(keyspace))
             return;
         ClusterMetadataService.instance().commit(new AddAccordKeyspace(keyspace),
                                                  metadata -> null,
-                                                 (metadata, code, message) -> {
+                                                 (code, message) -> {
                                                      Invariants.checkState(code == ExceptionCode.ALREADY_EXISTS,
                                                                            "Expected %s, got %s", ExceptionCode.ALREADY_EXISTS, code);
                                                      return null;
                                                  });
-
-
         // we need to avoid creating a txnId in an epoch when no one has any ranges
         FBUtilities.waitOnFuture(AccordService.instance().epochReady(ClusterMetadata.current().epoch));
     }

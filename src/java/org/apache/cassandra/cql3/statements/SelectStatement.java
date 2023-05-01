@@ -1725,7 +1725,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement,
             this(orderings, groups, isDistinct, allowFiltering, isJson, null);
         }
 
-        public Parameters(Map<ColumnIdentifier, Boolean> orderings,
+        public Parameters(List<Ordering.Raw> orderings,
                           List<Selectable.Raw> groups,
                           boolean isDistinct,
                           boolean allowFiltering,

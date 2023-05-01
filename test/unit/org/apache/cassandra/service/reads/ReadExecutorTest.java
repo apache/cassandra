@@ -96,7 +96,7 @@ public class ReadExecutorTest
     {
         assertEquals(0, cfs.metric.speculativeInsufficientReplicas.getCount());
         assertEquals(0, ks.metric.speculativeInsufficientReplicas.getCount());
-        AbstractReadExecutor executor = new AbstractReadExecutor.NeverSpeculatingReadExecutor(cfs, new MockSinglePartitionReadCommand(), plan(targets, LOCAL_QUORUM), nanoTime(), true);
+        AbstractReadExecutor executor = new AbstractReadExecutor.NeverSpeculatingReadExecutor(ReadCoordinator.DEFAULT, cfs, new MockSinglePartitionReadCommand(), plan(targets, LOCAL_QUORUM), nanoTime(), true);
         executor.maybeTryAdditionalReplicas();
         try
         {
@@ -111,7 +111,7 @@ public class ReadExecutorTest
         assertEquals(1, ks.metric.speculativeInsufficientReplicas.getCount());
 
         //Shouldn't increment
-        executor = new AbstractReadExecutor.NeverSpeculatingReadExecutor(cfs, new MockSinglePartitionReadCommand(), plan(targets, LOCAL_QUORUM), nanoTime(), false);
+        executor = new AbstractReadExecutor.NeverSpeculatingReadExecutor(ReadCoordinator.DEFAULT, cfs, new MockSinglePartitionReadCommand(), plan(targets, LOCAL_QUORUM), nanoTime(), false);
         executor.maybeTryAdditionalReplicas();
         try
         {
@@ -137,7 +137,7 @@ public class ReadExecutorTest
         assertEquals(0, cfs.metric.speculativeFailedRetries.getCount());
         assertEquals(0, ks.metric.speculativeRetries.getCount());
         assertEquals(0, ks.metric.speculativeFailedRetries.getCount());
-        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, new MockSinglePartitionReadCommand(DAYS.toMillis(365)), plan(LOCAL_QUORUM, targets, targets.subList(0, 2)), nanoTime());
+        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(ReadCoordinator.DEFAULT, cfs, new MockSinglePartitionReadCommand(DAYS.toMillis(365)), plan(LOCAL_QUORUM, targets, targets.subList(0, 2)), nanoTime());
         executor.maybeTryAdditionalReplicas();
         new Thread()
         {
@@ -178,7 +178,7 @@ public class ReadExecutorTest
         assertEquals(0, cfs.metric.speculativeFailedRetries.getCount());
         assertEquals(0, ks.metric.speculativeRetries.getCount());
         assertEquals(0, ks.metric.speculativeFailedRetries.getCount());
-        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, new MockSinglePartitionReadCommand(), plan(LOCAL_QUORUM, targets, targets.subList(0, 2)), nanoTime());
+        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(ReadCoordinator.DEFAULT, cfs, new MockSinglePartitionReadCommand(), plan(LOCAL_QUORUM, targets, targets.subList(0, 2)), nanoTime());
         executor.maybeTryAdditionalReplicas();
         try
         {
@@ -204,7 +204,7 @@ public class ReadExecutorTest
     {
         MockSinglePartitionReadCommand command = new MockSinglePartitionReadCommand(TimeUnit.DAYS.toMillis(365));
         ReplicaPlan.ForTokenRead plan = plan(ConsistencyLevel.LOCAL_ONE, targets, targets.subList(0, 1));
-        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(cfs, command, plan, nanoTime());
+        AbstractReadExecutor executor = new AbstractReadExecutor.SpeculatingReadExecutor(ReadCoordinator.DEFAULT, cfs, command, plan, nanoTime());
 
         // Issue an initial request against the first endpoint...
         executor.executeAsync();
@@ -250,7 +250,7 @@ public class ReadExecutorTest
 
         MockSinglePartitionReadCommand(long timeout)
         {
-            super(cfs.metadata().epoch, false, 0, false, cfs.metadata(), 0, null, null, null, Util.dk("ry@n_luvs_teh_y@nk33z"), null, null, false);
+            super(cfs.metadata().epoch, false, 0, false, false, cfs.metadata(), 0, null, null, null, Util.dk("ry@n_luvs_teh_y@nk33z"), null, null, false);
             this.timeout = timeout;
         }
 

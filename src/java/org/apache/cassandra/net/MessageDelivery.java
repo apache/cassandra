@@ -26,7 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Accumulator;
@@ -52,7 +52,7 @@ public interface MessageDelivery
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+            public void onFailure(InetAddressAndPort from, RequestFailure reason)
             {
                 logger.info("Received failure in response to {} from {}: {}", verb, from, reason);
                 cdl.decrement();

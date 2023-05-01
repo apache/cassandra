@@ -24,7 +24,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -34,15 +33,16 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RepairRetrySpec;
 import org.apache.cassandra.config.RetrySpec;
-import org.apache.cassandra.metrics.RepairMetrics;
-import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -73,7 +73,7 @@ public abstract class RepairMessage
         }
 
         @Override
-        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+        public void onFailure(InetAddressAndPort from, RequestFailure failure)
         {
         }
     };

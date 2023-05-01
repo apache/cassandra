@@ -50,7 +50,7 @@ public interface CASRequest
      */
     PartitionUpdate makeUpdates(FilteredPartition current, ClientState clientState, Ballot ballot) throws InvalidRequestException;
 
-    Txn toAccordTxn(ConsistencyLevel consistencyLevel, ClientState clientState, long nowInSecs);
+    Txn toAccordTxn(ConsistencyLevel consistencyLevel, ConsistencyLevel commitConsistencyLevel, ClientState clientState, long nowInSecs);
 
     ConsensusAttemptResult toCasResult(TxnResult txnResult);
 }

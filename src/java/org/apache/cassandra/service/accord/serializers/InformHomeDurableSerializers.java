@@ -41,7 +41,6 @@ public class InformHomeDurableSerializers
             CommandSerializers.timestamp.serialize(inform.executeAt, out, version);
             CommandSerializers.durability.serialize(inform.durability, out, version);
             serializeCollection(inform.persistedOn, out, version, TopologySerializers.nodeId);
-
         }
 
         @Override

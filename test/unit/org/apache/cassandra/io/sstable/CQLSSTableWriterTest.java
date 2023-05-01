@@ -37,10 +37,6 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
-import org.apache.cassandra.ServerTestUtils;
-import org.apache.cassandra.io.util.File;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -65,6 +61,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;

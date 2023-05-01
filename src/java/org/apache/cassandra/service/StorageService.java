@@ -159,7 +159,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
-import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -187,7 +186,6 @@ import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MultiStepOperation;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
@@ -260,8 +258,6 @@ import static org.apache.cassandra.service.StorageService.Mode.JOINING_FAILED;
 import static org.apache.cassandra.service.StorageService.Mode.NORMAL;
 import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.finishMigrationToConsensusProtocol;
 import static org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.startMigrationToConsensusProtocol;
-import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_JOIN;
-import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_REPLACE;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
@@ -1642,7 +1638,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                          @Nullable String maybeRangesStr)
     {
         checkNotNull(targetProtocol, "targetProtocol is null");
-        checkArgument(!keyspaceNames.contains(DistributedMetadataLogKeyspace.metadata().name));
+        checkArgument(!keyspaceNames.contains(SchemaConstants.METADATA_KEYSPACE_NAME));
         startMigrationToConsensusProtocol(targetProtocol, keyspaceNames, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr));
     }
 
@@ -1651,7 +1647,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                   @Nullable List<String> maybeTableNames,
                                                   @Nullable String maybeRangesStr)
     {
-        checkArgument(!keyspace.equals(DistributedMetadataLogKeyspace.metadata().name));
+        checkArgument(!keyspace.equals(SchemaConstants.METADATA_KEYSPACE_NAME));
         return finishMigrationToConsensusProtocol(keyspace, Optional.ofNullable(maybeTableNames), Optional.ofNullable(maybeRangesStr));
     }
 
@@ -1662,7 +1658,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         checkNotNull(targetProtocol, "targetProtocol is null");
         checkNotNull(keyspaceNames, "keyspaceNames is null");
-        checkArgument(!keyspaceNames.contains(DistributedMetadataLogKeyspace.metadata().name));
+        checkArgument(!keyspaceNames.contains(SchemaConstants.METADATA_KEYSPACE_NAME));
 
         ConsensusTableMigrationState.setConsensusMigrationTargetProtocol(targetProtocol, keyspaceNames, Optional.ofNullable(maybeTableNames));
     }
