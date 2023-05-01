@@ -85,7 +85,9 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
             }
         }
 
-        if (!forToken.get().containsSelf())
+        // Mutations may intentionally be sent against an older Epoch so out of range checking doesn't work
+        // and could cause data to not end up where it needs to be for future operations
+        if (!message.payload.allowsOutOfRangeMutations() && !forToken.get().containsSelf())
         {
             StorageService.instance.incOutOfRangeOperationCount();
             Keyspace.open(message.payload.getKeyspaceName()).metric.outOfRangeTokenWrites.inc();
@@ -93,7 +95,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
             throw InvalidRoutingException.forWrite(message.from(), key.getToken(), metadata.epoch, message.payload);
         }
 
-        if (forToken.lastModified().isAfter(message.epoch()))
+        if (!message.payload.allowsOutOfRangeMutations() && forToken.lastModified().isAfter(message.epoch()))
         {
             TCMMetrics.instance.coordinatorBehindPlacements.mark();
             throw new CoordinatorBehindException(String.format("Routing is correct, but coordinator needs to catch-up at least to epoch %s to maintain consistency. Current coordinator epoch is %s",

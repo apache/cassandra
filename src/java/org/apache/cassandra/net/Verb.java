@@ -81,6 +81,10 @@ import org.apache.cassandra.service.SnapshotVerbHandler;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.AccordSyncPropagator;
 import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
+import org.apache.cassandra.service.accord.interop.AccordInteropApply;
+import org.apache.cassandra.service.accord.interop.AccordInteropCommit;
+import org.apache.cassandra.service.accord.interop.AccordInteropRead;
+import org.apache.cassandra.service.accord.interop.AccordInteropReadRepair;
 import org.apache.cassandra.service.accord.serializers.AcceptSerializers;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers;
 import org.apache.cassandra.service.accord.serializers.BeginInvalidationSerializers;
@@ -310,7 +314,7 @@ public enum Verb
     ACCORD_COMMIT_REQ               (127, P2, writeTimeout, IMMEDIATE,          () -> CommitSerializers.request,            AccordService::verbHandlerOrNoop, ACCORD_READ_RSP                           ),
     ACCORD_COMMIT_INVALIDATE_REQ    (128, P2, writeTimeout, IMMEDIATE,          () -> CommitSerializers.invalidate,         AccordService::verbHandlerOrNoop                                            ),
     ACCORD_APPLY_RSP                (129, P2, writeTimeout, REQUEST_RESPONSE,   () -> ApplySerializers.reply,               RESPONSE_HANDLER                                                            ),
-    ACCORD_APPLY_REQ                (130, P2, writeTimeout, IMMEDIATE,          () -> ApplySerializers.request,             AccordService::verbHandlerOrNoop, ACCORD_APPLY_RSP                          ),
+    ACCORD_APPLY_REQ                (130, P2, writeTimeout, IMMEDIATE, () -> ApplySerializers.request, AccordService::verbHandlerOrNoop, ACCORD_APPLY_RSP                          ),
     ACCORD_BEGIN_RECOVER_RSP        (131, P2, writeTimeout, REQUEST_RESPONSE,   () -> RecoverySerializers.reply,            RESPONSE_HANDLER                                                            ),
     ACCORD_BEGIN_RECOVER_REQ        (132, P2, writeTimeout, IMMEDIATE,          () -> RecoverySerializers.request,          AccordService::verbHandlerOrNoop, ACCORD_BEGIN_RECOVER_RSP                  ),
     ACCORD_BEGIN_INVALIDATE_RSP     (133, P2, writeTimeout, REQUEST_RESPONSE,   () -> BeginInvalidationSerializers.reply,   RESPONSE_HANDLER                                                            ),
@@ -337,6 +341,13 @@ public enum Verb
     ACCORD_APPLY_AND_WAIT_UNTIL_APPLIED_REQ(152, P2, writeTimeout, IMMEDIATE,   () -> ReadDataSerializers.readData,() -> AccordSyncPropagator.verbHandler,      ACCORD_READ_RSP),
 
     CONSENSUS_KEY_MIGRATION         (153, P1, writeTimeout,  MUTATION,          () -> ConsensusKeyMigrationFinished.serializer,() -> ConsensusKeyMigrationState.consensusKeyMigrationFinishedHandler),
+
+    ACCORD_INTEROP_READ_RSP         (154, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.replySerializer,        RESPONSE_HANDLER),
+    ACCORD_INTEROP_READ_REQ         (155, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropRead.requestSerializer,      () -> AccordService.instance().verbHandler(), ACCORD_INTEROP_READ_RSP),
+    ACCORD_INTEROP_COMMIT_REQ       (156, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropCommit.serializer,           () -> AccordService.instance().verbHandler(), ACCORD_INTEROP_READ_RSP),
+    ACCORD_INTEROP_READ_REPAIR_RSP  (157, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.replySerializer,  RESPONSE_HANDLER),
+    ACCORD_INTEROP_READ_REPAIR_REQ  (158, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropReadRepair.requestSerializer, () -> AccordService.instance().verbHandler(), ACCORD_INTEROP_READ_REPAIR_RSP),
+    ACCORD_INTEROP_APPLY_REQ        (160, P2, writeTimeout, IMMEDIATE,          () -> AccordInteropApply.serializer,             AccordService::verbHandlerOrNoop,             ACCORD_APPLY_RSP),
 
     // generic failure response
     FAILURE_RSP            (99,  P0, noTimeout,       REQUEST_RESPONSE,  () -> RequestFailure.serializer,            RESPONSE_HANDLER                             ),

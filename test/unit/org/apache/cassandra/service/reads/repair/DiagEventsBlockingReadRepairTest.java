@@ -47,6 +47,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.reads.ReadCallback;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.ReadRepairEvent.ReadRepairEventType;
 import org.apache.cassandra.transport.Dispatcher;
 
@@ -135,7 +136,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
 
         DiagnosticBlockingRepairHandler(ReadCommand command, ReplicaPlan.Shared<?,?> replicaPlan, Dispatcher.RequestTime requestTime)
         {
-            super(command, replicaPlan, requestTime);
+            super(ReadCoordinator.DEFAULT, command, replicaPlan, requestTime);
             DiagnosticEventService.instance().subscribe(ReadRepairEvent.class, this::onRepairEvent);
         }
 
@@ -183,7 +184,7 @@ public class DiagEventsBlockingReadRepairTest extends AbstractReadRepairTest
 
         DiagnosticPartitionReadRepairHandler(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite forReadRepair)
         {
-            super(key, repairs, forReadRepair);
+            super(ReadCoordinator.DEFAULT, key, repairs, forReadRepair);
             DiagnosticEventService.instance().subscribe(PartitionRepairEvent.class, this::onRepairEvent);
         }
 

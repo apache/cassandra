@@ -22,24 +22,25 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.transport.Dispatcher;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 
 public enum ReadRepairStrategy implements ReadRepair.Factory
 {
     NONE
     {
         public <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+        ReadRepair<E, P> create(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
         {
-            return new ReadOnlyReadRepair<>(command, replicaPlan, requestTime);
+            return new ReadOnlyReadRepair<>(coordinator, command, replicaPlan, requestTime);
         }
     },
 
     BLOCKING
     {
         public <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        ReadRepair<E, P> create(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
+        ReadRepair<E, P> create(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, Dispatcher.RequestTime requestTime)
         {
-            return new BlockingReadRepair<>(command, replicaPlan, requestTime);
+            return new BlockingReadRepair<>(coordinator, command, replicaPlan, requestTime);
         }
     };
 

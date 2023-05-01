@@ -24,12 +24,32 @@ import java.util.NavigableSet;
 
 import com.google.common.collect.Iterators;
 
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.MutableDeletionInfo;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.Slice;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowAndDeletionMergeIterator;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.Unfiltered;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
+import org.apache.cassandra.utils.btree.BTree.Dir;
 
 import static org.apache.cassandra.utils.btree.BTree.Dir.desc;
 
@@ -403,9 +423,15 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         return BTree.size(holder().tree);
     }
 
+    @Override
     public Iterator<Row> iterator()
     {
-        return BTree.<Row>iterator(holder().tree);
+        return iterator(false);
+    }
+
+    public Iterator<Row> iterator(boolean reverse)
+    {
+        return BTree.<Row>iterator(holder().tree, reverse ? Dir.DESC : Dir.ASC);
     }
 
     public Row lastRow()

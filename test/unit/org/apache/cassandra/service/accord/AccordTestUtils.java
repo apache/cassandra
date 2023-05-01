@@ -214,7 +214,7 @@ public class AccordTestUtils
         Data readData = read.keys().stream().map(key -> {
                                 try
                                 {
-                                    return AsyncChains.getBlocking(read.read(key, txn.kind(), safeStore, executeAt, null));
+                                    return AsyncChains.getBlocking(read.read(key, safeStore, executeAt, null));
                                 }
                                 catch (InterruptedException e)
                                 {

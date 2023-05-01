@@ -149,7 +149,8 @@ public class AccordMigrationTest extends AccordTestBase
         CassandraRelevantProperties.SYSTEM_TRACES_DEFAULT_RF.setInt(3);
         AccordTestBase.setupCluster(builder ->
                                         builder.appendConfig(config ->
-                                                             config.set("paxos_variant", PaxosVariant.v2.name())),
+                                                             config.set("paxos_variant", PaxosVariant.v2.name())
+                                                                   .set("non_serial_write_strategy", "migration")),
                                     3);
         partitioner = FBUtilities.newPartitioner(SHARED_CLUSTER.get(1).callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
         StorageService.instance.setPartitionerUnsafe(partitioner);
@@ -160,7 +161,7 @@ public class AccordMigrationTest extends AccordTestBase
         upperMidToken = partitioner.midpoint(midToken, maxToken);
         lowerMidToken = partitioner.midpoint(minToken, midToken);
         coordinator = SHARED_CLUSTER.coordinator(1);
-        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().addAccordManagedKeyspace(KEYSPACE));
+        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged(KEYSPACE));
     }
 
     @AfterClass
@@ -172,6 +173,7 @@ public class AccordMigrationTest extends AccordTestBase
     @After
     public void tearDown() throws Exception
     {
+        super.tearDown();
         // Reset migration state
         forEach(() -> {
             ConsensusRequestRouter.resetInstance();

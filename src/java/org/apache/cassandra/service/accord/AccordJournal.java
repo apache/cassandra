@@ -20,8 +20,8 @@ package org.apache.cassandra.service.accord;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
-import java.util.EnumMap;
-import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -30,8 +30,12 @@ import java.util.function.Predicate;
 import java.util.zip.Checksum;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.primitives.Ints;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,6 +69,8 @@ import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.ValueSerializer;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.accord.interop.AccordInteropApply;
+import org.apache.cassandra.service.accord.interop.AccordInteropCommit;
 import org.apache.cassandra.service.accord.serializers.AcceptSerializers;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers;
 import org.apache.cassandra.service.accord.serializers.BeginInvalidationSerializers;
@@ -78,10 +84,31 @@ import org.apache.cassandra.service.accord.serializers.RecoverySerializers;
 import org.apache.cassandra.service.accord.serializers.SetDurableSerializers;
 import org.apache.cassandra.utils.ByteArrayUtil;
 
-import static accord.messages.MessageType.*;
+import static accord.messages.MessageType.ACCEPT_INVALIDATE_REQ;
+import static accord.messages.MessageType.ACCEPT_REQ;
+import static accord.messages.MessageType.APPLY_MAXIMAL_REQ;
+import static accord.messages.MessageType.APPLY_MINIMAL_REQ;
+import static accord.messages.MessageType.BEGIN_INVALIDATE_REQ;
+import static accord.messages.MessageType.BEGIN_RECOVER_REQ;
+import static accord.messages.MessageType.COMMIT_INVALIDATE_REQ;
+import static accord.messages.MessageType.COMMIT_MAXIMAL_REQ;
+import static accord.messages.MessageType.COMMIT_MINIMAL_REQ;
+import static accord.messages.MessageType.INFORM_DURABLE_REQ;
+import static accord.messages.MessageType.INFORM_OF_TXN_REQ;
+import static accord.messages.MessageType.PRE_ACCEPT_REQ;
+import static accord.messages.MessageType.PROPAGATE_APPLY_MSG;
+import static accord.messages.MessageType.PROPAGATE_COMMIT_MSG;
+import static accord.messages.MessageType.PROPAGATE_OTHER_MSG;
+import static accord.messages.MessageType.PROPAGATE_PRE_ACCEPT_MSG;
+import static accord.messages.MessageType.SET_GLOBALLY_DURABLE_REQ;
+import static accord.messages.MessageType.SET_SHARD_DURABLE_REQ;
 import static org.apache.cassandra.db.TypeSizes.BYTE_SIZE;
 import static org.apache.cassandra.db.TypeSizes.INT_SIZE;
 import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
+import static org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType.INTEROP_APPLY_MAXIMAL_REQ;
+import static org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType.INTEROP_APPLY_MINIMAL_REQ;
+import static org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType.INTEROP_COMMIT_MAXIMAL_REQ;
+import static org.apache.cassandra.service.accord.AccordMessageSink.AccordMessageType.INTEROP_COMMIT_MINIMAL_REQ;
 
 public class AccordJournal implements Shutdownable
 {
@@ -487,45 +514,68 @@ public class AccordJournal implements Shutdownable
         REPLAY               (0,                            ReplayRecord.SERIALIZER),
 
         /* Accord protocol requests */
-        PRE_ACCEPT           (64, PRE_ACCEPT_REQ,           PreacceptSerializers.request,          TXN  ),
-        ACCEPT               (65, ACCEPT_REQ,               AcceptSerializers.request,             TXN  ),
-        ACCEPT_INVALIDATE    (66, ACCEPT_INVALIDATE_REQ,    AcceptSerializers.invalidate,          EPOCH),
-        COMMIT_MINIMAL       (67, COMMIT_MINIMAL_REQ,       CommitSerializers.request,             TXN  ),
-        COMMIT_MAXIMAL       (68, COMMIT_MAXIMAL_REQ,       CommitSerializers.request,             TXN  ),
-        COMMIT_INVALIDATE    (69, COMMIT_INVALIDATE_REQ,    CommitSerializers.invalidate,          INVL),
-        APPLY_MINIMAL        (70, APPLY_MINIMAL_REQ,        ApplySerializers.request,              TXN  ),
-        APPLY_MAXIMAL        (71, APPLY_MAXIMAL_REQ,        ApplySerializers.request,              TXN  ),
-        BEGIN_RECOVER        (72, BEGIN_RECOVER_REQ,        RecoverySerializers.request,           TXN  ),
-        BEGIN_INVALIDATE     (73, BEGIN_INVALIDATE_REQ,     BeginInvalidationSerializers.request,  EPOCH),
-        INFORM_OF_TXN        (74, INFORM_OF_TXN_REQ,        InformOfTxnIdSerializers.request,      EPOCH),
-        INFORM_DURABLE       (75, INFORM_DURABLE_REQ,       InformDurableSerializers.request,      TXN  ),
-        SET_SHARD_DURABLE    (76, SET_SHARD_DURABLE_REQ,    SetDurableSerializers.shardDurable,    EPOCH),
-        SET_GLOBALLY_DURABLE (77, SET_GLOBALLY_DURABLE_REQ, SetDurableSerializers.globallyDurable, EPOCH),
+        PRE_ACCEPT                (64, PRE_ACCEPT_REQ,           PreacceptSerializers.request,          TXN  ),
+        ACCEPT                    (65, ACCEPT_REQ,               AcceptSerializers.request,             TXN  ),
+        ACCEPT_INVALIDATE         (66, ACCEPT_INVALIDATE_REQ,    AcceptSerializers.invalidate,          EPOCH),
+        COMMIT_MINIMAL            (67, COMMIT_MINIMAL_REQ,       CommitSerializers.request,             TXN  ),
+        COMMIT_MAXIMAL            (68, COMMIT_MAXIMAL_REQ,       CommitSerializers.request,             TXN  ),
+        COMMIT_INVALIDATE         (69, COMMIT_INVALIDATE_REQ,    CommitSerializers.invalidate,          INVL ),
+        APPLY_MINIMAL             (70, APPLY_MINIMAL_REQ,        ApplySerializers.request,              TXN  ),
+        APPLY_MAXIMAL             (71, APPLY_MAXIMAL_REQ,        ApplySerializers.request,              TXN  ),
+
+        INTEROP_COMMIT_MINIMAL    (90, INTEROP_COMMIT_MINIMAL_REQ, COMMIT_MINIMAL_REQ, AccordInteropCommit.serializer, TXN),
+        INTEROP_COMMIT_MAXIMAL    (91, INTEROP_COMMIT_MAXIMAL_REQ, COMMIT_MINIMAL_REQ, AccordInteropCommit.serializer, TXN),
+        INTEROP_APPLY_MINIMAL     (92, INTEROP_APPLY_MINIMAL_REQ,  COMMIT_MINIMAL_REQ, AccordInteropApply.serializer,  TXN),
+        INTEROP_APPLY_MAXIMAL     (93, INTEROP_APPLY_MAXIMAL_REQ,  COMMIT_MINIMAL_REQ, AccordInteropApply.serializer,  TXN),
+
+        BEGIN_RECOVER             (72, BEGIN_RECOVER_REQ,        RecoverySerializers.request,           TXN  ),
+        BEGIN_INVALIDATE          (73, BEGIN_INVALIDATE_REQ,     BeginInvalidationSerializers.request,  EPOCH),
+        INFORM_OF_TXN             (74, INFORM_OF_TXN_REQ,        InformOfTxnIdSerializers.request,      EPOCH),
+        INFORM_DURABLE            (75, INFORM_DURABLE_REQ,       InformDurableSerializers.request,      TXN  ),
+        SET_SHARD_DURABLE         (76, SET_SHARD_DURABLE_REQ,    SetDurableSerializers.shardDurable,    EPOCH),
+        SET_GLOBALLY_DURABLE      (77, SET_GLOBALLY_DURABLE_REQ, SetDurableSerializers.globallyDurable, EPOCH),
 
         /* Accord local messages */
-        PROPAGATE_PRE_ACCEPT (78, PROPAGATE_PRE_ACCEPT_MSG, FetchSerializers.propagate,            LOCAL),
-        PROPAGATE_COMMIT     (79, PROPAGATE_COMMIT_MSG,     FetchSerializers.propagate,            LOCAL),
-        PROPAGATE_APPLY      (80, PROPAGATE_APPLY_MSG,      FetchSerializers.propagate,            LOCAL),
-        PROPAGATE_OTHER      (81, PROPAGATE_OTHER_MSG,      FetchSerializers.propagate,            LOCAL),
+        PROPAGATE_PRE_ACCEPT      (78, PROPAGATE_PRE_ACCEPT_MSG, FetchSerializers.propagate,            LOCAL),
+        PROPAGATE_COMMIT          (79, PROPAGATE_COMMIT_MSG,     FetchSerializers.propagate,            LOCAL),
+        PROPAGATE_APPLY           (80, PROPAGATE_APPLY_MSG,      FetchSerializers.propagate,            LOCAL),
+        PROPAGATE_OTHER           (81, PROPAGATE_OTHER_MSG,      FetchSerializers.propagate,            LOCAL),
         ;
 
         final int id;
-        final MessageType type;
+        /**
+         * An incoming message of a given type from Accord's perspective might have multiple
+         * concrete implementations some of which are supplied by the Cassandra integration.
+         * The incoming type specifies the handling for writing out a message to the journal.
+         */
+        final MessageType incomingType;
+        /**
+         * The outgoing type is the type that will be returned to Accord and it must be a subclass of the incoming type.
+         *
+         * This type will always be from accord.messages.MessageType and never from the extended types in the integration.
+         */
+        final MessageType outgoingType;
         final TxnIdProvider txnIdProvider;
         final ValueSerializer<Key, Object> serializer;
 
         Type(int id, ValueSerializer<Key, ? extends AuxiliaryRecord> serializer)
         {
-            this(id, null, serializer, null);
+            this(id, null, null, serializer, null);
+        }
+
+        Type(int id, MessageType incomingType, MessageType outgoingType, IVersionedSerializer<?> serializer, TxnIdProvider txnIdProvider)
+        {
+            //noinspection unchecked
+            this(id, incomingType, outgoingType, MessageSerializer.wrap((IVersionedSerializer<Message>) serializer), txnIdProvider);
         }
 
         Type(int id, MessageType type, IVersionedSerializer<?> serializer, TxnIdProvider txnIdProvider)
         {
             //noinspection unchecked
-            this(id, type, MessageSerializer.wrap((IVersionedSerializer<Message>) serializer), txnIdProvider);
+            this(id, type, type, MessageSerializer.wrap((IVersionedSerializer<Message>) serializer), txnIdProvider);
         }
 
-        Type(int id, MessageType type, ValueSerializer<Key, ?> serializer, TxnIdProvider txnIdProvider)
+        Type(int id, MessageType incomingType, MessageType outgoingType, ValueSerializer<Key, ?> serializer, TxnIdProvider txnIdProvider)
         {
             if (id < 0)
                 throw new IllegalArgumentException("Negative Type id " + id);
@@ -533,7 +583,8 @@ public class AccordJournal implements Shutdownable
                 throw new IllegalArgumentException("Type id doesn't fit in a single byte: " + id);
 
             this.id = id;
-            this.type = type;
+            this.incomingType = incomingType;
+            this.outgoingType = outgoingType;
             //noinspection unchecked
             this.serializer = (ValueSerializer<Key, Object>) serializer;
             this.txnIdProvider = txnIdProvider;
@@ -541,6 +592,8 @@ public class AccordJournal implements Shutdownable
 
         private static final Type[] idToTypeMapping;
         private static final Map<MessageType, Type> msgTypeToTypeMap;
+
+        private static final ListMultimap<MessageType, Type> msgTypeToSynonymousTypesMap;
 
         static
         {
@@ -559,13 +612,26 @@ public class AccordJournal implements Shutdownable
             }
             idToTypeMapping = idToType;
 
-            EnumMap<MessageType, Type> msgTypeToType = new EnumMap<>(MessageType.class);
+            Map<MessageType, Type> msgTypeToType = new HashMap<>();
             for (Type type : types)
             {
-                if (null != type.type && null != msgTypeToType.put(type.type, type))
-                    throw new IllegalStateException("Duplicate MessageType " + type.type);
+                if (null != type.incomingType && null != msgTypeToType.put(type.incomingType, type))
+                    throw new IllegalStateException("Duplicate MessageType " + type.incomingType);
             }
-            msgTypeToTypeMap = msgTypeToType;
+            msgTypeToTypeMap = ImmutableMap.copyOf(msgTypeToType);
+
+            Multimap<MessageType, Type> msgTypeToSynonymousTypes = ArrayListMultimap.create();
+            for (Type type : types)
+            {
+                if (null != type.outgoingType)
+                {
+                    Type incomingType = msgTypeToTypeMap.get(type.incomingType);
+                    if (msgTypeToSynonymousTypes.get(type.outgoingType).contains(incomingType))
+                        throw new IllegalStateException("Duplicate synonymous Type " + type.incomingType);
+                    msgTypeToSynonymousTypes.put(type.outgoingType, incomingType);
+                }
+            }
+            msgTypeToSynonymousTypesMap = ImmutableListMultimap.copyOf(msgTypeToSynonymousTypes);
         }
 
         static Type fromId(int id)
@@ -576,6 +642,14 @@ public class AccordJournal implements Shutdownable
             if (null == type)
                 throw new IllegalArgumentException("Unknown Type id " + id);
             return type;
+        }
+
+        static List<Type> synonymousTypesFromMessageType(MessageType msgType)
+        {
+            List<Type> synonymousTypes = msgTypeToSynonymousTypesMap.get(msgType);
+            if (null == synonymousTypes)
+                throw new IllegalArgumentException("Unsupported MessageType " + msgType);
+            return synonymousTypes;
         }
 
         static Type fromMessageType(MessageType msgType)
@@ -613,7 +687,7 @@ public class AccordJournal implements Shutdownable
     static
     {
         // make noise early if we forget to update our version mappings
-        Invariants.checkState(MessagingService.current_version == MessagingService.VERSION_50, "Expected current version to be %d but given %d", MessagingService.VERSION_50, MessagingService.current_version);
+        Invariants.checkState(MessagingService.current_version == MessagingService.VERSION_51, "Expected current version to be %d but given %d", MessagingService.VERSION_51, MessagingService.current_version);
     }
 
     private static int msVersion(int version)
@@ -621,7 +695,7 @@ public class AccordJournal implements Shutdownable
         switch (version)
         {
             default: throw new IllegalArgumentException();
-            case 1: return MessagingService.VERSION_50;
+            case 1: return MessagingService.VERSION_51;
         }
     }
 
@@ -693,11 +767,12 @@ public class AccordJournal implements Shutdownable
         {
             Set<Key> keys = new ObjectHashSet<>(messages.size() + 1, 0.9f);
             for (MessageType message : messages)
-                keys.add(new Key(txnId, Type.fromMessageType(message)));
+                for (Type synonymousType : Type.synonymousTypesFromMessageType(message))
+                    keys.add(new Key(txnId, synonymousType));
             Set<Key> presentKeys = journal.test(keys);
-            EnumSet<MessageType> presentMessages = EnumSet.noneOf(MessageType.class);
+            Set<MessageType> presentMessages = new ObjectHashSet<>(presentKeys.size() + 1, 0.9f);
             for (Key key : presentKeys)
-                presentMessages.add(key.type.type);
+                presentMessages.add(key.type.outgoingType);
             return presentMessages;
         }
 

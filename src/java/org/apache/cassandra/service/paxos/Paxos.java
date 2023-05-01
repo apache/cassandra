@@ -95,6 +95,7 @@ import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteAccepted;
 import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteCommitted;
 import org.apache.cassandra.service.paxos.PaxosPropose.Superseded;
 import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -748,7 +749,7 @@ public class Paxos
                     {
                         Tracing.trace("CAS precondition rejected", current);
                         casWriteMetrics.conditionNotMet.inc();
-                        return casResult(current.rowIterator());
+                        return casResult(current.rowIterator(false));
                     }
 
                     // If we failed to meet our condition, it does not mean we can do nothing: if we do not propose
@@ -881,7 +882,7 @@ public class Paxos
     {
         Tracing.trace("CAS precondition rejected", read);
         casWriteMetrics.conditionNotMet.inc();
-        return read.rowIterator();
+        return read.rowIterator(false);
     }
 
     public static ConsensusAttemptResult read(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyForConsensus, Dispatcher.RequestTime requestTime)
@@ -1132,7 +1133,7 @@ public class Paxos
                     PaxosPrepare.Success success = prepare.success();
 
                     Supplier<Participants> plan = () -> success.participants;
-                    DataResolver<?, ?> resolver = new DataResolver<>(query, plan, NoopReadRepair.instance, new Dispatcher.RequestTime(query.creationTimeNanos()));
+                    DataResolver<?, ?> resolver = new DataResolver<>(ReadCoordinator.DEFAULT, query, plan, NoopReadRepair.instance, new Dispatcher.RequestTime(query.creationTimeNanos()));
                     for (int i = 0 ; i < success.responses.size() ; ++i)
                         resolver.preprocess(success.responses.get(i));
 

@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 
@@ -34,7 +35,6 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import accord.primitives.Seekable;
 import accord.primitives.Timestamp;
-import accord.primitives.Txn;
 import accord.utils.SortedArrays;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import accord.utils.async.AsyncChain;
@@ -50,7 +50,9 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Simulate;
 
 import static accord.utils.SortedArrays.Search.CEIL;
+import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.service.accord.AccordSerializers.consistencyLevelSerializer;
+import static org.apache.cassandra.service.accord.IAccordService.SUPPORTED_READ_CONSISTENCY_LEVELS;
 import static org.apache.cassandra.utils.ArraySerializers.deserializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializeArray;
 import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
@@ -65,7 +67,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     public static final String SERIAL_READ_NAME = "SERIAL_READ";
     public static final TxnDataName SERIAL_READ = TxnDataName.user(SERIAL_READ_NAME);
 
-    public static final TxnRead EMPTY = new TxnRead(new TxnNamedRead[0], Keys.EMPTY, ConsistencyLevel.ANY);
+    public static final TxnRead EMPTY = new TxnRead(new TxnNamedRead[0], Keys.EMPTY, null);
     private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY);
 
     public static final String CAS_READ_NAME = "CAS_READ";
@@ -74,26 +76,27 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     @Nonnull
     private final Keys txnKeys;
 
-    // Used if the read is in a migrating range to do a coordinated C* read
-    // Likely has uses with interoperability in the future
-    @Nonnull
-    private final ConsistencyLevel consistencyLevel;
+    // Cassandra's consistency level used by Accord to safely read data written outside of Accord
+    @Nullable
+    private final ConsistencyLevel cassandraConsistencyLevel;
 
-    public TxnRead(@Nonnull TxnNamedRead[] items, @Nonnull Keys txnKeys, @Nonnull ConsistencyLevel consistencyLevel)
+    public TxnRead(@Nonnull TxnNamedRead[] items, @Nonnull Keys txnKeys, @Nullable ConsistencyLevel cassandraConsistencyLevel)
     {
         super(items);
+        checkArgument(cassandraConsistencyLevel == null || SUPPORTED_READ_CONSISTENCY_LEVELS.contains(cassandraConsistencyLevel), "Unsupported consistency level for read");
         this.txnKeys = txnKeys;
-        this.consistencyLevel = consistencyLevel;
+        this.cassandraConsistencyLevel = cassandraConsistencyLevel;
     }
 
-    public TxnRead(@Nonnull List<TxnNamedRead> items, @Nonnull Keys txnKeys, @Nonnull ConsistencyLevel consistencyLevel)
+    public TxnRead(@Nonnull List<TxnNamedRead> items, @Nonnull Keys txnKeys, @Nullable ConsistencyLevel cassandraConsistencyLevel)
     {
         super(items);
+        checkArgument(cassandraConsistencyLevel == null || SUPPORTED_READ_CONSISTENCY_LEVELS.contains(cassandraConsistencyLevel), "Unsupported consistency level for read");
         this.txnKeys = txnKeys;
-        this.consistencyLevel = consistencyLevel;
+        this.cassandraConsistencyLevel = cassandraConsistencyLevel;
     }
 
-    public static TxnRead createTxnRead(@Nonnull List<TxnNamedRead> items, @Nonnull Keys txnKeys, @Nonnull ConsistencyLevel consistencyLevel)
+    public static TxnRead createTxnRead(@Nonnull List<TxnNamedRead> items, @Nonnull Keys txnKeys, @Nullable ConsistencyLevel consistencyLevel)
     {
         return new TxnRead(items, txnKeys, consistencyLevel);
     }
@@ -108,6 +111,13 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     {
         TxnNamedRead read = new TxnNamedRead(CAS_READ, readCommand);
         return new TxnRead(ImmutableList.of(read), Keys.of(read.key()), consistencyLevel);
+    }
+
+    // A read that declares it will read from keys but doesn't actually read any data so dependent transactions will
+    // still be applied first
+    public static TxnRead createNoOpRead(Keys keys)
+    {
+        return new TxnRead(ImmutableList.of(), keys, null);
     }
 
     public long estimatedSizeOnHeap()
@@ -142,9 +152,9 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         return txnKeys;
     }
 
-    public Keys readKeys()
+    public ConsistencyLevel cassandraConsistencyLevel()
     {
-        return itemKeys;
+        return cassandraConsistencyLevel;
     }
 
     @Override
@@ -157,7 +167,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             if (keys.contains(read.key()))
                 reads.add(read);
 
-        return createTxnRead(reads, txnKeys.slice(ranges), consistencyLevel);
+        return createTxnRead(reads, txnKeys.slice(ranges), cassandraConsistencyLevel);
     }
 
     @Override
@@ -170,7 +180,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             if (!reads.contains(namedRead))
                 reads.add(namedRead);
 
-        return createTxnRead(reads, txnKeys.with((Keys)read.keys()), consistencyLevel);
+        return createTxnRead(reads, txnKeys.with((Keys)read.keys()), cassandraConsistencyLevel);
     }
 
     @Override
@@ -190,12 +200,13 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     }
 
     @Override
-    public AsyncChain<Data> read(Seekable key, Txn.Kind kind, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
+    public AsyncChain<Data> read(Seekable key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
     {
         List<AsyncChain<Data>> results = new ArrayList<>();
-        forEachWithKey((PartitionKey) key, read -> results.add(read.read(kind.isWrite(), executeAt)));
+        forEachWithKey((PartitionKey) key, read -> results.add(read.read(executeAt)));
 
         if (results.isEmpty())
+            // Result type must match everywhere
             return AsyncChains.success(new TxnData());
 
         if (results.size() == 1)
@@ -212,7 +223,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         {
             KeySerializers.keys.serialize(read.txnKeys, out, version);
             serializeArray(read.items, out, version, TxnNamedRead.serializer);
-            serializeNullable(read.consistencyLevel, out, version, consistencyLevelSerializer);
+            serializeNullable(read.cassandraConsistencyLevel, out, version, consistencyLevelSerializer);
         }
 
         @Override
@@ -229,7 +240,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         {
             long size = KeySerializers.keys.serializedSize(read.txnKeys, version);
             size += serializedArraySize(read.items, version, TxnNamedRead.serializer);
-            size += serializedNullableSize(read.consistencyLevel, version, consistencyLevelSerializer);
+            size += serializedNullableSize(read.cassandraConsistencyLevel, version, consistencyLevelSerializer);
             return size;
         }
     };

@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Joiner;
@@ -57,22 +56,23 @@ import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 import org.apache.cassandra.transport.Dispatcher;
 
-import static com.google.common.collect.Iterables.*;
+import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Iterables.transform;
 
 public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
 {
     private final boolean enforceStrictLiveness;
-    private final ReadRepair<E, P> readRepair;
+    public final ReadRepair<E, P> readRepair;
     private final boolean trackRepairedStatus;
 
-    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime)
+    public DataResolver(ReadCoordinator coordinator, ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime)
     {
-        this(command, replicaPlan, readRepair, requestTime, false);
+        this(coordinator, command, replicaPlan, readRepair, requestTime, false);
     }
 
-    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime, boolean trackRepairedStatus)
+    public DataResolver(ReadCoordinator coordinator, ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, Dispatcher.RequestTime requestTime, boolean trackRepairedStatus)
     {
-        super(command, replicaPlan, requestTime);
+        super(coordinator, command, replicaPlan, requestTime);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
         this.readRepair = readRepair;
         this.trackRepairedStatus = trackRepairedStatus;
@@ -210,6 +210,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                             originalResponse,
                                             command,
                                             context.mergedResultCounter,
+                                            coordinator,
                                             requestTime,
                                             enforceStrictLiveness)
                : originalResponse;
@@ -250,7 +251,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         //      before it counts against the limit. If this "pre-count" filter causes a short read, additional rows
         //      will be fetched from the first-phase iterator.
 
-        ReplicaFilteringProtection<E> rfp = new ReplicaFilteringProtection<>(replicaPlan().keyspace(),
+        ReplicaFilteringProtection<E> rfp = new ReplicaFilteringProtection<>(coordinator, replicaPlan().keyspace(),
                                                                              command,
                                                                              replicaPlan().consistencyLevel(),
                                                                              requestTime,
@@ -258,6 +259,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                                                              DatabaseDescriptor.getCachedReplicaRowsWarnThreshold(),
                                                                              DatabaseDescriptor.getCachedReplicaRowsFailThreshold());
 
+        // We need separate contexts, as each context has his own counter
         ResolveContext firstPhaseContext = new ResolveContext(replicas, false);
         PartitionIterator firstPhasePartitions = resolveInternal(firstPhaseContext,
                                                                  rfp.mergeController(),

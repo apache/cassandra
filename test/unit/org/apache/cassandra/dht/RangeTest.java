@@ -36,6 +36,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -65,8 +66,9 @@ public class RangeTest extends CassandraTestBase
     @BeforeClass
     public static void enableExpensiveRangeChecks()
     {
-        TEST_RANGE_EXPENSIVE_CHECKS.setBoolean(true);
-        assertTrue(Range.EXPENSIVE_CHECKS);
+        assertFalse(TEST_RANGE_EXPENSIVE_CHECKS.getBoolean()); // Expect off by default
+        CassandraRelevantProperties.TEST_RANGE_EXPENSIVE_CHECKS.setBoolean(true);
+        assertTrue(TEST_RANGE_EXPENSIVE_CHECKS.getBoolean());
     }
 
     @Test

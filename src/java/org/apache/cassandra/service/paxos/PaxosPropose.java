@@ -456,7 +456,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         public void serialize(Request request, DataOutputPlus out, int version) throws IOException
         {
             Proposal.serializer.serialize(request.proposal, out, version);
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 out.writeBoolean(request.isForRecovery);
         }
 
@@ -465,7 +465,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         {
             Proposal propose = Proposal.serializer.deserialize(in, version);
             boolean isForRecovery = false;
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 isForRecovery = in.readBoolean();
             return new Request(propose, isForRecovery);
         }
@@ -474,7 +474,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
         public long serializedSize(Request request, int version)
         {
             long size = Proposal.serializer.serializedSize(request.proposal, version);
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 size += TypeSizes.sizeof(request.isForRecovery);
             return size;
         }
@@ -487,7 +487,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             out.writeBoolean(acceptResult.supersededBy != null);
             if (acceptResult.supersededBy != null)
                 acceptResult.supersededBy.serialize(out);
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 out.writeBoolean(acceptResult.rejectedDueToConsensusMigration);
         }
 
@@ -498,7 +498,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             if (isSuperseded)
                 supersededBy = Ballot.deserialize(in);
             boolean rejectedDueToConsensusMigration = false;
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 rejectedDueToConsensusMigration = in.readBoolean();
             return new AcceptResult(supersededBy, rejectedDueToConsensusMigration);
         }
@@ -508,7 +508,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
             long size = acceptResult.supersededBy != null
                     ? TypeSizes.sizeof(true) + Ballot.sizeInBytes()
                     : TypeSizes.sizeof(false);
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                size += TypeSizes.sizeof(acceptResult.rejectedDueToConsensusMigration);
             return size;
         }
