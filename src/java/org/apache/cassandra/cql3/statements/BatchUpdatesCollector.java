@@ -223,7 +223,7 @@ final class BatchUpdatesCollector implements UpdatesCollector
                 PartitionUpdate update = updateEntry.getValue().build();
                 updates.put(updateEntry.getKey(), update);
             }
-            return new Mutation(keyspaceName, key, updates.build(), createdAt);
+            return new Mutation(keyspaceName, key, updates.build(), createdAt, false);
         }
 
         public PartitionUpdate.Builder get(TableId tableId)

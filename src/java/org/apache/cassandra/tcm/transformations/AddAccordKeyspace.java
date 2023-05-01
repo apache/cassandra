@@ -50,7 +50,7 @@ public class AddAccordKeyspace implements Transformation
         if (metadata.accordKeyspaces.contains(keyspace))
             return new Rejected(ExceptionCode.ALREADY_EXISTS, keyspace + " is already an accord keyspaces");
 
-        return success(metadata.transformer().withAccordKeyspace(keyspace), LockedRanges.AffectedRanges.EMPTY);
+        return Transformation.success(metadata.transformer().withAccordKeyspace(keyspace), LockedRanges.AffectedRanges.EMPTY);
     }
 
     public static final AsymmetricMetadataSerializer<Transformation, AddAccordKeyspace> serializer = new AsymmetricMetadataSerializer<Transformation, AddAccordKeyspace>()

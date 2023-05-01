@@ -70,4 +70,9 @@ public interface IMutation
         }
         return size;
     }
+
+    default boolean allowsOutOfRangeMutations()
+    {
+        return false;
+    }
 }

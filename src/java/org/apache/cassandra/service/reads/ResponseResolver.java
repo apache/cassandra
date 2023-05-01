@@ -33,6 +33,7 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
 {
     protected static final Logger logger = LoggerFactory.getLogger(ResponseResolver.class);
 
+    protected final ReadCoordinator coordinator;
     protected final ReadCommand command;
     protected final Supplier<? extends P> replicaPlan;
 
@@ -40,8 +41,9 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
     protected final Accumulator<Message<ReadResponse>> responses;
     protected final long queryStartNanoTime;
 
-    public ResponseResolver(ReadCommand command, Supplier<? extends P> replicaPlan, long queryStartNanoTime)
+    public ResponseResolver(ReadCoordinator coordinator, ReadCommand command, Supplier<? extends P> replicaPlan, long queryStartNanoTime)
     {
+        this.coordinator = coordinator;
         this.command = command;
         this.replicaPlan = replicaPlan;
         this.responses = new Accumulator<>(replicaPlan.get().readCandidates().size());

@@ -23,8 +23,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NavigableSet;
-import java.util.concurrent.TimeUnit;
 import java.util.Queue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -97,6 +97,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     private static final Function<UnfilteredRowIterator, EncodingStats> NULL_TO_NO_STATS =
         rowIterator -> rowIterator == null ? EncodingStats.NO_STATS : rowIterator.stats();
 
+    private final ReadCoordinator coordinator;
     private final Keyspace keyspace;
     private final ReadCommand command;
     private final ConsistencyLevel consistency;
@@ -118,7 +119,8 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
      */
     private final List<Queue<PartitionBuilder>> originalPartitions;
 
-    ReplicaFilteringProtection(Keyspace keyspace,
+    ReplicaFilteringProtection(ReadCoordinator coordinator,
+                               Keyspace keyspace,
                                ReadCommand command,
                                ConsistencyLevel consistency,
                                long queryStartNanoTime,
@@ -126,6 +128,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
                                int cachedRowsWarnThreshold,
                                int cachedRowsFailThreshold)
     {
+        this.coordinator = coordinator;
         this.keyspace = keyspace;
         this.command = command;
         this.consistency = consistency;
@@ -148,7 +151,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
     {
         @SuppressWarnings("unchecked")
         DataResolver<EndpointsForToken, ReplicaPlan.ForTokenRead> resolver =
-            new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead>) NoopReadRepair.instance, queryStartNanoTime);
+            new DataResolver<>(coordinator, cmd, replicaPlan, (NoopReadRepair<EndpointsForToken, ReplicaPlan.ForTokenRead>) NoopReadRepair.instance, queryStartNanoTime);
 
         ReadCallback<EndpointsForToken, ReplicaPlan.ForTokenRead> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryStartNanoTime);
 

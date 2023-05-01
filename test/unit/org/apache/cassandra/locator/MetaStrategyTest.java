@@ -32,12 +32,14 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.ConsensusMigrationState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.ownership.AccordKeyspaces;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
@@ -87,8 +89,10 @@ public class MetaStrategyTest
                                    directory,
                                    tokenMap,
                                    DataPlacements.EMPTY,
+                                   AccordKeyspaces.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
+                                   ConsensusMigrationState.EMPTY,
                                    ImmutableMap.of());
     }
 

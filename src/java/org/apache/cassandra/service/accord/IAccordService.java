@@ -18,14 +18,19 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import accord.api.BarrierType;
 import accord.local.DurableBefore;
+import accord.local.Node.Id;
 import accord.local.RedundantBefore;
 import accord.messages.Request;
 import accord.primitives.Ranges;
@@ -39,6 +44,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.txn.TxnResult;
@@ -48,6 +54,9 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 public interface IAccordService
 {
+    Set<ConsistencyLevel> SUPPORTED_COMMIT_CONSISTENCY_LEVELS = ImmutableSet.of(ConsistencyLevel.ANY, ConsistencyLevel.ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL, ConsistencyLevel.ALL);
+    Set<ConsistencyLevel> SUPPORTED_READ_CONSISTENCY_LEVELS = ImmutableSet.of(ConsistencyLevel.ONE, ConsistencyLevel.QUORUM, ConsistencyLevel.SERIAL);
+
     IVerbHandler<? extends Request> verbHandler();
 
     default long barrierWithRetries(Seekables keysOrRanges, long minEpoch, BarrierType barrierType, boolean isForWrite) throws InterruptedException
@@ -109,5 +118,25 @@ public interface IAccordService
      */
     Pair<Int2ObjectHashMap<RedundantBefore>, DurableBefore> getRedundantBeforesAndDurableBefore();
 
-    void addAccordManagedKeyspace(String keyspace);
+    default Id nodeId() { throw new UnsupportedOperationException(); }
+
+    default void maybeConvertKeyspacesToAccord(Txn txn)
+    {
+        Set<String> allKeyspaces = new HashSet<>();
+        txn.keys().forEach(key -> allKeyspaces.add(((AccordRoutableKey) key).keyspace()));
+
+        for (String keyspace : allKeyspaces)
+        {
+
+            ensureKeyspaceIsAccordManaged(keyspace);
+        }
+
+        for (String keyspace : allKeyspaces)
+        {
+            if (!AccordService.instance().isAccordManagedKeyspace(keyspace))
+                throw new IllegalStateException(keyspace + " is not an accord managed keyspace");
+        }
+    }
+
+    void ensureKeyspaceIsAccordManaged(String keyspace);
 }

@@ -93,7 +93,7 @@ public class StreamSummary implements Serializable
             summary.tableId.serialize(out);
             out.writeInt(summary.files);
             out.writeLong(summary.totalSize);
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 CollectionSerializers.serializeCollection(summary.ranges, out, version, Range.rangeSerializer);
         }
 
@@ -103,7 +103,7 @@ public class StreamSummary implements Serializable
             int files = in.readInt();
             long totalSize = in.readLong();
             List<Range<Token>> ranges = ImmutableList.of();
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 ranges = CollectionSerializers.deserializeList(in, p, version, Range.rangeSerializer);
             return new StreamSummary(tableId, ranges, files, totalSize);
         }
@@ -113,7 +113,7 @@ public class StreamSummary implements Serializable
             long size = summary.tableId.serializedSize();
             size += TypeSizes.sizeof(summary.files);
             size += TypeSizes.sizeof(summary.totalSize);
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 size += CollectionSerializers.serializedCollectionSize(summary.ranges, version, Range.rangeSerializer);
             return size;
         }

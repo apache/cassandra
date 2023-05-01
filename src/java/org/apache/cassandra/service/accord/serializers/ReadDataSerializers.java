@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
+import accord.api.Data;
 import accord.messages.ApplyThenWaitUntilApplied;
 import accord.messages.ReadData;
 import accord.messages.ReadData.ReadNack;
@@ -58,7 +59,7 @@ public class ReadDataSerializers
         @Override
         public ReadData deserialize(DataInputPlus in, int version) throws IOException
         {
-            return serializerFor(ReadType.fromValue(in.readByte())).deserialize(in, version);
+            return serializerFor(ReadType.valueOf(in.readByte())).deserialize(in, version);
         }
 
         @Override
@@ -141,7 +142,7 @@ public class ReadDataSerializers
         }
     };
 
-    private interface ReadDataSerializer<T extends ReadData> extends IVersionedSerializer<T>
+    public interface ReadDataSerializer<T extends ReadData> extends IVersionedSerializer<T>
     {
         void serialize(T bound, DataOutputPlus out, int version) throws IOException;
         T deserialize(DataInputPlus in, int version) throws IOException;
@@ -168,10 +169,16 @@ public class ReadDataSerializers
         }
     }
 
-    public static final IVersionedSerializer<ReadReply> reply = new IVersionedSerializer<ReadReply>()
+    public static final class ReplySerializer<D extends Data> implements IVersionedSerializer<ReadReply>
     {
         // TODO (now): use something other than ordinal
         final ReadNack[] nacks = ReadNack.values();
+        private final IVersionedSerializer<D> dataSerializer;
+
+        public ReplySerializer(IVersionedSerializer<D> dataSerializer)
+        {
+            this.dataSerializer = dataSerializer;
+        }
 
         @Override
         public void serialize(ReadReply reply, DataOutputPlus out, int version) throws IOException
@@ -185,7 +192,7 @@ public class ReadDataSerializers
             out.writeByte(0);
             ReadOk readOk = (ReadOk) reply;
             serializeNullable(readOk.unavailable, out, version, KeySerializers.ranges);
-            TxnData.nullableSerializer.serialize((TxnData) readOk.data, out, version);
+            dataSerializer.serialize((D) readOk.data, out, version);
         }
 
         @Override
@@ -196,7 +203,7 @@ public class ReadDataSerializers
                 return nacks[id - 1];
 
             Ranges ranges = deserializeNullable(in, version, KeySerializers.ranges);
-            TxnData data = TxnData.nullableSerializer.deserialize(in, version);
+            D data = dataSerializer.deserialize(in, version);
             return new ReadOk(ranges, data);
         }
 
@@ -209,9 +216,11 @@ public class ReadDataSerializers
             ReadOk readOk = (ReadOk) reply;
             return TypeSizes.BYTE_SIZE
                    + serializedNullableSize(readOk.unavailable, version, KeySerializers.ranges)
-                   + TxnData.nullableSerializer.serializedSize((TxnData) readOk.data, version);
+                   + dataSerializer.serializedSize((D) readOk.data, version);
         }
-    };
+    }
+
+    public static final IVersionedSerializer<ReadReply> reply = new ReplySerializer<>(TxnData.nullableSerializer);
 
     // TODO (consider): duplicates ReadTxnData ser/de logic; conside deduplicating if another instance of this is added
     public static final ReadDataSerializer<WaitUntilApplied> waitUntilApplied = new ReadDataSerializer<WaitUntilApplied>()

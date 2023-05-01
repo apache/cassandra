@@ -27,7 +27,6 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -215,7 +214,7 @@ public class AccordTestUtils
         Data readData = read.keys().stream().map(key -> {
                                 try
                                 {
-                                    return AsyncChains.getBlocking(read.read(key, txn.kind(), safeStore, executeAt, null));
+                                    return AsyncChains.getBlocking(read.read(key, safeStore, executeAt, null));
                                 }
                                 catch (InterruptedException e)
                                 {

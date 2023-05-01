@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.common.util.concurrent.FutureCallback;
 import org.junit.Assert;
@@ -47,10 +49,12 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.ICoordinator;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.api.IMessageFilters.Filter;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.reads.repair.BlockingReadRepair;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.utils.concurrent.Condition;
@@ -71,6 +75,7 @@ import static org.apache.cassandra.net.Verb.READ_REPAIR_RSP;
 import static org.apache.cassandra.net.Verb.READ_REQ;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class ReadRepairTest extends TestBaseImpl
@@ -81,7 +86,8 @@ public class ReadRepairTest extends TestBaseImpl
     @Test
     public void testBlockingReadRepair() throws Throwable
     {
-        testReadRepair(ReadRepairStrategy.BLOCKING);
+        testReadRepair(ReadRepairStrategy.BLOCKING, false);
+        testReadRepair(ReadRepairStrategy.BLOCKING, true);
     }
     /**
      *
@@ -95,8 +101,14 @@ public class ReadRepairTest extends TestBaseImpl
 
     private void testReadRepair(ReadRepairStrategy strategy) throws Throwable
     {
-        try (Cluster cluster = init(Cluster.create(3)))
+        testReadRepair(strategy, false);
+    }
+
+    private void testReadRepair(ReadRepairStrategy strategy, boolean brrThroughAccord) throws Throwable
+    {
+        try (Cluster cluster = init(Cluster.create(3, config -> config.set("non_serial_write_strategy", brrThroughAccord ? "migration" : "normal"))))
         {
+            cluster.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged(KEYSPACE));
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int, c int, v int, PRIMARY KEY (k, c)) " +
                                               String.format("WITH read_repair='%s'", strategy)));
 
@@ -111,8 +123,11 @@ public class ReadRepairTest extends TestBaseImpl
             // verify that the third node doesn't have the row
             assertRows(cluster.get(3).executeInternal(selectQuery));
 
-            // read with CL=QUORUM to trigger read repair
+            // read with CL=QUORUM to trigger read repair, force 3 to be involved in the read so that read repair
+            // will occur
+            Filter blockReadFromOne = cluster.filters().inbound().from(3).to(1).verbs(READ_REQ.id).drop();
             assertRows(cluster.coordinator(3).execute(selectQuery, QUORUM), row);
+            blockReadFromOne.off();
 
             // verify whether the coordinator has the repaired row depending on the read repair strategy
             if (strategy == ReadRepairStrategy.NONE)
@@ -143,13 +158,13 @@ public class ReadRepairTest extends TestBaseImpl
             catch (Exception ex)
             {
                 // the containing exception class was loaded by another class loader. Comparing the message as a workaround to assert the exception
-                Assert.assertTrue(ex.getClass().toString().contains("ReadTimeoutException"));
+                assertTrue(ex.getClass().toString().contains("ReadTimeoutException"));
                 long actualTimeTaken = currentTimeMillis() - start;
                 long magicDelayAmount = 100L; // it might not be the best way to check if the time taken is around the timeout value.
                 // Due to the delays, the actual time taken from client perspective is slighly more than the timeout value
-                Assert.assertTrue(actualTimeTaken > reducedReadTimeout);
+                assertTrue(actualTimeTaken > reducedReadTimeout);
                 // But it should not exceed too much
-                Assert.assertTrue(actualTimeTaken < reducedReadTimeout + magicDelayAmount);
+                assertTrue(actualTimeTaken < reducedReadTimeout + magicDelayAmount);
                 assertRows(cluster.get(3).executeInternal("SELECT * FROM " + KEYSPACE + ".tbl WHERE pk = 1"),
                            row(1, 1, 1)); // the partition happened when the repaired node sending back ack. The mutation should be in fact applied.
             }
@@ -421,8 +436,11 @@ public class ReadRepairTest extends TestBaseImpl
         catch (ExecutionException e)
         {
             Throwable cause = e.getCause();
-            Assert.assertTrue("Expected a different error message, but got " + cause.getMessage(),
-                              cause.getMessage().contains("INVALID_ROUTING from /127.0.0.2:7012"));
+            Matcher matcher = Pattern.compile("Operation failed - received (\\d+) responses and 1 failures: INVALID_ROUTING from /127.0.0.2:7012").matcher(cause.getMessage());
+            assertTrue("Expected a different error message, but got " + cause.getMessage(),
+                              matcher.matches());
+            int responses = Integer.valueOf(matcher.group(1));
+            assertTrue(responses >= 1 && responses <= 3);
         }
         catch (InterruptedException e)
         {

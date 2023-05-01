@@ -124,7 +124,7 @@ public class MaybeFinishConsensusMigrationForTableAndRange implements Transforma
 
         TableMigrationState newTableMigrationState = tms.withRangesRepairedAtEpoch(normalizedRepairedRanges, minEpoch);
 
-        return success(metadata.transformer().with(ImmutableMap.of(newTableMigrationState.tableId, newTableMigrationState)), LockedRanges.AffectedRanges.EMPTY);
+        return Transformation.success(metadata.transformer().with(ImmutableMap.of(newTableMigrationState.tableId, newTableMigrationState)), LockedRanges.AffectedRanges.EMPTY);
     }
 
     static class Serializer implements AsymmetricMetadataSerializer<Transformation, MaybeFinishConsensusMigrationForTableAndRange>

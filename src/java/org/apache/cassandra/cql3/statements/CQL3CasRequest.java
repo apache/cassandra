@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.api.Update;
 import accord.primitives.Txn;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
@@ -474,20 +475,26 @@ public class CQL3CasRequest implements CASRequest
     }
 
     @Override
-    public Txn toAccordTxn(ConsistencyLevel consistencyLevel, ClientState clientState, long nowInSecs)
+    public Txn toAccordTxn(ConsistencyLevel consistencyLevel, ConsistencyLevel commitConsistencyLevel, ClientState clientState, long nowInSecs)
     {
         SinglePartitionReadCommand readCommand = readCommand(nowInSecs);
-        Update update = createUpdate(clientState);
-        // In a CAS request only one key is supported and writes
+        Update update = createUpdate(clientState, commitConsistencyLevel);
+        // If the write strategy is sending all writes through Accord there is no need to use the supplied consistency
+        // level since Accord will manage reading safely
+        consistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().readCLForStrategy(consistencyLevel);
+        TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel);
+        // In a CAS requesting only one key is supported and writes
         // can't be dependent on any data that is read (only conditions)
         // so the only relevant keys are the read key
-        TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel);
         return new Txn.InMemory(read.keys(), read, TxnQuery.CONDITION, update);
     }
 
-    private Update createUpdate(ClientState clientState)
+    private Update createUpdate(ClientState clientState, ConsistencyLevel commitConsistencyLevel)
     {
-        return new TxnUpdate(createWriteFragments(clientState), createCondition());
+        // Potentially ignore commit consistency level if non-SERIAL write strategy is Accord
+        // since it is safe to match what non-SERIAL writes do
+        commitConsistencyLevel = DatabaseDescriptor.getNonSerialWriteStrategy().commitCLForStrategy(commitConsistencyLevel);
+        return new TxnUpdate(createWriteFragments(clientState), createCondition(), commitConsistencyLevel);
     }
 
     private TxnCondition createCondition()
@@ -535,6 +542,6 @@ public class CQL3CasRequest implements CASRequest
             return RETRY_NEW_PROTOCOL;
         TxnData txnData = (TxnData)txnResult;
         FilteredPartition partition = txnData.get(TxnRead.CAS_READ);
-        return casResult(partition != null ? partition.rowIterator() : null);
+        return casResult(partition != null ? partition.rowIterator(false) : null);
     }
 }

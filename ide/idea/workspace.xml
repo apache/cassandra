@@ -213,7 +213,6 @@
                                           -XX:CICompilerCount=1
                                           -XX:HeapDumpPath=build/test
                                           -XX:MaxMetaspaceSize=2G
-                                          -Xmx4G
                                           -XX:ReservedCodeCacheSize=256M
                                           -XX:Tier4CompileThreshold=1000
                                           -ea" />

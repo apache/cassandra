@@ -61,7 +61,7 @@ public class EnumSerializer<E extends Enum<E>> implements IVersionedSerializer<E
     {
         int len = TypeSizes.sizeofUnsignedVInt(e.ordinal());
         ByteBuffer out = ByteBuffer.allocate(len);
-        VIntCoding.writeUnsignedVInt(e.ordinal(), out);
+        VIntCoding.writeUnsignedVInt32(e.ordinal(), out);
         out.flip();
         return out;
     }
