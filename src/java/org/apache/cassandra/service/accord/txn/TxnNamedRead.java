@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import accord.api.Data;
+import accord.api.UnresolvedData;
 import accord.local.SafeCommandStore;
 import accord.primitives.Timestamp;
 import accord.utils.async.AsyncChain;
@@ -34,30 +34,24 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
-import org.apache.cassandra.db.partitions.FilteredPartition;
-import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.AccordClientRequestMetrics;
 import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.service.consensus.migration.ConsensusRequestRouter;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.txn.TxnUnresolvedData.UnresolvedDataEntry;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState;
 import org.apache.cassandra.service.consensus.migration.ConsensusTableMigrationState.TableMigrationState;
-import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordReadMetrics;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.accordWriteMetrics;
 import static org.apache.cassandra.utils.ByteBufferUtil.readWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.serializedSizeWithVIntLength;
 import static org.apache.cassandra.utils.ByteBufferUtil.writeWithVIntLength;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class TxnNamedRead extends AbstractSerialized<ReadCommand>
 {
@@ -123,7 +117,7 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         return key;
     }
 
-    public AsyncChain<Data> read(ConsistencyLevel consistencyLevel, boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
+    public AsyncChain<UnresolvedData> read(ConsistencyLevel consistencyLevel, boolean isForWriteTxn, SafeCommandStore safeStore, Timestamp executeAt)
     {
         SinglePartitionReadCommand command = (SinglePartitionReadCommand) get();
         DecoratedKey key = command.partitionKey();
@@ -135,11 +129,11 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         // because they haven't yet updated their cluster metadata.
         // It would be harmless to do the read, but we can respond faster skipping it
         // and get the transaction on the correct protocol
-        if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(tms, key))
-        {
-            metrics.migrationSkippedReads.mark();
-            return AsyncChains.success(TxnData.emptyPartition(name, command));
-        }
+//        if (ConsensusRequestRouter.instance.isKeyInMigratingOrMigratedRangeFromAccord(tms, key))
+//        {
+//            metrics.migrationSkippedReads.mark();
+//            return AsyncChains.success(TxnData.emptyPartition(name, command));
+//        }
 
         // TODO (required, safety): before release, double check reasoning that this is safe
 //        AccordCommandsForKey cfk = ((SafeAccordCommandStore)safeStore).commandsForKey(key);
@@ -148,66 +142,20 @@ public class TxnNamedRead extends AbstractSerialized<ReadCommand>
         // this simply looks like the transaction witnessed TTL'd data and the data then expired
         // immediately after the transaction executed, and this simplifies things a great deal
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(executeAt.hlc());
-
-        if (ConsensusRequestRouter.instance.isKeyInMigratingRangeFromPaxos(tms, key))
-            return performCoordinatedRead(consistencyLevel, command, nowInSeconds, metrics);
-        else
-            return performLocalRead(command, nowInSeconds);
+        return performLocalRead(command, nowInSeconds);
     }
 
-    private AsyncChain<Data> performCoordinatedRead(ConsistencyLevel consistencyLevel, SinglePartitionReadCommand command, int nowInSeconds, AccordClientRequestMetrics metrics)
-    {
-        long queryStartNanos = nanoTime();
-        return AsyncChains.ofCallable(Stage.ACCORD_MIGRATION.executor(), () ->
-                     {
-                         checkArgument(consistencyLevel.isSerialConsistency(), "Should be a serial consistency level");
-                         ConsistencyLevel readConsistencyLevel;
-                         switch (consistencyLevel)
-                         {
-                             case SERIAL:
-                                 readConsistencyLevel = ConsistencyLevel.QUORUM;
-                                 break;
-                             default:
-                                 throw new IllegalArgumentException("Only serial consistency levels are supported: " + consistencyLevel);
-                         }
-                         SinglePartitionReadCommand.Group group = SinglePartitionReadCommand.Group.one(command.withNowInSec(nowInSeconds));
-                         // Transaction timeout should be higher, starting a new read with a new timeout is
-                         // probably "good enough"
-                         try (PartitionIterator partitionIterator = StorageProxy.read(group, readConsistencyLevel, queryStartNanos))
-                         {
-                             TxnData result = new TxnData();
-                             if (partitionIterator.hasNext())
-                             {
-                                 FilteredPartition filtered = FilteredPartition.create(partitionIterator.next());
-                                 if (filtered.hasRows() || command.selectsFullPartition())
-                                    result.put(name, filtered);
-                             }
-                             return result;
-                         }
-                         finally
-                         {
-                             metrics.migrationReadLatency.addNano(nanoTime() - queryStartNanos);
-                         }
-                     });
-    }
-
-    private AsyncChain<Data> performLocalRead(SinglePartitionReadCommand command, int nowInSeconds)
+    private AsyncChain<UnresolvedData> performLocalRead(SinglePartitionReadCommand command, int nowInSeconds)
     {
         return AsyncChains.ofCallable(Stage.READ.executor(), () ->
                      {
                          SinglePartitionReadCommand read = command.withNowInSec(nowInSeconds);
 
                          try (ReadExecutionController controller = read.executionController();
-                              UnfilteredPartitionIterator partition = read.executeLocally(controller);
-                              PartitionIterator iterator = UnfilteredPartitionIterators.filter(partition, read.nowInSec()))
+                              UnfilteredPartitionIterator partition = read.executeLocally(controller))
                          {
-                             TxnData result = new TxnData();
-                             if (iterator.hasNext())
-                             {
-                                 FilteredPartition filtered = FilteredPartition.create(iterator.next());
-                                 if (filtered.hasRows() || read.selectsFullPartition())
-                                     result.put(name, filtered);
-                             }
+                             TxnUnresolvedData result = new TxnUnresolvedData(1);
+                             result.add(new UnresolvedDataEntry(name, read.createResponse(partition, controller.getRepairedDataInfo()), nowInSeconds));
                              return result;
                          }
                      });

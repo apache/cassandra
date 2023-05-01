@@ -35,11 +35,11 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.junit.Assert;
 
-import accord.api.Data;
 import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.api.UnresolvedData;
 import accord.api.Write;
 import accord.impl.CommandsForKey;
 import accord.impl.InMemoryCommandStore;
@@ -77,6 +77,7 @@ import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnDataResolver;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -200,7 +201,7 @@ public class AccordTestUtils
         getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(Collections.emptyList(), txn.keys()),
                               safeStore -> {
                                   TxnRead read = (TxnRead) txn.read();
-                                  Data readData = read.keys().stream().map(key -> {
+                                  UnresolvedData unresolvedData = read.keys().stream().map(key -> {
                                                           try
                                                           {
                                                               return AsyncChains.getBlocking(read.read(key, txn.kind(), safeStore, executeAt, null));
@@ -214,8 +215,9 @@ public class AccordTestUtils
                                                               throw new RuntimeException(e);
                                                           }
                                                       })
-                                                      .reduce(null, TxnData::merge);
-                                  Write write = txn.update().apply(readData);
+                                                      .reduce(null, UnresolvedData::merge);
+                                  TxnData readData = (TxnData)new TxnDataResolver().resolve(read, unresolvedData).data;
+                                  Write write = txn.update().apply(readData, null);
                                   result.set(Pair.create(new Writes(executeAt, (Keys)txn.keys(), write),
                                                          txn.query().compute(txnId, executeAt, txn.keys(), readData, txn.read(), txn.update())));
                               }));
@@ -282,7 +284,7 @@ public class AccordTestUtils
     {
         Txn txn = createTxn(key, key);
         Ranges ranges = fullRange(txn);
-        return new PartialTxn.InMemory(ranges, txn.kind(), txn.keys(), txn.read(), txn.query(), txn.update());
+        return new PartialTxn.InMemory(ranges, txn.kind(), txn.keys(), txn.read(), new TxnDataResolver(), txn.query(), txn.update());
     }
 
     private static class SingleEpochRanges extends CommandStores.RangesForEpochHolder

@@ -26,9 +26,9 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
-import accord.api.Data;
 import accord.api.DataStore;
 import accord.api.Read;
+import accord.api.UnresolvedData;
 import accord.local.SafeCommandStore;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
@@ -72,23 +72,22 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
     @Nonnull
     private final Keys txnKeys;
 
-    // Used if the read is in a migrating range to do a coordinated C* read
-    // Likely has uses with interoperability in the future
+    // Cassandra's consistency level used by Accord to safely read data written outside of Accord
     @Nonnull
-    private final ConsistencyLevel consistencyLevel;
+    private final ConsistencyLevel cassandraConsistencyLevel;
 
-    public TxnRead(@Nonnull TxnNamedRead[] items, @Nonnull Keys txnKeys, @Nonnull ConsistencyLevel consistencyLevel)
+    public TxnRead(@Nonnull TxnNamedRead[] items, @Nonnull Keys txnKeys, @Nonnull ConsistencyLevel cassandraConsistencyLevel)
     {
         super(items);
         this.txnKeys = txnKeys;
-        this.consistencyLevel = consistencyLevel;
+        this.cassandraConsistencyLevel = cassandraConsistencyLevel;
     }
 
-    public TxnRead(@Nonnull List<TxnNamedRead> items, @Nonnull Keys txnKeys, @Nonnull ConsistencyLevel consistencyLevel)
+    public TxnRead(@Nonnull List<TxnNamedRead> items, @Nonnull Keys txnKeys, @Nonnull ConsistencyLevel cassandraConsistencyLevel)
     {
         super(items);
         this.txnKeys = txnKeys;
-        this.consistencyLevel = consistencyLevel;
+        this.cassandraConsistencyLevel = cassandraConsistencyLevel;
     }
 
     public static TxnRead createTxnRead(@Nonnull List<TxnNamedRead> items, @Nonnull Keys txnKeys, @Nonnull ConsistencyLevel consistencyLevel)
@@ -140,9 +139,24 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         return txnKeys;
     }
 
-    public Keys readKeys()
+    @Override
+    public accord.primitives.ConsistencyLevel readDataCL()
     {
-        return itemKeys;
+        switch (cassandraConsistencyLevel)
+        {
+            case ONE:
+                return accord.primitives.ConsistencyLevel.ONE;
+            case SERIAL:
+            case QUORUM:
+                return accord.primitives.ConsistencyLevel.QUORUM;
+            default:
+                throw new IllegalStateException("ConsistencyLevel " + cassandraConsistencyLevel + " is not supported as an Accord read ConsistencyLevel");
+        }
+    }
+
+    public ConsistencyLevel cassandraConsistencyLevel()
+    {
+        return cassandraConsistencyLevel;
     }
 
     @Override
@@ -155,7 +169,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             if (keys.contains(read.key()))
                 reads.add(read);
 
-        return createTxnRead(reads, txnKeys.slice(ranges), consistencyLevel);
+        return createTxnRead(reads, txnKeys.slice(ranges), cassandraConsistencyLevel);
     }
 
     @Override
@@ -168,22 +182,22 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
             if (!reads.contains(namedRead))
                 reads.add(namedRead);
 
-        return createTxnRead(reads, txnKeys.with((Keys)read.keys()), consistencyLevel);
+        return createTxnRead(reads, txnKeys.with((Keys)read.keys()), cassandraConsistencyLevel);
     }
 
     @Override
-    public AsyncChain<Data> read(Seekable key, Txn.Kind kind, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
+    public AsyncChain<UnresolvedData> read(Seekable key, Txn.Kind kind, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
     {
-        List<AsyncChain<Data>> results = new ArrayList<>();
-        forEachWithKey((PartitionKey) key, read -> results.add(read.read(consistencyLevel, kind.isWrite(), safeStore, executeAt)));
+        List<AsyncChain<UnresolvedData>> results = new ArrayList<>();
+        forEachWithKey((PartitionKey) key, read -> results.add(read.read(cassandraConsistencyLevel, kind.isWrite(), safeStore, executeAt)));
 
         if (results.isEmpty())
-            return AsyncChains.success(new TxnData());
+            return AsyncChains.success(new TxnUnresolvedData());
 
         if (results.size() == 1)
             return results.get(0);
 
-        return AsyncChains.reduce(results, Data::merge);
+        return AsyncChains.reduce(results, UnresolvedData::merge);
     }
 
     @Simulate(with = MONITORS)
@@ -194,7 +208,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         {
             KeySerializers.keys.serialize(read.txnKeys, out, version);
             serializeArray(read.items, out, version, TxnNamedRead.serializer);
-            serializeNullable(read.consistencyLevel, out, version, consistencyLevelSerializer);
+            serializeNullable(read.cassandraConsistencyLevel, out, version, consistencyLevelSerializer);
         }
 
         @Override
@@ -211,7 +225,7 @@ public class TxnRead extends AbstractKeySorted<TxnNamedRead> implements Read
         {
             long size = KeySerializers.keys.serializedSize(read.txnKeys, version);
             size += serializedArraySize(read.items, version, TxnNamedRead.serializer);
-            size += serializedNullableSize(read.consistencyLevel, version, consistencyLevelSerializer);
+            size += serializedNullableSize(read.cassandraConsistencyLevel, version, consistencyLevelSerializer);
             return size;
         }
     };

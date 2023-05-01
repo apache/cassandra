@@ -29,10 +29,11 @@ import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.Txn.Kind;
 import accord.primitives.TxnId;
-import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.service.accord.txn.TxnDataResolver;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static accord.primitives.Routable.Domain.Key;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -89,6 +90,6 @@ public class AccordAgent implements Agent
     @Override
     public Txn emptyTxn(Kind kind, Seekables<?, ?> seekables)
     {
-        return new Txn.InMemory(kind, seekables, TxnRead.EMPTY_READ, TxnQuery.EMPTY, null);
+        return new Txn.InMemory(kind, seekables, TxnRead.EMPTY_READ, new TxnDataResolver(), TxnQuery.EMPTY, null);
     }
 }

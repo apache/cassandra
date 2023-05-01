@@ -36,7 +36,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -471,7 +470,7 @@ public class AsyncOperationTest
                 SafeCommand command = store.command(id);
                 Command current = command.current();
                 Assertions.assertThat(current.status()).isEqualTo(Status.ReadyToExecute);
-                Writes writes = current.partialTxn().execute(current.executeAt(), new TxnData());
+                Writes writes = current.partialTxn().execute(current.executeAt(), new TxnData(), null);
                 command.preapplied(current, current.txnId(), current.asCommitted().waitingOn(), writes, null);
             }));
             getUninterruptibly(o2);

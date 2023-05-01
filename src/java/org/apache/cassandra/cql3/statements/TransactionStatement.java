@@ -68,6 +68,7 @@ import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataName;
+import org.apache.cassandra.service.accord.txn.TxnDataResolver;
 import org.apache.cassandra.service.accord.txn.TxnNamedRead;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
@@ -320,7 +321,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
             TxnRead read = createTxnRead(reads, txnKeys, options.getSerialConsistency());
-            return new Txn.InMemory(txnKeys, read, TxnQuery.ALL);
+            return new Txn.InMemory(txnKeys, read, new TxnDataResolver(), TxnQuery.ALL);
         }
         else
         {
@@ -329,7 +330,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             List<TxnNamedRead> reads = createNamedReads(options, state, autoReads, keySet::add);
             Keys txnKeys = toKeys(keySet);
             TxnRead read = createTxnRead(reads, txnKeys, options.getSerialConsistency());
-            return new Txn.InMemory(txnKeys, read, TxnQuery.ALL, update);
+            return new Txn.InMemory(txnKeys, read, new TxnDataResolver(), TxnQuery.ALL, update);
         }
     }
 

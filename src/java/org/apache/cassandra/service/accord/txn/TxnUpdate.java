@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
+import com.google.common.collect.ImmutableList;
+
 import accord.api.Data;
 import accord.api.Key;
 import accord.api.Update;
@@ -35,6 +37,7 @@ import accord.primitives.Keys;
 import accord.primitives.Ranges;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -170,7 +173,7 @@ public class TxnUpdate implements Update
     }
 
     @Override
-    public Write apply(Data data)
+    public Write apply(Data data, Write repairWrite)
     {
         if (!checkCondition(data))
             return TxnWrite.EMPTY;
@@ -182,6 +185,25 @@ public class TxnUpdate implements Update
 
         for (TxnWrite.Fragment fragment : fragments)
             updates.add(fragment.complete(parameters));
+
+        if (repairWrite == null)
+            return new TxnWrite(updates);
+
+        // Merge in any read repairs that intersect on key
+        for (TxnWrite.Update repairUpdate : ((TxnWrite)repairWrite))
+        {
+            for (int i = 0; i < updates.size(); i++)
+            {
+                TxnWrite.Update writeUpdate = updates.get(i);
+                if (writeUpdate.key.equals(repairUpdate.key))
+                {
+                    PartitionUpdate writePartitionUpdate = writeUpdate.get();
+                    PartitionUpdate repairPartitionUpdate = repairUpdate.get();
+                    PartitionUpdate mergedUpdate = PartitionUpdate.merge(ImmutableList.of(writePartitionUpdate, repairPartitionUpdate));
+                    updates.set(i, new TxnWrite.Update(writeUpdate.key, writeUpdate.index, mergedUpdate));
+                }
+            }
+        }
 
         return new TxnWrite(updates);
     }

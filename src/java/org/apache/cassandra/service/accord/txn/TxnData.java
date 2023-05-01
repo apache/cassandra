@@ -83,7 +83,7 @@ public class  TxnData extends TxnResult implements Data, Iterable<FilteredPartit
     }
 
     @Override
-    public Data merge(Data data)
+    public TxnData merge(Data data)
     {
         TxnData that = (TxnData) data;
         TxnData merged = new TxnData();
@@ -197,8 +197,8 @@ public class  TxnData extends TxnResult implements Data, Iterable<FilteredPartit
         @Override
         public TxnData deserialize(DataInputPlus in, int version) throws IOException
         {
-            Map<TxnDataName, FilteredPartition> data = new HashMap<>();
-            long size = in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
+            Map<TxnDataName, FilteredPartition> data = new HashMap<>(size);
             for (int i=0; i<size; i++)
             {
                 TxnDataName name = TxnDataName.serializer.deserialize(in, version);

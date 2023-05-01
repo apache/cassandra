@@ -64,6 +64,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataName;
+import org.apache.cassandra.service.accord.txn.TxnDataResolver;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
@@ -482,7 +483,7 @@ public class CQL3CasRequest implements CASRequest
         // can't be dependent on any data that is read (only conditions)
         // so the only relevant keys are the read key
         TxnRead read = TxnRead.createCasRead(readCommand, consistencyLevel);
-        return new Txn.InMemory(read.keys(), read, TxnQuery.CONDITION, update);
+        return new Txn.InMemory(read.keys(), read, new TxnDataResolver(), TxnQuery.CONDITION, update);
     }
 
     private Update createUpdate(ClientState clientState)

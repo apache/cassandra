@@ -57,6 +57,7 @@ import accord.primitives.Writes;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.TokenKey;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.txn.TxnDataResolver;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
@@ -187,7 +188,7 @@ public class AccordObjectSizes
         }
     }
 
-    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(null, null, null, null, null, null));
+    private static final long EMPTY_TXN = measure(new PartialTxn.InMemory(null, null, null, null, new TxnDataResolver(), null, null));
     public static long txn(PartialTxn txn)
     {
         long size = EMPTY_TXN;

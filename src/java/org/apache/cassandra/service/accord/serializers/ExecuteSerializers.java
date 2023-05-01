@@ -35,6 +35,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnResult;
+import org.apache.cassandra.service.accord.txn.TxnUnresolvedData;
 import org.apache.cassandra.utils.NullableSerializer;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
@@ -180,7 +181,7 @@ public class ExecuteSerializers
 
             out.writeByte(0);
             ExecuteOk executeOk = (ExecuteOk) reply;
-            NullableSerializer.serializeNullable((TxnData) executeOk.data, out, version, TxnData.serializer);
+            NullableSerializer.serializeNullable((TxnUnresolvedData) executeOk.unresolvedData, out, version, TxnUnresolvedData.serializer);
         }
 
         @Override
@@ -190,7 +191,7 @@ public class ExecuteSerializers
             if (id != 0)
                 return nacks[id - 1];
 
-            return new ExecuteOk(NullableSerializer.deserializeNullable(in, version, TxnData.serializer));
+            return new ExecuteOk(NullableSerializer.deserializeNullable(in, version, TxnUnresolvedData.serializer));
         }
 
         @Override
@@ -200,7 +201,7 @@ public class ExecuteSerializers
                 return TypeSizes.BYTE_SIZE;
 
             ExecuteOk executeOk = (ExecuteOk) reply;
-            return TypeSizes.BYTE_SIZE + NullableSerializer.serializedNullableSize((TxnData) executeOk.data, version, TxnData.serializer);
+            return TypeSizes.BYTE_SIZE + NullableSerializer.serializedNullableSize((TxnUnresolvedData) executeOk.unresolvedData, version, TxnUnresolvedData.serializer);
         }
     };
 }

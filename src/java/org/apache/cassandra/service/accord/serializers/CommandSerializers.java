@@ -39,6 +39,7 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.txn.TxnDataResolver;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
@@ -142,7 +143,7 @@ public class CommandSerializers
             TxnRead read = TxnRead.serializer.deserialize(in, version);
             TxnQuery query = TxnQuery.serializer.deserialize(in, version);
             TxnUpdate update = in.readBoolean() ? TxnUpdate.serializer.deserialize(in, version) : null;
-            return new PartialTxn.InMemory(covering, kind, keys, read, query, update);
+            return new PartialTxn.InMemory(covering, kind, keys, read, new TxnDataResolver(), query, update);
         }
 
         @Override
