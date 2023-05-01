@@ -46,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.Config.LWTStrategy;
+import org.apache.cassandra.config.Config.NonSerialWriteStrategy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -708,6 +709,10 @@ public abstract class ConsensusTableMigrationState
 
         if (DatabaseDescriptor.getLWTStrategy() == LWTStrategy.accord)
             throw new IllegalStateException("Mixing a hard coded strategy with migration is unsupported");
+
+        NonSerialWriteStrategy nonSerialWriteStrategy = DatabaseDescriptor.getNonSerialWriteStrategy();
+        if (!nonSerialWriteStrategy.writesThroughAccord && nonSerialWriteStrategy != NonSerialWriteStrategy.mixed)
+            throw new IllegalStateException("non-SERIAL writes need to be routed through Accord before attempting migration, or enable mixed mode");
 
         if (!Paxos.useV2())
             throw new IllegalStateException("Can't do any consensus migrations to/from PaxosV1, switch to V2 first");

@@ -33,6 +33,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -68,6 +69,11 @@ public final class PartitionKey extends AccordRoutableKey implements Key
     public static PartitionKey of(Key key)
     {
         return (PartitionKey) key;
+    }
+
+    public static PartitionKey of(PartitionUpdate update)
+    {
+        return new PartitionKey(update.metadata().keyspace, update.metadata().id, update.partitionKey());
     }
 
     public static PartitionKey of(Partition partition)

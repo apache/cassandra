@@ -213,7 +213,7 @@
                                           -XX:ActiveProcessorCount=4
                                           -XX:CICompilerCount=1
                                           -XX:HeapDumpPath=build/test
-                                          -XX:MaxMetaspaceSize=1G
+                                          -XX:MaxMetaspaceSize=2G
                                           -XX:ReservedCodeCacheSize=256M
                                           -XX:SoftRefLRUPolicyMSPerMB=0
                                           -XX:Tier4CompileThreshold=1000

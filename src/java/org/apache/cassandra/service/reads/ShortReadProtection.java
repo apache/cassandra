@@ -44,6 +44,7 @@ public class ShortReadProtection
                                                      UnfilteredPartitionIterator partitions,
                                                      ReadCommand command,
                                                      DataLimits.Counter mergedResultCounter,
+                                                     ReadCoordinator coordinator,
                                                      long queryStartNanoTime,
                                                      boolean enforceStrictLiveness)
     {
@@ -52,7 +53,7 @@ public class ShortReadProtection
                                                                              command.selectsFullPartition(),
                                                                              enforceStrictLiveness).onlyCount();
 
-        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection(command,
+        ShortReadPartitionsProtection protection = new ShortReadPartitionsProtection(coordinator, command,
                                                                                      source,
                                                                                      preFetchCallback,
                                                                                      singleResultCounter,

@@ -36,6 +36,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.CassandraTestBase;
 import org.apache.cassandra.CassandraTestBase.DDDaemonInitialization;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
@@ -45,6 +46,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.Util.range;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANGE_EXPENSIVE_CHECKS;
 import static org.apache.cassandra.dht.Range.fromString;
 import static org.apache.cassandra.dht.Range.intersectionOfNormalizedRanges;
 import static org.apache.cassandra.dht.Range.invertNormalizedRanges;
@@ -64,8 +66,9 @@ public class RangeTest extends CassandraTestBase
     @BeforeClass
     public static void enableExpensiveRangeChecks()
     {
-        System.setProperty("org.apache.cassandra.dht.Range.expensive_checks", "true");
-        assertTrue(Range.EXPENSIVE_CHECKS);
+        assertFalse(TEST_RANGE_EXPENSIVE_CHECKS.getBoolean()); // Expect off by default
+        CassandraRelevantProperties.TEST_RANGE_EXPENSIVE_CHECKS.setBoolean(true);
+        assertTrue(TEST_RANGE_EXPENSIVE_CHECKS.getBoolean());
     }
 
     @Test

@@ -18,7 +18,13 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -55,6 +61,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 public class Mutation implements IMutation, Supplier<Mutation>
 {
     public static final MutationSerializer serializer = new MutationSerializer();
+    public static final int ALLOW_OUT_OF_RANGE_MUTATIONS_FLAG = 0x01;
 
     // todo this is redundant
     // when we remove it, also restore SerializationsTest.testMutationRead to not regenerate new Mutations each test
@@ -80,23 +87,26 @@ public class Mutation implements IMutation, Supplier<Mutation>
     /** @see CassandraRelevantProperties#CACHEABLE_MUTATION_SIZE_LIMIT */
     private static final long CACHEABLE_MUTATION_SIZE_LIMIT = CassandraRelevantProperties.CACHEABLE_MUTATION_SIZE_LIMIT.getLong();
 
+    private boolean allowOutOfRangeMutations;
+
     public Mutation(PartitionUpdate update)
     {
         this(update.metadata().keyspace, update.partitionKey(), ImmutableMap.of(update.metadata().id, update), approxTime.now(), update.metadata().params.cdc);
     }
 
-    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos)
+    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean allowOutOfRangeMutations)
     {
-        this(keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()));
+        this(keyspaceName, key, modifications, approxCreatedAtNanos, cdcEnabled(modifications.values()), allowOutOfRangeMutations);
     }
 
-    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled)
+    public Mutation(String keyspaceName, DecoratedKey key, ImmutableMap<TableId, PartitionUpdate> modifications, long approxCreatedAtNanos, boolean cdcEnabled, boolean allowOutOfRangeMutations)
     {
         this.keyspaceName = keyspaceName;
         this.key = key;
         this.modifications = modifications;
         this.cdcEnabled = cdcEnabled;
         this.approxCreatedAtNanos = approxCreatedAtNanos;
+        this.allowOutOfRangeMutations = allowOutOfRangeMutations;
     }
 
     private static boolean cdcEnabled(Iterable<PartitionUpdate> modifications)
@@ -121,7 +131,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
             }
         }
 
-        return new Mutation(keyspaceName, key, builder.build(), approxCreatedAtNanos);
+        return new Mutation(keyspaceName, key, builder.build(), approxCreatedAtNanos, allowOutOfRangeMutations);
     }
 
     public Mutation without(TableId tableId)
@@ -192,18 +202,22 @@ public class Mutation implements IMutation, Supplier<Mutation>
      * @throws IllegalArgumentException if not all the mutations are on the same
      * keyspace and key.
      */
-    public static Mutation merge(List<Mutation> mutations)
+    public static Mutation merge(Collection<Mutation> mutations)
     {
         assert !mutations.isEmpty();
 
-        if (mutations.size() == 1)
-            return mutations.get(0);
+        if (mutations.size() == ALLOW_OUT_OF_RANGE_MUTATIONS_FLAG)
+            return mutations.iterator().next();
 
         Set<TableId> updatedTables = new HashSet<>();
         String ks = null;
         DecoratedKey key = null;
+        Boolean allowOutOfRangeMutations = null;
         for (Mutation mutation : mutations)
         {
+            if (allowOutOfRangeMutations != null && allowOutOfRangeMutations != mutation.allowOutOfRangeMutations)
+                throw new IllegalArgumentException("Can't merge mutations with differing policies on allowing out of range mutations");
+            allowOutOfRangeMutations = mutation.allowOutOfRangeMutations;
             updatedTables.addAll(mutation.modifications.keySet());
             if (ks != null && !ks.equals(mutation.keyspaceName))
                 throw new IllegalArgumentException();
@@ -227,10 +241,10 @@ public class Mutation implements IMutation, Supplier<Mutation>
             if (updates.isEmpty())
                 continue;
 
-            modifications.put(table, updates.size() == 1 ? updates.get(0) : PartitionUpdate.merge(updates));
+            modifications.put(table, updates.size() == ALLOW_OUT_OF_RANGE_MUTATIONS_FLAG ? updates.get(0) : PartitionUpdate.merge(updates));
             updates.clear();
         }
-        return new Mutation(ks, key, modifications.build(), approxTime.now());
+        return new Mutation(ks, key, modifications.build(), approxTime.now(), allowOutOfRangeMutations);
     }
 
     public Future<?> applyFuture()
@@ -285,6 +299,27 @@ public class Mutation implements IMutation, Supplier<Mutation>
     public boolean trackedByCDC()
     {
         return cdcEnabled;
+    }
+
+    public Mutation allowOutOfRangeMutations()
+    {
+        allowOutOfRangeMutations = true;
+        return this;
+    }
+
+    public boolean allowsOutOfRangeMutations()
+    {
+        return allowOutOfRangeMutations;
+    }
+
+    private static int allowsOutOfRangeMutationsFlag(boolean allowOutOfRangeMutations)
+    {
+        return allowOutOfRangeMutations ? ALLOW_OUT_OF_RANGE_MUTATIONS_FLAG : 0;
+    }
+
+    private static boolean allowsOutOfRangeMutations(int flags)
+    {
+        return (flags & ALLOW_OUT_OF_RANGE_MUTATIONS_FLAG) != 0;
     }
 
     public String toString()
@@ -468,6 +503,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
         {
             Map<TableId, PartitionUpdate> modifications = mutation.modifications;
 
+            if (version >= VERSION_50)
+                out.write(allowsOutOfRangeMutationsFlag(mutation.allowsOutOfRangeMutations()));
+
             /* serialize the modifications in the mutation */
             int size = modifications.size();
             out.writeUnsignedVInt32(size);
@@ -487,6 +525,12 @@ public class Mutation implements IMutation, Supplier<Mutation>
             {
                 teeIn = new TeeDataInputPlus(in, dob, CACHEABLE_MUTATION_SIZE_LIMIT);
 
+                boolean allowsOutOfRangeMutations = false;
+                if (version >= VERSION_50)
+                {
+                    int flags = in.readByte();
+                    allowsOutOfRangeMutations = allowsOutOfRangeMutations(flags);
+                }
                 int size = teeIn.readUnsignedVInt32();
                 assert size > 0;
 
@@ -506,7 +550,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
                         update = PartitionUpdate.serializer.deserialize(teeIn, version, flag);
                         modifications.put(update.metadata().id, update);
                     }
-                    m = new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now());
+                    m = new Mutation(update.metadata().keyspace, dk, modifications.build(), approxTime.now(), allowsOutOfRangeMutations);
                 }
 
                 //Only cache serializations that don't hit the limit
@@ -584,6 +628,8 @@ public class Mutation implements IMutation, Supplier<Mutation>
             long size = this.size;
             if (size == 0L)
             {
+                if (version >= VERSION_50)
+                    size += ALLOW_OUT_OF_RANGE_MUTATIONS_FLAG; // flags
                 size = TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
                 for (PartitionUpdate partitionUpdate : mutation.modifications.values())
                     size += serializer.serializedSize(partitionUpdate, version);
@@ -637,7 +683,7 @@ public class Mutation implements IMutation, Supplier<Mutation>
 
         public Mutation build()
         {
-            return new Mutation(keyspaceName, key, modifications.build(), approxCreatedAtNanos);
+            return new Mutation(keyspaceName, key, modifications.build(), approxCreatedAtNanos, false);
         }
     }
 }

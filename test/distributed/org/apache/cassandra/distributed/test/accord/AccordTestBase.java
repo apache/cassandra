@@ -32,11 +32,13 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.base.Splitter;
 import com.google.common.primitives.Ints;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.impl.SimpleProgressLog;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
@@ -54,6 +56,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.shared.AssertUtils;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.distributed.util.QueryResultUtil;
@@ -102,10 +105,23 @@ public abstract class AccordTestBase extends TestBaseImpl
         currentTable = KEYSPACE + ".tbl" + COUNTER.getAndIncrement();
     }
 
+    @After
+    public void tearDown() throws Exception
+    {
+        for (IInvokableInstance instance : SHARED_CLUSTER)
+            instance.runOnInstance(() -> SimpleProgressLog.PAUSE_FOR_TEST = false);
+    }
+
     protected static void assertRowSerial(Cluster cluster, String query, int k, int c, int v, int s)
     {
         Object[][] result = cluster.coordinator(1).execute(query, ConsistencyLevel.SERIAL);
         assertArrayEquals(new Object[]{new Object[] {k, c, v, s}}, result);
+    }
+
+    protected static void assertRowSerial(Cluster cluster, String query, Object[]... expected)
+    {
+        Object[][] result = cluster.coordinator(1).execute(query, ConsistencyLevel.SERIAL);
+        AssertUtils.assertRows(result, expected);
     }
 
     protected void test(String tableDDL, FailingConsumer<Cluster> fn) throws Exception
