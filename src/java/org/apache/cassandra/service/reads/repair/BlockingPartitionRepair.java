@@ -21,9 +21,6 @@ package org.apache.cassandra.service.reads.repair;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-import org.apache.cassandra.utils.concurrent.AsyncFuture;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -38,27 +35,32 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.locator.EndpointsForToken;
+import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.locator.Replicas;
-import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
-import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.service.reads.ReadCoordinator;
+import org.apache.cassandra.service.reads.repair.BlockingReadRepair.PendingPartitionRepair;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static org.apache.cassandra.net.Verb.*;
+import static org.apache.cassandra.net.Verb.READ_REPAIR_REQ;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
 import static com.google.common.collect.Iterables.all;
 
 public class BlockingPartitionRepair
-        extends AsyncFuture<Object> implements RequestCallback<Object>
+        extends AsyncFuture<Object> implements RequestCallback<Object>, PendingPartitionRepair
 {
+    private final ReadCoordinator coordinator;
     private final DecoratedKey key;
     private final ReplicaPlan.ForWrite repairPlan;
     private final Map<Replica, Mutation> pendingRepairs;
@@ -66,8 +68,10 @@ public class BlockingPartitionRepair
     private final int blockFor;
     private volatile long mutationsSentTime;
 
-    public BlockingPartitionRepair(DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite repairPlan)
+    @VisibleForTesting
+    public BlockingPartitionRepair(ReadCoordinator coordinator, DecoratedKey key, Map<Replica, Mutation> repairs, ReplicaPlan.ForWrite repairPlan)
     {
+        this.coordinator = coordinator;
         this.key = key;
         this.pendingRepairs = new ConcurrentHashMap<>(repairs);
         this.repairPlan = repairPlan;
@@ -99,18 +103,21 @@ public class BlockingPartitionRepair
         latch = newCountDownLatch(Math.max(blockFor, 0));
     }
 
+    @Override
     public ReplicaPlan.ForWrite repairPlan()
     {
         return repairPlan;
     }
 
-    int blockFor()
+    @Override
+    public int blockFor()
     {
         return blockFor;
     }
 
     @VisibleForTesting
-    int waitingOn()
+    @Override
+    public int waitingOn()
     {
         return latch.count();
     }
@@ -147,7 +154,7 @@ public class BlockingPartitionRepair
     @VisibleForTesting
     protected void sendRR(Message<Mutation> message, InetAddressAndPort endpoint)
     {
-        MessagingService.instance().sendWithCallback(message, endpoint, this);
+        coordinator.sendReadRepairMutation(message, endpoint, this);
     }
 
     public void sendInitialRepairs()
@@ -159,7 +166,7 @@ public class BlockingPartitionRepair
         {
             Replica destination = entry.getKey();
             Preconditions.checkArgument(destination.isFull(), "Can't send repairs to transient replicas: %s", destination);
-            Mutation mutation = entry.getValue();
+            Mutation mutation = coordinator.maybeAllowOutOfRangeMutations(entry.getValue());
             TableId tableId = extractUpdate(mutation).metadata().id;
 
             Tracing.trace("Sending read-repair-mutation to {}", destination);
@@ -177,6 +184,7 @@ public class BlockingPartitionRepair
      * @param timeUnit the time unit of the future time
      * @return true if repair is done; otherwise, false.
      */
+    @Override
     public boolean awaitRepairsUntil(long timeoutAt, TimeUnit timeUnit)
     {
         long timeoutAtNanos = timeUnit.toNanos(timeoutAt);
@@ -191,18 +199,18 @@ public class BlockingPartitionRepair
         }
     }
 
+    @Override
+    public boolean awaitRepairs(long remaining, TimeUnit timeUnit) throws InterruptedException
+    {
+        return latch.await(remaining, timeUnit);
+    }
+
     private static int msgVersionIdx(int version)
     {
         return version - MessagingService.minimum_version;
     }
 
-    /**
-     * If it looks like we might not receive acks for all the repair mutations we sent out, combine all
-     * the unacked mutations and send them to the minority of nodes not involved in the read repair data
-     * read / write cycle. We will accept acks from them in lieu of acks from the initial mutations sent
-     * out, so long as we receive the same number of acks as repair mutations transmitted. This prevents
-     * misbehaving nodes from killing a quorum read, while continuing to guarantee monotonic quorum reads
-     */
+    @Override
     public void maybeSendAdditionalWrites(long timeout, TimeUnit timeoutUnit)
     {
         if (awaitRepairsUntil(timeout + timeoutUnit.convert(mutationsSentTime, TimeUnit.NANOSECONDS), timeoutUnit))
@@ -242,6 +250,7 @@ public class BlockingPartitionRepair
                 continue;
             }
 
+            mutation = coordinator.maybeAllowOutOfRangeMutations(mutation);
             Tracing.trace("Sending speculative read-repair-mutation to {}", replica);
             sendRR(Message.out(READ_REPAIR_REQ, mutation), replica.endpoint());
             ReadRepairDiagnostics.speculatedWrite(this, replica.endpoint(), mutation);

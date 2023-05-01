@@ -538,6 +538,11 @@ public class Message<T> implements ReplyContext
             return MessageFlag.TRACK_WARNINGS.isIn(flags);
         }
 
+        boolean isFinal()
+        {
+            return !MessageFlag.NOT_FINAL.isIn(flags);
+        }
+
         @Nullable
         ForwardingInfo forwardTo()
         {

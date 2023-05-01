@@ -23,7 +23,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.IGossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.RepairMetrics;
@@ -87,7 +87,7 @@ public class RepairMessageTest
     public void noRetriesRequestFailed()
     {
         test(NO_RETRY_ATTEMPTS, ((ignore, callback) -> {
-            callback.onFailure(ADDRESS, RequestFailureReason.UNKNOWN);
+            callback.onFailure(ADDRESS, RequestFailure.UNKNOWN);
             assertNoRetries();
         }));
     }
@@ -105,7 +105,7 @@ public class RepairMessageTest
     public void retryWithTimeout()
     {
         test((maxAttempts, callback) -> {
-            callback.onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
+            callback.onFailure(ADDRESS, RequestFailure.TIMEOUT);
             assertMetrics(maxAttempts, true, false);
         });
     }
@@ -114,7 +114,7 @@ public class RepairMessageTest
     public void retryWithFailure()
     {
         test((maxAttempts, callback) -> {
-            callback.onFailure(ADDRESS, RequestFailureReason.UNKNOWN);
+            callback.onFailure(ADDRESS, RequestFailure.UNKNOWN);
             assertMetrics(maxAttempts, false, true);
         });
     }
@@ -207,7 +207,7 @@ public class RepairMessageTest
 
             sendMessageWithRetries(ctx, backoff(maxAttempts), always(), PAYLOAD, VERB, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
             for (int i = 0; i < maxAttempts; i++)
-                callback(messaging).onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
+                callback(messaging).onFailure(ADDRESS, RequestFailure.TIMEOUT);
             fn.test(maxAttempts, callback(messaging));
             Mockito.verifyNoInteractions(messaging);
         }

@@ -28,7 +28,9 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
+import org.apache.cassandra.service.reads.ReadCoordinator;
 
 /**
  * Only performs the collection of data responses and reconciliation of them, doesn't send repair mutations
@@ -37,9 +39,9 @@ import org.apache.cassandra.metrics.ReadRepairMetrics;
 public class ReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
         extends AbstractReadRepair<E, P>
 {
-    ReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
+    ReadOnlyReadRepair(ReadCoordinator coordinator, ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
-        super(command, replicaPlan, queryStartNanoTime);
+        super(coordinator, command, replicaPlan, queryStartNanoTime);
     }
 
     @Override
@@ -62,6 +64,12 @@ public class ReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
 
     @Override
     public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
+    {
+        throw new UnsupportedOperationException("ReadOnlyReadRepair shouldn't be trying to repair partitions");
+    }
+
+    @Override
+    public void repairPartitionDirectly(ReadCoordinator coordinator, DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ForWrite writePlan)
     {
         throw new UnsupportedOperationException("ReadOnlyReadRepair shouldn't be trying to repair partitions");
     }

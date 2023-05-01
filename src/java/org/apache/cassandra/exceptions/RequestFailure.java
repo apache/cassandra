@@ -66,7 +66,7 @@ public class RequestFailure
         public void serialize(RequestFailure t, DataOutputPlus out, int version) throws IOException
         {
             RequestFailureReason.serializer.serialize(t.reason, out, version);
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 nullableRemoteExceptionSerializer.serialize(t.failure, out, version);
         }
 
@@ -75,7 +75,7 @@ public class RequestFailure
         {
             RequestFailureReason reason = RequestFailureReason.serializer.deserialize(in, version);
             Throwable failure = null;
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 failure = nullableRemoteExceptionSerializer.deserialize(in, version);
             if (failure == null)
                 return forReason(reason);
@@ -87,7 +87,7 @@ public class RequestFailure
         public long serializedSize(RequestFailure t, int version)
         {
             long size = RequestFailureReason.serializer.serializedSize(t.reason, version);
-            if (version >= MessagingService.VERSION_50)
+            if (version >= MessagingService.VERSION_51)
                 size += nullableRemoteExceptionSerializer.serializedSize(t.failure, version);
             return size;
         }

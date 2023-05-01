@@ -39,7 +39,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config.PaxosVariant;
@@ -79,6 +78,7 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteArrayUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.PojoToString;
 import org.yaml.snakeyaml.Yaml;
 
@@ -148,7 +148,8 @@ public class AccordMigrationTest extends AccordTestBase
         CassandraRelevantProperties.SYSTEM_TRACES_DEFAULT_RF.setInt(3);
         AccordTestBase.setupCluster(builder ->
                                         builder.appendConfig(config ->
-                                                             config.set("paxos_variant", PaxosVariant.v2.name())),
+                                                             config.set("paxos_variant", PaxosVariant.v2.name())
+                                                                   .set("non_serial_write_strategy", "migration")),
                                     3);
         partitioner = FBUtilities.newPartitioner(SHARED_CLUSTER.get(1).callsOnInstance(() -> DatabaseDescriptor.getPartitioner().getClass().getSimpleName()).call());
         StorageService.instance.setPartitionerUnsafe(partitioner);
@@ -159,7 +160,7 @@ public class AccordMigrationTest extends AccordTestBase
         upperMidToken = partitioner.midpoint(midToken, maxToken);
         lowerMidToken = partitioner.midpoint(minToken, midToken);
         coordinator = SHARED_CLUSTER.coordinator(1);
-        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().addAccordManagedKeyspace(KEYSPACE));
+        SHARED_CLUSTER.get(1).runOnInstance(() -> AccordService.instance().ensureKeyspaceIsAccordManaged(KEYSPACE));
     }
 
     @AfterClass
@@ -171,6 +172,7 @@ public class AccordMigrationTest extends AccordTestBase
     @After
     public void tearDown() throws Exception
     {
+        super.tearDown();
         // Reset migration state
         forEach(() -> {
             ConsensusRequestRouter.resetInstance();
@@ -554,9 +556,9 @@ public class AccordMigrationTest extends AccordTestBase
         String minifiedYamlResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified-yaml");
         Map<String, Object> minifiedYamlStateMap = new Yaml().load(minifiedYamlResultString);
         String jsonResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "json");
-        Map<String, Object> jsonStateMap = new ObjectMapper().readValue(jsonResultString, new TypeReference<Map<String, Object>>(){});
+        Map<String, Object> jsonStateMap = JsonUtils.JSON_OBJECT_MAPPER.readValue(jsonResultString, new TypeReference<Map<String, Object>>(){});
         String minifiedJsonResultString = nodetool(SHARED_CLUSTER.coordinator(1), "consensus_admin", "list", "-f", "minified-json");
-        Map<String, Object> minifiedJsonStateMap = new ObjectMapper().readValue(minifiedJsonResultString, new TypeReference<Map<String, Object>>(){});
+        Map<String, Object> minifiedJsonStateMap = JsonUtils.JSON_OBJECT_MAPPER.readValue(minifiedJsonResultString, new TypeReference<Map<String, Object>>(){});
 
         List<String> tableIds = new ArrayList<>();
         for (Map<String, Object> migrationStateMap : ImmutableList.of(yamlStateMap, jsonStateMap, minifiedYamlStateMap, minifiedJsonStateMap))

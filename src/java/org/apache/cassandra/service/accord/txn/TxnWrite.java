@@ -156,7 +156,6 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                 PartitionKey.serializer.serialize(write.key, out, version);
                 out.writeInt(write.index);
                 ByteBufferUtil.writeWithVIntLength(write.bytes(), out);
-
             }
 
             @Override
