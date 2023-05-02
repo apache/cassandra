@@ -568,6 +568,8 @@ commitlog_segment_size: 32MiB
 
 
 #
+# Defines the default compression used on tables when non is specified
+# in the CQL command.
 #
 # The class_name is the compressor class name. It may be one of the aliases,
 # the class name of a system ICompressor implementation, or fully qualified
@@ -576,7 +578,7 @@ commitlog_segment_size: 32MiB
 # class aliases are:
 #  alias   system compressor impl.
 #  lz4      LZ4Compressor,
-#  none     (null) -- disabled
+#  none     (null) -- compresson disabled
 #  noop     NoopCompressor
 #  snappy   SnappyCompressor
 #  deflate  DeflateCompressor
@@ -595,7 +597,7 @@ commitlog_segment_size: 32MiB
 # Only one of the min_compress_ratio and max_compressed_length options can be specified.
 # They are  mathematically related in that
 # chunk_length / max_compressed_length = min_compress_ratio
-# if neither option is specified a min_compress_ratio of 0.0 is the default.
+# if neither option is specified a min_compress_ratio of 0.0 and a max_compressed_length of MAX_INT KiB is the default.
 #
 # Only one of chunk_length or chunk_length_in_kb may be specified.
 #
