@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
 import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
+import org.apache.cassandra.index.sai.disk.v1.bitpack.AbstractBlockPackedReader;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -42,6 +42,8 @@ import org.apache.lucene.util.packed.DirectWriter;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.Math.max;
+import static org.apache.cassandra.index.sai.disk.v1.bitpack.AbstractBlockPackedReader.SUPPORTED_BITS_PER_VALUE;
+import static org.apache.cassandra.index.sai.disk.v1.bitpack.AbstractBlockPackedReader.SUPPORTED_BITS_PER_VALUE_STRING;
 
 
 /**
@@ -278,8 +280,8 @@ public class PostingsWriter implements Closeable
     {
         final int bitsPerValue = maxDelta == 0 ? 0 : DirectWriter.unsignedBitsRequired(maxDelta);
 
-        assert DirectReaders.SUPPORTED_BITS_PER_VALUE.contains(bitsPerValue) :
-        "Unsupported bits per value of " + bitsPerValue + " bits. Supported values are: " + DirectReaders.SUPPORTED_BITS_PER_VALUE_STRING;
+        assert SUPPORTED_BITS_PER_VALUE.contains(bitsPerValue) :
+        "Unsupported bits per value of " + bitsPerValue + " bits. Supported values are: " + SUPPORTED_BITS_PER_VALUE_STRING;
 
         // If we have a first posting, indicating that this is the first block in the posting list
         // then write it prior to the deltas.

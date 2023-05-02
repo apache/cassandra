@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.index.sai.disk.v1.bitpack;
 
+import java.util.Set;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.LongValues;
@@ -29,6 +32,11 @@ import org.apache.lucene.util.packed.DirectReader;
 @NotThreadSafe
 public abstract class AbstractBlockPackedReader implements LongArray
 {
+    public static final Set<Integer> SUPPORTED_BITS_PER_VALUE = Sets.newHashSet(0, 1, 2, 4, 8, 12, 16, 20, 24, 28, 32, 40, 48, 56, 64);
+    public static final String SUPPORTED_BITS_PER_VALUE_STRING = SUPPORTED_BITS_PER_VALUE.stream()
+                                                                                         .map(i -> Integer.toString(i))
+                                                                                         .collect(Collectors.joining(", "));
+
     private final int blockShift;
     private final int blockMask;
     private final long valueCount;

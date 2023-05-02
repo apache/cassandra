@@ -39,6 +39,9 @@ import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectReader;
 
+import static org.apache.cassandra.index.sai.disk.v1.bitpack.AbstractBlockPackedReader.SUPPORTED_BITS_PER_VALUE;
+import static org.apache.cassandra.index.sai.disk.v1.bitpack.AbstractBlockPackedReader.SUPPORTED_BITS_PER_VALUE_STRING;
+
 
 /**
  * Reads, decompresses and decodes postings lists written by {@link PostingsWriter}.
@@ -112,21 +115,21 @@ public class PostingsReader implements OrdinalPostingList
             long maxBlockValuesOffset = input.getFilePointer() + maxBlockValuesLength;
 
             byte offsetBitsPerValue = input.readByte();
-            if (!DirectReaders.SUPPORTED_BITS_PER_VALUE.contains((int)offsetBitsPerValue))
+            if (!SUPPORTED_BITS_PER_VALUE.contains((int)offsetBitsPerValue))
             {
                 throw new CorruptIndexException(
                         String.format("Postings list header is corrupted: Bits per value for block offsets is %s. Supported values are %s.",
-                                      offsetBitsPerValue, DirectReaders.SUPPORTED_BITS_PER_VALUE_STRING), input);
+                                      offsetBitsPerValue, SUPPORTED_BITS_PER_VALUE_STRING), input);
             }
             this.offsets = new LongArrayReader(randomAccessInput, offsetBitsPerValue == 0 ? LongValues.ZEROES : DirectReader.getInstance(randomAccessInput, offsetBitsPerValue, input.getFilePointer()), numBlocks);
 
             input.seek(maxBlockValuesOffset);
             byte valuesBitsPerValue = input.readByte();
-            if (!DirectReaders.SUPPORTED_BITS_PER_VALUE.contains((int)valuesBitsPerValue))
+            if (!SUPPORTED_BITS_PER_VALUE.contains((int)valuesBitsPerValue))
             {
                 throw new CorruptIndexException(
                 String.format("Postings list header is corrupted: Bits per value for value samples is %s. Supported values are %s.",
-                              valuesBitsPerValue, DirectReaders.SUPPORTED_BITS_PER_VALUE_STRING), input);
+                              valuesBitsPerValue, SUPPORTED_BITS_PER_VALUE_STRING), input);
             }
             this.maxValues = new LongArrayReader(randomAccessInput, valuesBitsPerValue == 0 ? LongValues.ZEROES : DirectReader.getInstance(randomAccessInput, valuesBitsPerValue, input.getFilePointer()), numBlocks);
         }

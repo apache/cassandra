@@ -21,7 +21,6 @@ import java.io.IOException;
 
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.io.util.FileHandle;
@@ -33,6 +32,8 @@ import org.apache.lucene.util.packed.PackedLongValues;
 
 import static org.apache.cassandra.index.sai.disk.v1.SAICodecUtils.checkBlockSize;
 import static org.apache.cassandra.index.sai.disk.v1.SAICodecUtils.numBlocks;
+import static org.apache.cassandra.index.sai.disk.v1.bitpack.AbstractBlockPackedReader.SUPPORTED_BITS_PER_VALUE;
+import static org.apache.cassandra.index.sai.disk.v1.bitpack.AbstractBlockPackedReader.SUPPORTED_BITS_PER_VALUE_STRING;
 
 /**
  * Provides non-blocking, random access to a stream written with {@link MonotonicBlockPackedWriter}.
@@ -71,10 +72,10 @@ public class MonotonicBlockPackedReader implements LongArray.Factory
                 minValuesBuilder.add(in.readZLong());
                 averages[i] = Float.intBitsToFloat(in.readInt());
                 final int bitsPerValue = in.readVInt();
-                if (!DirectReaders.SUPPORTED_BITS_PER_VALUE.contains(bitsPerValue))
+                if (!SUPPORTED_BITS_PER_VALUE.contains(bitsPerValue))
                 {
                     throw new CorruptIndexException(String.format("Block %d is corrupted. Bits per value is %d. Supported values are %s.",
-                                                                  i, bitsPerValue, DirectReaders.SUPPORTED_BITS_PER_VALUE_STRING), in);
+                                                                  i, bitsPerValue, SUPPORTED_BITS_PER_VALUE_STRING), in);
                 }
                 blockBitsPerValue[i] = (byte) bitsPerValue;
                 // when bitsPerValue is 0, block offset won't be used
