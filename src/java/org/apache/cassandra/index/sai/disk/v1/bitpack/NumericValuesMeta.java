@@ -19,10 +19,8 @@ package org.apache.cassandra.index.sai.disk.v1.bitpack;
 
 import java.io.IOException;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 
 public class NumericValuesMeta
 {

@@ -19,7 +19,6 @@ package org.apache.cassandra.index.sai.disk.v1.bitpack;
 
 import java.io.IOException;
 
-import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.lucene.store.IndexOutput;

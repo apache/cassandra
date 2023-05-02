@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.xml.crypto.Data;
 
 import com.google.common.base.Preconditions;
 
