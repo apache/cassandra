@@ -43,6 +43,8 @@ import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+
 public class PrepareMove implements Transformation
 {
     public static final Serializer<PrepareMove> serializer = new Serializer<PrepareMove>();
@@ -81,7 +83,7 @@ public class PrepareMove implements Transformation
     public Result execute(ClusterMetadata prev)
     {
         if (prev.directory.peerState(nodeId) != NodeState.JOINED)
-            return new Rejected(String.format("Rejecting this plan as the node %s is in state %s", nodeId, prev.directory.peerState(nodeId)));
+            return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s", nodeId, prev.directory.peerState(nodeId)));
 
         PlacementTransitionPlan transitionPlan = placementProvider.planForMove(prev, nodeId, tokens, prev.schema.getKeyspaces());
         LockedRanges.AffectedRanges rangesToLock = transitionPlan.affectedRanges();
@@ -89,8 +91,8 @@ public class PrepareMove implements Transformation
 
         if (!alreadyLockedBy.equals(LockedRanges.NOT_LOCKED))
         {
-            return new Rejected(String.format("Rejecting this plan as it interacts with a range locked by %s (locked: %s, new: %s)",
-                                              alreadyLockedBy, prev.lockedRanges, rangesToLock));
+            return new Rejected(INVALID, String.format("Rejecting this plan as it interacts with a range locked by %s (locked: %s, new: %s)",
+                                                       alreadyLockedBy, prev.lockedRanges, rangesToLock));
         }
 
         LockedRanges.Key lockKey = LockedRanges.keyFor(prev.nextEpoch());

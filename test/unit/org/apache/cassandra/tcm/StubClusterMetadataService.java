@@ -82,7 +82,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
                 return new Commit.Result.Success(metadata.epoch, Replication.EMPTY);
             }
 
-            return new Commit.Result.Failure(result.rejected().reason, true);
+            return new Commit.Result.Failure(result.rejected().code, result.rejected().reason, true);
         }
 
         @Override

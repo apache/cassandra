@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -108,10 +109,12 @@ public interface Transformation
 
     final class Rejected implements Result
     {
+        public final ExceptionCode code;
         public final String reason;
 
-        public Rejected(String reason)
+        public Rejected(ExceptionCode code, String reason)
         {
+            this.code = code;
             this.reason = reason;
         }
 

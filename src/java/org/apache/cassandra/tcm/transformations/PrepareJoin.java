@@ -44,6 +44,8 @@ import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
 import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+
 /**
  * Create a plan for adding a new node and bootstrapping it, then start to execute that plan.
  * Creating the plan involves adding the joining node's tokens to the current tokenmap and generating the set of
@@ -128,7 +130,8 @@ public class PrepareJoin implements Transformation
     public Result execute(ClusterMetadata prev)
     {
         if (prev.directory.peerState(nodeId) != NodeState.REGISTERED)
-            return new Rejected(String.format("Rejecting this plan as the node %s is in state %s", nodeId, prev.directory.peerState(nodeId)));
+            return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s",
+                                                       nodeId, prev.directory.peerState(nodeId)));
 
         PlacementTransitionPlan transitionPlan = placementProvider.planForJoin(prev, nodeId, tokens, prev.schema.getKeyspaces());
 
@@ -136,8 +139,8 @@ public class PrepareJoin implements Transformation
         LockedRanges.Key alreadyLockedBy = prev.lockedRanges.intersects(rangesToLock);
         if (!alreadyLockedBy.equals(LockedRanges.NOT_LOCKED))
         {
-            return new Rejected(String.format("Rejecting this plan as it interacts with a range locked by %s (locked: %s, new: %s)",
-                                              alreadyLockedBy, prev.lockedRanges, rangesToLock));
+            return new Rejected(INVALID, String.format("Rejecting this plan as it interacts with a range locked by %s (locked: %s, new: %s)",
+                                                       alreadyLockedBy, prev.lockedRanges, rangesToLock));
         }
 
         LockedRanges.Key lockKey = LockedRanges.keyFor(prev.nextEpoch());

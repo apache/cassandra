@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -144,13 +145,15 @@ public class Commit
 
         final class Failure implements Result
         {
+            public final ExceptionCode code;
             public final String message;
             // Rejection means that we were able to linearize the operation,
             // but it was rejected by the internal logic of the transformation.
             public final boolean rejected;
 
-            public Failure(String message, boolean rejected)
+            public Failure(ExceptionCode code, String message, boolean rejected)
             {
+                this.code = code;
                 this.message = message;
                 this.rejected = rejected;
             }
@@ -159,6 +162,7 @@ public class Commit
             public String toString()
             {
                 return "Failure{" +
+                       "code='" + code + '\'' +
                        "message='" + message + '\'' +
                        "rejected=" + rejected +
                        '}';
@@ -177,13 +181,15 @@ public class Commit
 
         class Serializer implements IVersionedSerializer<Result>
         {
-
+            private static final byte SUCCESS = 1;
+            private static final byte REJECTED = 2;
+            private static final byte FAILED = 3;
             @Override
             public void serialize(Result t, DataOutputPlus out, int version) throws IOException
             {
                 if (t instanceof Success)
                 {
-                    out.writeByte(1);
+                    out.writeByte(SUCCESS);
                     Version metadataVersion = t.success().metadataVersion;
                     out.writeUnsignedVInt32(metadataVersion.asInt());
                     Replication.serializer.serialize(t.success().replication, out, metadataVersion);
@@ -193,7 +199,8 @@ public class Commit
                 {
                     assert t instanceof Failure;
                     Failure failure = (Failure) t;
-                    out.writeByte(failure.rejected ? 2 : 3);
+                    out.writeByte(failure.rejected ? REJECTED : FAILED);
+                    out.writeUnsignedVInt32(failure.code.value);
                     out.writeUTF(failure.message);
                 }
             }
@@ -202,7 +209,7 @@ public class Commit
             public Result deserialize(DataInputPlus in, int version) throws IOException
             {
                 int b = in.readByte();
-                if (b == 1)
+                if (b == SUCCESS)
                 {
                     Version metadataVersion = Version.fromInt(in.readUnsignedVInt32());
                     Replication delta = Replication.serializer.deserialize(in, metadataVersion);
@@ -211,7 +218,9 @@ public class Commit
                 }
                 else
                 {
-                    return new Failure(in.readUTF(), b == 2);
+                    return new Failure(ExceptionCode.fromValue(in.readUnsignedVInt32()),
+                                       in.readUTF(),
+                                       b == REJECTED);
                 }
             }
 
@@ -222,13 +231,14 @@ public class Commit
                 if (t instanceof Success)
                 {
                     Version metadataVersion = t.success().metadataVersion;
-                    size += VIntCoding.computeVIntSize(metadataVersion.asInt());
+                    size += VIntCoding.computeUnsignedVIntSize(metadataVersion.asInt());
                     size += Replication.serializer.serializedSize(t.success().replication, metadataVersion);
                     size += Epoch.serializer.serializedSize(t.success().epoch, metadataVersion);
                 }
                 else
                 {
                     assert t instanceof Failure;
+                    size += VIntCoding.computeUnsignedVIntSize(((Failure) t).code.value);
                     size += TypeSizes.sizeof(((Failure)t).message);
                 }
                 return size;

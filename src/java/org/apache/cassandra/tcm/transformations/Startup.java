@@ -36,6 +36,8 @@ import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+
 public class Startup implements Transformation
 {
     public static final Serializer serializer = new Serializer();
@@ -65,7 +67,7 @@ public class Startup implements Transformation
             NodeAddresses existingAddresses = entry.getValue();
             NodeId existingNodeId = entry.getKey();
             if (!nodeId.equals(existingNodeId) && addresses.conflictsWith(existingAddresses))
-                return new Rejected(String.format("New addresses %s conflicts with existing node %s with addresses %s", addresses, entry.getKey(), existingAddresses));
+                return new Rejected(INVALID, String.format("New addresses %s conflicts with existing node %s with addresses %s", addresses, entry.getKey(), existingAddresses));
         }
 
         return success(prev.transformer().withNodeInformation(nodeId, nodeVersion, addresses),
@@ -102,8 +104,9 @@ public class Startup implements Transformation
                                                          return false;
                                                      } ,
                                                      (metadata) -> null,
-                                                     (metadata, reason) -> {
-                                                         throw new IllegalStateException(String.format("Startup transformations should be executed unconditionally, but this one got rejected with \"%s\"", reason));
+                                                     (metadata, code, reason) -> {
+                                                         throw new IllegalStateException(String.format("Startup transformations should be executed unconditionally, " +
+                                                                                                       "but this one got rejected with [%s]: \"%s\"", code, reason));
                                                      });
         }
     }

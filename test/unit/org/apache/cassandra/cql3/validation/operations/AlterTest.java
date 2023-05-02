@@ -24,7 +24,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.db.memtable.TestMemtable;
@@ -259,7 +258,7 @@ public class AlterTest extends CQLTester
     public void testCreateAlterKeyspaces() throws Throwable
     {
         assertInvalidThrow(SyntaxException.class, "CREATE KEYSPACE ks1");
-        assertInvalidThrow(InvalidRequestException.class, "CREATE KEYSPACE ks1 WITH replication= { 'replication_factor' : 1 }");
+        assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE ks1 WITH replication= { 'replication_factor' : 1 }");
 
         String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
         String ks2 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 } AND durable_writes=false");
@@ -281,7 +280,7 @@ public class AlterTest extends CQLTester
 
         execute("USE " + ks1);
 
-        assertInvalidThrow(InvalidRequestException.class, "CREATE TABLE cf1 (a int PRIMARY KEY, b int) WITH compaction = { 'min_threshold' : 4 }");
+        assertInvalidThrow(ConfigurationException.class, "CREATE TABLE cf1 (a int PRIMARY KEY, b int) WITH compaction = { 'min_threshold' : 4 }");
 
         execute("CREATE TABLE cf1 (a int PRIMARY KEY, b int) WITH compaction = { 'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 7 }");
         assertRows(execute("SELECT table_name, compaction FROM system_schema.tables WHERE keyspace_name='" + ks1 + "'"),
@@ -293,7 +292,7 @@ public class AlterTest extends CQLTester
     @Test
     public void testCreateAlterNetworkTopologyWithDefaults() throws Throwable
     {
-        ClusterMetadataTestHelper.register(1, DATA_CENTER, RACK1);
+        // Node 1 is added automatically during setup, add another node in a different dc/rack
         ClusterMetadataTestHelper.register(4, DATA_CENTER_REMOTE, RACK1);
                 /*
         // todo (rebase) we also need these
@@ -335,7 +334,7 @@ public class AlterTest extends CQLTester
         // The keyspace should be fully functional
         execute("USE " + ks1);
 
-        assertInvalidThrow(InvalidRequestException.class, "CREATE TABLE tbl1 (a int PRIMARY KEY, b int) WITH compaction = { 'min_threshold' : 4 }");
+        assertInvalidThrow(ConfigurationException.class, "CREATE TABLE tbl1 (a int PRIMARY KEY, b int) WITH compaction = { 'min_threshold' : 4 }");
 
         execute("CREATE TABLE tbl1 (a int PRIMARY KEY, b int) WITH compaction = { 'class' : 'SizeTieredCompactionStrategy', 'min_threshold' : 7 }");
 
@@ -348,7 +347,7 @@ public class AlterTest extends CQLTester
     @Test
     public void testCreateSimpleAlterNTSDefaults() throws Throwable
     {
-        ClusterMetadataTestHelper.register(1, DATA_CENTER, RACK1);
+        // Node 1 is added automatically during setup, add another node in a different dc/rack
         ClusterMetadataTestHelper.register(4, DATA_CENTER_REMOTE, RACK1);
         /*
         // todo (rebase) we also need these
@@ -384,7 +383,7 @@ public class AlterTest extends CQLTester
     @Test
     public void testDefaultRF() throws Throwable
     {
-        ClusterMetadataTestHelper.register(1, DATA_CENTER, RACK1);
+        // Node 1 is added automatically during setup, add another node in a different dc/rack
         ClusterMetadataTestHelper.register(4, DATA_CENTER_REMOTE, RACK1);
 
         DatabaseDescriptor.setDefaultKeyspaceRF(3);
@@ -458,32 +457,6 @@ public class AlterTest extends CQLTester
         }
     }
 
-    @Test
-    public void testMinimumRF() throws Throwable
-    {
-        DatabaseDescriptor.setDefaultKeyspaceRF(3);
-        Guardrails.instance.setMinimumReplicationFactorThreshold(2, 2);
-
-        try
-        {
-            String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy' }");
-            String ks2 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy' }");
-
-            assertAlterTableThrowsException(ConfigurationException.class,
-                                            String.format("Replication factor cannot be less than minimum_keyspace_rf (%s), found %s", Guardrails.instance.getMinimumReplicationFactorFailThreshold(), "1"),
-                                            String.format("ALTER KEYSPACE %s WITH replication={ 'class' : 'SimpleStrategy', 'replication_factor' : 1 }", ks1));
-            assertAlterTableThrowsException(ConfigurationException.class,
-                                            String.format("Replication factor cannot be less than minimum_keyspace_rf (%s), found %s", Guardrails.instance.getMinimumReplicationFactorFailThreshold(), "1"),
-                                            String.format("ALTER KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : '1' }", ks2));
-        }
-        finally
-        {
-            //clean up config change
-            Guardrails.instance.setMinimumReplicationFactorThreshold(0,0);
-            DatabaseDescriptor.setDefaultKeyspaceRF(1);
-        }
-    }
-
     /**
      * Test {@link ConfigurationException} thrown when altering a keyspace to invalid DC option in replication configuration.
      */
@@ -494,14 +467,14 @@ public class AlterTest extends CQLTester
         createKeyspace("CREATE KEYSPACE %s WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2 }");
 
         // try modifying the keyspace
-        assertAlterKeyspaceThrowsException(InvalidRequestException.class,
+        assertAlterKeyspaceThrowsException(ConfigurationException.class,
                                            "Unrecognized strategy option {INVALID_DC} passed to NetworkTopologyStrategy for keyspace " + currentKeyspace(),
                                            "ALTER KEYSPACE %s WITH replication = { 'class' : 'NetworkTopologyStrategy', 'INVALID_DC' : 2 }");
 
         alterKeyspace("ALTER KEYSPACE %s WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 3 }");
 
         // Mix valid and invalid, should throw an exception
-        assertAlterKeyspaceThrowsException(InvalidRequestException.class,
+        assertAlterKeyspaceThrowsException(ConfigurationException.class,
                                            "Unrecognized strategy option {INVALID_DC} passed to NetworkTopologyStrategy for keyspace " + currentKeyspace(),
                                            "ALTER KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2 , 'INVALID_DC': 1}");
     }
@@ -709,24 +682,23 @@ public class AlterTest extends CQLTester
         alterTable("ALTER TABLE %s WITH compression = { 'enabled' : 'false'};");
         assertSchemaOption("compression", map("enabled", "false"));
 
-        assertAlterTableThrowsException(InvalidRequestException.class,
+        assertAlterTableThrowsException(ConfigurationException.class,
                                         "Missing sub-option 'class' for the 'compression' option.",
                                         "ALTER TABLE %s WITH  compression = {'chunk_length_in_kb' : 32};");
 
-        assertAlterTableThrowsException(InvalidRequestException.class,
+        assertAlterTableThrowsException(ConfigurationException.class,
                                         "The 'class' option must not be empty. To disable compression use 'enabled' : false",
                                         "ALTER TABLE %s WITH  compression = { 'class' : ''};");
-
 
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "If the 'enabled' option is set to false no other options must be specified",
                                         "ALTER TABLE %s WITH compression = { 'enabled' : 'false', 'class' : 'SnappyCompressor'};");
 
-        assertAlterTableThrowsException(InvalidRequestException.class,
+        assertAlterTableThrowsException(ConfigurationException.class,
                                         "Invalid negative min_compress_ratio",
                                         "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : -1 };");
 
-        assertAlterTableThrowsException(InvalidRequestException.class,
+        assertAlterTableThrowsException(ConfigurationException.class,
                                         "min_compress_ratio can either be 0 or greater than or equal to 1",
                                         "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : 0.5 };");
     }

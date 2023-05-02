@@ -45,6 +45,8 @@ import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+
 public class PrepareLeave implements Transformation
 {
     private static final Logger logger = LoggerFactory.getLogger(PrepareLeave.class);
@@ -76,15 +78,15 @@ public class PrepareLeave implements Transformation
     public Result execute(ClusterMetadata prev)
     {
         if (prev.directory.peerState(nodeId) != NodeState.JOINED)
-            return new Rejected(String.format("Rejecting this plan as the node %s is in state %s", nodeId, prev.directory.peerState(nodeId)));
+            return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s", nodeId, prev.directory.peerState(nodeId)));
 
         ClusterMetadata proposed = prev.transformer().proposeRemoveNode(nodeId).build().metadata;
 
         if (!force && !validateReplicationForDecommission(proposed))
-            return new Rejected("Not enough live nodes to maintain replication factor after decomission.");
+            return new Rejected(INVALID, "Not enough live nodes to maintain replication factor after decomission.");
 
         if (proposed.directory.isEmpty())
-            return new Rejected("No peers registered, at least local node should be");
+            return new Rejected(INVALID, "No peers registered, at least local node should be");
 
         PlacementTransitionPlan transitionPlan = placementProvider.planForDecommission(prev,
                                                                                        nodeId,
@@ -94,7 +96,7 @@ public class PrepareLeave implements Transformation
         LockedRanges.Key alreadyLockedBy = prev.lockedRanges.intersects(rangesToLock);
         if (!alreadyLockedBy.equals(LockedRanges.NOT_LOCKED))
         {
-            return new Rejected(String.format("Rejecting this plan as it interacts with a range locked by %s (locked: %s, new: %s)",
+            return new Rejected(INVALID, String.format("Rejecting this plan as it interacts with a range locked by %s (locked: %s, new: %s)",
                                               alreadyLockedBy, prev.lockedRanges, rangesToLock));
         }
 

@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -33,6 +32,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -307,12 +307,22 @@ public class ClusterMetadataService
         return commit(transform,
                       (metadata) -> false,
                       (metadata) -> metadata,
-                      (metadata, reason) -> {
+                      (metadata, code, reason) -> {
                           throw new IllegalStateException(reason);
                       });
     }
 
-    public <T1> T1 commit(Transformation transform, Predicate<ClusterMetadata> retry, Function<ClusterMetadata, T1> onSuccess, BiFunction<ClusterMetadata, String, T1> onReject)
+    public interface CommitSuccessHandler<T>
+    {
+        T accept(ClusterMetadata latest);
+    }
+
+    public interface CommitRejectionHandler<T>
+    {
+        T accept(ClusterMetadata latest, ExceptionCode code, String message);
+    }
+
+    public <T1> T1 commit(Transformation transform, Predicate<ClusterMetadata> retry, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onReject)
     {
         Retry.Backoff backoff = new Retry.Backoff();
         while (!backoff.reachedMax())
@@ -325,7 +335,7 @@ public class ClusterMetadataService
                 {
                     try
                     {
-                        return onSuccess.apply(awaitAtLeast(result.success().epoch));
+                        return onSuccess.accept(awaitAtLeast(result.success().epoch));
                     }
                     catch (TimeoutException t)
                     {
@@ -343,7 +353,7 @@ public class ClusterMetadataService
                 ClusterMetadata metadata = replayAndWait();
 
                 if (result.failure().rejected)
-                    return onReject.apply(metadata, result.failure().message);
+                    return onReject.accept(metadata, result.failure().code, result.failure().message);
 
                 if (!retry.test(metadata))
                     throw new IllegalStateException(String.format("Committing transformation %s failed and retry criteria was not satisfied. Current tries: %s", transform, backoff.tries + 1));
@@ -485,7 +495,7 @@ public class ClusterMetadataService
         return ClusterMetadataService.instance.commit(SealPeriod.instance,
                                                       (ClusterMetadata metadata) -> metadata.lastInPeriod,
                                                       (ClusterMetadata metadata) -> metadata,
-                                                      (metadata, reason) -> {
+                                                      (metadata, code, reason) -> {
                                                           // If the transformation got rejected, someone else has beat us to seal this period
                                                           return metadata;
                                                       });

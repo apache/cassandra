@@ -56,6 +56,7 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.Promise;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.SERVER_ERROR;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.REMOTE;
 
@@ -93,7 +94,9 @@ public final class RemoteProcessor implements Processor
         }
         catch (Exception e)
         {
-            return new Commit.Result.Failure(e.getMessage() == null ? e.getClass().toString() : e.getMessage(), false);
+            return new Commit.Result.Failure(SERVER_ERROR, e.getMessage() == null
+                                                           ? e.getClass().toString()
+                                                           : e.getMessage(), false);
         }
     }
 

@@ -34,6 +34,8 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+
 public class Unregister implements Transformation
 {
     private static final Logger logger = LoggerFactory.getLogger(Unregister.class);
@@ -55,7 +57,7 @@ public class Unregister implements Transformation
     public Result execute(ClusterMetadata prev)
     {
         if (!prev.directory.peerIds().contains(nodeId))
-            return new Rejected(String.format("Can not unregsiter %s since it is not present in the directory.", nodeId));
+            return new Rejected(INVALID, String.format("Can not unregsiter %s since it is not present in the directory.", nodeId));
 
         ClusterMetadata.Transformer next = prev.transformer()
                                            .unregister(nodeId);
@@ -70,7 +72,7 @@ public class Unregister implements Transformation
                               .commit(new Unregister(nodeId),
                                       (metadata) -> metadata.directory.peerIds().contains(nodeId),
                                       (metadata) -> metadata,
-                                      (metadata, reason) -> {
+                                      (metadata, code, reason) -> {
                                           throw new IllegalStateException("Can't unregister node: " + reason);
                                       });
     }

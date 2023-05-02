@@ -44,6 +44,7 @@ import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 import static org.apache.cassandra.tcm.Transformation.Kind.START_REPLACE;
 
 public class PrepareReplace implements Transformation
@@ -86,10 +87,10 @@ public class PrepareReplace implements Transformation
     public Result execute(ClusterMetadata prev)
     {
         if (prev.directory.peerState(replaced) != NodeState.JOINED)
-            return new Rejected(String.format("Rejecting this plan as the replaced node %s is in state %s", replaced, prev.directory.peerState(replaced)));
+            return new Rejected(INVALID, String.format("Rejecting this plan as the replaced node %s is in state %s", replaced, prev.directory.peerState(replaced)));
 
         if (prev.directory.peerState(replacement) != NodeState.REGISTERED)
-            return new Rejected(String.format("Rejecting this plan as the replacement node %s is in state %s", replacement, prev.directory.peerState(replacement)));
+            return new Rejected(INVALID, String.format("Rejecting this plan as the replacement node %s is in state %s", replacement, prev.directory.peerState(replacement)));
 
         LockedRanges.Key unlockKey = LockedRanges.keyFor(prev.nextEpoch());
         LockedRanges lockedRanges = prev.lockedRanges;
@@ -125,8 +126,8 @@ public class PrepareReplace implements Transformation
 
         if (!alreadyLockedBy.equals(LockedRanges.NOT_LOCKED))
         {
-            return new Rejected(String.format("Rejecting this plan as it interacts with a range locked by %s (locked: %s, new: %s)",
-                                              alreadyLockedBy, lockedRanges, rangesToLock));
+            return new Rejected(INVALID, String.format("Rejecting this plan as it interacts with a range locked by %s (locked: %s, new: %s)",
+                                                       alreadyLockedBy, lockedRanges, rangesToLock));
         }
 
         StartReplace start = new StartReplace(replaced, replacement, addNewNodeToWrites.build(), unlockKey);

@@ -27,7 +27,6 @@ import java.util.UUID;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.Mutation;
@@ -40,15 +39,16 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.locator.AbstractEndpointSnitch;
-import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.triggers.ITrigger;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -57,6 +57,7 @@ import static org.apache.cassandra.cql3.Duration.NANOS_PER_HOUR;
 import static org.apache.cassandra.cql3.Duration.NANOS_PER_MICRO;
 import static org.apache.cassandra.cql3.Duration.NANOS_PER_MILLI;
 import static org.apache.cassandra.cql3.Duration.NANOS_PER_MINUTE;
+import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
@@ -555,31 +556,12 @@ public class CreateTest extends CQLTester
     // tests CASSANDRA-4278
     public void testHyphenDatacenters() throws Throwable
     {
-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
-
-        // Register an EndpointSnitch which returns fixed values for test.
-        DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
-        {
-            @Override
-            public String getRack(InetAddressAndPort endpoint) { return RACK1; }
-
-            @Override
-            public String getDatacenter(InetAddressAndPort endpoint) { return "us-east-1"; }
-
-            @Override
-            public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2) { return 0; }
-        });
-
-        // this forces the dc above to be added to the list of known datacenters (fixes static init problem
+        // this forces the dc 'us-east-1' to be added to the list of known datacenters (fixes static init problem
         // with this group of tests), ok to remove at some point if doing so doesn't break the test
-//        StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), InetAddressAndPort.getByName("127.0.0.255"));
+        ClusterMetadataService.instance().commit(new Register(new NodeAddresses(endpoint(255)),
+                                                              new Location("us-east-1", RACK1),
+                                                              NodeVersion.CURRENT));
         execute("CREATE KEYSPACE Foo WITH replication = { 'class' : 'NetworkTopologyStrategy', 'us-east-1' : 1 };");
-
-        // Restore the previous EndpointSnitch
-        DatabaseDescriptor.setEndpointSnitch(snitch);
-
-        // clean up
-        execute("DROP KEYSPACE IF EXISTS Foo");
     }
 
     @Test

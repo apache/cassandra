@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.DistributedSchema;
@@ -42,6 +43,12 @@ import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import static org.apache.cassandra.exceptions.ExceptionCode.CONFIG_ERROR;
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+import static org.apache.cassandra.exceptions.ExceptionCode.SERVER_ERROR;
+import static org.apache.cassandra.exceptions.ExceptionCode.SYNTAX_ERROR;
 
 public class AlterSchema implements Transformation
 {
@@ -68,7 +75,7 @@ public class AlterSchema implements Transformation
     {
         // TODO: this not necessarily should be the case, we should optimise this, just be careful not to override
         if (!prev.lockedRanges.locked.isEmpty())
-            return new Rejected("Can't have schema changes during ring movements: " + prev.lockedRanges.locked);
+            return new Rejected(INVALID, "Can't have schema changes during ring movements: " + prev.lockedRanges.locked);
 
         Keyspaces newKeyspaces;
         try
@@ -85,9 +92,22 @@ public class AlterSchema implements Transformation
                });
             });
         }
-        catch (ConfigurationException | InvalidRequestException t)
+        catch (ConfigurationException t)
         {
-            return new Rejected(t.getMessage());
+            return new Rejected(CONFIG_ERROR, t.getMessage());
+        }
+        catch (InvalidRequestException t)
+        {
+            return new Rejected(INVALID, t.getMessage());
+        }
+        catch (SyntaxException t)
+        {
+            return new Rejected(SYNTAX_ERROR, t.getMessage());
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            return new Rejected(SERVER_ERROR, t.getMessage());
         }
 
         // Ensure that any new or modified TableMetadata has the correct epoch

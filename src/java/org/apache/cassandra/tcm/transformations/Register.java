@@ -44,6 +44,8 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+
 public class Register implements Transformation
 {
     private static final Logger logger = LoggerFactory.getLogger(Register.class);
@@ -73,7 +75,7 @@ public class Register implements Transformation
         {
             NodeAddresses existingAddresses = entry.getValue();
             if (addresses.conflictsWith(existingAddresses))
-                return new Rejected(String.format("New addresses %s conflicts with existing node %s with addresses %s", addresses, entry.getKey(), existingAddresses));
+                return new Rejected(INVALID, String.format("New addresses %s conflicts with existing node %s with addresses %s", addresses, entry.getKey(), existingAddresses));
         }
 
         ClusterMetadata.Transformer next = prev.transformer()
@@ -111,7 +113,7 @@ public class Register implements Transformation
                                            .commit(new Register(nodeAddresses, location, nodeVersion),
                                                    (metadata) -> !metadata.directory.isRegistered(nodeAddresses.broadcastAddress),
                                                    (metadata) -> metadata.directory.peerId(nodeAddresses.broadcastAddress),
-                                                   (metadata, reason) -> {
+                                                   (metadata, code, reason) -> {
                                                        throw new IllegalStateException("Can't register node: " + reason);
                                                    });
         }

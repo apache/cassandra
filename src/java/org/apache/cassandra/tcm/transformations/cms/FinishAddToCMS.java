@@ -30,6 +30,7 @@ import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 import static org.apache.cassandra.tcm.transformations.cms.EntireRange.affectedRanges;
 
 public class FinishAddToCMS extends BaseMembershipTransformation
@@ -64,10 +65,10 @@ public class FinishAddToCMS extends BaseMembershipTransformation
         InProgressSequence<?> sequence = sequences.get(targetNode);
 
         if (sequence == null)
-            return new Rejected("Can't execute finish join as cluster metadata does not hold join sequence for this node");
+            return new Rejected(INVALID, "Can't execute finish join as cluster metadata does not hold join sequence for this node");
 
         if (!(sequence instanceof AddToCMS))
-            return new Rejected("Can't execute finish join as cluster metadata contains a sequence of a different kind");
+            return new Rejected(INVALID, "Can't execute finish join as cluster metadata contains a sequence of a different kind");
 
         ClusterMetadata.Transformer transformer = prev.transformer();
         DataPlacement.Builder builder = prev.placements.get(ReplicationParams.meta())

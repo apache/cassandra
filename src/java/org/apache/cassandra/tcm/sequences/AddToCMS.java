@@ -80,7 +80,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
                                                                    .commit(new StartAddToCMS(addr),
                                                                            (metadata) -> !metadata.inProgressSequences.contains(nodeId),
                                                                            (metadata) -> metadata.inProgressSequences.get(nodeId),
-                                                                           (metadata, reason) -> {
+                                                                           (metadata, code, reason) -> {
                                                                                throw new IllegalStateException("Can't join ownership group: " + reason);
                                                                            });
         if (continuation.kind() != JOIN_OWNERSHIP_GROUP)
@@ -137,11 +137,11 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
     {
         NodeId self = ClusterMetadata.current().myNodeId();
         ClusterMetadataService.instance().commit(finishJoin,
-                                                 (ClusterMetadata metadata) -> metadata.inProgressSequences.contains(self),
-                                                 (ClusterMetadata metadata) -> null,
-                                                 (ClusterMetadata metadata, String error) -> {
-                                                     throw new IllegalStateException(String.format("Could not finish join due to \"%s\". Next transformation in sequence: %s.",
-                                                                                                   error,
+                                                 (metadata) -> metadata.inProgressSequences.contains(self),
+                                                 (metadata) -> null,
+                                                 (metadata, code, error) -> {
+                                                     throw new IllegalStateException(String.format("Could not finish join due to [%s]: \"%s\". Next transformation in sequence: %s.",
+                                                                                                   code, error,
                                                                                                    metadata.inProgressSequences.contains(self) ? metadata.inProgressSequences.get(self).nextStep() : null));
                                                  });
     }

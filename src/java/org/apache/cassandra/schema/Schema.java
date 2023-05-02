@@ -34,7 +34,10 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -289,8 +292,18 @@ public final class Schema implements SchemaProvider
         return ClusterMetadataService.instance().commit(new AlterSchema(transformation, this),
                                                         (metadata) -> true,
                                                         (metadata) -> metadata,
-                                                        (metadata, reason) -> {
-                                                            throw new InvalidRequestException(reason);
+                                                        (metadata, code, reason) -> {
+                                                            switch (code)
+                                                            {
+                                                                case CONFIG_ERROR:
+                                                                    throw new ConfigurationException(reason);
+                                                                case SYNTAX_ERROR:
+                                                                    throw new SyntaxException(reason);
+                                                                case UNAUTHORIZED:
+                                                                    throw new UnauthorizedException(reason);
+                                                                default:
+                                                                    throw new InvalidRequestException(reason);
+                                                            }
                                                         });
     }
 

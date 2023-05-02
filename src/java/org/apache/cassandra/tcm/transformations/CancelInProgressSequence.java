@@ -30,6 +30,8 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+
 public class CancelInProgressSequence implements Transformation
 {
     public static final Serializer serializer = new Serializer();
@@ -52,8 +54,8 @@ public class CancelInProgressSequence implements Transformation
     {
         InProgressSequence<?> sequence = prev.inProgressSequences.get(nodeId);
         if (null == sequence)
-            return new Rejected(String.format("No in-progress sequence found for node id %s at epoch %s",
-                                              nodeId, prev.epoch));
+            return new Rejected(INVALID, String.format("No in-progress sequence found for node id %s at epoch %s",
+                                                       nodeId, prev.epoch));
 
         // TODO unlock - requires IPS to have/provide locked ranges - or maybe this is just part of cancel?
         // Doesn't really need to remove the sequence here, could encapsulate that in cancel() - makes renaming

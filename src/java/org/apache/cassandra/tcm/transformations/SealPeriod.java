@@ -28,6 +28,8 @@ import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
+
 /**
  * Transformation that seals the period and requests local state to take a snapshot. Snapshot taking is an
  * asynchonous action, and we generally do not rely on the fact snapshot is, in fact going to be
@@ -51,7 +53,7 @@ public class SealPeriod implements Transformation
     public Result execute(ClusterMetadata prev)
     {
         if (prev.lastInPeriod)
-            return new Rejected("Have just sealed this period");
+            return new Rejected(INVALID, "Have just sealed this period");
 
         return success(prev.transformer(true), LockedRanges.AffectedRanges.EMPTY);
     }

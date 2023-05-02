@@ -32,6 +32,7 @@ import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 
+import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 import static org.apache.cassandra.tcm.transformations.cms.EntireRange.affectedRanges;
 
 public class StartAddToCMS extends BaseMembershipTransformation
@@ -60,7 +61,7 @@ public class StartAddToCMS extends BaseMembershipTransformation
         RangesByEndpoint writeReplicas = prev.placements.get(ReplicationParams.meta()).writes.byEndpoint();
 
         if (readReplicas.containsKey(endpoint) || writeReplicas.containsKey(endpoint))
-            return new Rejected("Endpoint is already a member of the Cluster Metadata ownership set");
+            return new Rejected(INVALID, "Endpoint is already a member of the Cluster Metadata ownership set");
 
         ClusterMetadata.Transformer transformer = prev.transformer();
         DataPlacement.Builder builder = prev.placements.get(ReplicationParams.meta()).unbuild()

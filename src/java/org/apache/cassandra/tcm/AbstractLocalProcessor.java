@@ -27,6 +27,9 @@ import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.Replication;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import static org.apache.cassandra.exceptions.ExceptionCode.SERVER_ERROR;
 
 public abstract class AbstractLocalProcessor implements Processor
 {
@@ -51,7 +54,8 @@ public abstract class AbstractLocalProcessor implements Processor
         catch (Throwable e)
         {
             logger.error("Caught error while trying to perform a local commit", e);
-            return new Commit.Result.Failure(e.getMessage(), false);
+            JVMStabilityInspector.inspectThrowable(e);
+            return new Commit.Result.Failure(SERVER_ERROR, e.getMessage(), false);
         }
 
         if (result.isSuccess())
@@ -72,7 +76,7 @@ public abstract class AbstractLocalProcessor implements Processor
         }
         else
         {
-            return new Commit.Result.Failure(result.rejected().reason, true);
+            return new Commit.Result.Failure(result.rejected().code, result.rejected().reason, true);
         }
     }
 
