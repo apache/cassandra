@@ -95,10 +95,9 @@ public class PreInitialize implements Transformation
         return new Success(metadata, LockedRanges.AffectedRanges.EMPTY, transformed.modifiedKeys);
     }
 
-    @Override
     public String toString()
     {
-        return "BootstrapCms{" +
+        return "PreInitialize{" +
                "addr=" + addr +
                '}';
     }

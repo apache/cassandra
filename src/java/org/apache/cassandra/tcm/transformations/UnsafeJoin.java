@@ -51,12 +51,15 @@ public class UnsafeJoin extends PrepareJoin
         super(nodeId, tokens, placementProvider, true, false);
     }
 
+    @Override
     public String toString()
     {
         return "UnsafeJoin{" +
-               "id=" + nodeId +
+               "nodeId=" + nodeId +
                ", tokens=" + tokens +
-               '}';
+               ", joinTokenRing=" + joinTokenRing +
+               ", streamData=" + streamData +
+               "}";
     }
 
     @Override

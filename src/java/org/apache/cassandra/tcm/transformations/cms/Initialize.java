@@ -133,7 +133,7 @@ public class Initialize extends ForceSnapshot
     public String toString()
     {
         return "Initialize{" +
-               "baseState = " + baseState +
+               "baseState = " + baseState.epoch +
                '}';
     }
 }

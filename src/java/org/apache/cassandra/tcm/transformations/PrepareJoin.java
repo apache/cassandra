@@ -214,11 +214,12 @@ public class PrepareJoin implements Transformation
     public String toString()
     {
         return "PrepareJoin{" +
-               "id=" + nodeId +
+               "nodeId=" + nodeId +
                ", tokens=" + tokens +
+               ", joinTokenRing=" + joinTokenRing +
+               ", streamData=" + streamData +
                '}';
     }
-
 
     public static class StartJoin extends ApplyPlacementDeltas
     {

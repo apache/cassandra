@@ -54,6 +54,7 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                     .add(new SnapshotsTable(VIRTUAL_VIEWS))
                     .add(new PeersTable(VIRTUAL_VIEWS))
                     .add(new LocalTable(VIRTUAL_VIEWS))
+                    .add(new ClusterMetadataLogTable(VIRTUAL_VIEWS))
                     .addAll(LocalRepairTables.getAll(VIRTUAL_VIEWS))
                     .addAll(CIDRFilteringMetricsTable.getAll(VIRTUAL_VIEWS))
                     .addAll(StorageAttachedIndexTables.getAll(VIRTUAL_VIEWS))

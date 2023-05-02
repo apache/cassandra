@@ -181,8 +181,8 @@ public class AlterSchema implements Transformation
     @Override
     public String toString()
     {
-        return "SchemaChangeRequest{" +
-               ", schemaTransformation=" + schemaTransformation +
+        return "AlterSchema{" +
+               "schemaTransformation=" + schemaTransformation +
                '}';
     }
 }

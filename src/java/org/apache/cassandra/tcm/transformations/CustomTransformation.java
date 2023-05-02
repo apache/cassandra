@@ -115,8 +115,7 @@ public class CustomTransformation implements Transformation
 
     public String toString()
     {
-        return "CustomTransformation" +
-               "{" +
+        return "CustomTransformation{" +
                "extension='" + extension + '\'' +
                ", child=" + child +
                '}';

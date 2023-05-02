@@ -171,10 +171,11 @@ public class Register implements Transformation
         }
     }
 
+    @Override
     public String toString()
     {
         return "Register{" +
-               ", addresses=" + addresses +
+               "addresses=" + addresses +
                ", location=" + location +
                ", version=" + version +
                '}';

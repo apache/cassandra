@@ -67,4 +67,12 @@ public abstract class BaseMembershipTransformation implements Transformation
 
         public abstract T createTransformation(InetAddressAndPort addr);
     }
+
+    public String toString()
+    {
+        return getClass().getSimpleName() + '{' +
+               "endpoint=" + endpoint +
+               ", replica=" + replica +
+               '}';
+    }
 }

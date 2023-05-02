@@ -204,10 +204,11 @@ public class PrepareLeave implements Transformation
         }
     }
 
+    @Override
     public String toString()
     {
         return "PrepareLeave{" +
-               "id=" + nodeId +
+               "nodeId=" + nodeId +
                ", force=" + force +
                '}';
     }

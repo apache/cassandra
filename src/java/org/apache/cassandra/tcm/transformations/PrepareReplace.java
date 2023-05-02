@@ -153,14 +153,16 @@ public class PrepareReplace implements Transformation
         return success(proposed, rangesToLock);
     }
 
+    @Override
     public String toString()
     {
         return "PrepareReplace{" +
-               "replaced=" + replaced+
+               "replaced=" + replaced +
                ", replacement=" + replacement +
+               ", joinTokenRing=" + joinTokenRing +
+               ", streamData=" + streamData +
                '}';
     }
-
 
     public static final class Serializer implements AsymmetricMetadataSerializer<Transformation, PrepareReplace>
     {

@@ -65,12 +65,12 @@ public class PrepareMove implements Transformation
         this.streamData = streamData;
     }
 
+    @Override
     public String toString()
     {
         return "PrepareMove{" +
                "nodeId=" + nodeId +
                ", tokens=" + tokens +
-               ", placementProvider=" + placementProvider +
                ", streamData=" + streamData +
                '}';
     }

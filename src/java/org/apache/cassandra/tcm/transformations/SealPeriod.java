@@ -75,4 +75,10 @@ public class SealPeriod implements Transformation
             return 0;
         }
     }
+
+    @Override
+    public String toString()
+    {
+        return "SealPeriod{}";
+    }
 }

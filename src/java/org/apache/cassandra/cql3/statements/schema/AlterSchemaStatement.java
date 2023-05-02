@@ -189,4 +189,12 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
     {
         return new InvalidRequestException(String.format(format, args));
     }
+
+    public String toString()
+    {
+        return "AlterSchemaStatement{" +
+               "keyspaceName='" + keyspaceName + '\'' +
+               ", cql='" + cql() + '\'' +
+               '}';
+    }
 }
