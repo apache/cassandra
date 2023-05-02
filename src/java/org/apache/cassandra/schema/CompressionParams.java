@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
@@ -51,7 +50,6 @@ import org.apache.cassandra.net.MessagingService;
 
 import static java.lang.String.format;
 
-@SuppressWarnings("deprecation")
 public final class CompressionParams
 {
     private static final Logger logger = LoggerFactory.getLogger(CompressionParams.class);
@@ -125,14 +123,12 @@ public final class CompressionParams
         final String className;
         final Function<Map<String,String>,ICompressor> creator;
 
-        CompressorType(String className, Function<Map<String,String>,ICompressor> creator)
-        {
+        CompressorType(String className, Function<Map<String,String>,ICompressor> creator) {
             this.className = className;
             this.creator = creator;
         }
 
-        static CompressorType forClass(String name)
-        {
+        static CompressorType forClass(String name) {
             if (name == null)
                 return none;
 
@@ -408,30 +404,6 @@ public final class CompressionParams
     }
 
     /**
-     * Parse the chunk length (in KiB) and returns it as bytes.
-     *
-     * @param chLengthKB the length of the chunk to parse
-     * @return the chunk length in bytes
-     * @throws ConfigurationException if the chunk size is too large
-     */
-    private static Integer parseChunkLength(String key, String chLengthKB) throws ConfigurationException
-    {
-        try
-        {
-            int parsed = Integer.parseInt(chLengthKB);
-            if (parsed > Integer.MAX_VALUE / 1024)
-                throw new ConfigurationException(invalidValue(key, "Value of is too large",  parsed));
-            if (parsed <= 0)
-                throw new ConfigurationException(invalidValue(key, "May not be <= 0",  parsed));
-            return 1024 * parsed;
-        }
-        catch (NumberFormatException e)
-        {
-            throw new ConfigurationException(invalidValue(key, e.getMessage(), chLengthKB));
-        }
-    }
-
-    /**
      * Removes the chunk length option from the specified set of option.
      *
      * @param options the options
@@ -458,7 +430,22 @@ public final class CompressionParams
             if (chunk_length_in_kb != null)
                 throw new ConfigurationException(TOO_MANY_CHUNK_LENGTH);
             else
-                chunk_length_in_kb = parseChunkLength(CHUNK_LENGTH_IN_KB, options.remove(CHUNK_LENGTH_IN_KB));
+            {
+                String chLengthKB = options.remove(CHUNK_LENGTH_IN_KB);
+                try
+                {
+                    int parsed = Integer.parseInt(chLengthKB);
+                    if (parsed > Integer.MAX_VALUE / 1024)
+                        throw new ConfigurationException(invalidValue(CHUNK_LENGTH_IN_KB, "Value is too large", parsed));
+                    if (parsed <= 0)
+                        throw new ConfigurationException(invalidValue(CHUNK_LENGTH_IN_KB, "May not be <= 0", parsed));
+                    chunk_length_in_kb = 1024 * parsed;
+                }
+                catch (NumberFormatException e)
+                {
+                    throw new ConfigurationException(invalidValue(CHUNK_LENGTH_IN_KB, e.getMessage(), chLengthKB));
+                }
+            }
         }
 
         if (chunk_length_in_kb != null) {

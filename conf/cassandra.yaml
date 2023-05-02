@@ -588,7 +588,7 @@ commitlog_segment_size: 32MiB
 # specified class, or one of the following standard parameters:
 # parameter                       usage
 # enable                Disables compression if set to false. Defaults to true.
-# chunk_length          The lenght of the compresson chunks, defaults to 16KiB
+# chunk_length          The length of the compresson chunks, defaults to 16KiB
 # min_compress_ratio    The miniimal acceptable compression, must greater than or equal to 1.0.
 # max_compressed_length The maximum size for a compressed block.  Must be less than
 #                           chunk_length.   Defaults to Integer.MAX_VALUE
@@ -597,7 +597,8 @@ commitlog_segment_size: 32MiB
 # Only one of the min_compress_ratio and max_compressed_length options can be specified.
 # They are  mathematically related in that
 # chunk_length / max_compressed_length = min_compress_ratio
-# if neither option is specified a min_compress_ratio of 0.0 and a max_compressed_length of MAX_INT KiB is the default.
+# if neither option is specified a min_compress_ratio of 0.0 and a max_compressed_length of
+# Integer.MAX_VALUE KB is the default.
 #
 # Only one of chunk_length or chunk_length_in_kb may be specified.
 #
