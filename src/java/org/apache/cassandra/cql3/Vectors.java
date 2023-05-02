@@ -71,9 +71,7 @@ public class Vectors
         {
             try
             {
-                List<Double> l = ListSerializer.getInstance(DoubleType.instance.getSerializer())
-                                               .deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
-
+                List<Double> l = ListSerializer.getInstance(DoubleType.instance.getSerializer()).deserialize(value, ByteBufferAccessor.instance);
                 List<ByteBuffer> elements = new ArrayList<>();
                 for (Double element : l)
                 {
