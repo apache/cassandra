@@ -64,7 +64,7 @@ public class Segment implements Closeable
         this.primaryKeyMapFactory = sstableContext.primaryKeyMapFactory;
         this.metadata = metadata;
 
-        this.index = IndexSegmentSearcher.open(primaryKeyMapFactory, indexFiles, metadata, indexContext);
+        this.index = IndexSegmentSearcher.open(primaryKeyMapFactory, indexFiles, metadata, sstableContext.indexDescriptor, indexContext);
     }
 
     @VisibleForTesting

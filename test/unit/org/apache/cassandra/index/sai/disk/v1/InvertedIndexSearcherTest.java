@@ -202,6 +202,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
             final IndexSegmentSearcher searcher = IndexSegmentSearcher.open(TEST_PRIMARY_KEY_MAP_FACTORY,
                                                                             indexFiles,
                                                                             segmentMetadata,
+                                                                            indexDescriptor,
                                                                             SAITester.createIndexContext(index, UTF8Type.instance));
             assertThat(searcher, is(instanceOf(LiteralIndexSegmentSearcher.class)));
             return searcher;

@@ -65,11 +65,11 @@ public class VectorIndexSearcher extends IndexSegmentSearcher
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     private final KnnVectorsReader reader;
-    VectorIndexSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
-                        PerColumnIndexFiles perIndexFiles, // TODO not used for now because lucene has different file extensions
-                        SegmentMetadata segmentMetadata,
-                        IndexDescriptor indexDescriptor,
-                        IndexContext indexContext) throws IOException
+    public VectorIndexSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
+                               PerColumnIndexFiles perIndexFiles, // TODO not used for now because lucene has different file extensions
+                               SegmentMetadata segmentMetadata,
+                               IndexDescriptor indexDescriptor,
+                               IndexContext indexContext) throws IOException
     {
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexContext);
 

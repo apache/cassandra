@@ -21,10 +21,13 @@ package org.apache.cassandra.db.marshal;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -35,6 +38,15 @@ public class VectorType extends AbstractType<float[]>
 
     public final int dimensions;
     public final Serializer serializer;
+
+    public static VectorType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
+    {
+        int dimensions = parser.getVectorDimensions();
+        if (dimensions <= 0)
+            throw new ConfigurationException("VectorType dimensions must be > 0");
+
+        return getInstance(dimensions);
+    }
 
     public static VectorType getInstance(int dimensions)
     {
@@ -81,6 +93,17 @@ public class VectorType extends AbstractType<float[]>
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
         return null;
+    }
+
+    @Override
+    public String toString()
+    {
+        StringBuilder builder = new StringBuilder();
+        builder.append(getClass().getName());
+        builder.append('(');
+        builder.append(dimensions);
+        builder.append(')');
+        return builder.toString();
     }
 
     @Override

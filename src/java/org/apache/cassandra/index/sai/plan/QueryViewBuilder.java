@@ -164,7 +164,10 @@ public class QueryViewBuilder
             View view = expression.context.getView();
 
             NavigableSet<SSTableIndex> indexes = new TreeSet<>(SSTableIndex.COMPARATOR);
-            indexes.addAll(selectIndexesInRange(view.match(expression)));
+            if (expression.context.isVector())
+                indexes.addAll(view.getIndexes());
+            else
+                indexes.addAll(selectIndexesInRange(view.match(expression)));
 
             if (indexes.isEmpty())
                 continue;

@@ -26,6 +26,7 @@ import java.util.*;
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableMap;
 
+import jnr.ffi.annotations.In;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -166,6 +167,31 @@ public class TypeParser
             map.put(k, v);
         }
         throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
+    }
+
+    public int getVectorDimensions() throws SyntaxException, ConfigurationException
+    {
+        if (isEOS())
+            throw new IllegalStateException();
+
+        if (str.charAt(idx) != '(')
+            throw new IllegalStateException();
+
+        ++idx; // skipping '('
+
+        if (!skipBlankAndComma())
+            throw new IllegalStateException();
+
+        try
+        {
+            return Integer.parseInt(readNextIdentifier());
+        }
+        catch (NumberFormatException e)
+        {
+            throw new IllegalStateException();
+        }
+
+
     }
 
     public List<AbstractType<?>> getTypeParameters() throws SyntaxException, ConfigurationException

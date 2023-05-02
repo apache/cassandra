@@ -23,7 +23,9 @@ import java.io.IOException;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
+import org.apache.cassandra.index.sai.disk.v1.VectorIndexSearcher;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingListRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
@@ -57,9 +59,11 @@ public abstract class IndexSegmentSearcher implements Closeable
     public static IndexSegmentSearcher open(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                             PerColumnIndexFiles indexFiles,
                                             SegmentMetadata segmentMetadata,
+                                            IndexDescriptor indexDescriptor, //TODO We should be able to get rid of this
                                             IndexContext indexContext) throws IOException
     {
-        return new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
+        return indexContext.isVector() ? new VectorIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext)
+                                       : new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
     }
 
     /**
