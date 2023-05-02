@@ -66,10 +66,10 @@ public class QueryContext
 
     public void checkpoint()
     {
-//        if (totalQueryTimeNs() >= executionQuotaNano && !DISABLE_TIMEOUT)
-//        {
-//            queryTimedOut = true;
-//            throw new QueryCancelledException(readCommand);
-//        }
+        if (totalQueryTimeNs() >= executionQuotaNano && !DISABLE_TIMEOUT)
+        {
+            queryTimedOut = true;
+            throw new QueryCancelledException(readCommand);
+        }
     }
 }

@@ -26,7 +26,6 @@ import java.util.*;
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableMap;
 
-import jnr.ffi.annotations.In;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
