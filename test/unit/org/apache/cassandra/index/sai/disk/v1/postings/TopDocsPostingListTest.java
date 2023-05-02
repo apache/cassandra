@@ -24,8 +24,9 @@ import java.util.List;
 
 import org.junit.Test;
 
-import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.v1.VectorIndexSearcher;
+import org.apache.cassandra.index.sai.postings.PeekablePostingList;
+import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.lucene.search.ScoreDoc;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -87,7 +88,7 @@ public class TopDocsPostingListTest
     private static List<Integer> values(PostingList postingList) throws IOException
     {
         List<Integer> values = new ArrayList<>();
-        PostingList.PeekablePostingList peekable = postingList.peekable();
+        PeekablePostingList peekable = PeekablePostingList.makePeekable(postingList);
 
         while (peekable.peek() != PostingList.END_OF_STREAM)
             values.add(Math.toIntExact(peekable.nextPosting()));

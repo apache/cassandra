@@ -31,7 +31,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -939,12 +938,6 @@ public interface CQL3Type
             public boolean supportsFreezing()
             {
                 return false;
-            }
-
-            @Override
-            public void forEachUserType(Consumer<UTName> userTypeNameConsumer)
-            {
-                // noop
             }
 
             @Override

@@ -50,6 +50,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.memory.MemtableIndexManager;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
@@ -100,6 +101,7 @@ public class IndexContext
     private final IndexViewManager viewManager;
     private final IndexMetrics indexMetrics;
     private final ColumnQueryMetrics columnQueryMetrics;
+    private final IndexWriterConfig indexWriterConfig;
     private final AbstractAnalyzer.AnalyzerFactory indexAnalyzerFactory;
     private final AbstractAnalyzer.AnalyzerFactory queryAnalyzerFactory;
     private final PrimaryKey.Factory primaryKeyFactory;
@@ -124,6 +126,8 @@ public class IndexContext
         this.indexMetadata = indexMetadata;
         this.memtableIndexManager = indexMetadata == null ? null : new MemtableIndexManager(this);
         this.indexMetrics = indexMetadata == null ? null : new IndexMetrics(this);
+        this.indexWriterConfig = indexMetadata == null ? IndexWriterConfig.defaultConfig()
+                                                       : IndexWriterConfig.fromOptions(validator, indexMetadata.options);
         this.viewManager = new IndexViewManager(this);
         this.columnQueryMetrics = new ColumnQueryMetrics.TrieIndexMetrics(this);
 
@@ -145,6 +149,11 @@ public class IndexContext
     public String getKeyspace()
     {
         return keyspace;
+    }
+
+    public IndexWriterConfig getIndexWriterConfig()
+    {
+        return indexWriterConfig;
     }
 
     public IndexMetrics getIndexMetrics()

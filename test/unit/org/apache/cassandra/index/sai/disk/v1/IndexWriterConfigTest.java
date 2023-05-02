@@ -35,7 +35,7 @@ public class IndexWriterConfigTest
     @Test
     public void defaultsTest()
     {
-        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), new HashMap<>());
+        IndexWriterConfig config = IndexWriterConfig.fromOptions(VectorType.getInstance(3), new HashMap<>());
 
         assertThat(config.getMaximumNodeConnections()).isEqualTo(16);
         assertThat(config.getConstructionBeamWidth()).isEqualTo(100);
@@ -47,23 +47,23 @@ public class IndexWriterConfigTest
     {
         Map<String, String> options = new HashMap<>();
         options.put(IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS, "10");
-        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options);
+        IndexWriterConfig config = IndexWriterConfig.fromOptions(VectorType.getInstance(3), options);
         assertThat(config.getMaximumNodeConnections()).isEqualTo(10);
 
         options.put(IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS, "-1");
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions(VectorType.getInstance(3), options))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Maximum number of connections for index test cannot be <= 0 or > 512, was -1");
+        .hasMessage("Maximum number of connections cannot be <= 0 or > 512, was -1");
 
         options.put(IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS, Integer.toString(IndexWriterConfig.MAXIMUM_MAXIMUM_NODE_CONNECTIONS + 1));
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions(VectorType.getInstance(3), options))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Maximum number of connections for index test cannot be <= 0 or > 512, was " + (IndexWriterConfig.MAXIMUM_MAXIMUM_NODE_CONNECTIONS + 1));
+        .hasMessage("Maximum number of connections cannot be <= 0 or > 512, was " + (IndexWriterConfig.MAXIMUM_MAXIMUM_NODE_CONNECTIONS + 1));
 
         options.put(IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS, "abc");
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions(VectorType.getInstance(3), options))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Maximum number of connections abc is not a valid integer for index test");
+        .hasMessage("Maximum number of connections abc is not a valid integer");
     }
 
     @Test
@@ -71,23 +71,23 @@ public class IndexWriterConfigTest
     {
         Map<String, String> options = new HashMap<>();
         options.put(IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH, "150");
-        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options);
+        IndexWriterConfig config = IndexWriterConfig.fromOptions(VectorType.getInstance(3), options);
         assertThat(config.getConstructionBeamWidth()).isEqualTo(150);
 
         options.put(IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH, "-1");
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions(VectorType.getInstance(3), options))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Construction beam width for index test cannot be <= 0 or > 3200, was -1");
+        .hasMessage("Construction beam width cannot be <= 0 or > 3200, was -1");
 
         options.put(IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH, Integer.toString(IndexWriterConfig.MAXIMUM_CONSTRUCTION_BEAM_WIDTH + 1));
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions(VectorType.getInstance(3), options))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Construction beam width for index test cannot be <= 0 or > 3200, was " + (IndexWriterConfig.MAXIMUM_CONSTRUCTION_BEAM_WIDTH + 1));
+        .hasMessage("Construction beam width cannot be <= 0 or > 3200, was " + (IndexWriterConfig.MAXIMUM_CONSTRUCTION_BEAM_WIDTH + 1));
 
         options.put(IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH, "abc");
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions(VectorType.getInstance(3), options))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Construction beam width abc is not a valid integer for index test");
+        .hasMessage("Construction beam width abc is not a valid integer");
     }
 
     @Test
@@ -95,16 +95,16 @@ public class IndexWriterConfigTest
     {
         Map<String, String> options = new HashMap<>();
         options.put(IndexWriterConfig.SIMILARITY_FUNCTION, "DOT_PRODUCT");
-        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options);
+        IndexWriterConfig config = IndexWriterConfig.fromOptions(VectorType.getInstance(3), options);
         assertThat(config.getSimilarityFunction()).isEqualTo(VectorSimilarityFunction.DOT_PRODUCT);
 
         options.put(IndexWriterConfig.SIMILARITY_FUNCTION, "euclidean");
-        config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options);
+        config = IndexWriterConfig.fromOptions(VectorType.getInstance(3), options);
         assertThat(config.getSimilarityFunction()).isEqualTo(VectorSimilarityFunction.EUCLIDEAN);
 
         options.put(IndexWriterConfig.SIMILARITY_FUNCTION, "blah");
-        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(3), options))
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions(VectorType.getInstance(3), options))
         .isInstanceOf(InvalidRequestException.class)
-        .hasMessage("Similarity function BLAH was not recognized for index test. Valid values are: EUCLIDEAN, DOT_PRODUCT, COSINE");
+        .hasMessage("Similarity function BLAH was not recognized. Valid values are: EUCLIDEAN, DOT_PRODUCT, COSINE");
     }
 }
