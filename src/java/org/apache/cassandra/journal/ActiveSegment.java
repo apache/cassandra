@@ -23,10 +23,16 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.codahale.metrics.Timer;
+import org.apache.cassandra.concurrent.ExecutionFailure;
+import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -35,6 +41,8 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 final class ActiveSegment<K> extends Segment<K>
 {
+    private static final Logger logger = LoggerFactory.getLogger(ActiveSegment.class);
+
     final FileChannel channel;
 
     // OpOrder used to order appends wrt flush
@@ -221,18 +229,22 @@ final class ActiveSegment<K> extends Segment<K>
 
     /**
      * Possibly force a disk flush for this segment file.
+     * TODO FIXME: calls from outside Flusher + callbacks
+     * @return last synced offset
      */
-    synchronized void flush()
+    synchronized int flush()
     {
         int allocatePosition = this.allocatePosition.get();
-        if (lastFlushedOffset < allocatePosition)
-        {
-            waitForModifications();
-            flushInternal();
-            lastFlushedOffset = allocatePosition;
-            syncedOffsets.mark(Math.min(allocatePosition, endOfBuffer));
-            flushComplete.signalAll();
-        }
+        if (lastFlushedOffset >= allocatePosition)
+            return lastFlushedOffset;
+
+        waitForModifications();
+        flushInternal();
+        lastFlushedOffset = allocatePosition;
+        int syncedOffset = Math.min(allocatePosition, endOfBuffer);
+        syncedOffsets.mark(syncedOffset);
+        flushComplete.signalAll();
+        return syncedOffset;
     }
 
     private void waitForFlush(int position)
@@ -266,6 +278,11 @@ final class ActiveSegment<K> extends Segment<K>
         {
             throw new JournalWriteError(descriptor, file, e);
         }
+    }
+
+    boolean isFullyFlushed(int syncedOffset)
+    {
+        return syncedOffset >= endOfBuffer;
     }
 
     /**
@@ -382,6 +399,26 @@ final class ActiveSegment<K> extends Segment<K>
             }
         }
 
+        void asyncWrite(K id, ByteBuffer record, Set<Integer> hosts, Executor executor, AsyncWriteCallback callback)
+        {
+            try (BufferedDataOutputStreamPlus out = new DataOutputBufferFixed(buffer))
+            {
+                int entrySize = totalEntrySize(hosts, record.remaining());
+                EntrySerializer.write(id, record, hosts, keySupport, out, descriptor.userVersion);
+                index.update(id, position);
+                metadata.update(hosts);
+                writeCallbacksExternal.offer(new QueuedWriteCallback(position + entrySize, executor, callback));
+            }
+            catch (Throwable t)
+            {
+                executor.execute(() -> callback.onError(t));
+            }
+            finally
+            {
+                appendOp.close();
+            }
+        }
+
         void awaitFlush(Timer waitingOnFlush)
         {
             try (Timer.Context ignored = waitingOnFlush.time())
@@ -389,5 +426,89 @@ final class ActiveSegment<K> extends Segment<K>
                 waitForFlush(position);
             }
         }
+    }
+
+    // (external) MPSC queue for async write (flush) callbacks, to be executed in *write position order*
+    private final ManyToOneConcurrentLinkedQueue<QueuedWriteCallback> writeCallbacksExternal =
+        new ManyToOneConcurrentLinkedQueue<>();
+    // (internal) single writer / single reader list of callbacks used to drain the callbacks into for sorting
+    private final ArrayList<QueuedWriteCallback> writeCallbacksInternal =
+        new ArrayList<>();
+
+    static final class QueuedWriteCallback implements Comparable<QueuedWriteCallback>
+    {
+        final long recordLimit;
+        final Executor executor;
+        final AsyncWriteCallback callback;
+
+        QueuedWriteCallback(long recordLimit, Executor executor, AsyncWriteCallback callback)
+        {
+            this.recordLimit = recordLimit;
+            this.executor = executor;
+            this.callback = callback;
+        }
+
+        @Override
+        public int compareTo(QueuedWriteCallback other)
+        {
+            // sort more recent callbacks first to simplify callback execution order later
+            return -Long.compare(this.recordLimit, other.recordLimit);
+        }
+
+        void scheduleOnSuccess()
+        {
+            try
+            {
+                executor.execute(callback);
+            }
+            catch (Throwable t)
+            {
+                logger.error("Unexpected error while submitting onSuccess callback to executor", t);
+                ExecutionFailure.handle(t);
+            }
+        }
+
+        void scheduleOnError(Throwable error)
+        {
+            try
+            {
+                executor.execute(() -> callback.onError(error));
+            }
+            catch (Throwable t)
+            {
+                logger.error("Unexpected error while submitting onError callback to executor", t);
+                ExecutionFailure.handle(t);
+            }
+        }
+    }
+
+    void scheduleOnSuccessCallbacks(long syncedOffset)
+    {
+        // sort and execute callbacks in write position order, up until the furtherst synced offset
+        writeCallbacksExternal.drain(writeCallbacksInternal::add);
+        writeCallbacksInternal.sort(null);
+
+        for (int i = writeCallbacksInternal.size() - 1; i >= 0; i--)
+        {
+            QueuedWriteCallback callback = writeCallbacksInternal.get(i);
+            if (callback.recordLimit > syncedOffset)
+                break;
+            callback.scheduleOnSuccess();
+            writeCallbacksInternal.remove(i);
+        }
+    }
+
+    void scheduleOnErrorCallbacks(Throwable t)
+    {
+        writeCallbacksExternal.drain(writeCallbacksInternal::add);
+        writeCallbacksInternal.sort(null);
+
+        for (int i = writeCallbacksInternal.size() - 1; i >= 0; i--)
+        {
+            QueuedWriteCallback callback = writeCallbacksInternal.get(i);
+            callback.scheduleOnError(t);
+        }
+
+        writeCallbacksInternal.clear();
     }
 }

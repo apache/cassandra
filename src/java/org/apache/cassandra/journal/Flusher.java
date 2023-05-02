@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.journal;
 
-import java.util.concurrent.Executor;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
@@ -26,7 +26,6 @@ import org.slf4j.LoggerFactory;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
-import org.apache.cassandra.concurrent.SequentialExecutorPlus;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.Semaphore;
@@ -55,7 +54,6 @@ final class Flusher<K, V>
     private final Params params;
 
     private volatile Interruptible flushExecutor;
-    private volatile SequentialExecutorPlus callbackExecutor;
 
     // counts of total pending write and written entries
     private final AtomicLong pending = new AtomicLong(0);
@@ -72,8 +70,8 @@ final class Flusher<K, V>
     private final Semaphore haveWork = newSemaphore(1);
     private volatile boolean flushRequested;
 
-    private final SyncFlushMethod<K> syncFlushMethod;
-    private final AsyncFlushMethod<K> asyncFlushMethod;
+    private final FlushMethod<K> syncFlushMethod;
+    private final FlushMethod<K> asyncFlushMethod;
 
     Flusher(Journal<K, V> journal)
     {
@@ -87,21 +85,19 @@ final class Flusher<K, V>
     {
         String flushExecutorName = journal.name + "-disk-flusher-" + params.flushMode().toString().toLowerCase();
         flushExecutor = executorFactory().infiniteLoop(flushExecutorName, new FlushRunnable(preciseTime), SAFE, NON_DAEMON, SYNCHRONIZED);
-
-        String callbackExecutorName = journal.name + "-flush-callbacks";
-        callbackExecutor = executorFactory().sequential(callbackExecutorName);
     }
 
     void shutdown()
     {
         flushExecutor.shutdown();
-        callbackExecutor.shutdown();
     }
 
     private class FlushRunnable implements Interruptible.Task
     {
         private final MonotonicClock clock;
         private final NoSpamLogger noSpamLogger;
+
+        private final ArrayList<ActiveSegment<K>> segmentsToFlush = new ArrayList<>();
 
         FlushRunnable(MonotonicClock clock)
         {
@@ -138,7 +134,7 @@ final class Flusher<K, V>
                 if (flushToDisk)
                 {
                     flushRequested = false;
-                    journal.flush();
+                    doFlush();
                     lastFlushedAt = startedRunAt;
                     flushComplete.signalAll();
                 }
@@ -154,6 +150,43 @@ final class Flusher<K, V>
                 if (wakeUpAt > now)
                     haveWork.tryAcquireUntil(1, wakeUpAt);
             }
+        }
+
+        private void doFlush()
+        {
+            journal.selectSegmentToFlush(segmentsToFlush);
+            // only schedule onSuccess callbacks for a segment if the preceding segments
+            // have been fully flushed, to preserve 1:1 mapping between record's position
+            // in the journal and onSuccess callback scheduling order
+            boolean scheduleOnSuccessCallbacks = true;
+            try
+            {
+                for (ActiveSegment<K> segment : segmentsToFlush)
+                {
+                    try
+                    {
+                        scheduleOnSuccessCallbacks = doFlush(segment, scheduleOnSuccessCallbacks) && scheduleOnSuccessCallbacks;
+                    }
+                    catch (Throwable t)
+                    {
+                        segmentsToFlush.forEach(s -> s.scheduleOnErrorCallbacks(t));
+                        throw t;
+                    }
+                }
+            }
+            finally
+            {
+                segmentsToFlush.clear();
+            }
+        }
+
+        // flush the segment, schedule write callbacks if requested, return whether the segment has been flushed fully
+        private boolean doFlush(ActiveSegment<K> segment, boolean scheduleCallbacks)
+        {
+            int syncedOffset = segment.flush();
+            if (scheduleCallbacks)
+                segment.scheduleOnSuccessCallbacks(syncedOffset);
+            return segment.isFullyFlushed(syncedOffset);
         }
 
         private long firstLaggedAt = Long.MIN_VALUE; // first lag ever or since last logged warning
@@ -198,18 +231,12 @@ final class Flusher<K, V>
     }
 
     @FunctionalInterface
-    private interface SyncFlushMethod<K>
+    private interface FlushMethod<K>
     {
         void flush(ActiveSegment<K>.Allocation allocation);
     }
 
-    @FunctionalInterface
-    private interface AsyncFlushMethod<K>
-    {
-        void flush(ActiveSegment<K>.Allocation allocation, Executor executor, AsyncWriteCallback callback);
-    }
-
-    private SyncFlushMethod<K> syncFlushMethod(Params params)
+    private FlushMethod<K> syncFlushMethod(Params params)
     {
         switch (params.flushMode())
         {
@@ -220,7 +247,7 @@ final class Flusher<K, V>
         }
     }
 
-    private AsyncFlushMethod<K> asyncFlushMethod(Params params)
+    private FlushMethod<K> asyncFlushMethod(Params params)
     {
         switch (params.flushMode())
         {
@@ -234,12 +261,11 @@ final class Flusher<K, V>
     void waitForFlush(ActiveSegment<K>.Allocation alloc)
     {
         syncFlushMethod.flush(alloc);
-        written.incrementAndGet();
     }
 
-    void asyncFlush(ActiveSegment<K>.Allocation alloc, Executor executor, AsyncWriteCallback callback)
+    void asyncFlush(ActiveSegment<K>.Allocation alloc)
     {
-        asyncFlushMethod.flush(alloc, executor, callback);
+        asyncFlushMethod.flush(alloc);
     }
 
     private void waitForFlushBatch(ActiveSegment<K>.Allocation alloc)
@@ -248,19 +274,16 @@ final class Flusher<K, V>
         requestExtraFlush();
         alloc.awaitFlush(journal.metrics.waitingOnFlush);
         pending.decrementAndGet();
+        written.incrementAndGet();
     }
 
-    private void asyncFlushBatch(ActiveSegment<K>.Allocation alloc, Executor executor, AsyncWriteCallback callback)
+    private void asyncFlushBatch(ActiveSegment<K>.Allocation alloc)
     {
         pending.incrementAndGet();
         requestExtraFlush();
-        callbackExecutor.execute(() ->
-        {
-            alloc.awaitFlush(journal.metrics.waitingOnFlush);
-            pending.decrementAndGet();
-            written.incrementAndGet();
-            executor.execute(callback);
-         });
+        // alloc.awaitFlush(journal.metrics.waitingOnFlush); // TODO FIXME
+        pending.decrementAndGet();
+        written.incrementAndGet();
     }
 
     private void waitForFlushGroup(ActiveSegment<K>.Allocation alloc)
@@ -268,18 +291,15 @@ final class Flusher<K, V>
         pending.incrementAndGet();
         alloc.awaitFlush(journal.metrics.waitingOnFlush);
         pending.decrementAndGet();
+        written.incrementAndGet();
     }
 
-    private void asyncFlushGroup(ActiveSegment<K>.Allocation alloc, Executor executor, AsyncWriteCallback callback)
+    private void asyncFlushGroup(ActiveSegment<K>.Allocation alloc)
     {
         pending.incrementAndGet();
-        callbackExecutor.execute(() ->
-        {
-            alloc.awaitFlush(journal.metrics.waitingOnFlush);
-            pending.decrementAndGet();
-            written.incrementAndGet();
-            executor.execute(callback);
-        });
+        // alloc.awaitFlush(journal.metrics.waitingOnFlush); // TODO FIXME
+        pending.decrementAndGet();
+        written.incrementAndGet();
     }
 
     private void waitForFlushPeriodic(ActiveSegment<K>.Allocation alloc)
@@ -291,22 +311,15 @@ final class Flusher<K, V>
             awaitFlushAt(expectedFlushTime, journal.metrics.waitingOnFlush.time());
             pending.decrementAndGet();
         }
+        written.incrementAndGet();
     }
 
-    private void asyncFlushPeriodic(ActiveSegment<K>.Allocation ignore, Executor executor, AsyncWriteCallback callback)
+    private void asyncFlushPeriodic(ActiveSegment<K>.Allocation ignore)
     {
-        long expectedFlushTime = nanoTime() - periodicFlushLagBlockNanos();
-        callbackExecutor.execute(() ->
-        {
-            if (lastFlushedAt < expectedFlushTime)
-            {
-                pending.incrementAndGet();
-                awaitFlushAt(expectedFlushTime, journal.metrics.waitingOnFlush.time());
-                pending.decrementAndGet();
-            }
-            written.incrementAndGet();
-            executor.execute(callback);
-        });
+        pending.incrementAndGet();
+        // awaitFlushAt(expectedFlushTime, journal.metrics.waitingOnFlush.time()); // TODO FIXME
+        pending.decrementAndGet();
+        written.incrementAndGet();
     }
 
     /**

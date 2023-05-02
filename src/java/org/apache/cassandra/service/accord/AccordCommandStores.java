@@ -22,9 +22,16 @@ import accord.api.DataStore;
 import accord.api.ProgressLog;
 import accord.local.CommandStores;
 import accord.local.NodeTimeService;
+import accord.local.PreLoadContext;
+import accord.local.SafeCommandStore;
 import accord.local.ShardDistributor;
+import accord.primitives.Routables;
 import accord.topology.Topology;
+import accord.utils.MapReduceConsume;
 import accord.utils.RandomSource;
+import org.apache.cassandra.concurrent.ExecutionFailure;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.journal.AsyncWriteCallback;
 
 public class AccordCommandStores extends CommandStores<AccordCommandStore>
 {
@@ -33,7 +40,7 @@ public class AccordCommandStores extends CommandStores<AccordCommandStore>
     AccordCommandStores(NodeTimeService time, Agent agent, DataStore store, RandomSource random,
                         ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory, AccordJournal journal)
     {
-        super(time, agent, store, random, shardDistributor, progressLogFactory, AccordCommandStore.factory(journal));
+        super(time, agent, store, random, shardDistributor, progressLogFactory, AccordCommandStore::new);
         this.journal = journal;
         setCacheSize(maxCacheSize());
     }
@@ -50,6 +57,49 @@ public class AccordCommandStores extends CommandStores<AccordCommandStore>
         super.shutdown();
         journal.shutdown();
         //TODO shutdown isn't useful by itself, we need a way to "wait" as well.  Should be AutoCloseable or offer awaitTermination as well (think Shutdownable interface)
+    }
+
+    @Override
+    protected <O> void mapReduceConsume(
+        PreLoadContext context,
+        Routables<?, ?> keys,
+        long minEpoch,
+        long maxEpoch,
+        MapReduceConsume<? super SafeCommandStore, O> mapReduceConsume)
+    {
+        // append PreAccept, Accept, Commit, and Apply messages durably to AccordJournal before processing
+        if (journal.mustMakeDurable(context))
+            mapReduceConsumeDurable(context, keys, minEpoch, maxEpoch, mapReduceConsume);
+        else
+            super.mapReduceConsume(context, keys, minEpoch, maxEpoch, mapReduceConsume);
+    }
+
+    private <O> void mapReduceConsumeDurable(
+        PreLoadContext context,
+        Routables<?, ?> keys,
+        long minEpoch,
+        long maxEpoch,
+        MapReduceConsume<? super SafeCommandStore, O> mapReduceConsume)
+    {
+        journal.append(context, ImmediateExecutor.INSTANCE, new AsyncWriteCallback()
+        {
+            @Override
+            public void onSuccess()
+            {
+                // TODO (performance, expected): do not retain references to messages beyond a certain total
+                //      cache threshold; in case of flush lagging behind, read the messages from journal and
+                //      deserialize instead before processing, to prevent memory pressure buildup from messages
+                //      pending flush to disk.
+                AccordCommandStores.super.mapReduceConsume(context, keys, minEpoch, maxEpoch, mapReduceConsume);
+            }
+
+            @Override
+            public void onError(Throwable error)
+            {
+                // should we invoke Agent#onUncaughtException() instead?
+                ExecutionFailure.handle(error);
+            }
+        });
     }
 
     @Override

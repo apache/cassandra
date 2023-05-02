@@ -20,6 +20,7 @@ package org.apache.cassandra.journal;
 import java.io.IOException;
 import java.nio.file.FileStore;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -261,12 +262,13 @@ public class Journal<K, V>
      * Asynchronously write a record to the journal. Writes to the journal in the calling thread,
      * but doesn't wait for flush.
      * <p/>
-     * Executes the supplied callback on the executor provided,
-     * once the record has been deemed durable according to the journal flush mode.
+     * Executes the supplied callback on the executor provided once the record has been durably written to disk
      *
      * @param id user-provided record id, expected to roughly correlate with time and go up
      * @param record the record to store
      * @param hosts hosts expected to invalidate the record
+     * @param executor executor to run the callback on
+     * @param callback the callback to run on
      */
     public void asyncWrite(K id, V record, Set<Integer> hosts, @Nonnull Executor executor, @Nonnull AsyncWriteCallback callback)
     {
@@ -274,8 +276,8 @@ public class Journal<K, V>
         {
             valueSerializer.serialize(record, dob, params.userVersion());
             ActiveSegment<K>.Allocation alloc = allocate(dob.getLength(), hosts);
-            alloc.write(id, dob.unsafeGetBufferAndFlip(), hosts);
-            flusher.asyncFlush(alloc, executor, callback);
+            alloc.asyncWrite(id, dob.unsafeGetBufferAndFlip(), hosts, executor, callback);
+            flusher.asyncFlush(alloc);
         }
         catch (IOException e)
         {
@@ -451,21 +453,6 @@ public class Journal<K, V>
         return ActiveSegment.create(descriptor, params, keySupport);
     }
 
-    /**
-     * Request that journal segment files flush themselves, if needed. Blocks.
-     */
-    void flush()
-    {
-        ActiveSegment<K> current = currentSegment;
-        for (ActiveSegment<K> segment : segments().onlyActive())
-        {
-            // do not sync segments that became active after flush started
-            if (segment.descriptor.timestamp > current.descriptor.timestamp)
-                return;
-            segment.flush();
-        }
-    }
-
     private void closeAllSegments()
     {
         Segments<K> allSegments = segments();
@@ -527,6 +514,17 @@ public class Journal<K, V>
             newSegments = currentSegments.withCompactedSegment(oldSegment, newSegment);
         }
         while (!segments.compareAndSet(currentSegments, newSegments));
+    }
+
+    void selectSegmentToFlush(Collection<ActiveSegment<K>> into)
+    {
+        ActiveSegment<K> current = currentSegment;
+        for (ActiveSegment<K> segment : segments().onlyActive())
+        {
+            // do not sync segments that became active after flush started
+            if (segment.descriptor.timestamp <= current.descriptor.timestamp)
+                into.add(segment);
+        }
     }
 
     /**

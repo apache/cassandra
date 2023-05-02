@@ -115,7 +115,6 @@ public class AccordJournalTest
     {
         Gen<TxnId> txnIdGen = AccordGens.txnIds();
         Gen<AccordJournal.Type> typeGen = Gens.enums().all(AccordJournal.Type.class);
-        Gen.IntGen storeGen = Gens.ints().between(0, 42);
-        return rs -> new Key(txnIdGen.next(rs), typeGen.next(rs), storeGen.nextInt(rs));
+        return rs -> new Key(txnIdGen.next(rs), typeGen.next(rs));
     }
 }

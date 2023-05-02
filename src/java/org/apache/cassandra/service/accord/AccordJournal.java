@@ -83,59 +83,57 @@ class AccordJournal
         journal.shutdown();
     }
 
-    boolean mustAppend(PreLoadContext context)
+    boolean mustMakeDurable(PreLoadContext context)
     {
         return context instanceof TxnRequest && Type.mustAppend((TxnRequest<?>) context);
     }
 
-    void append(int storeId, PreLoadContext context, Executor executor, AsyncWriteCallback callback)
+    void append(PreLoadContext context, Executor executor, AsyncWriteCallback callback)
     {
-        append(storeId, (TxnRequest<?>) context, executor, callback);
+        append((TxnRequest<?>) context, executor, callback);
     }
 
-    void append(int storeId, TxnRequest<?> message, Executor executor, AsyncWriteCallback callback)
+    void append(TxnRequest<?> message, Executor executor, AsyncWriteCallback callback)
     {
-        Key key = new Key(message.txnId, Type.fromMsgType(message.type()), storeId);
+        Key key = new Key(message.txnId, Type.fromMsgType(message.type()));
         journal.asyncWrite(key, message, SENTINEL_HOSTS, executor, callback);
     }
 
-    TxnRequest<?> read(int storeId, TxnId txnId, Type type)
+    TxnRequest<?> read(TxnId txnId, Type type)
     {
-        Key key = new Key(txnId, type, storeId);
+        Key key = new Key(txnId, type);
         return journal.read(key);
     }
 
-    PreAccept readPreAccept(int storeId, TxnId txnId)
+    PreAccept readPreAccept(TxnId txnId)
     {
-        return (PreAccept) read(storeId, txnId, Type.PREACCEPT_REQ);
+        return (PreAccept) read(txnId, Type.PREACCEPT_REQ);
     }
 
-    Accept readAccept(int storeId, TxnId txnId)
+    Accept readAccept(TxnId txnId)
     {
-        return (Accept) read(storeId, txnId, Type.ACCEPT_REQ);
+        return (Accept) read(txnId, Type.ACCEPT_REQ);
     }
 
-    Commit readCommit(int storeId, TxnId txnId)
+    Commit readCommit(TxnId txnId)
     {
-        return (Commit) read(storeId, txnId, Type.COMMIT_REQ);
+        return (Commit) read(txnId, Type.COMMIT_REQ);
     }
 
-    Apply readApply(int storeId, TxnId txnId)
+    Apply readApply(TxnId txnId)
     {
-        return (Apply) read(storeId, txnId, Type.APPLY_REQ);
+        return (Apply) read(txnId, Type.APPLY_REQ);
     }
 
     static class Key
     {
         final TxnId txnId;
         final Type type;
-        final int storeId;
 
-        Key(TxnId txnId, Type type, int storeId)
+        Key(TxnId txnId, Type type)
         {
             this.txnId = txnId;
             this.type = type;
-            this.storeId = storeId;
         }
 
         /**
@@ -152,17 +150,15 @@ class AccordJournal
             private static final int EPOCH_AND_FLAGS_OFFSET = HLC_OFFSET             + LONG_SIZE;
             private static final int NODE_OFFSET            = EPOCH_AND_FLAGS_OFFSET + LONG_SIZE;
             private static final int TYPE_OFFSET            = NODE_OFFSET            + INT_SIZE;
-            private static final int STORE_ID_OFFSET        = TYPE_OFFSET            + BYTE_SIZE;
 
             @Override
             public int serializedSize(int version)
             {
-                return LONG_SIZE // txnId.hlc()
-                     + 6         // txnId.epoch()
-                     + 2         // txnId.flags()
-                     + INT_SIZE  // txnId.node
-                     + BYTE_SIZE // type
-                     + INT_SIZE; // storeId
+                return LONG_SIZE  // txnId.hlc()
+                     + 6          // txnId.epoch()
+                     + 2          // txnId.flags()
+                     + INT_SIZE   // txnId.node
+                     + BYTE_SIZE; // type
             }
 
             @Override
@@ -170,7 +166,6 @@ class AccordJournal
             {
                 serializeTxnId(key.txnId, out);
                 out.writeByte(key.type.id);
-                out.writeInt(key.storeId);
             }
 
             private void serializeTxnId(TxnId txnId, DataOutputPlus out) throws IOException
@@ -185,8 +180,7 @@ class AccordJournal
             {
                 TxnId txnId = deserializeTxnId(in);
                 int type = in.readByte();
-                int storeId = in.readInt();
-                return new Key(txnId, Type.fromId(type), storeId);
+                return new Key(txnId, Type.fromId(type));
             }
 
             private TxnId deserializeTxnId(DataInputPlus in) throws IOException
@@ -202,8 +196,7 @@ class AccordJournal
             {
                 TxnId txnId = deserializeTxnId(buffer, position);
                 int type = buffer.get(position + TYPE_OFFSET);
-                int storeId = buffer.getInt(position + STORE_ID_OFFSET);
-                return new Key(txnId, Type.fromId(type), storeId);
+                return new Key(txnId, Type.fromId(type));
             }
 
             private TxnId deserializeTxnId(ByteBuffer buffer, int position)
@@ -219,7 +212,6 @@ class AccordJournal
             {
                 updateChecksum(crc, key.txnId);
                 crc.update(key.type.id & 0xFF);
-                updateChecksumInt(crc, key.storeId);
             }
 
             private void updateChecksum(Checksum crc, TxnId txnId)
@@ -237,10 +229,6 @@ class AccordJournal
 
                 byte type = buffer.get(position + TYPE_OFFSET);
                 cmp = Byte.compare((byte) k.type.id, type);
-                if (cmp != 0) return cmp;
-
-                int storeId = buffer.getInt(position + STORE_ID_OFFSET);
-                cmp = Integer.compareUnsigned(k.storeId, storeId);
                 return cmp;
             }
 
@@ -264,7 +252,6 @@ class AccordJournal
             {
                 int cmp = compare(k1.txnId, k2.txnId);
                 if (cmp == 0) cmp = Byte.compare((byte) k1.type.id, (byte) k2.type.id);
-                if (cmp == 0) cmp = Integer.compareUnsigned(k1.storeId, k2.storeId);
                 return cmp;
             }
 
@@ -302,18 +289,13 @@ class AccordJournal
 
         boolean equals(Key other)
         {
-            return this.storeId == other.storeId
-                && this.type == other.type
-                && this.txnId.equals(other.txnId);
+            return this.type == other.type && this.txnId.equals(other.txnId);
         }
 
         @Override
         public int hashCode()
         {
-            int result = txnId.hashCode();
-            result = 31 * result + type.hashCode();
-            result = 31 * result + storeId;
-            return result;
+            return type.hashCode() + 31 * txnId.hashCode();
         }
     }
 

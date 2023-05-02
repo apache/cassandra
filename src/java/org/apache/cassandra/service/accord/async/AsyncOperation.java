@@ -73,7 +73,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     enum State
     {
         INITIALIZED,
-        APPENDING, // durably appending to the journal (for PreAccept, Accept, Commit, Apply)
         LOADING,
         PREPARING_OPERATION,  // setup safe store for RUNNING
         RUNNING,
@@ -101,7 +100,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     private final PreLoadContext preLoadContext;
     private final Context context = new Context();
     private AccordSafeCommandStore safeStore;
-    private final AsyncAppender appender;
     private final AsyncLoader loader;
     private final AsyncWriter writer;
     private R result;
@@ -125,7 +123,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         this.loggingId = "0x" + Integer.toHexString(System.identityHashCode(this));
         this.commandStore = commandStore;
         this.preLoadContext = preLoadContext;
-        this.appender = createAsyncAppender(commandStore, preLoadContext);
         this.loader = createAsyncLoader(commandStore, preLoadContext);
         this.writer = createAsyncWriter(commandStore);
 
@@ -138,11 +135,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
     public String toString()
     {
         return "AsyncOperation{" + state + "}-" + loggingId;
-    }
-
-    AsyncAppender createAsyncAppender(AccordCommandStore commandStore, PreLoadContext preLoadContext)
-    {
-        return new AsyncAppender(commandStore, preLoadContext, this::callback);
     }
 
     AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
@@ -231,9 +223,6 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         switch (state)
         {
             case INITIALIZED:
-                state = State.APPENDING;
-            case APPENDING:
-                if (!appender.append()) return;
                 state = State.LOADING;
             case LOADING:
                 if (!loader.load(context, this::callback))
