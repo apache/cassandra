@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.zip.Checksum;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import accord.local.Node.Id;
@@ -59,26 +60,27 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumLong;
 /*
  *  TODO: expose more journal params via Config
  */
-class AccordJournal
+public class AccordJournal
 {
     private static final Set<Integer> SENTINEL_HOSTS = Collections.singleton(0);
 
     final File directory;
     final Journal<Key, TxnRequest<?>> journal;
 
-    AccordJournal()
+    @VisibleForTesting
+    public AccordJournal()
     {
         directory = new File(DatabaseDescriptor.getAccordJournalDirectory());
         journal = new Journal<>("AccordJournal", directory, Params.DEFAULT, Key.SUPPORT, MESSAGE_SERIALIZER);
     }
 
-    AccordJournal start()
+    public AccordJournal start()
     {
         journal.start();
         return this;
     }
 
-    void shutdown()
+    public void shutdown()
     {
         journal.shutdown();
     }
@@ -88,18 +90,18 @@ class AccordJournal
         return context instanceof TxnRequest && Type.mustAppend((TxnRequest<?>) context);
     }
 
-    void append(PreLoadContext context, Executor executor, AsyncWriteCallback callback)
+    public void append(PreLoadContext context, Executor executor, AsyncWriteCallback callback)
     {
         append((TxnRequest<?>) context, executor, callback);
     }
 
-    void append(TxnRequest<?> message, Executor executor, AsyncWriteCallback callback)
+    public void append(TxnRequest<?> message, Executor executor, AsyncWriteCallback callback)
     {
         Key key = new Key(message.txnId, Type.fromMsgType(message.type()));
         journal.asyncWrite(key, message, SENTINEL_HOSTS, executor, callback);
     }
 
-    TxnRequest<?> read(TxnId txnId, Type type)
+    public TxnRequest<?> read(TxnId txnId, Type type)
     {
         Key key = new Key(txnId, type);
         return journal.read(key);
@@ -297,6 +299,12 @@ class AccordJournal
         {
             return type.hashCode() + 31 * txnId.hashCode();
         }
+
+        @Override
+        public String toString()
+        {
+            return "Key{" + txnId + ", " + type + '}';
+        }
     }
 
     static final ValueSerializer<Key, TxnRequest<?>> MESSAGE_SERIALIZER = new ValueSerializer<Key, TxnRequest<?>>()
@@ -328,7 +336,7 @@ class AccordJournal
      *  2. It's persisted in the record key, so has the additional constraint of being fixed size and
      *     shouldn't be using varint encoding
      */
-    enum Type
+    public enum Type
     {
         PREACCEPT_REQ (0, MessageType.PREACCEPT_REQ, PreacceptSerializers.request),
         ACCEPT_REQ    (1, MessageType.ACCEPT_REQ,    AcceptSerializers.request   ),

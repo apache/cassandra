@@ -215,12 +215,16 @@ public class SimulationTestBase
         IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<ExecutorFactory>) ExecutorFactory.Global::unsafeSet, classLoader)
                         .accept(factory);
 
+        IntSupplier intSupplier = () -> {
+            if (InterceptibleThread.isDeterministic())
+                throw failWithOOM();
+            return random.uniform(Integer.MIN_VALUE, Integer.MAX_VALUE);
+        };
+
         IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableBiConsumer<InterceptorOfGlobalMethods, IntSupplier>) InterceptorOfGlobalMethods.Global::unsafeSet, classLoader)
-                        .accept(interceptorOfGlobalMethods, () -> {
-                            if (InterceptibleThread.isDeterministic())
-                                throw failWithOOM();
-                            return random.uniform(Integer.MIN_VALUE, Integer.MAX_VALUE);
-                        });
+                        .accept(interceptorOfGlobalMethods, intSupplier);
+
+        InterceptorOfGlobalMethods.Global.unsafeSet(interceptorOfGlobalMethods, intSupplier);
 
         SimulatedSystems simulated = new SimulatedSystems(random, time, null, execution, null, null, null, new FutureActionScheduler()
         {
@@ -272,8 +276,23 @@ public class SimulationTestBase
 
         ActionSchedule testSchedule = new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0, runnableScheduler, new Work(UNLIMITED, Collections.singletonList(ActionList.of(entrypoint))));
         Iterators.advance(testSchedule, Integer.MAX_VALUE);
+        if (failures.hasFailure())
+        {
+            AssertionError error = new AssertionError(String.format("Unexpected errors for seed %d", seed));
+            for (Throwable t : failures.get())
+                error.addSuppressed(t);
+            throw error;
+        }
+
         ActionSchedule checkSchedule = new ActionSchedule(simulated.time, simulated.futureScheduler, () -> 0, runnableScheduler, new Work(UNLIMITED, Collections.singletonList(ActionList.of(toAction(check, classLoader, factory, simulated)))));
         Iterators.advance(checkSchedule, Integer.MAX_VALUE);
+        if (failures.hasFailure())
+        {
+            AssertionError error = new AssertionError(String.format("Unexpected errors for seed %d", seed));
+            for (Throwable t : failures.get())
+                error.addSuppressed(t);
+            throw error;
+        }
     }
 
     public static Action toAction(IIsolatedExecutor.SerializableRunnable r, ClassLoader classLoader, InterceptingExecutorFactory factory, SimulatedSystems simulated)
