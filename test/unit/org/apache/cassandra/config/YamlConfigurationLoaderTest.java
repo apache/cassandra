@@ -91,21 +91,19 @@ public class YamlConfigurationLoaderTest
         // the reason is that its not a scalar but a complex type (collection type), so the map we use needs to have a collection to match.
         // It is possible that we define a common string representation for these types so they can be written to; this
         // is an issue that SettingsTable may need to worry about.
-        try (WithProperties ignore = new WithProperties(CONFIG_ALLOW_SYSTEM_PROPERTIES.getKey(), "true",
-                                                        SYSTEM_PROPERTY_PREFIX + "storage_port", "123",
-                                                        SYSTEM_PROPERTY_PREFIX + "commitlog_sync", "batch",
-                                                        SYSTEM_PROPERTY_PREFIX + "seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider",
-//                                                        PROPERTY_PREFIX + "client_encryption_options.cipher_suites", "[\"FakeCipher\"]",
-                                                        SYSTEM_PROPERTY_PREFIX + "client_encryption_options.optional", "false",
-                                                        SYSTEM_PROPERTY_PREFIX + "client_encryption_options.enabled", "true",
-                                                        SYSTEM_PROPERTY_PREFIX + "doesnotexist", "true"
-        ))
+        try (WithProperties ignore = new WithProperties()
+                                     .set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)
+                                     .with(SYSTEM_PROPERTY_PREFIX + "storage_port", "123",
+                                           SYSTEM_PROPERTY_PREFIX + "commitlog_sync", "batch",
+                                           SYSTEM_PROPERTY_PREFIX + "seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider",
+                                           SYSTEM_PROPERTY_PREFIX + "client_encryption_options.optional", Boolean.FALSE.toString(),
+                                           SYSTEM_PROPERTY_PREFIX + "client_encryption_options.enabled", Boolean.TRUE.toString(),
+                                           SYSTEM_PROPERTY_PREFIX + "doesnotexist", Boolean.TRUE.toString()))
         {
             Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);
             assertThat(config.storage_port).isEqualTo(123);
             assertThat(config.commitlog_sync).isEqualTo(Config.CommitLogSync.batch);
             assertThat(config.seed_provider.class_name).isEqualTo("org.apache.cassandra.locator.SimpleSeedProvider");
-//            assertThat(config.client_encryption_options.cipher_suites).isEqualTo(Collections.singletonList("FakeCipher"));
             assertThat(config.client_encryption_options.optional).isFalse();
             assertThat(config.client_encryption_options.enabled).isTrue();
         }

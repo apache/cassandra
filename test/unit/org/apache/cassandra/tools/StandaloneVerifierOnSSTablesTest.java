@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
@@ -44,6 +45,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertEquals;
 
 /**
@@ -64,8 +66,8 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
     {
         // since legacy tables test data uses ByteOrderedPartitioner that's what we need
         // for the check version to work
-        System.setProperty("cassandra.partitioner", "org.apache.cassandra.dht.ByteOrderedPartitioner");
-        System.setProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing`
+        CassandraRelevantProperties.PARTITIONER.setString("org.apache.cassandra.dht.ByteOrderedPartitioner");
+        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
         SchemaLoader.loadSchema();
         StorageService.instance.initServer();
     }
@@ -74,7 +76,7 @@ public class StandaloneVerifierOnSSTablesTest extends OfflineToolUtils
     public static void teardown() throws Exception
     {
         SchemaLoader.cleanupAndLeaveDirs();
-        System.clearProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST);
+        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.clearValue();
     }
 
     @Test

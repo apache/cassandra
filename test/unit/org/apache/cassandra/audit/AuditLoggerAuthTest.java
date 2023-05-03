@@ -42,6 +42,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.hamcrest.CoreMatchers;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -75,7 +76,7 @@ public class AuditLoggerAuthTest
             config.audit_logging_options.logger = new ParameterizedClass("InMemoryAuditLogger", null);
         });
 
-        System.setProperty("cassandra.superuser_setup_delay_ms", "0");
+        SUPERUSER_SETUP_DELAY_MS.setLong(0);
         embedded = ServerTestUtils.startEmbeddedCassandraService();
 
         executeWithCredentials(

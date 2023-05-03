@@ -49,6 +49,7 @@ import static org.apache.cassandra.SchemaLoader.createKeyspace;
 import static org.apache.cassandra.SchemaLoader.getCompressionParameters;
 import static org.apache.cassandra.SchemaLoader.loadSchema;
 import static org.apache.cassandra.SchemaLoader.standardCFMD;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.apache.cassandra.io.sstable.ScrubTest.CF_INDEX1;
 import static org.apache.cassandra.io.sstable.ScrubTest.CF_INDEX1_BYTEORDERED;
 import static org.apache.cassandra.io.sstable.ScrubTest.CF_INDEX2;
@@ -92,7 +93,7 @@ public class ScrubToolTest
         keyspace = Keyspace.open(ksName);
 
         CompactionManager.instance.disableAutoCompaction();
-        System.setProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
+        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
     }
 
     @Test

@@ -57,6 +57,8 @@ import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_CORRUPTED_SCHEMA_TABLES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.schema.SchemaKeyspaceTables.*;
@@ -77,8 +79,8 @@ public final class SchemaKeyspace
 
     private static final Logger logger = LoggerFactory.getLogger(SchemaKeyspace.class);
 
-    private static final boolean FLUSH_SCHEMA_TABLES = CassandraRelevantProperties.FLUSH_LOCAL_SCHEMA_CHANGES.getBoolean();
-    private static final boolean IGNORE_CORRUPTED_SCHEMA_TABLES = Boolean.parseBoolean(System.getProperty("cassandra.ignore_corrupted_schema_tables", "false"));
+    private static final boolean FLUSH_SCHEMA_TABLES = TEST_FLUSH_LOCAL_SCHEMA_CHANGES.getBoolean();
+    private static final boolean IGNORE_CORRUPTED_SCHEMA_TABLES_PROPERTY_VALUE = IGNORE_CORRUPTED_SCHEMA_TABLES.getBoolean();
 
     /**
      * The tables to which we added the cdc column. This is used in {@link #makeUpdateForSchema} below to make sure we skip that
@@ -1002,13 +1004,13 @@ public final class SchemaKeyspace
                                                 SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMNS, keyspaceName, tableName,
                                                 SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMNS);
 
-                if (IGNORE_CORRUPTED_SCHEMA_TABLES)
+                if (IGNORE_CORRUPTED_SCHEMA_TABLES_PROPERTY_VALUE)
                 {
                     logger.error(errorMsg, "", exc);
                 }
                 else
                 {
-                    logger.error(errorMsg, "restart cassandra with -Dcassandra.ignore_corrupted_schema_tables=true and ");
+                    logger.error(errorMsg, "restart cassandra with -D{}=true and ", IGNORE_CORRUPTED_SCHEMA_TABLES.getKey());
                     throw exc;
                 }
             }

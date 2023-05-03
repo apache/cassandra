@@ -53,6 +53,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CHRONICLE_ANNOUNCER_DISABLE;
 
 /**
  * Bin log is a is quick and dirty binary log that is kind of a NIH version of binary logging with a traditional logging
@@ -81,7 +82,7 @@ public class BinLog implements Runnable
     {
         // Avoid the chronicle announcement which is commercial advertisement, and debug info we already print at startup
         // https://github.com/OpenHFT/Chronicle-Core/blob/chronicle-core-2.23.36/src/main/java/net/openhft/chronicle/core/announcer/Announcer.java#L32-L33
-        System.setProperty("chronicle.announcer.disable", "true");
+        CHRONICLE_ANNOUNCER_DISABLE.setBoolean(true);
     }
 
     private ChronicleQueue queue;
