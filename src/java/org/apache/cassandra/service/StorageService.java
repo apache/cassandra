@@ -107,6 +107,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
+import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
@@ -974,7 +975,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         DatabaseDescriptor.configSource()
-                          .addBeforeUpdateSourceListener((name, source) -> CompactionManager.instance.setConcurrentCompactors(source.getInteger(name)));
+                          .addBeforeUpdateSourceListener((name, source) -> {
+                              if (name.equals(ConfigFields.CONCURRENT_COMPACTORS))
+                                CompactionManager.instance.setConcurrentCompactors(source.getInteger(name));
+                          });
 
         completeInitialization();
     }
