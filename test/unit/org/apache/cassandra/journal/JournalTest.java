@@ -48,7 +48,7 @@ public class JournalTest
         directory.deleteRecursiveOnExit();
 
         Journal<TimeUUID, Long> journal =
-            new Journal<>("TestJournal", directory, Params.DEFAULT, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE);
+            new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE);
 
         journal.start();
 
@@ -69,7 +69,7 @@ public class JournalTest
 
         journal.shutdown();
 
-        journal = new Journal<>("TestJournal", directory, Params.DEFAULT, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE);
+        journal = new Journal<>("TestJournal", directory, TestParams.INSTANCE, TimeUUIDKeySupport.INSTANCE, LongSerializer.INSTANCE);
         journal.start();
 
         assertEquals(1L, (long) journal.read(id1));

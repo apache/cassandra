@@ -35,6 +35,7 @@ import accord.messages.MessageType;
 import accord.messages.PreAccept;
 import accord.messages.TxnRequest;
 import accord.primitives.*;
+import accord.utils.Invariants;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -45,6 +46,7 @@ import org.apache.cassandra.journal.Journal;
 import org.apache.cassandra.journal.KeySupport;
 import org.apache.cassandra.journal.Params;
 import org.apache.cassandra.journal.ValueSerializer;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.serializers.AcceptSerializers;
 import org.apache.cassandra.service.accord.serializers.ApplySerializers;
 import org.apache.cassandra.service.accord.serializers.CommitSerializers;
@@ -57,12 +59,53 @@ import static org.apache.cassandra.db.TypeSizes.LONG_SIZE;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumLong;
 
-/*
- *  TODO: expose more journal params via Config
- */
 public class AccordJournal
 {
     private static final Set<Integer> SENTINEL_HOSTS = Collections.singleton(0);
+
+    static final Params PARAMS = new Params()
+    {
+        @Override
+        public int segmentSize()
+        {
+            return 32 << 20;
+        }
+
+        @Override
+        public FailurePolicy failurePolicy()
+        {
+            return FailurePolicy.STOP;
+        }
+
+        @Override
+        public FlushMode flushMode()
+        {
+            return FlushMode.GROUP;
+        }
+
+        @Override
+        public int flushPeriod()
+        {
+            return 1000;
+        }
+
+        @Override
+        public int periodicFlushLagBlock()
+        {
+            return 1500;
+        }
+
+        @Override
+        public int userVersion()
+        {
+            /*
+             * NOTE: when accord journal version gets bumped, expose it via yaml.
+             * This way operators can force previous version on upgrade, temporarily,
+             * to allow easier downgrades if something goes wrong.
+             */
+            return 1;
+        }
+    };
 
     final File directory;
     final Journal<Key, TxnRequest<?>> journal;
@@ -71,7 +114,7 @@ public class AccordJournal
     public AccordJournal()
     {
         directory = new File(DatabaseDescriptor.getAccordJournalDirectory());
-        journal = new Journal<>("AccordJournal", directory, Params.DEFAULT, Key.SUPPORT, MESSAGE_SERIALIZER);
+        journal = new Journal<>("AccordJournal", directory, PARAMS, Key.SUPPORT, MESSAGE_SERIALIZER);
     }
 
     public AccordJournal start()
@@ -87,7 +130,7 @@ public class AccordJournal
 
     boolean mustMakeDurable(PreLoadContext context)
     {
-        return context instanceof TxnRequest && Type.mustAppend((TxnRequest<?>) context);
+        return context instanceof TxnRequest && Type.mustMakeDurable((TxnRequest<?>) context);
     }
 
     public void append(PreLoadContext context, Executor executor, AsyncWriteCallback callback)
@@ -312,19 +355,19 @@ public class AccordJournal
         @Override
         public int serializedSize(TxnRequest<?> message, int version)
         {
-            return Ints.checkedCast(Type.serializer(message).serializedSize(message, version));
+            return Ints.checkedCast(Type.ofMessage(message).serializedSize(message, version));
         }
 
         @Override
         public void serialize(TxnRequest<?> message, DataOutputPlus out, int version) throws IOException
         {
-            Type.serializer(message).serialize(message, out, version);
+            Type.ofMessage(message).serialize(message, out, version);
         }
 
         @Override
-        public TxnRequest<?> deserialize(Key key, DataInputPlus in, int userVersion) throws IOException
+        public TxnRequest<?> deserialize(Key key, DataInputPlus in, int version) throws IOException
         {
-            return key.type.serializer.deserialize(in, userVersion);
+            return key.type.deserialize(in, version);
         }
     };
 
@@ -336,7 +379,7 @@ public class AccordJournal
      *  2. It's persisted in the record key, so has the additional constraint of being fixed size and
      *     shouldn't be using varint encoding
      */
-    public enum Type
+    public enum Type implements IVersionedSerializer<TxnRequest<?>>
     {
         PREACCEPT_REQ (0, MessageType.PREACCEPT_REQ, PreacceptSerializers.request),
         ACCEPT_REQ    (1, MessageType.ACCEPT_REQ,    AcceptSerializers.request   ),
@@ -409,14 +452,47 @@ public class AccordJournal
             return type;
         }
 
-        static boolean mustAppend(TxnRequest<?> message)
+        static Type ofMessage(TxnRequest<?> request)
+        {
+            return fromMsgType(request.type());
+        }
+
+        static boolean mustMakeDurable(TxnRequest<?> message)
         {
             return msgTypeToTypeMap.containsKey(message.type());
         }
 
-        static IVersionedSerializer<TxnRequest<?>> serializer(TxnRequest<?> msgType)
+        @Override
+        public void serialize(TxnRequest<?> request, DataOutputPlus out, int version) throws IOException
         {
-            return fromMsgType(msgType.type()).serializer;
+            serializer.serialize(request, out, msVersion(version));
+        }
+
+        @Override
+        public TxnRequest<?> deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return serializer.deserialize(in, msVersion(version));
+        }
+
+        @Override
+        public long serializedSize(TxnRequest<?> request, int version)
+        {
+            return serializer.serializedSize(request, msVersion(version));
+        }
+
+        static
+        {
+            // make noise early if we forget to update our version mappings
+            Invariants.checkState(MessagingService.current_version == MessagingService.VERSION_40);
+        }
+
+        private static int msVersion(int version)
+        {
+            switch (version)
+            {
+                default: throw new IllegalArgumentException();
+                case 1: return MessagingService.VERSION_40;
+            }
         }
     }
 }

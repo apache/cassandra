@@ -17,40 +17,45 @@
  */
 package org.apache.cassandra.journal;
 
-public interface Params
+import org.apache.cassandra.net.MessagingService;
+
+public class TestParams implements Params
 {
-    enum FlushMode { BATCH, GROUP, PERIODIC }
+    static final TestParams INSTANCE = new TestParams();
 
-    enum FailurePolicy { STOP, STOP_JOURNAL, IGNORE, DIE }
+    @Override
+    public int segmentSize()
+    {
+        return 32 << 20;
+    }
 
-    /**
-     * @return maximum segment size
-     */
-    int segmentSize();
+    @Override
+    public FailurePolicy failurePolicy()
+    {
+        return FailurePolicy.STOP;
+    }
 
-    /**
-     * @return this journal's {@link FailurePolicy}
-     */
-    FailurePolicy failurePolicy();
+    @Override
+    public FlushMode flushMode()
+    {
+        return FlushMode.GROUP;
+    }
 
-    /**
-     * @return journal flush (sync) mode
-     */
-    FlushMode flushMode();
+    @Override
+    public int flushPeriod()
+    {
+        return 1000;
+    }
 
-    /**
-     * @return milliseconds between journal flushes
-     */
-    int flushPeriod();
+    @Override
+    public int periodicFlushLagBlock()
+    {
+        return 1500;
+    }
 
-    /**
-     * @return milliseconds to block writes for while waiting for a slow disk flush to complete
-     *         when in {@link FlushMode#PERIODIC} mode
-     */
-    int periodicFlushLagBlock();
-
-    /**
-     * @return user provided version to use for key and value serialization
-     */
-    int userVersion();
+    @Override
+    public int userVersion()
+    {
+        return MessagingService.current_version;
+    }
 }

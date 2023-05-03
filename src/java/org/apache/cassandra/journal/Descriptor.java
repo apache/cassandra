@@ -57,6 +57,11 @@ final class Descriptor implements Comparable<Descriptor>
                       + "\\."     + TMP_SUFFIX);
 
 
+    /*
+     * NOTE: If and when another journal version is introduced, have implementations
+     * expose the version used via yaml. This way operators can force previous journal
+     * version on upgrade, temporarily, to allow easier downgrades if something goes wrong.
+     */
     static final int JOURNAL_VERSION_1 = 1;
     static final int CURRENT_JOURNAL_VERSION = JOURNAL_VERSION_1;
 

@@ -236,6 +236,6 @@ public class SegmentTest
 
     private static Params params()
     {
-        return Params.DEFAULT;
+        return TestParams.INSTANCE;
     }
 }
