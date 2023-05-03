@@ -28,6 +28,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_HOOK;
+
 public interface StorageHook
 {
     public static final StorageHook instance = createHook();
@@ -50,7 +52,7 @@ public interface StorageHook
 
     static StorageHook createHook()
     {
-        String className =  System.getProperty("cassandra.storage_hook");
+        String className = STORAGE_HOOK.getString();
         if (className != null)
         {
             return FBUtilities.construct(className, StorageHook.class.getSimpleName());

@@ -42,6 +42,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner;
 import org.assertj.core.groups.Tuple;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ClientStatsTest
@@ -56,7 +57,7 @@ public class ClientStatsTest
     {
         // Since we run EmbeddedCassandraServer, we need to manually associate JMX address; otherwise it won't start
         int jmxPort = CQLTester.getAutomaticallyAllocatedPort(InetAddress.getLoopbackAddress());
-        System.setProperty("cassandra.jmx.local.port", String.valueOf(jmxPort));
+        CASSANDRA_JMX_LOCAL_PORT.setInt(jmxPort);
 
         cassandra = ServerTestUtils.startEmbeddedCassandraService();
         cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();

@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -32,13 +33,14 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.EXPIRATION_DATE_OVERFLOW_POLICY;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class ExpirationDateOverflowHandling
 {
     private static final Logger logger = LoggerFactory.getLogger(ExpirationDateOverflowHandling.class);
 
-    private static final int EXPIRATION_OVERFLOW_WARNING_INTERVAL_MINUTES = Integer.getInteger("cassandra.expiration_overflow_warning_interval_minutes", 5);
+    private static final int EXPIRATION_OVERFLOW_WARNING_INTERVAL_MINUTES = CassandraRelevantProperties.EXPIRATION_OVERFLOW_WARNING_INTERVAL_MINUTES.getInt();
 
     public enum ExpirationDateOverflowPolicy
     {
@@ -49,14 +51,13 @@ public class ExpirationDateOverflowHandling
     public static ExpirationDateOverflowPolicy policy;
 
     static {
-        String policyAsString = System.getProperty("cassandra.expiration_date_overflow_policy", ExpirationDateOverflowPolicy.REJECT.name());
         try
         {
-            policy = ExpirationDateOverflowPolicy.valueOf(policyAsString.toUpperCase());
+            policy = EXPIRATION_DATE_OVERFLOW_POLICY.getEnum(ExpirationDateOverflowPolicy.REJECT);
         }
         catch (RuntimeException e)
         {
-            logger.warn("Invalid expiration date overflow policy: {}. Using default: {}", policyAsString, ExpirationDateOverflowPolicy.REJECT.name());
+            logger.warn("Invalid expiration date overflow policy. Using default: {}", ExpirationDateOverflowPolicy.REJECT.name());
             policy = ExpirationDateOverflowPolicy.REJECT;
         }
     }

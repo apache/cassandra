@@ -134,6 +134,7 @@ import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.apache.cassandra.db.ColumnFamilyStoreTest.getSnapshotManifestAndSchemaFileSizes;
 
 public class SASIIndexTest
@@ -141,7 +142,7 @@ public class SASIIndexTest
     private static final IPartitioner PARTITIONER;
 
     static {
-        System.setProperty("cassandra.config", "cassandra-murmur.yaml");
+        CASSANDRA_CONFIG.setString("cassandra-murmur.yaml");
         PARTITIONER = Murmur3Partitioner.instance;
     }
 

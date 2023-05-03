@@ -36,6 +36,7 @@ import io.netty.handler.ssl.SslProvider;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.ENCODED_CERTIFICATES;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.ENCODED_KEY;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.KEY_PASSWORD;
@@ -413,13 +414,13 @@ public class PEMBasedSslContextFactoryTest
     {
         // The configuration name below is hard-coded intentionally to make sure we don't break the contract without
         // changing the documentation appropriately
-        System.setProperty("cassandra.disable_tcactive_openssl", "true");
+        DISABLE_TCACTIVE_OPENSSL.setBoolean(true);
         Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
 
         PEMBasedSslContextFactory sslContextFactory = new PEMBasedSslContextFactory(config);
         Assert.assertEquals(SslProvider.JDK, sslContextFactory.getSslProvider());
-        System.clearProperty("cassandra.disable_tcactive_openssl");
+        DISABLE_TCACTIVE_OPENSSL.clearValue();
     }
 
     @Test(expected = IllegalArgumentException.class)

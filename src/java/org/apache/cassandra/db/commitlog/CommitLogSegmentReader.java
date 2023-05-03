@@ -29,7 +29,6 @@ import com.google.common.collect.AbstractIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.commitlog.EncryptedFileSegmentInputStream.ChunkProvider;
 import org.apache.cassandra.db.commitlog.CommitLogReadHandler.*;
 import org.apache.cassandra.io.FSReadError;
@@ -42,6 +41,7 @@ import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_ALLOW_IGNORE_SYNC_CRC;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.SYNC_MARKER_SIZE;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
@@ -50,8 +50,7 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  */
 public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.SyncSegment>
 {
-    public static final String ALLOW_IGNORE_SYNC_CRC = Config.PROPERTY_PREFIX + "commitlog.allow_ignore_sync_crc";
-    private static volatile boolean allowSkipSyncMarkerCrc = Boolean.getBoolean(ALLOW_IGNORE_SYNC_CRC);
+    private static volatile boolean allowSkipSyncMarkerCrc = COMMITLOG_ALLOW_IGNORE_SYNC_CRC.getBoolean();
 
     private static final Logger logger = LoggerFactory.getLogger(CommitLogSegmentReader.class);
     

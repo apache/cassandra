@@ -31,6 +31,7 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 
@@ -42,7 +43,7 @@ public class MoveTest extends TestBaseImpl
 
     static
     {
-        System.setProperty("cassandra.ring_delay_ms", "5000"); // down from 30s default
+        RING_DELAY.setLong(5000);
     }
 
     private void move(boolean forwards) throws Throwable

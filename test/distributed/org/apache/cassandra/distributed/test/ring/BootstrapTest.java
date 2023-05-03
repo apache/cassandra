@@ -49,6 +49,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.schema.SchemaConstants;
 
 import static java.util.Arrays.asList;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.distributed.action.GossipHelper.bootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.pullSchemaFrom;
@@ -61,7 +62,7 @@ public class BootstrapTest extends TestBaseImpl
 {
     private long savedMigrationDelay;
 
-    static String originalResetBootstrapProgress = null;
+    static Boolean originalResetBootstrapProgress = null;
 
     @Before
     public void beforeTest()
@@ -75,7 +76,7 @@ public class BootstrapTest extends TestBaseImpl
         savedMigrationDelay = CassandraRelevantProperties.MIGRATION_DELAY.getLong();
         CassandraRelevantProperties.MIGRATION_DELAY.setLong(ManagementFactory.getRuntimeMXBean().getUptime() + savedMigrationDelay);
 
-        originalResetBootstrapProgress = RESET_BOOTSTRAP_PROGRESS.getString();
+        originalResetBootstrapProgress = RESET_BOOTSTRAP_PROGRESS.getBoolean();
     }
 
     @After
@@ -85,7 +86,7 @@ public class BootstrapTest extends TestBaseImpl
         if (originalResetBootstrapProgress == null)
             RESET_BOOTSTRAP_PROGRESS.clearValue();
         else
-            RESET_BOOTSTRAP_PROGRESS.setString(originalResetBootstrapProgress);
+            RESET_BOOTSTRAP_PROGRESS.setBoolean(originalResetBootstrapProgress);
     }
 
     @Test
@@ -146,7 +147,7 @@ public class BootstrapTest extends TestBaseImpl
 
             IInstanceConfig config = cluster.newInstanceConfig();
             IInvokableInstance newInstance = cluster.bootstrap(config);
-                withProperty("cassandra.join_ring", false, () -> newInstance.startup(cluster));
+                withProperty(JOIN_RING, false, () -> newInstance.startup(cluster));
 
             cluster.forEach(statusToBootstrap(newInstance));
 
@@ -226,7 +227,7 @@ public class BootstrapTest extends TestBaseImpl
 
             IInstanceConfig config = cluster.newInstanceConfig();
             IInvokableInstance newInstance = cluster.bootstrap(config);
-            withProperty("cassandra.join_ring", false,
+            withProperty(JOIN_RING, false,
                          () -> newInstance.startup(cluster));
 
             cluster.forEach(statusToBootstrap(newInstance));
@@ -256,7 +257,7 @@ public class BootstrapTest extends TestBaseImpl
         {
             IInstanceConfig config = cluster.newInstanceConfig();
             IInvokableInstance newInstance = cluster.bootstrap(config);
-            withProperty("cassandra.join_ring", false,
+            withProperty(JOIN_RING, false,
                          () -> newInstance.startup(cluster));
 
             cluster.forEach(statusToBootstrap(newInstance));

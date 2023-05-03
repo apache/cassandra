@@ -18,26 +18,50 @@
 
 package org.apache.cassandra.config;
 
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_RELEVANT_PROPERTIES;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
+// checkstyle: suppress below 'blockSystemPropertyUsage'
+
 public class CassandraRelevantPropertiesTest
 {
-    private static final CassandraRelevantProperties TEST_PROP = CassandraRelevantProperties.ORG_APACHE_CASSANDRA_CONF_CASSANDRA_RELEVANT_PROPERTIES_TEST;
+    @Before
+    public void setup()
+    {
+        System.clearProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey());
+    }
+
+    @Test
+    public void testSystemPropertyisSet() {
+        try
+        {
+            TEST_CASSANDRA_RELEVANT_PROPERTIES.setString("test");
+            Assertions.assertThat(System.getProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey())).isEqualTo("test"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
+        }
+        finally
+        {
+            TEST_CASSANDRA_RELEVANT_PROPERTIES.clearValue();
+        }
+    }
 
     @Test
     public void testString()
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "some-string");
-            Assertions.assertThat(TEST_PROP.getString()).isEqualTo("some-string");
+            System.setProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey(), "some-string");
+            Assertions.assertThat(TEST_CASSANDRA_RELEVANT_PROPERTIES.getString()).isEqualTo("some-string");
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            System.clearProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey());
         }
     }
 
@@ -46,18 +70,18 @@ public class CassandraRelevantPropertiesTest
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "true");
-            Assertions.assertThat(TEST_PROP.getBoolean()).isEqualTo(true);
-            System.setProperty(TEST_PROP.getKey(), "false");
-            Assertions.assertThat(TEST_PROP.getBoolean()).isEqualTo(false);
-            System.setProperty(TEST_PROP.getKey(), "junk");
-            Assertions.assertThat(TEST_PROP.getBoolean()).isEqualTo(false);
-            System.setProperty(TEST_PROP.getKey(), "");
-            Assertions.assertThat(TEST_PROP.getBoolean()).isEqualTo(false);
+            System.setProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey(), "true");
+            Assertions.assertThat(TEST_CASSANDRA_RELEVANT_PROPERTIES.getBoolean()).isEqualTo(true);
+            System.setProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey(), "false");
+            Assertions.assertThat(TEST_CASSANDRA_RELEVANT_PROPERTIES.getBoolean()).isEqualTo(false);
+            System.setProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey(), "junk");
+            Assertions.assertThat(TEST_CASSANDRA_RELEVANT_PROPERTIES.getBoolean()).isEqualTo(false);
+            System.setProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey(), "");
+            Assertions.assertThat(TEST_CASSANDRA_RELEVANT_PROPERTIES.getBoolean()).isEqualTo(false);
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            System.clearProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey());
         }
     }
 
@@ -66,11 +90,11 @@ public class CassandraRelevantPropertiesTest
     {
         try
         {
-            TEST_PROP.getBoolean();
+            TEST_CASSANDRA_RELEVANT_PROPERTIES.getBoolean();
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            System.clearProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey());
         }
     }
 
@@ -79,12 +103,12 @@ public class CassandraRelevantPropertiesTest
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "123456789");
-            Assertions.assertThat(TEST_PROP.getInt()).isEqualTo(123456789);
+            System.setProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey(), "123456789");
+            Assertions.assertThat(TEST_CASSANDRA_RELEVANT_PROPERTIES.getInt()).isEqualTo(123456789);
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            System.clearProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey());
         }
     }
 
@@ -93,12 +117,12 @@ public class CassandraRelevantPropertiesTest
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "0x1234567a");
-            Assertions.assertThat(TEST_PROP.getInt()).isEqualTo(305419898);
+            System.setProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey(), "0x1234567a");
+            Assertions.assertThat(TEST_CASSANDRA_RELEVANT_PROPERTIES.getInt()).isEqualTo(305419898);
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            System.clearProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey());
         }
     }
 
@@ -107,12 +131,12 @@ public class CassandraRelevantPropertiesTest
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "01234567");
-            Assertions.assertThat(TEST_PROP.getInt()).isEqualTo(342391);
+            System.setProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey(), "01234567");
+            Assertions.assertThat(TEST_CASSANDRA_RELEVANT_PROPERTIES.getInt()).isEqualTo(342391);
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            System.clearProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey());
         }
     }
 
@@ -121,25 +145,35 @@ public class CassandraRelevantPropertiesTest
     {
         try
         {
-            System.setProperty(TEST_PROP.getKey(), "");
-            Assertions.assertThat(TEST_PROP.getInt()).isEqualTo(342391);
+            System.setProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey(), "");
+            Assertions.assertThat(TEST_CASSANDRA_RELEVANT_PROPERTIES.getInt()).isEqualTo(342391);
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            System.clearProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey());
         }
     }
 
-    @Test(expected = NullPointerException.class)
+    @Test(expected = ConfigurationException.class)
     public void testInteger_null()
     {
         try
         {
-            TEST_PROP.getInt();
+            TEST_CASSANDRA_RELEVANT_PROPERTIES.getInt();
         }
         finally
         {
-            System.clearProperty(TEST_PROP.getKey());
+            System.clearProperty(TEST_CASSANDRA_RELEVANT_PROPERTIES.getKey());
         }
+    }
+
+    @Test
+    public void testClearProperty()
+    {
+        assertNull(TEST_CASSANDRA_RELEVANT_PROPERTIES.getString());
+        TEST_CASSANDRA_RELEVANT_PROPERTIES.setString("test");
+        assertEquals("test", TEST_CASSANDRA_RELEVANT_PROPERTIES.getString());
+        TEST_CASSANDRA_RELEVANT_PROPERTIES.clearValue();
+        assertNull(TEST_CASSANDRA_RELEVANT_PROPERTIES.getString());
     }
 }

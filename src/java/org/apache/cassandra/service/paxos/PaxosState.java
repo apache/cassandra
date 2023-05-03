@@ -50,6 +50,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Nemesis;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_DISABLE_COORDINATOR_LOCKING;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.gc_grace;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
@@ -66,7 +67,7 @@ import static org.apache.cassandra.service.paxos.Commit.isAfter;
  */
 public class PaxosState implements PaxosOperationLock
 {
-    private static volatile boolean DISABLE_COORDINATOR_LOCKING = Boolean.getBoolean("cassandra.paxos.disable_coordinator_locking");
+    private static volatile boolean DISABLE_COORDINATOR_LOCKING = PAXOS_DISABLE_COORDINATOR_LOCKING.getBoolean();
     public static final ConcurrentHashMap<Key, PaxosState> ACTIVE = new ConcurrentHashMap<>();
     public static final Map<Key, Snapshot> RECENT = Caffeine.newBuilder()
                                                             .maximumWeight(DatabaseDescriptor.getPaxosCacheSizeInMiB() << 20)

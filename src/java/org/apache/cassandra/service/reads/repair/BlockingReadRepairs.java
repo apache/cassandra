@@ -33,14 +33,14 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.DROP_OVERSIZED_READ_REPAIR_MUTATIONS;
 import static org.apache.cassandra.db.IMutation.MAX_MUTATION_SIZE;
 
 public class BlockingReadRepairs
 {
     private static final Logger logger = LoggerFactory.getLogger(BlockingReadRepairs.class);
 
-    private static final boolean DROP_OVERSIZED_READ_REPAIR_MUTATIONS =
-        Boolean.getBoolean("cassandra.drop_oversized_readrepair_mutations");
+    private static final boolean SHOULD_DROP_OVERSIZED_READ_REPAIR_MUTATIONS = DROP_OVERSIZED_READ_REPAIR_MUTATIONS.getBoolean();
 
     /**
      * Create a read repair mutation from the given update, if the mutation is not larger than the maximum
@@ -65,7 +65,7 @@ public class BlockingReadRepairs
             Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
             TableMetadata metadata = update.metadata();
 
-            if (DROP_OVERSIZED_READ_REPAIR_MUTATIONS)
+            if (SHOULD_DROP_OVERSIZED_READ_REPAIR_MUTATIONS)
             {
                 logger.debug("Encountered an oversized ({}/{}) read repair mutation for table {}, key {}, node {}",
                              e.mutationSize,

@@ -37,6 +37,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.MAX_LOCAL_PAUSE_IN_MS;
 import static org.junit.Assert.assertFalse;
 
 public class FailureDetectorTest
@@ -45,7 +46,7 @@ public class FailureDetectorTest
     public static void setup()
     {
         // slow unit tests can cause problems with FailureDetector's GC pause handling
-        System.setProperty("cassandra.max_local_pause_in_ms", "20000");
+        MAX_LOCAL_PAUSE_IN_MS.setLong(20000);
 
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();

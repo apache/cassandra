@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS;
 import static org.junit.Assert.assertFalse;
 import static org.psjava.util.AssertStatus.assertTrue;
 
@@ -34,7 +35,7 @@ public class TimeoutAbortTest extends TestBaseImpl
     @Test
     public void timeoutTest() throws IOException, InterruptedException
     {
-        System.setProperty("cassandra.test.read_iteration_delay_ms", "5000");
+        TEST_READ_ITERATION_DELAY_MS.setInt(5000);
         try (Cluster cluster = init(Cluster.build(1).start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int, ck1 int, ck2 int, d int, primary key (id, ck1, ck2))"));

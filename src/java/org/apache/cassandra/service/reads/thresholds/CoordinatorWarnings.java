@@ -33,10 +33,12 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ClientWarn;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.READS_THRESHOLDS_COORDINATOR_DEFENSIVE_CHECKS_ENABLED;
+
 public class CoordinatorWarnings
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorWarnings.class);
-    private static final boolean ENABLE_DEFENSIVE_CHECKS = Boolean.getBoolean("cassandra.reads.thresholds.coordinator.defensive_checks_enabled");
+    private static final boolean ENABLE_DEFENSIVE_CHECKS = READS_THRESHOLDS_COORDINATOR_DEFENSIVE_CHECKS_ENABLED.getBoolean();
 
     // when .init() is called set the STATE to be INIT; this is to lazy allocate the map only when warnings are generated
     private static final Map<ReadCommand, WarningsSnapshot> INIT = Collections.emptyMap();

@@ -47,15 +47,15 @@ final class SystemPropertiesTable extends AbstractVirtualTable
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
 
-        System.getenv().keySet()
+        System.getenv().keySet() // checkstyle: suppress nearby 'blockSystemPropertyUsage'
               .stream()
               .filter(SystemPropertiesTable::isCassandraRelevant)
-              .forEach(name -> addRow(result, name, System.getenv(name)));
+              .forEach(name -> addRow(result, name, System.getenv(name))); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
 
         System.getProperties().stringPropertyNames()
               .stream()
               .filter(SystemPropertiesTable::isCassandraRelevant)
-              .forEach(name -> addRow(result, name, System.getProperty(name)));
+              .forEach(name -> addRow(result, name, System.getProperty(name))); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
 
         return result;
     }
@@ -66,7 +66,7 @@ final class SystemPropertiesTable extends AbstractVirtualTable
         SimpleDataSet result = new SimpleDataSet(metadata());
         String name = UTF8Type.instance.compose(partitionKey.getKey());
         if (isCassandraRelevant(name))
-            addRow(result, name, System.getProperty(name, System.getenv(name)));
+            addRow(result, name, System.getProperty(name, System.getenv(name))); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
 
         return result;
     }

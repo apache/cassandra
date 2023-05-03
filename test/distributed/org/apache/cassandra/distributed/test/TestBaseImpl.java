@@ -44,6 +44,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 
 public class TestBaseImpl extends DistributedTestBase
@@ -121,8 +122,8 @@ public class TestBaseImpl extends DistributedTestBase
         IInstanceConfig config = cluster.newInstanceConfig();
         config.set("auto_bootstrap", true);
         IInvokableInstance newInstance = cluster.bootstrap(config);
-        withProperty(BOOTSTRAP_SCHEMA_DELAY_MS.getKey(), Integer.toString(90 * 1000),
-                     () -> withProperty("cassandra.join_ring", false, () -> newInstance.startup(cluster)));
+        withProperty(BOOTSTRAP_SCHEMA_DELAY_MS, Integer.toString(90 * 1000),
+                     () -> withProperty(JOIN_RING, false, () -> newInstance.startup(cluster)));
         newInstance.nodetoolResult("join").asserts().success();
     }
 

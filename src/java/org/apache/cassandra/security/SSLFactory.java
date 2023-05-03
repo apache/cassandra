@@ -41,10 +41,11 @@ import io.netty.handler.ssl.OpenSsl;
 import io.netty.handler.ssl.SslContext;
 import io.netty.util.ReferenceCountUtil;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.ISslContextFactory.SocketType;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
 
 /**
  * A Factory for providing and setting up client {@link SSLSocket}s. Also provides
@@ -64,7 +65,7 @@ public final class SSLFactory
     static private final boolean openSslIsAvailable;
     static
     {
-        if (Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_tcactive_openssl"))
+        if (DISABLE_TCACTIVE_OPENSSL.getBoolean())
         {
             openSslIsAvailable = false;
         }

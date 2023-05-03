@@ -32,6 +32,8 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.IO_NETTY_EVENTLOOP_THREADS;
+
 public class NativeMixedVersionTest extends TestBaseImpl
 {
     @Test
@@ -39,7 +41,7 @@ public class NativeMixedVersionTest extends TestBaseImpl
     {
         // make sure to limit the netty thread pool to size 1, this will make the test determanistic as all work
         // will happen on the single thread.
-        System.setProperty("io.netty.eventLoopThreads", "1");
+        IO_NETTY_EVENTLOOP_THREADS.setInt(1);
         try (Cluster cluster = Cluster.build(1)
                                       .withConfig(c ->
                                                   c.with(Feature.values())
@@ -80,7 +82,7 @@ public class NativeMixedVersionTest extends TestBaseImpl
         }
         finally
         {
-            System.clearProperty("io.netty.eventLoopThreads");
+            IO_NETTY_EVENTLOOP_THREADS.clearValue();
         }
     }
 }

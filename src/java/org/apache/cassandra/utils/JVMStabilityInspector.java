@@ -46,6 +46,8 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.PRINT_HEAP_HISTOGRAM_ON_OUT_OF_MEMORY_ERROR;
+
 /**
  * Responsible for deciding whether to kill the JVM if it gets in an "unstable" state (think OOM).
  */
@@ -105,7 +107,7 @@ public final class JVMStabilityInspector
         boolean isUnstable = false;
         if (t instanceof OutOfMemoryError)
         {
-            if (Boolean.getBoolean("cassandra.printHeapHistogramOnOutOfMemoryError"))
+            if (PRINT_HEAP_HISTOGRAM_ON_OUT_OF_MEMORY_ERROR.getBoolean())
             {
                 // We want to avoid printing multiple time the heap histogram if multiple OOM errors happen in a short
                 // time span.

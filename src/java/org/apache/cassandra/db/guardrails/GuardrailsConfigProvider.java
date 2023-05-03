@@ -24,6 +24,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS;
+
 /**
  * Provider of {@link GuardrailsConfig}s for a {@link ClientState}.
  * <p>
@@ -37,11 +39,14 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public interface GuardrailsConfigProvider
 {
-    public static final String CUSTOM_IMPLEMENTATION_PROPERTY = "cassandra.custom_guardrails_config_provider_class";
+    /**
+     * @deprecated CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS.getKey() must be used instead.
+     */
+    @Deprecated
+    public static final String CUSTOM_IMPLEMENTATION_PROPERTY = CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS.getKey();
 
-    static final GuardrailsConfigProvider instance = System.getProperty(CUSTOM_IMPLEMENTATION_PROPERTY) == null
-                                                     ? new Default()
-                                                     : build(System.getProperty(CUSTOM_IMPLEMENTATION_PROPERTY));
+    GuardrailsConfigProvider instance = CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS.getString() == null ?
+                                        new Default() : build(CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS.getString());
 
     /**
      * Returns the {@link GuardrailsConfig} to be used for the specified {@link ClientState}.

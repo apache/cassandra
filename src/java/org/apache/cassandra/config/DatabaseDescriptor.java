@@ -101,9 +101,29 @@ import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_BOOTSTRAP;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_STCS_IN_L0;
+import static org.apache.cassandra.config.CassandraRelevantProperties.INITIAL_TOKEN;
+import static org.apache.cassandra.config.CassandraRelevantProperties.IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.NATIVE_TRANSPORT_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_NODE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_TOKEN;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SEARCH_CONCURRENCY_FACTOR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SSL_STORAGE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_DIR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_STRICT_RUNTIME_CHECKS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FAIL_MV_LOCKS_COUNT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.UNSAFE_SYSTEM;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
@@ -117,7 +137,7 @@ public class DatabaseDescriptor
     {
         // This static block covers most usages
         FBUtilities.preventIllegalAccessWarnings();
-        System.setProperty("io.netty.transport.estimateSizeOnSubmit", "false");
+        IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT.setBoolean(false);
     }
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
@@ -175,16 +195,16 @@ public class DatabaseDescriptor
     private static boolean toolInitialized;
     private static boolean daemonInitialized;
 
-    private static final int searchConcurrencyFactor = Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "search_concurrency_factor", "1"));
+    private static final int searchConcurrencyFactor = SEARCH_CONCURRENCY_FACTOR.getInt();
     private static DurationSpec.IntSecondsBound autoSnapshoTtl;
 
-    private static volatile boolean disableSTCSInL0 = Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_stcs_in_l0");
-    private static final boolean unsafeSystem = Boolean.getBoolean(Config.PROPERTY_PREFIX + "unsafesystem");
+    private static volatile boolean disableSTCSInL0 = DISABLE_STCS_IN_L0.getBoolean();
+    private static final boolean unsafeSystem = UNSAFE_SYSTEM.getBoolean();
 
     // turns some warnings into exceptions for testing
-    private static final boolean strictRuntimeChecks = Boolean.getBoolean("cassandra.strict.runtime.checks");
+    private static final boolean strictRuntimeChecks = TEST_STRICT_RUNTIME_CHECKS.getBoolean();
 
-    public static volatile boolean allowUnlimitedConcurrentValidations = Boolean.getBoolean("cassandra.allow_unlimited_concurrent_validations");
+    public static volatile boolean allowUnlimitedConcurrentValidations = ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getBoolean();
 
     /** The configuration for guardrails. */
     private static GuardrailsOptions guardrails;
@@ -344,7 +364,7 @@ public class DatabaseDescriptor
         if (Config.getOverrideLoadConfig() != null)
             return Config.getOverrideLoadConfig().get();
 
-        String loaderClass = System.getProperty(Config.PROPERTY_PREFIX + "config.loader");
+        String loaderClass = CONFIG_LOADER.getString();
         ConfigurationLoader loader = loaderClass == null
                                      ? new YamlConfigurationLoader()
                                      : FBUtilities.construct(loaderClass, "configuration loading");
@@ -509,7 +529,7 @@ public class DatabaseDescriptor
             throw new ConfigurationException("concurrent_reads must be at least 2, but was " + conf.concurrent_reads, false);
         }
 
-        if (conf.concurrent_writes < 2 && System.getProperty("cassandra.test.fail_mv_locks_count", "").isEmpty())
+        if (conf.concurrent_writes < 2 && TEST_FAIL_MV_LOCKS_COUNT.getString("").isEmpty())
         {
             throw new ConfigurationException("concurrent_writes must be at least 2, but was " + conf.concurrent_writes, false);
         }
@@ -981,7 +1001,7 @@ public class DatabaseDescriptor
         else if (config.concurrent_validations > config.concurrent_compactors && !allowUnlimitedConcurrentValidations)
         {
             throw new ConfigurationException("To set concurrent_validations > concurrent_compactors, " +
-                                             "set the system property cassandra.allow_unlimited_concurrent_validations=true");
+                                             "set the system property -D" + ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getKey() + "=true");
         }
     }
 
@@ -1042,9 +1062,9 @@ public class DatabaseDescriptor
 
     private static String storagedir(String errMsgType)
     {
-        String storagedir = System.getProperty(Config.PROPERTY_PREFIX + "storagedir", null);
+        String storagedir = STORAGE_DIR.getString();
         if (storagedir == null)
-            throw new ConfigurationException(errMsgType + " is missing and -Dcassandra.storagedir is not set", false);
+            throw new ConfigurationException(errMsgType + " is missing and " + STORAGE_DIR.getKey() + " system property is not set", false);
         return storagedir;
     }
 
@@ -1339,7 +1359,7 @@ public class DatabaseDescriptor
         String name = conf.partitioner;
         try
         {
-            name = System.getProperty(Config.PROPERTY_PREFIX + "partitioner", conf.partitioner);
+            name = PARTITIONER.getString(conf.partitioner);
             partitioner = FBUtilities.newPartitioner(name);
         }
         catch (Exception e)
@@ -1805,12 +1825,12 @@ public class DatabaseDescriptor
 
     public static Collection<String> getInitialTokens()
     {
-        return tokensFromString(System.getProperty(Config.PROPERTY_PREFIX + "initial_token", conf.initial_token));
+        return tokensFromString(INITIAL_TOKEN.getString(conf.initial_token));
     }
 
     public static String getAllocateTokensForKeyspace()
     {
-        return System.getProperty(Config.PROPERTY_PREFIX + "allocate_tokens_for_keyspace", conf.allocate_tokens_for_keyspace);
+        return ALLOCATE_TOKENS_FOR_KEYSPACE.getString(conf.allocate_tokens_for_keyspace);
     }
 
     public static Integer getAllocateTokensForLocalRf()
@@ -1836,10 +1856,14 @@ public class DatabaseDescriptor
     {
         try
         {
-            if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null) != null)
-                return InetAddressAndPort.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null));
-            else if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null) != null)
-                return InetAddressAndPort.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null));
+            String replaceAddress = REPLACE_ADDRESS.getString();
+            if (replaceAddress != null)
+                return InetAddressAndPort.getByName(replaceAddress);
+
+            String replaceAddressFirsstBoot = REPLACE_ADDRESS_FIRST_BOOT.getString();
+            if (replaceAddressFirsstBoot != null)
+                return InetAddressAndPort.getByName(replaceAddressFirsstBoot);
+
             return null;
         }
         catch (UnknownHostException e)
@@ -1850,14 +1874,14 @@ public class DatabaseDescriptor
 
     public static Collection<String> getReplaceTokens()
     {
-        return tokensFromString(System.getProperty(Config.PROPERTY_PREFIX + "replace_token", null));
+        return tokensFromString(REPLACE_TOKEN.getString());
     }
 
     public static UUID getReplaceNode()
     {
         try
         {
-            return UUID.fromString(System.getProperty(Config.PROPERTY_PREFIX + "replace_node", null));
+            return UUID.fromString(REPLACE_NODE.getString());
         } catch (NullPointerException e)
         {
             return null;
@@ -1871,12 +1895,12 @@ public class DatabaseDescriptor
 
     public static int getStoragePort()
     {
-        return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "storage_port", Integer.toString(conf.storage_port)));
+        return STORAGE_PORT.getInt(conf.storage_port);
     }
 
     public static int getSSLStoragePort()
     {
-        return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "ssl_storage_port", Integer.toString(conf.ssl_storage_port)));
+        return SSL_STORAGE_PORT.getInt(conf.ssl_storage_port);
     }
 
     public static long nativeTransportIdleTimeout()
@@ -2683,7 +2707,7 @@ public class DatabaseDescriptor
      */
     public static int getNativeTransportPort()
     {
-        return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "native_transport_port", Integer.toString(conf.native_transport_port)));
+        return NATIVE_TRANSPORT_PORT.getInt(conf.native_transport_port);
     }
 
     @VisibleForTesting
@@ -3086,7 +3110,7 @@ public class DatabaseDescriptor
 
     public static boolean isAutoBootstrap()
     {
-        return Boolean.parseBoolean(System.getProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", Boolean.toString(conf.auto_bootstrap)));
+        return AUTO_BOOTSTRAP.getBoolean(conf.auto_bootstrap);
     }
 
     public static void setHintedHandoffEnabled(boolean hintedHandoffEnabled)

@@ -26,19 +26,28 @@ import harry.model.OpSelectors;
 import harry.model.clock.OffsetClock;
 import harry.model.sut.PrintlnSut;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_ALLOW_SIMPLE_STRATEGY;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_MINIMUM_REPLICATION_FACTOR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOG4J2_DISABLE_JMX;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOG4J2_DISABLE_JMX_LEGACY;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOG4J_SHUTDOWN_HOOK_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RELOCATED_SHADED_IO_NETTY_TRANSPORT_NONATIVE;
+
 public class HarryHelper
 {
     public static void init()
     {
-        System.setProperty("log4j2.disableJmx", "true"); // setting both ways as changes between versions
-        System.setProperty("log4j2.disable.jmx", "true");
-        System.setProperty("log4j.shutdownHookEnabled", "false");
-        System.setProperty("cassandra.allow_simplestrategy", "true"); // makes easier to share OSS tests without RF limits
-        System.setProperty("cassandra.minimum_replication_factor", "0"); // makes easier to share OSS tests without RF limits
-
-        System.setProperty("cassandra.disable_tcactive_openssl", "true");
-        System.setProperty("relocated.shaded.io.netty.transport.noNative", "true");
-        System.setProperty("org.apache.cassandra.disable_mbean_registration", "true");
+        // setting both ways as changes between versions
+        LOG4J2_DISABLE_JMX.setBoolean(true);
+        LOG4J2_DISABLE_JMX_LEGACY.setBoolean(true);
+        LOG4J_SHUTDOWN_HOOK_ENABLED.setBoolean(false);
+        CASSANDRA_ALLOW_SIMPLE_STRATEGY.setBoolean(true); // makes easier to share OSS tests without RF limits
+        CASSANDRA_MINIMUM_REPLICATION_FACTOR.setInt(0); // makes easier to share OSS tests without RF limits
+        DISABLE_TCACTIVE_OPENSSL.setBoolean(true);
+        RELOCATED_SHADED_IO_NETTY_TRANSPORT_NONATIVE.setBoolean(true);
+        ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
 
         InJvmSut.init();
         QueryingNoOpChecker.init();

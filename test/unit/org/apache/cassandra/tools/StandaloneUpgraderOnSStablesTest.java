@@ -37,6 +37,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertEquals;
 
 /*
@@ -53,13 +54,13 @@ public class StandaloneUpgraderOnSStablesTest
     public static void defineSchema() throws ConfigurationException
     {
         LegacySSTableTest.defineSchema();
-        System.setProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
+        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
     }
 
     @AfterClass
     public static void clearClassEnv()
     {
-        System.clearProperty(Util.ALLOW_TOOL_REINIT_FOR_TEST);
+        TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.clearValue();
     }
 
     @Test

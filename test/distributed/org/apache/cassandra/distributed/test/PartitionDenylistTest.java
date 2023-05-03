@@ -34,6 +34,9 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_RANGE_MOVEMENT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_SIMULTANEOUS_MOVES_ALLOW;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -58,9 +61,9 @@ public class PartitionDenylistTest extends TestBaseImpl
     public void checkStartupWithoutTriggeringUnavailable() throws IOException, InterruptedException, ExecutionException, TimeoutException
     {
         int nodeCount = 4;
-        System.setProperty("cassandra.ring_delay_ms", "5000"); // down from 30s default
-        System.setProperty("cassandra.consistent.rangemovement", "false");
-        System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
+        RING_DELAY.setLong(5000); // down from 30s default
+        CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
+        CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.setBoolean(true);
         try (Cluster cluster = Cluster.build(nodeCount)
                                       .withConfig(config -> config
                                       .with(NETWORK)

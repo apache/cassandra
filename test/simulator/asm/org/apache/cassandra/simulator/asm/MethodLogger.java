@@ -37,6 +37,8 @@ import static java.util.Arrays.stream;
 import static org.apache.cassandra.simulator.asm.MethodLogger.Level.NONE;
 import static org.apache.cassandra.simulator.asm.MethodLogger.Level.valueOf;
 
+// checkstyle: suppress below 'blockSystemPropertyUsage'
+
 // TODO (config): support logging only for packages/classes matching a pattern
 interface MethodLogger
 {

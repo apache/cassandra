@@ -30,13 +30,12 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_BBFAILHELPER_ENABLED;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class FailingTruncationTest extends TestBaseImpl
 {
-    private static final String BB_FAIL_HELPER_PROP = "test.bbfailhelper.enabled";
-
     @Test
     public void testFailingTruncation() throws IOException
     {
@@ -45,7 +44,7 @@ public class FailingTruncationTest extends TestBaseImpl
                                            .start()))
         {
             cluster.setUncaughtExceptionsFilter(t -> "truncateBlocking".equals(t.getMessage()));
-            System.setProperty(BB_FAIL_HELPER_PROP, "true");
+            TEST_BBFAILHELPER_ENABLED.setBoolean(true);
             cluster.schemaChange("create table " + KEYSPACE + ".tbl (id int primary key, t int)");
             try
             {
@@ -76,7 +75,7 @@ public class FailingTruncationTest extends TestBaseImpl
 
         public static void truncateBlocking()
         {
-            if (Boolean.getBoolean(BB_FAIL_HELPER_PROP))
+            if (TEST_BBFAILHELPER_ENABLED.getBoolean())
                 throw new RuntimeException("truncateBlocking");
         }
     }

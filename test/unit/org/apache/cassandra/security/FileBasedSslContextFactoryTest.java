@@ -33,6 +33,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
+
 public class FileBasedSslContextFactoryTest
 {
     private static final Logger logger = LoggerFactory.getLogger(FileBasedSslContextFactoryTest.class);
@@ -42,13 +44,13 @@ public class FileBasedSslContextFactoryTest
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        System.setProperty("cassandra.config", "cassandra.yaml");
+        CASSANDRA_CONFIG.reset();
     }
 
     @AfterClass
     public static void tearDownDatabaseDescriptor()
     {
-        System.clearProperty("cassandra.config");
+        CASSANDRA_CONFIG.clearValue();
     }
 
     @Before

@@ -42,7 +42,7 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.utils.JMXServerUtils;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.IS_DISABLED_MBEAN_REGISTRATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.cql3.CQLTester.getAutomaticallyAllocatedPort;
 
 public class JMXGetterCheckTest extends TestBaseImpl
@@ -68,7 +68,7 @@ public class JMXGetterCheckTest extends TestBaseImpl
         jmxServer.start();
         String url = "service:jmx:rmi:///jndi/rmi://" + jmxHost + ":" + jmxPort + "/jmxrmi";
 
-        IS_DISABLED_MBEAN_REGISTRATION.setBoolean(false);
+        ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(false);
         try (Cluster cluster = Cluster.build(1).withConfig(c -> c.with(Feature.values())).start())
         {
             List<Named> errors = new ArrayList<>();

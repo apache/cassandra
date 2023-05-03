@@ -53,11 +53,13 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_MUTATION_REPAIR_ROWS_PER_BATCH;
+
 public class CassandraStreamReceiver implements StreamReceiver
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraStreamReceiver.class);
 
-    private static final int MAX_ROWS_PER_BATCH = Integer.getInteger("cassandra.repair.mutation_repair_rows_per_batch", 100);
+    private static final int MAX_ROWS_PER_BATCH = REPAIR_MUTATION_REPAIR_ROWS_PER_BATCH.getInt();
 
     private final ColumnFamilyStore cfs;
     private final StreamSession session;

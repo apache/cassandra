@@ -45,6 +45,7 @@ import org.apache.cassandra.tools.ToolRunner;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -403,8 +404,7 @@ public class TTLTest extends CQLTester
         }
         if (runSStableScrub)
         {
-            System.setProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST, "true"); // Necessary for testing
-
+            TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.setBoolean(true);
             try
             {
                 ToolResult tool;
@@ -422,7 +422,7 @@ public class TTLTest extends CQLTester
             }
             finally
             {
-                System.clearProperty(org.apache.cassandra.tools.Util.ALLOW_TOOL_REINIT_FOR_TEST);
+                TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.clearValue();
             }
         }
 

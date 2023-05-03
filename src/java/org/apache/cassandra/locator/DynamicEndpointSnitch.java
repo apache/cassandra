@@ -43,12 +43,14 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_DYNAMIC_SNITCH_SEVERITY;
+
 /**
  * A dynamic snitch that sorts endpoints by latency with an adapted phi failure detector
  */
 public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements LatencySubscribers.Subscriber, DynamicEndpointSnitchMBean
 {
-    private static final boolean USE_SEVERITY = !Boolean.getBoolean("cassandra.ignore_dynamic_snitch_severity");
+    private static final boolean USE_SEVERITY = !IGNORE_DYNAMIC_SNITCH_SEVERITY.getBoolean();
 
     private static final double ALPHA = 0.75; // set to 0.75 to make EDS more biased to towards the newer values
     private static final int WINDOW_SIZE = 100;

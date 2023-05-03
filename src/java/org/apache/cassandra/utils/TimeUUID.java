@@ -53,6 +53,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_UNSAFE_TIME_UUID_NODE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_UNSAFE_UUID_NODE;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
@@ -439,9 +440,8 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
             if (DETERMINISM_UNSAFE_UUID_NODE.getBoolean())
                 return FBUtilities.getBroadcastAddressAndPort().addressBytes[3];
 
-            Long specified = Long.getLong("cassandra.unsafe.timeuuidnode");
-            if (specified != null)
-                return specified
+            if (CASSANDRA_UNSAFE_TIME_UUID_NODE.isPresent())
+                return CASSANDRA_UNSAFE_TIME_UUID_NODE.getLong()
                        ^ FBUtilities.getBroadcastAddressAndPort().addressBytes[3]
                        ^ (FBUtilities.getBroadcastAddressAndPort().addressBytes[2] << 8);
 

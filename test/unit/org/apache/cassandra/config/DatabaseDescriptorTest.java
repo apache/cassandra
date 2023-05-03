@@ -37,6 +37,9 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -63,7 +66,7 @@ public class DatabaseDescriptorTest
 
         // Now try custom loader
         ConfigurationLoader testLoader = new TestLoader();
-        System.setProperty("cassandra.config.loader", testLoader.getClass().getName());
+        CONFIG_LOADER.setString(testLoader.getClass().getName());
 
         config = DatabaseDescriptor.loadConfig();
         assertEquals("ConfigurationLoader Test", config.cluster_name);
@@ -233,11 +236,9 @@ public class DatabaseDescriptorTest
     @Test
     public void testInvalidPartitionPropertyOverride() throws Exception
     {
-        String key = Config.PROPERTY_PREFIX + "partitioner";
-        String previous = System.getProperty(key);
+        String previous = PARTITIONER.setString("ThisDoesNotExist");
         try
         {
-            System.setProperty(key, "ThisDoesNotExist");
             Config testConfig = DatabaseDescriptor.loadConfig();
             testConfig.partitioner = "Murmur3Partitioner";
 
@@ -259,13 +260,9 @@ public class DatabaseDescriptorTest
         finally
         {
             if (previous == null)
-            {
-                System.getProperties().remove(key);
-            }
+                PARTITIONER.clearValue();
             else
-            {
-                System.setProperty(key, previous);
-            }
+                PARTITIONER.setString(previous);
         }
     }
 
@@ -504,7 +501,7 @@ public class DatabaseDescriptorTest
         catch (ConfigurationException e)
         {
             assertThat(e.getMessage()).isEqualTo("To set concurrent_validations > concurrent_compactors, " +
-                                                 "set the system property cassandra.allow_unlimited_concurrent_validations=true");
+                                                 "set the system property -D" + ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getKey() + "=true");
         }
 
         // unless we disable that check (done with a system property at startup or via JMX)

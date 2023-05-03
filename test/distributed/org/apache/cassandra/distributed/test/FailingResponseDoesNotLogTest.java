@@ -49,6 +49,8 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.MD5Digest;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_QUERY_HANDLER_CLASS;
+
 /**
  * This class is rather impelemntation specific.  It is possible that changes made will cause this tests to fail,
  * so updating to the latest logic is fine.
@@ -68,7 +70,7 @@ public class FailingResponseDoesNotLogTest extends TestBaseImpl
     @Test
     public void dispatcherErrorDoesNotLock() throws IOException
     {
-        System.setProperty("cassandra.custom_query_handler_class", AlwaysRejectErrorQueryHandler.class.getName());
+        CUSTOM_QUERY_HANDLER_CLASS.setString(AlwaysRejectErrorQueryHandler.class.getName());
         try (Cluster cluster = Cluster.build(1)
                                       .withConfig(c -> c.with(Feature.NATIVE_PROTOCOL, Feature.GOSSIP)
                                                         .set("client_error_reporting_exclusions", ImmutableMap.of("subnets", Collections.singletonList("127.0.0.1")))
@@ -94,7 +96,7 @@ public class FailingResponseDoesNotLogTest extends TestBaseImpl
         }
         finally
         {
-            System.clearProperty("cassandra.custom_query_handler_class");
+            CUSTOM_QUERY_HANDLER_CLASS.clearValue();
         }
     }
 

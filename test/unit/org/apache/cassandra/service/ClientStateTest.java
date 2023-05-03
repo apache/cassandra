@@ -40,6 +40,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -48,7 +49,7 @@ public class ClientStateTest
     @BeforeClass
     public static void beforeClass()
     {
-        System.setProperty("org.apache.cassandra.disable_mbean_registration", "true");
+        ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
         SchemaLoader.prepareServer();
         DatabaseDescriptor.setAuthFromRoot(true);
         // create the system_auth keyspace so the IRoleManager can function as normal
@@ -62,7 +63,7 @@ public class ClientStateTest
     @AfterClass
     public static void afterClass()
     {
-        System.clearProperty("org.apache.cassandra.disable_mbean_registration");
+        ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.clearValue();
     }
 
     @Test

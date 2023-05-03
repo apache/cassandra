@@ -34,7 +34,6 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
@@ -59,6 +58,7 @@ import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT;
 import static org.apache.cassandra.db.Keyspace.open;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ALL;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;
@@ -253,7 +253,7 @@ public class ReadRepairTest extends TestBaseImpl
             assertRows(cluster.get(2).executeInternal(query));
 
             // alter RF
-            System.setProperty(Config.PROPERTY_PREFIX + "allow_alter_rf_during_range_movement", "true");
+            ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT.setBoolean(true);
             cluster.schemaChange(withKeyspace("ALTER KEYSPACE %s WITH replication = " +
                                               "{'class': 'SimpleStrategy', 'replication_factor': 2}"));
 

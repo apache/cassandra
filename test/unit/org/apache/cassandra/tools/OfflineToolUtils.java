@@ -34,6 +34,7 @@ import java.util.stream.StreamSupport;
 
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.commons.io.FileUtils;
@@ -195,7 +196,7 @@ public abstract class OfflineToolUtils
     @BeforeClass
     public static void setupTester()
     {
-        System.setProperty("cassandra.partitioner", "org.apache.cassandra.dht.Murmur3Partitioner");
+        CassandraRelevantProperties.PARTITIONER.setString("org.apache.cassandra.dht.Murmur3Partitioner");
 
         // may start an async appender
         LoggerFactory.getLogger(OfflineToolUtils.class);

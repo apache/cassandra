@@ -125,19 +125,19 @@ public class LogMessagesTableTest extends CQLTester
     @Test
     public void testResolvingBufferSize()
     {
-        System.setProperty(LOGS_VIRTUAL_TABLE_MAX_ROWS.getKey(), "-1");
+        LOGS_VIRTUAL_TABLE_MAX_ROWS.setInt(-1);
         assertEquals(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS, LogMessagesTable.resolveBufferSize());
 
-        System.setProperty(LOGS_VIRTUAL_TABLE_MAX_ROWS.getKey(), "0");
+        LOGS_VIRTUAL_TABLE_MAX_ROWS.setInt(0);
         assertEquals(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS, LogMessagesTable.resolveBufferSize());
 
-        System.setProperty(LOGS_VIRTUAL_TABLE_MAX_ROWS.getKey(), "1000001");
+        LOGS_VIRTUAL_TABLE_MAX_ROWS.setInt(1000001);
         assertEquals(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS, LogMessagesTable.resolveBufferSize());
 
-        System.setProperty(LOGS_VIRTUAL_TABLE_MAX_ROWS.getKey(), "999");
+        LOGS_VIRTUAL_TABLE_MAX_ROWS.setInt(999);
         assertEquals(LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS, LogMessagesTable.resolveBufferSize());
 
-        System.setProperty(LOGS_VIRTUAL_TABLE_MAX_ROWS.getKey(), "50001");
+        LOGS_VIRTUAL_TABLE_MAX_ROWS.setInt(50001);
         assertEquals(50001, LogMessagesTable.resolveBufferSize());
     }
 

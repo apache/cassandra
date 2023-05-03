@@ -38,7 +38,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -56,17 +55,19 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_IGNORE_REPLAY_ERRORS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_MAX_OUTSTANDING_REPLAY_BYTES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.COMMITLOG_MAX_OUTSTANDING_REPLAY_COUNT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COMMIT_LOG_REPLAY_LIST;
 
 public class CommitLogReplayer implements CommitLogReadHandler
 {
     @VisibleForTesting
-    public static long MAX_OUTSTANDING_REPLAY_BYTES = Long.getLong("cassandra.commitlog_max_outstanding_replay_bytes", 1024 * 1024 * 64);
+    public static long MAX_OUTSTANDING_REPLAY_BYTES = COMMITLOG_MAX_OUTSTANDING_REPLAY_BYTES.getLong();
     @VisibleForTesting
     public static MutationInitiator mutationInitiator = new MutationInitiator();
-    static final String IGNORE_REPLAY_ERRORS_PROPERTY = Config.PROPERTY_PREFIX + "commitlog.ignorereplayerrors";
     private static final Logger logger = LoggerFactory.getLogger(CommitLogReplayer.class);
-    private static final int MAX_OUTSTANDING_REPLAY_COUNT = Integer.getInteger(Config.PROPERTY_PREFIX + "commitlog_max_outstanding_replay_count", 1024);
+    private static final int MAX_OUTSTANDING_REPLAY_COUNT = COMMITLOG_MAX_OUTSTANDING_REPLAY_COUNT.getInt();
 
     private final Set<Keyspace> keyspacesReplayed;
     private final Queue<Future<Integer>> futures;
@@ -525,13 +526,13 @@ public class CommitLogReplayer implements CommitLogReadHandler
     {
         if (exception.permissible)
             logger.error("Ignoring commit log replay error likely due to incomplete flush to disk", exception);
-        else if (Boolean.getBoolean(IGNORE_REPLAY_ERRORS_PROPERTY))
+        else if (COMMITLOG_IGNORE_REPLAY_ERRORS.getBoolean())
             logger.error("Ignoring commit log replay error", exception);
         else if (!CommitLog.handleCommitError("Failed commit log replay", exception))
         {
             logger.error("Replay stopped. If you wish to override this error and continue starting the node ignoring " +
-                         "commit log replay problems, specify -D" + IGNORE_REPLAY_ERRORS_PROPERTY + "=true " +
-                         "on the command line");
+                         "commit log replay problems, specify -D{}=true on the command line",
+                         COMMITLOG_IGNORE_REPLAY_ERRORS.getKey());
             throw new CommitLogReplayException(exception.getMessage(), exception);
         }
         return false;

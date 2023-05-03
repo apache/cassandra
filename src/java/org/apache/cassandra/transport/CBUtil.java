@@ -38,7 +38,6 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -46,6 +45,8 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.memory.MemoryUtil;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_NETTY_USE_HEAP_ALLOCATOR;
 
 /**
  * ByteBuf utility methods.
@@ -56,7 +57,7 @@ import org.apache.cassandra.utils.memory.MemoryUtil;
  */
 public abstract class CBUtil
 {
-    public static final boolean USE_HEAP_ALLOCATOR = Boolean.getBoolean(Config.PROPERTY_PREFIX + "netty_use_heap_allocator");
+    public static final boolean USE_HEAP_ALLOCATOR = CASSANDRA_NETTY_USE_HEAP_ALLOCATOR.getBoolean();
     public static final ByteBufAllocator allocator = USE_HEAP_ALLOCATOR ? new UnpooledByteBufAllocator(false) : new PooledByteBufAllocator(true);
     private static final int UUID_SIZE = 16;
 

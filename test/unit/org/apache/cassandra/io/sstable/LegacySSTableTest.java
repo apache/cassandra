@@ -69,6 +69,7 @@ import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.Collections.singleton;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_LEGACY_SSTABLE_ROOT;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -82,8 +83,6 @@ import static org.junit.Assert.fail;
 public class LegacySSTableTest
 {
     private static final Logger logger = LoggerFactory.getLogger(LegacySSTableTest.class);
-
-    public static final String LEGACY_SSTABLE_PROP = "legacy-sstable-root";
 
     public static File LEGACY_SSTABLE_ROOT;
 
@@ -111,8 +110,8 @@ public class LegacySSTableTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        String scp = System.getProperty(LEGACY_SSTABLE_PROP);
-        Assert.assertNotNull("System property " + LEGACY_SSTABLE_PROP + " not set", scp);
+        String scp = TEST_LEGACY_SSTABLE_ROOT.getString();
+        Assert.assertNotNull("System property " + TEST_LEGACY_SSTABLE_ROOT.getKey() + " not set", scp);
 
         LEGACY_SSTABLE_ROOT = new File(scp).toAbsolute();
         Assert.assertTrue("System property " + LEGACY_SSTABLE_ROOT + " does not specify a directory", LEGACY_SSTABLE_ROOT.isDirectory());

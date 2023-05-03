@@ -38,6 +38,7 @@ import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertEquals;
 
@@ -57,7 +58,7 @@ public class PagingTest
     @BeforeClass
     public static void setup() throws Exception
     {
-        System.setProperty("cassandra.config", "cassandra-murmur.yaml");
+        CASSANDRA_CONFIG.setString("cassandra-murmur.yaml");
 
         cassandra = ServerTestUtils.startEmbeddedCassandraService();
 

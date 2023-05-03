@@ -75,6 +75,7 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static com.google.common.collect.Iterables.all;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_STREAMING_DEBUG_STACKTRACE_LIMIT;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.locator.InetAddressAndPort.hostAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -157,7 +158,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 public class StreamSession
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
-    private static final int DEBUG_STACKTRACE_LIMIT = Integer.parseInt(System.getProperty("cassandra.streaming.debug_stacktrace_limit", "2"));
+    private static final int DEBUG_STACKTRACE_LIMIT = CASSANDRA_STREAMING_DEBUG_STACKTRACE_LIMIT.getInt();
 
     public enum PrepareDirection { SEND, ACK }
 

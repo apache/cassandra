@@ -27,7 +27,7 @@ import javax.management.ObjectName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.IS_DISABLED_MBEAN_REGISTRATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MBEAN_REGISTRATION_CLASS;
 
 /**
@@ -42,7 +42,7 @@ public interface MBeanWrapper
 
     static MBeanWrapper create()
     {
-        if (IS_DISABLED_MBEAN_REGISTRATION.getBoolean())
+        if (ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.getBoolean())
             return new NoOpMBeanWrapper();
 
         String klass = MBEAN_REGISTRATION_CLASS.getString();

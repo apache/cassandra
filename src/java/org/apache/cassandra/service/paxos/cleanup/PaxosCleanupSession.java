@@ -43,6 +43,7 @@ import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_CLEANUP_SESSION_TIMEOUT_SECONDS;
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_REQ;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
@@ -56,7 +57,7 @@ public class PaxosCleanupSession extends AsyncFuture<Void> implements Runnable,
     static final long TIMEOUT_NANOS;
     static
     {
-        long timeoutSeconds = Integer.getInteger("cassandra.paxos_cleanup_session_timeout_seconds", (int) TimeUnit.HOURS.toSeconds(2));
+        long timeoutSeconds = PAXOS_CLEANUP_SESSION_TIMEOUT_SECONDS.getLong();
         TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(timeoutSeconds);
     }
 

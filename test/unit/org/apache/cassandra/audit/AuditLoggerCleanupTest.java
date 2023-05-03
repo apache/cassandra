@@ -41,6 +41,7 @@ import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
 
 import static java.nio.file.Files.list;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -69,7 +70,8 @@ public class AuditLoggerCleanupTest
         emptyCq4File = Files.createFile(auditLogDirRoot.toPath().resolve("20220928-12" + SingleChronicleQueue.SUFFIX)).toFile();
         emptyMetadataFile = Files.createFile(auditLogDirRoot.toPath().resolve("metadata" + SingleTableStore.SUFFIX)).toFile();
 
-        System.setProperty("cassandra.superuser_setup_delay_ms", "0");
+        SUPERUSER_SETUP_DELAY_MS.setLong(0);
+
         embedded = new EmbeddedCassandraService();
         embedded.start();
     }
