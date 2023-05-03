@@ -50,6 +50,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNSAFE_JOIN;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_COMPRESSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_COMPRESSION_ALGO;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class SchemaLoader
@@ -82,7 +85,7 @@ public class SchemaLoader
     public static void startGossiper()
     {
         // skip shadow round and endpoint collision check in tests
-        System.setProperty("cassandra.allow_unsafe_join", "true");
+        ALLOW_UNSAFE_JOIN.setBoolean(true);
         if (!Gossiper.instance.isEnabled())
             Gossiper.instance.start((int) (currentTimeMillis() / 1000));
     }
@@ -249,7 +252,7 @@ public class SchemaLoader
         for (KeyspaceMetadata ksm : schema)
             SchemaTestUtil.announceNewKeyspace(ksm);
 
-        if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
+        if (TEST_COMPRESSION.getBoolean())
             useCompression(schema, compressionParams(CompressionParams.DEFAULT_CHUNK_LENGTH));
     }
 
@@ -725,7 +728,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
 
     public static CompressionParams getCompressionParameters(Integer chunkSize)
     {
-        if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
+        if (TEST_COMPRESSION.getBoolean())
             return chunkSize != null ? compressionParams(chunkSize) : compressionParams(CompressionParams.DEFAULT_CHUNK_LENGTH);
 
         return CompressionParams.noCompression();
@@ -759,7 +762,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
 
     private static CompressionParams compressionParams(int chunkLength)
     {
-        String algo = System.getProperty("cassandra.test.compression.algo", "lz4").toLowerCase();
+        String algo = TEST_COMPRESSION_ALGO.getString().toLowerCase();
         switch (algo)
         {
             case "deflate":

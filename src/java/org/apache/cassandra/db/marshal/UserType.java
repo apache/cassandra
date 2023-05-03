@@ -41,6 +41,7 @@ import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TYPE_UDT_CONFLICT_BEHAVIOR;
 import static org.apache.cassandra.cql3.ColumnIdentifier.maybeQuote;
 
 /**
@@ -523,18 +524,16 @@ public class UserType extends TupleType implements SchemaElement
             {
 
                 throw new AssertionError(String.format("Duplicate names found in UDT %s.%s for column %s; " +
-                                                       "to resolve set -D" + UDT_CONFLICT_BEHAVIOR + "=LOG on startup and remove the type",
-                                                       maybeQuote(keyspace), maybeQuote(name), maybeQuote(fieldName)));
+                                                       "to resolve set -D%s=LOG on startup and remove the type",
+                                                       maybeQuote(keyspace), maybeQuote(name), maybeQuote(fieldName), TYPE_UDT_CONFLICT_BEHAVIOR.getKey()));
             }
         };
-
-        private static final String UDT_CONFLICT_BEHAVIOR = "cassandra.type.udt.conflict_behavior";
 
         abstract void onConflict(String keyspace, String name, String fieldName);
 
         static ConflictBehavior get()
         {
-            String value = System.getProperty(UDT_CONFLICT_BEHAVIOR, REJECT.name());
+            String value = TYPE_UDT_CONFLICT_BEHAVIOR.getString(REJECT.name());
             return ConflictBehavior.valueOf(value);
         }
     }

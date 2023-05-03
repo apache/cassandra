@@ -41,6 +41,7 @@ import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class MessageForwardingTest extends TestBaseImpl
@@ -48,7 +49,10 @@ public class MessageForwardingTest extends TestBaseImpl
     @Test
     public void mutationsForwardedToAllReplicasTest()
     {
-        String originalTraceTimeout = TracingUtil.setWaitForTracingEventTimeoutSecs("1");
+        // Set up the wait for tracing time system property, returning the previous value.
+        // Handles being called again to reset with the original value, replacing the null
+        // with the default value.
+        Integer originalTraceTimeout = WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS.setInt(1);
         final int numInserts = 100;
         Map<InetAddress, Integer> forwardFromCounts = new HashMap<>();
         Map<InetAddress, Integer> commitCounts = new HashMap<>();
@@ -117,7 +121,10 @@ public class MessageForwardingTest extends TestBaseImpl
         }
         finally
         {
-            TracingUtil.setWaitForTracingEventTimeoutSecs(originalTraceTimeout);
+            if (originalTraceTimeout == null)
+                WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS.clearValue();
+            else
+                WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS.setInt(originalTraceTimeout);
         }
     }
 }

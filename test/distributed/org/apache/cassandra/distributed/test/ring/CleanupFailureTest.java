@@ -28,6 +28,7 @@ import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToBootstrap;
 import static org.apache.cassandra.distributed.action.GossipHelper.statusToDecommission;
@@ -86,7 +87,7 @@ public class CleanupFailureTest extends TestBaseImpl
         {
             IInstanceConfig config = cluster.newInstanceConfig();
             IInvokableInstance bootstrappingNode = cluster.bootstrap(config);
-            withProperty("cassandra.join_ring", false,
+            withProperty(JOIN_RING, false,
                          () -> bootstrappingNode.startup(cluster));
 
             // Start decomission on bootstrappingNode

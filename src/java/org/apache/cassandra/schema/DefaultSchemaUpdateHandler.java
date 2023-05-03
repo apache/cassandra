@@ -129,7 +129,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
             return true;
 
         logger.warn("There are nodes in the cluster with a different schema version than us, from which we did not merge schemas: " +
-                    "our version: ({}), outstanding versions -> endpoints: {}. Use -D{}}=true to ignore this, " +
+                    "our version: ({}), outstanding versions -> endpoints: {}. Use -D{}=true to ignore this, " +
                     "-D{}=<ep1[,epN]> to skip specific endpoints, or -D{}=<ver1[,verN]> to skip specific schema versions",
                     Schema.instance.getVersion(),
                     migrationCoordinator.outstandingVersions(),

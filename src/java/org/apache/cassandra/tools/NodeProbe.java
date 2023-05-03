@@ -115,6 +115,9 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.tools.nodetool.GetTimeout;
 import org.apache.cassandra.utils.NativeLibrary;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SSL_ENABLE;
+
 /**
  * JMX client operations for Cassandra.
  */
@@ -124,7 +127,7 @@ public class NodeProbe implements AutoCloseable
     private static final String ssObjName = "org.apache.cassandra.db:type=StorageService";
     private static final int defaultPort = 7199;
 
-    static long JMX_NOTIFICATION_POLL_INTERVAL_SECONDS = Long.getLong("cassandra.nodetool.jmx_notification_poll_interval_seconds", TimeUnit.SECONDS.convert(5, TimeUnit.MINUTES));
+    static long JMX_NOTIFICATION_POLL_INTERVAL_SECONDS = NODETOOL_JMX_NOTIFICATION_POLL_INTERVAL_SECONDS.getLong();
 
     final String host;
     final int port;
@@ -293,7 +296,7 @@ public class NodeProbe implements AutoCloseable
 
     private RMIClientSocketFactory getRMIClientSocketFactory()
     {
-        if (Boolean.parseBoolean(System.getProperty("ssl.enable")))
+        if (SSL_ENABLE.getBoolean())
             return new SslRMIClientSocketFactory();
         else
             return RMISocketFactory.getDefaultSocketFactory();

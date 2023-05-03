@@ -152,6 +152,11 @@ import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_RANGE_MOVEMENT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_SIMULTANEOUS_MOVES_ALLOW;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_SUITENAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;
 import static org.apache.cassandra.distributed.api.Feature.BLANK_GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
@@ -217,8 +222,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     {
         // the path used is defined by test/conf/logback-dtest.xml and looks like the following
         // ./build/test/logs/${cassandra.testtag}/${suitename}/${cluster_id}/${instance_id}/system.log
-        String tag = System.getProperty("cassandra.testtag", "cassandra.testtag_IS_UNDEFINED");
-        String suite = System.getProperty("suitename", "suitename_IS_UNDEFINED");
+        String tag = TEST_CASSANDRA_TESTTAG.getString();
+        String suite = TEST_CASSANDRA_SUITENAME.getString();
         String clusterId = ClusterIDDefiner.getId();
         String instanceId = InstanceIDDefiner.getInstanceId();
         File f = new File(String.format("build/test/logs/%s/%s/%s/%s/system.log", tag, suite, clusterId, instanceId));
@@ -586,9 +591,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 if (config.has(GOSSIP))
                 {
                     // TODO: hacky
-                    System.setProperty("cassandra.ring_delay_ms", "15000");
-                    System.setProperty("cassandra.consistent.rangemovement", "false");
-                    System.setProperty("cassandra.consistent.simultaneousmoves.allow", "true");
+                    RING_DELAY.setLong(15000);
+                    CONSISTENT_RANGE_MOVEMENT.setBoolean(false);
+                    CONSISTENT_SIMULTANEOUS_MOVES_ALLOW.setBoolean(true);
                 }
 
                 mkdirs();

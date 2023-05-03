@@ -22,10 +22,10 @@ import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.MAX_HINT_BUFFERS;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
 /**
@@ -39,7 +39,7 @@ final class HintsBufferPool implements Closeable
         void flush(HintsBuffer buffer, HintsBufferPool pool);
     }
 
-    static final int MAX_ALLOCATED_BUFFERS = Integer.getInteger(Config.PROPERTY_PREFIX + "MAX_HINT_BUFFERS", 3);
+    static final int MAX_ALLOCATED_BUFFERS = MAX_HINT_BUFFERS.getInt();
     private volatile HintsBuffer currentBuffer;
     private final BlockingQueue<HintsBuffer> reserveBuffers;
     private final int bufferSize;

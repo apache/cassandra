@@ -45,6 +45,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
 public class StandaloneUpgrader
@@ -57,7 +58,7 @@ public class StandaloneUpgrader
     public static void main(String args[])
     {
         Options options = Options.parseArgs(args);
-        if (Boolean.getBoolean(Util.ALLOW_TOOL_REINIT_FOR_TEST))
+        if (TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.getBoolean())
             DatabaseDescriptor.toolInitialization(false); //Necessary for testing
         else
             Util.initDatabaseDescriptor();

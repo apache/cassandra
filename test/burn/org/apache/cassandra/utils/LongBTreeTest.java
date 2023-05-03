@@ -52,6 +52,7 @@ import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
+import static org.apache.cassandra.config.CassandraRelevantProperties.BTREE_FAN_FACTOR;
 import static org.apache.cassandra.utils.btree.BTree.iterable;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertEquals;
@@ -1135,7 +1136,7 @@ public class LongBTreeTest
         for (String arg : args)
         {
             if (arg.startsWith("fan="))
-                System.setProperty("cassandra.btree.fanfactor", arg.substring(4));
+                BTREE_FAN_FACTOR.setString(arg.substring(4));
             else if (arg.startsWith("min="))
                 minTreeSize = Integer.parseInt(arg.substring(4));
             else if (arg.startsWith("max="))

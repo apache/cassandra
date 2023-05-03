@@ -96,6 +96,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_REPAIR_FREQUENCY_SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_PAXOS_AUTO_REPAIRS;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.staleBallot;
@@ -110,7 +112,7 @@ public class PaxosRepair2Test extends TestBaseImpl
 
     static
     {
-        CassandraRelevantProperties.PAXOS_EXECUTE_ON_SELF.setBoolean(false);
+        CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION.setBoolean(false);
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -348,8 +350,8 @@ public class PaxosRepair2Test extends TestBaseImpl
     @Test
     public void paxosAutoRepair() throws Throwable
     {
-        System.setProperty("cassandra.auto_repair_frequency_seconds", "1");
-        System.setProperty("cassandra.disable_paxos_auto_repairs", "true");
+        AUTO_REPAIR_FREQUENCY_SECONDS.setInt(1);
+        DISABLE_PAXOS_AUTO_REPAIRS.setBoolean(true);
         try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
                                                              .set("paxos_variant", "v2")
                                                              .set("paxos_repair_enabled", true)
@@ -392,8 +394,8 @@ public class PaxosRepair2Test extends TestBaseImpl
         }
         finally
         {
-            System.clearProperty("cassandra.auto_repair_frequency_seconds");
-            System.clearProperty("cassandra.disable_paxos_auto_repairs");
+            AUTO_REPAIR_FREQUENCY_SECONDS.clearValue();
+            DISABLE_PAXOS_AUTO_REPAIRS.clearValue();
         }
     }
 

@@ -27,17 +27,19 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
+
 public class CustomSslContextFactoryConfigTest
 {
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        System.setProperty("cassandra.config", "cassandra-sslcontextfactory.yaml");
+        CASSANDRA_CONFIG.setString("cassandra-sslcontextfactory.yaml");
     }
 
     @AfterClass
     public static void tearDownDatabaseDescriptor() {
-        System.clearProperty("cassandra.config");
+        CASSANDRA_CONFIG.clearValue();
     }
 
     @Test

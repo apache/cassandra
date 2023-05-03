@@ -1,4 +1,5 @@
 5.0
+ * Moved system properties and envs to CassandraRelevantProperties and CassandraRelevantEnv respectively (CASSANDRA-17797)
  * Replace usages of json-simple dependency by Jackson (CASSANDRA-16855)
  * When decommissioning should set Severity to limit traffic (CASSANDRA-18430)
  * For Java11 and Java17 remove -XX:-UseBiasedLocking as it is the default already (CASSANDRA-17869)
