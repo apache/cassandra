@@ -52,4 +52,10 @@ public class LongSerializer extends TypeSerializer<Long>
     {
         return Long.class;
     }
+
+    @Override
+    protected boolean shouldQuoteCQL()
+    {
+        return false;
+    }
 }

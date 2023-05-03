@@ -135,6 +135,11 @@ public class UpdateStatement extends ModificationStatement
             this.columnValues = columnValues;
         }
 
+        public List<Term.Raw> columnValues()
+        {
+            return columnValues;
+        }
+
         @Override
         protected ModificationStatement prepareInternal(ClientState state,
                                                         TableMetadata metadata,

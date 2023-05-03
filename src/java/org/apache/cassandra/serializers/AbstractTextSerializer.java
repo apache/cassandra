@@ -63,15 +63,21 @@ public abstract class AbstractTextSerializer extends TypeSerializer<String>
         return String.class;
     }
 
-    /**
-     * Generates CQL literal for TEXT/VARCHAR/ASCII types.
-     * Caveat: it does only generate literals with single quotes and not pg-style literals.
-     */
     @Override
-    public String toCQLLiteral(ByteBuffer buffer)
+    protected String toCQLLiteralNonNull(ByteBuffer buffer)
     {
-        return buffer == null
-               ? "null"
-               : '\'' + StringUtils.replace(deserialize(buffer), "'", "''") + '\'';
+        return StringUtils.replace(deserialize(buffer), "'", "''");
     }
+
+//    /**
+//     * Generates CQL literal for TEXT/VARCHAR/ASCII types.
+//     * Caveat: it does only generate literals with single quotes and not pg-style literals.
+//     */
+//    @Override
+//    public String toCQLLiteral(ByteBuffer buffer)
+//    {
+//        return buffer == null
+//               ? "null"
+//               : '\'' + StringUtils.replace(deserialize(buffer), "'", "''") + '\'';
+//    }
 }

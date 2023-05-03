@@ -55,4 +55,10 @@ public class UUIDSerializer extends TypeSerializer<UUID>
     {
         return UUID.class;
     }
+
+    @Override
+    protected boolean shouldQuoteCQL()
+    {
+        return false;
+    }
 }

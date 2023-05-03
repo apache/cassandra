@@ -63,6 +63,14 @@ public interface CQL3Type
      */
     String toCQLLiteral(ByteBuffer bytes, ProtocolVersion version);
 
+    /**
+     * Generates a binary value for the CQL literal of this type
+     */
+    default ByteBuffer fromCQLLiteral(String literal)
+    {
+        return Terms.asBytes("--dummy--", literal, getType());
+    }
+
     public enum Native implements CQL3Type
     {
         ASCII       (AsciiType.instance),
@@ -499,6 +507,52 @@ public interface CQL3Type
         }
     }
 
+    public static class Vector implements CQL3Type
+    {
+        private final AbstractType<?> type;
+        private final int dimensions;
+
+        public Vector(AbstractType<?> type, int dimensions)
+        {
+            this.type = type;
+            this.dimensions = dimensions;
+        }
+
+        @Override
+        public VectorType<?> getType()
+        {
+            return VectorType.getInstance(type, dimensions);
+        }
+
+        @Override
+        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
+        {
+            if (buffer == null)
+                return "null";
+            buffer = buffer.duplicate();
+            CQL3Type elementType = type.asCQL3Type();
+            List<ByteBuffer> values = getType().split(buffer);
+            StringBuilder sb = new StringBuilder();
+            sb.append('[');
+            for (int i = 0; i < values.size(); i++)
+            {
+                if (i > 0)
+                    sb.append(", ");
+                sb.append(elementType.toCQLLiteral(values.get(i), version));
+            }
+            sb.append(']');
+            return sb.toString();
+        }
+
+        @Override
+        public String toString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.append("vector<").append(type.asCQL3Type()).append(", ").append(dimensions).append('>');
+            return sb.toString();
+        }
+    }
+
     // For UserTypes, we need to know the current keyspace to resolve the
     // actual type used, so Raw is a "not yet prepared" CQL3Type.
     public abstract class Raw
@@ -533,6 +587,11 @@ public interface CQL3Type
         }
 
         public boolean isTuple()
+        {
+            return false;
+        }
+
+        public boolean isVector()
         {
             return false;
         }
@@ -596,6 +655,11 @@ public interface CQL3Type
         public static Raw tuple(List<CQL3Type.Raw> ts)
         {
             return new RawTuple(ts);
+        }
+
+        public static Raw vector(CQL3Type.Raw t, int dimention)
+        {
+            return new RawVector(t, dimention);
         }
 
         private static class RawType extends Raw
@@ -750,6 +814,50 @@ public interface CQL3Type
                     case MAP:  return start + "map<" + keys + ", " + values + '>' + end;
                 }
                 throw new AssertionError();
+            }
+        }
+
+        private static class RawVector extends Raw
+        {
+            private final CQL3Type.Raw element;
+            private final int dimention;
+
+            private RawVector(Raw element, int dimention)
+            {
+                super(true);
+                this.element = element;
+                this.dimention = dimention;
+            }
+
+            @Override
+            public boolean isVector()
+            {
+                return true;
+            }
+
+            @Override
+            public boolean supportsFreezing()
+            {
+                return false;
+            }
+
+            @Override
+            public boolean isFrozen()
+            {
+                return true;
+            }
+
+            @Override
+            public Raw freeze()
+            {
+                return super.freeze();
+            }
+
+            @Override
+            public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
+            {
+                CQL3Type type = element.prepare(keyspace, udts);
+                return new Vector(type.getType(), dimention);
             }
         }
 

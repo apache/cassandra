@@ -197,15 +197,9 @@ public class TimestampSerializer extends TypeSerializer<Date>
         return Date.class;
     }
 
-    /**
-     * Builds CQL literal for a timestamp using time zone UTC and fixed date format.
-     * @see #FORMATTER_UTC
-     */
     @Override
-    public String toCQLLiteral(ByteBuffer buffer)
+    protected String toCQLLiteralNonNull(ByteBuffer buffer)
     {
-        return buffer == null || !buffer.hasRemaining()
-               ? "null"
-               : FORMATTER_UTC.get().format(deserialize(buffer));
+        return FORMATTER_UTC.get().format(deserialize(buffer));
     }
 }

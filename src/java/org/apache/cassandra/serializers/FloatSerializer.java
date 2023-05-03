@@ -55,4 +55,10 @@ public class FloatSerializer extends TypeSerializer<Float>
     {
         return Float.class;
     }
+
+    @Override
+    protected boolean shouldQuoteCQL()
+    {
+        return false;
+    }
 }

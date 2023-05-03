@@ -211,6 +211,18 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     }
 
     @Override
+    public float getFloat(ByteBuffer value, int offset)
+    {
+        return value.getFloat(offset);
+    }
+
+    @Override
+    public double getDouble(ByteBuffer value, int offset)
+    {
+        return value.getDouble(offset);
+    }
+
+    @Override
     public long toLong(ByteBuffer value)
     {
         return ByteBufferUtil.toLong(value);

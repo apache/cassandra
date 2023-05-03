@@ -1412,46 +1412,55 @@ public abstract class CQLTester
         return executeFormattedQuery(formatViewQuery(KEYSPACE, query), values);
     }
 
+    protected boolean executeErrorDetailed = true;
+
     /**
      * Executes the provided query using the {@link ClientState#forInternalCalls()} as the expected ClientState. Note:
      * this means permissions checking will not apply and queries will proceed regardless of role or guardrails.
      */
     protected UntypedResultSet executeFormattedQuery(String query, Object... values)
     {
-        UntypedResultSet rs;
-        if (usePrepared)
+        try
         {
-            if (logger.isTraceEnabled())
-                logger.trace("Executing: {} with values {}", query, formatAllValues(values));
-            if (reusePrepared)
+            UntypedResultSet rs;
+            if (usePrepared)
             {
-                rs = QueryProcessor.executeInternal(query, transformValues(values));
+                if (logger.isTraceEnabled())
+                    logger.trace("Executing: {} with values {}", query, formatAllValues(values));
+                if (reusePrepared)
+                {
+                    rs = QueryProcessor.executeInternal(query, transformValues(values));
 
-                // If a test uses a "USE ...", then presumably its statements use relative table. In that case, a USE
-                // change the meaning of the current keyspace, so we don't want a following statement to reuse a previously
-                // prepared statement at this wouldn't use the right keyspace. To avoid that, we drop the previously
-                // prepared statement.
-                if (query.startsWith("USE"))
-                    QueryProcessor.clearInternalStatementsCache();
+                    // If a test uses a "USE ...", then presumably its statements use relative table. In that case, a USE
+                    // change the meaning of the current keyspace, so we don't want a following statement to reuse a previously
+                    // prepared statement at this wouldn't use the right keyspace. To avoid that, we drop the previously
+                    // prepared statement.
+                    if (query.startsWith("USE"))
+                        QueryProcessor.clearInternalStatementsCache();
+                }
+                else
+                {
+                    rs = QueryProcessor.executeOnceInternal(query, transformValues(values));
+                }
             }
             else
             {
-                rs = QueryProcessor.executeOnceInternal(query, transformValues(values));
+                query = replaceValues(query, values);
+                if (logger.isTraceEnabled())
+                    logger.trace("Executing: {}", query);
+                rs = QueryProcessor.executeOnceInternal(query);
             }
+            if (rs != null)
+            {
+                if (logger.isTraceEnabled())
+                    logger.trace("Got {} rows", rs.size());
+            }
+            return rs;
         }
-        else
+        catch (Throwable t)
         {
-            query = replaceValues(query, values);
-            if (logger.isTraceEnabled())
-                logger.trace("Executing: {}", query);
-            rs = QueryProcessor.executeOnceInternal(query);
+            throw new RuntimeException(String.format("Error executing '%s' with values %s", query, Arrays.toString(values)), t);
         }
-        if (rs != null)
-        {
-            if (logger.isTraceEnabled())
-                logger.trace("Got {} rows", rs.size());
-        }
-        return rs;
     }
 
     protected void assertRowsNet(ResultSet result, Object[]... rows)

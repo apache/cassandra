@@ -293,6 +293,11 @@ public class UserType extends TupleType implements SchemaElement
             return this;
     }
 
+    public UserType unfreeze()
+    {
+        return isMultiCell ? this : new UserType(keyspace, name, fieldNames, fieldTypes(), true);
+    }
+
     @Override
     public AbstractType<?> freezeNestedMulticellTypes()
     {

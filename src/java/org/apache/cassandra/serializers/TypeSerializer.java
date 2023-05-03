@@ -55,11 +55,28 @@ public abstract class TypeSerializer<T>
 
     public abstract Class<T> getType();
 
+    protected String toCQLLiteralNonNull(ByteBuffer buffer)
+    {
+        return toString(deserialize(buffer));
+    }
+
     public String toCQLLiteral(ByteBuffer buffer)
     {
         return buffer == null || !buffer.hasRemaining()
                ? "null"
-               : toString(deserialize(buffer));
+               :  maybeQuote(toCQLLiteralNonNull(buffer));
+    }
+
+    protected boolean shouldQuoteCQL()
+    {
+        return true;
+    }
+
+    private String maybeQuote(String value)
+    {
+        if (shouldQuoteCQL())
+            return "'" + value + "'";
+        return value;
     }
 }
 

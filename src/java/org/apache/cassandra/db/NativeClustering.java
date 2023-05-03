@@ -45,7 +45,7 @@ public class NativeClustering implements Clustering<ByteBuffer>
         int bitmapSize = ((count + 7) >>> 3);
 
         assert count < 64 << 10;
-        assert dataSize < 64 << 10;
+        assert dataSize < 64 << 10 : String.format("Data size %d >= %d", dataSize, 64 << 10);
 
         peer = allocator.allocate(metadataSize + dataSize + bitmapSize, writeOp);
         long bitmapStart = peer + metadataSize;
