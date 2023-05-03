@@ -84,7 +84,7 @@ public class AccordCommandStores extends CommandStores<AccordCommandStore>
         journal.append(context, ImmediateExecutor.INSTANCE, new AsyncWriteCallback()
         {
             @Override
-            public void onSuccess()
+            public void run()
             {
                 // TODO (performance, expected): do not retain references to messages beyond a certain total
                 //      cache threshold; in case of flush lagging behind, read the messages from journal and
@@ -94,7 +94,7 @@ public class AccordCommandStores extends CommandStores<AccordCommandStore>
             }
 
             @Override
-            public void onError(Throwable error)
+            public void onFailure(Throwable error)
             {
                 // should we invoke Agent#onUncaughtException() instead?
                 ExecutionFailure.handle(error);

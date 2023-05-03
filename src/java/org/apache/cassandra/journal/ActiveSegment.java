@@ -27,9 +27,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.ExecutionFailure;
 import org.apache.cassandra.concurrent.ManyToOneConcurrentLinkedQueue;
@@ -41,8 +38,6 @@ import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 final class ActiveSegment<K> extends Segment<K>
 {
-    private static final Logger logger = LoggerFactory.getLogger(ActiveSegment.class);
-
     final FileChannel channel;
 
     // OpOrder used to order appends wrt flush
@@ -157,6 +152,7 @@ final class ActiveSegment<K> extends Segment<K>
     {
         index.persist(descriptor);
         metadata.persist(descriptor);
+        SyncUtil.trySyncDir(descriptor.directory);
     }
 
     private void discard()
@@ -411,7 +407,7 @@ final class ActiveSegment<K> extends Segment<K>
             }
             catch (Throwable t)
             {
-                executor.execute(() -> callback.onError(t));
+                executor.execute(() -> callback.onFailure(t));
             }
             finally
             {
@@ -463,20 +459,18 @@ final class ActiveSegment<K> extends Segment<K>
             }
             catch (Throwable t)
             {
-                logger.error("Unexpected error while submitting onSuccess callback to executor", t);
                 ExecutionFailure.handle(t);
             }
         }
 
-        void scheduleOnError(Throwable error)
+        void scheduleOnFailure(Throwable error)
         {
             try
             {
-                executor.execute(() -> callback.onError(error));
+                executor.execute(() -> callback.onFailure(error));
             }
             catch (Throwable t)
             {
-                logger.error("Unexpected error while submitting onError callback to executor", t);
                 ExecutionFailure.handle(t);
             }
         }
@@ -498,7 +492,7 @@ final class ActiveSegment<K> extends Segment<K>
         }
     }
 
-    void scheduleOnErrorCallbacks(Throwable t)
+    void scheduleOnFailureCallbacks(Throwable t)
     {
         writeCallbacksExternal.drain(writeCallbacksInternal::add);
         writeCallbacksInternal.sort(null);
@@ -506,7 +500,7 @@ final class ActiveSegment<K> extends Segment<K>
         for (int i = writeCallbacksInternal.size() - 1; i >= 0; i--)
         {
             QueuedWriteCallback callback = writeCallbacksInternal.get(i);
-            callback.scheduleOnError(t);
+            callback.scheduleOnFailure(t);
         }
 
         writeCallbacksInternal.clear();

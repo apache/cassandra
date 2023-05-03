@@ -169,7 +169,7 @@ final class Flusher<K, V>
                     }
                     catch (Throwable t)
                     {
-                        segmentsToFlush.forEach(s -> s.scheduleOnErrorCallbacks(t));
+                        segmentsToFlush.forEach(s -> s.scheduleOnFailureCallbacks(t));
                         throw t;
                     }
                 }

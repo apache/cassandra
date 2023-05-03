@@ -282,7 +282,7 @@ public class Journal<K, V>
         catch (IOException e)
         {
             // exception during record serialization into the scratch buffer
-            executor.execute(() -> callback.onError(e));
+            executor.execute(() -> callback.onFailure(e));
         }
     }
 

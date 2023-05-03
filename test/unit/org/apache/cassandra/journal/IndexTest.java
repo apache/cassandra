@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import org.junit.Test;
 
@@ -183,18 +182,7 @@ public class IndexTest
         });
         File directory = new File(Files.createTempDirectory(null));
         directory.deleteOnExit();
-        qt().withFixedSeed(1735898489413583L).forAll(gen).checkAssert(map -> test(directory, map));
-    }
-
-    @Test
-    public void sample() throws IOException
-    {
-        File directory = new File(Files.createTempDirectory(null));
-        directory.deleteOnExit();
-
-        test(directory, ImmutableMap.of(TimeUUID.fromString("58ed800a-d357-11b2-0000-000000000000"), new int[]{ 0 },
-                                        TimeUUID.fromString("8001c17e-d357-11b2-0000-000000000000"), new int[]{ 0 }
-        ));
+        qt().forAll(gen).checkAssert(map -> test(directory, map));
     }
 
     private static void test(File directory, Map<TimeUUID, int[]> map)

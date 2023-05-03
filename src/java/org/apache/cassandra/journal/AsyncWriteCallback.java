@@ -19,12 +19,5 @@ package org.apache.cassandra.journal;
 
 public interface AsyncWriteCallback extends Runnable
 {
-    void onSuccess();
-    void onError(Throwable error);
-
-    @Override
-    default void run()
-    {
-        onSuccess();
-    }
+    void onFailure(Throwable error);
 }
