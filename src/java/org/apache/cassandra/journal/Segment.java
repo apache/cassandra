@@ -19,6 +19,7 @@ package org.apache.cassandra.journal;
 
 import java.nio.ByteBuffer;
 
+import accord.utils.Invariants;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.RefCounted;
@@ -57,7 +58,7 @@ abstract class Segment<K> implements Closeable, RefCounted<Segment<K>>
         EntrySerializer.EntryHolder<K> into = new EntrySerializer.EntryHolder<>();
         if (read(offset, into))
         {
-            if (!id.equals(into.key)) throw new AssertionError();
+            Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
             consumer.accept(id, into.value, into.hosts, descriptor.userVersion);
             return true;
         }
@@ -69,7 +70,7 @@ abstract class Segment<K> implements Closeable, RefCounted<Segment<K>>
         int offset = index.lookUpFirst(id);
         if (offset == -1 || !read(offset, into))
             return false;
-        if (!id.equals(into.key)) throw new AssertionError();
+        Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);
         return true;
     }
 
