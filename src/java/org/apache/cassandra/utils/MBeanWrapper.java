@@ -19,8 +19,10 @@
 package org.apache.cassandra.utils;
 
 import java.lang.management.ManagementFactory;
+import java.util.UUID;
 import java.util.function.Consumer;
 import javax.management.MBeanServer;
+import javax.management.MBeanServerFactory;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
@@ -28,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.IS_IN_JVM_DTEST;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MBEAN_REGISTRATION_CLASS;
 
 /**
@@ -42,12 +45,25 @@ public interface MBeanWrapper
 
     static MBeanWrapper create()
     {
+        // If we're running in the in-jvm dtest environment, always use the delegating
+        // mbean wrapper even if we start off with no-op, so it can be switched later
+        if (ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.getBoolean())
+            return new DelegatingMbeanWrapper(getmBeanWrapper());
+
+        return getmBeanWrapper();
+    }
+
+    static MBeanWrapper getmBeanWrapper()
+    {
         if (ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.getBoolean())
             return new NoOpMBeanWrapper();
 
         String klass = MBEAN_REGISTRATION_CLASS.getString();
         if (klass == null)
-            return new PlatformMBeanWrapper();
+            if (IS_IN_JVM_DTEST.getBoolean())
+                return new NoOpMBeanWrapper();
+            else
+                return new PlatformMBeanWrapper();
         return FBUtilities.construct(klass, "mbean");
     }
 
@@ -162,6 +178,125 @@ public interface MBeanWrapper
             try
             {
                 mbs.unregisterMBean(mbeanName);
+            }
+            catch (Exception e)
+            {
+                onException.handler.accept(e);
+            }
+        }
+    }
+
+    static class InstanceMBeanWrapper implements MBeanWrapper
+    {
+        private final MBeanServer mbs;
+        public final UUID id = UUID.randomUUID();
+
+        public InstanceMBeanWrapper(String hostname)
+        {
+            mbs = MBeanServerFactory.createMBeanServer(hostname + "-" + id);
+        }
+
+        public void registerMBean(Object obj, ObjectName mbeanName, OnException onException)
+        {
+            try
+            {
+                mbs.registerMBean(obj, mbeanName);
+            }
+            catch (Exception e)
+            {
+                onException.handler.accept(e);
+            }
+        }
+
+        public boolean isRegistered(ObjectName mbeanName, OnException onException)
+        {
+            try
+            {
+                return mbs.isRegistered(mbeanName);
+            }
+            catch (Exception e)
+            {
+                onException.handler.accept(e);
+            }
+            return false;
+        }
+
+        public void unregisterMBean(ObjectName mbeanName, OnException onException)
+        {
+            try
+            {
+                mbs.unregisterMBean(mbeanName);
+            }
+            catch (Exception e)
+            {
+                onException.handler.accept(e);
+            }
+        }
+
+        public MBeanServer getMBeanServer()
+        {
+            return mbs;
+        }
+
+        public void close() {
+            mbs.queryNames(null, null).forEach(name -> {
+                try {
+                    if (!name.getCanonicalName().contains("MBeanServerDelegate"))
+                        mbs.unregisterMBean(name);
+                } catch (Throwable e) {
+                    logger.debug("Could not unregister mbean {}", name.getCanonicalName());
+                }
+            });
+            MBeanServerFactory.releaseMBeanServer(mbs);
+        }
+    }
+
+    static class DelegatingMbeanWrapper implements MBeanWrapper {
+        MBeanWrapper delegate;
+
+        public DelegatingMbeanWrapper(MBeanWrapper mBeanWrapper)
+        {
+            delegate = mBeanWrapper;
+        }
+
+        public void setDelegate(MBeanWrapper wrapper) {
+            delegate = wrapper;
+        }
+
+        public MBeanWrapper getDelegate()
+        {
+            return delegate;
+        }
+        public void registerMBean(Object obj, ObjectName mbeanName, OnException onException)
+        {
+            try
+            {
+                delegate.registerMBean(obj, mbeanName);
+            }
+            catch (Exception e)
+            {
+                onException.handler.accept(e);
+            }
+        }
+
+        public boolean isRegistered(ObjectName mbeanName, OnException onException)
+        {
+            try
+            {
+                return delegate.isRegistered(mbeanName);
+            }
+            catch (Exception e)
+            {
+                onException.handler.accept(e);
+            }
+            return false;
+        }
+
+        public void unregisterMBean(ObjectName mbeanName, OnException onException)
+        {
+            try
+            {
+                delegate.unregisterMBean(mbeanName);
             }
             catch (Exception e)
             {
