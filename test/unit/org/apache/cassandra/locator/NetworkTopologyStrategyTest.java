@@ -34,6 +34,7 @@ import org.junit.rules.ExpectedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.*;
@@ -45,6 +46,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.locator.NetworkTopologyStrategy.REPLICATION_FACTOR;
 import static org.apache.cassandra.locator.Replica.fullReplica;
@@ -62,12 +64,13 @@ public class NetworkTopologyStrategyTest
         DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(OrderPreservingPartitioner.instance);
         DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+        ClusterMetadataService.setInstance(ClusterMetadataTestHelper.instanceForTest());
     }
 
-    @Before
-    public void beforeEach()
+    @After
+    public void teardown()
     {
-        ClusterMetadataService.setInstance(ClusterMetadataTestHelper.instanceForTest());
+        ServerTestUtils.resetCMS();
     }
 
     @Test
@@ -103,20 +106,18 @@ public class NetworkTopologyStrategyTest
         DatabaseDescriptor.setEndpointSnitch(snitch);
         createDummyTokens(false, snitch);
 
-        ClusterMetadataTestHelper.createKeyspace("CREATE KEYSPACE " + KEYSPACE + " WITH REPLICATION = {" +
-                                                 "   'class' : 'NetworkTopologyStrategy'," +
-                                                 "   'DC1': 3," +
-                                                 "   'DC2': 3," +
-                                                 "   'DC3': 0" +
-                                                 "  } ;");
-
-        NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) ClusterMetadata.current().schema.getKeyspaces().getNullable(KEYSPACE).replicationStrategy;
+        Map<String, String> configOptions = new HashMap<>();
+        configOptions.put("DC1", "3");
+        configOptions.put("DC2", "3");
+        configOptions.put("DC3", "0");
+        NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, configOptions);
 
         Assert.assertEquals(strategy.getReplicationFactor("DC1").allReplicas, 3);
         Assert.assertEquals(strategy.getReplicationFactor("DC2").allReplicas, 3);
         Assert.assertEquals(strategy.getReplicationFactor("DC3").allReplicas, 0);
         // Query for the natural hosts
-        EndpointsForToken replicas = ClusterMetadataTestHelper.getNaturalReplicasForToken(KEYSPACE, new StringToken("123"));
+        Token token = new StringToken("123");
+        EndpointsForToken replicas = strategy.calculateNaturalReplicas(token, ClusterMetadata.current()).forToken(token);
         Assert.assertEquals(6, replicas.size());
         Assert.assertEquals(6, replicas.endpoints().size()); // ensure uniqueness
         Assert.assertEquals(6, new HashSet<>(replicas.byEndpoint().values()).size()); // ensure uniqueness
@@ -196,36 +197,47 @@ public class NetworkTopologyStrategyTest
         ClusterMetadataTestHelper.addEndpoint(addr, new StringToken(token), snitch.getDatacenter(addr), snitch.getRack(addr));
     }
 
+
+
     @Test
     public void testCalculateEndpoints() throws UnknownHostException
     {
         final int NODES = 100;
         final int VNODES = 64;
         final int RUNS = 10;
-        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
-        Map<String, Integer> datacenters = ImmutableMap.of("rf1", 1, "rf3", 3, "rf5_1", 5, "rf5_2", 5, "rf5_3", 5);
-        List<InetAddressAndPort> nodes = new ArrayList<>(NODES);
-        for (byte i=0; i<NODES; ++i)
-            nodes.add(InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, i}));
-        for (int run=0; run<RUNS; ++run)
+        try (WithPartitioner m3p = new WithPartitioner(Murmur3Partitioner.instance))
         {
-            Random rand = new Random(run);
-            ClusterMetadataService.setInstance(ClusterMetadataTestHelper.instanceForTest());
-            IEndpointSnitch snitch = generateSnitch(datacenters, nodes, rand);
-            DatabaseDescriptor.setEndpointSnitch(snitch);
+            Map<String, Integer> datacenters = ImmutableMap.of("rf1", 1, "rf3", 3, "rf5_1", 5, "rf5_2", 5, "rf5_3", 5);
+            List<InetAddressAndPort> nodes = new ArrayList<>(NODES);
+            for (byte i = 0; i < NODES; ++i)
+                nodes.add(InetAddressAndPort.getByAddress(new byte[]{ 127, 0, 0, i }));
+            for (int run = 0; run < RUNS; ++run)
+            {
+                ServerTestUtils.resetCMS();
+                Random rand = new Random(run);
+                IEndpointSnitch snitch = generateSnitch(datacenters, nodes, rand);
+                DatabaseDescriptor.setEndpointSnitch(snitch);
 
-            for (int i=0; i<NODES; ++i)  // Nodes
-                for (int j=0; j<VNODES; ++j) // tokens/vnodes per node
-                    ClusterMetadataTestHelper.addEndpoint(nodes.get(i), Murmur3Partitioner.instance.getRandomToken(rand), snitch.getDatacenter(nodes.get(i)), snitch.getRack(nodes.get(i)));
-            testEquivalence(ClusterMetadata.current(), snitch, datacenters, rand);
+                for (int i = 0; i < NODES; ++i)  // Nodes
+                {
+                    Set<Token> tokens = new HashSet<>();
+                    while (tokens.size() < VNODES) // tokens/vnodes per node
+                    {
+                        tokens.add(Murmur3Partitioner.instance.getRandomToken(rand));
+                    }
+                    ClusterMetadataTestHelper.addEndpoint(nodes.get(i), tokens, snitch.getDatacenter(nodes.get(i)), snitch.getRack(nodes.get(i)));
+                }
+                testEquivalence(ClusterMetadata.current(), snitch, datacenters, rand);
+            }
         }
     }
 
     void testEquivalence(ClusterMetadata metadata, IEndpointSnitch snitch, Map<String, Integer> datacenters, Random rand)
     {
         NetworkTopologyStrategy nts = new NetworkTopologyStrategy("ks",
-                                                                  datacenters.entrySet().stream().
-                                                                      collect(Collectors.toMap(x -> x.getKey(), x -> Integer.toString(x.getValue()))));
+                                                                  datacenters.entrySet()
+                                                                             .stream()
+                                                                             .collect(Collectors.toMap(x -> x.getKey(), x -> Integer.toString(x.getValue()))));
         for (int i=0; i<1000; ++i)
         {
             Token token = Murmur3Partitioner.instance.getRandomToken(rand);
@@ -372,7 +384,7 @@ public class NetworkTopologyStrategyTest
             }
         }
 
-        return new ArrayList<InetAddressAndPort>(replicas);
+        return new ArrayList<>(replicas);
     }
 
     private static boolean hasSufficientReplicas(String dc, Map<String, Set<InetAddressAndPort>> dcReplicas, Multimap<String, InetAddressAndPort> allEndpoints, Map<String, Integer> datacenters)
@@ -407,33 +419,36 @@ public class NetworkTopologyStrategyTest
     @Test
     public void testTransientReplica() throws Exception
     {
-        IEndpointSnitch snitch = new SimpleSnitch();
-        DatabaseDescriptor.setEndpointSnitch(snitch);
+        try (WithPartitioner m3p = new WithPartitioner(Murmur3Partitioner.instance))
+        {
+            IEndpointSnitch snitch = new SimpleSnitch();
+            DatabaseDescriptor.setEndpointSnitch(snitch);
 
-        List<InetAddressAndPort> endpoints = Lists.newArrayList(InetAddressAndPort.getByName("127.0.0.1"),
-                                                                InetAddressAndPort.getByName("127.0.0.2"),
-                                                                InetAddressAndPort.getByName("127.0.0.3"),
-                                                                InetAddressAndPort.getByName("127.0.0.4"));
+            List<InetAddressAndPort> endpoints = Lists.newArrayList(InetAddressAndPort.getByName("127.0.0.1"),
+                                                                    InetAddressAndPort.getByName("127.0.0.2"),
+                                                                    InetAddressAndPort.getByName("127.0.0.3"),
+                                                                    InetAddressAndPort.getByName("127.0.0.4"));
 
-        Multimap<InetAddressAndPort, Token> tokens = HashMultimap.create();
-        tokens.put(endpoints.get(0), tk(100));
-        tokens.put(endpoints.get(1), tk(200));
-        tokens.put(endpoints.get(2), tk(300));
-        tokens.put(endpoints.get(3), tk(400));
+            ClusterMetadataTestHelper.addEndpoint(endpoints.get(0), tk(100), SimpleSnitch.DATA_CENTER_NAME, SimpleSnitch.RACK_NAME);
+            ClusterMetadataTestHelper.addEndpoint(endpoints.get(1), tk(200), SimpleSnitch.DATA_CENTER_NAME, SimpleSnitch.RACK_NAME);
+            ClusterMetadataTestHelper.addEndpoint(endpoints.get(2), tk(300), SimpleSnitch.DATA_CENTER_NAME, SimpleSnitch.RACK_NAME);
+            ClusterMetadataTestHelper.addEndpoint(endpoints.get(3), tk(400), SimpleSnitch.DATA_CENTER_NAME, SimpleSnitch.RACK_NAME);
 
-        Map<String, String> configOptions = new HashMap<String, String>();
-        configOptions.put(snitch.getDatacenter((InetAddressAndPort) null), "3/1");
+            Map<String, String> configOptions = new HashMap<>();
+            configOptions.put(SimpleSnitch.DATA_CENTER_NAME, "3/1");
+            NetworkTopologyStrategy strategy = new NetworkTopologyStrategy(KEYSPACE, configOptions);
 
-        Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(0), range(400, 100)),
-                                               fullReplica(endpoints.get(1), range(400, 100)),
-                                               transientReplica(endpoints.get(2), range(400, 100))),
-                            ClusterMetadataTestHelper.getNaturalReplicasForToken(KEYSPACE, tk(99)));
+            Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(0), range(400, 100)),
+                                                     fullReplica(endpoints.get(1), range(400, 100)),
+                                                     transientReplica(endpoints.get(2), range(400, 100))),
+                                strategy.calculateNaturalReplicas(tk(99), ClusterMetadata.current()));
 
 
-        Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(1), range(100, 200)),
-                                               fullReplica(endpoints.get(2), range(100, 200)),
-                                               transientReplica(endpoints.get(3), range(100, 200))),
-                            ClusterMetadataTestHelper.getNaturalReplicasForToken(KEYSPACE, tk(101)));
+            Util.assertRCEquals(EndpointsForRange.of(fullReplica(endpoints.get(1), range(100, 200)),
+                                                     fullReplica(endpoints.get(2), range(100, 200)),
+                                                     transientReplica(endpoints.get(3), range(100, 200))),
+                                strategy.calculateNaturalReplicas(tk(101), ClusterMetadata.current()));
+        }
     }
 
     @Rule
@@ -457,10 +472,8 @@ public class NetworkTopologyStrategyTest
     {
         HashMap<String, String> configOptions = new HashMap<>();
         configOptions.put("DC1", "2");
-
         NetworkTopologyStrategy strategy = new NetworkTopologyStrategy("ks", configOptions);
-        //StorageService.instance.getTokenMetadata().updateHostId(UUID.randomUUID(), FBUtilities.getBroadcastAddressAndPort());
-        //TODO
+        ClusterMetadataTestHelper.addEndpoint(FBUtilities.getBroadcastAddressAndPort(), new StringToken("123"), "DC1", "RACK1");
         ClientWarn.instance.captureWarnings();
         strategy.maybeWarnOnOptions(null);
         assertTrue(ClientWarn.instance.getWarnings().stream().anyMatch(s -> s.contains("Your replication factor")));

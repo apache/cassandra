@@ -31,6 +31,7 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 
+import org.apache.cassandra.ServerTestUtils.ResettableClusterMetadataService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement;
@@ -78,6 +79,7 @@ import org.apache.cassandra.tcm.transformations.PrepareMove;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 
@@ -106,20 +108,46 @@ public class ClusterMetadataTestHelper
         ClusterMetadataService.setInstance(instanceForTest());
     }
 
+    /**
+     * Create a blank CMS which supports mark & reset for use in tests. This version takes care of initial
+     * CMS setup by bootstrapping the log and applying an Initialize transformation.
+     * @return a resettable CMS instance, to be used in a call to ClusterMetadataService::setInstance
+     */
     public static ClusterMetadataService instanceForTest()
     {
-        return instanceForTest(new ClusterMetadata(DatabaseDescriptor.getPartitioner()));
+        ClusterMetadata current = new ClusterMetadata(DatabaseDescriptor.getPartitioner());
+        LocalLog log = LocalLog.asyncForTests(LogStorage.None, current, false);
+        ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
+                                                                                        MetadataSnapshots.NO_OP,
+                                                                                        log,
+                                                                                        new AtomicLongBackedProcessor(log),
+                                                                                        Commit.Replicator.NO_OP,
+                                                                                        true);
+        log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
+        service.commit(new Initialize(current));
+        QueryProcessor.registerStatementInvalidatingListener();
+        service.mark();
+        return service;
     }
 
+    /**
+     * Create a pre-configured CMS which supports mark & reset for use in tests. This version dose not perform initial
+     * CMS setup, neither bootstrapping the log nor applying an Initialize transformation. It assumes that the supplied
+     * ClusterMetadata instance is in the state required by the specific caller.
+     * @return a resettable CMS instance, to be used in a call to ClusterMetadataService::setInstance
+     */
     public static ClusterMetadataService instanceForTest(ClusterMetadata current)
     {
-        LocalLog log = LocalLog.async(current);
-        return new ClusterMetadataService(new UniformRangePlacement(),
-                                          MetadataSnapshots.NO_OP,
-                                          log,
-                                          new AtomicLongBackedProcessor(log),
-                                          Commit.Replicator.NO_OP,
-                                          true);
+        LocalLog log = LocalLog.asyncForTests(LogStorage.None, current, false);
+        ResettableClusterMetadataService service = new ResettableClusterMetadataService(new UniformRangePlacement(),
+                                                                                        MetadataSnapshots.NO_OP,
+                                                                                        log,
+                                                                                        new AtomicLongBackedProcessor(log),
+                                                                                        Commit.Replicator.NO_OP,
+                                                                                        true);
+        QueryProcessor.registerStatementInvalidatingListener();
+        service.mark();
+        return service;
     }
 
     public static ClusterMetadata minimalForTesting(IPartitioner partitioner)

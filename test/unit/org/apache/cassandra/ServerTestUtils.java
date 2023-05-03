@@ -295,7 +295,7 @@ public final class ServerTestUtils
         ((ResettableClusterMetadataService)cms).reset();
     }
 
-    private static class ResettableClusterMetadataService extends ClusterMetadataService
+    public static class ResettableClusterMetadataService extends ClusterMetadataService
     {
 
         private ClusterMetadata mark;
@@ -311,12 +311,12 @@ public final class ServerTestUtils
             mark = log.metadata();
         }
 
-        private void mark()
+        public void mark()
         {
-            mark = ClusterMetadata.current();
+            mark = log().metadata();
         }
 
-        private Epoch reset()
+        public Epoch reset()
         {
             Epoch nextEpoch = ClusterMetadata.current().epoch.nextEpoch();
             ClusterMetadata newBaseState = mark.forceEpoch(nextEpoch);
