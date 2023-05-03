@@ -34,11 +34,6 @@ abstract class Index<K> implements Closeable
     }
 
     /**
-     * Update the index with a new entry with id and offset
-     */
-    abstract void update(K id, int offset);
-
-    /**
      * Look up offsets by id. It's possible, due to retries, for a segment
      * to contain the same record with the same id more than once, at
      * different offsets.
@@ -67,11 +62,6 @@ abstract class Index<K> implements Closeable
      */
     @Nullable
     abstract K lastId();
-
-    /**
-     * Persist the index on disk to the file matching the desrcriptor.
-     */
-    abstract void persist(Descriptor descriptor);
 
     /**
      * @return whether the id falls within lower/upper bounds of the index

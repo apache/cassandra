@@ -55,7 +55,6 @@ final class InMemoryIndex<K> extends Index<K>
         this.lastId = new AtomicReference<>();
     }
 
-    @Override
     public void update(K id, int offset)
     {
         index.merge(id, new int[] { offset }, (current, value) ->
@@ -103,7 +102,6 @@ final class InMemoryIndex<K> extends Index<K>
         return offests.length == 0 ? -1 : offests[0];
     }
 
-    @Override
     public void persist(Descriptor descriptor)
     {
         File tmpFile = descriptor.tmpFileFor(Component.INDEX);

@@ -153,7 +153,7 @@ class Segments<K>
         Map<Descriptor, StaticSegment<K>> selectedStatic = null;
         for (StaticSegment<K> segment : onlyStatic())
         {
-            if (segment.index.mayContainId(id))
+            if (segment.index().mayContainId(id))
             {
                 if (null == selectedStatic)
                     selectedStatic = new HashMap<>();

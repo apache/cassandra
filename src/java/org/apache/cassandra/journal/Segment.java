@@ -29,21 +29,21 @@ abstract class Segment<K> implements Closeable, RefCounted<Segment<K>>
     final File file;
     final Descriptor descriptor;
     final SyncedOffsets syncedOffsets;
-    final Index<K> index;
     final Metadata metadata;
     final KeySupport<K> keySupport;
 
     ByteBuffer buffer;
 
-    Segment(Descriptor descriptor, SyncedOffsets syncedOffsets, Index<K> index, Metadata metadata, KeySupport<K> keySupport)
+    Segment(Descriptor descriptor, SyncedOffsets syncedOffsets, Metadata metadata, KeySupport<K> keySupport)
     {
         this.file = descriptor.fileFor(Component.DATA);
         this.descriptor = descriptor;
         this.syncedOffsets = syncedOffsets;
-        this.index = index;
         this.metadata = metadata;
         this.keySupport = keySupport;
     }
+
+    abstract Index<K> index();
 
     /*
      * Reading entries (by id, by offset, iterate)
@@ -51,7 +51,7 @@ abstract class Segment<K> implements Closeable, RefCounted<Segment<K>>
 
     boolean read(K id, RecordConsumer<K> consumer)
     {
-        int offset = index.lookUpFirst(id);
+        int offset = index().lookUpFirst(id);
         if (offset == -1)
             return false;
 
@@ -67,7 +67,7 @@ abstract class Segment<K> implements Closeable, RefCounted<Segment<K>>
 
     boolean read(K id, EntrySerializer.EntryHolder<K> into)
     {
-        int offset = index.lookUpFirst(id);
+        int offset = index().lookUpFirst(id);
         if (offset == -1 || !read(offset, into))
             return false;
         Invariants.checkState(id.equals(into.key), "Index for %s read incorrect key: expected %s but read %s", descriptor, id, into.key);

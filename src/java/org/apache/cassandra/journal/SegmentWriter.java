@@ -33,7 +33,7 @@ final class SegmentWriter<K> implements Closeable
     private final Descriptor descriptor;
     private final KeySupport<K> keySupport;
 
-    private final Index<K> index;
+    private final InMemoryIndex<K> index;
     private final Metadata metadata;
 
     private final File file;

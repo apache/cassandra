@@ -44,15 +44,18 @@ final class StaticSegment<K> extends Segment<K>
 
     private final Ref<Segment<K>> selfRef;
 
+    private final OnDiskIndex<K> index;
+
     private StaticSegment(Descriptor descriptor,
                           FileChannel channel,
                           MappedByteBuffer buffer,
                           SyncedOffsets syncedOffsets,
-                          Index<K> index,
+                          OnDiskIndex<K> index,
                           Metadata metadata,
                           KeySupport<K> keySupport)
     {
-        super(descriptor, syncedOffsets, index, metadata, keySupport);
+        super(descriptor, syncedOffsets, metadata, keySupport);
+        this.index = index;
 
         this.channel = channel;
         this.buffer = buffer;
@@ -166,6 +169,12 @@ final class StaticSegment<K> extends Segment<K>
         {
             return descriptor.toString();
         }
+    }
+
+    @Override
+    OnDiskIndex<K> index()
+    {
+        return index;
     }
 
     /**

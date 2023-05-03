@@ -63,11 +63,13 @@ final class ActiveSegment<K> extends Segment<K>
 
     private final Ref<Segment<K>> selfRef;
 
-    private ActiveSegment(
-        Descriptor descriptor, Params params, SyncedOffsets syncedOffsets, Index<K> index, Metadata metadata, KeySupport<K> keySupport)
-    {
-        super(descriptor, syncedOffsets, index, metadata, keySupport);
+    final InMemoryIndex<K> index;
 
+    private ActiveSegment(
+        Descriptor descriptor, Params params, SyncedOffsets syncedOffsets, InMemoryIndex<K> index, Metadata metadata, KeySupport<K> keySupport)
+    {
+        super(descriptor, syncedOffsets, metadata, keySupport);
+        this.index = index;
         try
         {
             channel = FileChannel.open(file.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
@@ -84,9 +86,15 @@ final class ActiveSegment<K> extends Segment<K>
     static <K> ActiveSegment<K> create(Descriptor descriptor, Params params, KeySupport<K> keySupport)
     {
         SyncedOffsets syncedOffsets = SyncedOffsets.active(descriptor, true);
-        Index<K> index = InMemoryIndex.create(keySupport);
+        InMemoryIndex<K> index = InMemoryIndex.create(keySupport);
         Metadata metadata = Metadata.create();
         return new ActiveSegment<>(descriptor, params, syncedOffsets, index, metadata, keySupport);
+    }
+
+    @Override
+    InMemoryIndex<K> index()
+    {
+        return index;
     }
 
     /**
