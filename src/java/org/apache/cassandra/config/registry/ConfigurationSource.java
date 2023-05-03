@@ -124,7 +124,7 @@ public interface ConfigurationSource extends Iterable<Pair<String, Supplier<Obje
      * Adds a listener to the configuration source.
      * @param listener the listener to add.
      */
-    default ListenerRemover addSourceListener(ConfigurationSourceListener listener)
+    default void addSourceListener(ConfigurationSourceListener listener)
     {
         throw new UnsupportedOperationException();
     }

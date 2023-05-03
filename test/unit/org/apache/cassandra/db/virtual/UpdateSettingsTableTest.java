@@ -36,7 +36,6 @@ import org.apache.cassandra.config.DataRateSpec;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
-import org.apache.cassandra.config.registry.ConfigurationQuery;
 import org.apache.cassandra.config.registry.DatabaseConfigurationSource;
 import org.apache.cassandra.config.registry.TypeConverter;
 import org.apache.cassandra.cql3.CQLTester;
@@ -44,7 +43,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
-import static org.apache.cassandra.config.registry.ChangeEventType.BEFORE_CHANGE;
 import static org.apache.cassandra.db.virtual.SettingsTableTest.KS_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -104,23 +102,6 @@ public class UpdateSettingsTableTest extends CQLTester
         assertEquals(expectedIfNullGiven, sessionSpace);
         assertNotNull(DatabaseDescriptor.getRawConfig().repair_session_space);
         assertEquals(expectedIfNullGiven, DatabaseDescriptor.getRawConfig().repair_session_space.toString());
-    }
-
-    @Test
-    public void testUpdateWithNotificationListeners() throws Throwable
-    {
-        DataStorageSpec.IntMebibytesBound value0 = new DataStorageSpec.IntMebibytesBound(10L, MEBIBYTES);
-        ConfigurationQuery.from(tableSource).getValue(DataStorageSpec.IntMebibytesBound.class, ConfigFields.REPAIR_SESSION_SPACE)
-                          .map(DataStorageSpec.IntMebibytesBound::toBytes)
-                          .listen(BEFORE_CHANGE, (oldValue, newValue) -> {
-                              assertNotNull(oldValue);
-                              assertNotNull(newValue);
-                              assertEquals(new DataStorageSpec.IntMebibytesBound(DatabaseDescriptor.SPACE_UPPER_BOUND_MB).toBytes(), oldValue.intValue());
-                              assertEquals(value0.toBytes(), newValue.intValue());
-                          });
-        assertRowsNet(executeNet(String.format("UPDATE %s.settings SET value = ? WHERE name = ?;", KS_NAME),
-                                 value0.toString(), ConfigFields.REPAIR_SESSION_SPACE));
-        assertEquals(value0.toString(), tableSource.getString(ConfigFields.REPAIR_SESSION_SPACE));
     }
 
     @Test

@@ -23,13 +23,6 @@ package org.apache.cassandra.config.registry;
  */
 public interface ConfigurationSourceListener
 {
-    /**
-     * Called on configuration change property event occurr.
-     *
-     * @param name  the name of the configuration property.
-     * @param eventType  the eventType of the event.
-     * @param oldValue the old value of the property.
-     * @param newValue the new value of the property.
-     */
-    void listen(String name, ChangeEventType eventType, Object oldValue, Object newValue);
+    default void beforeUpdate(String name, ConfigurationSource updatedSource) {}
+    default void afterUpdate(String name, ConfigurationSource updatedSource) {}
 }

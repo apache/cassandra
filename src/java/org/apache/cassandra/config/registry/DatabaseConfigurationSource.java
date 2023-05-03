@@ -18,20 +18,15 @@
 
 package org.apache.cassandra.config.registry;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,9 +51,8 @@ import static org.apache.commons.lang3.ClassUtils.primitiveToWrapper;
 public class DatabaseConfigurationSource implements ConfigurationSource
 {
     private static final Logger logger = LoggerFactory.getLogger(DatabaseConfigurationSource.class);
-    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private static final List<Runnable> removers = new CopyOnWriteArrayList<>();
     private final List<ConfigurationSourceListener> changeListeners = new CopyOnWriteArrayList<>();
-    private final List<ConfigurationSourceValidator> validators = new ArrayList<>();
     private final TypeConverterRegistry converters;
     private final Config source;
     private final Map<String, Property> properties;
@@ -66,11 +60,7 @@ public class DatabaseConfigurationSource implements ConfigurationSource
     public DatabaseConfigurationSource(Config source)
     {
         this.source = source;
-        properties = ImmutableMap.copyOf(defaultLoader()
-                                         .flatten(Config.class)
-                                         .entrySet()
-                                         .stream()
-                                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        properties = defaultLoader().flatten(Config.class);
         converters = TypeConverterRegistry.instance;
         // Initialize the configuration handlers.
         registerConfigurationValidators(this::addConfigurationValidator);
@@ -87,7 +77,6 @@ public class DatabaseConfigurationSource implements ConfigurationSource
     public <T> void set(String name, T value)
     {
         Property property = ofNullable(properties.get(name)).orElseThrow(() -> notFound(name));
-        lock.writeLock().lock();
         try
         {
             Class<?> originalType = property.getType();
@@ -98,21 +87,15 @@ public class DatabaseConfigurationSource implements ConfigurationSource
                                                            .convert(value))
                                     .orElse(null);
             // Use given converted value if it is not null, otherwise use the default value.
+            Object oldValue = getRaw(name);
             ConfigurationSource validationSource = PropertyValidationSource.create(this, name, convertedValue);
-            for (ConfigurationSourceValidator validator : validators)
-                validator.validate(validationSource);
-            // Do set the value only if the validation passes.
-            Object validatedValue = validationSource.getRaw(name);
-            Object oldValue = property.get(source);
-            changeListeners.forEach(l -> l.listen(name,
-                                                  ChangeEventType.BEFORE_CHANGE,
-                                                  oldValue, validatedValue));
-            property.set(source, validatedValue);
-            changeListeners.forEach(l -> l.listen(name,
-                                                  ChangeEventType.AFTER_CHANGE,
-                                                  oldValue, validatedValue));
+            changeListeners.forEach(l -> l.beforeUpdate(name, validationSource));
+            Object newValue = validationSource.getRaw(name);
+            property.set(source, newValue);
+            changeListeners.forEach(l -> l.afterUpdate(name, this));
+
             // This potentially may expose the values that are not safe to see in logs on production.
-            logger.info("Configuration property '{}' updated from '{}' to '{}'.", property.getName(), oldValue, validatedValue);
+            logger.info("Configuration property '{}' updated from '{}' to '{}'.", property.getName(), oldValue, newValue);
         }
         catch (ConfigurationException e)
         {
@@ -123,10 +106,6 @@ public class DatabaseConfigurationSource implements ConfigurationSource
             logger.error(String.format("Failed to update property '%s'", name), e);
             throw new ConfigurationException(String.format("Failed to update property '%s'. The cause: %s",
                                                            name, e.getMessage()), false);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
         }
     }
 
@@ -151,17 +130,9 @@ public class DatabaseConfigurationSource implements ConfigurationSource
     @Override
     public Object getRaw(String name)
     {
-        lock.readLock().lock();
-        try
-        {
-            return ofNullable(properties.get(name))
-                   .orElseThrow(() -> notFound(name))
-                   .get(source);
-        }
-        finally
-        {
-            lock.readLock().unlock();
-        }
+        return ofNullable(properties.get(name))
+               .orElseThrow(() -> notFound(name))
+               .get(source);
     }
 
     /**
@@ -194,43 +165,39 @@ public class DatabaseConfigurationSource implements ConfigurationSource
 
     /**
      * Adds a listener for the property with the given name.
-     * @param listener listener to add.
+     * @param consumer listener to add.
      */
-    @Override
-    public ListenerRemover addSourceListener(ConfigurationSourceListener listener)
+    public void addBeforeUpdateSourceListener(BiConsumer<String, ConfigurationSource> consumer)
     {
-        lock.writeLock().lock();
-        try
+        addSourceListener(new ConfigurationSourceListener()
         {
-            changeListeners.add(listener);
-            return () -> removeSourceListener(listener);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
+            @Override
+            public void beforeUpdate(String name, ConfigurationSource updatedSource)
+            {
+                consumer.accept(name, updatedSource);
+            }
+        });
     }
 
     /**
-     * Removes listener for the configuration source.
-     * @param listener Listener to remove.
+     * Adds a listener for the property with the given name.
+     * @param listener listener to add.
      */
-    private void removeSourceListener(ConfigurationSourceListener listener)
+    @Override
+    public void addSourceListener(ConfigurationSourceListener listener)
     {
-        lock.writeLock().lock();
-        try
-        {
-            changeListeners.remove(listener);
-        }
-        finally
-        {
-            lock.writeLock().unlock();
-        }
+        changeListeners.add(listener);
+        removers.add(() -> changeListeners.remove(listener));
     }
 
-    public void addConfigurationValidator(ConfigurationSourceValidator handler)
+    private void addConfigurationValidator(ConfigurationSourceValidator handler)
     {
-        this.validators.add(handler);
+        addSourceListener(handler);
+    }
+
+    public static void shutdown()
+    {
+        removers.forEach(Runnable::run);
     }
 
     private static ConfigurationSourceValidator createLoggingValidator(BiConsumer<ConfigurationSource, Logger> validator)
@@ -241,6 +208,17 @@ public class DatabaseConfigurationSource implements ConfigurationSource
     private static PropertyNotFoundException notFound(String name)
     {
         return new PropertyNotFoundException(String.format("Property '%s' is not found.", name));
+    }
+
+    interface ConfigurationSourceValidator extends ConfigurationSourceListener
+    {
+        void validate(ConfigurationSource source);
+
+        @Override
+        default void beforeUpdate(String name, ConfigurationSource updatedSource)
+        {
+            validate(updatedSource);
+        }
     }
 
     /**

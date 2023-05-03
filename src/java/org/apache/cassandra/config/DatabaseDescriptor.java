@@ -73,7 +73,6 @@ import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.Config.PaxosOnLinearizabilityViolation;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
-import org.apache.cassandra.config.registry.ConfigurationQuery;
 import org.apache.cassandra.config.registry.ConfigurationSource;
 import org.apache.cassandra.config.registry.DatabaseConfigurationSource;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -353,16 +352,6 @@ public class DatabaseDescriptor
     public static DatabaseConfigurationSource configSource()
     {
         return configSource;
-    }
-
-    public static ConfigurationQuery configQuery()
-    {
-        return ConfigurationQuery.from(configSource);
-    }
-
-    public static ConfigurationQuery configQuery(Function<ConfigurationException, ? extends RuntimeException> handler)
-    {
-        return ConfigurationQuery.from(configSource, handler);
     }
 
     @VisibleForTesting
