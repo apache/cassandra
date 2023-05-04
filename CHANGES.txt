@@ -148,6 +148,20 @@ Merged from 4.0:
  * Update zstd-jni library to version 1.5.5 (CASSANDRA-18429)
 Merged from 3.11:
  * Fix the capital P usage in the CQL parser (CASSANDRA-17919)
+Merged from 3.0:
+ * Suppress CVE-2023-2251 (CASSANDRA-18497)
+ * Do not remove SSTables when cause of FSReadError is OutOfMemoryError while using best_effort disk failure policy (CASSANDRA-18336)
+ * Do not remove truncated_at entry in system.local while dropping an index (CASSANDRA-18105)
+
+4.0.9
+ * Update zstd-jni library to version 1.5.5 (CASSANDRA-18429)
+ * Backport CASSANDRA-17205 to 4.0 branch - Remove self-reference in SSTableTidier (CASSANDRA-18332)
+ * Avoid loading the preferred IP for BulkLoader streaming (CASSANDRA-18370)
+ * Fix BufferPool incorrect memoryInUse when putUnusedPortion is used (CASSANDRA-18311)
+ * Improve memtable allocator accounting when updating AtomicBTreePartition (CASSANDRA-18125)
+ * Update zstd-jni to version 1.5.4-1 (CASSANDRA-18259)
+ * Split and order IDEA workspace template VM_PARAMETERS (CASSANDRA-18242)
+Merged from 3.11:
  * Fix sstable_count metric missing from tablestats json/yaml output (CASSANDRA-18448)
  * Suppress CVE-2022-45688 (CASSANDRA-18389)
  * Fix Splitter sometimes creating more splits than requested (CASSANDRA-18013)
