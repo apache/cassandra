@@ -129,10 +129,13 @@ public class QueryViewBuilder
             // and have a term range that is satisfied by the expression.
             View view = expression.context.getView();
             Set<SSTableIndex> indexes = new TreeSet<>(SSTableIndex.COMPARATOR);
-            indexes.addAll(view.match(expression)
-                               .stream()
-                               .filter(index -> sstableIndexOverlaps(index, mostSelective.right))
-                               .collect(Collectors.toList()));
+            if (expression.context.isVector())
+                indexes.addAll(view.getIndexes());
+            else
+                indexes.addAll(view.match(expression)
+                                   .stream()
+                                   .filter(index -> sstableIndexOverlaps(index, mostSelective.right))
+                                   .collect(Collectors.toList()));
             queryView.add(Pair.create(expression, indexes));
         }
 
