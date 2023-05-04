@@ -19,6 +19,10 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.function.LongPredicate;
 
 import com.google.common.base.Throwables;
@@ -38,12 +42,16 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
+import org.hsqldb.Column;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class    Downgrader
+public class Downgrader
 {
     private final ColumnFamilyStore cfs;
     private final SSTableReader sstable;
@@ -59,6 +67,22 @@ public class    Downgrader
     private final Version outputVersion;
 
     private final OutputHandler outputHandler;
+
+    private static  Map<String,Map<String,Function<ColumnMetadata,ColumnMetadata>>> mappers = new HashMap<>();
+
+    static {
+        register("system","local", Downgrader::localMapper );
+    }
+
+    private static void register(String keyspace, String name, Function<ColumnMetadata,ColumnMetadata> func) {
+
+        Map<String,Function<ColumnMetadata,ColumnMetadata>> mapper = mappers.get(keyspace);
+        if (mapper == null) {
+            mapper = new HashMap<>();
+            mappers.put(keyspace,mapper);
+        }
+        mapper.put( name", func );
+    }
 
     public static SSTableFormat.Type forWriting(String version)
     {
@@ -93,6 +117,13 @@ public class    Downgrader
         throw new IllegalArgumentException("No version constant " + version);
     }
 
+    static ColumnMetadata localMapper(ColumnMetadata orig)  {
+        List<String> remove = Arrays.asList("broadcast_port", "listen_port", "rpc_port");
+        if (remove.contains(orig.name.toString())) {
+            return null;
+        }
+        return orig;
+    }
 
 
     public Downgrader(String version, ColumnFamilyStore cfs, LifecycleTransaction txn, OutputHandler outputHandler, SSTableFormat.Type sourceFormat)
@@ -116,6 +147,8 @@ public class    Downgrader
         this.estimatedRows = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
     }
 
+
+
     private SSTableWriter createCompactionWriter(StatsMetadata metadata)
     {
         MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.getComparator());
@@ -128,6 +161,7 @@ public class    Downgrader
                                                       outputType);
             assert !newDescriptor.fileFor(Component.DATA).exists();
 
+
         return SSTableWriter.create(newDescriptor,
                                     estimatedRows,
                                     metadata.repairedAt,
@@ -138,6 +172,32 @@ public class    Downgrader
                                     SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)),
                                     cfs.indexManager.listIndexes(),
                                     transaction);
+    }
+
+    Function<ColumnMetadata,ColumnMetadata> getColumnMapper(String keyspace, String name) {
+        Function<ColumnMetadata,ColumnMetadata> columnMapper = null;
+        Map<String,Function<ColumnMetadata,ColumnMetadata>> mapper = mappers.get(keyspace);
+        if (mapper != null) {
+            columnMapper = mapper.get(name);
+        }
+        return columnMapper != null ? columnMapper : (f) -> f;
+    }
+
+    TableMetadataRef rewrite(TableMetadataRef original) {
+
+        TableMetadata origMeta = original.get();
+        TableMetadata.Builder builder = original.get().unbuild();
+        Function<ColumnMetadata,ColumnMetadata> columnMapper = getColumnMapper(original.keyspace, original.name);
+        for (ColumnMetadata colMeta  : builder.columns())
+        {
+            ColumnMetadata newColMeta = columnMapper.apply(colMeta);
+            if (newColMeta == null) {
+                builder.dropColumn(colMeta.name);
+            } else {
+                builder.replaceColumn( colMeta.name, newColMeta );
+            }
+        }
+        return TableMetadataRef.forOfflineTools(builder.build());
     }
 
     public void downgrade(boolean keepOriginals)
@@ -179,4 +239,10 @@ public class    Downgrader
         {
             return time -> false;
         }
-    }}
+    }
+
+    private static class TableMapper {
+        Function<ColumnMetadata,ColumnMetadata> columnMapper;
+    }
+
+}

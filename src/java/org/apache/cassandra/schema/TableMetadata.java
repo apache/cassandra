@@ -1018,6 +1018,20 @@ public class TableMetadata implements SchemaElement
             return columns.get(identifier.bytes);
         }
 
+        public void replaceColumn(ColumnIdentifier identifier, ColumnMetadata metadata)
+        {
+            if (!identifier.equals( metadata.name))
+                columns.remove(identifier.bytes);
+
+           columns.put(metadata.name.bytes, metadata);
+        }
+
+        public void dropColumn(ColumnIdentifier identifier)
+        {
+            columns.remove(identifier.bytes);
+        }
+
+
         public ColumnMetadata getColumn(ByteBuffer name)
         {
             return columns.get(name);
