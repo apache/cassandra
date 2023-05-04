@@ -42,7 +42,6 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
-import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
 
@@ -148,8 +147,7 @@ public class PrepareJoin implements Transformation
         MidJoin midJoin = new MidJoin(nodeId, transitionPlan.moveReads(), lockKey);
         FinishJoin finishJoin = new FinishJoin(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey);
 
-        ProgressBarrier barrier = ProgressBarrier.immediate(rangesToLock.toPeers(prev.placements, prev.directory));
-        BootstrapAndJoin plan = new BootstrapAndJoin(barrier,
+        BootstrapAndJoin plan = new BootstrapAndJoin(prev.epoch.nextEpoch(),
                                                      lockKey,
                                                      Kind.START_JOIN,
                                                      transitionPlan.toSplit,

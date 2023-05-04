@@ -168,16 +168,14 @@ public class LockedRanges implements MetadataValue<LockedRanges>
             }
         };
 
-        default ImmutableSet<NodeId> toPeers(DataPlacements placements, Directory directory)
+        default ImmutableSet<NodeId> toPeers(ReplicationParams replication, DataPlacements placements, Directory directory)
         {
             ImmutableSet.Builder<NodeId> peers = ImmutableSet.builder();
-            asMap().forEach((replication, rangeset) -> {
-                DataPlacement placement = placements.get(replication);
-                rangeset.stream()
+            DataPlacement placement = placements.get(replication);
+            asMap().get(replication).stream()
                         .flatMap(range -> placement.affectedReplicas(range).stream())
                         .map(directory::peerId)
                         .forEach(peers::add);
-            });
             return peers.build();
         }
 

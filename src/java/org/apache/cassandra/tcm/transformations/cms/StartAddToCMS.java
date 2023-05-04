@@ -26,10 +26,10 @@ import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
-import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
@@ -57,6 +57,10 @@ public class StartAddToCMS extends BaseMembershipTransformation
 
     public Result execute(ClusterMetadata prev)
     {
+        InProgressSequence<?> sequence = prev.inProgressSequences.get(prev.directory.peerId(endpoint));
+        if (sequence != null)
+            return new Rejected(INVALID, String.format("Can not add node to CMS, since it already has an active in-progress sequence %s", sequence));
+
         RangesByEndpoint readReplicas = prev.placements.get(ReplicationParams.meta()).reads.byEndpoint();
         RangesByEndpoint writeReplicas = prev.placements.get(ReplicationParams.meta()).writes.byEndpoint();
 
@@ -76,8 +80,7 @@ public class StartAddToCMS extends BaseMembershipTransformation
                 streamCandidates.add(replica.endpoint());
         }
 
-        ProgressBarrier barrier = new ProgressBarrier(prev.nextEpoch(), affectedRanges.toPeers(prev.placements, prev.directory), false);
-        AddToCMS joinSequence = new AddToCMS(barrier, streamCandidates, new FinishAddToCMS(endpoint));
+        AddToCMS joinSequence = new AddToCMS(prev.nextEpoch(), streamCandidates, new FinishAddToCMS(endpoint));
 
         return success(transformer.with(prev.inProgressSequences.with(prev.directory.peerId(replica.endpoint()), joinSequence)),
                        affectedRanges);

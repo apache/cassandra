@@ -60,7 +60,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
     private static final Logger logger = LoggerFactory.getLogger(BootstrapAndReplace.class);
     public static final Serializer serializer = new Serializer();
 
-    public final ProgressBarrier barrier;
+    public final Epoch latestModification;
     public final LockedRanges.Key lockKey;
     public final Set<Token> bootstrapTokens;
     public final PrepareReplace.StartReplace startReplace;
@@ -71,7 +71,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
     public final boolean finishJoiningRing;
     public final boolean streamData;
 
-    public BootstrapAndReplace(ProgressBarrier barrier,
+    public BootstrapAndReplace(Epoch latestModification,
                                LockedRanges.Key lockKey,
                                Transformation.Kind next,
                                Set<Token> bootstrapTokens,
@@ -81,7 +81,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
                                boolean finishJoiningRing,
                                boolean streamData)
     {
-        this.barrier = barrier;
+        this.latestModification = latestModification;
         this.lockKey = lockKey;
         this.bootstrapTokens = bootstrapTokens;
         this.startReplace = startReplace;
@@ -92,9 +92,9 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
         this.streamData = streamData;
     }
 
-    public BootstrapAndReplace advance(Epoch waitForWatermark, Transformation.Kind next)
+    public BootstrapAndReplace advance(Epoch waitFor, Transformation.Kind next)
     {
-        return new BootstrapAndReplace(barrier.withNewEpoch(waitForWatermark),
+        return new BootstrapAndReplace(waitFor,
                                        lockKey,
                                        next,
                                        bootstrapTokens,
@@ -110,7 +110,8 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
 
     public ProgressBarrier barrier()
     {
-        return barrier;
+        InetAddressAndPort replaced = ClusterMetadata.current().directory.getNodeAddresses(startReplace.replaced()).broadcastAddress;
+        return new ProgressBarrier(latestModification, ClusterMetadata.current().lockedRanges.locked.get(lockKey), e -> !e.equals(replaced));
     }
 
     public Transformation.Kind nextStep()
@@ -266,7 +267,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
         BootstrapAndReplace that = (BootstrapAndReplace) o;
         return finishJoiningRing == that.finishJoiningRing &&
                streamData == that.streamData &&
-               Objects.equals(barrier, that.barrier) &&
+               Objects.equals(latestModification, that.latestModification) &&
                Objects.equals(lockKey, that.lockKey) &&
                Objects.equals(bootstrapTokens, that.bootstrapTokens) &&
                Objects.equals(startReplace, that.startReplace) &&
@@ -277,7 +278,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
     @Override
     public int hashCode()
     {
-        return Objects.hash(barrier, lockKey, bootstrapTokens, startReplace, midReplace, finishReplace, next, finishJoiningRing, streamData);
+        return Objects.hash(latestModification, lockKey, bootstrapTokens, startReplace, midReplace, finishReplace, next, finishJoiningRing, streamData);
     }
 
     public static class Serializer implements AsymmetricMetadataSerializer<InProgressSequence<?>, BootstrapAndReplace>
@@ -292,7 +293,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
             for (Token token : plan.bootstrapTokens)
                 Token.metadataSerializer.serialize(token, out, version);
 
-            ProgressBarrier.serializer.serialize(t.barrier(), out, version);
+            Epoch.serializer.serialize(plan.latestModification, out, version);
             LockedRanges.Key.serializer.serialize(plan.lockKey, out, version);
 
             VIntCoding.writeUnsignedVInt32(plan.next.ordinal(), out);
@@ -314,7 +315,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
             for (int i = 0; i < tokenCount; i++)
                 tokens.add(Token.metadataSerializer.deserialize(in, version));
 
-            ProgressBarrier barrier = ProgressBarrier.serializer.deserialize(in, version);
+            Epoch barrier = Epoch.serializer.deserialize(in, version);
             LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
 
             Transformation.Kind next = Transformation.Kind.values()[VIntCoding.readUnsignedVInt32(in)];
@@ -340,7 +341,7 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
             for (Token token : plan.bootstrapTokens)
                 size += Token.metadataSerializer.serializedSize(token, version);
 
-            size += ProgressBarrier.serializer.serializedSize(plan.barrier(), version);
+            size += Epoch.serializer.serializedSize(plan.latestModification, version);
             size += LockedRanges.Key.serializer.serializedSize(plan.lockKey, version);
 
             size += VIntCoding.computeVIntSize(plan.kind().ordinal());

@@ -61,8 +61,8 @@ public class ClusterMetadataTest
             ClusterMetadataTestHelper.register(i);
             ClusterMetadataTestHelper.join(i, i);
         }
-        ClusterMetadataService.instance().commit(ClusterMetadataTestHelper.prepareLeave(1));
-        UnbootstrapAndLeave plan = getLeavePlan(1);
+        ClusterMetadataService.instance().commit(ClusterMetadataTestHelper.prepareLeave(3));
+        UnbootstrapAndLeave plan = getLeavePlan(3);
 
         ClusterMetadataService.instance().commit(plan.startLeave);
         KeyspaceMetadata ksm = KeyspaceMetadata.create("ks", KeyspaceParams.simple(3));

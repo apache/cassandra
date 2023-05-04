@@ -31,6 +31,12 @@ public interface InProgressSequence<T extends InProgressSequence<T>>
      * Returns a kind of the next step
      */
     public Transformation.Kind nextStep();
+
+    /**
+     * Executes the next step. Returns whether or the sequence can continue / retry safely. Can return
+     * false in cases when bootstrap streaming failed, or when the user has requested to halt the bootstrap sequence
+     * and avoid joining the ring.
+     */
     public boolean executeNext();
 
     public T advance(Epoch waitForWatermark, Transformation.Kind next);

@@ -65,7 +65,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
     private static final Logger logger = LoggerFactory.getLogger(BootstrapAndJoin.class);
     public static final Serializer serializer = new Serializer();
 
-    public final ProgressBarrier barrier;
+    public final Epoch latestModification;
     public final LockedRanges.Key lockKey;
     public final PlacementDeltas toSplitRanges;
     public final PrepareJoin.StartJoin startJoin;
@@ -76,7 +76,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
     public final boolean finishJoiningRing;
     public final boolean streamData;
 
-    public BootstrapAndJoin(ProgressBarrier barrier,
+    public BootstrapAndJoin(Epoch latestModification,
                             LockedRanges.Key lockKey,
                             Transformation.Kind next,
                             PlacementDeltas toSplitRanges,
@@ -86,7 +86,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
                             boolean finishJoiningRing,
                             boolean streamData)
     {
-        this.barrier = barrier;
+        this.latestModification = latestModification;
         this.lockKey = lockKey;
         this.next = next;
 
@@ -138,7 +138,9 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
     @Override
     public ProgressBarrier barrier()
     {
-        return barrier;
+        if (next == Transformation.Kind.START_JOIN)
+            return ProgressBarrier.immediate();
+        return new ProgressBarrier(latestModification, ClusterMetadata.current().lockedRanges.locked.get(lockKey));
     }
 
     @Override
@@ -150,7 +152,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
     @Override
     public BootstrapAndJoin advance(Epoch waitForWatermark, Transformation.Kind next)
     {
-        return new BootstrapAndJoin(barrier().withNewEpoch(waitForWatermark), lockKey, next,
+        return new BootstrapAndJoin(waitForWatermark, lockKey, next,
                                     toSplitRanges, startJoin, midJoin, finishJoin,
                                     finishJoiningRing, streamData);
     }
@@ -270,7 +272,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
 
     public BootstrapAndJoin finishJoiningRing()
     {
-        return new BootstrapAndJoin(barrier(), lockKey, next, toSplitRanges, startJoin, midJoin, finishJoin,
+        return new BootstrapAndJoin(latestModification, lockKey, next, toSplitRanges, startJoin, midJoin, finishJoin,
                                     true, streamData);
     }
 
@@ -314,7 +316,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
     public String toString()
     {
         return "BootstrapAndJoinPlan{" +
-               "barrier=" + barrier +
+               "barrier=" + latestModification +
                ", lockKey=" + lockKey +
                ", toSplitRanges=" + toSplitRanges +
                ", startJoin=" + startJoin +
@@ -332,7 +334,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
         BootstrapAndJoin that = (BootstrapAndJoin) o;
         return finishJoiningRing == that.finishJoiningRing &&
                streamData == that.streamData &&
-               Objects.equals(barrier, that.barrier) &&
+               Objects.equals(latestModification, that.latestModification) &&
                Objects.equals(lockKey, that.lockKey) &&
                Objects.equals(toSplitRanges, that.toSplitRanges) &&
                Objects.equals(startJoin, that.startJoin) &&
@@ -344,7 +346,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
     @Override
     public int hashCode()
     {
-        return Objects.hash(barrier, lockKey, toSplitRanges, startJoin, midJoin, finishJoin, next, finishJoiningRing, streamData);
+        return Objects.hash(latestModification, lockKey, toSplitRanges, startJoin, midJoin, finishJoin, next, finishJoiningRing, streamData);
     }
 
     public static class Serializer implements AsymmetricMetadataSerializer<InProgressSequence<?>, BootstrapAndJoin>
@@ -355,7 +357,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
             out.writeBoolean(plan.finishJoiningRing);
             out.writeBoolean(plan.streamData);
 
-            ProgressBarrier.serializer.serialize(plan.barrier(), out, version);
+            Epoch.serializer.serialize(plan.latestModification, out, version);
             LockedRanges.Key.serializer.serialize(plan.lockKey, out, version);
             PlacementDeltas.serializer.serialize(plan.toSplitRanges, out, version);
             VIntCoding.writeUnsignedVInt32(plan.next.ordinal(), out);
@@ -373,7 +375,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
             boolean finishJoiningRing = in.readBoolean();
             boolean streamData = in.readBoolean();
 
-            ProgressBarrier barrier = ProgressBarrier.serializer.deserialize(in, version);
+            Epoch lastModified = Epoch.serializer.deserialize(in, version);
             LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
             PlacementDeltas toSplitRanges = PlacementDeltas.serializer.deserialize(in, version);
             Transformation.Kind next = Transformation.Kind.values()[VIntCoding.readUnsignedVInt32(in)];
@@ -387,7 +389,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
             if (next.ordinal() >= Transformation.Kind.FINISH_JOIN.ordinal())
                 finishJoin = PrepareJoin.FinishJoin.serializer.deserialize(in, version);
 
-            return new BootstrapAndJoin(barrier, lockKey, next, toSplitRanges, startJoin, midJoin, finishJoin, finishJoiningRing, streamData);
+            return new BootstrapAndJoin(lastModified, lockKey, next, toSplitRanges, startJoin, midJoin, finishJoin, finishJoiningRing, streamData);
         }
 
         public long serializedSize(InProgressSequence<?> t, Version version)
@@ -395,7 +397,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
             BootstrapAndJoin plan = (BootstrapAndJoin) t;
             long size = (TypeSizes.BOOL_SIZE * 2);
 
-            size += ProgressBarrier.serializer.serializedSize(plan.barrier(), version);
+            size += Epoch.serializer.serializedSize(plan.latestModification, version);
             size += LockedRanges.Key.serializer.serializedSize(plan.lockKey, version);
             size += PlacementDeltas.serializer.serializedSize(plan.toSplitRanges, version);
 

@@ -73,8 +73,8 @@ public class Move implements InProgressSequence<Move>
     private static final Logger logger = LoggerFactory.getLogger(Move.class);
     public static final Serializer serializer = new Serializer();
 
+    public final Epoch latestModification;
     public final Collection<Token> tokens;
-    public final ProgressBarrier barrier;
     public final LockedRanges.Key lockKey;
     public final Transformation.Kind next;
 
@@ -85,8 +85,8 @@ public class Move implements InProgressSequence<Move>
     public final boolean streamData;
 
 
-    public Move(Collection<Token> tokens,
-                ProgressBarrier barrier,
+    public Move(Epoch latestModification,
+                Collection<Token> tokens,
                 LockedRanges.Key lockKey,
                 Transformation.Kind next,
                 PlacementDeltas toSplitRanges,
@@ -95,8 +95,8 @@ public class Move implements InProgressSequence<Move>
                 PrepareMove.FinishMove finishMove,
                 boolean streamData)
     {
+        this.latestModification = latestModification;
         this.tokens = tokens;
-        this.barrier = barrier;
         this.lockKey = lockKey;
         this.next = next;
         this.toSplitRanges = toSplitRanges;
@@ -116,7 +116,9 @@ public class Move implements InProgressSequence<Move>
     @Override
     public ProgressBarrier barrier()
     {
-        return barrier;
+        if (next == Transformation.Kind.START_MOVE)
+            return ProgressBarrier.immediate();
+        return new ProgressBarrier(latestModification, ClusterMetadata.current().lockedRanges.locked.get(lockKey));
     }
 
     @Override
@@ -384,8 +386,9 @@ public class Move implements InProgressSequence<Move>
 
     public Move advance(Epoch waitForWatermark, Transformation.Kind next)
     {
-        return new Move(tokens,
-                        barrier().withNewEpoch(waitForWatermark), lockKey, next,
+        return new Move(waitForWatermark,
+                        tokens,
+                        lockKey, next,
                         toSplitRanges, startMove, midMove, finishMove,
                         streamData);
     }
@@ -397,7 +400,7 @@ public class Move implements InProgressSequence<Move>
             Move plan = (Move) t;
             out.writeBoolean(plan.streamData);
 
-            ProgressBarrier.serializer.serialize(plan.barrier(), out, version);
+            Epoch.serializer.serialize(plan.latestModification, out, version);
             LockedRanges.Key.serializer.serialize(plan.lockKey, out, version);
             PlacementDeltas.serializer.serialize(plan.toSplitRanges, out, version);
             VIntCoding.writeUnsignedVInt32(plan.next.ordinal(), out);
@@ -418,7 +421,7 @@ public class Move implements InProgressSequence<Move>
         {
             boolean streamData = in.readBoolean();
 
-            ProgressBarrier barrier = ProgressBarrier.serializer.deserialize(in, version);
+            Epoch barrier = Epoch.serializer.deserialize(in, version);
             LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
             PlacementDeltas toSplitRanges = PlacementDeltas.serializer.deserialize(in, version);
             Transformation.Kind next = Transformation.Kind.values()[VIntCoding.readUnsignedVInt32(in)];
@@ -437,7 +440,7 @@ public class Move implements InProgressSequence<Move>
             List<Token> tokens = new ArrayList<>();
             for (int i = 0; i < numTokens; i++)
                 tokens.add(Token.metadataSerializer.deserialize(in, version));
-            return new Move(tokens, barrier, lockKey, next,
+            return new Move(barrier, tokens, lockKey, next,
                             toSplitRanges, startMove, midMove, finishMove, streamData);
         }
 
@@ -446,7 +449,7 @@ public class Move implements InProgressSequence<Move>
             Move plan = (Move) t;
             long size = TypeSizes.BOOL_SIZE;
 
-            size += ProgressBarrier.serializer.serializedSize(plan.barrier(), version);
+            size += Epoch.serializer.serializedSize(plan.latestModification, version);
             size += LockedRanges.Key.serializer.serializedSize(plan.lockKey, version);
             size += PlacementDeltas.serializer.serializedSize(plan.toSplitRanges, version);
 

@@ -35,6 +35,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -127,7 +128,7 @@ public class InProgressSequenceCancellationTest
 
         Set<Token> tokens = Collections.singleton(token(random.nextLong()));
 
-        BootstrapAndJoin plan = new BootstrapAndJoin(ProgressBarrier.NONE,
+        BootstrapAndJoin plan = new BootstrapAndJoin(Epoch.EMPTY,
                                                      key,
                                                      Transformation.Kind.FINISH_JOIN,
                                                      prepareDeltas,
@@ -195,7 +196,7 @@ public class InProgressSequenceCancellationTest
         DataPlacements afterMid = placements(ranges(random), replication, random);
         PlacementDeltas midDeltas = deltas(afterStart, afterMid);
 
-        UnbootstrapAndLeave plan = new UnbootstrapAndLeave(ProgressBarrier.NONE,
+        UnbootstrapAndLeave plan = new UnbootstrapAndLeave(Epoch.EMPTY,
                                                            key,
                                                            Transformation.Kind.FINISH_LEAVE,
                                                            new PrepareLeave.StartLeave(nodeId, startDeltas, key),
@@ -273,7 +274,7 @@ public class InProgressSequenceCancellationTest
         DataPlacements afterMid = placements(ranges(random), replication, random);
         PlacementDeltas midDeltas = deltas(afterStart, afterMid);
 
-        BootstrapAndReplace plan = new BootstrapAndReplace(ProgressBarrier.NONE,
+        BootstrapAndReplace plan = new BootstrapAndReplace(Epoch.EMPTY,
                                                            key,
                                                            Transformation.Kind.FINISH_REPLACE,
                                                            tokens,

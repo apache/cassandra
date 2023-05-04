@@ -39,7 +39,6 @@ import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.sequences.Move;
-import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -100,9 +99,8 @@ public class PrepareMove implements Transformation
         MidMove midMove = new MidMove(nodeId, transitionPlan.moveReads(), lockKey);
         FinishMove finishMove = new FinishMove(nodeId, tokens, transitionPlan.removeFromWrites(), lockKey);
 
-        ProgressBarrier barrier = ProgressBarrier.immediate(rangesToLock.toPeers(prev.placements, prev.directory));
-        Move sequence = new Move(tokens,
-                                 barrier,
+        Move sequence = new Move(prev.nextEpoch(),
+                                 tokens,
                                  lockKey,
                                  Kind.START_MOVE,
                                  transitionPlan.toSplit,

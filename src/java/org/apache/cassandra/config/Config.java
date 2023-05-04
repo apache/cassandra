@@ -1256,4 +1256,12 @@ public class Config
 
     // TODO Revisit MessagingService::current_version
     public StorageCompatibilityMode storage_compatibility_mode = StorageCompatibilityMode.NONE;
+
+    /**
+     * For the purposes of progress barrier we only support EACH_QUORUM, QUORUM, LOCAL_QUORUM, ANY, and ONE.
+     *
+     * We will still try all consistency levels above the lowest acceptable, and only fall back to it if we can not
+     * collect enough nodes.
+     */
+    public volatile ConsistencyLevel progress_barrier_min_consistency_level = ConsistencyLevel.EACH_QUORUM;
 }

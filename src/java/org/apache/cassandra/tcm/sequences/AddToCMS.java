@@ -55,7 +55,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.tcm.sequences.InProgressSequences.Kind.JOIN_OWNERSHIP_GROUP;
-import static org.apache.cassandra.tcm.transformations.cms.EntireRange.*;
+import static org.apache.cassandra.tcm.transformations.cms.EntireRange.entireRange;
 
 /**
  * Add this or another node as a member of CMS.
@@ -65,7 +65,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
     private static final Logger logger = LoggerFactory.getLogger(AddToCMS.class);
     public static Serializer serializer = new Serializer();
 
-    private final ProgressBarrier barrier;
+    private final Epoch latestModification;
     private final List<InetAddressAndPort> streamCandidates;
     private final FinishAddToCMS finishJoin;
 
@@ -76,23 +76,23 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
 
     public static void initiate(NodeId nodeId, InetAddressAndPort addr)
     {
-        InProgressSequence<?> continuation = ClusterMetadataService.instance()
-                                                                   .commit(new StartAddToCMS(addr),
-                                                                           (metadata) -> !metadata.inProgressSequences.contains(nodeId),
-                                                                           (metadata) -> metadata.inProgressSequences.get(nodeId),
-                                                                           (metadata, code, reason) -> {
-                                                                               throw new IllegalStateException("Can't join ownership group: " + reason);
-                                                                           });
-        if (continuation.kind() != JOIN_OWNERSHIP_GROUP)
+        InProgressSequence<?> sequence = ClusterMetadataService.instance()
+                                                               .commit(new StartAddToCMS(addr),
+                                                                       (metadata) -> !metadata.inProgressSequences.contains(nodeId),
+                                                                       (metadata) -> metadata.inProgressSequences.get(nodeId),
+                                                                       (metadata, code, reason) -> {
+                                                                           throw new IllegalStateException("Can't join ownership group: " + reason);
+                                                                       });
+        if (sequence.kind() != JOIN_OWNERSHIP_GROUP)
             throw new IllegalStateException(String.format("Following accepted initiation of node to CMS, " +
                                                           "an incorrect sequence %s was found in progress. %s ",
-                                            continuation.kind(), continuation));
-        continuation.executeNext();
+                                                          sequence.kind(), sequence));
+        sequence.executeNext();
     }
 
-    public AddToCMS(ProgressBarrier barrier, List<InetAddressAndPort> streamCandidates, FinishAddToCMS join)
+    public AddToCMS(Epoch latestModification, List<InetAddressAndPort> streamCandidates, FinishAddToCMS join)
     {
-        this.barrier = barrier;
+        this.latestModification = latestModification;
         this.streamCandidates = streamCandidates;
         this.finishJoin = join;
     }
@@ -100,7 +100,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
     @Override
     public ProgressBarrier barrier()
     {
-        return barrier;
+        return ProgressBarrier.immediate();
     }
 
     public Transformation.Kind nextStep()
@@ -187,7 +187,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AddToCMS addMember = (AddToCMS) o;
-        return Objects.equals(barrier, addMember.barrier) &&
+        return Objects.equals(latestModification, addMember.latestModification) &&
                Objects.equals(streamCandidates, addMember.streamCandidates) &&
                Objects.equals(finishJoin, addMember.finishJoin);
     }
@@ -195,7 +195,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
     @Override
     public int hashCode()
     {
-        return Objects.hash(barrier, streamCandidates, finishJoin);
+        return Objects.hash(latestModification, streamCandidates, finishJoin);
     }
 
     public static class Serializer implements AsymmetricMetadataSerializer<InProgressSequence<?>, AddToCMS>
@@ -204,7 +204,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         public void serialize(InProgressSequence<?> t, DataOutputPlus out, Version version) throws IOException
         {
             AddToCMS seq = (AddToCMS) t;
-            ProgressBarrier.serializer.serialize(t.barrier(), out, version);
+            Epoch.serializer.serialize(seq.latestModification, out, version);
             FinishAddToCMS.serializer.serialize(seq.finishJoin, out, version);
             out.writeInt(seq.streamCandidates.size());
             for (InetAddressAndPort ep : seq.streamCandidates)
@@ -214,7 +214,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         @Override
         public AddToCMS deserialize(DataInputPlus in, Version version) throws IOException
         {
-            ProgressBarrier barrier = ProgressBarrier.serializer.deserialize(in, version);
+            Epoch barrier = Epoch.serializer.deserialize(in, version);
             FinishAddToCMS finish = FinishAddToCMS.serializer.deserialize(in, version);
             int streamCandidatesSize = in.readInt();
             List<InetAddressAndPort> streamCandidates = new ArrayList<>();
@@ -228,7 +228,7 @@ public class AddToCMS implements InProgressSequence<AddToCMS>
         public long serializedSize(InProgressSequence<?> t, Version version)
         {
             AddToCMS seq = (AddToCMS) t;
-            long size = ProgressBarrier.serializer.serializedSize(t.barrier(), version);
+            long size = Epoch.serializer.serializedSize(seq.latestModification, version);
             size += FinishAddToCMS.serializer.serializedSize(seq.finishJoin, version);
             size += sizeof(seq.streamCandidates.size());
             for (InetAddressAndPort ep : seq.streamCandidates)

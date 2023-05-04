@@ -4951,4 +4951,14 @@ public class DatabaseDescriptor
     {
         conf.metadata_snapshot_frequency = frequency;
     }
+
+    public static ConsistencyLevel getProgressBarrierLowestAcceptableConsistencyLevel()
+    {
+        return conf.progress_barrier_min_consistency_level;
+    }
+
+    public static void setProgressBarrierLowestAcceptableConsistencyLevel(ConsistencyLevel newLevel)
+    {
+        conf.progress_barrier_min_consistency_level = newLevel;
+    }
 }

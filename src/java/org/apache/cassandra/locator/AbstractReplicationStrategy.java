@@ -53,6 +53,7 @@ import org.apache.cassandra.utils.FBUtilities;
 public abstract class AbstractReplicationStrategy
 {
     public final Map<String, String> configOptions;
+    // TODO: remove keyspace name; add a cache that allows going between replication params and replication strategy
     protected final String keyspaceName;
 
     protected AbstractReplicationStrategy(String keyspaceName, Map<String, String> configOptions)

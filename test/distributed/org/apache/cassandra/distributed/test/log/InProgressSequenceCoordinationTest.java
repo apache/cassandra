@@ -81,7 +81,6 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
             // ensure that they do not receive the join events for the new instance. They will then not be able to ack
             // them as the joining node attempts to progress its startup sequence, which should consequently fail.
             cluster.filters().allVerbs().from(1).to(2,3).drop();
-            cluster.filters().verbs(TCM_REPLICATION.id).from(4).to(2, 3).drop();
 
             // Have the joining node pause when the mid join event fails due to ack timeout.
             // The StartJoin event has no prerequisite, so we should see a CONTINUING state, but execution of the

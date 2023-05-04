@@ -63,22 +63,22 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
     private static final Logger logger = LoggerFactory.getLogger(UnbootstrapAndLeave.class);
     public static final Serializer serializer = new Serializer();
 
+    public final Epoch latestModification;
+    public final LockedRanges.Key lockKey;
+    public final Transformation.Kind next;
+
     public final PrepareLeave.StartLeave startLeave;
     public final PrepareLeave.MidLeave midLeave;
     public final PrepareLeave.FinishLeave finishLeave;
 
-    public final ProgressBarrier barrier;
-    public final LockedRanges.Key lockKey;
-    public final Transformation.Kind next;
-
-    public UnbootstrapAndLeave(ProgressBarrier barrier,
+    public UnbootstrapAndLeave(Epoch latestModification,
                                LockedRanges.Key lockKey,
                                Transformation.Kind next,
                                PrepareLeave.StartLeave startLeave,
                                PrepareLeave.MidLeave midLeave,
                                PrepareLeave.FinishLeave finishLeave)
     {
-        this.barrier = barrier;
+        this.latestModification = latestModification;
         this.lockKey = lockKey;
         this.next = next;
         this.startLeave = startLeave;
@@ -86,15 +86,10 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
         this.finishLeave = finishLeave;
     }
 
-    public UnbootstrapAndLeave advance(Epoch waitForWatermark, Transformation.Kind next)
+    public UnbootstrapAndLeave advance(Epoch waitFor, Transformation.Kind next)
     {
-        return new UnbootstrapAndLeave(barrier().withNewEpoch(waitForWatermark), lockKey, next,
+        return new UnbootstrapAndLeave(waitFor, lockKey, next,
                                        startLeave, midLeave, finishLeave);
-    }
-
-    public ProgressBarrier barrier()
-    {
-        return barrier;
     }
 
     public Transformation.Kind nextStep()
@@ -105,6 +100,11 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
     public InProgressSequences.Kind kind()
     {
         return InProgressSequences.Kind.LEAVE;
+    }
+
+    public ProgressBarrier barrier()
+    {
+        return new ProgressBarrier(latestModification, ClusterMetadata.current().lockedRanges.locked.get(lockKey));
     }
 
     public boolean executeNext()
@@ -291,7 +291,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
         return Objects.equals(startLeave, that.startLeave) &&
                Objects.equals(midLeave, that.midLeave) &&
                Objects.equals(finishLeave, that.finishLeave) &&
-               Objects.equals(barrier, that.barrier) &&
+               Objects.equals(latestModification, that.latestModification) &&
                Objects.equals(lockKey, that.lockKey) &&
                next == that.next;
     }
@@ -299,14 +299,14 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
     @Override
     public int hashCode()
     {
-        return Objects.hash(startLeave, midLeave, finishLeave, barrier, lockKey, next);
+        return Objects.hash(startLeave, midLeave, finishLeave, latestModification, lockKey, next);
     }
 
     @Override
     public String toString()
     {
         return "UnbootstrapAndLeavePlan{" +
-               "barrier=" + barrier +
+               "lastModified=" + latestModification +
                ", lockKey=" + lockKey +
                ", startLeave=" + startLeave +
                ", midLeave=" + midLeave +
@@ -321,7 +321,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
         {
             UnbootstrapAndLeave plan = (UnbootstrapAndLeave) t;
 
-            ProgressBarrier.serializer.serialize(t.barrier(), out, version);
+            Epoch.serializer.serialize(plan.latestModification, out, version);
             LockedRanges.Key.serializer.serialize(plan.lockKey, out, version);
 
             VIntCoding.writeUnsignedVInt32(plan.next.ordinal(), out);
@@ -335,7 +335,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
 
         public UnbootstrapAndLeave deserialize(DataInputPlus in, Version version) throws IOException
         {
-            ProgressBarrier barrier = ProgressBarrier.serializer.deserialize(in, version);
+            Epoch barrier = Epoch.serializer.deserialize(in, version);
             LockedRanges.Key lockKey = LockedRanges.Key.serializer.deserialize(in, version);
 
             Transformation.Kind next = Transformation.Kind.values()[VIntCoding.readUnsignedVInt32(in)];
@@ -356,7 +356,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
         public long serializedSize(InProgressSequence<?> t, Version version)
         {
             UnbootstrapAndLeave plan = (UnbootstrapAndLeave) t;
-            long size = ProgressBarrier.serializer.serializedSize(plan.barrier(), version);
+            long size = Epoch.serializer.serializedSize(plan.latestModification, version);
             size += LockedRanges.Key.serializer.serializedSize(plan.lockKey, version);
 
             size += VIntCoding.computeVIntSize(plan.kind().ordinal());

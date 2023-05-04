@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +39,6 @@ import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
-import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -135,9 +133,7 @@ public class PrepareReplace implements Transformation
         FinishReplace finish = new FinishReplace(replaced, replacement, removeOldNodeFromWrites.build(), unlockKey);
 
         Set<Token> tokens = new HashSet<>(prev.tokenMap.tokens(replaced));
-        ImmutableSet<NodeId> toWatermark = rangesToLock.toPeers(prev.placements, prev.directory);
-        ProgressBarrier barrier = new ProgressBarrier(prev.nextEpoch(), toWatermark, true);
-        BootstrapAndReplace plan = new BootstrapAndReplace(barrier,
+        BootstrapAndReplace plan = new BootstrapAndReplace(prev.nextEpoch(),
                                                            unlockKey,
                                                            START_REPLACE,
                                                            tokens,

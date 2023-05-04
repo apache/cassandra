@@ -40,7 +40,6 @@ import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.ownership.PlacementProvider;
 import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
-import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -77,6 +76,9 @@ public class PrepareLeave implements Transformation
     @Override
     public Result execute(ClusterMetadata prev)
     {
+        if (prev.isCMSMember(prev.directory.endpoint(nodeId)))
+            return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is still a part of CMS.", nodeId));
+
         if (prev.directory.peerState(nodeId) != NodeState.JOINED)
             return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s", nodeId, prev.directory.peerState(nodeId)));
 
@@ -110,10 +112,7 @@ public class PrepareLeave implements Transformation
         MidLeave mid = new MidLeave(nodeId, midDelta, unlockKey);
         FinishLeave leave = new FinishLeave(nodeId, finishDelta, unlockKey);
 
-        ProgressBarrier barrier = new ProgressBarrier(prev.nextEpoch(),
-                                                      rangesToLock.toPeers(prev.placements, prev.directory),
-                                                      false);
-        UnbootstrapAndLeave plan = new UnbootstrapAndLeave(barrier,
+        UnbootstrapAndLeave plan = new UnbootstrapAndLeave(prev.nextEpoch(),
                                                            unlockKey,
                                                            Kind.START_LEAVE,
                                                            start,
