@@ -1,3 +1,7 @@
+3.11.16
+Merged from 3.0:
+ * Suppress CVE-2023-2251 (CASSANDRA-18497)
+
 3.11.15
  * Fix the capital P usage in the CQL parser (CASSANDRA-17919)
  * Fix sstable_count metric missing from tablestats json/yaml output (CASSANDRA-18448)
