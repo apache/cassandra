@@ -91,7 +91,7 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
             VersionedValue address = epState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
             if (address == null)
             {
-                address = epState.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
+                address = epState.getApplicationState(ApplicationState.INTERNAL_IP);
             }
             if (address != null)
             {
@@ -129,7 +129,11 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
 
     public void onDead(InetAddressAndPort endpoint, EndpointState state)
     {
-        // do nothing.
+        if (preferLocal && state.getApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT) != null)
+            state.removeApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT);
+        if (preferLocal && state.getApplicationState(ApplicationState.INTERNAL_IP) != null)
+            state.removeApplicationState(ApplicationState.INTERNAL_IP);
+        MessagingService.instance().closeOutboundNow(endpoint);
     }
 
     public void onRemove(InetAddressAndPort endpoint)
