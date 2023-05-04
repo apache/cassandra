@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -46,12 +47,23 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+// Our version of Sfl4j seems to be missing the ListAppender class.
+// Future sfl4j versions have one. At that time the below imports can be
+// replaced with `org.slf4j.*` equivalents.
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.auth.AuthKeyspace;
@@ -105,11 +117,19 @@ public class DirectoriesTest
     public static final String SNAPSHOT3 = "snapshot3";
 
     public static final String LEGACY_SNAPSHOT_NAME = "42";
+
+
     private static File tempDataDir;
     private static final String KS = "ks";
     private static String[] TABLES;
     private static Set<TableMetadata> CFM;
     private static Map<String, List<File>> sstablesByTableName;
+
+    private static final String MDCID = "test-DirectoriesTest-id";
+    private static AtomicInteger diyThreadId = new AtomicInteger(1);
+    private int myDiyId = -1;
+    private static Logger logger;
+    private ListAppender<ILoggingEvent> listAppender;
 
     @Parameterized.Parameter
     public SSTableId.Builder<? extends SSTableId> idBuilder;
@@ -152,6 +172,7 @@ public class DirectoriesTest
 
         // Create two fake data dir for tests, one using CF directories, one that do not.
         createTestFiles();
+        tailLogs();
     }
 
     @AfterClass
@@ -160,6 +181,12 @@ public class DirectoriesTest
         tempDataDir.deleteRecursive();
     }
 
+    @After
+    public void afterTest()
+    {
+        detachLogger();
+    }
+    
     private static DataDirectory[] toDataDirectories(File location)
     {
         return new DataDirectory[] { new DataDirectory(location) };
@@ -893,6 +920,57 @@ public class DirectoriesTest
         }
     }
 
+    private int getDiyThreadId()
+    {
+        return myDiyId = diyThreadId.getAndIncrement();
+    }
+
+    private void detachLogger()
+    {
+        logger.detachAppender(listAppender);
+        MDC.remove(this.MDCID);
+    }
+
+    private void tailLogs()
+    {
+        int diyId = getDiyThreadId();
+        MDC.put(this.MDCID, String.valueOf(diyId));
+        logger = (Logger) LoggerFactory.getLogger(Directories.class);
+
+        // create and start a ListAppender
+        listAppender = new ListAppender<>();
+        listAppender.start();
+
+        // add the appender to the logger
+        logger.addAppender(listAppender);
+    }
+
+    private List<ILoggingEvent> filterLogByDiyId(List<ILoggingEvent> log)
+    {
+        ArrayList<ILoggingEvent> filteredLog = new ArrayList<>();
+        for(ILoggingEvent event : log)
+        {
+            int mdcId = Integer.parseInt(event.getMDCPropertyMap().get(this.MDCID));
+            if(mdcId == myDiyId){
+                filteredLog.add(event);
+            }
+        }
+        return filteredLog;
+    }
+
+    private void checkFormattedMessage(List<ILoggingEvent> log, Level expectedLevel, String expectedMessage, int expectedCount)
+    {
+        int found=0;
+        for(ILoggingEvent e: log)
+        {
+            if(e.getFormattedMessage().endsWith(expectedMessage))
+                if (e.getLevel() == expectedLevel)
+                    found++;
+        }
+
+        assertEquals(expectedCount, found);
+    }
+
     @Test
     public void testHasAvailableSpace()
     {
@@ -918,6 +996,41 @@ public class DirectoriesTest
 
             fs1.usableSpace = 19;
             assertFalse(Directories.hasDiskSpaceForCompactionsAndStreams(writes));
+
+            writes.put(fs2, 25L*1024*1024+9);
+            fs2.usableSpace = 20L*1024*1024-9;
+            writes.put(fs3, 999L*1024*1024*1024+9);
+            fs2.usableSpace = 20L*1024+99;
+            assertFalse(Directories.hasDiskSpaceForCompactionsAndStreams(writes));
+
+            fs1.usableSpace = 30;
+            fs2.usableSpace = 30;
+            fs3.usableSpace = 30L*1024*1024*1024*1024;
+
+            writes.put(fs1, 20L);
+            writes.put(fs2, 20L);
+            writes.put(fs3, 30L*1024*1024*1024*1024+1);
+            assertFalse(Directories.hasDiskSpaceForCompactionsAndStreams(writes));
+
+            List<ILoggingEvent> filteredLog = filterLogByDiyId(listAppender.list);
+            // Log messages can be out of order, even for the single thread. (e tui AsyncAppender?)
+            // We can deal with it, it's sufficient to just check that all messages exist in the result
+            assertEquals(17, filteredLog.size());
+
+            String logMsg = "30 bytes available, checking if we can write 20 bytes";
+            checkFormattedMessage(filteredLog, Level.DEBUG, logMsg, 7);
+            logMsg = "19 bytes available, checking if we can write 20 bytes";
+            checkFormattedMessage(filteredLog, Level.DEBUG, logMsg, 2);
+
+
+            logMsg = "19 bytes available, but 20 bytes is needed";
+            checkFormattedMessage(filteredLog, Level.WARN, logMsg, 2);
+            logMsg = "has only 20.1 KiB available, but 25 MiB is needed";
+            checkFormattedMessage(filteredLog, Level.WARN, logMsg, 1);
+            logMsg = "has only 30 bytes available, but 999 GiB is needed";
+            checkFormattedMessage(filteredLog, Level.WARN, logMsg, 1);
+            logMsg = "has only 30 TiB available, but 30 TiB is needed";
+            checkFormattedMessage(filteredLog, Level.WARN, logMsg, 1);
         }
         finally
         {
@@ -1031,5 +1144,10 @@ public class DirectoriesTest
         public boolean supportsFileAttributeView(String name) {return false;}
         public <V extends FileStoreAttributeView> V getFileStoreAttributeView(Class<V> type) {return null;}
         public Object getAttribute(String attribute) {return null;}
+
+        public String toString()
+        {
+            return "MockFileStore";
+        }
     }
 }
