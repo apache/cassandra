@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.zip.CRC32;
 
 import javax.annotation.Nonnull;
@@ -455,10 +456,11 @@ public class Journal<K, V>
 
     private void closeAllSegments()
     {
-        Segments<K> allSegments = segments();
-        for (ActiveSegment<K> segment : allSegments.onlyActive())
+        Segments<K> segments = swapSegments(ignore -> Segments.none());
+
+        for (ActiveSegment<K> segment : segments.onlyActive())
             segment.closeAndIfEmptyDiscard();
-        for (StaticSegment<K> segment : allSegments.onlyStatic())
+        for (StaticSegment<K> segment : segments.onlyStatic())
             segment.close();
     }
 
@@ -483,37 +485,31 @@ public class Journal<K, V>
         return segments.get();
     }
 
-    private void addNewActiveSegment(ActiveSegment<K> activeSegment)
+    private Segments<K> swapSegments(Function<Segments<K>, Segments<K>> transformation)
     {
         Segments<K> currentSegments, newSegments;
         do
         {
             currentSegments = segments();
-            newSegments = currentSegments.withNewActiveSegment(activeSegment);
+            newSegments = transformation.apply(currentSegments);
         }
         while (!segments.compareAndSet(currentSegments, newSegments));
+        return currentSegments;
+    }
+
+    private void addNewActiveSegment(ActiveSegment<K> activeSegment)
+    {
+        swapSegments(current -> current.withNewActiveSegment(activeSegment));
     }
 
     private void replaceCompletedSegment(ActiveSegment<K> activeSegment, StaticSegment<K> staticSegment)
     {
-        Segments<K> currentSegments, newSegments;
-        do
-        {
-            currentSegments = segments();
-            newSegments = currentSegments.withCompletedSegment(activeSegment, staticSegment);
-        }
-        while (!segments.compareAndSet(currentSegments, newSegments));
+        swapSegments(current -> current.withCompletedSegment(activeSegment, staticSegment));
     }
 
     private void replaceCompactedSegment(StaticSegment<K> oldSegment, StaticSegment<K> newSegment)
     {
-        Segments<K> currentSegments, newSegments;
-        do
-        {
-            currentSegments = segments();
-            newSegments = currentSegments.withCompactedSegment(oldSegment, newSegment);
-        }
-        while (!segments.compareAndSet(currentSegments, newSegments));
+        swapSegments(current -> current.withCompactedSegment(oldSegment, newSegment));
     }
 
     void selectSegmentToFlush(Collection<ActiveSegment<K>> into)

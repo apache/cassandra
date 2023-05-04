@@ -19,6 +19,7 @@ package org.apache.cassandra.journal;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +63,11 @@ class Segments<K>
         for (StaticSegment<K> segment : segments)
             staticSegments.put(segment.descriptor, segment);
         return new Segments<>(new ArrayList<>(), staticSegments);
+    }
+
+    static <K> Segments<K> none()
+    {
+        return new Segments<>(Collections.emptyList(), Collections.emptyMap());
     }
 
     Segments<K> withNewActiveSegment(ActiveSegment<K> activeSegment)
