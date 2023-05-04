@@ -499,11 +499,32 @@ public class Directories
                   continue;
             DataDirectoryCandidate candidate = new DataDirectoryCandidate(dataDir);
             // exclude directory if its total writeSize does not fit to data directory
+            logger.debug("DataDirectory {} has {} bytes available, checking if we can write {} bytes", dataDir.location, candidate.availableSpace, writeSize);
             if (candidate.availableSpace < writeSize)
+            {
+                logger.warn("DataDirectory {} can't be used for compaction. Only {} is available, but {} is the minimum write size.",
+                            candidate.dataDirectory.location,
+                            FileUtils.stringifyFileSize(candidate.availableSpace),
+                            FileUtils.stringifyFileSize(writeSize));
                 continue;
+            }
             totalAvailable += candidate.availableSpace;
         }
-        return totalAvailable > expectedTotalWriteSize;
+
+        if (totalAvailable <= expectedTotalWriteSize)
+        {
+            StringJoiner pathString = new StringJoiner(",", "[", "]");
+            for (DataDirectory p: paths)
+            {
+                pathString.add(p.location.toJavaIOFile().getAbsolutePath());
+            }
+            logger.warn("Insufficient disk space for compaction. Across {} there's only {} available, but {} is needed.",
+                        pathString.toString(),
+                        FileUtils.stringifyFileSize(totalAvailable),
+                        FileUtils.stringifyFileSize(expectedTotalWriteSize));
+            return false;
+        }
+        return true;
     }
 
     public DataDirectory[] getWriteableLocations()
