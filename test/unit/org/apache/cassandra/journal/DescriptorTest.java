@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class DescriptorTest
 {
-    private static final FileSystem FS = Files.newInMemoryFileSystem();
+    private static final FileSystem FS = Files.newGlobalInMemoryFileSystem();
 
     static
     {

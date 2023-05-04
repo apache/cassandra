@@ -124,9 +124,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         this.commandStore = commandStore;
         this.preLoadContext = preLoadContext;
         this.loader = createAsyncLoader(commandStore, preLoadContext);
-        this.writer = createAsyncWriter(commandStore);
-
         setLoggingIds();
+        this.writer = createAsyncWriter(commandStore);
         logger.trace("Created {} on {}", this, commandStore);
         clearLoggingIds();
     }
@@ -137,14 +136,20 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
         return "AsyncOperation{" + state + "}-" + loggingId;
     }
 
+    AsyncWriter createAsyncWriter(AccordCommandStore commandStore)
+    {
+        return new AsyncWriter(commandStore);
+    }
+
     AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
     {
         return new AsyncLoader(commandStore, preLoadContext.txnIds(), toRoutableKeys(preLoadContext.keys()));
     }
 
-    AsyncWriter createAsyncWriter(AccordCommandStore commandStore)
+    @VisibleForTesting
+    State state()
     {
-        return new AsyncWriter(commandStore);
+        return state;
     }
 
     @VisibleForTesting

@@ -44,7 +44,6 @@ import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
-import org.apache.cassandra.journal.AsyncWriteCallback;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
@@ -173,12 +172,6 @@ public class AccordCommandStore extends CommandStore
         lastSystemTimestampMicros = Math.max(TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis()), lastSystemTimestampMicros + 1);
         return lastSystemTimestampMicros;
     }
-
-    public <T> AsyncChain<T> submit(Callable<T> task)
-    {
-        return AsyncChains.ofCallable(executor, task);
-    }
-
     @Override
     public <T> AsyncChain<T> submit(PreLoadContext loadCtx, Function<? super SafeCommandStore, T> function)
     {
@@ -186,9 +179,9 @@ public class AccordCommandStore extends CommandStore
     }
 
     @Override
-    public AsyncChain<Void> execute(PreLoadContext loadCtx, Consumer<? super SafeCommandStore> consumer)
+    public <T> AsyncChain<T> submit(Callable<T> task)
     {
-        return AsyncOperation.create(this, loadCtx, consumer);
+        return AsyncChains.ofCallable(executor, task);
     }
 
     public DataStore dataStore()
@@ -209,6 +202,12 @@ public class AccordCommandStore extends CommandStore
     RangesForEpoch ranges()
     {
         return rangesForEpochHolder.get();
+    }
+
+    @Override
+    public AsyncChain<Void> execute(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
+    {
+        return AsyncOperation.create(this, preLoadContext, consumer);
     }
 
     public void executeBlocking(Runnable runnable)

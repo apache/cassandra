@@ -141,7 +141,7 @@ public class AccordJournalTest extends SimulationTestBase
 
         static
         {
-            Files.newInMemoryFileSystem();
+            Files.newGlobalInMemoryFileSystem();
             DatabaseDescriptor.clientWithDaemonConfig();
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
             DatabaseDescriptor.setAccordJournalDirectory("/journal");

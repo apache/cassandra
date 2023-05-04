@@ -24,7 +24,7 @@ import com.google.common.jimfs.Jimfs;
 
 public class Files
 {
-    public static FileSystem newInMemoryFileSystem()
+    public static FileSystem newGlobalInMemoryFileSystem()
     {
         FileSystem fs = Jimfs.newFileSystem();
         File.unsafeSetFilesystem(fs);
