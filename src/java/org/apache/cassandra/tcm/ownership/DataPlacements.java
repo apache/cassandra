@@ -133,6 +133,11 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         return builder.build();
     }
 
+    public DataPlacements applyDelta(PlacementDeltas deltas)
+    {
+        return deltas.apply(this);
+    }
+
     public static DataPlacements empty()
     {
         return EMPTY;

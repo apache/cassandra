@@ -33,6 +33,8 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.EndpointsByReplica;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
@@ -41,10 +43,14 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.MovementMap;
+import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.tcm.sequences.BootstrapAndJoin.bootstrap;
@@ -125,6 +131,8 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
                 }
                 catch (Throwable e)
                 {
+                    JVMStabilityInspector.inspectThrowable(e);
+                    logger.warn("Got exception committing startReplace", e);
                     return true;
                 }
                 break;
@@ -135,11 +143,13 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
 
                     if (streamData)
                     {
+                        MovementMap movements = movementMap(metadata.directory.endpoint(startReplace.replaced()), startReplace.delta());
                         boolean dataAvailable = bootstrap(bootstrapTokens,
                                                           StorageService.INDEFINITE,
                                                           metadata,
-                                                          // TODO: do we need replaced or replacement here?
-                                                          metadata.directory.endpoint(startReplace.replaced()));
+                                                          metadata.directory.endpoint(startReplace.replaced()),
+                                                          movements,
+                                                          null); // no potential for strict movements when replacing
 
                         if (!dataAvailable)
                         {
@@ -158,7 +168,9 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
                 }
                 catch (Throwable e)
                 {
-                    return true;
+                    JVMStabilityInspector.inspectThrowable(e);
+                    logger.warn("Got exception committing midReplace", e);
+                    return false;
                 }
                 break;
             case FINISH_REPLACE:
@@ -173,7 +185,9 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
                 }
                 catch (Throwable e)
                 {
-                    return true;
+                    JVMStabilityInspector.inspectThrowable(e);
+                    logger.warn("Got exception committing finishReplace", e);
+                    return false;
                 }
                 break;
             default:
@@ -181,6 +195,29 @@ public class BootstrapAndReplace implements InProgressSequence<BootstrapAndRepla
         }
 
         return true;
+    }
+
+    /**
+     * startDelta.writes.additions contains the ranges we need to stream
+     * for each of those ranges, add all possible endpoints (except for the replica we're replacing) to the movement map
+     *
+     * keys in the map are the ranges the replacement node needs to stream, values are the potential endpoints.
+     */
+    private MovementMap movementMap(InetAddressAndPort beingReplaced, PlacementDeltas startDelta)
+    {
+        MovementMap.Builder movementMapBuilder = MovementMap.builder();
+        DataPlacements placements = ClusterMetadata.current().placements;
+        startDelta.forEach((params, delta) -> {
+            EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
+            DataPlacement originalPlacements = placements.get(params);
+            delta.writes.additions.flattenValues().forEach((destination) -> {
+                originalPlacements.reads.forRange(destination.range()).stream()
+                                        .filter(r -> !r.endpoint().equals(beingReplaced))
+                                        .forEach(source -> movements.put(destination, source));
+            });
+            movementMapBuilder.put(params, movements.build());
+        });
+        return movementMapBuilder.build();
     }
 
     @Override

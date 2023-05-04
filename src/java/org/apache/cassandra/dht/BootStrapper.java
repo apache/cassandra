@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.apache.cassandra.tcm.ownership.MovementMap;
+import org.apache.cassandra.utils.concurrent.Future;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,8 +44,6 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifierSupport;
 import org.apache.cassandra.utils.progress.ProgressEventType;
@@ -55,34 +55,39 @@ public class BootStrapper extends ProgressEventNotifierSupport
     /* endpoint that needs to be bootstrapped */
     protected final InetAddressAndPort address;
     /* token of the node being bootstrapped. */
-    protected final Collection<Token> tokens;
     protected final ClusterMetadata metadata;
+    private final MovementMap movements;
+    private final MovementMap strictMovements;
 
-    public BootStrapper(InetAddressAndPort address, Collection<Token> tokens, ClusterMetadata metadata)
+    public BootStrapper(InetAddressAndPort address,
+                        ClusterMetadata metadata,
+                        MovementMap movements,
+                        MovementMap strictMovements)
     {
         assert address != null;
-        assert tokens != null && !tokens.isEmpty();
 
         this.address = address;
-        this.tokens = tokens;
         this.metadata = metadata;
+        this.movements = movements;
+        this.strictMovements = strictMovements;
     }
 
-    public Future<StreamState> bootstrap(StreamStateStore stateStore, boolean useStrictConsistency, InetAddressAndPort replacing)
+    public Future<StreamState> bootstrap(StreamStateStore stateStore, boolean useStrictConsistency, InetAddressAndPort beingReplaced)
     {
         logger.trace("Beginning bootstrap process");
 
         RangeStreamer streamer = new RangeStreamer(metadata,
-                                                   tokens,
                                                    StreamOperation.BOOTSTRAP,
                                                    useStrictConsistency,
                                                    DatabaseDescriptor.getEndpointSnitch(),
                                                    stateStore,
                                                    true,
-                                                   DatabaseDescriptor.getStreamingConnectionsPerHost());
+                                                   DatabaseDescriptor.getStreamingConnectionsPerHost(),
+                                                   movements,
+                                                   strictMovements);
 
-        if (replacing != null)
-            streamer.addSourceFilter(new RangeStreamer.ExcludedSourcesFilter(Collections.singleton(replacing)));
+        if (beingReplaced != null)
+            streamer.addSourceFilter(new RangeStreamer.ExcludedSourcesFilter(Collections.singleton(beingReplaced)));
 
         final Collection<String> nonLocalStrategyKeyspaces = Schema.instance.getNonLocalStrategyKeyspaces().names();
         if (nonLocalStrategyKeyspaces.isEmpty())
@@ -92,7 +97,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
             KeyspaceMetadata ksm = metadata.schema.getKeyspaces().get(keyspaceName).get();
             if (ksm.params.replication.isMeta())
                 continue;
-            streamer.addRanges(keyspaceName, metadata.placements.get(ksm.params.replication).writes.byEndpoint().get(FBUtilities.getBroadcastAddressAndPort()));
+            streamer.addKeyspaceToFetch(keyspaceName);
         }
 
         StreamResultFuture bootstrapStreamResult = streamer.fetchAsync();
@@ -259,7 +264,6 @@ public class BootStrapper extends ProgressEventNotifierSupport
     {
         return "BootStrapper{" +
                "address=" + address +
-               ", tokens=" + tokens +
                ", metadata=" + metadata +
                '}';
     }

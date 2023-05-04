@@ -143,19 +143,19 @@ public class PlacementSimulatorTest
 
 
     @Test
-    public void testDecomsission()
+    public void testDecommission()
     {
-        testDecomsission(100, 200, 300, 400, 350, new SimpleReplicationFactor(3));
+        testDecommission(100, 200, 300, 400, 350, new SimpleReplicationFactor(3));
 
         Random rng = new Random();
         for (int i = 0; i < 1000; i++)
         {
             PrimitiveIterator.OfInt ints = rng.ints(5).distinct().iterator();
-            testDecomsission(ints.nextInt(), ints.nextInt(), ints.nextInt(), ints.nextInt(), ints.nextInt(), new SimpleReplicationFactor(3));
+            testDecommission(ints.nextInt(), ints.nextInt(), ints.nextInt(), ints.nextInt(), ints.nextInt(), new SimpleReplicationFactor(3));
         }
     }
 
-    public void testDecomsission(long t1, long t2, long t3, long t4, long t5, ReplicationFactor rf)
+    public void testDecommission(long t1, long t2, long t3, long t4, long t5, ReplicationFactor rf)
     {
         NodeFactory factory = PlacementSimulator.nodeFactory();
         Node leavingNode = factory.make(1, 1, 1).overrideToken(t1);

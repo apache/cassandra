@@ -21,11 +21,13 @@ package org.apache.cassandra.tcm.sequences;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.StreamSupport;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -33,7 +35,9 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamState;
@@ -43,11 +47,14 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -96,17 +103,19 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
     public static boolean bootstrap(final Collection<Token> tokens,
                                     long bootstrapTimeoutMillis,
                                     ClusterMetadata metadata,
-                                    InetAddressAndPort replacingEndpoint)
+                                    InetAddressAndPort beingReplaced,
+                                    MovementMap movements,
+                                    MovementMap strictMovements)
     {
-        SystemKeyspace.updateTokens(tokens); // DON'T use setToken, that makes us part of the ring locally which is incorrect until we are done bootstrapping
+        SystemKeyspace.updateTokens(tokens);
+        assert beingReplaced == null || strictMovements == null : "Can't have strict movements during replacements";
 
         if (CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS.getBoolean())
         {
             logger.info("Resetting bootstrap progress to start fresh");
             SystemKeyspace.resetAvailableStreamedRanges();
         }
-
-        Future<StreamState> bootstrapStream = StorageService.instance.startBootstrap(tokens, metadata, replacingEndpoint);
+        Future<StreamState> bootstrapStream = StorageService.instance.startBootstrap(metadata, beingReplaced, movements, strictMovements);
         try
         {
             if (bootstrapTimeoutMillis > 0)
@@ -120,6 +129,7 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
         }
         catch (Throwable e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             logger.error("Error while waiting on bootstrap to complete. Bootstrap will have to be restarted.", e);
             return false;
         }
@@ -165,6 +175,8 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
                 }
                 catch (Throwable e)
                 {
+                    JVMStabilityInspector.inspectThrowable(e);
+                    logger.warn("Exception committing startJoin", e);
                     return true;
                 }
 
@@ -173,13 +185,17 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
                 try
                 {
                     Collection<Token> bootstrapTokens = SystemKeyspace.getSavedTokens();
-
+                    ClusterMetadata metadata = ClusterMetadata.current();
+                    MovementMap movementMap = movementMap(metadata.directory.endpoint(startJoin.nodeId()), metadata.placements, startJoin.delta());
+                    MovementMap strictMovementMap = toStrict(movementMap, finishJoin.delta());
                     if (streamData)
                     {
                         boolean dataAvailable = bootstrap(bootstrapTokens,
                                                           StorageService.INDEFINITE,
                                                           ClusterMetadata.current(),
-                                                          null);
+                                                          null,
+                                                          movementMap,
+                                                          strictMovementMap);
 
                         if (!dataAvailable)
                         {
@@ -198,6 +214,8 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
                 }
                 catch (Throwable e)
                 {
+                    JVMStabilityInspector.inspectThrowable(e);
+                    logger.info("Exception committing midJoin", e);
                     return true;
                 }
 
@@ -215,6 +233,8 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
                 }
                 catch (Throwable e)
                 {
+                    JVMStabilityInspector.inspectThrowable(e);
+                    logger.warn("Exception committing finishJoin", e);
                     return true;
                 }
                 break;
@@ -252,6 +272,43 @@ public class BootstrapAndJoin implements InProgressSequence<BootstrapAndJoin>
     {
         return new BootstrapAndJoin(barrier(), lockKey, next, toSplitRanges, startJoin, midJoin, finishJoin,
                                     true, streamData);
+    }
+
+    private static MovementMap movementMap(InetAddressAndPort joining, DataPlacements placements, PlacementDeltas startDelta)
+    {
+        MovementMap.Builder movementMapBuilder = MovementMap.builder();
+        // we need all original placements for the ranges to stream - after initial split these new ranges exist in placements
+        // startDelta write additions contains the ranges we need to stream
+        startDelta.forEach((params, delta) -> {
+            EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
+            DataPlacement oldPlacement = placements.get(params);
+            delta.writes.additions.flattenValues().forEach((destination) -> {
+                assert destination.endpoint().equals(joining);
+                oldPlacement.reads.forRange(destination.range())
+                                  .stream()
+                                  .forEach(source -> movements.put(destination, source));
+            });
+            movementMapBuilder.put(params, movements.build());
+        });
+        return movementMapBuilder.build();
+    }
+
+    private static MovementMap toStrict(MovementMap completeMovementMap, PlacementDeltas finishDelta)
+    {
+        MovementMap.Builder movementMapBuilder = MovementMap.builder();
+        completeMovementMap.forEach((params, byreplica) -> {
+            Set<Replica> strictCandidates = Iterables.toSet(finishDelta.get(params).writes.removals.flattenValues());
+            EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
+            for (Replica destination : byreplica.keySet())
+            {
+                byreplica.get(destination).forEach((source) -> {
+                    if (strictCandidates.contains(source))
+                        movements.put(destination, source);
+                });
+            }
+            movementMapBuilder.put(params, movements.build());
+        });
+        return movementMapBuilder.build();
     }
 
     public String toString()

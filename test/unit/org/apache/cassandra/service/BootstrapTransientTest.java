@@ -186,14 +186,16 @@ public class BootstrapTransientTest
 
         EndpointsByReplica result = RangeStreamer.calculateRangesToFetchWithPreferredEndpoints((address, replicas) -> replicas,
                                                                                                simpleStrategy(metadatas.left),
-                                                                                               toFetch,
                                                                                                true,
 null,
 //TODO
 //                                                                                               tmds.left,
 //                                                                                               tmds.right,
                                                                                                "TestKeyspace",
-                                                                                               sourceFilters);
+                                                                                               sourceFilters,
+                                                                                               // todo:
+                                                                                               null,
+                                                                                               null);
         result.asMap().forEach((replica, list) -> System.out.printf("Replica %s, sources %s%n", replica, list));
         assertMultimapEqualsIgnoreOrder(expectedResult, result);
 

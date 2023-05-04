@@ -387,7 +387,7 @@ public class PlacementForRange
                 replicaGroups.computeIfPresent(replica.range(),
                                                (t, old) -> old.newBuilder(old.size() + 1)
                                                               .addAll(old)
-                                                              .add(replica, ReplicaCollection.Builder.Conflict.ALL)
+                                                              .add(replica, ReplicaCollection.Builder.Conflict.NONE)
                                                               .build());
             if (group == null)
                 replicaGroups.put(replica.range(), EndpointsForRange.of(replica));

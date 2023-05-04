@@ -53,10 +53,17 @@ public class OwnershipUtils
         return new RangesByEndpoint.Builder().build();
     }
 
-    public static RangesByEndpoint trivialReplicas(InetAddressAndPort endpoint, Range<Token> range)
+    public static RangesByEndpoint fullReplicas(InetAddressAndPort endpoint, Range<Token> range)
     {
         RangesByEndpoint.Builder b = new RangesByEndpoint.Builder();
         b.put(endpoint, Replica.fullReplica(endpoint, range));
+        return b.build();
+    }
+
+    public static RangesByEndpoint transientReplicas(InetAddressAndPort endpoint, Range<Token> range)
+    {
+        RangesByEndpoint.Builder b = new RangesByEndpoint.Builder();
+        b.put(endpoint, Replica.transientReplica(endpoint, range));
         return b.build();
     }
 

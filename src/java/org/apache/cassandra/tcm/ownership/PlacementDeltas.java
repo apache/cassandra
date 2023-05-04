@@ -132,11 +132,11 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
         public DataPlacement apply(DataPlacement placement)
         {
             DataPlacement.Builder builder = placement.unbuild();
-            reads.additions.flattenValues().forEach(builder.reads::withReplica);
-            writes.additions.flattenValues().forEach(builder.writes::withReplica);
-
             reads.removals.flattenValues().forEach(builder.reads::withoutReplica);
             writes.removals.flattenValues().forEach(builder.writes::withoutReplica);
+
+            reads.additions.flattenValues().forEach(builder.reads::withReplica);
+            writes.additions.flattenValues().forEach(builder.writes::withReplica);
             return builder.build();
         }
 

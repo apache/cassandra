@@ -107,16 +107,13 @@ public class UniformRangePlacement implements PlacementProvider
 
         DataPlacements base = calculatePlacements(metadata, keyspaces);
         DataPlacements start = splitRanges(metadata.tokenMap, metadata.tokenMap.assignTokens(joining, tokens), base);
-
         DataPlacements finalPlacements = calculatePlacements(metadata.transformer()
                                                                      .proposeToken(joining, tokens)
                                                                      .addToRackAndDC(joining)
                                                                      .build()
                                                              .metadata,
                                                              keyspaces);
-
         DataPlacements maximalPlacements = start.combineReplicaGroups(finalPlacements);
-
         PlacementDeltas.Builder toStart = PlacementDeltas.builder(base.size());
         PlacementDeltas.Builder toMaximal = PlacementDeltas.builder(base.size());
         PlacementDeltas.Builder toFinal = PlacementDeltas.builder(base.size());
@@ -126,8 +123,25 @@ public class UniformRangePlacement implements PlacementProvider
             toMaximal.put(params, startPlacement.difference(maximalPlacements.get(params)));
             toFinal.put(params, maximalPlacements.get(params).difference(finalPlacements.get(params)));
         });
+        // double check that the deltas make sense
+        PlacementTransitionPlan plan = new PlacementTransitionPlan(toStart.build(), toMaximal.build(), toFinal.build(), PlacementDeltas.empty());
+        DataPlacements afterExecution = base.applyDelta(plan.toSplit)
+                                            .applyDelta(plan.addToWrites())
+                                            .applyDelta(plan.moveReads())
+                                            .applyDelta(plan.removeFromWrites());
+        assertDiff(afterExecution, finalPlacements);
+        return plan;
+    }
 
-        return new PlacementTransitionPlan(toStart.build(), toMaximal.build(), toFinal.build(), PlacementDeltas.empty());
+    void assertDiff(DataPlacements calculated, DataPlacements applied)
+    {
+        calculated.forEach((params, placement) -> {
+            PlacementDeltas.PlacementDelta delta = placement.difference(applied.get(params));
+            assert delta.writes.removals.isEmpty() : delta;
+            assert delta.writes.additions.isEmpty() : delta;
+            assert delta.reads.removals.isEmpty() : delta;
+            assert delta.reads.additions.isEmpty() : delta;
+        });
     }
 
     @Override

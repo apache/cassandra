@@ -260,6 +260,12 @@ public class Directory implements MetadataValue<Directory>
         return peers.isEmpty();
     }
 
+    /**
+     * Includes every registered endpoint, including those which haven't yet joined and those which have
+     * left but are yet to be unregistered. Not for use when calculating availablity or placements, in
+     * those cases use allJoinedEndpoints.
+     * @return
+     */
     public ImmutableList<InetAddressAndPort> allAddresses()
     {
         return ImmutableList.copyOf(peers.values());
@@ -323,6 +329,11 @@ public class Directory implements MetadataValue<Directory>
     public Multimap<String, InetAddressAndPort> allDatacenterEndpoints()
     {
         return endpointsByDC;
+    }
+
+    public Collection<InetAddressAndPort> allJoinedEndpoints()
+    {
+        return endpointsByDC.values();
     }
 
     public NodeState peerState(InetAddressAndPort peer)

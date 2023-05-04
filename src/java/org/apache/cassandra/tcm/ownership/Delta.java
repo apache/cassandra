@@ -52,26 +52,39 @@ public class Delta
         return new Delta(removals, RangesByEndpoint.EMPTY);
     }
 
+    /**
+     * Merges this delta with `other`
+     *
+     * Note that if opposite operations (add a range in this, remove it in other for example) exist in
+     * `this` and `other` the operations cancel eachother out and neither will be in the resulting delta.
+     * @param other
+     * @return
+     */
     public Delta merge(Delta other)
     {
-        return new Delta(merge(removals, other.removals),
-                         merge(additions, other.additions));
+        RangesByEndpoint.Builder removalsBuilder = new RangesByEndpoint.Builder();
+        RangesByEndpoint.Builder additionsBuilder = new RangesByEndpoint.Builder();
+        addChange(removals, other.additions, removalsBuilder);
+        addChange(other.removals, additions, removalsBuilder);
+        addChange(additions, other.removals, additionsBuilder);
+        addChange(other.additions, removals, additionsBuilder);
+        return new Delta(removalsBuilder.build(),
+                         additionsBuilder.build());
+    }
+
+    private static void addChange(RangesByEndpoint change, RangesByEndpoint opposite, RangesByEndpoint.Builder builder)
+    {
+        change.asMap().forEach((ep, replicas) -> {
+            replicas.forEach(replica -> {
+                if (!opposite.get(ep).contains(replica))
+                    builder.put(ep, replica);
+            });
+        });
     }
 
     public Delta invert()
     {
         return new Delta(additions, removals);
-    }
-
-    public static RangesByEndpoint merge(RangesByEndpoint...byEndpoints)
-    {
-        RangesByEndpoint.Builder builder = new RangesByEndpoint.Builder();
-        for (RangesByEndpoint rbe : byEndpoints)
-        {
-            rbe.asMap()
-               .forEach((endpoint, replicas) -> replicas.forEach(replica -> builder.put(endpoint, replica)));
-        }
-        return builder.build();
     }
 
     public boolean equals(Object o)

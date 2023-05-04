@@ -125,9 +125,12 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
             case MID_LEAVE:
                 try
                 {
-                    unbootstrap(Schema.instance.getNonLocalStrategyKeyspaces(),
-                                movementMap(ClusterMetadata.current().directory.endpoint(startLeave.nodeId()),
-                                            startLeave.delta(), finishLeave.delta()));
+                    MovementMap movements =  movementMap(ClusterMetadata.current().directory.endpoint(startLeave.nodeId()),
+                                                         startLeave.delta(),
+                                                         midLeave.delta(),
+                                                         finishLeave.delta());
+                    movements.forEach((params, eps) -> logger.debug("Unbootstrap movements: {}: {}", params, eps));
+                    unbootstrap(Schema.instance.getNonLocalStrategyKeyspaces(), movements);
                 }
                 catch (InterruptedException e)
                 {
@@ -177,7 +180,7 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
         return true;
     }
 
-    private MovementMap movementMap(InetAddressAndPort leaving, PlacementDeltas startDelta, PlacementDeltas finishDelta)
+    private MovementMap movementMap(InetAddressAndPort leaving, PlacementDeltas startDelta, PlacementDeltas midDelta, PlacementDeltas finishDelta)
     {
         MovementMap.Builder allMovements = MovementMap.builder();
         // map of src->dest movements, keyed by replication settings. During unbootstrap, this will be used to construct
@@ -197,10 +200,21 @@ public class UnbootstrapAndLeave implements InProgressSequence<UnbootstrapAndLea
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             RangesByEndpoint startWriteAdditions = startDelta.get(params).writes.additions;
             startWriteAdditions.flattenValues()
-                               .forEach(newReplica -> {
-                                   movements.put(oldReplicas.get(newReplica.range()), newReplica);
-                               });
-
+                               .forEach(newReplica -> movements.put(oldReplicas.get(newReplica.range()), newReplica));
+            // next, check if any replicas went from being transient to full, if so we need to stream to them;
+            Iterable<Replica> removalReplicas = delta.writes.removals.flattenValues();
+            for (Replica removal : removalReplicas)
+            {
+                if (removal.isTransient())
+                {
+                    Replica destination = midDelta.get(params).reads.additions.get(removal.endpoint()).byRange().get(removal.range());
+                    if (destination != null && destination.isFull())
+                    {
+                        logger.info("Conversion from transient to full replica {} -> {}", removal, destination);
+                        movements.put(oldReplicas.get(removal.range()), destination);
+                    }
+                }
+            }
             allMovements.put(params, movements.build());
         });
         return allMovements.build();

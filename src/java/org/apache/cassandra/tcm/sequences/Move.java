@@ -23,12 +23,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.Token;
@@ -37,7 +40,7 @@ import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsByReplica;
-import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
@@ -61,6 +64,7 @@ import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -150,8 +154,12 @@ public class Move implements InProgressSequence<Move>
                     Keyspaces keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
                     Map<ReplicationParams, EndpointsByReplica> movementMap = movementMap(FailureDetector.instance,
                                                                                          ClusterMetadata.current().placements,
-                                                                                         startMove.delta())
+                                                                                         toSplitRanges,
+                                                                                         startMove.delta(),
+                                                                                         midMove.delta(),
+                                                                                         StorageService.useStrictConsistency)
                                                                              .asMap();
+
                     for (KeyspaceMetadata ks : keyspaces)
                     {
                         ReplicationParams replicationParams = ks.params.replication;
@@ -160,15 +168,16 @@ public class Move implements InProgressSequence<Move>
                         EndpointsByReplica endpoints = movementMap.get(replicationParams);
                         for (Map.Entry<Replica, Replica> e : endpoints.flattenEntries())
                         {
-                            Replica source = e.getKey();
-                            Replica destination = e.getValue();
-                            assert !source.endpoint().equals(destination.endpoint()) : String.format("Source should not be the same as destionation", source, destination);
+                            Replica destination = e.getKey();
+                            Replica source = e.getValue();
+                            logger.info("Stream source: {} destination: {}", source, destination);
+                            assert !source.endpoint().equals(destination.endpoint()) : String.format("Source %s should not be the same as destionation %s", source, destination);
                             if (source.isSelf())
                                 streamPlan.transferRanges(destination.endpoint(), ks.name, RangesAtEndpoint.of(destination));
                             else if (destination.isSelf())
                                 streamPlan.requestRanges(source.endpoint(), ks.name, RangesAtEndpoint.of(destination), RangesAtEndpoint.empty(destination.endpoint()));
                             else
-                                throw new IllegalStateException("Node should be either source or desintation in the movement map " + endpoints);
+                                throw new IllegalStateException("Node should be either source or destination in the movement map " + endpoints);
                         }
                     }
 
@@ -214,38 +223,138 @@ public class Move implements InProgressSequence<Move>
         return true;
     }
 
-    private MovementMap movementMap(IFailureDetector fd, DataPlacements placements, PlacementDeltas toStart)
+    /**
+     * Returns a mapping of destination -> source*, where the destination is the node that needs to stream from source
+     *
+     * there can be multiple sources for each destination
+     */
+    private static MovementMap movementMap(IFailureDetector fd, DataPlacements placements, PlacementDeltas toSplitRanges, PlacementDeltas toStart, PlacementDeltas midDeltas, boolean strictConsistency)
     {
         MovementMap.Builder allMovements = MovementMap.builder();
         toStart.forEach((params, delta) -> {
             RangesByEndpoint targets = delta.writes.additions;
             PlacementForRange oldOwners = placements.get(params).reads;
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
-            targets.flattenValues().forEach(destination -> {
-                EndpointsForRange candidates = oldOwners.forRange(destination.range());
-                Optional<Replica> maybeSelf = candidates.stream().filter(Replica::isSelf).findFirst();
-                if (maybeSelf.isPresent())
-                {
-                    movements.put(maybeSelf.get(), destination);
-                    return;
-                }
+            Iterables.concat(targets.flattenValues(),
+                             transientToFullReplicas(midDeltas.get(params)).flattenValues()).forEach(destination -> {
+                SourceHolder sources = new SourceHolder(fd, destination, toSplitRanges.get(params), strictConsistency);
+                AtomicBoolean needsRelaxedSources = new AtomicBoolean();
+                // first, try to find strict sources for the ranges we need to stream - these are the ranges that
+                // instances are losing.
+                midDeltas.get(params).reads.removals.flattenValues().forEach(strictSource -> {
+                    if (strictSource.range().equals(destination.range()) && !strictSource.endpoint().equals(destination.endpoint()))
+                        if (!sources.addSource(strictSource))
+                        {
+                            if (!strictConsistency)
+                                throw new IllegalStateException("Couldn't find any matching sufficient replica out of: " + strictSource + " -> " + destination);
+                            needsRelaxedSources.set(true);
+                        }
+                });
 
-                assert destination.isSelf();
-                for (Replica source : candidates)
+                // if we are not running with strict consistency, try to find other sources for streaming
+                if (needsRelaxedSources.get())
                 {
-                    if ( fd.isAlive(source.endpoint()))
+                    for (Replica source : DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(),
+                                                                                                   oldOwners.forRange(destination.range())))
                     {
-                        movements.put(source, destination);
-                        return;
+                        if (fd.isAlive(source.endpoint()) && !source.endpoint().equals(destination.endpoint()))
+                        {
+                            if ((sources.fullSource == null && source.isFull()) ||
+                                (sources.transientSource == null && source.isTransient()))
+                                sources.addSource(source);
+                        }
                     }
                 }
-                throw new IllegalStateException(String.format("No live sources for the range %s. Tried: %s",
-                                                              destination.range(), oldOwners.forRange(destination.range())));
+
+                if (sources.fullSource == null && destination.isFull())
+                    throw new IllegalStateException("Found no sources for "+destination);
+                sources.addToMovements(destination, movements);
             });
             allMovements.put(params, movements.build());
         });
 
         return allMovements.build();
+    }
+
+    private static class SourceHolder
+    {
+        private final IFailureDetector fd;
+        private final PlacementDeltas.PlacementDelta splitDelta;
+        private final boolean strict;
+        private Replica fullSource;
+        private Replica transientSource;
+        private final Replica destination;
+
+        public SourceHolder(IFailureDetector fd, Replica destination, PlacementDeltas.PlacementDelta splitDelta, boolean strict)
+        {
+            this.fd = fd;
+            this.splitDelta = splitDelta;
+            this.strict = strict;
+            this.destination = destination;
+        }
+
+        private boolean addSource(Replica source)
+        {
+            if (fd.isAlive(source.endpoint()))
+            {
+                if (source.isFull())
+                {
+                    assert fullSource == null;
+                    fullSource = source;
+                }
+                else
+                {
+                    assert transientSource == null;
+                    if (!destination.isSelf() && !source.isSelf())
+                    {
+                        // a transient replica is being removed, now, to be able to safely skip streaming from this
+                        // replica we need to make sure it remains a replica for the range after the move has finished:
+                        if (splitDelta.writes.additions.get(source.endpoint()).byRange().get(destination.range()) == null)
+                        {
+                            if (strict)
+                                throw new IllegalStateException(String.format("Source %s for %s is not remaining as a replica after the move, can't do a consistent range movement, retry with that disabled", source, destination));
+                            else
+                                return false;
+                        }
+                        return true;
+                    }
+                    else
+                    {
+                        transientSource = source;
+                    }
+                }
+                return true;
+            }
+            else if (strict)
+                throw new IllegalStateException("Strict consistency requires the node losing the range to be UP but " + source + " is DOWN");
+            return false;
+        }
+
+        private void addToMovements(Replica destination, EndpointsByReplica.Builder movements)
+        {
+            if (fullSource != null)
+                movements.put(destination, fullSource);
+            if (transientSource != null)
+                movements.put(destination, transientSource);
+        }
+    }
+
+    private static RangesByEndpoint transientToFullReplicas(PlacementDeltas.PlacementDelta midDelta)
+    {
+        RangesByEndpoint.Builder builder = new RangesByEndpoint.Builder();
+        midDelta.reads.additions.flattenValues().forEach((newReplica) -> {
+            if (newReplica.isFull())
+            {
+                RangesAtEndpoint removals = midDelta.reads.removals.get(newReplica.endpoint());
+                if (removals != null)
+                {
+                    Replica removed = removals.byRange().get(newReplica.range());
+                    if (removed != null && removed.isTransient())
+                        builder.put(newReplica.endpoint(), newReplica);
+                }
+            }
+        });
+        return builder.build();
     }
 
     @Override

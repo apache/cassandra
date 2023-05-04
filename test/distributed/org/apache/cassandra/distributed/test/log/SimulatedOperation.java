@@ -456,7 +456,7 @@ public abstract class SimulatedOperation
         }
     }
 
-    private static Optional<org.apache.cassandra.tcm.sequences.Move> prepareMove(CMSSut sut, Node node, LongToken newToken)
+    public static Optional<org.apache.cassandra.tcm.sequences.Move> prepareMove(CMSSut sut, Node node, LongToken newToken)
     {
         try
         {

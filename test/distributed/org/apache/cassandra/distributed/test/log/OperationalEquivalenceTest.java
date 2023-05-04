@@ -1,0 +1,204 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.apache.cassandra.distributed.test.log;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.tcm.AtomicLongBackedProcessor;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.tcm.membership.NodeAddresses;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
+import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.sequences.Move;
+import org.apache.cassandra.tcm.transformations.Register;
+import org.apache.cassandra.tcm.transformations.UnsafeJoin;
+
+/**
+ * Compare different operations, and make sure that executing operations such as move, bootstrap, etc.,
+ * is consistent with bootstrapping nodes with equivalent token ownership. Useful for testing operations
+ * that are not yet a part of simulator, like transient replication.
+ */
+public class OperationalEquivalenceTest extends CMSTestBase
+{
+    private static final Random rng = new Random(1);
+
+    static
+    {
+        DatabaseDescriptor.setTransientReplicationEnabledUnsafe(true);
+    }
+
+    // Private to this class for now as this is only a limited implementation
+    private static class TransientReplicationFactor extends PlacementSimulator.ReplicationFactor
+    {
+        private final PlacementSimulator.Lookup lookup = new PlacementSimulator.DefaultLookup();
+        private final int dcs;
+        private final int full;
+        private final int trans;
+
+        public TransientReplicationFactor(int dcs, int full, int trans)
+        {
+            super(dcs * (full + trans));
+            this.dcs = dcs;
+            this.full = full;
+            this.trans = trans;
+        }
+
+        public int dcs()
+        {
+            return dcs;
+        }
+
+        public KeyspaceParams asKeyspaceParams()
+        {
+            Object[] rf = new Object[dcs * 2];
+            for (int i = 0; i < dcs * 2;)
+            {
+                rf[i++] = lookup.dc(i);
+                rf[i++] = String.format("%s/%s", full, trans);
+            }
+            return KeyspaceParams.nts(rf);
+        }
+
+        public Map<String, Integer> asMap()
+        {
+            throw new IllegalStateException("Does not work with transient replication");
+        }
+
+        public PlacementSimulator.ReplicatedRanges replicate(PlacementSimulator.Range[] ranges, List<PlacementSimulator.Node> nodes)
+        {
+            throw new IllegalStateException("Does not work with transient replication (yet)");
+        }
+    }
+
+    @Test
+    public void testMove() throws Exception
+    {
+        testMove(new PlacementSimulator.SimpleReplicationFactor(2));
+        testMove(new PlacementSimulator.SimpleReplicationFactor(3));
+        testMove(new PlacementSimulator.SimpleReplicationFactor(5));
+
+        testMove(new PlacementSimulator.NtsReplicationFactor(1, 2));
+        testMove(new PlacementSimulator.NtsReplicationFactor(1, 3));
+        testMove(new PlacementSimulator.NtsReplicationFactor(1, 5));
+
+        testMove(new PlacementSimulator.NtsReplicationFactor(3, 2));
+        testMove(new PlacementSimulator.NtsReplicationFactor(3, 3));
+        testMove(new PlacementSimulator.NtsReplicationFactor(3, 5));
+
+        testMove(new TransientReplicationFactor(3, 3, 1));
+        testMove(new TransientReplicationFactor(3, 3, 2));
+    }
+
+    public void testMove(PlacementSimulator.ReplicationFactor rf) throws Exception
+    {
+        PlacementSimulator.NodeFactory nodeFactory = PlacementSimulator.nodeFactory();
+
+        ClusterMetadata withMove = null;
+        List<PlacementSimulator.Node> equivalentNodes = new ArrayList<>();
+        int nodes = 30;
+        try (CMSSut sut = new CMSSut(AtomicLongBackedProcessor::new, false, rf))
+        {
+            AtomicInteger counter = new AtomicInteger(0);
+            for (int i = 0; i < nodes; i++)
+            {
+                int dc = toDc(i, rf);
+                PlacementSimulator.Node node = nodeFactory.make(counter.incrementAndGet(), dc, 1);
+                sut.service.commit(new Register(new NodeAddresses(node.addr()), new Location(node.dc(), node.rack()), NodeVersion.CURRENT));
+                sut.service.commit(new UnsafeJoin(node.nodeId(), Collections.singleton(node.longToken()), sut.service.placementProvider()));
+                equivalentNodes.add(node);
+            }
+
+            PlacementSimulator.Node toMove = equivalentNodes.get(rng.nextInt(equivalentNodes.size()));
+            PlacementSimulator.Node moved = toMove.withNewToken();
+            equivalentNodes.set(equivalentNodes.indexOf(toMove), moved);
+
+            Move plan = SimulatedOperation.prepareMove(sut, toMove, moved.longToken()).get();
+            Iterator<?> iter = SimulatedOperation.toIter(sut.service, plan.startMove, plan.midMove, plan.finishMove);
+            while (iter.hasNext())
+                iter.next();
+
+            withMove = ClusterMetadata.current();
+        }
+
+        assertPlacements(simulateAndCompare(rf, equivalentNodes).placements,
+                         withMove.placements);
+    }
+
+    private static ClusterMetadata simulateAndCompare(PlacementSimulator.ReplicationFactor rf, List<PlacementSimulator.Node> nodes) throws Exception
+    {
+        Collections.shuffle(nodes, rng);
+        try (CMSSut sut = new CMSSut(AtomicLongBackedProcessor::new, false, rf))
+        {
+            for (PlacementSimulator.Node node : nodes)
+            {
+                sut.service.commit(new Register(new NodeAddresses(node.addr()), new Location(node.dc(), node.rack()), NodeVersion.CURRENT));
+                sut.service.commit(new UnsafeJoin(node.nodeId(), Collections.singleton(node.longToken()), sut.service.placementProvider()));
+            }
+
+            return ClusterMetadata.current();
+        }
+    }
+
+    private static void assertPlacements(DataPlacements l, DataPlacements r)
+    {
+        l.forEach((params, lPlacement) -> {
+            DataPlacement rPlacement = r.get(params);
+            lPlacement.reads.replicaGroups().forEach((range, lReplicas) -> {
+                EndpointsForRange rReplicas = rPlacement.reads.forRange(range);
+
+                Assert.assertEquals(toReplicas(lReplicas),
+                                    toReplicas(rReplicas));
+            });
+
+            lPlacement.writes.replicaGroups().forEach((range, lReplicas) -> {
+                EndpointsForRange rReplicas = rPlacement.writes.forRange(range);
+
+                Assert.assertEquals(toReplicas(lReplicas),
+                                    toReplicas(rReplicas));
+
+            });
+        });
+    }
+
+    public static List<Replica> toReplicas(EndpointsForRange ep)
+    {
+        return ep.stream().sorted(Replica::compareTo).collect(Collectors.toList());
+    }
+    private static int toDc(int i, PlacementSimulator.ReplicationFactor rf)
+    {
+        return (i % rf.dcs()) + 1;
+    }
+
+}

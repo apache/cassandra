@@ -387,7 +387,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         validatePlacements(sut.partitioner, sut.rf, modelState, actualMetadata.placements);
     }
 
-    private ModelChecker.Pair<ModelState, Node> registerNewNode(ModelState state, CMSSut sut, int dcIdx, int rackIdx)
+    public static ModelChecker.Pair<ModelState, Node> registerNewNode(ModelState state, CMSSut sut, int dcIdx, int rackIdx)
     {
         ModelState newState = state.transformer().incrementUniqueNodes().transform();
         Node node = state.nodeFactory.make(newState.uniqueNodes, dcIdx, rackIdx);

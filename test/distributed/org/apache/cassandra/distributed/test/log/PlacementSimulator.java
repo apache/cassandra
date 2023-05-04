@@ -1477,7 +1477,7 @@ public class PlacementSimulator
 
         public String toString()
         {
-            return String.format("%s@%d", id(), token());
+            return String.format("%s-%s@%d", dc(), id(), token());
         }
     }
 
