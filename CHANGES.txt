@@ -1,4 +1,5 @@
 4.0.10
+ * Allow internal address to change with reconnecting snitches (CASSANDRA-16718)
  * Fix quoting in toCqlString methods of UDTs and aggregates (CASSANDRA-17918)
  * NPE when deserializing malformed collections from client (CASSANDRA-18505)
  * Improve 'Not enough space for compaction' logging messages (CASSANDRA-18260)
