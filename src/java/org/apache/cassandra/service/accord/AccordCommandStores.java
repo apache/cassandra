@@ -29,7 +29,6 @@ import accord.primitives.Routables;
 import accord.topology.Topology;
 import accord.utils.MapReduceConsume;
 import accord.utils.RandomSource;
-import org.apache.cassandra.concurrent.ExecutionFailure;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.journal.AsyncWriteCallback;
 
@@ -96,8 +95,7 @@ public class AccordCommandStores extends CommandStores<AccordCommandStore>
             @Override
             public void onFailure(Throwable error)
             {
-                // should we invoke Agent#onUncaughtException() instead?
-                ExecutionFailure.handle(error);
+                mapReduceConsume.accept(null, error);
             }
         });
     }
