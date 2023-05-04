@@ -138,18 +138,18 @@ final class Flusher<K, V>
                     lastFlushedAt = startedRunAt;
                     flushComplete.signalAll();
                 }
-
-                long now = clock.now();
-                if (flushToDisk)
-                    processFlushDuration(startedRunAt, now);
-
-                if (state == SHUTTING_DOWN)
-                    return;
-
-                long wakeUpAt = startedRunAt + flushPeriodNanos();
-                if (wakeUpAt > now)
-                    haveWork.tryAcquireUntil(1, wakeUpAt);
             }
+
+            long now = clock.now();
+            if (flushToDisk)
+                processFlushDuration(startedRunAt, now);
+
+            if (state == SHUTTING_DOWN)
+                return;
+
+            long wakeUpAt = startedRunAt + flushPeriodNanos();
+            if (wakeUpAt > now)
+                haveWork.tryAcquireUntil(1, wakeUpAt);
         }
 
         private void doFlush()
