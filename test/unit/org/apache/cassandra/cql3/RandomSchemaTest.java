@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.cql3;
 
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Arrays;
@@ -32,13 +29,11 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractTypeGenerators;
@@ -73,8 +68,8 @@ public class RandomSchemaTest extends CQLTester
                                          .withTableKinds(TableMetadata.Kind.REGULAR)
                                          .withDefaultTypeGen(AbstractTypeGenerators.builder()
                                                                                    .withoutEmpty()
-                                                                                   .withMaxDepth(2)
                                                                                    .withUserTypeKeyspace(KEYSPACE)
+                                                                                   .withMaxDepth(2)
                                                                                    .withDefaultSetKey(nonEmptyNoDuration)
                                                                                    .build())
                                          .withPartitionColumnsCount(1)
@@ -86,13 +81,13 @@ public class RandomSchemaTest extends CQLTester
 
                 Gen<ByteBuffer[]> dataGen = CassandraGenerators.data(metadata);
                 String insertStmt = insertStmt(metadata);
-                int rowKeyCount = rowKeyCount(metadata);
+                int primaryColumnCount = primaryColumnCount(metadata);
                 String selectStmt = selectStmt(metadata);
 
                 for (int i = 0; i < 1000; i++)
                 {
                     ByteBuffer[] expected = dataGen.generate(random);
-                    ByteBuffer[] rowKey = Arrays.copyOf(expected, rowKeyCount);
+                    ByteBuffer[] rowKey = Arrays.copyOf(expected, primaryColumnCount);
                     execute(insertStmt, expected);
                     UntypedResultSet row = execute(selectStmt, rowKey);
                     assertRows(row, expected);
@@ -105,40 +100,30 @@ public class RandomSchemaTest extends CQLTester
         Set<UserType> udts = CassandraGenerators.extractUDTs(metadata);
         if (!udts.isEmpty())
         {
-            File createdLog = new File("/tmp/created.log");
-            createdLog.deleteIfExists();
-            try (FileWriter out = new FileWriter(createdLog.toJavaIOFile()))
+            Deque<UserType> pending = new ArrayDeque<>();
+            pending.addAll(udts);
+            Set<ByteBuffer> created = new HashSet<>();
+            while (!pending.isEmpty())
             {
-                Deque<UserType> pending = new ArrayDeque<>();
-                pending.addAll(udts);
-                Set<ByteBuffer> created = new HashSet<>();
-                while (!pending.isEmpty())
+                UserType next = pending.poll();
+                Set<UserType> subTypes = AbstractTypeGenerators.extractUDTs(next);
+                subTypes.remove(next); // it includes self
+                if (subTypes.isEmpty() || subTypes.stream().allMatch(t -> created.contains(t.name)))
                 {
-                    UserType next = pending.poll();
-                    Set<UserType> subTypes = AbstractTypeGenerators.extractUDTs(next);
-                    subTypes.remove(next); // it includes self
-                    if (subTypes.isEmpty() || subTypes.stream().allMatch(t -> created.contains(t.name)))
-                    {
-                        logger.warn("Creating UDT {}", next.getCqlTypeName());
-                        schemaChange(next.toCqlString(false, false));
-                        created.add(next.name);
-                        out.append(next.getCqlTypeName() + "\n");
-                    }
-                    else
-                    {
-                        logger.warn("Unable to create UDT {}; following sub-types still not created: {}", next.getCqlTypeName(), subTypes.stream().filter(t -> !created.contains(t.name)).collect(Collectors.toSet()));
-                        pending.add(next);
-                    }
+                    logger.warn("Creating UDT {}", next.getCqlTypeName());
+                    schemaChange(next.toCqlString(false, false));
+                    created.add(next.name);
                 }
-            }
-            catch (IOException e)
-            {
-                throw new UncheckedIOException(e);
+                else
+                {
+                    logger.warn("Unable to create UDT {}; following sub-types still not created: {}", next.getCqlTypeName(), subTypes.stream().filter(t -> !created.contains(t.name)).collect(Collectors.toSet()));
+                    pending.add(next);
+                }
             }
         }
     }
 
-    private static int rowKeyCount(TableMetadata metadata)
+    private static int primaryColumnCount(TableMetadata metadata)
     {
         return metadata.partitionKeyColumns().size() + metadata.clusteringColumns().size();
     }
