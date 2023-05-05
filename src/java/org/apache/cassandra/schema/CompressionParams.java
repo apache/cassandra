@@ -20,9 +20,12 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 
@@ -165,7 +168,7 @@ public final class CompressionParams
     }
 
     private static String invalidValue(String param, String extraText, Object value) {
-        return format("Invalid '%s' value for the 'compression' option.  %s: %s", param, extraText, value );
+        return format("Invalid '%s' value for the 'compression' option.  %s: %s", param, extraText, value);
     }
 
     public static CompressionParams fromMap(Map<String, String> opts)
@@ -181,38 +184,34 @@ public final class CompressionParams
     {
         final boolean enabled = removeEnabled(options);
 
-        final int chunk_length_in_kb = removeChunkLength(options);
+        final int chunk_length_in_bytes = removeChunkLength(options);
 
         // figure out how we calculate the max_compressed_length and min_compress_ratio
         if (options.containsKey(MIN_COMPRESS_RATIO)  && options.containsKey(MAX_COMPRESSED_LENGTH))
             throw new ConfigurationException("Can not specify both 'min_compress_ratio' and 'max_compressed_length' for the compressor parameters.");
 
         // calculate the max_compressed_length and min_compress_ratio
-        int max_compressed_length;
+        int max_compressed_length_in_bytes;
         double min_compress_ratio;
         String max_compressed_length_str = options.remove(MAX_COMPRESSED_LENGTH);
-        if (!StringUtils.isBlank(max_compressed_length_str))
-        {
+        if (!StringUtils.isBlank(max_compressed_length_str)) {
             try
             {
-                max_compressed_length = new DataStorageSpec.IntKibibytesBound(max_compressed_length_str).toKibibytes();
-                validateMaxCompressedLength(max_compressed_length, chunk_length_in_kb);
-                min_compress_ratio = CompressionParams.calcMinCompressRatio(chunk_length_in_kb, max_compressed_length);
+                max_compressed_length_in_bytes = new DataStorageSpec.IntKibibytesBound(max_compressed_length_str).toBytes();
+                validateMaxCompressedLength(max_compressed_length_in_bytes, chunk_length_in_bytes);
+                min_compress_ratio = CompressionParams.calcMinCompressRatio(chunk_length_in_bytes, max_compressed_length_in_bytes);
             } catch (IllegalArgumentException e) {
                 throw new ConfigurationException(invalidValue(MAX_COMPRESSED_LENGTH, e.getMessage(), max_compressed_length_str));
             }
-        }
-        else
-        {
+        } else {
             min_compress_ratio = removeMinCompressRatio(options);
             validateMinCompressRatio(min_compress_ratio);
-            max_compressed_length =  CompressionParams.calcMaxCompressedLength(chunk_length_in_kb,min_compress_ratio);
+            max_compressed_length_in_bytes =  CompressionParams.calcMaxCompressedLength(chunk_length_in_bytes,min_compress_ratio);
         }
 
         // try to set compressor type
         CompressorType compressorType = StringUtils.isEmpty(sstableCompressionClass) ? CompressorType.lz4 : null;
-        if (compressorType == null)
-        {
+        if (compressorType == null)  {
             try
             {
                 compressorType = CompressorType.valueOf(sstableCompressionClass);
@@ -224,10 +223,14 @@ public final class CompressionParams
         }
 
         Function<Map<String,String>,ICompressor> creator = compressorType  != null ? compressorType.creator : (opt) -> createCompressor(parseCompressorClass(sstableCompressionClass), opt);
-        CompressionParams cp = new CompressionParams(enabled ? creator.apply(options) : null, chunk_length_in_kb, max_compressed_length, min_compress_ratio, options);
-        if (enabled && compressorType != CompressorType.none && cp.getSstableCompressor() == null)
-            throw new ConfigurationException(format("'%s' is not a valid compressor class name for the 'sstable_compressor' option.", sstableCompressionClass));
-
+        CompressionParams cp = new CompressionParams(enabled ? creator.apply(options) : null, chunk_length_in_bytes, max_compressed_length_in_bytes, min_compress_ratio, options);
+        if (enabled && compressorType != CompressorType.none) {
+            ICompressor compressor = cp.sstableCompressor;
+            if (compressor == null)
+                throw new ConfigurationException(format("'%s' is not a valid compressor class name for the 'sstable_compressor' option.", sstableCompressionClass));
+            else
+                checkCompressorOptions(compressor, options.keySet());
+        }
         return cp;
     }
 
@@ -335,10 +338,18 @@ public final class CompressionParams
         }
     }
 
+    private static void checkCompressorOptions(ICompressor compressor, Set<String> options) {
+        List<String> notFound = new ArrayList<>();
+        for (String provided : options)
+            if (!compressor.supportedOptions().contains(provided))
+                notFound.add(provided);
+        if (!notFound.isEmpty())
+            throw new ConfigurationException("Unknown compression options: (" + notFound + ")");
+    }
+
     private static ICompressor createCompressor(Class<?> compressorClass, Map<String, String> compressionOptions) throws ConfigurationException
     {
-        if (compressorClass == null)
-        {
+        if (compressorClass == null) {
             if (!compressionOptions.isEmpty())
                 throw new ConfigurationException("Unknown compression options (" + compressionOptions.keySet() + ") since no compression class found");
             return null;
@@ -349,9 +360,7 @@ public final class CompressionParams
             Method method = compressorClass.getMethod("create", Map.class);
             ICompressor compressor = (ICompressor)method.invoke(null, compressionOptions);
             // Check for unknown options
-            for (String provided : compressionOptions.keySet())
-                if (!compressor.supportedOptions().contains(provided))
-                    throw new ConfigurationException("Unknown compression options " + provided);
+            checkCompressorOptions(compressor, compressionOptions.keySet());
             return compressor;
         }
         catch (NoSuchMethodException e)
@@ -411,23 +420,22 @@ public final class CompressionParams
      */
     private static int removeChunkLength(Map<String, String> options)
     {
-        Integer chunk_length_in_kb = null;
+        Integer chunk_length_in_bytes = null;
         String key = null;
         if (options.containsKey(CHUNK_LENGTH)) {
             key = CHUNK_LENGTH;
             String value = options.remove(CHUNK_LENGTH);
             try
             {
-                chunk_length_in_kb =  new DataStorageSpec.IntKibibytesBound(value).toKibibytes();
+                chunk_length_in_bytes =  new DataStorageSpec.IntKibibytesBound(value).toBytes();
             } catch (IllegalArgumentException e) {
                 throw new ConfigurationException(invalidValue(CHUNK_LENGTH, e.getMessage(), value));
             }
         }
 
-        if (options.containsKey(CHUNK_LENGTH_IN_KB))
-        {
+        if (options.containsKey(CHUNK_LENGTH_IN_KB)) {
             key = CHUNK_LENGTH_IN_KB;
-            if (chunk_length_in_kb != null)
+            if (chunk_length_in_bytes != null)
                 throw new ConfigurationException(TOO_MANY_CHUNK_LENGTH);
             else
             {
@@ -435,11 +443,11 @@ public final class CompressionParams
                 try
                 {
                     int parsed = Integer.parseInt(chLengthKB);
-                    if (parsed > Integer.MAX_VALUE / 1024)
+                    if (parsed * 1024L > Integer.MAX_VALUE)
                         throw new ConfigurationException(invalidValue(CHUNK_LENGTH_IN_KB, "Value is too large", parsed));
                     if (parsed <= 0)
                         throw new ConfigurationException(invalidValue(CHUNK_LENGTH_IN_KB, "May not be <= 0", parsed));
-                    chunk_length_in_kb = 1024 * parsed;
+                    chunk_length_in_bytes = 1024 * parsed;
                 }
                 catch (NumberFormatException e)
                 {
@@ -448,8 +456,8 @@ public final class CompressionParams
             }
         }
 
-        if (chunk_length_in_kb != null) {
-            int chunkLength = chunk_length_in_kb.intValue() ;
+        if (chunk_length_in_bytes != null) {
+            int chunkLength = chunk_length_in_bytes.intValue() ;
             validateChunkLength(key, chunkLength);
             return chunkLength;
         }
@@ -490,8 +498,7 @@ public final class CompressionParams
      */
     private static String removeSstableCompressionClass(Map<String, String> options)
     {
-        if (options.containsKey(CLASS))
-        {
+        if (options.containsKey(CLASS)) {
             String clazz = options.remove(CLASS);
             if (clazz.isEmpty())
                 throw new ConfigurationException(format("The '%s' option must not be empty. To disable compression use 'enabled' : false", CLASS));

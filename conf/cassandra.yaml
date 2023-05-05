@@ -568,30 +568,31 @@ commitlog_segment_size: 32MiB
 
 
 #
-# Defines the default compression used on tables when non is specified
+# Defines the default compression used on tables when none is specified
 # in the CQL command.
 #
 # The class_name is the compressor class name. It may be one of the aliases,
 # the class name of a system ICompressor implementation, or fully qualified
-# name of a class that implements ICompressor.
+# name of a class that implements ICompressor and ahs a  public static create method that accepts
+# a Map<String, String> argument and returns an instance of the class.
 #
 # class aliases are:
-#  alias   system compressor impl.
-#  lz4      LZ4Compressor,
+#  Alias    System compressor impl.
+#  deflate  DeflateCompressor
+#  lz4      LZ4Compressor
 #  none     (null) -- compresson disabled
 #  noop     NoopCompressor
 #  snappy   SnappyCompressor
-#  deflate  DeflateCompressor
 #  zstd     ZstdCompressor
 #
 # The standard parameters are any required or optional parameter for the instantiation of the
 # specified class, or one of the following standard parameters:
-# parameter                       usage
-# enable                Disables compression if set to false. Defaults to true.
-# chunk_length          The length of the compresson chunks, defaults to 16KiB
+# Parameter                             Usage
+# enabled               Disables compression if set to false. Defaults to true.
+# chunk_length          The length of the compresson chunks, must include KiB, MiB or GiB suffix, defaults to 16KiB.
 # min_compress_ratio    The miniimal acceptable compression, must greater than or equal to 1.0.
 # max_compressed_length The maximum size for a compressed block.  Must be less than
-#                           chunk_length.   Defaults to Integer.MAX_VALUE
+#                           chunk_length. Must include KiB, MiB or GiB suffix.  Defaults to Integer.MAX_VALUE
 # chunk_length_in_kb    The CQL compression parameter.
 #
 # Only one of the min_compress_ratio and max_compressed_length options can be specified.
@@ -602,14 +603,18 @@ commitlog_segment_size: 32MiB
 #
 # Only one of chunk_length or chunk_length_in_kb may be specified.
 #
+# Additional class specific parameters may be added to the parameters section.  The value of the class specific
+# parameter must be a string.
+#
+# all parameter values must be strings.
+#
 sstable_compression:
 #   - class_name: lz4
 #     parameters:
-#       - enable: true
+#       - enabled: "true"
 #         chunk_length: 16KiB
-#         min_compress_ratio: 0.0
-#         max_comrpessed_length: 16KiB
-#         class_specific_parameter: value
+#         min_compress_ratio: "0.0"
+#         max_compressed_length: 16KiB
 
 
 # any class that implements the SeedProvider interface and has a
