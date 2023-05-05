@@ -251,15 +251,12 @@ public class ListenableFileSystem extends ForwardingFileSystem
         @Override
         public InputStream newInputStream(Path path, OpenOption... options) throws IOException
         {
-            if (options.length > 0)
+            for (OpenOption opt : options)
             {
-                for (OpenOption opt : options)
-                {
-                    // All OpenOption values except for APPEND and WRITE are allowed
-                    if (opt == StandardOpenOption.APPEND ||
-                        opt == StandardOpenOption.WRITE)
-                        throw new UnsupportedOperationException("'" + opt + "' not allowed");
-                }
+                // All OpenOption values except for APPEND and WRITE are allowed
+                if (opt == StandardOpenOption.APPEND ||
+                    opt == StandardOpenOption.WRITE)
+                    throw new UnsupportedOperationException("'" + opt + "' not allowed");
             }
             Set<OpenOption> opts = new HashSet<>(Arrays.asList(options));
             return Channels.newInputStream(newFileChannel(path, opts));
