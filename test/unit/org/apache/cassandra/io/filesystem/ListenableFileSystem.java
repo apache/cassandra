@@ -261,8 +261,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
                         throw new UnsupportedOperationException("'" + opt + "' not allowed");
                 }
             }
-            Set<OpenOption> opts = new HashSet<>();
-            opts.addAll(Arrays.asList(options));
+            Set<OpenOption> opts = new HashSet<>(Arrays.asList(options));
             return Channels.newInputStream(newFileChannel(path, opts));
         }
 
