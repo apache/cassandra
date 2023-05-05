@@ -36,9 +36,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -55,8 +52,6 @@ import static java.lang.String.format;
 
 public final class CompressionParams
 {
-    private static final Logger logger = LoggerFactory.getLogger(CompressionParams.class);
-
     public static final int DEFAULT_CHUNK_LENGTH = 1024 * 16; // in KB
     public static final double DEFAULT_MIN_COMPRESS_RATIO = 0.0;        // Since pre-4.0 versions do not understand the
                                                                         // new compression parameter we can't use a
