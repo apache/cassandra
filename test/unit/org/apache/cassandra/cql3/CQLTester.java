@@ -78,7 +78,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.Files;
+import org.apache.cassandra.io.util.FileSystems;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -2452,9 +2452,9 @@ public abstract class CQLTester
         @BeforeClass
         public static void setUpClass()
         {
-            fs = Files.newGlobalInMemoryFileSystem();
+            fs = FileSystems.newGlobalInMemoryFileSystem();
             CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
-            Files.maybeCreateTmp();
+            FileSystems.maybeCreateTmp();
 
             CQLTester.setUpClass();
         }

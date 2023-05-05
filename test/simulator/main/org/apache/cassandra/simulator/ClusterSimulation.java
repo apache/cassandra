@@ -53,7 +53,7 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnab
 import org.apache.cassandra.distributed.impl.DirectStreamingConnectionFactory;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
-import org.apache.cassandra.io.util.Files;
+import org.apache.cassandra.io.util.FileSystems;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.simulator.RandomSource.Choices;
@@ -618,7 +618,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              SimulationFactory<S> factory) throws IOException
     {
         this.random = random;
-        this.fs = new ListenableFileSystem(Files.jimfs(Long.toHexString(seed) + 'x' + uniqueNum));
+        this.fs = new ListenableFileSystem(FileSystems.jimfs(Long.toHexString(seed) + 'x' + uniqueNum));
 
         final SimulatedMessageDelivery delivery;
         final SimulatedExecution execution;

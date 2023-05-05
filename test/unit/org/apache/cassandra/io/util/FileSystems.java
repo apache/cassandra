@@ -28,7 +28,7 @@ import com.google.common.jimfs.Jimfs;
 import org.apache.cassandra.io.filesystem.ForwardingFileSystem;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 
-public class Files
+public class FileSystems
 {
     public static ListenableFileSystem newGlobalInMemoryFileSystem()
     {
