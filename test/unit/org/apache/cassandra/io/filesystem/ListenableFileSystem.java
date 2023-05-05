@@ -785,34 +785,82 @@ public class ListenableFileSystem extends ForwardingFileSystem
         });
     }
 
-    public Unsubscribable OnPrePosition(OnPrePosition callbackk)
+    public Unsubscribable onPrePosition(OnPrePosition callbackk)
     {
         return listen(OnChannelMeta.from(callbackk));
     }
 
-    public Unsubscribable OnPostPosition(OnPostPosition callbackk)
+    public Unsubscribable onPrePosition(PathFilter filter, OnPrePosition callbackk)
+    {
+        return onPrePosition((path, channel, position, newPosition) -> {
+           if (filter.accept(path))
+               callbackk.prePosition(path, channel, position, newPosition);
+        });
+    }
+
+    public Unsubscribable onPostPosition(OnPostPosition callbackk)
     {
         return listen(OnChannelMeta.from(callbackk));
     }
 
-    public Unsubscribable OnPreTruncate(OnPreTruncate callbackk)
+    public Unsubscribable onPostPosition(PathFilter filter, OnPostPosition callbackk)
+    {
+        return onPostPosition((path, channel, position, newPosition) -> {
+            if (filter.accept(path))
+                callbackk.postPosition(path, channel, position, newPosition);
+        });
+    }
+
+    public Unsubscribable onPreTruncate(OnPreTruncate callbackk)
     {
         return listen(OnChannelMeta.from(callbackk));
     }
 
-    public Unsubscribable OnPostTruncate(OnPostTruncate callbackk)
+    public Unsubscribable onPreTruncate(PathFilter filter, OnPreTruncate callbackk)
+    {
+        return onPreTruncate((path, channel, size, targetSize) -> {
+            if (filter.accept(path))
+                callbackk.preTruncate(path, channel, size, targetSize);
+        });
+    }
+
+    public Unsubscribable onPostTruncate(OnPostTruncate callbackk)
     {
         return listen(OnChannelMeta.from(callbackk));
     }
 
-    public Unsubscribable OnPreForce(OnPreForce callbackk)
+    public Unsubscribable onPostTruncate(PathFilter filter, OnPostTruncate callbackk)
+    {
+        return onPostTruncate((path, channel, size, targetSize, newSize) -> {
+            if (filter.accept(path))
+                callbackk.postTruncate(path, channel, size, targetSize, newSize);
+        });
+    }
+
+    public Unsubscribable onPreForce(OnPreForce callbackk)
     {
         return listen(OnChannelMeta.from(callbackk));
     }
 
-    public Unsubscribable OnPostForce(OnPostForce callbackk)
+    public Unsubscribable onPreForce(PathFilter filter, OnPreForce callback)
+    {
+        return onPreForce((path, channel, metadata) -> {
+            if (filter.accept(path))
+                callback.preForce(path, channel, metadata);
+        });
+    }
+
+    public Unsubscribable onPostForce(OnPostForce callbackk)
     {
         return listen(OnChannelMeta.from(callbackk));
+    }
+
+    public Unsubscribable onPostForce(PathFilter filter, OnPostForce callback)
+    {
+        return onPostForce((path, channel, metadata) -> {
+            if (filter.accept(path))
+                callback.postForce(path, channel, metadata);
+        });
     }
 
     public void remove(Listener listener)
