@@ -20,6 +20,7 @@ package org.apache.cassandra.gms;
 import java.io.*;
 import java.net.InetAddress;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -328,6 +329,16 @@ public class VersionedValue implements Comparable<VersionedValue>
         {
             return new VersionedValue(versions.stream()
                                               .map(VersionAndType::toString)
+                                              .collect(Collectors.joining(",")));
+        }
+
+        public VersionedValue metadata(Map<String, String> metadata)
+        {
+            if (metadata.isEmpty())
+                return new VersionedValue("");
+            return new VersionedValue(metadata.entrySet()
+                                              .stream()
+                                              .map(e -> e.getKey() + '=' + e.getValue())
                                               .collect(Collectors.joining(",")));
         }
     }

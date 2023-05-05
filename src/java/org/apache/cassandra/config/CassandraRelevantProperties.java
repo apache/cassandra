@@ -360,7 +360,8 @@ public enum CassandraRelevantProperties
     FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
 
     TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS("cassandra.streaminghistogram.roundseconds", "60"),
-    ;
+
+    SYSTEM_PROPERTIES_METADATA("cassandra.metadata");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
