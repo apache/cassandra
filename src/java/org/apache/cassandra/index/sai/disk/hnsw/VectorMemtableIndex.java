@@ -47,7 +47,8 @@ import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.apache.lucene.util.hnsw.HnswGraphBuilder;
+import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
+import org.apache.lucene.util.hnsw.ConcurrentHnswGraphFactory;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
@@ -57,7 +58,7 @@ public class VectorMemtableIndex implements MemtableIndex
     private final IndexContext indexContext;
     private final ByteBufferVectorValues vectorValues = new ByteBufferVectorValues();
     private final ArrayList<PrimaryKey> keys = new ArrayList<>();
-    private final HnswGraphBuilder<float[]> builder;
+    private final ConcurrentHnswGraphBuilder<float[]> builder;
     private final LongAdder writeCount = new LongAdder();
 
     private final AtomicInteger cachedDimensions = new AtomicInteger();
@@ -71,12 +72,13 @@ public class VectorMemtableIndex implements MemtableIndex
         this.indexContext = indexContext;
         try
         {
-            builder = HnswGraphBuilder.create(vectorValues,
-                                              VectorEncoding.FLOAT32,
-                                              indexContext.getIndexWriterConfig().getSimilarityFunction(),
-                                              indexContext.getIndexWriterConfig().getMaximumNodeConnections(),
-                                              indexContext.getIndexWriterConfig().getConstructionBeamWidth(),
-                                              ThreadLocalRandom.current().nextLong());
+            ConcurrentHnswGraphFactory factory = ConcurrentHnswGraphFactory.instance;
+            builder = factory.createBuilder(vectorValues,
+                                            VectorEncoding.FLOAT32,
+                                            indexContext.getIndexWriterConfig().getSimilarityFunction(),
+                                            indexContext.getIndexWriterConfig().getMaximumNodeConnections(),
+                                            indexContext.getIndexWriterConfig().getConstructionBeamWidth(),
+                                            ThreadLocalRandom.current().nextLong());
         }
         catch (IOException e)
         {
@@ -87,7 +89,7 @@ public class VectorMemtableIndex implements MemtableIndex
     // TODO either we need to create a concurrent graph builder (possible!), or
     // do sharding in the memtable with brute force search, followed by building the actual graph on flush
     @Override
-    public synchronized long index(DecoratedKey key, Clustering clustering, ByteBuffer value)
+    public long index(DecoratedKey key, Clustering clustering, ByteBuffer value)
     {
         var primaryKey = indexContext.keyFactory().create(key, clustering);
         if (minimumKey == null)
@@ -113,7 +115,7 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public synchronized KeyRangeIterator search(Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
+    public KeyRangeIterator search(Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         assert expr.getOp() == Expression.IndexOperator.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
