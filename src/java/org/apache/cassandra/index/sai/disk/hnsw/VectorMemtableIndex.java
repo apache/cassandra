@@ -44,8 +44,9 @@ import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.hnsw.HnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
@@ -254,7 +255,6 @@ public class VectorMemtableIndex implements MemtableIndex
                                                                        Integer.MAX_VALUE);
                 if (bits == null || bits instanceof KeyRangeFilteringBits)
                     bits = new InvertedFilteringBits(bits);
-                limit *= 2;
 
                 for (int node : neighborQueue.nodes())
                 {
@@ -271,7 +271,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
     private class InvertedFilteringBits implements Bits
     {
-        private final FixedBitSet ignoredBits = new FixedBitSet(writeCount.intValue());
+        private final BitSet ignoredBits = new SparseFixedBitSet(writeCount.intValue());
         private final Bits rangeBits;
 
         InvertedFilteringBits(Bits rangeBits)

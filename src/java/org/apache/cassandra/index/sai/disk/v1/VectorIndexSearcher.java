@@ -53,8 +53,9 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.apache.lucene.util.Version;
 
 /**
@@ -140,7 +141,7 @@ public class VectorIndexSearcher extends IndexSegmentSearcher
         private final PriorityQueue<Long> queue;
 
         private int limit;
-        private FixedBitSet bitset;
+        private BitSet bitset;
 
         BatchPostingList(String field, float[] queryVector, int limit)
         {
@@ -189,8 +190,7 @@ public class VectorIndexSearcher extends IndexSegmentSearcher
         {
             TopDocs docs = reader.search(field, queryVector, limit, new InvertedBits(bitset), Integer.MAX_VALUE);
             if (bitset == null)
-                bitset = new FixedBitSet(numRows);
-            limit *= 2;
+                bitset = new SparseFixedBitSet(numRows);
             for (ScoreDoc doc : docs.scoreDocs)
             {
                 queue.offer((long)doc.doc);
