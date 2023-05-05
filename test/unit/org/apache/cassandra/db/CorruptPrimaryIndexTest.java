@@ -22,9 +22,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.io.filesystem.ListenableFileSystem;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.util.File;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -35,12 +32,7 @@ public class CorruptPrimaryIndexTest extends CQLTester.InMemory
     public void bigPrimaryIndexDoesNotDetectDiskCorruption()
     {
         // Set listener early, before the file is opened; mmap access can not be listened to, so need to observe the open, which happens on flush
-        try (ListenableFileSystem.Unsubscribable ignore = fs.listen((ListenableFileSystem.OnRead) (path, channel, position, dst, read) -> {
-            if (!path.getFileName().toString().endsWith("Index.db"))
-                return;
-            Descriptor desc = Descriptor.fromFile(new File(path));
-            if (!desc.ksname.equals(keyspace()) && desc.cfname.equals(currentTable()))
-                return;
+        fs.onPostRead(isCurrentTableIndexFile(keyspace()), (path, channel, position, dst, read) -> {
             // Reading the Primary index for the test!
             // format
             // 2 bytes: length of bytes for PK
@@ -50,16 +42,15 @@ public class CorruptPrimaryIndexTest extends CQLTester.InMemory
 
             // simulate bit rot by having 1 byte change... but make sure its the pk!
             dst.put(2, Byte.MAX_VALUE);
-        }))
-        {
-            createTable("CREATE TABLE %s (id int PRIMARY KEY, value int)");
-            execute("INSERT INTO %s (id, value) VALUES (?, ?)", 0, 0);
-            flush();
+        });
 
-            UntypedResultSet rs = execute("SELECT * FROM %s WHERE id=?", 0);
-            // this assert check is here to get the test to be green... if the format is fixed and this data loss is not
-            // happening anymore, then this check should be updated
-            assertThatThrownBy(() -> assertRows(rs, row(0, 0))).hasMessage("Got less rows than expected. Expected 1 but got 0");
-        }
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, value int)");
+        execute("INSERT INTO %s (id, value) VALUES (?, ?)", 0, 0);
+        flush();
+
+        UntypedResultSet rs = execute("SELECT * FROM %s WHERE id=?", 0);
+        // this assert check is here to get the test to be green... if the format is fixed and this data loss is not
+        // happening anymore, then this check should be updated
+        assertThatThrownBy(() -> assertRows(rs, row(0, 0))).hasMessage("Got less rows than expected. Expected 1 but got 0");
     }
 }

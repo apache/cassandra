@@ -77,6 +77,7 @@ import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.filesystem.ListenableFileSystem;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileSystems;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -2449,6 +2450,13 @@ public abstract class CQLTester
     public static abstract class InMemory extends CQLTester
     {
         protected static ListenableFileSystem fs = null;
+
+        /**
+         * Used by {@link #cleanupFileSystemListeners()} to know if file system listeners should be removed at the start
+         * of a test; can disable for cases where listeners are needed cross mutliple tests.
+         */
+        protected boolean cleanupFileSystemListeners = true;
+
         @BeforeClass
         public static void setUpClass()
         {
@@ -2457,6 +2465,25 @@ public abstract class CQLTester
             FileSystems.maybeCreateTmp();
 
             CQLTester.setUpClass();
+        }
+        @Before
+        public void cleanupFileSystemListeners()
+        {
+            if (!cleanupFileSystemListeners)
+                return;
+            fs.clearListeners();
+        }
+
+        protected ListenableFileSystem.PathFilter isCurrentTableIndexFile(String keyspace)
+        {
+            return path -> {
+                if (!path.getFileName().toString().endsWith("Index.db"))
+                    return false;
+                Descriptor desc = Descriptor.fromFile(new File(path));
+                if (!desc.ksname.equals(keyspace) && desc.cfname.equals(currentTable()))
+                    return false;
+                return true;
+            };
         }
     }
 }

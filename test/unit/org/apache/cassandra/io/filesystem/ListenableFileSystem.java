@@ -54,51 +54,259 @@ import org.apache.cassandra.utils.memory.MemoryUtil;
 
 public class ListenableFileSystem extends ForwardingFileSystem
 {
+    @FunctionalInterface
+    public interface PathFilter
+    {
+        boolean accept(Path entry) throws IOException;
+    }
+
     public interface Listener
     {
     }
 
-    public interface OnOpen extends Listener
+    public interface OnPreOpen
     {
-        default void preOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs) throws IOException
-        {
-        }
+        void preOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs) throws IOException;
+    }
 
+    public interface OnPostOpen
+    {
         void postOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs, FileChannel channel) throws IOException;
     }
 
-    public interface OnRead extends Listener
+    public interface OnOpen extends OnPreOpen, OnPostOpen, Listener
     {
-        default void preRead(Path path, FileChannel channel, long position, ByteBuffer dst) throws IOException
+        static OnOpen from(OnPreOpen callback)
         {
+            return new OnOpen()
+            {
+                @Override
+                public void postOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs, FileChannel channel) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs) throws IOException
+                {
+                    callback.preOpen(path, options, attrs);
+                }
+            };
         }
 
+        static OnOpen from(OnPostOpen callback)
+        {
+            return new OnOpen()
+            {
+                @Override
+                public void postOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs, FileChannel channel) throws IOException
+                {
+                    callback.postOpen(path, options, attrs, channel);
+                }
+
+                @Override
+                public void preOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs) throws IOException
+                {
+
+                }
+            };
+        }
+    }
+
+    public interface OnPreRead
+    {
+        void preRead(Path path, FileChannel channel, long position, ByteBuffer dst) throws IOException;
+    }
+
+    public interface OnPostRead
+    {
         void postRead(Path path, FileChannel channel, long position, ByteBuffer dst, int read) throws IOException;
     }
 
-    public interface OnTransferTo extends Listener
+    public interface OnRead extends OnPreRead, OnPostRead, Listener
     {
-        default void preTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target) throws IOException
+        static OnRead from(OnPreRead callback)
         {
+            return new OnRead()
+            {
+                @Override
+                public void postRead(Path path, FileChannel channel, long position, ByteBuffer dst, int read) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preRead(Path path, FileChannel channel, long position, ByteBuffer dst) throws IOException
+                {
+                    callback.preRead(path, channel, position, dst);
+                }
+            };
         }
 
+        static OnRead from(OnPostRead callback)
+        {
+            return new OnRead()
+            {
+                @Override
+                public void postRead(Path path, FileChannel channel, long position, ByteBuffer dst, int read) throws IOException
+                {
+                    callback.postRead(path, channel, position, dst, read);
+                }
+
+                @Override
+                public void preRead(Path path, FileChannel channel, long position, ByteBuffer dst) throws IOException
+                {
+
+                }
+            };
+        }
+    }
+
+    public interface OnPreTransferTo
+    {
+        void preTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target) throws IOException;
+    }
+
+    public interface OnPostTransferTo
+    {
         void postTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target, long transfered) throws IOException;
     }
 
-    public interface OnTransferFrom extends Listener
+    public interface OnTransferTo extends OnPreTransferTo, OnPostTransferTo, Listener
     {
-        default void preTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count) throws IOException
+        static OnTransferTo from(OnPreTransferTo callback)
         {
+            return new OnTransferTo()
+            {
+                @Override
+                public void postTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target, long transfered) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target) throws IOException
+                {
+                    callback.preTransferTo(path, channel, position, count, target);
+                }
+            };
         }
 
+        static OnTransferTo from(OnPostTransferTo callback)
+        {
+            return new OnTransferTo()
+            {
+                @Override
+                public void postTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target, long transfered) throws IOException
+                {
+                    callback.postTransferTo(path, channel, position, count, target, transfered);
+                }
+
+                @Override
+                public void preTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target) throws IOException
+                {
+
+                }
+            };
+        }
+    }
+
+    public interface OnPreTransferFrom
+    {
+        void preTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count) throws IOException;
+    }
+
+    public interface OnPostTransferFrom
+    {
         void postTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count, long transfered) throws IOException;
     }
 
-    public interface OnWrite extends Listener
+    public interface OnTransferFrom extends OnPreTransferFrom, OnPostTransferFrom, Listener
+    {
+        static OnTransferFrom from(OnPreTransferFrom callback)
+        {
+            return new OnTransferFrom()
+            {
+                @Override
+                public void postTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count, long transfered) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count) throws IOException
+                {
+                    callback.preTransferFrom(path, channel, src, position, count);
+                }
+            };
+        }
+
+        static OnTransferFrom from(OnPostTransferFrom callback)
+        {
+            return new OnTransferFrom()
+            {
+                @Override
+                public void postTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count, long transfered) throws IOException
+                {
+                    callback.postTransferFrom(path, channel, src, position, count, transfered);
+                }
+
+                @Override
+                public void preTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count) throws IOException
+                {
+
+                }
+            };
+        }
+    }
+
+    public interface OnPreWrite
     {
         void preWrite(Path path, FileChannel channel, long position, ByteBuffer src) throws IOException;
+    }
 
+    public interface OnPostWrite
+    {
         void postWrite(Path path, FileChannel channel, long position, ByteBuffer src, int wrote) throws IOException;
+    }
+
+    public interface OnWrite extends OnPreWrite, OnPostWrite, Listener
+    {
+        static OnWrite from(OnPreWrite callback)
+        {
+            return new OnWrite()
+            {
+                @Override
+                public void postWrite(Path path, FileChannel channel, long position, ByteBuffer src, int wrote) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preWrite(Path path, FileChannel channel, long position, ByteBuffer src) throws IOException
+                {
+                    callback.preWrite(path, channel, position, src);
+                }
+            };
+        }
+
+        static OnWrite from(OnPostWrite callback)
+        {
+            return new OnWrite()
+            {
+                @Override
+                public void postWrite(Path path, FileChannel channel, long position, ByteBuffer src, int wrote) throws IOException
+                {
+                    callback.postWrite(path, channel, position, src, wrote);
+                }
+
+                @Override
+                public void preWrite(Path path, FileChannel channel, long position, ByteBuffer src) throws IOException
+                {
+
+                }
+            };
+        }
     }
 
     public interface OnChannelMeta extends Listener
@@ -151,19 +359,170 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable listen(Listener listener)
     {
+        boolean match = false;
         if (listener instanceof OnOpen)
+        {
             onOpen.add((OnOpen) listener);
+            match = true;
+        }
         if (listener instanceof OnRead)
+        {
             onRead.add((OnRead) listener);
+            match = true;
+        }
         if (listener instanceof OnTransferTo)
+        {
             onTransferTo.add((OnTransferTo) listener);
+            match = true;
+        }
         if (listener instanceof OnWrite)
+        {
             onWrite.add((OnWrite) listener);
+            match = true;
+        }
         if (listener instanceof OnTransferFrom)
+        {
             onTransferFrom.add((OnTransferFrom) listener);
+            match = true;
+        }
         if (listener instanceof OnChannelMeta)
+        {
             onChannelMeta.add((OnChannelMeta) listener);
+            match = true;
+        }
+        if (!match)
+            throw new IllegalArgumentException("Unable to find a listenable type for " + listener.getClass());
         return () -> remove(listener);
+    }
+
+    public Unsubscribable onPreOpen(OnPreOpen callback)
+    {
+        return listen(OnOpen.from(callback));
+    }
+
+    public Unsubscribable onPreOpen(PathFilter filter, OnPreOpen callback)
+    {
+        return onPreOpen((path, options, attrs) -> {
+            if (filter.accept(path))
+                callback.preOpen(path, options, attrs);
+        });
+    }
+
+    public Unsubscribable onPostOpen(OnPostOpen callback)
+    {
+        return listen(OnOpen.from(callback));
+    }
+
+    public Unsubscribable onPostOpen(PathFilter filter, OnPostOpen callback)
+    {
+        return onPostOpen((path, options, attrs, channel) -> {
+            if (filter.accept(path))
+                callback.postOpen(path, options, attrs, channel);
+        });
+    }
+
+    public Unsubscribable onPreRead(OnPreRead callback)
+    {
+        return listen(OnRead.from(callback));
+    }
+
+    public Unsubscribable onPreRead(PathFilter filter, OnPreRead callback)
+    {
+        return onPreRead((path, channel, position, dst) -> {
+            if (filter.accept(path))
+                callback.preRead(path, channel, position, dst);
+        });
+    }
+
+    public Unsubscribable onPostRead(OnPostRead callback)
+    {
+        return listen(OnRead.from(callback));
+    }
+
+    public Unsubscribable onPostRead(PathFilter filter, OnPostRead callback)
+    {
+        return onPostRead((path, channel, position, dst, read) -> {
+            if (filter.accept(path))
+                callback.postRead(path, channel, position, dst, read);
+        });
+    }
+
+    public Unsubscribable onPreTransferTo(OnPreTransferTo callback)
+    {
+        return listen(OnTransferTo.from(callback));
+    }
+
+    public Unsubscribable onPreTransferTo(PathFilter filter, OnPreTransferTo callback)
+    {
+        return onPreTransferTo((path, channel, position, count, target) -> {
+            if (filter.accept(path))
+                callback.preTransferTo(path, channel, position, count, target);
+        });
+    }
+
+    public Unsubscribable onPostTransferTo(OnPostTransferTo callback)
+    {
+        return listen(OnTransferTo.from(callback));
+    }
+
+    public Unsubscribable onPostTransferTo(PathFilter filter, OnPostTransferTo callback)
+    {
+        return onPostTransferTo((path, channel, position, count, target, transfered) -> {
+            if (filter.accept(path))
+                callback.postTransferTo(path, channel, position, count, target, transfered);
+        });
+    }
+
+    public Unsubscribable onPreTransferFrom(OnPreTransferFrom callback)
+    {
+        return listen(OnTransferFrom.from(callback));
+    }
+
+    public Unsubscribable onPreTransferFrom(PathFilter filter, OnPreTransferFrom callback)
+    {
+        return onPreTransferFrom((path, channel, src, position, count) -> {
+            if (filter.accept(path))
+                callback.preTransferFrom(path, channel, src, position, count);
+        });
+    }
+
+    public Unsubscribable onPostTransferFrom(OnPostTransferFrom callback)
+    {
+        return listen(OnTransferFrom.from(callback));
+    }
+
+    public Unsubscribable onPostTransferFrom(PathFilter filter, OnPostTransferFrom callback)
+    {
+        return onPostTransferFrom((path, channel, src, position, count, transfered) -> {
+            if (filter.accept(path))
+                callback.postTransferFrom(path, channel, src, position, count, transfered);
+        });
+    }
+
+    public Unsubscribable onPreWrite(OnPreWrite callback)
+    {
+        return listen(OnWrite.from(callback));
+    }
+
+    public Unsubscribable onPreWrite(PathFilter filter, OnPreWrite callback)
+    {
+        return onPreWrite((path, channel, position, src) -> {
+            if (filter.accept(path))
+                callback.preWrite(path, channel, position, src);
+        });
+    }
+
+    public Unsubscribable onPostWrite(OnPostWrite callback)
+    {
+        return listen(OnWrite.from(callback));
+    }
+
+    public Unsubscribable onPostWrite(PathFilter filter, OnPostWrite callback)
+    {
+        return onPostWrite((path, channel, position, src, wrote) -> {
+            if (filter.accept(path))
+                callback.postWrite(path, channel, position, src, wrote);
+        });
     }
 
     public void remove(Listener listener)
