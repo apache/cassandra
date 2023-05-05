@@ -18,39 +18,51 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Supplier;
+import javax.annotation.Nullable;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.Converters;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Loader;
-import org.apache.cassandra.config.Properties;
 import org.apache.cassandra.config.Replacement;
 import org.apache.cassandra.config.Replacements;
+import org.apache.cassandra.config.registry.ConfigurationSource;
+import org.apache.cassandra.config.registry.TypeConverter;
+import org.apache.cassandra.config.registry.TypeConverterRegistry;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.PropertyNotFoundException;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
-import org.yaml.snakeyaml.introspector.Property;
+import org.apache.cassandra.utils.Pair;
 
-final class SettingsTable extends AbstractVirtualTable
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.utils.FBUtilities.runExceptionally;
+
+final class SettingsTable extends AbstractMutableVirtualTable
 {
     private static final String NAME = "name";
     private static final String VALUE = "value";
-
     private static final Map<String, String> BACKWARDS_COMPATABLE_NAMES = ImmutableMap.copyOf(getBackwardsCompatableNames());
-    protected static final Map<String, Property> PROPERTIES = ImmutableMap.copyOf(getProperties());
-
-    private final Config config;
+    private final BackwardsCompatableConfigurationSource configSource;
 
     SettingsTable(String keyspace)
     {
-        this(keyspace, DatabaseDescriptor.getRawConfig());
+        this(keyspace, DatabaseDescriptor.configSource());
     }
 
-    SettingsTable(String keyspace, Config config)
+    SettingsTable(String keyspace, ConfigurationSource configSource)
     {
         super(TableMetadata.builder(keyspace, "settings")
                            .comment("current settings")
@@ -59,7 +71,24 @@ final class SettingsTable extends AbstractVirtualTable
                            .addPartitionKeyColumn(NAME, UTF8Type.instance)
                            .addRegularColumn(VALUE, UTF8Type.instance)
                            .build());
-        this.config = config;
+        this.configSource = new BackwardsCompatableConfigurationSource(configSource);
+    }
+
+    @Override
+    protected void applyColumnDeletion(ColumnValues partitionKey, ColumnValues clusteringColumns, String columnName)
+    {
+        String key = partitionKey.value(0);
+        runExceptionally(() -> configSource.set(key, null), e -> invalidRequest("Invalid deletion request; cause: '%s'", e.getMessage()));
+    }
+
+    @Override
+    protected void applyColumnUpdate(ColumnValues partitionKey,
+                                     ColumnValues clusteringColumns,
+                                     Optional<ColumnValue> columnValue)
+    {
+        String key = partitionKey.value(0);
+        String value = columnValue.map(v -> v.value().toString()).orElse(null);
+        runExceptionally(() -> configSource.set(key, value), e -> invalidRequest("Invalid update request; cause: '%s'", e.getMessage()));
     }
 
     @Override
@@ -68,9 +97,13 @@ final class SettingsTable extends AbstractVirtualTable
         SimpleDataSet result = new SimpleDataSet(metadata());
         String name = UTF8Type.instance.compose(partitionKey.getKey());
         if (BACKWARDS_COMPATABLE_NAMES.containsKey(name))
-            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + "'");
-        if (PROPERTIES.containsKey(name))
-            result.row(name).column(VALUE, getValue(PROPERTIES.get(name)));
+            ClientWarn.instance.warn("key '" + name + "' is deprecated; should switch to '" + BACKWARDS_COMPATABLE_NAMES.get(name) + '\'');
+
+        if (propertyExists(configSource, name))
+        {
+            runExceptionally(() -> result.row(name).column(VALUE, configSource.getString(name)),
+                             e -> invalidRequest("Invalid configuration request during searching by key '%s'; cause: '%s'", name, e.getMessage()));
+        }
         return result;
     }
 
@@ -78,44 +111,51 @@ final class SettingsTable extends AbstractVirtualTable
     public DataSet data()
     {
         SimpleDataSet result = new SimpleDataSet(metadata());
-        for (Map.Entry<String, Property> e : PROPERTIES.entrySet())
-            result.row(e.getKey()).column(VALUE, getValue(e.getValue()));
+        Iterators.transform(configSource.iterator(), Pair::left)
+                 .forEachRemaining(name -> runExceptionally(() -> result.row(name).column(VALUE, configSource.getString(name)),
+                                                            e -> invalidRequest("Invalid configuration request with key '%s'; cause: '%s'", name, e.getMessage())));
         return result;
     }
 
-    private String getValue(Property prop)
+    @VisibleForTesting
+    ConfigurationSource source()
     {
-        Object value = prop.get(config);
-        return value == null ? null : value.toString();
+        return configSource;
     }
 
-    private static Map<String, Property> getProperties()
+
+    private static boolean propertyExists(ConfigurationSource source, String name)
     {
-        Loader loader = Properties.defaultLoader();
-        Map<String, Property> properties = loader.flatten(Config.class);
+        try
+        {
+            source.getRaw(name);
+            return true;
+        }
+        catch (PropertyNotFoundException e)
+        {
+            return false;
+        }
+    }
+
+    private static Map<String, Replacement> replacements(ConfigurationSource source)
+    {
         // only handling top-level replacements for now, previous logic was only top level so not a regression
         Map<String, Replacement> replacements = Replacements.getNameReplacements(Config.class).get(Config.class);
-        if (replacements != null)
+        assert replacements != null;
+        for (Replacement r : replacements.values())
         {
-            for (Replacement r : replacements.values())
-            {
-                Property latest = properties.get(r.newName);
-                assert latest != null : "Unable to find replacement new name: " + r.newName;
-                Property conflict = properties.put(r.oldName, r.toProperty(latest));
-                // some configs kept the same name, but changed the type, if this is detected then rely on the replaced property
-                assert conflict == null || r.oldName.equals(r.newName) : String.format("New property %s attempted to replace %s, but this property already exists", latest.getName(), conflict.getName());
-            }
+            if (!propertyExists(source, r.newName))
+                throw new AssertionError("Unable to find replacement new name: " + r.newName);
         }
         for (Map.Entry<String, String> e : BACKWARDS_COMPATABLE_NAMES.entrySet())
         {
             String oldName = e.getKey();
-            if (properties.containsKey(oldName))
-                throw new AssertionError("Name " + oldName + " is present in Config, this adds a conflict as this name had a different meaning in " + SettingsTable.class.getSimpleName());
             String newName = e.getValue();
-            Property prop = Objects.requireNonNull(properties.get(newName), newName + " cant be found for " + oldName);
-            properties.put(oldName, Properties.rename(oldName, prop));
+            if (propertyExists(source, oldName))
+                throw new AssertionError("Name " + oldName + " is present in Config, this adds a conflict as this name had a different meaning in " + SettingsTable.class.getSimpleName());
+            replacements.put(oldName, new Replacement(Config.class, oldName, source.type(newName), newName, Converters.IDENTITY, true));
         }
-        return properties;
+        return replacements;
     }
 
     /**
@@ -156,5 +196,82 @@ final class SettingsTable extends AbstractVirtualTable
         names.put("transparent_data_encryption_options_iv_length", "transparent_data_encryption_options.iv_length");
 
         return names;
+    }
+
+    /**
+     * This class is used to provide backwards compatable support for the settings table in case the {@link Config}
+     * metadata changes. This class will provide the old names for the properties, but will use the new name to
+     * get the value from the {@link Config} object.
+     * <p>
+     * Updating a configuration property object will throw an exception if you will try to update a deprecated property.
+     */
+    private static class BackwardsCompatableConfigurationSource implements ConfigurationSource
+    {
+        private final ConfigurationSource configSource;
+        private final Map<String, Replacement> replacements;
+        private final Set<String> uniquePropertyKeys;
+
+        public BackwardsCompatableConfigurationSource(ConfigurationSource configSource)
+        {
+            this.configSource = configSource;
+            this.replacements = replacements(configSource);
+            // Some configs kept the same name, but changed the type, so we need to make sure we don't return the same name twice.
+            this.uniquePropertyKeys = ImmutableSet.<String>builder()
+                                                  .addAll(Iterators.transform(configSource.iterator(), Pair::left))
+                                                  .addAll(replacements.keySet())
+                                                  .build();
+        }
+
+        @Override
+        public void set(String name, @Nullable Object value)
+        {
+            Replacement replacement = replacements.get(name);
+            if (replacement == null)
+                configSource.set(name, value);
+            else
+                // The replacement is exists only for backwards compatibility (yaml-file) and there is no usage of
+                // the old name in the code. If we are going to set the value for the old name, we should add
+                // toString/fromString methods to the converter to handle the old format.
+                throw new ConfigurationException(String.format("Unable to set '%s' as it is deprecated and is read only; use '%s' instead", name, replacement.newName));
+        }
+
+        @Override
+        public Class<?> type(String name)
+        {
+            Replacement replacement = replacements.get(name);
+            return replacement == null ? configSource.type(name) : replacement.oldType;
+        }
+
+        @Override
+        public Object getRaw(String name)
+        {
+            Replacement replacement = replacements.get(name);
+            return  replacement == null ?
+                    configSource.getRaw(name) :
+                    replacement.converter.unconvert(configSource.getRaw(replacement.newName));
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public <T> T get(Class<T> cls, String name)
+        {
+            Replacement replacement = replacements.get(name);
+            if (replacement == null)
+                return configSource.get(cls, name);
+
+            Object value = getRaw(name);
+            if (value == null)
+                return null;
+
+            return cls.equals(String.class) ?
+                   TypeConverterRegistry.instance.get(value.getClass(), cls, (TypeConverter<T>) TypeConverter.TO_STRING).convert(value) :
+                   TypeConverterRegistry.instance.get(value.getClass(), cls).convert(value);
+        }
+
+        @Override
+        public Iterator<Pair<String, Supplier<Object>>> iterator()
+        {
+           return Iterators.transform(uniquePropertyKeys.iterator(), key -> Pair.create(key, () -> getRaw(key)));
+        }
     }
 }

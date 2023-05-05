@@ -107,9 +107,12 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
+import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.registry.ChangeEventType;
+import org.apache.cassandra.config.registry.ConfigurationQuery;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -244,6 +247,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SKIP_SCHEMA_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DRAIN_EXECUTOR_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACEMENT_ALLOW_EMPTY;
+import static org.apache.cassandra.config.registry.ConfigurationQuery.JMX_EXCEPTION_HANDLER;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -971,6 +975,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             doAuthSetup(true);
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
+
+        DatabaseDescriptor.configQuery(JMX_EXCEPTION_HANDLER)
+                          .getValue(Integer.class, ConfigFields.CONCURRENT_COMPACTORS)
+                          .listenOptional(ChangeEventType.BEFORE_CHANGE,
+                                          (oldValue, newValue) -> newValue.ifPresent(CompactionManager.instance::setConcurrentCompactors));
 
         completeInitialization();
     }
@@ -1814,10 +1823,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setConcurrentCompactors(int value)
     {
-        if (value <= 0)
-            throw new IllegalArgumentException("Number of concurrent compactors should be greater than 0.");
         DatabaseDescriptor.setConcurrentCompactors(value);
-        CompactionManager.instance.setConcurrentCompactors(value);
     }
 
     public void bypassConcurrentValidatorsLimit()
@@ -5719,6 +5725,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             // wait for miscellaneous tasks like sstable and commitlog segment deletion
             ColumnFamilyStore.shutdownPostFlushExecutor();
+
+            ConfigurationQuery.shutdown();
 
             try
             {

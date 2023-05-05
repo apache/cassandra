@@ -34,7 +34,7 @@ import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBY
  * users the opportunity to be able to provide config with a unit of their choice in cassandra.yaml as per the available
  * options. (CASSANDRA-15234)
  */
-public abstract class DataStorageSpec
+public abstract class DataStorageSpec<T extends DataStorageSpec<T>>
 {
     /**
      * The Regexp used to parse the storage provided as String.
@@ -156,6 +156,14 @@ public abstract class DataStorageSpec
         return unit.convert(other.quantity, other.unit) == quantity && other.unit.convert(quantity, unit) == other.quantity;
     }
 
+    @SuppressWarnings("unchecked")
+    public final Class<T> getDeclaringClass()
+    {
+        Class<?> clazz = getClass();
+        Class<?> zuper = clazz.getSuperclass();
+        return zuper == DataStorageSpec.class ? (Class<T>) clazz : (Class<T>) zuper;
+    }
+
     @Override
     public String toString()
     {
@@ -167,7 +175,7 @@ public abstract class DataStorageSpec
      * If the user sets a different unit - we still validate that converted to bytes the quantity will not exceed
      * that upper bound. (CASSANDRA-17571)
      */
-    public final static class LongBytesBound extends DataStorageSpec
+    public final static class LongBytesBound extends DataStorageSpec<LongBytesBound>
     {
         /**
          * Creates a {@code DataStorageSpec.LongBytesBound} of the specified amount.
@@ -207,6 +215,14 @@ public abstract class DataStorageSpec
         {
             return unit().toBytes(quantity());
         }
+
+        /**
+         * @return the amount of data storage in mebibytes.
+         */
+        public long toMebibytes()
+        {
+            return unit().toMebibytes(quantity());
+        }
     }
 
     /**
@@ -214,7 +230,7 @@ public abstract class DataStorageSpec
      * If the user sets a different unit - we still validate that converted to bytes the quantity will not exceed
      * that upper bound. (CASSANDRA-17571)
      */
-    public final static class IntBytesBound extends DataStorageSpec
+    public final static class IntBytesBound extends DataStorageSpec<IntBytesBound>
     {
         /**
          * Creates a {@code DataStorageSpec.IntBytesBound} of the specified amount.
@@ -263,7 +279,7 @@ public abstract class DataStorageSpec
      * If the user sets a different unit - we still validate that converted to kibibytes the quantity will not exceed
      * that upper bound. (CASSANDRA-17571)
      */
-    public final static class IntKibibytesBound extends DataStorageSpec
+    public final static class IntKibibytesBound extends DataStorageSpec<IntKibibytesBound>
     {
         /**
          * Creates a {@code DataStorageSpec.IntKibibytesBound} of the specified amount.
@@ -330,7 +346,7 @@ public abstract class DataStorageSpec
      * If the user sets a different unit - we still validate that converted to mebibytes the quantity will not exceed
      * that upper bound. (CASSANDRA-17571)
      */
-    public final static class LongMebibytesBound extends DataStorageSpec
+    public final static class LongMebibytesBound extends DataStorageSpec<LongMebibytesBound>
     {
         /**
          * Creates a {@code DataStorageSpec.LongMebibytesBound} of the specified amount.
@@ -393,7 +409,7 @@ public abstract class DataStorageSpec
      * If the user sets a different unit - we still validate that converted to mebibytes the quantity will not exceed
      * that upper bound. (CASSANDRA-17571)
      */
-    public final static class IntMebibytesBound extends DataStorageSpec
+    public final static class IntMebibytesBound extends DataStorageSpec<IntMebibytesBound>
     {
         /**
          * Creates a {@code DataStorageSpec.IntMebibytesBound} of the specified amount.
