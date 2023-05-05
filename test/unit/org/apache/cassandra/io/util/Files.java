@@ -30,11 +30,6 @@ import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 
 public class Files
 {
-    public static ListenableFileSystem newInMemoryFileSystem()
-    {
-        return new ListenableFileSystem(jimfs());
-    }
-
     public static ListenableFileSystem newGlobalInMemoryFileSystem()
     {
         return global(jimfs());
