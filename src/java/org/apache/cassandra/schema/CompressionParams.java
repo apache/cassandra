@@ -529,7 +529,7 @@ public final class CompressionParams
         return enabled == null || Boolean.parseBoolean(enabled);
     }
 
-    private static void validateChunkLength(String key, int chunkLength) throws ConfigurationException{
+    private static void validateChunkLength(String key, int chunkLength) throws ConfigurationException {
         if (chunkLength <= 0)
             throw new ConfigurationException(invalidValue(key, "May not be <= 0", chunkLength));
 

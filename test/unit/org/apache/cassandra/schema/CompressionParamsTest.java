@@ -58,7 +58,8 @@ public class CompressionParamsTest
     }
 
     @Test
-    public void additionalParamsTest() {
+    public void additionalParamsTest()
+    {
         // no map
         ParameterizedClass options = new ParameterizedClass();
         CompressionParams params = CompressionParams.fromParameterizedClass(options);
@@ -239,7 +240,8 @@ public class CompressionParamsTest
     }
 
     @Test
-    public void maxCompressionLengthAndMinCompressRatioTest() {
+    public void maxCompressionLengthAndMinCompressRatioTest()
+    {
         ParameterizedClass options = emptyParameterizedClass();
         options.parameters.put( CompressionParams.MIN_COMPRESS_RATIO, "1.0");
         options.parameters.put( CompressionParams.MAX_COMPRESSED_LENGTH, "4Gib");
@@ -323,7 +325,8 @@ public class CompressionParamsTest
 
 
     @Test
-    public void constructorTest() {
+    public void constructorTest()
+    {
         Map<String,String> map = new HashMap<>();
 
         // chunk length < 0
@@ -417,7 +420,8 @@ public class CompressionParamsTest
     }
 
     @Test
-    public void noneTest() {
+    public void noneTest()
+    {
         int expectedChunkLength = 4 * 1024 * 1024;
         int expectedRatioCompressedLength = 2796203;
 
@@ -445,7 +449,8 @@ public class CompressionParamsTest
     }
 
     @Test
-    public void noopTest() {
+    public void noopTest()
+    {
         ParameterizedClass options = emptyParameterizedClass();
         options.class_name = CompressionParams.CompressorType.noop.name();
         paramsTest(true, NoopCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
@@ -484,7 +489,8 @@ public class CompressionParamsTest
     }
 
     @Test
-    public void snappyTest() {
+    public void snappyTest()
+    {
         ParameterizedClass options = emptyParameterizedClass();
         options.class_name = CompressionParams.CompressorType.snappy.name();
         paramsTest(true, SnappyCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
@@ -523,7 +529,8 @@ public class CompressionParamsTest
     }
 
     @Test
-    public void deflateTest() {
+    public void deflateTest()
+    {
         ParameterizedClass options = emptyParameterizedClass();
         options.class_name = CompressionParams.CompressorType.deflate.name();
         paramsTest(true, DeflateCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
@@ -563,7 +570,8 @@ public class CompressionParamsTest
     }
 
     @Test
-    public void zstdTest() {
+    public void zstdTest()
+    {
         ParameterizedClass options = emptyParameterizedClass();
         options.class_name = CompressionParams.CompressorType.zstd.name();
         paramsTest(true, ZstdCompressor.class, options.parameters::put, options.parameters::remove, CompressionParams::fromParameterizedClass, options);
@@ -631,7 +639,6 @@ public class CompressionParamsTest
         options.class_name = "foo";
         assertThatExceptionOfType(ConfigurationException.class).isThrownBy(() -> CompressionParams.fromParameterizedClass(options))
                                                                .withMessage("Could not create Compression for type org.apache.cassandra.io.compress.foo");
-
     }
 
     @Test
@@ -656,7 +663,8 @@ public class CompressionParamsTest
     }
 
     @Test
-    public void testMap() {
+    public void testMap()
+    {
         Map<String,String> params = new HashMap<>();
         params.put(CompressionParams.ENABLED, "true");
         params.put(CompressionParams.CHUNK_LENGTH , "16KiB");
@@ -728,16 +736,10 @@ public class CompressionParamsTest
         }
 
         @Override
-        public void compress(ByteBuffer input, ByteBuffer output) throws IOException
-        {
-
-        }
+        public void compress(ByteBuffer input, ByteBuffer output) throws IOException {}
 
         @Override
-        public void uncompress(ByteBuffer input, ByteBuffer output) throws IOException
-        {
-
-        }
+        public void uncompress(ByteBuffer input, ByteBuffer output) throws IOException {}
 
         @Override
         public BufferType preferredBufferType()
