@@ -309,30 +309,290 @@ public class ListenableFileSystem extends ForwardingFileSystem
         }
     }
 
-    public interface OnChannelMeta extends Listener
+    public interface OnPrePosition
     {
-        default void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+        void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException;
+    }
+
+    public interface OnPostPosition
+    {
+        void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException;
+    }
+
+    public interface OnPreTruncate
+    {
+        void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException;
+    }
+
+    public interface OnPostTruncate
+    {
+        void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException;
+    }
+
+    public interface OnPreForce
+    {
+        void preForce(Path path, FileChannel channel, boolean metaData) throws IOException;
+    }
+
+    public interface OnPostForce
+    {
+        void postForce(Path path, FileChannel channel, boolean metaData) throws IOException;
+    }
+
+    public interface OnChannelMeta extends OnPrePosition, OnPostPosition,
+                                           OnPreTruncate, OnPostTruncate,
+                                           OnPreForce, OnPostForce,
+                                           Listener
+    {
+        static OnChannelMeta from(OnPrePosition callback)
         {
+            return new OnChannelMeta()
+            {
+                @Override
+                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+
+                }
+
+                @Override
+                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+
+                }
+
+                @Override
+                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+
+                }
+
+                @Override
+                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+                    callback.prePosition(path, channel, position, newPosition);
+                }
+
+                @Override
+                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
+                {
+
+                }
+            };
         }
 
-        default void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+        static OnChannelMeta from(OnPostPosition callback)
         {
+            return new OnChannelMeta()
+            {
+                @Override
+                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+
+                }
+
+                @Override
+                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+                    callback.postPosition(path, channel, position, newPosition);
+                }
+
+                @Override
+                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+
+                }
+
+                @Override
+                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
+                {
+
+                }
+            };
         }
 
-        default void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
+        static OnChannelMeta from(OnPreTruncate callback)
         {
+            return new OnChannelMeta() {
+                @Override
+                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+
+                }
+
+                @Override
+                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
+                {
+                    callback.preTruncate(path, channel, size, targetSize);
+                }
+
+                @Override
+                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+
+                }
+
+                @Override
+                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+
+                }
+            };
         }
 
-        default void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
+        static OnChannelMeta from(OnPostTruncate callback)
         {
+            return new OnChannelMeta()
+            {
+                @Override
+                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+
+                }
+
+                @Override
+                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+
+                }
+
+                @Override
+                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
+                {
+                    callback.postTruncate(path, channel, size, targetSize, newSize);
+                }
+
+                @Override
+                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+
+                }
+
+                @Override
+                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
+                {
+
+                }
+            };
         }
 
-        default void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
+        static OnChannelMeta from(OnPreForce callback)
         {
+            return new OnChannelMeta()
+            {
+                @Override
+                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+
+                }
+
+                @Override
+                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+
+                }
+
+                @Override
+                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+                    callback.preForce(path, channel, metaData);
+                }
+
+                @Override
+                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
+                {
+
+                }
+            };
         }
 
-        default void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
+        static OnChannelMeta from(OnPostForce callback)
         {
+            return new OnChannelMeta()
+            {
+                @Override
+                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+                    callback.postForce(path, channel, metaData);
+                }
+
+                @Override
+                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+
+                }
+
+                @Override
+                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
+                {
+
+                }
+
+                @Override
+                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
+                {
+
+                }
+
+                @Override
+                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
+                {
+
+                }
+            };
         }
     }
 
@@ -523,6 +783,36 @@ public class ListenableFileSystem extends ForwardingFileSystem
             if (filter.accept(path))
                 callback.postWrite(path, channel, position, src, wrote);
         });
+    }
+
+    public Unsubscribable OnPrePosition(OnPrePosition callbackk)
+    {
+        return listen(OnChannelMeta.from(callbackk));
+    }
+
+    public Unsubscribable OnPostPosition(OnPostPosition callbackk)
+    {
+        return listen(OnChannelMeta.from(callbackk));
+    }
+
+    public Unsubscribable OnPreTruncate(OnPreTruncate callbackk)
+    {
+        return listen(OnChannelMeta.from(callbackk));
+    }
+
+    public Unsubscribable OnPostTruncate(OnPostTruncate callbackk)
+    {
+        return listen(OnChannelMeta.from(callbackk));
+    }
+
+    public Unsubscribable OnPreForce(OnPreForce callbackk)
+    {
+        return listen(OnChannelMeta.from(callbackk));
+    }
+
+    public Unsubscribable OnPostForce(OnPostForce callbackk)
+    {
+        return listen(OnChannelMeta.from(callbackk));
     }
 
     public void remove(Listener listener)
