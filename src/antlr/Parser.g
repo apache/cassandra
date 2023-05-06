@@ -1965,5 +1965,6 @@ basic_unreserved_keyword returns [String str]
         | K_MASKED
         | K_UNMASK
         | K_SELECT_MASKED
+        | K_VECTOR
         ) { $str = $k.text; }
     ;
