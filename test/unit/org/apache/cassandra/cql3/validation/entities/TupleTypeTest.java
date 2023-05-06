@@ -34,8 +34,10 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.DurationType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
+import org.apache.cassandra.utils.Generators;
 import org.quicktheories.core.Gen;
 import org.quicktheories.generators.SourceDSL;
 
@@ -333,7 +335,7 @@ public class TupleTypeTest extends CQLTester
 
     private static Gen<TypeAndRows> typesAndRowsGen(int numRows)
     {
-        Gen<TupleType> typeGen = tupleTypeGen(primitiveTypeGen(), SourceDSL.integers().between(1, 10));
+        Gen<TupleType> typeGen = tupleTypeGen(Generators.filter(primitiveTypeGen(), t -> t != DurationType.instance), SourceDSL.integers().between(1, 10));
         Set<ByteBuffer> distinctRows = new HashSet<>(numRows); // reuse the memory
         Gen<TypeAndRows> gen = rnd -> {
             TypeAndRows c = new TypeAndRows();
