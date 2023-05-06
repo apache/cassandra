@@ -126,7 +126,7 @@ public class AbstractTypeTest
                     {
                         throw new AssertionError(String.format("Unable to parse comparable bytes for type %s and version %s; value %s", type.asCQL3Type(), bcv, type.toCQLString(bb)), e);
                     }
-                    assertThat(read).isEqualTo(bb);
+                    assertBytesEquals(read, bb, "fromComparableBytes(asComparableBytes(bb)) != bb");
                 }
             }
         });
@@ -159,7 +159,7 @@ public class AbstractTypeTest
                     assertThat(literal).isNotEqualTo(Constants.NULL_LITERAL);
                     Term term = literal.prepare(column.ksName, column);
                     ByteBuffer read = term.bindAndGet(QueryOptions.DEFAULT);
-                    assertThat(read).isEqualTo(bb);
+                    assertBytesEquals(read, bb, "fromJSONString(toJSONString(bb)) != bb");
                 }
                 catch (Exception e)
                 {
@@ -206,14 +206,14 @@ public class AbstractTypeTest
 
                 String literal = type.asCQL3Type().toCQLLiteral(bb, ProtocolVersion.CURRENT);
                 ByteBuffer cqlBB = parseLiteralType(type, literal);
-                assertThat(ByteBufferUtil.bytesToHex(cqlBB)).describedAs("Deserializing literal %s did not match expected bytes", literal).isEqualTo(ByteBufferUtil.bytesToHex(bb));
+                assertBytesEquals(cqlBB, bb, "Deserializing literal %s did not match expected bytes", literal);
 
                 try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
                 {
                     type.writeValue(bb, out);
                     ByteBuffer written = out.unsafeGetBufferAndFlip();
                     DataInputPlus in = new DataInputBuffer(written, true);
-                    assertThat(type.readBuffer(in)).isEqualTo(bb);
+                    assertBytesEquals(type.readBuffer(in), bb, "readBuffer(writeValue(bb)) != bb");
                     in = new DataInputBuffer(written, false);
                     type.skipValue(in);
                     assertThat(written.remaining()).isEqualTo(0);
@@ -224,6 +224,11 @@ public class AbstractTypeTest
                 }
             }
         });
+    }
+
+    private static void assertBytesEquals(ByteBuffer actual, ByteBuffer expected, String msg, Object... args)
+    {
+        assertThat(ByteBufferUtil.bytesToHex(actual)).describedAs(msg, args).isEqualTo(ByteBufferUtil.bytesToHex(expected));
     }
 
     private static ColumnMetadata fake(AbstractType<?> type)
