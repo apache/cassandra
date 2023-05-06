@@ -239,7 +239,7 @@ public class AbstractTypeTest
         }
         catch (Exception e)
         {
-            throw new AssertionError(String.format("Unable to parse CQL literal %s from type %s", literal, type.asCQL3Type()));
+            throw new AssertionError(String.format("Unable to parse CQL literal %s from type %s", literal, type.asCQL3Type()), e);
         }
     }
 
