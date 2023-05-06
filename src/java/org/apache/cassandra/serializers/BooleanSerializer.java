@@ -60,7 +60,7 @@ public class BooleanSerializer extends TypeSerializer<Boolean>
     }
 
     @Override
-    protected boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQL()
     {
         return false;
     }

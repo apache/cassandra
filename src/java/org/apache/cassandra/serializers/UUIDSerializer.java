@@ -57,7 +57,7 @@ public class UUIDSerializer extends TypeSerializer<UUID>
     }
 
     @Override
-    protected boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQL()
     {
         return false;
     }

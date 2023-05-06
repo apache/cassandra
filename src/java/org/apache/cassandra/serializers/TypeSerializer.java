@@ -19,12 +19,18 @@
 package org.apache.cassandra.serializers;
 
 import java.nio.ByteBuffer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 
 public abstract class TypeSerializer<T>
 {
+    private static final Pattern PATTERN_SINGLE_QUOTE = Pattern.compile("'", Pattern.LITERAL);
+    private static final String ESCAPED_SINGLE_QUOTE = Matcher.quoteReplacement("\'");
+
     public abstract ByteBuffer serialize(T value);
 
     public abstract <V> T deserialize(V value, ValueAccessor<V> accessor);
@@ -60,14 +66,14 @@ public abstract class TypeSerializer<T>
         return toString(deserialize(buffer));
     }
 
-    public String toCQLLiteral(ByteBuffer buffer)
+    public final String toCQLLiteral(ByteBuffer buffer)
     {
         return buffer == null || !buffer.hasRemaining()
                ? "null"
                :  maybeQuote(toCQLLiteralNonNull(buffer));
     }
 
-    protected boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQL()
     {
         return true;
     }
@@ -75,7 +81,7 @@ public abstract class TypeSerializer<T>
     private String maybeQuote(String value)
     {
         if (shouldQuoteCQL())
-            return "'" + value + "'";
+            return "'" + PATTERN_SINGLE_QUOTE.matcher(value).replaceAll(ESCAPED_SINGLE_QUOTE) + "'";
         return value;
     }
 }

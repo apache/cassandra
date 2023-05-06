@@ -54,7 +54,7 @@ public class Int32Serializer extends TypeSerializer<Integer>
     }
 
     @Override
-    protected boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQL()
     {
         return false;
     }

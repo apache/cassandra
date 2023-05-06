@@ -55,10 +55,14 @@ public class BytesSerializer extends TypeSerializer<ByteBuffer>
     }
 
     @Override
-    public String toCQLLiteral(ByteBuffer buffer)
+    public boolean shouldQuoteCQL()
     {
-        return buffer == null
-               ? "null"
-               : "0x" + toString(deserialize(buffer));
+        return false;
+    }
+
+    @Override
+    protected String toCQLLiteralNonNull(ByteBuffer buffer)
+    {
+        return "0x" + toString(deserialize(buffer));
     }
 }

@@ -54,7 +54,7 @@ public class ShortSerializer extends TypeSerializer<Short>
     }
 
     @Override
-    protected boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQL()
     {
         return false;
     }

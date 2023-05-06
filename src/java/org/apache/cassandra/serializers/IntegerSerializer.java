@@ -54,7 +54,7 @@ public class IntegerSerializer extends TypeSerializer<BigInteger>
     }
 
     @Override
-    protected boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQL()
     {
         return false;
     }

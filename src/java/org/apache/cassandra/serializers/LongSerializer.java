@@ -54,7 +54,7 @@ public class LongSerializer extends TypeSerializer<Long>
     }
 
     @Override
-    protected boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQL()
     {
         return false;
     }

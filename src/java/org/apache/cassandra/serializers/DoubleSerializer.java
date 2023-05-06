@@ -56,7 +56,7 @@ public class DoubleSerializer extends TypeSerializer<Double>
     }
 
     @Override
-    protected boolean shouldQuoteCQL()
+    public boolean shouldQuoteCQL()
     {
         return false;
     }
