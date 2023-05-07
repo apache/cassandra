@@ -58,7 +58,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     private final int levelFanoutSize;
     private final boolean singleSSTableUplevel;
 
-    public LeveledCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
+    public LeveledCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options) throws ConfigurationException
     {
         super(cfs, options);
         int configuredMaxSSTableSize = 160;
@@ -67,6 +67,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         SizeTieredCompactionStrategyOptions localOptions = new SizeTieredCompactionStrategyOptions(options);
         if (options != null)
         {
+            validateOptions(options);
             if (options.containsKey(SSTABLE_SIZE_OPTION))
             {
                 configuredMaxSSTableSize = Integer.parseInt(options.get(SSTABLE_SIZE_OPTION));
