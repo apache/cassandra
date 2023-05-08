@@ -79,6 +79,8 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
             for (int i = 0; i < n; i++)
             {
                 V value = readValue(input, accessor, offset);
+                if (value == null)
+                    throw new MarshalException("Not enough bytes to read value in list");
                 offset += sizeOfValue(value, accessor);
                 elements.validate(value, accessor);
             }
@@ -112,6 +114,8 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
             {
                 // We can have nulls in lists that are used for IN values
                 V databb = readValue(input, accessor, offset);
+                if (databb == null)
+                    throw new MarshalException("Not enough bytes to read value in list");
                 offset += sizeOfValue(databb, accessor);
                 if (databb != null)
                 {

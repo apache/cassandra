@@ -97,10 +97,14 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
             for (int i = 0; i < n; i++)
             {
                 T key = readValue(input, accessor, offset);
+                if (key == null)
+                    throw new MarshalException("Not enough bytes to read key in map");
                 offset += sizeOfValue(key, accessor);
                 keys.validate(key, accessor);
 
                 T value = readValue(input, accessor, offset);
+                if (value == null)
+                    throw new MarshalException("Not enough bytes to read value in map");
                 offset += sizeOfValue(value, accessor);
                 values.validate(value, accessor);
             }
@@ -132,10 +136,14 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
             for (int i = 0; i < n; i++)
             {
                 I key = readValue(input, accessor, offset);
+                if (key == null)
+                    throw new MarshalException("Not enough bytes to read key in map");
                 offset += sizeOfValue(key, accessor);
                 keys.validate(key, accessor);
 
                 I value = readValue(input, accessor, offset);
+                if (value == null)
+                    throw new MarshalException("Not enough bytes to read value in map");
                 offset += sizeOfValue(value, accessor);
                 values.validate(value, accessor);
 
