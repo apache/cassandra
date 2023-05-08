@@ -38,6 +38,7 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.RateLimiter;
 
 import net.openhft.chronicle.core.util.ThrowingFunction;
@@ -123,6 +124,18 @@ public class File implements Comparable<File>
     {
         this(Paths.get(path)); //TODO unsafe if uri is file:// as it uses default file system and not File.filesystem
         if (!path.isAbsolute() || path.isOpaque()) throw new IllegalArgumentException();
+    }
+
+    /**
+     * Unsafe constructor that allows a File to use a differet {@link FileSystem} than {@link File#filesystem}.
+     *
+     * The main caller of such a method are cases such as JVM Dtest functions that need access to the logging framwork
+     * files, which exists on in {@link FileSystems#getDefault()}.
+     */
+    @VisibleForTesting
+    public File(FileSystem fs, String first, String... more)
+    {
+        this.path = fs.getPath(first, more);
     }
 
     /**
@@ -775,6 +788,12 @@ public class File implements Comparable<File>
         if (path == null)
             throw new IllegalStateException("Cannot read from an empty path");
         return path;
+    }
+
+    @VisibleForTesting
+    public static FileSystem unsafeGetFilesystem()
+    {
+        return filesystem;
     }
 
     public static void unsafeSetFilesystem(FileSystem fs)

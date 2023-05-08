@@ -28,6 +28,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.io.util.File;
@@ -46,6 +47,8 @@ public class RemoveWithoutDroppingTest
     @BeforeClass
     public static void beforeClass()
     {
+        ServerTestUtils.daemonInitialization();
+
         System.setProperty(SchemaUpdateHandlerFactoryProvider.SUH_FACTORY_CLASS_PROPERTY, TestSchemaUpdateHandlerFactory.class.getName());
         CQLTester.prepareServer();
         Schema.instance.registerListener(listener);

@@ -24,10 +24,12 @@ package org.apache.cassandra.utils;
  */
 
 import java.io.DataInput;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -932,6 +934,17 @@ public class ByteBufferUtil
         }
 
         return true;
+    }
+
+    public static void readFully(FileChannel channel, ByteBuffer dst, long position) throws IOException
+    {
+        while (dst.hasRemaining())
+        {
+            int read = channel.read(dst, position);
+            if (read == -1)
+                throw new EOFException();
+            position += read;
+        }
     }
 
     public static <T> ByteBuffer serialized(IVersionedSerializer<T> serializer, T value, int version)
