@@ -81,6 +81,8 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
             for (int i = 0; i < n; i++)
             {
                 V value = readValue(input, accessor, offset, version);
+                if (value == null)
+                    throw new MarshalException("Not enough bytes to read value in set");
                 offset += sizeOfValue(value, accessor, version);
                 elements.validate(value, accessor);
             }
@@ -112,6 +114,8 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
             for (int i = 0; i < n; i++)
             {
                 V value = readValue(input, accessor, offset, version);
+                if (value == null)
+                    throw new MarshalException("Not enough bytes to read value in set");
                 offset += sizeOfValue(value, accessor, version);
                 elements.validate(value, accessor);
                 l.add(elements.deserialize(value, accessor));
