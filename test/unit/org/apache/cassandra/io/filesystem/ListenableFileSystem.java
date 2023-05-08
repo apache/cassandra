@@ -40,6 +40,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -185,90 +186,90 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable listen(Listener listener)
     {
-        boolean match = false;
+        List<List<? extends Listener>> matches = new ArrayList<>(1);
         if (listener instanceof OnPreOpen)
         {
             onPreOpen.add((OnPreOpen) listener);
-            match = true;
+            matches.add(onPreOpen);
         }
         if (listener instanceof OnPostOpen)
         {
             onPostOpen.add((OnPostOpen) listener);
-            match = true;
+            matches.add(onPostOpen);
         }
         if (listener instanceof OnPreRead)
         {
             onPreRead.add((OnPreRead) listener);
-            match = true;
+            matches.add(onPreRead);
         }
         if (listener instanceof OnPostRead)
         {
             onPostRead.add((OnPostRead) listener);
-            match = true;
+            matches.add(onPostRead);
         }
         if (listener instanceof OnPreTransferTo)
         {
             onPreTransferTo.add((OnPreTransferTo) listener);
-            match = true;
+            matches.add(onPreTransferTo);
         }
         if (listener instanceof OnPostTransferTo)
         {
             onPostTransferTo.add((OnPostTransferTo) listener);
-            match = true;
+            matches.add(onPostTransferTo);
         }
         if (listener instanceof OnPreWrite)
         {
             onPreWrite.add((OnPreWrite) listener);
-            match = true;
+            matches.add(onPreWrite);
         }
         if (listener instanceof OnPostWrite)
         {
             onPostWrite.add((OnPostWrite) listener);
-            match = true;
+            matches.add(onPostWrite);
         }
         if (listener instanceof OnPreTransferFrom)
         {
             onPreTransferFrom.add((OnPreTransferFrom) listener);
-            match = true;
+            matches.add(onPreTransferFrom);
         }
         if (listener instanceof OnPostTransferFrom)
         {
             onPostTransferFrom.add((OnPostTransferFrom) listener);
-            match = true;
+            matches.add(onPostTransferFrom);
         }
         if (listener instanceof OnPreForce)
         {
             onPreForce.add((OnPreForce) listener);
-            match = true;
+            matches.add(onPreForce);
         }
         if (listener instanceof OnPostForce)
         {
             onPostForce.add((OnPostForce) listener);
-            match = true;
+            matches.add(onPostForce);
         }
         if (listener instanceof OnPreTruncate)
         {
             onPreTruncate.add((OnPreTruncate) listener);
-            match = true;
+            matches.add(onPreTruncate);
         }
         if (listener instanceof OnPostTruncate)
         {
             onPostTruncate.add((OnPostTruncate) listener);
-            match = true;
+            matches.add(onPostTruncate);
         }
         if (listener instanceof OnPrePosition)
         {
             onPrePosition.add((OnPrePosition) listener);
-            match = true;
+            matches.add(onPrePosition);
         }
         if (listener instanceof OnPostPosition)
         {
             onPostPosition.add((OnPostPosition) listener);
-            match = true;
+            matches.add(onPostPosition);
         }
-        if (!match)
+        if (matches.isEmpty())
             throw new IllegalArgumentException("Unable to find a listenable type for " + listener.getClass());
-        return () -> remove(listener);
+        return () -> remove(matches, listener);
     }
 
     public Unsubscribable onPreOpen(OnPreOpen callback)
@@ -480,6 +481,11 @@ public class ListenableFileSystem extends ForwardingFileSystem
     }
 
     public void remove(Listener listener)
+    {
+        remove(lists, listener);
+    }
+
+    private static void remove(List<List<? extends Listener>> lists, Listener listener)
     {
         lists.forEach(l -> l.remove(listener));
     }
