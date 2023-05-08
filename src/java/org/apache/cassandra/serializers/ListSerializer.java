@@ -107,8 +107,6 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
             {
                 // We can have nulls in lists that are used for IN values
                 V databb = readValue(input, accessor, offset, version);
-                if (databb == null)
-                    throw new MarshalException("Not enough bytes to read value in list");
                 offset += sizeOfValue(databb, accessor, version);
                 if (databb != null)
                 {
