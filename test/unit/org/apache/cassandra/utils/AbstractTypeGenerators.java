@@ -157,7 +157,7 @@ public final class AbstractTypeGenerators
         public TypeGenBuilder(TypeGenBuilder other)
         {
             maxDepth = other.maxDepth;
-            kinds = other.kinds == null ? null : EnumSet.copyOf(kinds);
+            kinds = other.kinds == null ? null : EnumSet.copyOf(other.kinds);
             typeKindGen = other.typeKindGen;
             defaultSizeGen = other.defaultSizeGen;
             vectorSizeGen = other.vectorSizeGen;
@@ -505,7 +505,12 @@ public final class AbstractTypeGenerators
                 int size = sizeGen.generate(rnd);
                 HashSet<Object> set = Sets.newHashSetWithExpectedSize(size);
                 for (int i = 0; i < size; i++)
-                    set.add(elementSupport.valueGen.generate(rnd));
+                {
+                    Object generate = elementSupport.valueGen.generate(rnd);
+                    while (set.contains(generate))
+                        generate = elementSupport.valueGen.generate(rnd);
+                    set.add(generate);
+                }
                 return set;
             });
             return support;
@@ -537,7 +542,12 @@ public final class AbstractTypeGenerators
                 Map<Object, Object> map = Maps.newHashMapWithExpectedSize(size);
                 // if there is conflict thats fine
                 for (int i = 0; i < size; i++)
-                    map.put(keySupport.valueGen.generate(rnd), valueSupport.valueGen.generate(rnd));
+                {
+                    Object generate = keySupport.valueGen.generate(rnd);
+                    while (map.containsKey(generate))
+                        generate = keySupport.valueGen.generate(rnd);
+                    map.put(generate, valueSupport.valueGen.generate(rnd));
+                }
                 return map;
             });
             return support;
