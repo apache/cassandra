@@ -50,6 +50,8 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+
 public class BigTableWriterV3 extends SSTableWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableWriterV3.class);
@@ -325,7 +327,7 @@ public class BigTableWriterV3 extends SSTableWriter
     private SSTableReader openFinal(SSTableReader.OpenReason openReason)
     {
         if (maxDataAge < 0)
-            maxDataAge = System.currentTimeMillis();
+            maxDataAge = currentTimeMillis();
 
         StatsMetadata stats = statsMetadata();
         // finalize in-memory state for the reader

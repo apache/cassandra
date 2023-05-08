@@ -22,7 +22,6 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.EOFException;
 
-import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.*;
 import java.io.FileNotFoundException;
 import java.io.IOException;

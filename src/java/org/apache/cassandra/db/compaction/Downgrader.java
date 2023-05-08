@@ -47,7 +47,6 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
-import org.hsqldb.Column;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
@@ -68,20 +67,17 @@ public class Downgrader
 
     private final OutputHandler outputHandler;
 
-    private static  Map<String,Map<String,Function<ColumnMetadata,ColumnMetadata>>> mappers = new HashMap<>();
+    private  Map<String,Map<String,Function<ColumnMetadata,ColumnMetadata>>> mappers = new HashMap<>();
 
-    static {
-        register("system","local", Downgrader::localMapper );
-    }
 
-    private static void register(String keyspace, String name, Function<ColumnMetadata,ColumnMetadata> func) {
+    private void register(String keyspace, String name, Function<ColumnMetadata,ColumnMetadata> func) {
 
         Map<String,Function<ColumnMetadata,ColumnMetadata>> mapper = mappers.get(keyspace);
         if (mapper == null) {
             mapper = new HashMap<>();
             mappers.put(keyspace,mapper);
         }
-        mapper.put( name", func );
+        mapper.put( name, func );
     }
 
     public static SSTableFormat.Type forWriting(String version)
@@ -117,7 +113,7 @@ public class Downgrader
         throw new IllegalArgumentException("No version constant " + version);
     }
 
-    static ColumnMetadata localMapper(ColumnMetadata orig)  {
+    private ColumnMetadata localMapper(ColumnMetadata orig)  {
         List<String> remove = Arrays.asList("broadcast_port", "listen_port", "rpc_port");
         if (remove.contains(orig.name.toString())) {
             return null;
@@ -145,6 +141,7 @@ public class Downgrader
         long estimatedTotalKeys = Math.max(cfs.metadata().params.minIndexInterval, SSTableReader.getApproximateKeyCount(Arrays.asList(this.sstable)));
         long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(Arrays.asList(this.sstable)) / strategyManager.getMaxSSTableBytes());
         this.estimatedRows = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
+        register("system","local", this::localMapper );
     }
 
 
@@ -167,7 +164,7 @@ public class Downgrader
                                     metadata.repairedAt,
                                     metadata.pendingRepair,
                                     metadata.isTransient,
-                                    cfs.metadata,
+                                    rewrite(cfs.metadata),
                                     sstableMetadataCollector,
                                     SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)),
                                     cfs.indexManager.listIndexes(),
@@ -177,31 +174,27 @@ public class Downgrader
     Function<ColumnMetadata,ColumnMetadata> getColumnMapper(String keyspace, String name) {
         Function<ColumnMetadata,ColumnMetadata> columnMapper = null;
         Map<String,Function<ColumnMetadata,ColumnMetadata>> mapper = mappers.get(keyspace);
-        if (mapper != null) {
+        if (mapper != null)
             columnMapper = mapper.get(name);
-        }
+
         return columnMapper != null ? columnMapper : (f) -> f;
     }
 
     TableMetadataRef rewrite(TableMetadataRef original) {
-
-        TableMetadata origMeta = original.get();
         TableMetadata.Builder builder = original.get().unbuild();
         Function<ColumnMetadata,ColumnMetadata> columnMapper = getColumnMapper(original.keyspace, original.name);
-        for (ColumnMetadata colMeta  : builder.columns())
-        {
+        for (ColumnMetadata colMeta  : builder.columns()) {
             ColumnMetadata newColMeta = columnMapper.apply(colMeta);
-            if (newColMeta == null) {
+            if (newColMeta == null)
                 builder.dropColumn(colMeta.name);
-            } else {
+            else
                 builder.replaceColumn( colMeta.name, newColMeta );
-            }
+
         }
         return TableMetadataRef.forOfflineTools(builder.build());
     }
 
-    public void downgrade(boolean keepOriginals)
-    {
+    public void downgrade(boolean keepOriginals) {
         outputHandler.output("Downgrading " + sstable);
         int nowInSec = FBUtilities.nowInSeconds();
         try (SSTableRewriter writer = SSTableRewriter.construct(cfs, transaction, keepOriginals, CompactionTask.getMaxDataAge(transaction.originals()));
@@ -215,14 +208,10 @@ public class Downgrader
 
             writer.finish();
             outputHandler.output("Downgrade of " + sstable + " complete.");
-        }
-        catch (Exception e)
-        {
+        } catch (Exception e) {
             Throwables.throwIfUnchecked(e);
             throw new RuntimeException(e);
-        }
-        finally
-        {
+        } finally {
             controller.close();
         }
     }
@@ -241,8 +230,5 @@ public class Downgrader
         }
     }
 
-    private static class TableMapper {
-        Function<ColumnMetadata,ColumnMetadata> columnMapper;
-    }
 
 }
