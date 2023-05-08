@@ -419,7 +419,7 @@ public class AbstractTypeTest
     }
     private static Gen<Example> examples(int samples, Gen<AbstractType<?>> typeGen)
     {
-        return rnd -> {
+        Gen<Example> gen = rnd -> {
             AbstractType<?> type = typeGen.generate(rnd);
             AbstractTypeGenerators.TypeSupport<?> support = AbstractTypeGenerators.getTypeSupport(type);
             List<Object> list = new ArrayList<>(samples);
@@ -427,6 +427,12 @@ public class AbstractTypeTest
                 list.add(support.valueGen.generate(rnd));
             return new Example(type, list);
         };
+        return gen.describedAs(e -> {
+            StringBuilder sb = new StringBuilder();
+            sb.append("Type: ").append(e.type.asCQL3Type());
+            sb.append("\nValues: ").append(e.samples);
+            return sb.toString();
+        });
     }
 
     private static class Example
