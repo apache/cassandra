@@ -782,7 +782,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
                     mapped.bb.flip();
                 }
                 // with real files the FD gets copied so the close of the channel does not block the BB mutation
-                // from flushing...  its possible to support this use case, but kept things simplier for now by
+                // from flushing...  it's possible to support this use case, but kept things simplier for now by
                 // failing if the backing channel was closed.
                 Runnable forcer = () -> {
                     ByteBuffer local = bb.duplicate();
