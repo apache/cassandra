@@ -727,7 +727,6 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                                    .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
                                    .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
                                    .set("commitlog_sync", "batch");
-
                              // TODO: Add remove() to IInstanceConfig
                              if (config instanceof InstanceConfig)
                              {
