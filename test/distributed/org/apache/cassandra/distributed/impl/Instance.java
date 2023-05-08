@@ -25,6 +25,7 @@ import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.security.Permission;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -221,10 +222,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         String suite = System.getProperty("suitename", "suitename_IS_UNDEFINED");
         String clusterId = ClusterIDDefiner.getId();
         String instanceId = InstanceIDDefiner.getInstanceId();
-        File f = new File(String.format("build/test/logs/%s/%s/%s/%s/system.log", tag, suite, clusterId, instanceId));
+        File f = new File(FileSystems.getDefault(), String.format("build/test/logs/%s/%s/%s/%s/system.log", tag, suite, clusterId, instanceId));
         // when creating a cluster globally in a test class we get the logs without the suite, try finding those logs:
         if (!f.exists())
-            f = new File(String.format("build/test/logs/%s/%s/%s/system.log", tag, clusterId, instanceId));
+            f = new File(FileSystems.getDefault(), String.format("build/test/logs/%s/%s/%s/system.log", tag, clusterId, instanceId));
         if (!f.exists())
             throw new AssertionError("Unable to locate system.log under " + new File("build/test/logs").absolutePath() + "; make sure ICluster.setup() is called or extend TestBaseImpl and do not define a static beforeClass function with @BeforeClass");
         return new FileLogAction(f);
