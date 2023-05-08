@@ -47,7 +47,7 @@ import static org.apache.cassandra.utils.FailingConsumer.orFail;
 import static org.apache.cassandra.utils.Generators.filter;
 import static org.quicktheories.QuickTheory.qt;
 
-public class TupleTypeTest extends CQLTester.InMemory
+public class TupleTypeTest extends CQLTester
 {
     @Test
     public void testTuplePutAndGet() throws Throwable
