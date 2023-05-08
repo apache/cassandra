@@ -23,6 +23,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -44,6 +45,8 @@ public class PartitionDenylistTest
     @BeforeClass
     public static void init()
     {
+        ServerTestUtils.daemonInitialization();
+
         CQLTester.prepareServer();
 
         KeyspaceMetadata schema = KeyspaceMetadata.create(ks_cql,

@@ -21,8 +21,8 @@ package org.apache.cassandra.simulator;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.nio.file.FileSystem;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -35,8 +35,6 @@ import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import com.google.common.jimfs.Configuration;
-import com.google.common.jimfs.Jimfs;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 
@@ -55,6 +53,7 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnab
 import org.apache.cassandra.distributed.impl.DirectStreamingConnectionFactory;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.util.FileSystems;
 import org.apache.cassandra.service.paxos.BallotGenerator;
 import org.apache.cassandra.service.paxos.PaxosPrepare;
 import org.apache.cassandra.simulator.RandomSource.Choices;
@@ -62,6 +61,7 @@ import org.apache.cassandra.simulator.asm.InterceptAsClassTransformer;
 import org.apache.cassandra.simulator.asm.NemesisFieldSelectors;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.cluster.ClusterActions.TopologyChange;
+import org.apache.cassandra.io.filesystem.ListenableFileSystem;
 import org.apache.cassandra.simulator.systems.Failures;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.InterceptibleThread;
@@ -607,7 +607,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
     public final SimulatedSystems simulated;
     public final Cluster cluster;
     public final S simulation;
-    private final FileSystem jimfs;
+    private final ListenableFileSystem fs;
     protected final Map<Integer, List<Closeable>> onUnexpectedShutdown = new TreeMap<>();
     protected final List<Callable<Void>> onShutdown = new CopyOnWriteArrayList<>();
     protected final ThreadLocalRandomCheck threadLocalRandomCheck;
@@ -618,9 +618,7 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              SimulationFactory<S> factory) throws IOException
     {
         this.random = random;
-        this.jimfs  = Jimfs.newFileSystem(Long.toHexString(seed) + 'x' + uniqueNum, Configuration.unix().toBuilder()
-                                                                               .setMaxSize(4L << 30).setBlockSize(512)
-                                                                               .build());
+        this.fs = new ListenableFileSystem(FileSystems.jimfs(Long.toHexString(seed) + 'x' + uniqueNum));
 
         final SimulatedMessageDelivery delivery;
         final SimulatedExecution execution;
@@ -670,23 +668,28 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
 
         Failures failures = new Failures();
         ThreadAllocator threadAllocator = new ThreadAllocator(random, builder.threadCount, numOfNodes);
+        List<String> allowedDiskAccessModes = Arrays.asList("mmap", "mmap_index_only", "standard");
+        String disk_access_mode = allowedDiskAccessModes.get(random.uniform(0, allowedDiskAccessModes.size() - 1));
+        boolean commitlogCompressed = random.decide(.5f);
         cluster = snitch.setup(Cluster.build(numOfNodes)
-                         .withRoot(jimfs.getPath("/cassandra"))
+                         .withRoot(fs.getPath("/cassandra"))
                          .withSharedClasses(sharedClassPredicate)
-                         .withConfig(config -> configUpdater.accept(threadAllocator.update(config
-                             .with(Feature.BLANK_GOSSIP)
-                             .set("read_request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.readTimeoutNanos)))
-                             .set("write_request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.writeTimeoutNanos)))
-                             .set("cas_contention_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.contentionTimeoutNanos)))
-                             .set("request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.requestTimeoutNanos)))
-                             .set("memtable_heap_space", "1MiB")
-                             .set("memtable_allocation_type", builder.memoryListener != null ? "unslabbed_heap_buffers_logged" : "heap_buffers")
-                             .set("file_cache_size", "16MiB")
-                             .set("use_deterministic_table_id", true)
-                             .set("disk_access_mode", "standard")
-                             .set("failure_detector", SimulatedFailureDetector.Instance.class.getName())
-                             .set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()))
-                         )))
+                         .withConfig(config -> {
+                             config.with(Feature.BLANK_GOSSIP)
+                                   .set("read_request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.readTimeoutNanos)))
+                                   .set("write_request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.writeTimeoutNanos)))
+                                   .set("cas_contention_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.contentionTimeoutNanos)))
+                                   .set("request_timeout", String.format("%dms", NANOSECONDS.toMillis(builder.requestTimeoutNanos)))
+                                   .set("memtable_heap_space", "1MiB")
+                                   .set("memtable_allocation_type", builder.memoryListener != null ? "unslabbed_heap_buffers_logged" : "heap_buffers")
+                                   .set("file_cache_size", "16MiB")
+                                   .set("use_deterministic_table_id", true)
+                                   .set("disk_access_mode", disk_access_mode)
+                                   .set("failure_detector", SimulatedFailureDetector.Instance.class.getName());
+                             if (commitlogCompressed)
+                                 config.set("commitlog_compression", new ParameterizedClass(LZ4Compressor.class.getName(), emptyMap()));
+                             configUpdater.accept(threadAllocator.update(config));
+                         })
                          .withInstanceInitializer(new IInstanceInitializer()
                          {
                              @Override

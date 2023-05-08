@@ -26,6 +26,7 @@ import java.util.List;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.schema.Schema;
@@ -54,6 +55,8 @@ public class SelectionColumnMappingTest extends CQLTester
     @BeforeClass
     public static void setUpClass()     // overrides CQLTester.setUpClass()
     {
+        ServerTestUtils.daemonInitialization();
+
         DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
 
         prepareServer();

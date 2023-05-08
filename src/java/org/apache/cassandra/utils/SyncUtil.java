@@ -31,6 +31,8 @@ import org.apache.cassandra.config.Config;
 
 import com.google.common.base.Preconditions;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.utils.memory.MemoryUtil;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,6 +101,12 @@ public class SyncUtil
     public static MappedByteBuffer force(MappedByteBuffer buf)
     {
         Preconditions.checkNotNull(buf);
+        Object attachment = MemoryUtil.getAttachment(buf);
+        if (attachment instanceof Runnable)
+        {
+            ((Runnable) attachment).run();
+            return buf;
+        }
         if (SKIP_SYNC)
         {
             Object fd = null;
