@@ -40,7 +40,7 @@ public class CorruptPrimaryIndexTest extends CQLTester.InMemory
             // variable bytes (see org.apache.cassandra.io.sstable.format.big.RowIndexEntry.IndexSerializer.deserialize(org.apache.cassandra.io.util.FileDataInput))
             assertThat(position).describedAs("Unexpected access, should start read from start of file").isEqualTo(0);
 
-            // simulate bit rot by having 1 byte change... but make sure its the pk!
+            // simulate bit rot by having 1 byte change... but make sure it's the pk!
             dst.put(2, Byte.MAX_VALUE);
         });
 
