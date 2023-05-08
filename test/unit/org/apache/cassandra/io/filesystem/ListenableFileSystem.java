@@ -64,536 +64,84 @@ public class ListenableFileSystem extends ForwardingFileSystem
     {
     }
 
-    public interface OnPreOpen
+    public interface OnPreOpen extends Listener
     {
         void preOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs) throws IOException;
     }
 
-    public interface OnPostOpen
+    public interface OnPostOpen extends Listener
     {
         void postOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs, FileChannel channel) throws IOException;
     }
 
-    public interface OnOpen extends OnPreOpen, OnPostOpen, Listener
-    {
-        static OnOpen from(OnPreOpen callback)
-        {
-            return new OnOpen()
-            {
-                @Override
-                public void postOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs, FileChannel channel) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs) throws IOException
-                {
-                    callback.preOpen(path, options, attrs);
-                }
-            };
-        }
-
-        static OnOpen from(OnPostOpen callback)
-        {
-            return new OnOpen()
-            {
-                @Override
-                public void postOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs, FileChannel channel) throws IOException
-                {
-                    callback.postOpen(path, options, attrs, channel);
-                }
-
-                @Override
-                public void preOpen(Path path, Set<? extends OpenOption> options, FileAttribute<?>[] attrs) throws IOException
-                {
-
-                }
-            };
-        }
-    }
-
-    public interface OnPreRead
+    public interface OnPreRead extends Listener
     {
         void preRead(Path path, FileChannel channel, long position, ByteBuffer dst) throws IOException;
     }
 
-    public interface OnPostRead
+    public interface OnPostRead extends Listener
     {
         void postRead(Path path, FileChannel channel, long position, ByteBuffer dst, int read) throws IOException;
     }
 
-    public interface OnRead extends OnPreRead, OnPostRead, Listener
-    {
-        static OnRead from(OnPreRead callback)
-        {
-            return new OnRead()
-            {
-                @Override
-                public void postRead(Path path, FileChannel channel, long position, ByteBuffer dst, int read) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preRead(Path path, FileChannel channel, long position, ByteBuffer dst) throws IOException
-                {
-                    callback.preRead(path, channel, position, dst);
-                }
-            };
-        }
-
-        static OnRead from(OnPostRead callback)
-        {
-            return new OnRead()
-            {
-                @Override
-                public void postRead(Path path, FileChannel channel, long position, ByteBuffer dst, int read) throws IOException
-                {
-                    callback.postRead(path, channel, position, dst, read);
-                }
-
-                @Override
-                public void preRead(Path path, FileChannel channel, long position, ByteBuffer dst) throws IOException
-                {
-
-                }
-            };
-        }
-    }
-
-    public interface OnPreTransferTo
+    public interface OnPreTransferTo extends Listener
     {
         void preTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target) throws IOException;
     }
 
-    public interface OnPostTransferTo
+    public interface OnPostTransferTo extends Listener
     {
         void postTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target, long transfered) throws IOException;
     }
 
-    public interface OnTransferTo extends OnPreTransferTo, OnPostTransferTo, Listener
-    {
-        static OnTransferTo from(OnPreTransferTo callback)
-        {
-            return new OnTransferTo()
-            {
-                @Override
-                public void postTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target, long transfered) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target) throws IOException
-                {
-                    callback.preTransferTo(path, channel, position, count, target);
-                }
-            };
-        }
-
-        static OnTransferTo from(OnPostTransferTo callback)
-        {
-            return new OnTransferTo()
-            {
-                @Override
-                public void postTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target, long transfered) throws IOException
-                {
-                    callback.postTransferTo(path, channel, position, count, target, transfered);
-                }
-
-                @Override
-                public void preTransferTo(Path path, FileChannel channel, long position, long count, WritableByteChannel target) throws IOException
-                {
-
-                }
-            };
-        }
-    }
-
-    public interface OnPreTransferFrom
+    public interface OnPreTransferFrom extends Listener
     {
         void preTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count) throws IOException;
     }
 
-    public interface OnPostTransferFrom
+    public interface OnPostTransferFrom extends Listener
     {
         void postTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count, long transfered) throws IOException;
     }
 
-    public interface OnTransferFrom extends OnPreTransferFrom, OnPostTransferFrom, Listener
-    {
-        static OnTransferFrom from(OnPreTransferFrom callback)
-        {
-            return new OnTransferFrom()
-            {
-                @Override
-                public void postTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count, long transfered) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count) throws IOException
-                {
-                    callback.preTransferFrom(path, channel, src, position, count);
-                }
-            };
-        }
-
-        static OnTransferFrom from(OnPostTransferFrom callback)
-        {
-            return new OnTransferFrom()
-            {
-                @Override
-                public void postTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count, long transfered) throws IOException
-                {
-                    callback.postTransferFrom(path, channel, src, position, count, transfered);
-                }
-
-                @Override
-                public void preTransferFrom(Path path, FileChannel channel, ReadableByteChannel src, long position, long count) throws IOException
-                {
-
-                }
-            };
-        }
-    }
-
-    public interface OnPreWrite
+    public interface OnPreWrite extends Listener
     {
         void preWrite(Path path, FileChannel channel, long position, ByteBuffer src) throws IOException;
     }
 
-    public interface OnPostWrite
+    public interface OnPostWrite extends Listener
     {
         void postWrite(Path path, FileChannel channel, long position, ByteBuffer src, int wrote) throws IOException;
     }
 
-    public interface OnWrite extends OnPreWrite, OnPostWrite, Listener
-    {
-        static OnWrite from(OnPreWrite callback)
-        {
-            return new OnWrite()
-            {
-                @Override
-                public void postWrite(Path path, FileChannel channel, long position, ByteBuffer src, int wrote) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preWrite(Path path, FileChannel channel, long position, ByteBuffer src) throws IOException
-                {
-                    callback.preWrite(path, channel, position, src);
-                }
-            };
-        }
-
-        static OnWrite from(OnPostWrite callback)
-        {
-            return new OnWrite()
-            {
-                @Override
-                public void postWrite(Path path, FileChannel channel, long position, ByteBuffer src, int wrote) throws IOException
-                {
-                    callback.postWrite(path, channel, position, src, wrote);
-                }
-
-                @Override
-                public void preWrite(Path path, FileChannel channel, long position, ByteBuffer src) throws IOException
-                {
-
-                }
-            };
-        }
-    }
-
-    public interface OnPrePosition
+    public interface OnPrePosition extends Listener
     {
         void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException;
     }
 
-    public interface OnPostPosition
+    public interface OnPostPosition extends Listener
     {
         void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException;
     }
 
-    public interface OnPreTruncate
+    public interface OnPreTruncate extends Listener
     {
         void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException;
     }
 
-    public interface OnPostTruncate
+    public interface OnPostTruncate extends Listener
     {
         void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException;
     }
 
-    public interface OnPreForce
+    public interface OnPreForce extends Listener
     {
         void preForce(Path path, FileChannel channel, boolean metaData) throws IOException;
     }
 
-    public interface OnPostForce
+    public interface OnPostForce extends Listener
     {
         void postForce(Path path, FileChannel channel, boolean metaData) throws IOException;
-    }
-
-    public interface OnChannelMeta extends OnPrePosition, OnPostPosition,
-                                           OnPreTruncate, OnPostTruncate,
-                                           OnPreForce, OnPostForce,
-                                           Listener
-    {
-        static OnChannelMeta from(OnPrePosition callback)
-        {
-            return new OnChannelMeta()
-            {
-                @Override
-                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-
-                }
-
-                @Override
-                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-
-                }
-
-                @Override
-                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-
-                }
-
-                @Override
-                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-                    callback.prePosition(path, channel, position, newPosition);
-                }
-
-                @Override
-                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
-                {
-
-                }
-            };
-        }
-
-        static OnChannelMeta from(OnPostPosition callback)
-        {
-            return new OnChannelMeta()
-            {
-                @Override
-                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-
-                }
-
-                @Override
-                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-                    callback.postPosition(path, channel, position, newPosition);
-                }
-
-                @Override
-                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-
-                }
-
-                @Override
-                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
-                {
-
-                }
-            };
-        }
-
-        static OnChannelMeta from(OnPreTruncate callback)
-        {
-            return new OnChannelMeta() {
-                @Override
-                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-
-                }
-
-                @Override
-                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
-                {
-                    callback.preTruncate(path, channel, size, targetSize);
-                }
-
-                @Override
-                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-
-                }
-
-                @Override
-                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-
-                }
-            };
-        }
-
-        static OnChannelMeta from(OnPostTruncate callback)
-        {
-            return new OnChannelMeta()
-            {
-                @Override
-                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-
-                }
-
-                @Override
-                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-
-                }
-
-                @Override
-                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
-                {
-                    callback.postTruncate(path, channel, size, targetSize, newSize);
-                }
-
-                @Override
-                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-
-                }
-
-                @Override
-                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
-                {
-
-                }
-            };
-        }
-
-        static OnChannelMeta from(OnPreForce callback)
-        {
-            return new OnChannelMeta()
-            {
-                @Override
-                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-
-                }
-
-                @Override
-                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-
-                }
-
-                @Override
-                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-                    callback.preForce(path, channel, metaData);
-                }
-
-                @Override
-                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
-                {
-
-                }
-            };
-        }
-
-        static OnChannelMeta from(OnPostForce callback)
-        {
-            return new OnChannelMeta()
-            {
-                @Override
-                public void postForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-                    callback.postForce(path, channel, metaData);
-                }
-
-                @Override
-                public void postPosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-
-                }
-
-                @Override
-                public void postTruncate(Path path, FileChannel channel, long size, long targetSize, long newSize) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preForce(Path path, FileChannel channel, boolean metaData) throws IOException
-                {
-
-                }
-
-                @Override
-                public void prePosition(Path path, FileChannel channel, long position, long newPosition) throws IOException
-                {
-
-                }
-
-                @Override
-                public void preTruncate(Path path, FileChannel channel, long size, long targetSize) throws IOException
-                {
-
-                }
-            };
-        }
     }
 
     public interface Unsubscribable extends AutoCloseable
@@ -602,13 +150,31 @@ public class ListenableFileSystem extends ForwardingFileSystem
         void close();
     }
 
-    private final List<OnOpen> onOpen = new CopyOnWriteArrayList<>();
-    private final List<OnTransferTo> onTransferTo = new CopyOnWriteArrayList<>();
-    private final List<OnRead> onRead = new CopyOnWriteArrayList<>();
-    private final List<OnWrite> onWrite = new CopyOnWriteArrayList<>();
-    private final List<OnTransferFrom> onTransferFrom = new CopyOnWriteArrayList<>();
-    private final List<OnChannelMeta> onChannelMeta = new CopyOnWriteArrayList<>();
-    private final List<List<? extends Listener>> lists = Arrays.asList(onOpen, onRead, onTransferTo, onWrite, onTransferFrom, onChannelMeta);
+    private final List<OnPreOpen> onPreOpen = new CopyOnWriteArrayList<>();
+    private final List<OnPostOpen> onPostOpen = new CopyOnWriteArrayList<>();
+    private final List<OnPreTransferTo> onPreTransferTo = new CopyOnWriteArrayList<>();
+    private final List<OnPostTransferTo> onPostTransferTo = new CopyOnWriteArrayList<>();
+    private final List<OnPreRead> onPreRead = new CopyOnWriteArrayList<>();
+    private final List<OnPostRead> onPostRead = new CopyOnWriteArrayList<>();
+    private final List<OnPreWrite> onPreWrite = new CopyOnWriteArrayList<>();
+    private final List<OnPostWrite> onPostWrite = new CopyOnWriteArrayList<>();
+    private final List<OnPreTransferFrom> onPreTransferFrom = new CopyOnWriteArrayList<>();
+    private final List<OnPostTransferFrom> onPostTransferFrom = new CopyOnWriteArrayList<>();
+
+    private final List<OnPreForce> onPreForce = new CopyOnWriteArrayList<>();
+    private final List<OnPostForce> onPostForce = new CopyOnWriteArrayList<>();
+    private final List<OnPreTruncate> onPreTruncate = new CopyOnWriteArrayList<>();
+    private final List<OnPostTruncate> onPostTruncate = new CopyOnWriteArrayList<>();
+    private final List<OnPrePosition> onPrePosition = new CopyOnWriteArrayList<>();
+    private final List<OnPostPosition> onPostPosition = new CopyOnWriteArrayList<>();
+    private final List<List<? extends Listener>> lists = Arrays.asList(onPreOpen, onPostOpen,
+                                                                       onPreRead, onPostRead,
+                                                                       onPreTransferTo, onPostTransferTo,
+                                                                       onPreWrite, onPostWrite,
+                                                                       onPreTransferFrom, onPostTransferFrom,
+                                                                       onPreForce, onPostForce,
+                                                                       onPreTruncate, onPostTruncate,
+                                                                       onPrePosition, onPostPosition);
     private final ListenableFileSystemProvider provider;
 
     public ListenableFileSystem(FileSystem delegate)
@@ -620,34 +186,84 @@ public class ListenableFileSystem extends ForwardingFileSystem
     public Unsubscribable listen(Listener listener)
     {
         boolean match = false;
-        if (listener instanceof OnOpen)
+        if (listener instanceof OnPreOpen)
         {
-            onOpen.add((OnOpen) listener);
+            onPreOpen.add((OnPreOpen) listener);
             match = true;
         }
-        if (listener instanceof OnRead)
+        if (listener instanceof OnPostOpen)
         {
-            onRead.add((OnRead) listener);
+            onPostOpen.add((OnPostOpen) listener);
             match = true;
         }
-        if (listener instanceof OnTransferTo)
+        if (listener instanceof OnPreRead)
         {
-            onTransferTo.add((OnTransferTo) listener);
+            onPreRead.add((OnPreRead) listener);
             match = true;
         }
-        if (listener instanceof OnWrite)
+        if (listener instanceof OnPostRead)
         {
-            onWrite.add((OnWrite) listener);
+            onPostRead.add((OnPostRead) listener);
             match = true;
         }
-        if (listener instanceof OnTransferFrom)
+        if (listener instanceof OnPreTransferTo)
         {
-            onTransferFrom.add((OnTransferFrom) listener);
+            onPreTransferTo.add((OnPreTransferTo) listener);
             match = true;
         }
-        if (listener instanceof OnChannelMeta)
+        if (listener instanceof OnPostTransferTo)
         {
-            onChannelMeta.add((OnChannelMeta) listener);
+            onPostTransferTo.add((OnPostTransferTo) listener);
+            match = true;
+        }
+        if (listener instanceof OnPreWrite)
+        {
+            onPreWrite.add((OnPreWrite) listener);
+            match = true;
+        }
+        if (listener instanceof OnPostWrite)
+        {
+            onPostWrite.add((OnPostWrite) listener);
+            match = true;
+        }
+        if (listener instanceof OnPreTransferFrom)
+        {
+            onPreTransferFrom.add((OnPreTransferFrom) listener);
+            match = true;
+        }
+        if (listener instanceof OnPostTransferFrom)
+        {
+            onPostTransferFrom.add((OnPostTransferFrom) listener);
+            match = true;
+        }
+        if (listener instanceof OnPreForce)
+        {
+            onPreForce.add((OnPreForce) listener);
+            match = true;
+        }
+        if (listener instanceof OnPostForce)
+        {
+            onPostForce.add((OnPostForce) listener);
+            match = true;
+        }
+        if (listener instanceof OnPreTruncate)
+        {
+            onPreTruncate.add((OnPreTruncate) listener);
+            match = true;
+        }
+        if (listener instanceof OnPostTruncate)
+        {
+            onPostTruncate.add((OnPostTruncate) listener);
+            match = true;
+        }
+        if (listener instanceof OnPrePosition)
+        {
+            onPrePosition.add((OnPrePosition) listener);
+            match = true;
+        }
+        if (listener instanceof OnPostPosition)
+        {
+            onPostPosition.add((OnPostPosition) listener);
             match = true;
         }
         if (!match)
@@ -657,7 +273,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPreOpen(OnPreOpen callback)
     {
-        return listen(OnOpen.from(callback));
+        return listen(callback);
     }
 
     public Unsubscribable onPreOpen(PathFilter filter, OnPreOpen callback)
@@ -670,7 +286,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPostOpen(OnPostOpen callback)
     {
-        return listen(OnOpen.from(callback));
+        return listen(callback);
     }
 
     public Unsubscribable onPostOpen(PathFilter filter, OnPostOpen callback)
@@ -683,7 +299,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPreRead(OnPreRead callback)
     {
-        return listen(OnRead.from(callback));
+        return listen(callback);
     }
 
     public Unsubscribable onPreRead(PathFilter filter, OnPreRead callback)
@@ -696,7 +312,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPostRead(OnPostRead callback)
     {
-        return listen(OnRead.from(callback));
+        return listen(callback);
     }
 
     public Unsubscribable onPostRead(PathFilter filter, OnPostRead callback)
@@ -709,7 +325,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPreTransferTo(OnPreTransferTo callback)
     {
-        return listen(OnTransferTo.from(callback));
+        return listen(callback);
     }
 
     public Unsubscribable onPreTransferTo(PathFilter filter, OnPreTransferTo callback)
@@ -722,7 +338,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPostTransferTo(OnPostTransferTo callback)
     {
-        return listen(OnTransferTo.from(callback));
+        return listen(callback);
     }
 
     public Unsubscribable onPostTransferTo(PathFilter filter, OnPostTransferTo callback)
@@ -735,7 +351,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPreTransferFrom(OnPreTransferFrom callback)
     {
-        return listen(OnTransferFrom.from(callback));
+        return listen(callback);
     }
 
     public Unsubscribable onPreTransferFrom(PathFilter filter, OnPreTransferFrom callback)
@@ -748,7 +364,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPostTransferFrom(OnPostTransferFrom callback)
     {
-        return listen(OnTransferFrom.from(callback));
+        return listen(callback);
     }
 
     public Unsubscribable onPostTransferFrom(PathFilter filter, OnPostTransferFrom callback)
@@ -761,7 +377,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPreWrite(OnPreWrite callback)
     {
-        return listen(OnWrite.from(callback));
+        return listen(callback);
     }
 
     public Unsubscribable onPreWrite(PathFilter filter, OnPreWrite callback)
@@ -774,7 +390,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPostWrite(OnPostWrite callback)
     {
-        return listen(OnWrite.from(callback));
+        return listen(callback);
     }
 
     public Unsubscribable onPostWrite(PathFilter filter, OnPostWrite callback)
@@ -787,7 +403,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPrePosition(OnPrePosition callbackk)
     {
-        return listen(OnChannelMeta.from(callbackk));
+        return listen(callbackk);
     }
 
     public Unsubscribable onPrePosition(PathFilter filter, OnPrePosition callbackk)
@@ -800,7 +416,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPostPosition(OnPostPosition callbackk)
     {
-        return listen(OnChannelMeta.from(callbackk));
+        return listen(callbackk);
     }
 
     public Unsubscribable onPostPosition(PathFilter filter, OnPostPosition callbackk)
@@ -813,7 +429,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPreTruncate(OnPreTruncate callbackk)
     {
-        return listen(OnChannelMeta.from(callbackk));
+        return listen(callbackk);
     }
 
     public Unsubscribable onPreTruncate(PathFilter filter, OnPreTruncate callbackk)
@@ -826,7 +442,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPostTruncate(OnPostTruncate callbackk)
     {
-        return listen(OnChannelMeta.from(callbackk));
+        return listen(callbackk);
     }
 
     public Unsubscribable onPostTruncate(PathFilter filter, OnPostTruncate callbackk)
@@ -839,7 +455,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPreForce(OnPreForce callbackk)
     {
-        return listen(OnChannelMeta.from(callbackk));
+        return listen(callbackk);
     }
 
     public Unsubscribable onPreForce(PathFilter filter, OnPreForce callback)
@@ -852,7 +468,7 @@ public class ListenableFileSystem extends ForwardingFileSystem
 
     public Unsubscribable onPostForce(OnPostForce callbackk)
     {
-        return listen(OnChannelMeta.from(callbackk));
+        return listen(callbackk);
     }
 
     public Unsubscribable onPostForce(PathFilter filter, OnPostForce callback)
@@ -968,9 +584,9 @@ public class ListenableFileSystem extends ForwardingFileSystem
         @Override
         public FileChannel newFileChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) throws IOException
         {
-            notifyListeners(onOpen, l -> l.preOpen(path, options, attrs));
+            notifyListeners(onPreOpen, l -> l.preOpen(path, options, attrs));
             ListenableFileChannel channel = new ListenableFileChannel(path, delegate().newFileChannel(unwrap(path), options, attrs));
-            notifyListeners(onOpen, l -> l.postOpen(path, options, attrs, channel));
+            notifyListeners(onPostOpen, l -> l.postOpen(path, options, attrs, channel));
             return channel;
         }
 
@@ -1055,18 +671,18 @@ public class ListenableFileSystem extends ForwardingFileSystem
         public int read(ByteBuffer dst) throws IOException
         {
             long position = position();
-            notifyListeners(onRead, l -> l.preRead(path, this, position, dst));
+            notifyListeners(onPreRead, l -> l.preRead(path, this, position, dst));
             int read = super.read(dst);
-            notifyListeners(onRead, l -> l.postRead(path, this, position, dst, read));
+            notifyListeners(onPostRead, l -> l.postRead(path, this, position, dst, read));
             return read;
         }
 
         @Override
         public int read(ByteBuffer dst, long position) throws IOException
         {
-            notifyListeners(onRead, l -> l.preRead(path, this, position, dst));
+            notifyListeners(onPreRead, l -> l.preRead(path, this, position, dst));
             int read = super.read(dst, position);
-            notifyListeners(onRead, l -> l.postRead(path, this, position, dst, read));
+            notifyListeners(onPostRead, l -> l.postRead(path, this, position, dst, read));
             return read;
         }
 
@@ -1074,18 +690,18 @@ public class ListenableFileSystem extends ForwardingFileSystem
         public int write(ByteBuffer src) throws IOException
         {
             long position = position();
-            notifyListeners(onWrite, l -> l.preWrite(path, this, position, src));
+            notifyListeners(onPreWrite, l -> l.preWrite(path, this, position, src));
             int write = super.write(src);
-            notifyListeners(onWrite, l -> l.postWrite(path, this, position, src, write));
+            notifyListeners(onPostWrite, l -> l.postWrite(path, this, position, src, write));
             return write;
         }
 
         @Override
         public int write(ByteBuffer src, long position) throws IOException
         {
-            notifyListeners(onWrite, l -> l.preWrite(path, this, position, src));
+            notifyListeners(onPreWrite, l -> l.preWrite(path, this, position, src));
             int write = super.write(src, position);
-            notifyListeners(onWrite, l -> l.postWrite(path, this, position, src, write));
+            notifyListeners(onPostWrite, l -> l.postWrite(path, this, position, src, write));
             return write;
         }
 
@@ -1093,9 +709,9 @@ public class ListenableFileSystem extends ForwardingFileSystem
         public FileChannel position(long newPosition) throws IOException
         {
             long position = position();
-            notifyListeners(onChannelMeta, l -> l.prePosition(path, this, position, newPosition));
+            notifyListeners(onPrePosition, l -> l.prePosition(path, this, position, newPosition));
             super.position(newPosition);
-            notifyListeners(onChannelMeta, l -> l.postPosition(path, this, position, newPosition));
+            notifyListeners(onPostPosition, l -> l.postPosition(path, this, position, newPosition));
             return this;
         }
 
@@ -1103,36 +719,36 @@ public class ListenableFileSystem extends ForwardingFileSystem
         public FileChannel truncate(long size) throws IOException
         {
             long currentSize = this.size();
-            notifyListeners(onChannelMeta, l -> l.preTruncate(path, this, currentSize, size));
+            notifyListeners(onPreTruncate, l -> l.preTruncate(path, this, currentSize, size));
             super.truncate(size);
             long latestSize = this.size();
-            notifyListeners(onChannelMeta, l -> l.postTruncate(path, this, currentSize, size, latestSize));
+            notifyListeners(onPostTruncate, l -> l.postTruncate(path, this, currentSize, size, latestSize));
             return this;
         }
 
         @Override
         public void force(boolean metaData) throws IOException
         {
-            notifyListeners(onChannelMeta, l -> l.preForce(path, this, metaData));
+            notifyListeners(onPreForce, l -> l.preForce(path, this, metaData));
             super.force(metaData);
-            notifyListeners(onChannelMeta, l -> l.postForce(path, this, metaData));
+            notifyListeners(onPostForce, l -> l.postForce(path, this, metaData));
         }
 
         @Override
         public long transferTo(long position, long count, WritableByteChannel target) throws IOException
         {
-            notifyListeners(onTransferTo, l -> l.preTransferTo(path, this, position, count, target));
+            notifyListeners(onPreTransferTo, l -> l.preTransferTo(path, this, position, count, target));
             long transfered = super.transferTo(position, count, target);
-            notifyListeners(onTransferTo, l -> l.postTransferTo(path, this, position, count, target, transfered));
+            notifyListeners(onPostTransferTo, l -> l.postTransferTo(path, this, position, count, target, transfered));
             return transfered;
         }
 
         @Override
         public long transferFrom(ReadableByteChannel src, long position, long count) throws IOException
         {
-            notifyListeners(onTransferFrom, l -> l.preTransferFrom(path, this, src, position, count));
+            notifyListeners(onPreTransferFrom, l -> l.preTransferFrom(path, this, src, position, count));
             long transfered = super.transferFrom(src, position, count);
-            notifyListeners(onTransferFrom, l -> l.postTransferFrom(path, this, src, position, count, transfered));
+            notifyListeners(onPostTransferFrom, l -> l.postTransferFrom(path, this, src, position, count, transfered));
             return transfered;
         }
 
