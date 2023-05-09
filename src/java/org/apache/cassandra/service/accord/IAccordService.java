@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import accord.api.BarrierType;
+import accord.local.Node.Id;
 import accord.messages.Request;
 import accord.primitives.Ranges;
 import accord.primitives.Seekables;
@@ -70,4 +71,6 @@ public interface IAccordService
     TopologyManager topology();
 
     void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException;
+
+    default Id nodeId() { throw new UnsupportedOperationException(); }
 }

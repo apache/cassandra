@@ -26,7 +26,7 @@ import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.IMessage;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 
 public abstract class ResponseResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
@@ -38,15 +38,17 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
     protected final Supplier<? extends P> replicaPlan;
 
     // Accumulator gives us non-blocking thread-safety with optimal algorithmic constraints
-    protected final Accumulator<Message<ReadResponse>> responses;
+    protected final Accumulator<IMessage<ReadResponse>> responses;
     protected final long queryStartNanoTime;
+    protected final CassandraFollowupReader followupReader;
 
-    public ResponseResolver(ReadCommand command, Supplier<? extends P> replicaPlan, long queryStartNanoTime)
+    public ResponseResolver(ReadCommand command, Supplier<? extends P> replicaPlan, long queryStartNanoTime, CassandraFollowupReader followupReader)
     {
         this.command = command;
         this.replicaPlan = replicaPlan;
         this.responses = new Accumulator<>(replicaPlan.get().readCandidates().size());
         this.queryStartNanoTime = queryStartNanoTime;
+        this.followupReader = followupReader;
     }
 
     protected P replicaPlan()
@@ -56,10 +58,10 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
 
     public abstract boolean isDataPresent();
 
-    public void preprocess(Message<ReadResponse> message)
+    public void preprocess(IMessage<ReadResponse> message)
     {
         if (replicaPlan().lookup(message.from()).isTransient() &&
-            message.payload.isDigestResponse())
+            message.payload().isDigestResponse())
             throw new IllegalArgumentException("Digest response received from transient replica");
 
         try
@@ -74,7 +76,12 @@ public abstract class ResponseResolver<E extends Endpoints<E>, P extends Replica
         }
     }
 
-    public Accumulator<Message<ReadResponse>> getMessages()
+    public ReadCommand command()
+    {
+        return command;
+    }
+
+    public Accumulator<IMessage<ReadResponse>> getMessages()
     {
         return responses;
     }

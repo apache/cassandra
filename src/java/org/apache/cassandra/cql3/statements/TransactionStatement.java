@@ -320,7 +320,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             Preconditions.checkState(conditions.isEmpty(), "No condition should exist without updates present");
             List<TxnNamedRead> reads = createNamedReads(options, state, ImmutableMap.of(), keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = createTxnRead(reads, txnKeys, options.getSerialConsistency());
+            TxnRead read = createTxnRead(reads, txnKeys, null);
             return new Txn.InMemory(txnKeys, read, new TxnDataResolver(), TxnQuery.ALL);
         }
         else
@@ -329,7 +329,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             TxnUpdate update = createUpdate(state, options, autoReads, keySet::add);
             List<TxnNamedRead> reads = createNamedReads(options, state, autoReads, keySet::add);
             Keys txnKeys = toKeys(keySet);
-            TxnRead read = createTxnRead(reads, txnKeys, options.getSerialConsistency());
+            TxnRead read = createTxnRead(reads, txnKeys, null);
             return new Txn.InMemory(txnKeys, read, new TxnDataResolver(), TxnQuery.ALL, update);
         }
     }

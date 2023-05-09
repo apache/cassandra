@@ -64,7 +64,6 @@ import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topology;
-import accord.utils.async.AsyncChains;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
@@ -84,6 +83,7 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static accord.primitives.Routable.Domain.Key;
+import static accord.utils.async.AsyncChains.getBlocking;
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static java.lang.String.format;
 
@@ -204,7 +204,7 @@ public class AccordTestUtils
                                   UnresolvedData unresolvedData = read.keys().stream().map(key -> {
                                                           try
                                                           {
-                                                              return AsyncChains.getBlocking(read.read(key, txn.kind(), safeStore, executeAt, null));
+                                                              return getBlocking(read.read(key, false, txn.kind(), safeStore, executeAt, null));
                                                           }
                                                           catch (InterruptedException e)
                                                           {
@@ -216,7 +216,15 @@ public class AccordTestUtils
                                                           }
                                                       })
                                                       .reduce(null, UnresolvedData::merge);
-                                  TxnData readData = (TxnData)new TxnDataResolver().resolve(read, unresolvedData).data;
+                                  TxnData readData = null;
+                                  try
+                                  {
+                                      readData = (TxnData)getUninterruptibly(new TxnDataResolver().resolve(executeAt, read, unresolvedData, null)).data;
+                                  }
+                                  catch (ExecutionException e)
+                                  {
+                                      throw new RuntimeException(e);
+                                  }
                                   Write write = txn.update().apply(readData, null);
                                   result.set(Pair.create(new Writes(executeAt, (Keys)txn.keys(), write),
                                                          txn.query().compute(txnId, executeAt, txn.keys(), readData, txn.read(), txn.update())));

@@ -45,7 +45,8 @@ public class ShortReadProtection
                                                      ReadCommand command,
                                                      DataLimits.Counter mergedResultCounter,
                                                      long queryStartNanoTime,
-                                                     boolean enforceStrictLiveness)
+                                                     boolean enforceStrictLiveness,
+                                                     CassandraFollowupReader followupReader)
     {
         DataLimits.Counter singleResultCounter = command.limits().newCounter(command.nowInSec(),
                                                                              false,
@@ -57,7 +58,8 @@ public class ShortReadProtection
                                                                                      preFetchCallback,
                                                                                      singleResultCounter,
                                                                                      mergedResultCounter,
-                                                                                     queryStartNanoTime);
+                                                                                     queryStartNanoTime,
+                                                                                     followupReader);
 
         /*
          * The order of extention and transformations is important here. Extending with more partitions has to happen

@@ -19,92 +19,75 @@
 package org.apache.cassandra.service.accord.txn;
 
 import java.io.IOException;
-import java.util.ArrayList;
 
 import accord.api.UnresolvedData;
-import org.apache.cassandra.db.ReadResponse;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.txn.TxnUnresolvedData.UnresolvedDataEntry;
+import org.apache.cassandra.utils.NullableSerializer;
 
-public class TxnUnresolvedData extends ArrayList<UnresolvedDataEntry> implements UnresolvedData
+public interface TxnUnresolvedData extends UnresolvedData
 {
-    public TxnUnresolvedData()
-    {
-        super();
-    }
-
-    public TxnUnresolvedData(int initialCapacity)
-    {
-        super(initialCapacity);
-    }
-
-    @Override
-    public UnresolvedData merge(UnresolvedData unresolvedData)
-    {
-        TxnUnresolvedData that = (TxnUnresolvedData)unresolvedData;
-        TxnUnresolvedData merged = new TxnUnresolvedData();
-        this.forEach(merged::add);
-        that.forEach(merged::add);
-        return merged;
-    }
-
-    public static class UnresolvedDataEntry
-    {
-        final TxnDataName txnDataName;
-        final ReadResponse readResponse;
-        final int nowInSec;
-
-        public UnresolvedDataEntry(TxnDataName txnDataName, ReadResponse readResponse, int nowInSec)
-        {
-            this.txnDataName = txnDataName;
-            this.readResponse = readResponse;
-            this.nowInSec = nowInSec;
-        }
-    }
-
-    public static final IVersionedSerializer<TxnUnresolvedData> serializer = new IVersionedSerializer<TxnUnresolvedData>()
+    IVersionedSerializer<UnresolvedData> serializer = new IVersionedSerializer<UnresolvedData>()
     {
         @Override
-        public void serialize(TxnUnresolvedData data, DataOutputPlus out, int version) throws IOException
+        public void serialize(UnresolvedData t, DataOutputPlus out, int version) throws IOException
         {
-            out.writeUnsignedVInt32(data.size());
-            for (UnresolvedDataEntry e : data)
-            {
-                TxnDataName.serializer.serialize(e.txnDataName, out, version);
-                ReadResponse.serializer.serialize(e.readResponse, out, version);
-                out.writeInt(e.nowInSec);
-            }
+            byte id = ((TxnUnresolvedData)t).unresolvedDataKind().id;
+            out.writeByte(id);
+            if (id == 0)
+                TxnUnresolvedReadResponses.serializer.serialize((TxnUnresolvedReadResponses) t, out, version);
+            else
+                TxnData.serializer.serialize((TxnData) t, out, version);
         }
 
         @Override
-        public TxnUnresolvedData deserialize(DataInputPlus in, int version) throws IOException
+        public UnresolvedData deserialize(DataInputPlus in, int version) throws IOException
         {
-            int size = in.readUnsignedVInt32();
-            TxnUnresolvedData data = new TxnUnresolvedData(size);
-            for (int i = 0; i < size; i++)
-            {
-                TxnDataName name = TxnDataName.serializer.deserialize(in, version);
-                ReadResponse readResponse = ReadResponse.serializer.deserialize(in, version);
-                int nowInSec = in.readInt();
-                data.add(new UnresolvedDataEntry(name, readResponse, nowInSec));
-            }
-            return data;
+            byte id = in.readByte();
+            if (id == 0)
+                return TxnUnresolvedReadResponses.serializer.deserialize(in, version);
+            else
+                return TxnData.serializer.deserialize(in, version);
         }
 
         @Override
-        public long serializedSize(TxnUnresolvedData data, int version)
+        public long serializedSize(UnresolvedData t, int version)
         {
-            // Num entries and nowInSec for each entry
-            long size = TypeSizes.sizeofUnsignedVInt(data.size()) + (4 * data.size());
-            for (UnresolvedDataEntry e : data)
-            {
-                size += TxnDataName.serializer.serializedSize(e.txnDataName, version);
-                size += ReadResponse.serializer.serializedSize(e.readResponse, version);
-            }
-            return size;
+            if (((TxnUnresolvedData)t).unresolvedDataKind().id == 0)
+                return 1 + TxnUnresolvedReadResponses.serializer.serializedSize((TxnUnresolvedReadResponses) t, version);
+            else
+                return 1 + TxnData.serializer.serializedSize((TxnData) t, version);
         }
     };
+
+    IVersionedSerializer<UnresolvedData> nullableSerializer = NullableSerializer.wrap(serializer);
+
+    enum UnresolvedDataKind
+    {
+        READ_RESPONSE(0),
+        TXN_DATA(1);
+
+        public final byte id;
+
+        UnresolvedDataKind(int id)
+        {
+            this.id = (byte) id;
+        }
+
+        UnresolvedDataKind fromId(byte id)
+        {
+            switch (id)
+            {
+                case 0:
+                    return READ_RESPONSE;
+                case 1:
+                    return TXN_DATA;
+                default:
+                    throw new IllegalArgumentException("Unrecognized TxnUnresolvedData id " + id);
+            }
+        }
+    }
+
+    UnresolvedDataKind unresolvedDataKind();
 }

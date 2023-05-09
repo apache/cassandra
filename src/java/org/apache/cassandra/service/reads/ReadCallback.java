@@ -24,13 +24,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.MessageParams;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
@@ -39,6 +37,8 @@ import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.net.IMessage;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
@@ -47,6 +47,7 @@ import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.apache.cassandra.service.reads.thresholds.WarningContext;
 import org.apache.cassandra.service.reads.thresholds.WarningsSnapshot;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -182,6 +183,32 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                 return;
             }
         }
+        resolver.preprocess(message);
+
+        /*
+         * Ensure that data is present and the response accumulator has properly published the
+         * responses it has received. This may result in not signaling immediately when we receive
+         * the minimum number of required results, but it guarantees at least the minimum will
+         * be accessible when we do signal. (see CASSANDRA-16807)
+         */
+        if (resolver.isDataPresent() && resolver.responses.size() >= blockFor)
+            condition.signalAll();
+    }
+
+    public void onResponse(IMessage<ReadResponse> message)
+    {
+        assertWaitingFor(message.from());
+//        Map<ParamType, Object> params = message.header().params();
+        InetAddressAndPort from = message.from();
+//        if (WarningContext.isSupported(params.keySet()))
+//        {
+//            RequestFailureReason reason = getWarningContext().updateCounters(params, from);
+//            if (reason != null)
+//            {
+//                onFailure(message.from(), reason);
+//                return;
+//            }
+//        }
         resolver.preprocess(message);
 
         /*

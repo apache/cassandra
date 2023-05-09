@@ -46,8 +46,9 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.TokenRange;
-import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.utils.NullableSerializer;
 
 public class KeySerializers
 {
@@ -63,6 +64,8 @@ public class KeySerializers
             return RoutingKeys.SerializationSupport.create(keys);
         }
     };
+    
+    public static final IVersionedSerializer<RoutingKeys> nullableRoutingKeys = NullableSerializer.wrap(routingKeys);
 
     public static final IVersionedSerializer<Keys> keys = new AbstractKeysSerializer<Key, Keys>(key, Key[]::new)
     {
@@ -71,7 +74,7 @@ public class KeySerializers
             return Keys.SerializationSupport.create(keys);
         }
     };
-
+    
     public static final IVersionedSerializer<Ranges> ranges = new AbstractRangesSerializer<Ranges>()
     {
         @Override

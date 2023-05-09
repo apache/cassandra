@@ -18,13 +18,9 @@
 
 package org.apache.cassandra.service.reads;
 
-import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlans;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -41,10 +37,11 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.ExcludingBounds;
 import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlans;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
-import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tracing.Tracing;
 
 public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowIterator> implements MorePartitions<UnfilteredPartitionIterator>
@@ -64,12 +61,15 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
 
     private final long queryStartNanoTime;
 
+    private final CassandraFollowupReader followupReader;
+
     public ShortReadPartitionsProtection(ReadCommand command,
                                          Replica source,
                                          Runnable preFetchCallback,
                                          DataLimits.Counter singleResultCounter,
                                          DataLimits.Counter mergedResultCounter,
-                                         long queryStartNanoTime)
+                                         long queryStartNanoTime,
+                                         CassandraFollowupReader followupReader)
     {
         this.command = command;
         this.source = source;
@@ -77,6 +77,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         this.singleResultCounter = singleResultCounter;
         this.mergedResultCounter = mergedResultCounter;
         this.queryStartNanoTime = queryStartNanoTime;
+        this.followupReader = followupReader;
     }
 
     @Override
@@ -96,7 +97,7 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         ReplicaPlan.SharedForTokenRead sharedReplicaPlan = ReplicaPlan.shared(replicaPlan);
         ShortReadRowsProtection protection = new ShortReadRowsProtection(partition.partitionKey(),
                                                                          command, source,
-                                                                         (cmd) -> executeReadCommand(cmd, sharedReplicaPlan),
+                                                                         (cmd) -> executeReadCommand(cmd, sharedReplicaPlan, followupReader),
                                                                          singleResultCounter,
                                                                          mergedResultCounter);
         return Transformation.apply(MoreRows.extend(partition, protection), protection);
@@ -171,29 +172,20 @@ public class ShortReadPartitionsProtection extends Transformation<UnfilteredRowI
         DataRange newDataRange = cmd.dataRange().forSubRange(newBounds);
 
         ReplicaPlan.ForRangeRead replicaPlan = ReplicaPlans.forSingleReplicaRead(Keyspace.open(command.metadata().keyspace), cmd.dataRange().keyRange(), source, 1);
-        return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), ReplicaPlan.shared(replicaPlan));
+        return executeReadCommand(cmd.withUpdatedLimitsAndDataRange(newLimits, newDataRange), ReplicaPlan.shared(replicaPlan), followupReader);
     }
 
     private <E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-    UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan)
+    UnfilteredPartitionIterator executeReadCommand(ReadCommand cmd, ReplicaPlan.Shared<E, P> replicaPlan, CassandraFollowupReader followupReader)
     {
         DataResolver<E, P> resolver = new DataResolver<>(cmd, replicaPlan, (NoopReadRepair<E, P>)NoopReadRepair.instance, queryStartNanoTime);
         ReadCallback<E, P> handler = new ReadCallback<>(resolver, cmd, replicaPlan, queryStartNanoTime);
 
-        if (source.isSelf())
-        {
-            Stage.READ.maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(cmd, handler));
-        }
-        else
-        {
-            if (source.isTransient())
-                cmd = cmd.copyAsTransientQuery(source);
-            MessagingService.instance().sendWithCallback(cmd.createMessage(false), source.endpoint(), handler);
-        }
+        followupReader.read(cmd, source, handler);
 
         // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.
         handler.awaitResults();
         assert resolver.getMessages().size() == 1;
-        return resolver.getMessages().get(0).payload.makeIterator(command);
+        return resolver.getMessages().get(0).payload().makeIterator(command);
     }
 }

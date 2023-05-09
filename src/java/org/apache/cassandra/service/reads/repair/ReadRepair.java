@@ -19,15 +19,16 @@ package org.apache.cassandra.service.reads.repair;
 
 import java.util.Map;
 import java.util.function.Consumer;
+import javax.annotation.Nullable;
 
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.locator.Endpoints;
-
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.service.reads.DigestResolver;
@@ -51,18 +52,23 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      */
     UnfilteredPartitionIterators.MergeListener getMergeListener(P replicaPlan);
 
+    default void startRepair()
+    {
+        startRepair(null, null);
+    }
+
     /**
      * Called when the digests from the initial read don't match. Reads may block on the
      * repair started by this method.
      * @param digestResolver supplied so we can get the original data response
      * @param resultConsumer hook for the repair to set it's result on completion
      */
-    public void startRepair(DigestResolver<E, P> digestResolver, Consumer<PartitionIterator> resultConsumer);
+    public void startRepair(DigestResolver<E, P> digestResolver, @Nullable Consumer<PartitionIterator> resultConsumer);
 
     /**
      * Block on the reads (or timeout) sent out in {@link ReadRepair#startRepair}
      */
-    public void awaitReads() throws ReadTimeoutException;
+    public PartitionIterator awaitReads() throws ReadTimeoutException;
 
     /**
      * if it looks like we might not receive data requests from everyone in time, send additional requests
@@ -93,4 +99,8 @@ public interface ReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
      * we will block repair only on the replicas that have responded.
      */
     void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan);
+
+    default ReadCommand command() { return null; }
+
+    default ConsistencyLevel cl() { return null; }
 }

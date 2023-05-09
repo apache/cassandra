@@ -23,7 +23,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Joiner;
@@ -50,7 +49,7 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.IMessage;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
@@ -58,22 +57,23 @@ import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.service.reads.repair.RepairedDataTracker;
 import org.apache.cassandra.service.reads.repair.RepairedDataVerifier;
 
-import static com.google.common.collect.Iterables.*;
+import static com.google.common.collect.Iterables.any;
+import static com.google.common.collect.Iterables.transform;
 
 public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
 {
     private final boolean enforceStrictLiveness;
-    private final ReadRepair<E, P> readRepair;
+    public final ReadRepair<E, P> readRepair;
     private final boolean trackRepairedStatus;
 
     public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime)
     {
-        this(command, replicaPlan, readRepair, queryStartNanoTime, false);
+        this(command, replicaPlan, readRepair, queryStartNanoTime, false, MessagingServiceFollowupReader.instance);
     }
 
-    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime, boolean trackRepairedStatus)
+    public DataResolver(ReadCommand command, Supplier<? extends P> replicaPlan, ReadRepair<E, P> readRepair, long queryStartNanoTime, boolean trackRepairedStatus, CassandraFollowupReader followupReader)
     {
-        super(command, replicaPlan, queryStartNanoTime);
+        super(command, replicaPlan, queryStartNanoTime, followupReader);
         this.enforceStrictLiveness = command.metadata().enforceStrictLiveness();
         this.readRepair = readRepair;
         this.trackRepairedStatus = trackRepairedStatus;
@@ -81,7 +81,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     public PartitionIterator getData()
     {
-        ReadResponse response = responses.get(0).payload;
+        ReadResponse response = responses.get(0).payload();
         return UnfilteredPartitionIterators.filter(response.makeIterator(command), command.nowInSec());
     }
 
@@ -99,10 +99,10 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     {
         // We could get more responses while this method runs, which is ok (we're happy to ignore any response not here
         // at the beginning of this method), so grab the response count once and use that through the method.
-        Collection<Message<ReadResponse>> messages = responses.snapshot();
-        assert !any(messages, msg -> msg.payload.isDigestResponse());
+        Collection<IMessage<ReadResponse>> messages = responses.snapshot();
+        assert !any(messages, msg -> msg.payload().isDigestResponse());
 
-        E replicas = replicaPlan().readCandidates().select(transform(messages, Message::from), false);
+        E replicas = replicaPlan().readCandidates().select(transform(messages, IMessage::from), false);
 
         // If requested, inspect each response for a digest of the replica's repaired data set
         RepairedDataTracker repairedDataTracker = trackRepairedStatus
@@ -111,11 +111,11 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         if (repairedDataTracker != null)
         {
             messages.forEach(msg -> {
-                if (msg.payload.mayIncludeRepairedDigest() && replicas.byEndpoint().get(msg.from()).isFull())
+                if (msg.payload().mayIncludeRepairedDigest() && replicas.byEndpoint().get(msg.from()).isFull())
                 {
                     repairedDataTracker.recordDigest(msg.from(),
-                                                     msg.payload.repairedDataDigest(),
-                                                     msg.payload.isRepairedDigestConclusive());
+                                                     msg.payload().repairedDataDigest(),
+                                                     msg.payload().isRepairedDigestConclusive());
                 }
             });
         }
@@ -192,7 +192,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     private UnfilteredPartitionIterator shortReadProtectedResponse(int i, ResolveContext context, @Nullable Runnable onShortRead)
     {
-        UnfilteredPartitionIterator originalResponse = responses.get(i).payload.makeIterator(command);
+        UnfilteredPartitionIterator originalResponse = responses.get(i).payload().makeIterator(command);
 
         return context.needShortReadProtection()
                ? ShortReadProtection.extend(context.replicas.get(i),
@@ -201,7 +201,8 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
                                             command,
                                             context.mergedResultCounter,
                                             queryStartNanoTime,
-                                            enforceStrictLiveness)
+                                            enforceStrictLiveness,
+                                            followupReader)
                : originalResponse;
     }
 
@@ -305,7 +306,7 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
     private String makeResponsesDebugString(DecoratedKey partitionKey)
     {
-        return Joiner.on(",\n").join(transform(getMessages().snapshot(), m -> m.from() + " => " + m.payload.toDebugString(command, partitionKey)));
+        return Joiner.on(",\n").join(transform(getMessages().snapshot(), m -> m.from() + " => " + m.payload().toDebugString(command, partitionKey)));
     }
 
     private UnfilteredPartitionIterators.MergeListener wrapMergeListener(UnfilteredPartitionIterators.MergeListener partitionListener,

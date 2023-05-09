@@ -52,8 +52,9 @@ public class NoopReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         resultConsumer.accept(digestResolver.getData());
     }
 
-    public void awaitReads() throws ReadTimeoutException
+    public PartitionIterator awaitReads() throws ReadTimeoutException
     {
+        return null;
     }
 
     @Override

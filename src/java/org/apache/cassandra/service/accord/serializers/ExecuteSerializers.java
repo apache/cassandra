@@ -27,6 +27,7 @@ import accord.messages.WhenReadyToExecute.ExecuteNack;
 import accord.messages.WhenReadyToExecute.ExecuteOk;
 import accord.messages.WhenReadyToExecute.ExecuteReply;
 import accord.messages.WhenReadyToExecute.ExecuteType;
+import accord.primitives.RoutingKeys;
 import accord.primitives.Seekables;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
@@ -34,9 +35,9 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.service.accord.txn.TxnUnresolvedData;
-import org.apache.cassandra.utils.NullableSerializer;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
@@ -117,6 +118,8 @@ public class ExecuteSerializers
             KeySerializers.seekables.serialize(read.scope, out, version);
             out.writeUnsignedVInt(read.waitForEpoch());
             out.writeUnsignedVInt(read.executeAtEpoch - read.waitForEpoch());
+            KeySerializers.nullableRoutingKeys.serialize(read.dataReadKeys, out, version);
+            TxnRead.nullableSerializer.serialize((TxnRead)read.followupRead, out, version);
         }
 
         @Override
@@ -126,7 +129,9 @@ public class ExecuteSerializers
             Seekables<?, ?> readScope = KeySerializers.seekables.deserialize(in, version);
             long waitForEpoch = in.readUnsignedVInt();
             long executeAtEpoch = in.readUnsignedVInt() + waitForEpoch;
-            return ReadData.SerializerSupport.create(txnId, readScope, executeAtEpoch, waitForEpoch);
+            RoutingKeys dataReadKeys = KeySerializers.nullableRoutingKeys.deserialize(in, version);
+            TxnRead followupRead = TxnRead.nullableSerializer.deserialize(in, version);
+            return ReadData.SerializerSupport.create(txnId, readScope, executeAtEpoch, waitForEpoch, dataReadKeys, followupRead);
         }
 
         @Override
@@ -135,7 +140,9 @@ public class ExecuteSerializers
             return CommandSerializers.txnId.serializedSize(read.txnId, version)
                    + KeySerializers.seekables.serializedSize(read.scope, version)
                    + TypeSizes.sizeofUnsignedVInt(read.waitForEpoch())
-                   + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch - read.waitForEpoch());
+                   + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch - read.waitForEpoch())
+                   + KeySerializers.nullableRoutingKeys.serializedSize(read.dataReadKeys, version)
+                   + TxnRead.nullableSerializer.serializedSize((TxnRead)read.followupRead, version);
         }
     }
 
@@ -181,7 +188,7 @@ public class ExecuteSerializers
 
             out.writeByte(0);
             ExecuteOk executeOk = (ExecuteOk) reply;
-            NullableSerializer.serializeNullable((TxnUnresolvedData) executeOk.unresolvedData, out, version, TxnUnresolvedData.serializer);
+            TxnUnresolvedData.nullableSerializer.serialize(executeOk.unresolvedData, out, version);
         }
 
         @Override
@@ -191,7 +198,7 @@ public class ExecuteSerializers
             if (id != 0)
                 return nacks[id - 1];
 
-            return new ExecuteOk(NullableSerializer.deserializeNullable(in, version, TxnUnresolvedData.serializer));
+            return new ExecuteOk(TxnUnresolvedData.nullableSerializer.deserialize(in, version));
         }
 
         @Override
@@ -201,7 +208,7 @@ public class ExecuteSerializers
                 return TypeSizes.BYTE_SIZE;
 
             ExecuteOk executeOk = (ExecuteOk) reply;
-            return TypeSizes.BYTE_SIZE + NullableSerializer.serializedNullableSize((TxnUnresolvedData) executeOk.unresolvedData, version, TxnUnresolvedData.serializer);
+            return TypeSizes.BYTE_SIZE + TxnUnresolvedData.nullableSerializer.serializedSize(executeOk.unresolvedData, version);
         }
     };
 }

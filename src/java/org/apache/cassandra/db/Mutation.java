@@ -200,12 +200,12 @@ public class Mutation implements IMutation, Supplier<Mutation>
      * @throws IllegalArgumentException if not all the mutations are on the same
      * keyspace and key.
      */
-    public static Mutation merge(List<Mutation> mutations)
+    public static Mutation merge(Collection<Mutation> mutations)
     {
         assert !mutations.isEmpty();
 
         if (mutations.size() == 1)
-            return mutations.get(0);
+            return mutations.iterator().next();
 
         Set<TableId> updatedTables = new HashSet<>();
         String ks = null;

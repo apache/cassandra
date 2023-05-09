@@ -18,7 +18,11 @@
 
 package org.apache.cassandra.service.reads.repair;
 
+import java.util.List;
 import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Meter;
 import org.apache.cassandra.db.DecoratedKey;
@@ -29,47 +33,52 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
-import org.apache.cassandra.service.reads.MessagingServiceFollowupReader;
+import org.apache.cassandra.service.reads.CassandraFollowupReader;
 
 /**
- * Only performs the collection of data responses and reconciliation of them, doesn't send repair mutations
- * to replicas. This preserves write atomicity, but doesn't provide monotonic quorum reads
+ * Read repair that collects repair mutations and makes them available, but doesn't apply them
  */
-public class ReadOnlyReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>>
-        extends AbstractReadRepair<E, P>
+public class CollectingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends AbstractReadRepair<E, P>
 {
-    ReadOnlyReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
+    private static final Logger logger = LoggerFactory.getLogger(CollectingReadRepair.class);
+
+    public final List<Mutation> repairs;
+
+    public CollectingReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime, List<Mutation> repairs, CassandraFollowupReader followupReader)
     {
-        super(command, replicaPlan, queryStartNanoTime, MessagingServiceFollowupReader.instance);
+        super(command, replicaPlan, queryStartNanoTime, followupReader);
+        this.repairs = repairs;
     }
 
     @Override
     public UnfilteredPartitionIterators.MergeListener getMergeListener(P replicaPlan)
     {
-        return UnfilteredPartitionIterators.MergeListener.NOOP;
+        return new PartitionIteratorMergeListener<>(replicaPlan, command, this);
     }
 
     @Override
     Meter getRepairMeter()
     {
-        return ReadRepairMetrics.reconcileRead;
+        // TODO for now call this blocking?
+        return ReadRepairMetrics.repairedBlocking;
     }
 
     @Override
     public void maybeSendAdditionalWrites()
     {
-
-    }
-
-    @Override
-    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
-    {
-        throw new UnsupportedOperationException("ReadOnlyReadRepair shouldn't be trying to repair partitions");
+        throw new UnsupportedOperationException("Should never attempt additional writes");
     }
 
     @Override
     public void awaitWrites()
     {
+        throw new UnsupportedOperationException("Should never attempt to wait on writes");
+    }
 
+    @Override
+    public void repairPartition(DecoratedKey partitionKey, Map<Replica, Mutation> mutations, ReplicaPlan.ForWrite writePlan)
+    {
+        // TODO Should the merge iterator produce a single mutation?
+        repairs.addAll(mutations.values());
     }
 }

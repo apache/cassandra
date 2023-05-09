@@ -83,6 +83,9 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     public static class Update extends AbstractSerialized<PartitionUpdate>
     {
         private static final long EMPTY_SIZE = ObjectSizes.measure(new Update(null, 0, (ByteBuffer) null));
+        // This value a provides a non-conflicting index for repair writes to use
+        // And also indicates that the timestamps of the repaired data should not be modified
+        public static final int REPAIR_UPDATE_INDEX = -1;
         public final PartitionKey key;
         public final int index;
 
@@ -135,7 +138,9 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
         public AsyncChain<Void> write(@Nonnull Function<Cell, CellPath> cellToMaybeNewListPath, long timestamp, int nowInSeconds)
         {
-            PartitionUpdate update = new PartitionUpdate.Builder(get(), 0).updateTimesAndPathsForAccord(cellToMaybeNewListPath, timestamp, nowInSeconds).build();
+            PartitionUpdate update = index == REPAIR_UPDATE_INDEX ?
+                                         get() :
+                                         new PartitionUpdate.Builder(get(), 0).updateTimesAndPathsForAccord(cellToMaybeNewListPath, timestamp, nowInSeconds).build();
             Mutation mutation = new Mutation(update);
             return AsyncChains.ofRunnable(Stage.MUTATION.executor(), mutation::apply);
         }
@@ -154,7 +159,6 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
                 PartitionKey.serializer.serialize(write.key, out, version);
                 out.writeInt(write.index);
                 ByteBufferUtil.writeWithVIntLength(write.bytes(), out);
-
             }
 
             @Override

@@ -35,6 +35,7 @@ import accord.coordinate.Timeout;
 import accord.impl.SimpleProgressLog;
 import accord.impl.SizeOfIntersectionSorter;
 import accord.local.Node;
+import accord.local.Node.Id;
 import accord.local.ShardDistributor.EvenSplit;
 import accord.messages.Request;
 import accord.primitives.Seekables;
@@ -397,6 +398,11 @@ public class AccordService implements IAccordService, Shutdownable
     public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         ExecutorUtils.shutdownAndWait(timeout, unit, this);
+    }
+
+    public Id nodeId()
+    {
+        return node.id();
     }
 
     private static Shutdownable toShutdownable(Node node)

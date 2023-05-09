@@ -30,10 +30,10 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.locator.Endpoints;
-import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.IMessage;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -42,21 +42,26 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ResponseResolver<E, P>
 {
-    private volatile Message<ReadResponse> dataResponse;
+    private volatile IMessage<ReadResponse> dataResponse;
 
-    public DigestResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
+    public DigestResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime, CassandraFollowupReader followupReader)
     {
-        super(command, replicaPlan, queryStartNanoTime);
+        super(command, replicaPlan, queryStartNanoTime, followupReader);
         Preconditions.checkArgument(command instanceof SinglePartitionReadCommand,
                                     "DigestResolver can only be used with SinglePartitionReadCommand commands");
     }
 
+    public DigestResolver(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
+    {
+        this(command, replicaPlan, queryStartNanoTime, MessagingServiceFollowupReader.instance);
+    }
+
     @Override
-    public void preprocess(Message<ReadResponse> message)
+    public void preprocess(IMessage<ReadResponse> message)
     {
         super.preprocess(message);
         Replica replica = replicaPlan().lookup(message.from());
-        if (dataResponse == null && !message.payload.isDigestResponse() && replica.isFull())
+        if (dataResponse == null && !message.payload().isDigestResponse() && replica.isFull())
             dataResponse = message;
     }
 
@@ -66,20 +71,20 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         return hasTransientResponse(responses.snapshot());
     }
 
-    private boolean hasTransientResponse(Collection<Message<ReadResponse>> responses)
+    private boolean hasTransientResponse(Collection<IMessage<ReadResponse>> responses)
     {
         return any(responses,
-                msg -> !msg.payload.isDigestResponse()
+                msg -> !msg.payload().isDigestResponse()
                         && replicaPlan().lookup(msg.from()).isTransient());
     }
 
     public PartitionIterator getData()
     {
-        Collection<Message<ReadResponse>> responses = this.responses.snapshot();
+        Collection<IMessage<ReadResponse>> responses = this.responses.snapshot();
 
         if (!hasTransientResponse(responses))
         {
-            return UnfilteredPartitionIterators.filter(dataResponse.payload.makeIterator(command), command.nowInSec());
+            return UnfilteredPartitionIterators.filter(dataResponse.payload().makeIterator(command), command.nowInSec());
         }
         else
         {
@@ -90,7 +95,7 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 
             dataResolver.preprocess(dataResponse);
             // Reconcile with transient replicas
-            for (Message<ReadResponse> response : responses)
+            for (IMessage<ReadResponse> response : responses)
             {
                 Replica replica = replicaPlan().lookup(response.from());
                 if (replica.isTransient())
@@ -107,18 +112,18 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
 
         // validate digests against each other; return false immediately on mismatch.
         ByteBuffer digest = null;
-        Collection<Message<ReadResponse>> snapshot = responses.snapshot();
+        Collection<IMessage<ReadResponse>> snapshot = responses.snapshot();
         assert snapshot.size() > 0 : "Attempted response match comparison while no responses have been received.";
         if (snapshot.size() == 1)
             return true;
 
         // TODO: should also not calculate if only one full node
-        for (Message<ReadResponse> message : snapshot)
+        for (IMessage<ReadResponse> message : snapshot)
         {
             if (replicaPlan().lookup(message.from()).isTransient())
                 continue;
 
-            ByteBuffer newDigest = message.payload.digest(command);
+            ByteBuffer newDigest = message.payload().digest(command);
             if (digest == null)
                 digest = newDigest;
             else if (!digest.equals(newDigest))
@@ -142,10 +147,10 @@ public class DigestResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRea
         DigestResolverDebugResult[] ret = new DigestResolverDebugResult[responses.size()];
         for (int i = 0; i < responses.size(); i++)
         {
-            Message<ReadResponse> message = responses.get(i);
-            ReadResponse response = message.payload;
+            IMessage<ReadResponse> message = responses.get(i);
+            ReadResponse response = message.payload();
             String digestHex = ByteBufferUtil.bytesToHex(response.digest(command));
-            ret[i] = new DigestResolverDebugResult(message.from(), digestHex, message.payload.isDigestResponse());
+            ret[i] = new DigestResolverDebugResult(message.from(), digestHex, message.payload().isDigestResponse());
         }
         return ret;
     }

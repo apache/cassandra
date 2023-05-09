@@ -47,6 +47,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
+import org.apache.cassandra.service.reads.MessagingServiceFollowupReader;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tracing.Tracing;
@@ -198,7 +199,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         ReadRepair<EndpointsForRange, ReplicaPlan.ForRangeRead> readRepair =
                 ReadRepair.create(command, sharedReplicaPlan, queryStartNanoTime);
         DataResolver<EndpointsForRange, ReplicaPlan.ForRangeRead> resolver =
-                new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, queryStartNanoTime, trackRepairedStatus);
+                new DataResolver<>(rangeCommand, sharedReplicaPlan, readRepair, queryStartNanoTime, trackRepairedStatus, MessagingServiceFollowupReader.instance);
         ReadCallback<EndpointsForRange, ReplicaPlan.ForRangeRead> handler =
                 new ReadCallback<>(resolver, rangeCommand, sharedReplicaPlan, queryStartNanoTime);
 

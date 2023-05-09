@@ -22,12 +22,12 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import org.apache.cassandra.db.DecoratedKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Meter;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
@@ -36,6 +36,7 @@ import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
+import org.apache.cassandra.service.reads.MessagingServiceFollowupReader;
 import org.apache.cassandra.tracing.Tracing;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -55,9 +56,10 @@ public class BlockingReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
 
     BlockingReadRepair(ReadCommand command, ReplicaPlan.Shared<E, P> replicaPlan, long queryStartNanoTime)
     {
-        super(command, replicaPlan, queryStartNanoTime);
+        super(command, replicaPlan, queryStartNanoTime, MessagingServiceFollowupReader.instance);
     }
 
+    @Override
     public UnfilteredPartitionIterators.MergeListener getMergeListener(P replicaPlan)
     {
         return new PartitionIteratorMergeListener<>(replicaPlan, command, this);

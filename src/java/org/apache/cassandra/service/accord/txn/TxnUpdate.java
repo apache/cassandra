@@ -26,11 +26,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-
-import com.google.common.collect.ImmutableList;
+import javax.annotation.Nonnull;
 
 import accord.api.Data;
 import accord.api.Key;
+import accord.api.RepairWrites;
 import accord.api.Update;
 import accord.api.Write;
 import accord.primitives.Keys;
@@ -45,6 +45,7 @@ import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.AccordSerializers;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -173,36 +174,30 @@ public class TxnUpdate implements Update
     }
 
     @Override
-    public Write apply(Data data, Write repairWrite)
+    public Write apply(Data data, @Nonnull RepairWrites repairWrites)
     {
-        if (!checkCondition(data))
+        TxnRepairWrites txnRepairWrites = (TxnRepairWrites)repairWrites;
+        boolean conditionResult = checkCondition(data);
+        if (!conditionResult && txnRepairWrites.isEmpty())
             return TxnWrite.EMPTY;
 
         List<TxnWrite.Fragment> fragments = deserialize(this.fragments, TxnWrite.Fragment.serializer);
-        List<TxnWrite.Update> updates = new ArrayList<>(fragments.size());
+        List<TxnWrite.Update> updates = new ArrayList<>(fragments.size() + txnRepairWrites.size());
         QueryOptions options = QueryOptions.forProtocolVersion(ProtocolVersion.CURRENT);
         AccordUpdateParameters parameters = new AccordUpdateParameters((TxnData) data, options);
 
-        for (TxnWrite.Fragment fragment : fragments)
-            updates.add(fragment.complete(parameters));
-
-        if (repairWrite == null)
-            return new TxnWrite(updates);
-
-        // Merge in any read repairs that intersect on key
-        for (TxnWrite.Update repairUpdate : ((TxnWrite)repairWrite))
+        if (conditionResult)
         {
-            for (int i = 0; i < updates.size(); i++)
-            {
-                TxnWrite.Update writeUpdate = updates.get(i);
-                if (writeUpdate.key.equals(repairUpdate.key))
-                {
-                    PartitionUpdate writePartitionUpdate = writeUpdate.get();
-                    PartitionUpdate repairPartitionUpdate = repairUpdate.get();
-                    PartitionUpdate mergedUpdate = PartitionUpdate.merge(ImmutableList.of(writePartitionUpdate, repairPartitionUpdate));
-                    updates.set(i, new TxnWrite.Update(writeUpdate.key, writeUpdate.index, mergedUpdate));
-                }
-            }
+            // First completes all fragments and join them with the repairs pending for those partitions
+            for (TxnWrite.Fragment fragment : fragments)
+                updates.add(fragment.complete(parameters));
+        }
+
+        // Then add in the repair writes
+        for (PartitionUpdate repairWrite : txnRepairWrites)
+        {
+            // TODO I still don't think index matters even when adding it to the list with the other fragments
+            updates.add(new TxnWrite.Update(PartitionKey.of(repairWrite), TxnWrite.Update.REPAIR_UPDATE_INDEX, repairWrite));
         }
 
         return new TxnWrite(updates);
@@ -322,5 +317,14 @@ public class TxnUpdate implements Update
         TxnCondition condition = AccordSerializers.deserialize(this.condition, TxnCondition.serializer);
         conditionResult = condition.applies((TxnData) data);
         return conditionResult;
+    }
+
+    public static Write txnRepairWritesToWrite(TxnRepairWrites txnRepairWrites)
+    {
+        List<TxnWrite.Update> repairUpdates = new ArrayList<>();
+        for (PartitionUpdate update : txnRepairWrites)
+            // TODO I don't think index matters here
+            repairUpdates.add(new TxnWrite.Update(PartitionKey.of(update), TxnWrite.Update.REPAIR_UPDATE_INDEX, update));
+        return new TxnWrite(repairUpdates);
     }
 }

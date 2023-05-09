@@ -23,8 +23,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.NavigableSet;
-import java.util.concurrent.TimeUnit;
 import java.util.Queue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import org.slf4j.Logger;
@@ -162,7 +162,7 @@ public class ReplicaFilteringProtection<E extends Endpoints<E>>
         // We don't call handler.get() because we want to preserve tombstones since we're still in the middle of merging node results.
         handler.awaitResults();
         assert resolver.getMessages().size() == 1;
-        return resolver.getMessages().get(0).payload.makeIterator(command);
+        return resolver.getMessages().get(0).payload().makeIterator(command);
     }
 
     /**

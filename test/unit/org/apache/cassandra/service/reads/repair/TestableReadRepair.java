@@ -87,9 +87,9 @@ public class TestableReadRepair<E extends Endpoints<E>, P extends ReplicaPlan.Fo
     }
 
     @Override
-    public void awaitReads() throws ReadTimeoutException
+    public PartitionIterator awaitReads() throws ReadTimeoutException
     {
-
+        return null;
     }
 
     @Override
